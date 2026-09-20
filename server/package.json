@@ -1,0 +1,6 @@
+{
+  "name": "@gangway/server",
+  "private": true,
+  "type": "module",
+  "imports": { "#*": "./src/*" }
+}
