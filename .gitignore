@@ -6,3 +6,4 @@ dist/
 .env.local
 state/
 spike/node_modules/
+state/
