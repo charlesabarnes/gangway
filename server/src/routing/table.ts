@@ -1,0 +1,183 @@
+/**
+ * The in-memory route table: a cache over SQLite, which remains the source of truth (§4).
+ *
+ * ONE RULE makes the cache safe: every mutation goes through apply(), which writes SQLite
+ * first and memory second, inside the same SYNCHRONOUS function. No other code writes the
+ * routes table.
+ *
+ * bun:sqlite being synchronous is what makes that atomic with respect to the event loop --
+ * there is no await between the two writes, so no in-flight request can ever observe a
+ * half-applied state. A promise-based driver would need a lock here.
+ */
+import type { PreviewState, Route, Visibility } from "../../../shared/src/domain.ts";
+import type { RoutesRepo } from "../db/repos/routes.ts";
+
+/**
+ * Denormalized so a proxied request touches zero SQLite: the hot path is one Map lookup.
+ * Mutable counters live here too, so limit enforcement is a field increment.
+ */
+export type RouteEntry = {
+  readonly hostname: string;
+  readonly previewId: string;
+  readonly project: string;
+  readonly service: string;
+  readonly containerPort: number;
+  readonly upstreamHost: string;
+  upstreamPort: number;
+  readonly primary: boolean;
+  visibility: Visibility;
+  state: PreviewState;
+  /** Mutable per-request counters -- see net/limits.ts. */
+  inflight: number;
+  bytesInFlight: number;
+  lastSeenAt: number;
+};
+
+export type RouteSeed = {
+  route: Route;
+  project: string;
+  visibility: Visibility;
+  state: PreviewState;
+};
+
+function toEntry(s: RouteSeed): RouteEntry {
+  return {
+    hostname: s.route.hostname,
+    previewId: s.route.previewId,
+    project: s.project,
+    service: s.route.service,
+    containerPort: s.route.containerPort,
+    upstreamHost: s.route.upstream.host,
+    upstreamPort: s.route.upstream.port,
+    primary: s.route.primary,
+    visibility: s.visibility,
+    state: s.state,
+    inflight: 0,
+    bytesInFlight: 0,
+    lastSeenAt: 0,
+  };
+}
+
+export class RouteTable {
+  readonly #byHostname = new Map<string, RouteEntry>();
+  readonly #byPreview = new Map<string, Set<string>>();
+  readonly #repo: RoutesRepo;
+
+  constructor(repo: RoutesRepo) {
+    this.#repo = repo;
+  }
+
+  /** Hot path. Exact match on an already-normalized hostname: no regex, no wildcards. */
+  lookup(hostname: string): RouteEntry | undefined {
+    return this.#byHostname.get(hostname);
+  }
+
+  get size(): number {
+    return this.#byHostname.size;
+  }
+
+  hostnames(): string[] {
+    return [...this.#byHostname.keys()];
+  }
+
+  forPreview(previewId: string): RouteEntry[] {
+    const names = this.#byPreview.get(previewId);
+    if (!names) return [];
+    return [...names].map((n) => this.#byHostname.get(n)).filter((e): e is RouteEntry => e !== undefined);
+  }
+
+  /** Boot load (§11 step 1). Replaces memory wholesale; does not write the database. */
+  hydrate(seeds: RouteSeed[]): void {
+    this.#byHostname.clear();
+    this.#byPreview.clear();
+    for (const s of seeds) this.#index(toEntry(s));
+  }
+
+  #index(e: RouteEntry): void {
+    this.#byHostname.set(e.hostname, e);
+    let set = this.#byPreview.get(e.previewId);
+    if (!set) {
+      set = new Set();
+      this.#byPreview.set(e.previewId, set);
+    }
+    set.add(e.hostname);
+  }
+
+  /**
+   * Database first, memory second. If the insert throws -- a hostname collision, a
+   * duplicate port -- memory is left untouched and the caller sees the error.
+   */
+  apply(seed: RouteSeed): RouteEntry {
+    this.#repo.create({
+      hostname: seed.route.hostname,
+      previewId: seed.route.previewId,
+      service: seed.route.service,
+      containerPort: seed.route.containerPort,
+      upstream: seed.route.upstream,
+      primary: seed.route.primary,
+    });
+    const entry = toEntry(seed);
+    this.#index(entry);
+    return entry;
+  }
+
+  /** Adopts a route rebuilt from container labels (§11) without re-writing the database. */
+  adopt(seed: RouteSeed): RouteEntry {
+    const entry = toEntry(seed);
+    this.#index(entry);
+    return entry;
+  }
+
+  updateUpstreamPort(hostname: string, port: number): void {
+    const e = this.#byHostname.get(hostname);
+    if (!e) return;
+    this.#repo.updateUpstream(hostname, { host: e.upstreamHost, port });
+    e.upstreamPort = port;
+  }
+
+  /**
+   * State lives on every entry so the proxy's state machine needs no database read.
+   * Touches the preview's routes only -- previews with sixty routes are the exception.
+   */
+  setState(previewId: string, state: PreviewState): void {
+    for (const e of this.forPreview(previewId)) e.state = state;
+  }
+
+  setVisibility(previewId: string, visibility: Visibility): void {
+    for (const e of this.forPreview(previewId)) e.visibility = visibility;
+  }
+
+  /** Called on every proxied request. Memory only -- the database write is batched. */
+  touch(hostname: string, at: number): void {
+    const e = this.#byHostname.get(hostname);
+    if (e) e.lastSeenAt = at;
+  }
+
+  removePreview(previewId: string): number {
+    const names = this.#byPreview.get(previewId);
+    if (!names) return 0;
+    this.#repo.deleteForPreview(previewId);
+    for (const n of names) this.#byHostname.delete(n);
+    this.#byPreview.delete(previewId);
+    return names.size;
+  }
+
+  /** Removes one route from memory only -- used when stopping an adopted orphan. */
+  evict(hostname: string): void {
+    const e = this.#byHostname.get(hostname);
+    if (!e) return;
+    this.#byHostname.delete(hostname);
+    const set = this.#byPreview.get(e.previewId);
+    set?.delete(hostname);
+    if (set && set.size === 0) this.#byPreview.delete(e.previewId);
+  }
+
+  /** Ports in use on a host, for the allocator. Reads memory, not the database. */
+  usedPorts(upstreamHost: string): Set<number> {
+    const out = new Set<number>();
+    for (const e of this.#byHostname.values()) {
+      if (e.upstreamHost === upstreamHost) out.add(e.upstreamPort);
+    }
+    return out;
+  }
+}
