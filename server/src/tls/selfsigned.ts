@@ -79,10 +79,17 @@ export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<
     ],
   });
 
+  // Normalise: @peculiar/x509's PEM has no trailing newline, so a naive concat yields
+  // "-----END CERTIFICATE----------BEGIN CERTIFICATE-----" and OpenSSL rejects the chain
+  // with BAD_END_LINE.
+  const chain = [cert.toString("pem"), ca.certPem]
+    .map((p) => p.trimEnd() + "\n")
+    .join("");
+
   return {
     serverName: sans[0]!,
     // The leaf must carry the CA after it, or clients get UNABLE_TO_VERIFY_LEAF_SIGNATURE.
-    cert: cert.toString("pem") + ca.certPem,
+    cert: chain,
     key: await exportKey(keys.privateKey),
     ca: ca.certPem,
     notBefore: cert.notBefore,
