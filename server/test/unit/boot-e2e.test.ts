@@ -37,6 +37,7 @@ async function start(stateDir: string, upstreamPort: number, seed?: ContainerSum
           const slow = new URL(req.url).searchParams.get("slow");
           if (slow) await Bun.sleep(Number(slow));
           if (new URL(req.url).pathname === "/xff") return Response.json({ xff: req.headers.get("x-forwarded-for") });
+          if (new URL(req.url).pathname === "/cookie") return Response.json({ cookie: req.headers.get("cookie"), path: new URL(req.url).pathname + new URL(req.url).search });
           return Response.json({ iAm: "the container", host: req.headers.get("host"), proto: req.headers.get("x-forwarded-proto"), publicUrl: web.environment.PUBLIC_URL });
         },
       }));
@@ -268,3 +269,74 @@ test("behind a reverse proxy: a preview sees the VISITOR in X-Forwarded-For only
   expect(await deployAndAsk({})).toBe("127.0.0.1");                                        // facing the internet: believe no one
   expect(await deployAndAsk({ GANGWAY_TRUSTED_PROXIES: "127.0.0.1" })).toBe("198.51.100.7"); // behind NPM: the hop NPM vouched for
 });
+
+test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and a container that sees neither", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const running = await start(dir, await freePort());
+  const port = running.listener.port;
+  const raw = (host: string, path: string, init: RequestInit = {}) =>
+    fetch(`https://127.0.0.1:${port}${path}`, { ...init, headers: { host: `${host}:${port}`, ...(init.headers as Record<string, string> | undefined) }, tls: { rejectUnauthorized: false }, redirect: "manual" } as RequestInit);
+  const APP = "app.preview.localhost", SECRET = "secret.preview.localhost";
+
+  // An admin, made the way production makes one; and a private preview.
+  const setup = await raw(APP, "/v1/auth/setup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: new URL(running.setupUrl!).searchParams.get("token"), email: "ada@example.com", password: "correct horse battery staple" }) });
+  expect(setup.status).toBe(201);
+  const session = setup.headers.get("set-cookie")!.split(";")[0]!;
+  const deployed = await client(running)("api.preview.localhost", "/v1/previews?wait=true", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "secret", visibility: "private", source: { kind: "image", image: "traefik/whoami:v1.10", port: 80 } }) });
+  expect(deployed.status).toBe(201);
+
+  // 1. A stranger gets a redirect to app, and the container hears nothing.
+  const bounced = await raw(SECRET, "/cookie?x=1");
+  expect(bounced.status).toBe(302);
+  const toGate = new URL(bounced.headers.get("location")!);
+  expect(`${toGate.host}${toGate.pathname}`).toBe(`${APP}:${port}/v1/auth/gate`);
+  expect(toGate.searchParams.get("to")).toBe("/cookie?x=1");
+  expect((await raw(SECRET, "/cookie", { headers: { "sec-fetch-mode": "cors" } })).status).toBe(401);
+
+  // 2. app, not logged in: go and log in, and come back HERE.
+  const anonymous = await raw(APP, `${toGate.pathname}${toGate.search}`);
+  expect(anonymous.status).toBe(302);
+  expect(anonymous.headers.get("location")).toStartWith("/login?returnUrl=%2Fv1%2Fauth%2Fgate");
+
+  // ...the gate is not an open redirect: only a LIVE, PRIVATE preview will do.
+  for (const host of ["evil.example", "api.preview.localhost", "nope.preview.localhost", ""]) {
+    expect((await raw(APP, `/v1/auth/gate?host=${host}&to=/`, { headers: { cookie: session } })).status).toBe(404);
+  }
+
+  // 3. app, logged in: a ticket, in a URL on the preview's own host.
+  const ticketed = await raw(APP, `${toGate.pathname}${toGate.search}`, { headers: { cookie: session } });
+  expect(ticketed.status).toBe(302);
+  const toPreview = new URL(ticketed.headers.get("location")!);
+  expect(`${toPreview.host}${toPreview.pathname}`).toBe(`${SECRET}:${port}/__gangway/auth`);
+  expect(ticketed.headers.get("referrer-policy")).toBe("no-referrer");
+
+  // 4. The preview host trades the ticket for ITS OWN cookie, once.
+  const redeemed = await raw(SECRET, `${toPreview.pathname}${toPreview.search}`);
+  expect(redeemed.status).toBe(302);
+  expect(redeemed.headers.get("location")).toBe("/cookie?x=1");
+  const gateCookie = redeemed.headers.get("set-cookie")!.split(";")[0]!;
+  expect(gateCookie).toStartWith("__Host-gw_pv=");
+  expect((await raw(SECRET, `${toPreview.pathname}${toPreview.search}`)).status).toBe(403);
+
+  // 5. In -- and the container sees the visitor's own cookies, and NOT gangway's.
+  const inside = await raw(SECRET, "/cookie?x=1", { headers: { cookie: `theme=dark; ${gateCookie}` } });
+  expect(inside.status).toBe(200);
+  expect(await inside.json()).toEqual({ cookie: "theme=dark", path: "/cookie?x=1" });
+
+  // The app SESSION cookie is not a key to the preview, and the preview's is not a session.
+  expect((await raw(SECRET, "/cookie", { headers: { cookie: session } })).status).toBe(302);
+  expect((await raw(APP, "/v1/previews", { headers: { cookie: gateCookie } })).status).toBe(401);
+
+  // /__gangway/* never reaches a container, private or not.
+  expect((await raw(SECRET, "/__gangway/whatever", { headers: { cookie: gateCookie } })).status).toBe(404);
+
+  // A role WITHOUT previews.view_private is refused at the gate, by name.
+  const roles = await raw(APP, "/v1/roles/viewer/permissions", { method: "PUT", headers: { cookie: session, origin: `https://${APP}:${port}`, "content-type": "application/json" }, body: JSON.stringify({ permissions: ["previews.read"] }) });
+  expect(roles.status).toBe(200);
+  await raw(APP, "/v1/users", { method: "POST", headers: { cookie: session, origin: `https://${APP}:${port}`, "content-type": "application/json" }, body: JSON.stringify({ email: "vic@example.com", password: "correct horse battery staple", roleId: "viewer" }) });
+  const vic = (await raw(APP, "/v1/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "vic@example.com", password: "correct horse battery staple" }) })).headers.get("set-cookie")!.split(";")[0]!;
+  const refused = await raw(APP, `${toGate.pathname}${toGate.search}`, { headers: { cookie: vic } });
+  expect(refused.status).toBe(403);
+  expect(((await refused.json()) as { detail: string }).detail).toContain("previews.view_private");
+}, 30_000);

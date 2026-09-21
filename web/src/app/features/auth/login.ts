@@ -1,6 +1,6 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { safeReturnUrl } from '../../core/auth.guard';
+import { HARD_NAVIGATE, isServerReturn, safeReturnUrl } from '../../core/auth.guard';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
@@ -43,6 +43,7 @@ export class Login {
   protected readonly auth = inject(AuthService);
   readonly #router = inject(Router);
   readonly #route = inject(ActivatedRoute);
+  readonly #hardNavigate = inject(HARD_NAVIGATE);
 
   protected readonly field = FIELD;
   protected readonly label = LABEL;
@@ -74,7 +75,9 @@ export class Login {
     this.error.set(null);
     try {
       await this.auth.login(this.email().trim(), this.password());
-      await this.#router.navigateByUrl(safeReturnUrl(this.#route.snapshot.queryParamMap.get('returnUrl')));
+      const to = safeReturnUrl(this.#route.snapshot.queryParamMap.get('returnUrl'));
+      // Sent here by a private preview: go back through the server's gate, not the SPA router.
+      if (isServerReturn(to)) this.#hardNavigate(to); else await this.#router.navigateByUrl(to);
     } catch (err) {
       const p = toProblem(err);
       this.password.set('');

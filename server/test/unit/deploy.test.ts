@@ -199,9 +199,19 @@ describe("deploy: planning failures leave nothing behind and are the caller's 4x
     const s = setup();
     await expect(deploy(s.ctx, s.input({ name: "api" }))).rejects.toMatchObject({ status: 422 });
     await expect(deploy(s.ctx, s.input({ ttl: "soon" }))).rejects.toMatchObject({ status: 422 });
-    await expect(deploy(s.ctx, s.input({ visibility: "private" }))).rejects.toMatchObject({ status: 422 });
+    // Private is opened by logging in to the UI; with the UI off, say so now rather than hand out a dead link.
+    s.ctx.privateAvailable = () => false;
+    await expect(deploy(s.ctx, s.input({ visibility: "private" }))).rejects.toMatchObject({ status: 422, message: expect.stringContaining("switched off") });
+    s.ctx.privateAvailable = () => true;
     await expect(deploy(s.ctx, s.input({ hostId: "elsewhere" }))).rejects.toMatchObject({ status: 422 });
     nothingLeft(s);
+  });
+
+  test("a private preview deploys like any other, and its route carries the visibility the gate reads", async () => {
+    const s = setup();
+    const res = await deploy(s.ctx, s.input({ name: "secret", visibility: "private" }));
+    expect((await res.done).visibility).toBe("private");
+    expect(s.ctx.table.lookup("secret.preview.localhost")).toMatchObject({ visibility: "private", previewId: res.preview.id });
   });
 
   test("a live name is a 409; a destroyed one is reusable", async () => {

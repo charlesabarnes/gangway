@@ -54,6 +54,8 @@ export type PreviewContext = {
   docker?: string | undefined;
   /** Build history. Optional so a context without it (older tests) still deploys. */
   builds?: BuildsRepo | undefined;
+  /** False when `private` previews could not be opened: the UI (and its login page) is off. */
+  privateAvailable?: (() => boolean) | undefined;
   /** §10.5.2. Optional for the same reason; boot always supplies it. */
   audit?: AuditSink | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */

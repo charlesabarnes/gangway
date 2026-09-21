@@ -18,8 +18,20 @@ import { badRequest, forbidden, notFound, unauthorized } from "../../errors.ts";
 import type { AppEnv } from "../env.ts";
 import { clearSessionCookie, isSameOrigin, resolveActor, setSessionCookie, type AuthDeps } from "../middleware/auth.ts";
 
+/** What `/v1/auth/gate` needs from the proxy side, without importing it. */
+export type GateDeps = {
+  /** The live route for a preview hostname, if there is one. */
+  lookup(host: string): { hostname: string; previewId: string; visibility: string } | undefined;
+  issueTicket(entry: { hostname: string; previewId: string }): string;
+  /** `https://<preview host>[:port]` */
+  originFor(host: string): string;
+  safePath(raw: string | null | undefined): string;
+};
+
 export type AuthRouteDeps = {
   auth: AuthDeps;
+  /** Absent: private previews cannot be opened (and deploy says so). */
+  gate?: GateDeps | undefined;
   accounts: Accounts;
   bootstrap: Bootstrap;
   roles: RolePermissions;
@@ -87,6 +99,38 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
     c.header("cache-control", "no-store");
     return c.json({ user: wireUser(user), permissions: [...d.roles.for(user.roleId)].sort() }, 201);
+  });
+
+  /**
+   * §8.3, step 2 of the private-preview handshake (net/gate.ts has the whole picture). A
+   * preview host sent the browser here because it had no gate cookie. This is the only
+   * place the SESSION is consulted: the preview never sees it.
+   *
+   * A GET that redirects, so it must not be steerable. `host` has to be a LIVE, PRIVATE
+   * preview -- not any hostname, which would make this an open redirect with a gangway
+   * URL on the front -- and `to` is reduced to a same-origin path.
+   */
+  pub.get("/auth/gate", async (c) => {
+    appOnly(c);
+    const gate = d.gate;
+    const entry = gate?.lookup((c.req.query("host") ?? "").toLowerCase());
+    if (!gate || !entry || entry.visibility !== "private") throw notFound("no such private preview");
+    const to = gate.safePath(c.req.query("to"));
+    c.header("cache-control", "no-store");
+
+    const actor = await resolveActor(c, d.auth).catch(() => null);
+    if (!actor) {
+      // Come back HERE after login, with the same two parameters and nothing else.
+      const back = `/v1/auth/gate?host=${encodeURIComponent(entry.hostname)}&to=${encodeURIComponent(to)}`;
+      return c.redirect(`/login?returnUrl=${encodeURIComponent(back)}`, 302);
+    }
+    if (!actor.permissions.has("previews.view_private")) throw forbidden('requires the "previews.view_private" permission');
+
+    const target = new URL("/__gangway/auth", gate.originFor(entry.hostname));
+    target.searchParams.set("ticket", gate.issueTicket(entry));
+    target.searchParams.set("to", to);
+    c.header("referrer-policy", "no-referrer");
+    return c.redirect(target.toString(), 302);
   });
 
   const required = async (c: Context<AppEnv>): Promise<Actor> => {

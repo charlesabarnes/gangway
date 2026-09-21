@@ -8,6 +8,7 @@
 import type { Server } from "bun";
 import type { CertStore } from "../tls/certstore.ts";
 import { dispatch, type DispatchDeps } from "./dispatch.ts";
+import { stripGangwayCookies } from "./gate.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
 import { labelUnder, normalizeHost, RESERVED_LABELS } from "../../../shared/src/hostname.ts";
 import { wsRelay, type WsData } from "./wsrelay.ts";
@@ -69,7 +70,8 @@ export function startListener(o: ListenerOptions): RunningListener {
                 entry,
                 path: url.pathname + url.search,
                 protocol,
-                cookie: req.headers.get("cookie") ?? undefined,
+                // The same stripping the HTTP leg does: the gate cookie stops here.
+                cookie: stripGangwayCookies(req.headers.get("cookie")) ?? undefined,
               };
               // Echo the negotiated subprotocol or the client may abort the handshake.
               const ok = protocol

@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { render, type Rendered } from '../../../testing/render';
+import { HARD_NAVIGATE } from '../../core/auth.guard';
 import { Login } from './login';
 import { Setup } from './setup';
 
@@ -33,6 +34,18 @@ describe('Login', () => {
     req.flush({ user: USER, permissions: ['previews.read'] });
     await r.settle(); await r.settle();
     expect(TestBed.inject(Router).url).toBe('/previews/01ABC');
+  });
+
+  it('sent here by a PRIVATE PREVIEW: after login it goes back through the server\'s gate with a real navigation, not the SPA router', async () => {
+    const went: string[] = [];
+    const gate = '/v1/auth/gate?host=shop.preview.example.dev&to=%2Forders%2F42';
+    const r = await render(Login, { routes: ROUTES, providers: [routeWith({ returnUrl: gate }), { provide: HARD_NAVIGATE, useValue: (u: string) => went.push(u) }] });
+    type(r, 'email', 'ada@example.com'); type(r, 'password', 'a long enough passphrase');
+    await submit(r);
+    r.http.expectOne('/v1/auth/login').flush({ user: USER, permissions: ['previews.view_private'] });
+    await r.until(() => went.length > 0, 'the hard navigation');
+    expect(went).toEqual([gate]);
+    expect(TestBed.inject(Router).url).toBe('/'); // the router was not asked
   });
 
   it('never follows a returnUrl off this origin', async () => {

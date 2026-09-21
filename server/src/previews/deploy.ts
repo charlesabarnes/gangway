@@ -172,7 +172,11 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 
     const defaults = ctx.defaults();
     visibility = input.visibility ?? model.x.visibility ?? defaults.visibility;
-    if (visibility === "private") throw unprocessable("private previews need accounts, which arrive in Phase 2");
+    // A private preview is opened by logging in to the UI (net/gate.ts). With the UI switched
+    // off there is no login page to send anyone to: say so now, not with a dead link later.
+    if (visibility === "private" && ctx.privateAvailable?.() === false) {
+      throw unprocessable("private previews need the web UI, which is switched off (surfaces.ui); use unlisted instead");
+    }
 
     const ttlText = input.ttl === undefined ? (model.x.ttl ?? defaults.ttl) : input.ttl;
     const ttlMs = ttlText === null ? null : parseDuration(ttlText);

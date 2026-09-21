@@ -43,6 +43,7 @@ import { Scheduler } from "./scheduler/scheduler.ts";
 import { Logger } from "./logger.ts";
 import type { DispatchDeps, Surface } from "./net/dispatch.ts";
 import { DEFAULT_LIMITS } from "./net/limits.ts";
+import { PreviewGate, loadOrCreateGateKey, safePath } from "./net/gate.ts";
 import { clientIpOf, startListener, type RunningListener } from "./net/listener.ts";
 import { clientIpResolver } from "./net/trustedproxy.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
@@ -159,6 +160,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     now: Date.now,
     inflight: new Map(), teardowns: new Set(),
     builds, audit,
+    privateAvailable: () => settings.get(SETTINGS.surfacesUi),
   };
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
@@ -186,6 +188,12 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const shutdown = new AbortController();
   const draining = () => shutdown.signal.aborted;
 
+  /* ---- §8.3 private previews. The session never leaves `app`; a preview gets its own cookie. */
+  const gate = new PreviewGate({
+    key: loadOrCreateGateKey(settingsStore),
+    appOrigin: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin),
+  });
+
   /* ---- application surfaces */
   const auth = {
     // Database tokens first: they are the common case. The env token stays, always (§8.1).
@@ -211,7 +219,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       userRoutes(api, accounts);
       roleRoutes(api, roles);
     },
-    publicV1: (pub) => authRoutes(pub, { auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000) }),
+    publicV1: (pub) => authRoutes(pub, {
+      auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000),
+      gate: { lookup: (host) => table.lookup(host), issueTicket: (e) => gate.issueTicket(e), originFor: (host) => publicOriginFor(host, ctx.origin), safePath },
+    }),
   });
 
   /* ---- TLS */
@@ -262,6 +273,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   const deps: DispatchDeps = {
     baseDomain, table, limits: DEFAULT_LIMITS, surfaceEnabled,
+    visibilityGate: gate.check,
     // Each host is dialed its own way: one directly, another through a SOCKS tunnel.
     upstream: new PerHostUpstream((hostId) => {
       const host = hosts.get(hostId);

@@ -33,7 +33,9 @@ a{color:inherit}
 <body><main>${o.body}</main></body></html>`;
   return new Response(html, {
     status: o.status,
-    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+    // gangway's own pages are served on preview hostnames, unlisted ones included (§8.3):
+    // "building", "failed" and "not found" are not things to index under somebody's URL.
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" },
   });
 }
 

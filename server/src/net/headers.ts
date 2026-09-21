@@ -1,6 +1,8 @@
 /**
  * Header handling for the proxy leg. Every rule here is a bug report if missed (§6.4).
  */
+import { stripGangwayCookies } from "./gate.ts";
+
 export const HOP_BY_HOP = new Set([
   "connection", "keep-alive", "transfer-encoding", "te", "trailer",
   "upgrade", "proxy-authenticate", "proxy-authorization",
@@ -33,6 +35,11 @@ export function buildUpstreamHeaders(req: Request, ctx: ForwardContext): Headers
   const h = new Headers(req.headers);
   stripHopByHop(h);
   for (const k of FORWARDED) h.delete(k);
+
+  // gangway's own cookies are not the preview's to read: the gate cookie is what lets a
+  // visitor into a PRIVATE preview, and the preview's code must not be able to lift it.
+  const cookie = stripGangwayCookies(h.get("cookie"));
+  if (cookie === null) h.delete("cookie"); else h.set("cookie", cookie);
 
   h.set("host", ctx.clientHost);
   h.set("x-forwarded-for", ctx.clientIp);
