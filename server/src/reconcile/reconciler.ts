@@ -94,7 +94,6 @@ export function toScanned(c: ContainerSummary, host: Pick<Host, "id" | "upstream
 export class Reconciler {
   readonly #d: ReconcilerDeps;
   readonly #flight = new SingleFlight<ReconcileReport>();
-  #timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(deps: ReconcilerDeps) {
     this.#d = deps;
@@ -103,24 +102,6 @@ export class Reconciler {
   /** Concurrent callers share one pass: two passes interleaving their applies is the bug. */
   run(): Promise<ReconcileReport> {
     return this.#flight.run("reconcile", () => this.#pass());
-  }
-
-  /**
-   * Periodic passes double as the reconnect detector (§11: "also runs when a host
-   * reconnects"): each one re-probes every host, so a tunnel that comes back is noticed
-   * and reconciled within one interval. T26's scheduler can take this over unchanged.
-   */
-  start(intervalMs: number): void {
-    if (this.#timer || intervalMs <= 0) return;
-    this.#timer = setInterval(() => {
-      this.run().catch((e) => this.#d.logger.error("reconcile pass failed", { err: e }));
-    }, intervalMs);
-    this.#timer.unref?.();
-  }
-
-  stop(): void {
-    if (this.#timer) clearInterval(this.#timer);
-    this.#timer = null;
   }
 
   /* ---------------------------------------------------------------- scan */
@@ -188,7 +169,12 @@ export class Reconciler {
       if (a.kind === "LeaveAlone" && a.warn) logger.warn("reconcile anomaly", { reason: a.reason, hostname: a.hostname, containerId: a.containerId });
     }
 
-    changes.push(...await this.#rescueInterrupted(actions, reachable, hostsById));
+    const covered = new Set<string>();
+    for (const a of actions) {
+      if (a.kind === "UpdateUpstream" || (a.kind === "LeaveAlone" && a.reason === "in-sync" && a.hostname)) covered.add(a.hostname!);
+    }
+    changes.push(...await this.#rescueInterrupted(covered, reachable, hostsById));
+    changes.push(...await this.#wakeReturned(covered, reachable, hostsById));
 
     if (changes.length > 0) {
       logger.info("reconciled", { changes });
@@ -297,7 +283,7 @@ export class Reconciler {
         hostname: a.hostname, previewId: a.previewId, service: a.service, containerPort: a.containerPort,
         upstream: a.upstream, primary: a.primary, createdAt: new Date(raw[LABEL.createdAt] ?? ctx.now()),
       },
-      project: preview.project, visibility: preview.visibility, state: preview.state,
+      hostId: preview.hostId, project: preview.project, visibility: preview.visibility, state: preview.state,
     });
     return `${a.hostname}: route rebuilt from container labels`;
   }
@@ -315,12 +301,8 @@ export class Reconciler {
    *
    * Only on reachable hosts. On an unreachable one there is no evidence, so no verdict.
    */
-  async #rescueInterrupted(actions: Action[], reachable: Map<string, boolean>, hosts: Map<string, Host>): Promise<string[]> {
+  async #rescueInterrupted(covered: ReadonlySet<string>, reachable: Map<string, boolean>, hosts: Map<string, Host>): Promise<string[]> {
     const { ctx, routes } = this.#d;
-    const covered = new Set<string>();
-    for (const a of actions) {
-      if (a.kind === "UpdateUpstream" || (a.kind === "LeaveAlone" && a.reason === "in-sync" && a.hostname)) covered.add(a.hostname!);
-    }
 
     const out: string[] = [];
     for (const p of ctx.previews.list({ state: ["building", "starting", "destroying"] })) {
@@ -351,6 +333,34 @@ export class Reconciler {
         const released = await releaseStack(ctx, p, host);
         out.push(`${p.project}: ${error}${released ? "; stack released" : ""}`);
       }
+    }
+    return out;
+  }
+
+  /**
+   * `asleep` is a claim about the daemon, and the daemon can stop agreeing: someone runs
+   * `docker start`, or a host reboots with a restart policy. The diff calls that in-sync
+   * (route and container DO agree) and the state would stay `asleep` forever, the proxy
+   * serving the waking page in front of an app that is up.
+   *
+   * This is NOT a start -- rule 4 stands. It only records what already happened, and only
+   * on the same evidence a deploy needs: every route has its container AND answers HTTP.
+   * A stack that is half back stays asleep; wake-on-request (Phase 4) is what finishes it.
+   */
+  async #wakeReturned(covered: ReadonlySet<string>, reachable: Map<string, boolean>, hosts: Map<string, Host>): Promise<string[]> {
+    const { ctx, routes } = this.#d;
+    const out: string[] = [];
+    for (const p of ctx.previews.list({ state: ["asleep"] })) {
+      const host = hosts.get(p.hostId);
+      if (!host || !reachable.get(p.hostId) || this.#busy(p.id)) continue;
+      const mine = routes.forPreview(p.id);
+      if (mine.length === 0 || !mine.every((r) => covered.has(r.hostname))) continue;
+      const answering = (await Promise.all(mine.map((r) => ctx.probe(r, host)))).every(Boolean);
+      if (!answering || this.#busy(p.id) || ctx.previews.get(p.id)?.state !== "asleep") continue;
+      ctx.states.transition(p.id, "starting");
+      ctx.states.transition(p.id, "awake");
+      ctx.logs.append(p.id, "system", "awake (its containers were started outside gangway and are answering)");
+      out.push(`${p.project}: asleep, but its containers are running and answering; marked awake`);
     }
     return out;
   }

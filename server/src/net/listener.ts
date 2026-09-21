@@ -34,6 +34,7 @@ export type RunningListener = {
   readonly port: number;
   readonly hostname: string;
   stop(closeActive?: boolean): void;
+  pending(): { requests: number; webSockets: number };
   /** Rebinds with fresh certificate material. See swapCerts below. */
   swapCerts(): void;
 };
@@ -116,8 +117,14 @@ export function startListener(o: ListenerOptions): RunningListener {
       old.stop(false);
     },
 
+    /** In-flight HTTP requests (streams included) and open WebSockets, for the shutdown drain. */
+    pending() {
+      return { requests: server.pendingRequests, webSockets: server.pendingWebSockets };
+    },
+
+    /** `false` stops accepting and lets active connections finish; `true` closes them. */
     stop(closeActive = true) {
-      server.stop(closeActive);
+      void server.stop(closeActive);
     },
   };
 }

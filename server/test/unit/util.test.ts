@@ -142,3 +142,15 @@ describe("AppError", () => {
     expect((p as any).previewId).toBe("x");
   });
 });
+
+describe("drain", () => {
+  test("returns true as soon as the condition holds, false at the deadline", async () => {
+    const { drain } = await import("../../src/util/async.ts");
+    expect(await drain(() => true, { timeoutMs: 0 })).toBe(true);
+    let n = 0;
+    expect(await drain(() => ++n >= 3, { timeoutMs: 1_000, intervalMs: 1 })).toBe(true);
+    const began = Date.now();
+    expect(await drain(() => false, { timeoutMs: 40, intervalMs: 5 })).toBe(false);
+    expect(Date.now() - began).toBeLessThan(500);
+  });
+});

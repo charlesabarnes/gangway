@@ -90,6 +90,20 @@ export class PreviewsRepo {
     this.#db.run("UPDATE previews SET last_seen_at = $at WHERE id = $id", { id, at });
   }
 
+  /** The batched form: one transaction for the whole flush. Never moves a timestamp backwards. */
+  touchMany(seen: ReadonlyMap<string, number>): number {
+    if (seen.size === 0) return 0;
+    return this.#db.transaction(() => {
+      let n = 0;
+      for (const [id, at] of seen) {
+        n += this.#db.run(
+          "UPDATE previews SET last_seen_at = $at WHERE id = $id AND COALESCE(last_seen_at, 0) < $at", { id, at },
+        ).changes;
+      }
+      return n;
+    });
+  }
+
   /** TTL sweeper (Phase 3). Destroyed previews are already gone and never re-expire. */
   expired(now: number = this.#now()): Preview[] {
     return this.#db.query<PreviewRow>(

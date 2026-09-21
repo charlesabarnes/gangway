@@ -103,7 +103,7 @@ export function rowToEvent(r: EventRow): GangwayEvent {
 
 export type CertRow = {
   domain: string; cert_pem: string; key_pem: string; chain_pem: string | null;
-  issuer: string | null; not_before: number | null; not_after: number | null; updated_at: number;
+  issuer: string | null; source: string | null; not_before: number | null; not_after: number | null; updated_at: number;
 };
 
 export function rowToCert(r: CertRow): Certificate {
@@ -113,6 +113,7 @@ export function rowToCert(r: CertRow): Certificate {
     keyPem: r.key_pem,
     chainPem: r.chain_pem,
     issuer: r.issuer,
+    source: r.source,
     notBefore: toDate(r.not_before),
     notAfter: toDate(r.not_after),
     updatedAt: new Date(r.updated_at),

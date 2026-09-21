@@ -173,3 +173,30 @@ export function isTimeout(e: unknown): boolean {
   const m = String((e as Error)?.message ?? "");
   return m.includes("UPSTREAM_TIMEOUT") || m.includes("timed out") || (e as Error)?.name === "TimeoutError";
 }
+
+/**
+ * One upstream per Docker host, built on first use and kept (each owns a keep-alive
+ * agent). Hosts differ in HOW they are reached -- directly, or through a SOCKS tunnel --
+ * and a single shared dial config sends the second host's traffic down the first's path.
+ */
+export class PerHostUpstream implements Upstream {
+  readonly name = "per-host";
+  readonly #make: (hostId: string) => Upstream | null;
+  readonly #byHost = new Map<string, Upstream>();
+
+  constructor(make: (hostId: string) => Upstream | null) {
+    this.#make = make;
+  }
+
+  fetch(req: Request, entry: RouteEntry, ctx: { clientIp: string }): Promise<Response> {
+    let upstream = this.#byHost.get(entry.hostId);
+    if (!upstream) {
+      const made = this.#make(entry.hostId);
+      // A route on a host that no longer exists: there is nowhere to send this. The
+      // dispatcher turns the throw into its 502 page.
+      if (!made) return Promise.reject(new Error(`no such host: ${entry.hostId}`));
+      this.#byHost.set(entry.hostId, (upstream = made));
+    }
+    return upstream.fetch(req, entry, ctx);
+  }
+}

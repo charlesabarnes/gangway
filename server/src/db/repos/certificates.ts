@@ -24,17 +24,17 @@ export class CertificatesRepo {
     return this.#db.query<CertRow>("SELECT * FROM certificates ORDER BY domain").map(rowToCert);
   }
 
-  put(c: Omit<Certificate, "updatedAt">): Certificate {
+  put(c: Omit<Certificate, "updatedAt" | "source"> & { source?: string | null }): Certificate {
     this.#db.run(
-      `INSERT INTO certificates (domain, cert_pem, key_pem, chain_pem, issuer, not_before, not_after, updated_at)
-       VALUES ($d, $cert, $key, $chain, $issuer, $nb, $na, $now)
+      `INSERT INTO certificates (domain, cert_pem, key_pem, chain_pem, issuer, source, not_before, not_after, updated_at)
+       VALUES ($d, $cert, $key, $chain, $issuer, $source, $nb, $na, $now)
        ON CONFLICT(domain) DO UPDATE SET
          cert_pem = excluded.cert_pem, key_pem = excluded.key_pem, chain_pem = excluded.chain_pem,
-         issuer = excluded.issuer, not_before = excluded.not_before,
+         issuer = excluded.issuer, source = excluded.source, not_before = excluded.not_before,
          not_after = excluded.not_after, updated_at = excluded.updated_at`,
       {
         d: c.domain, cert: c.certPem, key: c.keyPem, chain: c.chainPem,
-        issuer: c.issuer, nb: fromDate(c.notBefore), na: fromDate(c.notAfter), now: this.#now(),
+        issuer: c.issuer, source: c.source ?? null, nb: fromDate(c.notBefore), na: fromDate(c.notAfter), now: this.#now(),
       },
     );
     return this.get(c.domain)!;

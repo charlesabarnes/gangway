@@ -16,7 +16,7 @@ const resolved = (services: Record<string, unknown>, extra: Record<string, unkno
 });
 const port = (target: number, published = String(target), protocol = "tcp") => ({ mode: "ingress", target, published, protocol });
 const model = (services: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
-  parseComposeModel("gw-x", resolved(services, extra));
+  parseComposeModel("gw-x", resolved(services, extra), ["/x"]);
 
 const HOST = { id: "local", upstream: { dial: "direct" as const, address: "127.0.0.1", proxy: null }, ports: { rangeStart: 31000, rangeEnd: 31499 } };
 const plan = (m: ComposeModel, slug = "acme") => planRoutes({
@@ -243,4 +243,51 @@ test("parseDuration", () => {
   expect(parseDuration("7d")).toBe(604_800_000);
   expect(parseDuration("2w")).toBe(1_209_600_000);
   for (const bad of ["", "7", "d", "0d", "1.5h", "7 d", "-1d", "1y"]) expect(parseDuration(bad)).toBeNull();
+});
+
+describe("policy: nothing a build or a secret reads may come from outside the upload", () => {
+  const violations = (services: Record<string, unknown>, extra: Record<string, unknown> = {}) => model(services, extra).violations;
+
+  test("a build context inside the source is fine, with or without a dockerfile", () => {
+    expect(violations({ web: { build: { context: "/x" } } })).toEqual([]);
+    expect(violations({ web: { build: { context: "/x/services/web", dockerfile: "docker/Dockerfile.prod" } } })).toEqual([]);
+    expect(violations({ web: { build: { context: "/x", dockerfile_inline: "FROM scratch" } } })).toEqual([]);
+  });
+
+  test.each([
+    ["the filesystem root", { context: "/" }],
+    ["a sibling whose name merely STARTS the same", { context: "/xy" }],
+    ["a parent", { context: "/x/../etc" }],
+    ["a git URL the daemon would fetch", { context: "https://github.com/evil/repo.git" }],
+    ["nothing at all", {}],
+  ])("build.context: %s is refused", (_what, build) => {
+    expect(violations({ web: { build } })[0]).toContain("build.context must be a directory inside the uploaded source");
+  });
+
+  test("a dockerfile outside the context's tree is refused -- it is read from THIS machine", () => {
+    expect(violations({ web: { build: { context: "/x", dockerfile: "../etc/passwd" } } })[0]).toContain("build.dockerfile");
+    expect(violations({ web: { build: { context: "/x", dockerfile: "/etc/passwd" } } })[0]).toContain("build.dockerfile");
+  });
+
+  test("additional_contexts, build secrets and ssh forwarding are refused", () => {
+    expect(violations({ web: { build: { context: "/x", additional_contexts: { host: "/" }, secrets: [{ source: "s" }], ssh: ["default"] } } })).toEqual([
+      'service "web": build.additional_contexts is not allowed',
+      'service "web": build.secrets is not allowed',
+      'service "web": build.ssh is not allowed',
+    ]);
+  });
+
+  test("with no source directory declared, NO build is allowed", () => {
+    expect(parseComposeModel("gw-x", resolved({ web: { build: { context: "/x" } } })).violations.length).toBe(1);
+  });
+
+  test("secrets and configs: inline content only -- `file` reads the server's disk, `environment` reads gangway's own env", () => {
+    expect(violations({ web: { image: "nginx" } }, { secrets: { ok: { content: "hunter2" } }, configs: { ok: { content: "a: 1" } } })).toEqual([]);
+    const bad = violations({ web: { image: "nginx" } }, {
+      secrets: { f: { file: "/x/secret.txt" }, e: { environment: "GANGWAY_ADMIN_TOKEN" }, x: { external: true } },
+      configs: { f: { file: "/etc/shadow" } },
+    });
+    expect(bad.length).toBe(4);
+    expect(bad[0]).toContain('secret "f": only inline `content:` is allowed');
+  });
 });

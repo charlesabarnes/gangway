@@ -57,6 +57,27 @@ export const ConfigSchema = z.object({
   /** `report` logs what the reconciler WOULD stop and stops nothing. */
   reconcileOrphans: z.enum(["stop", "report"]).default("stop"),
 
+  /** How often expired previews are destroyed. 0 disables the sweep (TTLs are then advisory). */
+  ttlSweepIntervalMs: z.coerce.number().int().min(0).default(60_000),
+  /** How often in-memory "last visited" marks reach SQLite. Also flushed once at shutdown. */
+  lastSeenFlushIntervalMs: z.coerce.number().int().min(0).default(30_000),
+
+  /**
+   * Reverse proxies in FRONT of gangway (Nginx Proxy Manager, a load balancer), as IPs or
+   * CIDRs. X-Forwarded-For is believed only from these. Empty -- the default -- means
+   * gangway faces the internet itself and believes no one. See net/trustedproxy.ts.
+   */
+  trustedProxies: z.preprocess(
+    (v) => (typeof v === "string" ? v.split(",").map((s) => s.trim()).filter(Boolean) : v),
+    z.array(z.string()).default([]),
+  ),
+
+  /**
+   * How long a SIGTERM waits for in-flight requests and pipelines before closing them.
+   * Keep it under the orchestrator's kill timeout (Docker's default is 10s).
+   */
+  shutdownGraceMs: z.coerce.number().int().min(0).default(8_000),
+
   tlsMode: z.enum(["acme", "selfsigned", "file"]).default("selfsigned"),
   tlsCertPath: z.string().optional(),
   tlsKeyPath: z.string().optional(),
@@ -91,6 +112,10 @@ const ENV_MAP = {
   GANGWAY_UPSTREAM_TIMEOUT_MS: "upstreamTimeoutMs",
   GANGWAY_RECONCILE_INTERVAL_MS: "reconcileIntervalMs",
   GANGWAY_RECONCILE_ORPHANS: "reconcileOrphans",
+  GANGWAY_TTL_SWEEP_INTERVAL_MS: "ttlSweepIntervalMs",
+  GANGWAY_LAST_SEEN_FLUSH_INTERVAL_MS: "lastSeenFlushIntervalMs",
+  GANGWAY_SHUTDOWN_GRACE_MS: "shutdownGraceMs",
+  GANGWAY_TRUSTED_PROXIES: "trustedProxies",
   GANGWAY_TLS_MODE: "tlsMode",
   GANGWAY_TLS_CERT_PATH: "tlsCertPath",
   GANGWAY_TLS_KEY_PATH: "tlsKeyPath",

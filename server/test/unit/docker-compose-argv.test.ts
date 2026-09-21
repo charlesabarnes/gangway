@@ -94,7 +94,7 @@ describe("the five commands we actually run", () => {
   /* §7.1: teardown is `down -v`. Orphans go too, or a renamed service leaves a
      container squatting on its published port forever (§11's orphan case). */
   test("down removes volumes and orphans", () => {
-    expect(downArgv(base).slice(-3)).toEqual(["down", "-v", "--remove-orphans"]);
+    expect(downArgv(base).slice(-5)).toEqual(["down", "-v", "--remove-orphans", "--rmi", "local"]);
   });
 
   test("build uses plain progress, the only parseable mode, with services last", () => {
@@ -152,9 +152,13 @@ describe("composeEnv", () => {
     for (const k of NEUTRALISED_ENV) expect(env[k]).toBe("");
   });
 
-  test("the rest of the environment is inherited, and undefined values are dropped", () => {
-    const env = composeEnv({ dockerHost: "ssh://root@tower" }, ambient);
-    expect(env["PATH"]).toBe("/usr/bin");
+  test("only what the docker CLI needs is inherited: the compose file is the SUBMITTER'S, and compose interpolates ${VAR} from this", () => {
+    const env = composeEnv({ dockerHost: "ssh://root@tower" }, {
+      ...ambient, HOME: "/root", SSH_AUTH_SOCK: "/tmp/agent", GANGWAY_ADMIN_TOKEN: "gw_secret", GANGWAY_CF_API_TOKEN: "cf_secret", AWS_SECRET_ACCESS_KEY: "aws",
+    });
+    expect(env).toMatchObject({ PATH: "/usr/bin", HOME: "/root", SSH_AUTH_SOCK: "/tmp/agent" });
+    expect(JSON.stringify(env)).not.toMatch(/gw_secret|cf_secret|aws/);
+    expect(Object.keys(env).filter((k) => k.startsWith("GANGWAY_"))).toEqual([]);
     expect(Object.hasOwn(env, "UNSET")).toBe(false);
     for (const v of Object.values(env)) expect(typeof v).toBe("string");
   });

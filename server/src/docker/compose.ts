@@ -95,8 +95,14 @@ export const upArgv = (base: Base, args: string[] = []): string[] =>
 
 /** §7.1: teardown is `down -v`. Orphans are removed because a renamed service otherwise
  *  leaves a container holding its published port forever. */
+/**
+ * `--rmi local` removes the images compose BUILT for the project and nothing else.
+ * Verified on tower, file-less: a built `gw-x-web:latest` goes; a pulled
+ * `traefik/whoami:v1.10` -- which the operator's own containers may share -- stays.
+ * Without it every build leaves an image on the host forever.
+ */
 export const downArgv = (base: Base, args: string[] = []): string[] =>
-  composeArgv({ ...base, command: "down", args: ["-v", "--remove-orphans", ...args] });
+  composeArgv({ ...base, command: "down", args: ["-v", "--remove-orphans", "--rmi", "local", ...args] });
 
 /** §5 step 4 streams build progress to SSE; `plain` is the only parseable progress mode. */
 export const buildArgv = (base: Base, services: string[] = [], args: string[] = []): string[] =>
@@ -134,6 +140,21 @@ export const NEUTRALISED_ENV = [
   "COMPOSE_ENV_FILES",
 ] as const;
 
+/**
+ * What a compose child may INHERIT. An allowlist, because compose interpolates `${VAR}`
+ * in the compose file from its own environment -- and the compose file is the
+ * submitter's. Inherit everything and `environment: { X: "${GANGWAY_ADMIN_TOKEN}" }`
+ * hands the admin token (or the Cloudflare token, or anything else the operator
+ * exported) to a container the submitter controls. These are what the docker CLI itself
+ * needs: to find its plugins and ssh, to read registry auth, to reach a TLS or SSH
+ * daemon, to get through a proxy.
+ */
+export const INHERITED_ENV = [
+  "PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR",
+  "SSH_AUTH_SOCK", "DOCKER_CONFIG", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+  "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+] as const;
+
 export type ComposeEnvInput = {
   dockerHost: string;
   /** Extra variables for interpolation inside the compose file. */
@@ -146,7 +167,8 @@ export function composeEnv(
   base: Readonly<Record<string, string | undefined>> = process.env,
 ): Record<string, string> {
   const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(base)) {
+  for (const k of INHERITED_ENV) {
+    const v = base[k];
     if (v !== undefined) env[k] = v;
   }
   for (const k of NEUTRALISED_ENV) env[k] = "";

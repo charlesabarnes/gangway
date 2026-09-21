@@ -21,10 +21,12 @@
  *    port needs the `!override` tag, which needs Compose >= 2.24 -- and Docker Desktop
  *    still ships 2.22. Owning the final document needs no merge semantics at all.
  */
+import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import type { Host, Route } from "../../../shared/src/domain.ts";
 import { buildLabel, fqdn } from "../../../shared/src/hostname.ts";
 import { publicOriginFor, type PublicOrigin } from "../../../shared/src/url.ts";
+import { containedIn } from "./source/types.ts";
 import { buildLabels, LABEL, labelsFromRoute, type LabelContext } from "../docker/labels.ts";
 import { AppError } from "../errors.ts";
 import { parseDuration } from "../util/duration.ts";
@@ -90,8 +92,9 @@ function parseExtension<T>(schema: z.ZodType<T>, raw: unknown, where: string): T
  * a stranger's pull request -- on a daemon that also runs the operator's real workloads.
  * Each rule is a way out of the project's namespace or onto the host itself.
  */
-function policyViolations(project: string, doc: Json): string[] {
+function policyViolations(project: string, doc: Json, sourceDirs: readonly string[]): string[] {
   const out: string[] = [];
+  const inSource = (p: string) => sourceDirs.some((d) => containedIn(d, p));
   for (const [name, raw] of Object.entries(obj(doc["services"]))) {
     const s = obj(raw);
     const at = `service "${name}"`;
@@ -107,11 +110,37 @@ function policyViolations(project: string, doc: Json): string[] {
     if (arr(s["devices"]).length > 0) out.push(`${at}: devices are not allowed`);
     if (arr(s["cap_add"]).length > 0) out.push(`${at}: cap_add is not allowed`);
     if (arr(s["security_opt"]).length > 0) out.push(`${at}: security_opt is not allowed`);
+    // The build runs on THIS machine's filesystem before anything reaches the daemon: a
+    // context of `/` or `../../state` would ship gangway's own database into an image the
+    // submitter then runs. `config` has already made these paths absolute.
+    if (s["build"] !== undefined && s["build"] !== null) {
+      const b = typeof s["build"] === "string" ? { context: s["build"] } : obj(s["build"]);
+      const context = typeof b["context"] === "string" ? b["context"] : "";
+      if (!isAbsolute(context) || !inSource(resolve(context))) {
+        out.push(`${at}: build.context must be a directory inside the uploaded source (remote and out-of-tree contexts are not allowed)`);
+      } else if (typeof b["dockerfile"] === "string" && !inSource(resolve(context, b["dockerfile"]))) {
+        out.push(`${at}: build.dockerfile must be inside the uploaded source`);
+      }
+      for (const key of ["additional_contexts", "secrets", "ssh"] as const) {
+        const v = b[key];
+        if (v !== undefined && v !== null && (Array.isArray(v) ? v.length : Object.keys(obj(v)).length) > 0) out.push(`${at}: build.${key} is not allowed`);
+      }
+    }
     for (const v of arr(s["volumes"])) {
       const type = obj(v)["type"];
       // The daemon is remote: a bind path names a directory on the HOST, not in the
       // upload. `/var/run/docker.sock` is the famous one; none of them are safe.
       if (type !== "volume" && type !== "tmpfs") out.push(`${at}: ${String(type)} mount of ${String(obj(v)["source"])} is not allowed (named volumes and tmpfs only)`);
+    }
+  }
+  // `file:` reads this machine's disk and `environment:` reads gangway's own environment;
+  // `external` reaches for something the operator owns. Inline `content:` is the safe one.
+  for (const kind of ["secrets", "configs"] as const) {
+    for (const [key, raw] of Object.entries(obj(doc[kind]))) {
+      const r = obj(raw);
+      if (typeof r["content"] !== "string" || r["file"] !== undefined || r["environment"] !== undefined || (r["external"] !== undefined && r["external"] !== false)) {
+        out.push(`${kind.slice(0, -1)} "${key}": only inline \`content:\` is allowed (file, environment and external sources read the server, not the upload)`);
+      }
     }
   }
   for (const kind of ["networks", "volumes"] as const) {
@@ -129,8 +158,12 @@ function policyViolations(project: string, doc: Json): string[] {
   return out;
 }
 
-/** @param resolved  the parsed YAML output of `docker compose config` */
-export function parseComposeModel(project: string, resolved: unknown): ComposeModel {
+/**
+ * @param resolved    the parsed YAML output of `docker compose config`
+ * @param sourceDirs  where the source was unpacked (as given, and realpath'd): anything a
+ *                    build reads must be inside one of them. None given, no build may run.
+ */
+export function parseComposeModel(project: string, resolved: unknown, sourceDirs: readonly string[] = []): ComposeModel {
   const doc = obj(resolved);
   const rawServices = obj(doc["services"]);
   if (Object.keys(rawServices).length === 0) throw unprocessable("the compose file defines no services");
@@ -154,7 +187,7 @@ export function parseComposeModel(project: string, resolved: unknown): ComposeMo
     networks: Object.keys(obj(doc["networks"])),
     volumes: Object.keys(obj(doc["volumes"])),
     x: parseExtension(StackExtensionSchema, doc["x-gangway"], "stack"),
-    violations: policyViolations(project, doc),
+    violations: policyViolations(project, doc, sourceDirs),
   };
 }
 
@@ -337,6 +370,13 @@ export function buildStack(i: StackInput): string {
 /* ------------------------------------------------------------------ generated stacks */
 
 /** An image deploy is a one-service stack (§7): same pipeline, no special case downstream. */
+/** A source with a Dockerfile and nothing else: build it, expose it. */
+export function composeForDockerfile(o: { port: number }): string {
+  return `${JSON.stringify({
+    services: { web: { build: { context: "." }, "x-gangway": { expose: true, port: o.port }, restart: "unless-stopped" } },
+  }, null, 2)}\n`;
+}
+
 export function composeForImage(o: { image: string; port: number; env?: Record<string, string> | undefined }): string {
   return `${JSON.stringify({
     services: {

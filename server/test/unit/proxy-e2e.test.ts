@@ -117,7 +117,7 @@ beforeAll(async () => {
   store = new CertStore({ materials: [await issueLeaf(ca, [`*.${BASE}`, BASE])] });
 
   entry = {
-    hostname: PREVIEW, previewId: "p1", project: "gw-1", service: "web", containerPort: 3000,
+    hostname: PREVIEW, previewId: "p1", hostId: "local", project: "gw-1", service: "web", containerPort: 3000,
     upstreamHost: "127.0.0.1", upstreamPort: upstream.port!, primary: true,
     visibility: "public", state: "awake", inflight: 0, bytesInFlight: 0, lastSeenAt: 0,
   };

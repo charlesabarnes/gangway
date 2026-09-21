@@ -17,6 +17,13 @@ export type Actor = {
   scopes: readonly Scope[];
 };
 
+/**
+ * Work gangway does on its own behalf (the TTL sweep, later idle-sleep). Still a `token`
+ * actor so audit lines have one shape; the `system:` prefix cannot collide with a real
+ * token id and no verifier ever returns one.
+ */
+export const systemActor = (job: string): Actor => ({ kind: "token", tokenId: `system:${job}`, scopes: ["admin"] });
+
 const IMPLIES: Record<Scope, readonly Scope[]> = {
   admin: ["admin", "deploy", "read"],
   deploy: ["deploy", "read"],

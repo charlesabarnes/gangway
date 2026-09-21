@@ -240,7 +240,7 @@ describe("deploy: run failures leave a `failed` preview that explains itself", (
     expect(s.calls.map((c) => c.cmd)).toEqual(["config", "up", "logs", "down"]);
     const down = s.calls.at(-1)!;
     expect(down.argv).not.toContain("--file");
-    expect(down.argv.slice(-3)).toEqual(["down", "-v", "--remove-orphans"]);
+    expect(down.argv.slice(-5)).toEqual(["down", "-v", "--remove-orphans", "--rmi", "local"]);
     const tail = s.logs.tail(res.preview.id).join("\n");
     expect(tail).toContain("port is already allocated");
     expect(tail).toContain("EADDRINUSE");
@@ -271,7 +271,7 @@ describe("destroy", () => {
     expect(gone.state).toBe("destroyed");
     expect(gone.destroyedAt).not.toBeNull();
     const down = s.calls.at(-1)!;
-    expect(down.argv).toEqual(["docker", "compose", "--project-name", "gw-web-app", "down", "-v", "--remove-orphans"]);
+    expect(down.argv).toEqual(["docker", "compose", "--project-name", "gw-web-app", "down", "-v", "--remove-orphans", "--rmi", "local"]);
     expect(down.cwd).toContain("gangway-down-");
     expect(existsSync(down.cwd)).toBe(false);
     expect(s.table.size).toBe(0);

@@ -8,7 +8,7 @@ const BASE = "preview.example.com";
 
 function entry(over: Partial<RouteEntry> = {}): RouteEntry {
   return {
-    hostname: `acme-pr-1.${BASE}`, previewId: "p1", project: "gw-1", service: "web",
+    hostname: `acme-pr-1.${BASE}`, previewId: "p1", hostId: "local", project: "gw-1", service: "web",
     containerPort: 3000, upstreamHost: "127.0.0.1", upstreamPort: 31000, primary: true,
     visibility: "public", state: "awake", inflight: 0, bytesInFlight: 0, lastSeenAt: 0,
     ...over,
@@ -204,5 +204,24 @@ describe("limits", () => {
       upstream: { name: "s", fetch: async () => { throw new Error("UPSTREAM_TIMEOUT"); } },
     }, e));
     expect(slow.status).toBe(504);
+  });
+});
+
+describe("PerHostUpstream (T36)", () => {
+  test("each host gets its OWN upstream, built once; a route on a vanished host is an error, not the first host's traffic", async () => {
+    const { PerHostUpstream } = await import("../../src/net/upstream.ts");
+    const made: string[] = [];
+    const per = new PerHostUpstream((hostId) => {
+      if (hostId === "gone") return null;
+      made.push(hostId);
+      return { name: hostId, fetch: async () => new Response(`via ${hostId}`) };
+    });
+    const req = new Request("https://x.preview.example.com/");
+    const via = async (hostId: string) => (await per.fetch(req, entry({ hostId }), { clientIp: "::1" })).text();
+    expect(await via("tower")).toBe("via tower");
+    expect(await via("laptop")).toBe("via laptop");
+    expect(await via("tower")).toBe("via tower");
+    expect(made).toEqual(["tower", "laptop"]);
+    await expect(per.fetch(req, entry({ hostId: "gone" }), { clientIp: "::1" })).rejects.toThrow("no such host: gone");
   });
 });

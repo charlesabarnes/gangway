@@ -59,6 +59,20 @@ export async function retry<T>(fn: (attempt: number) => Promise<T>, o: BackoffOp
   throw lastErr;
 }
 
+/**
+ * Waits for `idle()` to hold, or for the deadline. Returns whether it drained. The
+ * shutdown primitive: "let the work finish, but not forever".
+ */
+export async function drain(idle: () => boolean, o: { timeoutMs: number; intervalMs?: number }): Promise<boolean> {
+  const deadline = Date.now() + o.timeoutMs;
+  for (;;) {
+    if (idle()) return true;
+    const left = deadline - Date.now();
+    if (left <= 0) return false;
+    await sleep(Math.min(o.intervalMs ?? 50, left));
+  }
+}
+
 /** Polls until `fn` returns a non-null value, or the deadline passes. */
 export async function waitFor<T>(
   fn: () => Promise<T | null | undefined>,

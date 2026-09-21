@@ -1,0 +1,71 @@
+# gangway on the Docker host it manages (Unraid: "tower"), BEHIND a reverse proxy that
+# already owns the public 443 -- here Nginx Proxy Manager, on Docker's default bridge.
+#
+#   docker compose up -d --build        # from this directory, ON the host
+#
+#   internet :443 -> router -> NPM (holds the real wildcard certificate)
+#                               -> https://172.17.0.1:8443  gangway (self-signed; NPM does not verify)
+#                                   -> 127.0.0.1:31xxx       the previews
+#
+# HOST NETWORKING, deliberately -- do NOT give gangway its own Docker network. Previews
+# publish their ports on the host's 127.0.0.1, which keeps them off the LAN and makes
+# gangway's visibility gate the only way in; only a process in the host's network
+# namespace can reach them. On `bridge` or `br0` gangway could not, and the fix (publishing
+# previews on a reachable address) would expose every preview port to the LAN.
+#
+# It LISTENS on docker0 (172.17.0.1) only: reachable by NPM and by the host, not from the
+# LAN. X-Forwarded-For is believed from the bridge subnet and from nowhere else.
+#
+# THE DOCKER SOCKET is root on the host. That is what this product is (§9.1); it is also
+# why the compose policy in previews/compose-model.ts exists (ADR-0008). Do not expose
+# gangway's API to anyone you would not give a shell on this machine.
+#
+# `.env` next to this file (never committed):
+#   GANGWAY_ADMIN_TOKEN=gw_...            echo "gw_$(openssl rand -hex 24)"
+#   GANGWAY_BASE_DOMAIN=preview.example.com
+#
+# NPM proxy host:  domains `*.<base>` and `<base>`  ->  https://172.17.0.1:8443
+#   Websockets Support ON, the wildcard certificate (DNS challenge), Force SSL ON.
+#   Advanced:   proxy_read_timeout 600s;  proxy_send_timeout 600s;
+#               client_max_body_size 512m;  proxy_request_buffering off;
+#   (nginx's 60s default cuts off `?wait=true` deploys and builds; the last two are for
+#   tarball uploads. SSE needs nothing: gangway sends `X-Accel-Buffering: no`.)
+#
+# WITHOUT a proxy in front (gangway owns 443 and its own certificate): set
+#   GANGWAY_LISTEN_ADDRESS=::  GANGWAY_TLS_MODE=acme  GANGWAY_TRUSTED_PROXIES=
+#   GANGWAY_CF_API_TOKEN=...   GANGWAY_ACME_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
+name: gangway
+services:
+  gangway:
+    # A fixed name is right for THIS container (one per host, and Unraid's UI shows it);
+    # it is exactly what previews are forbidden, for the opposite reason.
+    container_name: gangway
+    image: gangway:${GANGWAY_TAG:-latest}
+    build: .
+    network_mode: host
+    restart: unless-stopped
+    # Must exceed GANGWAY_SHUTDOWN_GRACE_MS (8s), or Docker kills the drain halfway.
+    stop_grace_period: 15s
+    environment:
+      GANGWAY_ADMIN_TOKEN: ${GANGWAY_ADMIN_TOKEN:?set GANGWAY_ADMIN_TOKEN in .env}
+      GANGWAY_BASE_DOMAIN: ${GANGWAY_BASE_DOMAIN:?set GANGWAY_BASE_DOMAIN in .env}
+      GANGWAY_INSTANCE: ${GANGWAY_INSTANCE:-tower}
+      GANGWAY_LISTEN_ADDRESS: ${GANGWAY_LISTEN_ADDRESS:-172.17.0.1}
+      GANGWAY_LISTEN_PORT: ${GANGWAY_LISTEN_PORT:-8443}
+      # Empty = no plain-HTTP redirect listener. The proxy redirects; and 8080 is taken on tower.
+      GANGWAY_LISTEN_HTTP_PORT: ${GANGWAY_LISTEN_HTTP_PORT:-}
+      # What goes in the URLs gangway hands out: the port the WORLD connects to.
+      GANGWAY_PUBLIC_PORT: ${GANGWAY_PUBLIC_PORT:-443}
+      # The proxy holds the real certificate; this leg is self-signed and never seen by a browser.
+      GANGWAY_TLS_MODE: ${GANGWAY_TLS_MODE:-selfsigned}
+      GANGWAY_TRUSTED_PROXIES: ${GANGWAY_TRUSTED_PROXIES-172.17.0.0/16}
+      GANGWAY_ACME_DIRECTORY_URL: ${GANGWAY_ACME_DIRECTORY_URL:-https://acme-staging-v02.api.letsencrypt.org/directory}
+      GANGWAY_ACME_EMAIL: ${GANGWAY_ACME_EMAIL:-}
+      GANGWAY_CF_API_TOKEN: ${GANGWAY_CF_API_TOKEN:-}
+      # The first run against a daemon full of real workloads: look before it touches.
+      # Switch to `stop` once a pass reports nothing surprising.
+      GANGWAY_RECONCILE_ORPHANS: ${GANGWAY_RECONCILE_ORPHANS:-report}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # SQLite (WAL is safe on /mnt/user/appdata -- ADR-0006), logs, scratch.
+      - ${GANGWAY_STATE_PATH:-/mnt/user/appdata/gangway}:/state

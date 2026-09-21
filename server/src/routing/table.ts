@@ -19,6 +19,8 @@ import type { RoutesRepo } from "../db/repos/routes.ts";
 export type RouteEntry = {
   readonly hostname: string;
   readonly previewId: string;
+  /** Which host's containers these are: the proxy dials each host its own way (T36). */
+  readonly hostId: string;
   readonly project: string;
   readonly service: string;
   readonly containerPort: number;
@@ -35,6 +37,7 @@ export type RouteEntry = {
 
 export type RouteSeed = {
   route: Route;
+  hostId: string;
   project: string;
   visibility: Visibility;
   state: PreviewState;
@@ -44,6 +47,7 @@ function toEntry(s: RouteSeed): RouteEntry {
   return {
     hostname: s.route.hostname,
     previewId: s.route.previewId,
+    hostId: s.hostId,
     project: s.project,
     service: s.route.service,
     containerPort: s.route.containerPort,
@@ -61,6 +65,8 @@ function toEntry(s: RouteSeed): RouteEntry {
 export class RouteTable {
   readonly #byHostname = new Map<string, RouteEntry>();
   readonly #byPreview = new Map<string, Set<string>>();
+  /** Preview ids touched since the last `drainSeen()`. */
+  readonly #seen = new Set<string>();
   readonly #repo: RoutesRepo;
 
   constructor(repo: RoutesRepo) {
@@ -150,7 +156,25 @@ export class RouteTable {
   /** Called on every proxied request. Memory only -- the database write is batched. */
   touch(hostname: string, at: number): void {
     const e = this.#byHostname.get(hostname);
-    if (e) e.lastSeenAt = at;
+    if (!e) return;
+    e.lastSeenAt = at;
+    this.#seen.add(e.previewId);
+  }
+
+  /**
+   * Previews visited since the last drain, with the newest visit across their routes.
+   * Draining clears the set. A flush that then fails to write loses one window of visits,
+   * which the next request to that preview repairs; not worth a hand-back protocol.
+   */
+  drainSeen(): Map<string, number> {
+    const out = new Map<string, number>();
+    for (const id of this.#seen) {
+      let at = 0;
+      for (const e of this.forPreview(id)) at = Math.max(at, e.lastSeenAt);
+      if (at > 0) out.set(id, at);
+    }
+    this.#seen.clear();
+    return out;
   }
 
   removePreview(previewId: string): number {

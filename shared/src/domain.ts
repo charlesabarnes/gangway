@@ -91,6 +91,8 @@ export type Certificate = {
   keyPem: string;
   chainPem: string | null;
   issuer: string | null;
+  /** The ACME directory URL that issued it; null for anything else. */
+  source: string | null;
   notBefore: Date | null;
   notAfter: Date | null;
   updatedAt: Date;

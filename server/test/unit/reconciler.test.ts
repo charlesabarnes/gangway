@@ -243,6 +243,40 @@ describe("§11's table", () => {
     expect(s.daemon.stopped).toEqual([]);
   });
 
+  test("T37: asleep, and the container came back by other hands: marked awake once it ANSWERS -- and nothing is started", async () => {
+    const s = setup();
+    const { preview } = await s.deployed("hello");
+    s.daemon.containers[0]!.state = "exited";
+    await s.reconciler.run();
+    expect(s.previews.get(preview.id)!.state).toBe("asleep");
+
+    // `docker start`, but the app has not bound its port yet.
+    s.daemon.containers[0]!.state = "running";
+    s.daemon.probe = false;
+    const composedBefore = s.daemon.composed.length;
+    expect((await s.reconciler.run()).changes).toEqual([]);
+    expect(s.previews.get(preview.id)!.state).toBe("asleep");
+
+    s.daemon.probe = true;
+    expect((await s.reconciler.run()).changes).toEqual(["gw-hello: asleep, but its containers are running and answering; marked awake"]);
+    expect(s.previews.get(preview.id)!.state).toBe("awake");
+    expect(s.table.lookup("hello.preview.localhost")!.state).toBe("awake");
+    expect(s.daemon.composed.length).toBe(composedBefore);
+    expect(s.eventTypes().slice(-3)).toEqual(["preview.state", "preview.state", "reconcile.completed"]);
+    expect((await s.reconciler.run()).changes).toEqual([]); // idempotent
+  });
+
+  test("T37: an asleep preview on an unreachable host stays asleep", async () => {
+    const s = setup();
+    const { preview } = await s.deployed("hello");
+    s.daemon.containers[0]!.state = "exited";
+    await s.reconciler.run();
+    s.daemon.containers[0]!.state = "running";
+    s.daemon.down = true;
+    await s.reconciler.run();
+    expect(s.previews.get(preview.id)!.state).toBe("asleep");
+  });
+
   test("no route, container running: the route is rebuilt from labels", async () => {
     const s = setup();
     const { preview, route } = await s.deployed("hello");

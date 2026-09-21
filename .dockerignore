@@ -1,0 +1,14 @@
+# The build context is sent to a REMOTE daemon (tower): keep it to what the image needs.
+.git
+node_modules
+**/node_modules
+state
+spike
+docs
+web/dist
+web/.angular
+server/test
+shared/test
+*.log
+.env
+.env.*

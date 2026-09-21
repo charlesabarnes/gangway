@@ -12,7 +12,12 @@ export type SseMessage = { id: string; event: string; data: string };
 
 export type SseSource = (push: (m: SseMessage) => void) => () => void;
 
-export type SseOptions = { heartbeatMs?: number; maxQueue?: number };
+export type SseOptions = {
+  heartbeatMs?: number;
+  maxQueue?: number;
+  /** Shutdown. A stream never ends on its own, so a graceful stop has to end it. */
+  signal?: AbortSignal | undefined;
+};
 
 /** `Last-Event-ID` from a reconnecting EventSource, or `?after=` for curl. */
 export function resumeCursor(c: Context<AppEnv>): number {
@@ -37,6 +42,9 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
       wake?.();
     });
     stream.onAbort(close);
+    // The client reconnects with Last-Event-ID and misses nothing: both sources are durable.
+    o.signal?.addEventListener("abort", close, { once: true });
+    if (o.signal?.aborted) close();
 
     try {
       while (open) {
@@ -53,6 +61,7 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
         if (timedOut && open) await stream.write(": keepalive\n\n");
       }
     } finally {
+      o.signal?.removeEventListener("abort", close);
       unsubscribe();
     }
   });

@@ -85,7 +85,7 @@ for (const [name, open] of DRIVERS) {
     test("the real 0001 schema applies and enforces its constraints", () => {
       const { db } = fresh();
       const res = migrate(db, MIGRATIONS);
-      expect(res.applied).toEqual([1]);
+      expect(res.applied).toEqual([1, 2]);
 
       const now = Date.now();
       db.run(`INSERT INTO hosts (id, name, docker_host, created_at)
@@ -120,12 +120,12 @@ for (const [name, open] of DRIVERS) {
     test("migrate is idempotent across reopen", () => {
       const dir = tmp();
       const a = open({ path: join(dir, "g.db") });
-      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1]);
+      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2]);
       a.db.close();
       const b = open({ path: join(dir, "g.db") });
       const r = migrate(b.db, MIGRATIONS);
       expect(r.applied).toEqual([]);
-      expect(r.alreadyApplied).toEqual([1]);
+      expect(r.alreadyApplied).toEqual([1, 2]);
       b.db.close();
     });
   });

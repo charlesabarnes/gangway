@@ -5,17 +5,18 @@
  */
 import type { Hono } from "hono";
 import type { Preview } from "../../../../shared/src/domain.ts";
-import { DeployRequestSchema, PreviewListQuerySchema } from "../../../../shared/src/api.ts";
+import { DeployRequestSchema, PreviewListQuerySchema, TARBALL_CONTENT_TYPES, TarballDeployQuerySchema } from "../../../../shared/src/api.ts";
 import { badRequest, notFound } from "../../errors.ts";
 import type { PreviewContext } from "../../previews/context.ts";
-import { deploy, urlsFor } from "../../previews/deploy.ts";
+import { urlsFor, type DeployInput } from "../../previews/deploy.ts";
+import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
 import { requireScope } from "../middleware/auth.ts";
 import { resumeCursor, sse, type SseOptions } from "../sse.ts";
 
-export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, o: SseOptions = {}): void {
+export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: IdempotentDeploys, o: SseOptions = {}): void {
   const wire = (p: Preview) => ({ ...p, urls: urlsFor(ctx, p.id) });
 
   const find = (id: string): Preview => {
@@ -26,9 +27,21 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, o: SseOpti
   };
 
   api.post("/previews", requireScope("deploy"), async (c) => {
-    const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
-    const req = DeployRequestSchema.parse(body);
-    const res = await deploy(ctx, { ...req, actor: c.get("actor") });
+    const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+    let req: Omit<DeployInput, "actor">;
+    if ((TARBALL_CONTENT_TYPES as readonly string[]).includes(contentType)) {
+      // The body is the archive, streamed straight into the extractor -- never buffered.
+      const { ttl, ...q } = TarballDeployQuerySchema.parse(c.req.query());
+      const archive = c.req.raw.body;
+      if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
+      req = { ...q, ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port: q.port, digest: `len:${c.req.header("content-length") ?? "?"}` } };
+    } else {
+      const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+      req = DeployRequestSchema.parse(body);
+    }
+    // §10.1 "Idempotency-Key honored": a retried POST returns the preview the first one made.
+    const res = await deploys.deploy({ ...req, actor: c.get("actor") }, c.req.header("idempotency-key"));
+    if (res.replayed) c.header("idempotency-replayed", "true");
 
     // `?wait=true` holds the request until the pipeline settles -- what a script wants,
     // and what the MCP tool will want (§10.2: "blocks until the URL actually serves").

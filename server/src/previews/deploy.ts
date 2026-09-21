@@ -16,7 +16,7 @@
  * written at the end of `plan`; `compose up` is in `run`. That ordering is structural.
  */
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Host, Preview, PreviewSource, Visibility } from "../../../shared/src/domain.ts";
@@ -32,12 +32,19 @@ import { sleep } from "../util/async.ts";
 import { parseDuration } from "../util/duration.ts";
 import { ulid } from "../util/ulid.ts";
 import { parse as parseYaml } from "yaml";
-import { buildStack, composeForImage, parseComposeModel, planRoutes, selectExposed, type ComposeModel, type PlannedRoute } from "./compose-model.ts";
+import { buildStack, composeForDockerfile, composeForImage, parseComposeModel, planRoutes, selectExposed, type ComposeModel, type PlannedRoute } from "./compose-model.ts";
 import type { PreviewContext } from "./context.ts";
+import { cloneRepo } from "./source/git.ts";
+import { assertNoEscapingSymlinks, COMPOSE_FILENAMES, inspectComposeFile } from "./source/guard.ts";
+import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
 
 export type DeploySource =
-  | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined };
+  | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined }
+  /** Cloned by the server itself. `port` is only for a repo with a Dockerfile and no compose file. */
+  | { kind: "git"; repo: string; ref: string; port?: number | undefined }
+  /** A tar or tar.gz of the project, compose file (or Dockerfile) at its root. */
+  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined };
 
 export type DeployInput = {
   actor: Actor;
@@ -74,8 +81,10 @@ function unguessable(): string {
 }
 
 function defaultName(source: DeploySource): string {
-  // "ghcr.io/acme/web-app:1.2" -> "web-app"
-  const last = source.image.split("/").pop() ?? source.image;
+  if (source.kind === "tarball") return "preview";
+  // "ghcr.io/acme/web-app:1.2" -> "web-app";  "https://github.com/acme/web-app.git" -> "web-app"
+  const from = source.kind === "git" ? source.repo.replace(/\/+$/, "").replace(/\.git$/, "") : source.image;
+  const last = from.split("/").pop() ?? from;
   return slugify(last.split(/[:@]/)[0] ?? last) || "preview";
 }
 
@@ -87,19 +96,47 @@ export function urlsFor(ctx: Pick<PreviewContext, "table" | "origin">, previewId
 
 /* ------------------------------------------------------------------ plan */
 
-async function writeSource(source: DeploySource, wd: Workdir): Promise<PreviewSource> {
-  switch (source.kind) {
-    case "image":
-      await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage(source), { mode: 0o600 });
-      return { kind: "image", image: source.image };
+type Materialized = { source: PreviewSource; composeFile: string };
+
+/** §5 steps 2-3: put the source on disk and find its compose file -- trusting neither. */
+async function writeSource(ctx: PreviewContext, id: string, source: DeploySource, wd: Workdir): Promise<Materialized> {
+  if (source.kind === "image") {
+    await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage(source), { mode: 0o600 });
+    return { source: { kind: "image", image: source.image }, composeFile: COMPOSE_FILE };
   }
+
+  let recorded: PreviewSource;
+  if (source.kind === "git") {
+    const cloned = await cloneRepo({ repo: source.repo, ref: source.ref, destDir: wd.srcDir, logger: ctx.logger, ...ctx.git });
+    ctx.logs.append(id, "system", `cloned ${source.repo} @ ${cloned.ref} (${cloned.sha.slice(0, 12)}) in ${cloned.durationMs}ms`);
+    recorded = { kind: "git", repo: source.repo, ref: source.ref };
+  } else {
+    const r = await extractTarball(source.archive, wd.srcDir);
+    ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
+    recorded = { kind: "tarball", uploadId: id };
+  }
+
+  // Both checks come BEFORE `compose config`, which opens whatever the file points it at.
+  await assertNoEscapingSymlinks(wd.srcDir);
+  const found = await inspectComposeFile(wd.srcDir);
+  if (found) return { source: recorded, composeFile: found };
+
+  const dockerfile = await lstat(join(wd.srcDir, "Dockerfile")).catch(() => null);
+  if (!dockerfile?.isFile()) {
+    throw unprocessable(`the source has no compose file (${COMPOSE_FILENAMES.join(", ")}) and no Dockerfile at its root`);
+  }
+  if (source.port === undefined) {
+    throw unprocessable("the source has a Dockerfile but no compose file, so `port` is required: the port the app listens on inside the container");
+  }
+  await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForDockerfile({ port: source.port }), { mode: 0o600 });
+  return { source: recorded, composeFile: COMPOSE_FILE };
 }
 
 type Planned = { model: ComposeModel; resolved: unknown };
 
-async function readModel(ctx: PreviewContext, host: Host, wd: Workdir): Promise<Planned> {
+async function readModel(ctx: PreviewContext, host: Host, wd: Workdir, composeFile: string): Promise<Planned> {
   const argv = composeArgv({
-    project: PLAN_PROJECT, files: [join(wd.srcDir, COMPOSE_FILE)], projectDirectory: wd.srcDir, docker: ctx.docker,
+    project: PLAN_PROJECT, files: [join(wd.srcDir, composeFile)], projectDirectory: wd.srcDir, docker: ctx.docker,
     // YAML, not `--format json`: JSON output drops service-level x-gangway. See compose-model.ts.
     command: "config",
   });
@@ -108,7 +145,9 @@ async function readModel(ctx: PreviewContext, host: Host, wd: Workdir): Promise<
   let resolved: unknown;
   try { resolved = parseYaml(r.stdout); } catch { throw new AppError("internal", "could not read `compose config` output"); }
 
-  const model = parseComposeModel(PLAN_PROJECT, resolved);
+  // Both spellings: compose may hand back the path as given or with symlinks resolved
+  // (on macOS every temp dir is one).
+  const model = parseComposeModel(PLAN_PROJECT, resolved, [wd.srcDir, await realpath(wd.srcDir)]);
   if (model.violations.length > 0) {
     throw unprocessable("the compose file asks for things a preview may not have", { violations: model.violations });
   }
@@ -126,8 +165,8 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let routes: PlannedRoute[];
   let visibility: Visibility;
   try {
-    const source = await writeSource(input.source, wd);
-    planned = await readModel(ctx, host, wd);
+    const { source, composeFile } = await writeSource(ctx, id, input.source, wd);
+    planned = await readModel(ctx, host, wd, composeFile);
     const { model } = planned;
     const exposed = selectExposed(model);
 
@@ -166,7 +205,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     });
     try {
       for (const route of routes) {
-        ctx.table.apply({ route: { ...route, createdAt: preview.createdAt }, project, visibility, state: "building" });
+        ctx.table.apply({ route: { ...route, createdAt: preview.createdAt }, hostId: host.id, project, visibility, state: "building" });
       }
     } catch (e) {
       ctx.table.removePreview(id);
@@ -199,7 +238,13 @@ type RunInput = {
   routes: PlannedRoute[]; visibility: Visibility; signal: AbortSignal;
 };
 
-class StepFailed extends Error {}
+class StepFailed extends Error {
+  readonly exitCode: number | null;
+  constructor(message: string, exitCode: number | null = null) {
+    super(message);
+    this.exitCode = exitCode;
+  }
+}
 
 async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   const { preview, host, wd } = r;
@@ -215,7 +260,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     log(`$ compose ${what}`);
     for await (const ev of ctx.compose.stream(argv, host, { cwd: wd.srcDir, signal: r.signal })) {
       if (ev.type === "line") ctx.logs.append(id, ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream, ev.line);
-      else if (ev.code !== 0) throw new StepFailed(`compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`);
+      else if (ev.code !== 0) throw new StepFailed(`compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`, ev.code);
     }
     r.signal.throwIfAborted();
   };
@@ -230,7 +275,17 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     }), { mode: 0o600 });
 
     const toBuild = r.model.services.filter((s) => s.hasBuild).map((s) => s.name);
-    if (toBuild.length > 0) await step("build", buildArgv(base, toBuild), "build");
+    if (toBuild.length > 0) {
+      const buildId = ulid(ctx.now());
+      ctx.builds?.start({ id: buildId, previewId: id, services: toBuild });
+      try {
+        await step("build", buildArgv(base, toBuild), "build");
+        ctx.builds?.finish(buildId, "succeeded", 0);
+      } catch (e) {
+        ctx.builds?.finish(buildId, r.signal.aborted ? "cancelled" : "failed", e instanceof StepFailed ? e.exitCode : null);
+        throw e;
+      }
+    }
 
     ctx.states.transition(id, "starting");
     upAttempted = true;

@@ -77,7 +77,7 @@ describe("RouteTable", () => {
       upstream: { host: "127.0.0.1", port }, primary: service === "web",
       createdAt: new Date(0),
     },
-    project: "gw-1", visibility: "public" as const, state: "building" as const,
+    hostId: "local", project: "gw-1", visibility: "public" as const, state: "building" as const,
   });
 
   test("apply writes through to SQLite and memory", () => {

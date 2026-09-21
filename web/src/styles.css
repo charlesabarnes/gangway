@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* One accent, used sparingly. Everything else is the neutral scale. */
+@theme {
+  --color-accent: oklch(0.62 0.17 255);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html { color-scheme: light dark; }
+body { @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100; }

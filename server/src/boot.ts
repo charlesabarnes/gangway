@@ -15,26 +15,35 @@ import { previewRoutes } from "./app/routes/previews.ts";
 import { staticTokenVerifier } from "./auth/actor.ts";
 import type { Config } from "./config.ts";
 import { migrate } from "./db/migrate.ts";
-import { EventsRepo, HostsRepo, PreviewsRepo, RoutesRepo, SqliteSettingsStore } from "./db/repos/index.ts";
+import { BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, RoutesRepo, SqliteSettingsStore } from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
 import { DockerClients } from "./docker/client.ts";
 import { Reconciler, type ClientSource, type ReconcileReport } from "./reconcile/reconciler.ts";
 import { createComposeRunner, type ComposeRunner } from "./docker/runner.ts";
 import { EventBus } from "./events/bus.ts";
 import { seedHosts } from "./hosts/seed.ts";
+import { flushLastSeen, sweepExpired } from "./scheduler/jobs.ts";
+import { Scheduler } from "./scheduler/scheduler.ts";
 import { Logger } from "./logger.ts";
 import type { DispatchDeps, Surface } from "./net/dispatch.ts";
 import { DEFAULT_LIMITS } from "./net/limits.ts";
 import { clientIpOf, startListener, type RunningListener } from "./net/listener.ts";
-import { NodeHttpUpstream } from "./net/upstream.ts";
+import { clientIpResolver } from "./net/trustedproxy.ts";
+import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
 import { DEFAULT_TIMINGS, type PreviewContext } from "./previews/context.ts";
+import { IdempotentDeploys } from "./previews/idempotent.ts";
 import { PreviewLogs } from "./previews/logs.ts";
 import { httpProbe, type RouteProbe } from "./previews/probe.ts";
 import { Workdirs } from "./previews/source/workdir.ts";
 import { PreviewStates } from "./previews/state.ts";
 import { RouteTable } from "./routing/table.ts";
 import { SETTINGS, Settings } from "./settings.ts";
+import { drain } from "./util/async.ts";
+import { AcmeProvider, type AcmeConnect } from "./tls/acme.ts";
 import { CertStore } from "./tls/certstore.ts";
+import { CloudflareDnsProvider } from "./tls/dns/cloudflare.ts";
+import { ManualDnsProvider } from "./tls/dns/manual.ts";
+import type { DnsProvider } from "./tls/dns/provider.ts";
 import { FileProvider, SelfSignedProvider } from "./tls/provider.ts";
 import { publicOriginFor } from "../../shared/src/url.ts";
 
@@ -47,6 +56,8 @@ export type BootOverrides = {
   timings?: Partial<PreviewContext["timings"]>;
   /** Where the secret-bearing first-run banner goes. NOT the logger: it would redact it. */
   announce?: (text: string) => void;
+  /** tlsMode=acme only. Tests and the Pebble check supply their own DNS and ACME client. */
+  acme?: { dns?: DnsProvider; connect?: AcmeConnect };
 };
 
 export type Running = {
@@ -56,9 +67,15 @@ export type Running = {
   origin: (label: string) => string;
   caPath: string | null;
   reconciler: Reconciler;
+  scheduler: Scheduler;
   /** The boot-time pass (§11 step 2-3). Serving does NOT wait on it; tests do. */
   reconciled: Promise<ReconcileReport | null>;
-  stop(): Promise<void>;
+  /**
+   * Graceful: stop taking control-plane work, let in-flight requests and pipelines finish
+   * for up to `graceMs` (default `config.shutdownGraceMs`), then close what is left.
+   * Previews keep being proxied until the very end. Idempotent.
+   */
+  stop(o?: { graceMs?: number }): Promise<void>;
 };
 
 const MIGRATIONS = resolve(import.meta.dir, "../migrations");
@@ -77,7 +94,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const hosts = new HostsRepo(db);
   const previews = new PreviewsRepo(db);
   const routes = new RoutesRepo(db);
-  const settings = new Settings(config.overrides, new SqliteSettingsStore(db));
+  const settingsStore = new SqliteSettingsStore(db);
+  const settings = new Settings(config.overrides, settingsStore);
   const bus = new EventBus(new EventsRepo(db), (e) => logger.warn("event listener threw", { err: e }));
   const table = new RouteTable(routes);
   const states = new PreviewStates(previews, table, bus);
@@ -94,10 +112,14 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const all = new Map(previews.list({ includeDestroyed: true }).map((p) => [p.id, p]));
   table.hydrate(routes.all().flatMap((route) => {
     const p = all.get(route.previewId);
-    return p ? [{ route, project: p.project, visibility: p.visibility, state: p.state }] : [];
+    return p ? [{ route, hostId: p.hostId, project: p.project, visibility: p.visibility, state: p.state }] : [];
   }));
   const workdirs = new Workdirs(stateDir);
   await workdirs.prune();
+
+  const builds = new BuildsRepo(db);
+  const orphanedBuilds = builds.cancelRunning();
+  if (orphanedBuilds > 0) logger.info("marked builds interrupted by the last shutdown as cancelled", { builds: orphanedBuilds });
 
   /* ---- docker */
   const dockerClients = new DockerClients();
@@ -115,7 +137,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     timings: { ...DEFAULT_TIMINGS, ...o.timings },
     now: Date.now,
     inflight: new Map(), teardowns: new Set(),
+    builds,
   };
+
+  const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
 
   /* ---- auth (§8.1 headless bootstrap) */
   let adminToken = config.adminToken;
@@ -124,6 +149,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     announce(`\n  No GANGWAY_ADMIN_TOKEN is set. Generated one for THIS RUN ONLY:\n\n    ${adminToken}\n`);
   }
 
+  /* ---- shutdown state, read by the surfaces built below */
+  const shutdown = new AbortController();
+  const draining = () => shutdown.signal.aborted;
+
   /* ---- application surfaces */
   const staticDir = resolve(import.meta.dir, "../../web/dist/browser");
   const app = createApp({
@@ -131,10 +160,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     verifyToken: staticTokenVerifier(adminToken),
     staticDir: existsSync(staticDir) ? staticDir : undefined,
     health: () => ({ routes: table.size }),
+    draining,
     v1: (api) => {
       hostRoutes(api, hosts);
-      eventRoutes(api, bus);
-      previewRoutes(api, ctx);
+      eventRoutes(api, bus, { signal: shutdown.signal });
+      previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
     },
   });
 
@@ -142,40 +172,69 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const domains = [`*.${baseDomain()}`, baseDomain()];
   let caPath: string | null = null;
   let bundle;
+  let acmeProvider: AcmeProvider | null = null;
   if (config.tlsMode === "file") {
     if (!config.tlsCertPath || !config.tlsKeyPath) throw new Error("tlsMode=file needs GANGWAY_TLS_CERT_PATH and GANGWAY_TLS_KEY_PATH");
     bundle = await new FileProvider(config.tlsCertPath, config.tlsKeyPath).ensure(domains);
+  } else if (config.tlsMode === "acme") {
+    const tlsLog = logger.child({ mod: "tls" });
+    const token = settings.get(SETTINGS.cloudflareApiToken);
+    const zoneId = settings.get(SETTINGS.cloudflareZoneId);
+    acmeProvider = new AcmeProvider({
+      directoryUrl: settings.get(SETTINGS.acmeDirectoryUrl), email: settings.get(SETTINGS.acmeEmail),
+      // No Cloudflare token: print the records and wait for a human. Slow, but it works on any DNS host.
+      dns: o.acme?.dns ?? (token ? new CloudflareDnsProvider({ apiToken: token, ...(zoneId ? { zoneId } : {}), log: tlsLog }) : new ManualDnsProvider({ log: tlsLog })),
+      certs: new CertificatesRepo(db), store: settingsStore, logger: tlsLog,
+      ...(o.acme?.connect ? { connect: o.acme.connect } : {}),
+    });
+    // §11 "serve immediately" applies to certificates too: what is stored is served now;
+    // with nothing stored, the dev CA stands in until the first order completes (a minute
+    // or two), and the `cert-renew` job swaps the real one in without a restart.
+    const stored = acmeProvider.load(domains);
+    if (stored) {
+      bundle = stored;
+    } else {
+      tlsLog.warn("no usable ACME certificate stored yet; serving the dev CA until the first order completes", { domains });
+      const interim = await new SelfSignedProvider(stateDir).ensure(domains);
+      caPath = interim.caPath ?? null;
+      bundle = interim;
+    }
   } else {
-    if (config.tlsMode === "acme") logger.warn("tlsMode=acme is not built yet (T28); serving the dev CA instead");
     const selfSigned = await new SelfSignedProvider(stateDir).ensure(domains);
     caPath = selfSigned.caPath ?? null;
     bundle = selfSigned;
   }
 
   /* ---- the listener */
-  // ONE dial configuration for now: the proxy reaches every upstream the way it reaches
-  // the first host's. Per-host dialing arrives with multi-host (Phase 6).
-  const first = seeded[0]!;
   const surfaceEnabled = (s: Surface): boolean =>
     s === "app" ? settings.get(SETTINGS.surfacesUi) : s === "mcp" ? settings.get(SETTINGS.surfacesMcp) : true;
   const origin = (label: string) => publicOriginFor(label ? `${label}.${baseDomain()}` : baseDomain(), ctx.origin);
 
+  // Throws at boot on a malformed entry: a typo must not quietly mean "trust nobody".
+  const resolveClientIp = clientIpResolver(config.trustedProxies);
+  if (config.trustedProxies.length > 0) logger.info("trusting X-Forwarded-For from reverse proxies", { trustedProxies: config.trustedProxies });
+
   const deps: DispatchDeps = {
     baseDomain, table, limits: DEFAULT_LIMITS, surfaceEnabled,
-    upstream: new NodeHttpUpstream({
-      dial: { dial: first.upstream.dial, proxy: first.upstream.proxy },
-      limits: DEFAULT_LIMITS, timeoutMs: config.upstreamTimeoutMs, publicPort: config.publicPort,
+    // Each host is dialed its own way: one directly, another through a SOCKS tunnel.
+    upstream: new PerHostUpstream((hostId) => {
+      const host = hosts.get(hostId);
+      return host ? new NodeHttpUpstream({
+        dial: { dial: host.upstream.dial, proxy: host.upstream.proxy },
+        limits: DEFAULT_LIMITS, timeoutMs: config.upstreamTimeoutMs, publicPort: config.publicPort,
+      }) : null;
     }),
     handlers: { app: surfaceHandler(app, "app"), api: surfaceHandler(app, "api") },
     logTailFor: (id) => ctx.logs.tail(id, 50),
-    clientIpFor: clientIpOf,
+    clientIpFor: (req) => resolveClientIp(clientIpOf(req), req.headers.get("x-forwarded-for")),
     onProxied: (entry) => table.touch(entry.hostname, Date.now()),
   };
 
+  const certStore = new CertStore(bundle);
   const listener = startListener({
     hostname: config.listenAddress, port: config.listenPort,
     maxRequestBodySize: config.maxBodyBytes, idleTimeout: 120,
-    certStore: new CertStore(bundle), deps,
+    certStore, deps,
     onError: (e) => logger.error("listener error", { err: e }),
   });
 
@@ -197,22 +256,68 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     logger: logger.child({ mod: "reconcile" }), orphans: config.reconcileOrphans,
   });
   const reconciled = reconciler.run().catch((e) => { logger.error("boot reconciliation failed", { err: e }); return null; });
-  reconciler.start(config.reconcileIntervalMs);
+
+  // Everything periodic lives on the one scheduler: no overlap, jitter, and a stop()
+  // that waits -- so nothing below is still touching the database when it closes.
+  const scheduler = new Scheduler({ logger: logger.child({ mod: "scheduler" }) });
+  // Periodic passes double as the reconnect detector (§11): each one re-probes every host.
+  scheduler.register({ name: "reconcile", intervalMs: config.reconcileIntervalMs, run: () => reconciler.run() });
+  scheduler.register({
+    name: "ttl-sweep", intervalMs: config.ttlSweepIntervalMs,
+    // The first sweep waits for the boot reconcile: that is what learns which hosts are reachable.
+    run: async (signal) => { await reconciled; await sweepExpired(ctx, logger.child({ mod: "ttl" }), signal); },
+    initialDelayMs: 0,
+  });
+  scheduler.register({ name: "lastseen-flush", intervalMs: config.lastSeenFlushIntervalMs, run: () => flushLastSeen(ctx) });
+  if (acmeProvider) {
+    const provider = acmeProvider;
+    certStore.onSwap(() => listener.swapCerts());
+    // Hourly, and cheap when nothing is due. One failed order an hour stays far inside
+    // Let's Encrypt's failed-validation limit (5/hour); a tighter retry loop would not.
+    scheduler.register({
+      name: "cert-renew", intervalMs: 3_600_000, initialDelayMs: 0,
+      run: async (signal) => {
+        const next = await provider.renewIfDue(domains, signal);
+        if (next) await certStore.swap(next);
+      },
+    });
+  }
+  scheduler.register({ name: "idempotency-purge", intervalMs: 3_600_000, run: () => deploys.purge() });
+  scheduler.start();
 
   logger.info("listening", { address: config.listenAddress, port: listener.port, baseDomain: baseDomain(), routes: table.size, hosts: seeded.map((h) => h.id) });
 
+  let stopped: Promise<void> | null = null;
+  const stop = async (graceMs: number): Promise<void> => {
+    const began = Date.now();
+    // 1. No new control-plane work: /v1 answers 503, /healthz goes unready, SSE streams
+    //    end (their clients resume by Last-Event-ID). No new connections either -- but
+    //    requests on connections that already exist, previews above all, are still served.
+    shutdown.abort();
+    redirect?.stop(true);
+    listener.stop(false);
+
+    // 2. Let what is running finish: scheduled jobs, requests, deploys. One shared deadline.
+    const left = () => Math.max(0, graceMs - (Date.now() - began));
+    await scheduler.stop(graceMs);
+    await reconciled;
+    const drained = await drain(() => listener.pending().requests === 0 && ctx.inflight.size === 0, { timeoutMs: left() });
+
+    // 3. Out of patience. An aborted pipeline leaves its row `building`/`starting`, which
+    //    is exactly what the next boot's reconciler rescues (§11) -- from evidence.
+    const cut = { requests: listener.pending().requests, webSockets: listener.pending().webSockets, pipelines: ctx.inflight.size };
+    for (const { abort } of ctx.inflight.values()) abort.abort();
+    await Promise.allSettled([...ctx.inflight.values()].map((i) => i.done));
+    listener.stop(true);
+
+    try { flushLastSeen(ctx); } catch (e) { logger.warn("final lastSeen flush failed", { err: e }); }
+    dockerClients.closeAll();
+    logger.info("stopped", { drained, ms: Date.now() - began, ...(drained ? {} : { cut }) });
+    db.close();
+  };
+
   return {
-    listener, ctx, adminToken, origin, caPath, reconciler, reconciled,
-    async stop() {
-      reconciler.stop();
-      await reconciled;
-      // T29 makes this graceful. For now: stop accepting, cancel pipelines, close.
-      redirect?.stop(true);
-      listener.stop(true);
-      for (const { abort } of ctx.inflight.values()) abort.abort();
-      await Promise.allSettled([...ctx.inflight.values()].map((i) => i.done));
-      dockerClients.closeAll();
-      db.close();
-    },
+    listener, ctx, adminToken, origin, caPath, reconciler, scheduler, reconciled,
+    stop: (o = {}) => (stopped ??= stop(o.graceMs ?? config.shutdownGraceMs)),
   };
 }

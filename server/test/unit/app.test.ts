@@ -58,6 +58,21 @@ describe("app root", () => {
     expect(res.headers.get("x-request-id")).toMatch(ULID_RE);
   });
 
+  test("draining: the control plane answers 503 with Retry-After, /healthz goes unready, and it is a live switch", async () => {
+    let draining = false;
+    const { api, ui } = make({ draining: () => draining });
+    expect((await api("/v1/whoami", auth)).status).toBe(200);
+    draining = true;
+    const res = await api("/v1/whoami", auth);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("5");
+    expect(res.headers.get("content-type")).toBe("application/problem+json");
+    expect((await ui("/index.html")).status).toBe(503);
+    const health = await api("/healthz");
+    expect(health.status).toBe(503);
+    expect(await health.json()).toEqual({ ok: false, draining: true });
+  });
+
   test("/v1 answers on both surfaces", async () => {
     const { api, ui } = make();
     expect((await api("/v1/whoami", auth)).status).toBe(200);
