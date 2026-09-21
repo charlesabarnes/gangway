@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { createApp, surfaceHandler, type AppDeps } from "../../src/app/app.ts";
-import { requireScope } from "../../src/app/middleware/auth.ts";
-import { hasScope, staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
-import { conflict } from "../../src/errors.ts";
+import { requirePermission } from "../../src/app/middleware/auth.ts";
+import { actorId, auditActor, can, permissionsForScopes, staticTokenVerifier, systemActor, tokenActor, type Actor } from "../../src/auth/actor.ts";
+import { ALL_PERMISSIONS, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
+import { conflict, rateLimited } from "../../src/errors.ts";
 import { Logger } from "../../src/logger.ts";
 import { ULID_RE } from "../../src/util/ulid.ts";
 
@@ -23,15 +24,16 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 function make(over: Partial<AppDeps> = {}) {
   const lines: string[] = [];
   const logger = new Logger("debug", {}, (l) => lines.push(l));
-  const readOnly: Actor = { kind: "token", tokenId: "ro", scopes: ["read"] };
+  const readOnly = tokenActor("ro", ["read"]);
   const admin = staticTokenVerifier(TOKEN);
   const app = createApp({
     logger,
     verifyToken: (t) => (t === "gw_readonly_token_0123456789" ? readOnly : admin(t)),
     staticDir: root,
     v1: (api) => {
-      api.get("/whoami", (c) => c.json(c.get("actor")));
-      api.post("/mutate", requireScope("deploy"), (c) => c.json({ ok: true }));
+      api.get("/whoami", (c) => { const a = c.get("actor"); return c.json({ id: actorId(a), kind: a.kind, permissions: [...a.permissions].sort() }); });
+      api.post("/mutate", requirePermission("previews.deploy"), (c) => c.json({ ok: true }));
+      api.get("/limited", () => { throw rateLimited(30); });
       api.get("/boom", () => { throw new Error("secret internal detail"); });
       api.get("/conflict", () => { throw conflict("already exists", { project: "gw-x" }); });
       api.get("/zod", () => { z.object({ a: z.string() }).parse({}); return new Response(); });
@@ -114,10 +116,10 @@ describe("auth (T14)", () => {
   test("the static token is the admin actor; the scheme is case-insensitive", async () => {
     const { api } = make();
     const res = await api("/v1/whoami", { headers: { authorization: `bearer ${TOKEN}` } });
-    expect(await res.json()).toEqual({ kind: "token", tokenId: "env:admin", scopes: ["admin"] });
+    expect(await res.json()).toEqual({ id: "env:admin", kind: "token", permissions: [...ALL_PERMISSIONS].sort() });
   });
 
-  test("requireScope: read cannot mutate, admin can", async () => {
+  test("requirePermission: a read token cannot deploy, admin can", async () => {
     const { api } = make();
     const ro = await api("/v1/mutate", { method: "POST", headers: { authorization: "Bearer gw_readonly_token_0123456789" } });
     expect(ro.status).toBe(403);
@@ -125,17 +127,44 @@ describe("auth (T14)", () => {
     expect((await api("/v1/mutate", { method: "POST", ...auth })).status).toBe(200);
   });
 
-  test("scope implication", () => {
-    const a = (scopes: Actor["scopes"]): Actor => ({ kind: "token", tokenId: "t", scopes });
-    expect(hasScope(a(["admin"]), "deploy")).toBe(true);
-    expect(hasScope(a(["deploy"]), "read")).toBe(true);
-    expect(hasScope(a(["deploy"]), "admin")).toBe(false);
-    expect(hasScope(a(["read"]), "deploy")).toBe(false);
-    expect(hasScope(a([]), "read")).toBe(false);
+  test("a 403 names the permission that was missing", async () => {
+    const res = await make().api("/v1/mutate", { method: "POST", headers: { authorization: "Bearer gw_readonly_token_0123456789" } });
+    expect(((await res.json()) as { detail: string }).detail).toBe('requires the "previews.deploy" permission');
+  });
+
+  test("scopes are bundles of permissions: admin is everything, deploy contains read, read cannot mutate", () => {
+    const p = (...scopes: Parameters<typeof permissionsForScopes>[0]) => permissionsForScopes(scopes);
+    expect([...p("admin")].sort()).toEqual([...ALL_PERMISSIONS].sort());
+    for (const r of SCOPE_PERMISSIONS.read) expect(p("deploy").has(r)).toBe(true);
+    expect(p("deploy").has("previews.destroy")).toBe(true);
+    expect(p("deploy").has("users.manage")).toBe(false);
+    expect(p("read").has("previews.deploy")).toBe(false);
+    expect(p().size).toBe(0);
+  });
+
+  test("actorId: a user can never be mistaken for a token, even with the same raw id", () => {
+    const user: Actor = { kind: "user", userId: "env:admin", roleId: "viewer", permissions: new Set(), sessionId: "s" };
+    expect(actorId(user)).toBe("user:env:admin");
+    expect(actorId(tokenActor("env:admin", ["admin"]))).toBe("env:admin");
+    expect(can(user, "previews.read")).toBe(false);
+  });
+
+  test("auditActor maps onto the audit table's actor_type", () => {
+    expect(auditActor(systemActor("ttl-sweep"))).toEqual({ type: "system", id: "ttl-sweep" });
+    expect(auditActor(tokenActor("env:admin", ["admin"]))).toEqual({ type: "token", id: "env:admin" });
+    expect(auditActor({ kind: "user", userId: "u1", roleId: "member", permissions: new Set(), sessionId: "s" })).toEqual({ type: "user", id: "u1" });
   });
 });
 
 describe("problem+json", () => {
+  test("a thrown error carries its own headers: a 429 says when to come back", async () => {
+    const res = await make().api("/v1/limited", auth);
+    expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).toBe("30");
+    expect(res.headers.get("content-type")).toBe("application/problem+json");
+    expect(((await res.json()) as { retryAfter: number }).retryAfter).toBe(30);
+  });
+
   test("AppError keeps its detail members", async () => {
     const res = await make().api("/v1/conflict", auth);
     expect(res.status).toBe(409);

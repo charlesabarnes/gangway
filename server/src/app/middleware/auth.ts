@@ -1,11 +1,10 @@
 /**
- * Authentication. Phase 1 is a static bearer token; the SHAPE is what matters -- a
- * verifier resolves a credential to an Actor, handlers read `c.get("actor")`, and
- * `requireScope` gates mutations. Phase 2 swaps the verifier (token table, sessions)
- * without touching a single route.
+ * Authentication and authorization. A verifier resolves a credential to an Actor, handlers
+ * read `c.get("actor")`, and `requirePermission` gates every route. A route asks for a
+ * PERMISSION, never a role or a scope: which role holds it is the operator's data.
  */
 import type { MiddlewareHandler } from "hono";
-import { hasScope, type Scope, type TokenVerifier } from "../../auth/actor.ts";
+import { can, type Permission, type TokenVerifier } from "../../auth/actor.ts";
 import { forbidden, unauthorized } from "../../errors.ts";
 import type { AppEnv } from "../env.ts";
 import { problemResponse } from "../problem.ts";
@@ -26,9 +25,13 @@ export function authenticate(verify: TokenVerifier): MiddlewareHandler<AppEnv> {
   };
 }
 
-export function requireScope(scope: Scope): MiddlewareHandler<AppEnv> {
-  return async (c, next) => {
-    if (!hasScope(c.get("actor"), scope)) return problemResponse(c, forbidden(`requires the "${scope}" scope`));
+/** Marks the middleware so a test can prove no `/v1` route was registered without one. */
+export const PERMISSION_GUARD = Symbol("gangway.permission");
+
+export function requirePermission(permission: Permission): MiddlewareHandler<AppEnv> {
+  const guard: MiddlewareHandler<AppEnv> = async (c, next) => {
+    if (!can(c.get("actor"), permission)) return problemResponse(c, forbidden(`requires the "${permission}" permission`));
     return next();
   };
+  return Object.assign(guard, { [PERMISSION_GUARD]: permission });
 }

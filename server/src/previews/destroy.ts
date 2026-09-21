@@ -17,7 +17,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Host, Preview } from "../../../shared/src/domain.ts";
-import type { Actor } from "../auth/actor.ts";
+import { actorId, type Actor } from "../auth/actor.ts";
 import { downArgv } from "../docker/compose.ts";
 import { AppError, notFound } from "../errors.ts";
 import { redactString } from "../logger.ts";
@@ -33,7 +33,7 @@ export async function destroy(ctx: PreviewContext, previewId: string, actor: Act
 
   // Claim it first (synchronously), so a second DELETE gets the 409 above.
   ctx.states.transition(previewId, "destroying");
-  ctx.logs.append(previewId, "system", `destroying (requested by ${actor.tokenId})`);
+  ctx.logs.append(previewId, "system", `destroying (requested by ${actorId(actor)})`);
   return teardown(ctx, preview, host);
 }
 

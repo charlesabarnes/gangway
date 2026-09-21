@@ -22,7 +22,7 @@ import { join } from "node:path";
 import type { Host, Preview, PreviewSource, Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
-import type { Actor } from "../auth/actor.ts";
+import { actorId, type Actor } from "../auth/actor.ts";
 import { buildArgv, composeArgv, downArgv, parseComposePs, psArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
 import { AppError, conflict } from "../errors.ts";
 import { redactString } from "../logger.ts";
@@ -220,7 +220,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   }
 
   const urls = urlsFor(ctx, id);
-  ctx.bus.publish("preview.created", { project: preview.project, by: input.actor.tokenId, urls: urls.map((u) => u.url) }, id);
+  ctx.bus.publish("preview.created", { project: preview.project, by: actorId(input.actor), urls: urls.map((u) => u.url) }, id);
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
 
   const abort = new AbortController();

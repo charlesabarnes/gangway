@@ -2,36 +2,57 @@
  * Who is making a request. Lives BELOW app/ because the service layer takes an actor for
  * audit (§10.5.2) and must not import HTTP types to get one (ADR-0003).
  *
- * Phase 1 has exactly one actor: the static admin token. Phase 2 adds `user` (session
- * cookie) and database-backed tokens; Phase 6 adds `app`. The union grows, the call
- * sites do not change.
+ * Two kinds: a `token` (bearer credential -- the env admin token, a database token, or
+ * gangway acting for itself) and a `user` (session cookie). Phase 6 adds `app`. The union
+ * grows; call sites ask `can(actor, permission)` and do not change.
+ *
+ * `permissions` is RESOLVED when the actor is built, per request: a role edit, a demotion
+ * or a disabled account takes effect on the next request, not the next login.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
+import { SCOPE_PERMISSIONS, type Permission, type Scope } from "../../../shared/src/permissions.ts";
 
-/** §8.2. `admin` implies the other two; `deploy` implies `read`. */
-export type Scope = "read" | "deploy" | "admin";
+export type { Permission, Scope };
 
-export type Actor = {
-  kind: "token";
-  tokenId: string;
-  scopes: readonly Scope[];
-};
+export type Actor =
+  | {
+      kind: "token";
+      tokenId: string;
+      /** What the token was minted with (§8.2). For display; `permissions` is what is enforced. */
+      scopes: readonly Scope[];
+      permissions: ReadonlySet<Permission>;
+      /** The owning account, for a database token. Absent on the env token and system actors. */
+      userId?: string;
+    }
+  | { kind: "user"; userId: string; roleId: string; permissions: ReadonlySet<Permission>; sessionId: string };
+
+export function permissionsForScopes(scopes: readonly Scope[]): ReadonlySet<Permission> {
+  return new Set(scopes.flatMap((s) => SCOPE_PERMISSIONS[s]));
+}
+
+/** An ownerless token actor whose permissions are exactly its scopes' bundles. */
+export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor =>
+  ({ kind: "token", tokenId, scopes, permissions: permissionsForScopes(scopes) });
 
 /**
  * Work gangway does on its own behalf (the TTL sweep, later idle-sleep). Still a `token`
  * actor so audit lines have one shape; the `system:` prefix cannot collide with a real
  * token id and no verifier ever returns one.
  */
-export const systemActor = (job: string): Actor => ({ kind: "token", tokenId: `system:${job}`, scopes: ["admin"] });
+export const systemActor = (job: string): Actor => tokenActor(`system:${job}`, ["admin"]);
 
-const IMPLIES: Record<Scope, readonly Scope[]> = {
-  admin: ["admin", "deploy", "read"],
-  deploy: ["deploy", "read"],
-  read: ["read"],
-};
+export const can = (actor: Actor, needed: Permission): boolean => actor.permissions.has(needed);
 
-export function hasScope(actor: Actor, needed: Scope): boolean {
-  return actor.scopes.some((s) => IMPLIES[s].includes(needed));
+/**
+ * One stable string per principal: the idempotency-key owner, the `by` on events, log
+ * lines. A user's id is prefixed so it can never equal a token id.
+ */
+export const actorId = (a: Actor): string => (a.kind === "user" ? `user:${a.userId}` : a.tokenId);
+
+/** The `audit.actor_type` / `actor_id` pair. */
+export function auditActor(a: Actor): { type: "user" | "token" | "system"; id: string } {
+  if (a.kind === "user") return { type: "user", id: a.userId };
+  return a.tokenId.startsWith("system:") ? { type: "system", id: a.tokenId.slice("system:".length) } : { type: "token", id: a.tokenId };
 }
 
 /** Resolves a presented bearer credential to an actor, or null. Never throws. */
@@ -40,12 +61,12 @@ export type TokenVerifier = (presented: string) => Actor | null | Promise<Actor 
 const sha256 = (s: string) => createHash("sha256").update(s).digest();
 
 /**
- * The Phase 1 verifier: one static token from `GANGWAY_ADMIN_TOKEN`. Compared as digests
- * so the comparison is constant-time AND length-independent -- timingSafeEqual throws on
- * a length mismatch, which would itself leak the length.
+ * The headless-bootstrap verifier (§8.1): one static token from `GANGWAY_ADMIN_TOKEN`.
+ * Compared as digests so the comparison is constant-time AND length-independent --
+ * timingSafeEqual throws on a length mismatch, which would itself leak the length.
  */
 export function staticTokenVerifier(adminToken: string): TokenVerifier {
   const expected = sha256(adminToken);
-  const actor: Actor = { kind: "token", tokenId: "env:admin", scopes: ["admin"] };
+  const actor = tokenActor("env:admin", ["admin"]);
   return (presented) => (timingSafeEqual(sha256(presented), expected) ? actor : null);
 }

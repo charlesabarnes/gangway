@@ -13,7 +13,7 @@ import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
-import { requireScope } from "../middleware/auth.ts";
+import { requirePermission } from "../middleware/auth.ts";
 import { resumeCursor, sse, type SseOptions } from "../sse.ts";
 
 export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: IdempotentDeploys, o: SseOptions = {}): void {
@@ -26,7 +26,7 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     return p;
   };
 
-  api.post("/previews", requireScope("deploy"), async (c) => {
+  api.post("/previews", requirePermission("previews.deploy"), async (c) => {
     const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
     let req: Omit<DeployInput, "actor">;
     if ((TARBALL_CONTENT_TYPES as readonly string[]).includes(contentType)) {
@@ -53,20 +53,20 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     return c.json({ preview: wire(res.preview) }, 202);
   });
 
-  api.get("/previews", (c) => {
+  api.get("/previews", requirePermission("previews.read"), (c) => {
     const q = PreviewListQuerySchema.parse(c.req.query());
     const list = ctx.previews.list({ ...(q.state ? { state: q.state } : {}), ...(q.hostId ? { hostId: q.hostId } : {}) });
     return c.json({ previews: list.map(wire) });
   });
 
-  api.get("/previews/:id", (c) => c.json({ preview: wire(find(c.req.param("id"))) }));
+  api.get("/previews/:id", requirePermission("previews.read"), (c) => c.json({ preview: wire(find(c.req.param("id"))) }));
 
-  api.delete("/previews/:id", requireScope("deploy"), async (c) => {
+  api.delete("/previews/:id", requirePermission("previews.destroy"), async (c) => {
     find(c.req.param("id"));
     return c.json({ preview: wire(await destroy(ctx, c.req.param("id"), c.get("actor"))) });
   });
 
-  api.get("/previews/:id/logs", (c) => {
+  api.get("/previews/:id/logs", requirePermission("logs.read"), (c) => {
     const p = find(c.req.param("id"));
     const after = resumeCursor(c);
     return sse(c, (push) =>

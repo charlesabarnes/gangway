@@ -15,6 +15,7 @@
  * and the retry deserves the same honest error.
  */
 import { createHash } from "node:crypto";
+import { actorId } from "../auth/actor.ts";
 import type { IdempotencyRepo } from "../db/repos/idempotency.ts";
 import { AppError, badRequest } from "../errors.ts";
 import { SingleFlight } from "../util/async.ts";
@@ -63,11 +64,11 @@ export class IdempotentDeploys {
     if (!KEY_RE.test(key)) throw badRequest("Idempotency-Key must be 1-255 printable ASCII characters");
 
     const ctx = this.#ctx;
-    const tokenId = input.actor.tokenId;
+    const ownerId = actorId(input.actor);
     const hash = requestHash(input);
     const mismatch = () => new AppError("unprocessable", "this Idempotency-Key was already used with a different request");
 
-    const seen = this.#keys.get(key, tokenId);
+    const seen = this.#keys.get(key, ownerId);
     if (seen && seen.createdAt > ctx.now() - IDEMPOTENCY_TTL_MS) {
       const preview = seen.previewId ? ctx.previews.get(seen.previewId) : undefined;
       if (preview && preview.state !== "destroyed" && preview.state !== "destroying") {
@@ -78,14 +79,14 @@ export class IdempotentDeploys {
     }
 
     // Concurrent retries, before any row exists: planning is awaited and takes a while.
-    const flightKey = `${tokenId}\n${key}`;
+    const flightKey = `${ownerId}\n${key}`;
     const joined = this.#flight.has(flightKey);
     const result = await this.#flight.run(flightKey, async () => {
       const res = await deploy(ctx, input);
-      this.#keys.put({ key, tokenId, previewId: res.preview.id, requestHash: hash });
+      this.#keys.put({ key, ownerId, previewId: res.preview.id, requestHash: hash });
       return res;
     });
-    if (joined && this.#keys.get(key, tokenId)?.requestHash !== hash) throw mismatch();
+    if (joined && this.#keys.get(key, ownerId)?.requestHash !== hash) throw mismatch();
     return { ...result, replayed: joined };
   }
 

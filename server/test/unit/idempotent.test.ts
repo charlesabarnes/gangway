@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Actor } from "../../src/auth/actor.ts";
+import { actorId, tokenActor, type Actor } from "../../src/auth/actor.ts";
 import { IdempotencyRepo } from "../../src/db/repos/index.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { IDEMPOTENCY_TTL_MS, IdempotentDeploys, requestHash } from "../../src/previews/idempotent.ts";
@@ -15,7 +15,7 @@ describe("requestHash", () => {
   test("ignores key order and the actor; notices everything else", () => {
     const s = setup();
     const a = s.request("x");
-    expect(requestHash(a)).toBe(requestHash({ source: a.source, visibility: a.visibility, name: a.name, actor: { ...ACTOR, tokenId: "other" } }));
+    expect(requestHash(a)).toBe(requestHash({ source: a.source, visibility: a.visibility, name: a.name, actor: tokenActor("other", ["admin"]) }));
     expect(requestHash(a)).not.toBe(requestHash({ ...a, ttl: "1h" }));
     expect(requestHash(a)).not.toBe(requestHash({ ...a, source: { kind: "image", image: "traefik/whoami:v1.10", port: 81 } }));
     expect(requestHash(a)).toBe(requestHash({ ...a, hostId: undefined }));
@@ -84,7 +84,7 @@ describe("IdempotentDeploys", () => {
 
   test("keys are scoped per token: another agent's identical key is a different key", async () => {
     const s = setup();
-    const other: Actor = { ...ACTOR, tokenId: "someone-else" };
+    const other = tokenActor("someone-else", ["admin"]);
     const mine = await s.deploys.deploy(s.request("mine"), "shared");
     const theirs = await s.deploys.deploy({ ...s.request("theirs"), actor: other }, "shared");
     expect(theirs.replayed).toBe(false);
@@ -92,12 +92,24 @@ describe("IdempotentDeploys", () => {
     await Promise.all([mine.done, theirs.done]);
   });
 
+  test("a user and a token are different principals even when their raw ids are equal", async () => {
+    const s = setup();
+    const raw = actorId(ACTOR);
+    const user: Actor = { kind: "user", userId: raw, roleId: "member", permissions: ACTOR.permissions, sessionId: "sess" };
+    const asToken = await s.deploys.deploy(s.request("from-token"), "shared");
+    const asUser = await s.deploys.deploy({ ...s.request("from-user"), actor: user }, "shared");
+    expect(asUser.replayed).toBe(false);
+    expect(asUser.preview.id).not.toBe(asToken.preview.id);
+    expect(s.keys.get("shared", `user:${raw}`)!.previewId).toBe(asUser.preview.id);
+    await Promise.all([asToken.done, asUser.done]);
+  });
+
   test("a rejected deploy records nothing: the retry gets the same honest error, and a fixed request may reuse the key", async () => {
     const s = setup();
     const bad = { ...s.request("bad"), ttl: "soon" };
     await expect(s.deploys.deploy(bad, "k")).rejects.toMatchObject({ code: "unprocessable" });
     await expect(s.deploys.deploy(bad, "k")).rejects.toMatchObject({ code: "unprocessable" });
-    expect(s.keys.get("k", ACTOR.tokenId)).toBeUndefined();
+    expect(s.keys.get("k", actorId(ACTOR))).toBeUndefined();
     const fixed = await s.deploys.deploy(s.request("bad"), "k");
     expect(fixed.replayed).toBe(false);
     await fixed.done;
@@ -120,7 +132,7 @@ describe("IdempotentDeploys", () => {
     const second = await s.deploys.deploy(s.request("different"), "k");
     expect(second.replayed).toBe(false);
     expect(second.preview.id).not.toBe(first.preview.id);
-    expect(s.keys.get("k", ACTOR.tokenId)!.previewId).toBe(second.preview.id);
+    expect(s.keys.get("k", actorId(ACTOR))!.previewId).toBe(second.preview.id);
     await second.done;
   });
 
@@ -132,7 +144,7 @@ describe("IdempotentDeploys", () => {
     // Expired: no longer a replay. The name is still taken, so this is the ordinary 409.
     await expect(s.deploys.deploy(s.request("old"), "k")).rejects.toMatchObject({ code: "conflict" });
     expect(s.deploys.purge()).toBe(1);
-    expect(s.keys.get("k", ACTOR.tokenId)).toBeUndefined();
+    expect(s.keys.get("k", actorId(ACTOR))).toBeUndefined();
   });
 
   test("a malformed key is a 400, not a row", async () => {

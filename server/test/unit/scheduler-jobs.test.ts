@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { hasScope, systemActor } from "../../src/auth/actor.ts";
+import { actorId, can, systemActor } from "../../src/auth/actor.ts";
 import { flushLastSeen, sweepExpired } from "../../src/scheduler/jobs.ts";
 import { DAY, setupPreviewContext as setup } from "../helpers/preview-context.ts";
 
 describe("systemActor", () => {
   test("is an admin whose id cannot be mistaken for a real token's", () => {
     const a = systemActor("ttl-sweep");
-    expect(a.tokenId).toBe("system:ttl-sweep");
-    expect(hasScope(a, "admin")).toBe(true);
+    expect(actorId(a)).toBe("system:ttl-sweep");
+    expect(can(a, "previews.destroy")).toBe(true);
   });
 });
 

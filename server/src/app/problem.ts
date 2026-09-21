@@ -18,7 +18,7 @@ export function problemResponse(c: Context<AppEnv>, err: AppError, headers: Reco
   const body = { ...err.toProblem(new URL(c.req.url).pathname), requestId: c.get("requestId") };
   return new Response(JSON.stringify(body), {
     status: err.status,
-    headers: { "content-type": "application/problem+json", ...headers },
+    headers: { "content-type": "application/problem+json", ...(err.headers ?? {}), ...headers },
   });
 }
 
