@@ -3,6 +3,7 @@
  * REST handler, the webhook receiver and the MCP tool are each a thin adapter over the
  * functions that take this.
  */
+import type { AuditSink } from "../audit/audit.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
 import type { CloneOptions } from "./source/git.ts";
 import type { Preview, Visibility } from "../../../shared/src/domain.ts";
@@ -51,8 +52,10 @@ export type PreviewContext = {
   /** Teardowns running in this process. With `inflight`, the reconciler's do-not-touch list. */
   teardowns: Set<string>;
   docker?: string | undefined;
-  /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   /** Build history. Optional so a context without it (older tests) still deploys. */
   builds?: BuildsRepo | undefined;
+  /** §10.5.2. Optional for the same reason; boot always supplies it. */
+  audit?: AuditSink | undefined;
+  /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

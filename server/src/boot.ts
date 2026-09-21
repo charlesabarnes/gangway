@@ -9,13 +9,15 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createApp, surfaceHandler } from "./app/app.ts";
+import { auditRoutes } from "./app/routes/audit.ts";
 import { eventRoutes } from "./app/routes/events.ts";
 import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
+import { Audit } from "./audit/audit.ts";
 import { staticTokenVerifier } from "./auth/actor.ts";
 import type { Config } from "./config.ts";
 import { migrate } from "./db/migrate.ts";
-import { BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, RoutesRepo, SqliteSettingsStore } from "./db/repos/index.ts";
+import { AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, RoutesRepo, SqliteSettingsStore } from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
 import { DockerClients } from "./docker/client.ts";
 import { Reconciler, type ClientSource, type ReconcileReport } from "./reconcile/reconciler.ts";
@@ -100,6 +102,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const table = new RouteTable(routes);
   const states = new PreviewStates(previews, table, bus);
   const baseDomain = () => settings.get(SETTINGS.baseDomain);
+  const auditRepo = new AuditRepo(db);
+  const audit = new Audit(auditRepo, logger.child({ mod: "audit" }));
 
   const seeded = seedHosts(config.hosts, hosts);
   for (const h of seeded) {
@@ -137,7 +141,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     timings: { ...DEFAULT_TIMINGS, ...o.timings },
     now: Date.now,
     inflight: new Map(), teardowns: new Set(),
-    builds,
+    builds, audit,
   };
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
@@ -165,6 +169,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       hostRoutes(api, hosts);
       eventRoutes(api, bus, { signal: shutdown.signal });
       previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
+      auditRoutes(api, auditRepo);
     },
   });
 

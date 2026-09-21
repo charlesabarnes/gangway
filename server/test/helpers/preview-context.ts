@@ -9,7 +9,8 @@ import { join, resolve as resolvePath } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { HostConfigSchema } from "../../src/config.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { BuildsRepo, EventsRepo, HostsRepo, PreviewsRepo, RoutesRepo } from "../../src/db/repos/index.ts";
+import { Audit } from "../../src/audit/audit.ts";
+import { AuditRepo, BuildsRepo, EventsRepo, HostsRepo, PreviewsRepo, RoutesRepo } from "../../src/db/repos/index.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
 import type { ComposeRunner } from "../../src/docker/runner.ts";
@@ -77,6 +78,7 @@ export function setupPreviewContext() {
     },
   };
   const clock = { offset: 0 };
+  const auditRepo = new AuditRepo(db);
   const ctx: PreviewContext = {
     instance: "default", env: "test", origin: { scheme: "https", port: 8443 },
     baseDomain: () => "preview.localhost", defaults: () => ({ ttl: "7d", visibility: "unlisted" }),
@@ -85,12 +87,13 @@ export function setupPreviewContext() {
     logger: new Logger("error", {}, () => {}), timings: { startTimeoutMs: 200, probeTimeoutMs: 200, pollIntervalMs: 5 },
     now: () => Date.now() + clock.offset, inflight: new Map(), teardowns: new Set(),
     builds: new BuildsRepo(db),
+    audit: new Audit(auditRepo, new Logger("error", {}, () => {})),
   };
   const lines: string[] = [];
   const logger = new Logger("info", {}, (l) => lines.push(l));
   const request = (name: string): DeployInput => ({ actor: ACTOR, name, visibility: "public", source: { kind: "image", image: "traefik/whoami:v1.10", port: 80 } });
   const deployed = async (name: string) =>
     (await deploy(ctx, { actor: ACTOR, name, visibility: "public", source: { kind: "image", image: "traefik/whoami:v1.10", port: 80 } })).done;
-  return { request, ctx, db, hosts, previews, routes, table, fake, clock, logger, lines, deployed };
+  return { request, ctx, db, audit: auditRepo, hosts, previews, routes, table, fake, clock, logger, lines, deployed };
 }
 

@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { isPermission } from "../../../shared/src/permissions.ts";
 import type { AppEnv } from "../../src/app/env.ts";
 import { PERMISSION_GUARD } from "../../src/app/middleware/auth.ts";
+import { auditRoutes } from "../../src/app/routes/audit.ts";
 import { eventRoutes } from "../../src/app/routes/events.ts";
 import { hostRoutes } from "../../src/app/routes/hosts.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
@@ -19,6 +20,7 @@ export function registerAuthenticated(api: Hono<AppEnv>): void {
   hostRoutes(api, none);
   eventRoutes(api, none);
   previewRoutes(api, none, none);
+  auditRoutes(api, none);
 }
 
 describe("route permissions", () => {

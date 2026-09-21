@@ -34,6 +34,8 @@ export async function destroy(ctx: PreviewContext, previewId: string, actor: Act
   // Claim it first (synchronously), so a second DELETE gets the 409 above.
   ctx.states.transition(previewId, "destroying");
   ctx.logs.append(previewId, "system", `destroying (requested by ${actorId(actor)})`);
+  // The TTL sweep comes through here too, as `system:ttl-sweep`: "why did it vanish" has an answer.
+  ctx.audit?.record(actor, "preview.destroy", previewId, { old: { project: preview.project, state: preview.state, hostId: preview.hostId } });
   return teardown(ctx, preview, host);
 }
 

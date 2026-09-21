@@ -222,6 +222,10 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   const urls = urlsFor(ctx, id);
   ctx.bus.publish("preview.created", { project: preview.project, by: actorId(input.actor), urls: urls.map((u) => u.url) }, id);
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
+  // After the rows exist: a rejected deploy made nothing, so there is nothing to have done.
+  ctx.audit?.record(input.actor, "preview.deploy", id, {
+    new: { project: preview.project, visibility, source: input.source.kind, hostId: host.id, urls: urls.map((u) => u.url) },
+  });
 
   const abort = new AbortController();
   const done = run(ctx, { preview, host, wd, ...planned, routes, visibility, signal: abort.signal })
