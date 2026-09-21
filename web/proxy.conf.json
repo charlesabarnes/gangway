@@ -1,4 +1,9 @@
 {
-  "/v1": { "target": "https://api.preview.localhost:8443", "secure": false, "changeOrigin": true },
-  "/healthz": { "target": "https://api.preview.localhost:8443", "secure": false, "changeOrigin": true }
+  "/v1": {
+    "target": "https://app.preview.localhost:8443",
+    "secure": false,
+    "changeOrigin": true,
+    "headers": { "origin": "https://app.preview.localhost:8443" }
+  },
+  "/healthz": { "target": "https://app.preview.localhost:8443", "secure": false, "changeOrigin": true }
 }
