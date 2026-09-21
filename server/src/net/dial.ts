@@ -62,43 +62,65 @@ function connectTcp(target: DialTarget, timeoutMs: number): Promise<net.Socket> 
   });
 }
 
-function readExactly(socket: net.Socket, n: number, timeoutMs: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let got = 0;
-    const timer = setTimeout(() => cleanup(new Error("SOCKS handshake timeout")), timeoutMs);
-    const onData = (d: Buffer) => {
-      chunks.push(d);
-      got += d.length;
-      if (got >= n) {
-        const buf = Buffer.concat(chunks);
-        cleanup(null);
-        // Anything past n belongs to the tunnelled stream; hand it back.
-        if (buf.length > n) socket.unshift(buf.subarray(n));
-        resolve(buf.subarray(0, n));
-      }
-    };
-    const onErr = (e: Error) => cleanup(e);
-    const onEnd = () => cleanup(new Error("SOCKS proxy closed the connection"));
-    function cleanup(err: Error | null) {
+/**
+ * Reads the SOCKS handshake through ONE listener that stays attached for the whole
+ * exchange.
+ *
+ * The obvious shape -- attach a `data` listener per read, detach it, `unshift` any
+ * surplus -- loses bytes: once a stream is flowing, detaching the last listener does not
+ * pause it, so the pushed-back surplus is emitted to nobody before the next read
+ * attaches. OpenSSH sends its whole 10-byte CONNECT reply in one chunk; read 4 of those
+ * that way and the other 6 are gone, and the handshake hangs until it times out.
+ */
+function handshakeReader(socket: net.Socket, timeoutMs: number) {
+  let buffered: Buffer = Buffer.alloc(0);
+  let failure: Error | null = null;
+  let waiter: { n: number; resolve: (b: Buffer) => void; reject: (e: Error) => void } | null = null;
+
+  const pump = () => {
+    if (!waiter) return;
+    if (failure) { const w = waiter; waiter = null; w.reject(failure); return; }
+    if (buffered.length < waiter.n) return;
+    const w = waiter;
+    waiter = null;
+    const out = buffered.subarray(0, w.n);
+    buffered = buffered.subarray(w.n);
+    w.resolve(out);
+  };
+  const fail = (e: Error) => { failure ??= e; socket.destroy(); pump(); };
+
+  const onData = (d: Buffer) => { buffered = Buffer.concat([buffered, d]); pump(); };
+  const onError = (e: Error) => fail(e);
+  const onEnd = () => fail(new Error("SOCKS proxy closed the connection"));
+  const timer = setTimeout(() => fail(new Error("SOCKS handshake timeout")), timeoutMs);
+  socket.on("data", onData);
+  socket.on("error", onError);
+  socket.on("end", onEnd);
+
+  return {
+    read(n: number): Promise<Buffer> {
+      return new Promise((resolve, reject) => { waiter = { n, resolve, reject }; pump(); });
+    },
+    /** Hands the socket over. The caller attaches its own listeners in the same tick. */
+    release(): void {
       clearTimeout(timer);
       socket.removeListener("data", onData);
-      socket.removeListener("error", onErr);
+      socket.removeListener("error", onError);
       socket.removeListener("end", onEnd);
-      if (err) { socket.destroy(); reject(err); }
-    }
-    socket.on("data", onData);
-    socket.once("error", onErr);
-    socket.once("end", onEnd);
-  });
+      // HTTP and WebSocket clients speak first, so there is normally nothing here. If a
+      // server-speaks-first protocol ever rides this, its opening bytes are not lost.
+      if (buffered.length > 0) socket.unshift(buffered);
+    },
+  };
 }
 
 async function socks5Connect(proxy: DialTarget, target: DialTarget, timeoutMs: number): Promise<net.Socket> {
   const socket = await connectTcp(proxy, timeoutMs);
+  const reader = handshakeReader(socket, timeoutMs);
 
   // Greeting: version, one method, "no authentication".
   socket.write(Buffer.from([SOCKS_VERSION, 0x01, 0x00]));
-  const greeting = await readExactly(socket, 2, timeoutMs);
+  const greeting = await reader.read(2);
   if (greeting[0] !== SOCKS_VERSION) {
     socket.destroy();
     throw new Error(`bad SOCKS version from proxy: ${greeting[0]}`);
@@ -131,7 +153,7 @@ async function socks5Connect(proxy: DialTarget, target: DialTarget, timeoutMs: n
   port.writeUInt16BE(target.port);
   socket.write(Buffer.concat([Buffer.from([SOCKS_VERSION, CMD_CONNECT, 0x00, atyp]), addr, port]));
 
-  const reply = await readExactly(socket, 4, timeoutMs);
+  const reply = await reader.read(4);
   if (reply[1] !== 0x00) {
     socket.destroy();
     throw new Error(`SOCKS CONNECT to ${target.host}:${target.port} failed: ${SOCKS_ERRORS[reply[1]!] ?? `code ${reply[1]}`}`);
@@ -139,8 +161,9 @@ async function socks5Connect(proxy: DialTarget, target: DialTarget, timeoutMs: n
   // Consume the bound address so the stream starts at the tunnelled payload.
   const boundAtyp = reply[3];
   const len = boundAtyp === ATYP_IPV4 ? 4 : boundAtyp === ATYP_IPV6 ? 16
-    : (await readExactly(socket, 1, timeoutMs))[0]!;
-  await readExactly(socket, len + 2, timeoutMs);
+    : (await reader.read(1))[0]!;
+  await reader.read(len + 2);
+  reader.release();
   return socket;
 }
 
