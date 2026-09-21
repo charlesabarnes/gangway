@@ -46,5 +46,7 @@ export type PreviewContext = {
   now: () => number;
   /** Deploys still running in this process, so destroy can cancel one and wait for it. */
   inflight: Map<string, { abort: AbortController; done: Promise<Preview> }>;
+  /** Teardowns running in this process. With `inflight`, the reconciler's do-not-touch list. */
+  teardowns: Set<string>;
   docker?: string | undefined;
 };

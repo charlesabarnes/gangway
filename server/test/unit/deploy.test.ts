@@ -96,7 +96,7 @@ function setup(script: Script = {}) {
     probe: async () => (probeQueue.length > 1 ? probeQueue.shift()! : probeQueue[0]!),
     logger: new Logger("error", {}, () => {}),
     timings: { startTimeoutMs: 150, probeTimeoutMs: 150, pollIntervalMs: 5 },
-    now: Date.now, inflight: new Map(),
+    now: Date.now, inflight: new Map(), teardowns: new Set(),
   };
   const input = (o: Partial<DeployInput> = {}): DeployInput => ({
     actor: ACTOR, source: { kind: "image", image: "ghcr.io/acme/web-app:1.2", port: 3000 }, visibility: "public", ...o,

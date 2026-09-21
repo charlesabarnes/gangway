@@ -16,7 +16,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Preview } from "../../../shared/src/domain.ts";
+import type { Host, Preview } from "../../../shared/src/domain.ts";
 import type { Actor } from "../auth/actor.ts";
 import { downArgv } from "../docker/compose.ts";
 import { AppError, notFound } from "../errors.ts";
@@ -31,12 +31,32 @@ export async function destroy(ctx: PreviewContext, previewId: string, actor: Act
   const host = ctx.hosts.get(preview.hostId);
   if (!host) throw new AppError("internal", `preview ${previewId} is on unknown host ${preview.hostId}`);
 
-  // Claim it first (synchronously), so a second DELETE gets the 409 above...
+  // Claim it first (synchronously), so a second DELETE gets the 409 above.
   ctx.states.transition(previewId, "destroying");
   ctx.logs.append(previewId, "system", `destroying (requested by ${actor.tokenId})`);
+  return teardown(ctx, preview, host);
+}
 
-  // ...then stop a deploy that is still running, and let it unwind before we `down`:
-  // otherwise its `up` can recreate what we are removing.
+/**
+ * The part of a destroy that happens after the preview is `destroying`. Separate so the
+ * reconciler can FINISH a teardown that a restart interrupted: the row already says
+ * `destroying`, nobody is coming back for it, and `down` is idempotent.
+ */
+export async function teardown(ctx: PreviewContext, preview: Preview, host: Host): Promise<Preview> {
+  const previewId = preview.id;
+  ctx.teardowns.add(previewId);
+  try {
+    return await teardownInner(ctx, preview, host);
+  } finally {
+    ctx.teardowns.delete(previewId);
+  }
+}
+
+async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host): Promise<Preview> {
+  const previewId = preview.id;
+
+  // Stop a deploy that is still running, and let it unwind before we `down`: otherwise
+  // its `up` can recreate what we are removing.
   const running = ctx.inflight.get(previewId);
   if (running) {
     running.abort.abort();
@@ -61,4 +81,20 @@ export async function destroy(ctx: PreviewContext, previewId: string, actor: Act
   await ctx.workdirs.remove(previewId);
   ctx.logs.remove(previewId); // §15.4 default: discard on destroy
   return gone;
+}
+
+/**
+ * Best-effort `down` for a stack nobody is going to finish starting. Never throws: the
+ * caller has already decided the preview's fate, and this only returns its resources.
+ */
+export async function releaseStack(ctx: PreviewContext, preview: Preview, host: Host): Promise<boolean> {
+  const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
+  try {
+    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }), host, { cwd: empty });
+    return res.code === 0;
+  } catch {
+    return false;
+  } finally {
+    await rm(empty, { recursive: true, force: true });
+  }
 }

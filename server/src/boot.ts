@@ -18,6 +18,7 @@ import { migrate } from "./db/migrate.ts";
 import { EventsRepo, HostsRepo, PreviewsRepo, RoutesRepo, SqliteSettingsStore } from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
 import { DockerClients } from "./docker/client.ts";
+import { Reconciler, type ClientSource, type ReconcileReport } from "./reconcile/reconciler.ts";
 import { createComposeRunner, type ComposeRunner } from "./docker/runner.ts";
 import { EventBus } from "./events/bus.ts";
 import { seedHosts } from "./hosts/seed.ts";
@@ -40,6 +41,8 @@ import { publicOriginFor } from "../../shared/src/url.ts";
 export type BootOverrides = {
   logger?: Logger;
   compose?: ComposeRunner;
+  /** Tests inject this: the default would dial whatever Docker socket the machine has. */
+  clients?: ClientSource;
   probe?: RouteProbe;
   timings?: Partial<PreviewContext["timings"]>;
   /** Where the secret-bearing first-run banner goes. NOT the logger: it would redact it. */
@@ -52,6 +55,9 @@ export type Running = {
   adminToken: string;
   origin: (label: string) => string;
   caPath: string | null;
+  reconciler: Reconciler;
+  /** The boot-time pass (§11 step 2-3). Serving does NOT wait on it; tests do. */
+  reconciled: Promise<ReconcileReport | null>;
   stop(): Promise<void>;
 };
 
@@ -90,19 +96,12 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     const p = all.get(route.previewId);
     return p ? [{ route, project: p.project, visibility: p.visibility, state: p.state }] : [];
   }));
-  // A pipeline cannot outlive the process that ran it. Until the reconciler (T25) can
-  // look at the daemon and do better, say what we know: it did not finish.
-  for (const p of all.values()) {
-    if (p.state === "building" || p.state === "starting" || p.state === "destroying") {
-      states.transition(p.id, "failed", `interrupted by a server restart while ${p.state}`);
-    }
-  }
   const workdirs = new Workdirs(stateDir);
   await workdirs.prune();
 
   /* ---- docker */
-  const clients = new DockerClients();
-  const compose = o.compose ?? createComposeRunner(clients, (hostId, ok, err) => hosts.setState(hostId, ok ? "ready" : "unreachable", err));
+  const dockerClients = new DockerClients();
+  const compose = o.compose ?? createComposeRunner(dockerClients, (hostId, ok, err) => hosts.setState(hostId, ok ? "ready" : "unreachable", err));
 
   const ctx: PreviewContext = {
     instance: config.instanceId, env: config.environment,
@@ -115,7 +114,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     logger: logger.child({ mod: "previews" }),
     timings: { ...DEFAULT_TIMINGS, ...o.timings },
     now: Date.now,
-    inflight: new Map(),
+    inflight: new Map(), teardowns: new Set(),
   };
 
   /* ---- auth (§8.1 headless bootstrap) */
@@ -191,17 +190,28 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     },
   });
 
+  // §11 steps 2-3, AFTER the listener is up: "Serve immediately -- do not block on
+  // reconciliation." Interrupted pipelines, orphans and moved ports are all its job.
+  const reconciler = new Reconciler({
+    ctx, routes, clients: o.clients ?? dockerClients,
+    logger: logger.child({ mod: "reconcile" }), orphans: config.reconcileOrphans,
+  });
+  const reconciled = reconciler.run().catch((e) => { logger.error("boot reconciliation failed", { err: e }); return null; });
+  reconciler.start(config.reconcileIntervalMs);
+
   logger.info("listening", { address: config.listenAddress, port: listener.port, baseDomain: baseDomain(), routes: table.size, hosts: seeded.map((h) => h.id) });
 
   return {
-    listener, ctx, adminToken, origin, caPath,
+    listener, ctx, adminToken, origin, caPath, reconciler, reconciled,
     async stop() {
+      reconciler.stop();
+      await reconciled;
       // T29 makes this graceful. For now: stop accepting, cancel pipelines, close.
       redirect?.stop(true);
       listener.stop(true);
       for (const { abort } of ctx.inflight.values()) abort.abort();
       await Promise.allSettled([...ctx.inflight.values()].map((i) => i.done));
-      clients.closeAll();
+      dockerClients.closeAll();
       db.close();
     },
   };

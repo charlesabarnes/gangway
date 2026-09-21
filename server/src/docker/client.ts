@@ -89,6 +89,12 @@ export type DockerClient = {
   info(): Promise<DockerInfo>;
   listContainers(opts?: ListOptions): Promise<ContainerSummary[]>;
   inspectContainer(id: string): Promise<InspectJson>;
+  /**
+   * The ONE mutating call on this surface, and it exists for §11's orphan row only.
+   * Stops, never removes: a stopped container releases its port -- the whole argument
+   * for touching it -- and is still there to be looked at afterwards.
+   */
+  stopContainer(id: string, timeoutSeconds?: number): Promise<void>;
   containerLogs(id: string, opts?: LogOptions): AsyncIterable<LogLine>;
   events(opts?: EventOptions): AsyncIterable<DockerEvent>;
   close(): void;
@@ -264,6 +270,16 @@ class DockerodeClient implements DockerClient {
 
   async inspectContainer(id: string): Promise<InspectJson> {
     return (await this.#docker.getContainer(id).inspect()) as InspectJson;
+  }
+
+  async stopContainer(id: string, timeoutSeconds = 10): Promise<void> {
+    try {
+      await this.#docker.getContainer(id).stop({ t: timeoutSeconds });
+    } catch (e) {
+      // 304: already stopped. That is the outcome we wanted.
+      if ((e as { statusCode?: number }).statusCode === 304) return;
+      throw e;
+    }
   }
 
   containerLogs(id: string, opts: LogOptions = {}): AsyncIterable<LogLine> {

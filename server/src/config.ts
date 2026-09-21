@@ -52,6 +52,11 @@ export const ConfigSchema = z.object({
   upstreamTimeoutMs: z.coerce.number().int().positive().default(30_000),
   previewInflightCap: z.coerce.number().int().positive().default(256),
 
+  /** §11. Each pass also re-probes every host, so this bounds reconnect detection. 0 disables. */
+  reconcileIntervalMs: z.coerce.number().int().min(0).default(60_000),
+  /** `report` logs what the reconciler WOULD stop and stops nothing. */
+  reconcileOrphans: z.enum(["stop", "report"]).default("stop"),
+
   tlsMode: z.enum(["acme", "selfsigned", "file"]).default("selfsigned"),
   tlsCertPath: z.string().optional(),
   tlsKeyPath: z.string().optional(),
@@ -84,6 +89,8 @@ const ENV_MAP = {
   GANGWAY_PUBLIC_PORT: "publicPort",
   GANGWAY_MAX_BODY_BYTES: "maxBodyBytes",
   GANGWAY_UPSTREAM_TIMEOUT_MS: "upstreamTimeoutMs",
+  GANGWAY_RECONCILE_INTERVAL_MS: "reconcileIntervalMs",
+  GANGWAY_RECONCILE_ORPHANS: "reconcileOrphans",
   GANGWAY_TLS_MODE: "tlsMode",
   GANGWAY_TLS_CERT_PATH: "tlsCertPath",
   GANGWAY_TLS_KEY_PATH: "tlsKeyPath",
