@@ -12,6 +12,14 @@ import { isWebSocketUpgrade } from "./headers.ts";
 import { labelUnder, normalizeHost, RESERVED_LABELS } from "../../../shared/src/hostname.ts";
 import { wsRelay, type WsData } from "./wsrelay.ts";
 
+/**
+ * The peer address, stashed per request. Only the listener can see the socket, and the
+ * dispatcher only sees the Request -- a WeakMap joins them without widening either
+ * signature, and cannot leak: the entry dies with the Request.
+ */
+const peers = new WeakMap<Request, string>();
+export const clientIpOf = (req: Request): string => peers.get(req) ?? "";
+
 export type ListenerOptions = {
   hostname: string;
   port: number;
@@ -43,6 +51,7 @@ export function startListener(o: ListenerOptions): RunningListener {
     development: false,
 
     fetch(req: Request, server: Server<WsData>): Response | Promise<Response> | undefined {
+      peers.set(req, server.requestIP(req)?.address ?? "");
       // A WebSocket upgrade must be taken BEFORE dispatch, because Bun owns the socket
       // from the moment server.upgrade() succeeds and no Response may be returned.
       if (isWebSocketUpgrade(req)) {

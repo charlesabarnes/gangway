@@ -73,6 +73,8 @@ describe("composeArgv rejects what compose would mangle", () => {
   test("no compose file at all is refused rather than defaulted", () => {
     // Defaulting would make compose pick up whatever ./compose.yaml is in cwd.
     expect(() => composeArgv({ ...base, files: [], command: "up" })).toThrow(/at least one/);
+    // Teardown addresses the project by -p alone: a missing workdir cannot block it.
+    expect(composeArgv({ ...base, files: [], command: "down", args: ["-v"] }).slice(1)).not.toContain("--file");
   });
 
   test("a value beginning with - is refused, because every CLI reads it as a flag", () => {

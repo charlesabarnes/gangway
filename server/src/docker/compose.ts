@@ -39,6 +39,13 @@ export type ComposeSpec = {
   docker?: string | undefined;
 };
 
+/**
+ * Commands that address a project purely by `-p`, through the labels compose put on what
+ * it created. Teardown MUST be one of them: after a crash the workdir may be gone, and a
+ * compose file that no longer parses must never be able to block `down`.
+ */
+const FILELESS_COMMANDS: ReadonlySet<string> = new Set(["down", "ps", "logs", "stop", "start"]);
+
 const assertFlagSafe = (value: string, what: string): string => {
   if (value === "") throw badRequest(`${what} is empty`);
   if (value.startsWith("-")) {
@@ -60,7 +67,9 @@ export function composeArgv(spec: ComposeSpec): string[] {
       `invalid compose project name ${JSON.stringify(spec.project)} — must match ${PROJECT_NAME_RE.source}`,
     );
   }
-  if (spec.files.length === 0) throw badRequest("composeArgv needs at least one compose file");
+  if (spec.files.length === 0 && !FILELESS_COMMANDS.has(spec.command)) {
+    throw badRequest(`compose ${spec.command} needs at least one compose file`);
+  }
 
   const argv: string[] = [spec.docker ?? DEFAULT_DOCKER_BIN, "compose"];
 

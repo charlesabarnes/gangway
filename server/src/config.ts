@@ -30,6 +30,13 @@ export const HostConfigSchema = z.object({
 export type HostConfig = z.infer<typeof HostConfigSchema>;
 
 export const ConfigSchema = z.object({
+  /**
+   * Written into every container label (§4.1). Two gangway installations can share one
+   * daemon; these are how each tells its containers from the other's.
+   */
+  instanceId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/).default("default"),
+  environment: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/).default("dev"),
+
   stateDir: z.string().default("./state"),
   databasePath: z.string().optional(),
 
@@ -66,6 +73,8 @@ export type Config = z.infer<typeof ConfigSchema>;
 
 /** env var -> config field. Only these are readable from the environment. */
 const ENV_MAP = {
+  GANGWAY_INSTANCE: "instanceId",
+  GANGWAY_ENV: "environment",
   GANGWAY_STATE_DIR: "stateDir",
   GANGWAY_DATABASE_PATH: "databasePath",
   GANGWAY_LISTEN_ADDRESS: "listenAddress",

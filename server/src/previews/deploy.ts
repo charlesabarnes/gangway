@@ -1,0 +1,323 @@
+/**
+ * The deploy pipeline (§5). ADR-0003: this is the ONE code path that can create a
+ * preview, and there is not an HTTP type in it.
+ *
+ * Two halves, split where the answer to "what is my URL?" becomes known:
+ *
+ *   plan   (awaited by the caller)  source -> `compose config` -> policy -> hostnames
+ *                                   and ports -> preview row + route rows
+ *   run    (background)             stack file -> build -> up -> healthy -> answering
+ *
+ * A failure while planning leaves NOTHING behind -- no row, no route, no container --
+ * and surfaces as a 4xx to the caller. A failure while running leaves a `failed` preview
+ * whose URL serves the log tail (§6.1), because by then someone may be watching it.
+ *
+ * §5: "Write the route row before starting containers, never after." The rows are
+ * written at the end of `plan`; `compose up` is in `run`. That ordering is structural.
+ */
+import { randomBytes } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Host, Preview, PreviewSource, Visibility } from "../../../shared/src/domain.ts";
+import { slugify } from "../../../shared/src/hostname.ts";
+import { publicOriginFor } from "../../../shared/src/url.ts";
+import type { Actor } from "../auth/actor.ts";
+import { buildArgv, composeArgv, downArgv, parseComposePs, psArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
+import { AppError, conflict } from "../errors.ts";
+import { redactString } from "../logger.ts";
+import { allocatePorts } from "../routing/ports.ts";
+import { place } from "../scheduler/placement.ts";
+import { sleep } from "../util/async.ts";
+import { parseDuration } from "../util/duration.ts";
+import { ulid } from "../util/ulid.ts";
+import { parse as parseYaml } from "yaml";
+import { buildStack, composeForImage, parseComposeModel, planRoutes, selectExposed, type ComposeModel, type PlannedRoute } from "./compose-model.ts";
+import type { PreviewContext } from "./context.ts";
+import type { Workdir } from "./source/workdir.ts";
+
+export type DeploySource =
+  | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined };
+
+export type DeployInput = {
+  actor: Actor;
+  source: DeploySource;
+  /** The hostname stem. Defaults to something derived from the source. */
+  name?: string | undefined;
+  visibility?: Visibility | undefined;
+  /** A duration (`12h`, `7d`), or null for no expiry. */
+  ttl?: string | null | undefined;
+  hostId?: string | undefined;
+};
+
+export type PreviewUrl = { service: string; url: string; primary: boolean };
+
+export type DeployResult = {
+  preview: Preview;
+  urls: PreviewUrl[];
+  /** Settles when the pipeline does. Resolves with the final preview -- awake OR failed. */
+  done: Promise<Preview>;
+};
+
+const unprocessable = (m: string, d?: Record<string, unknown>) => new AppError("unprocessable", m, d);
+
+/** A placeholder `-p` for the config passes, which run before the real name is known. */
+const PLAN_PROJECT = "gw-plan";
+const COMPOSE_FILE = "compose.yaml";
+/** What we actually `up`: compose's canonical output with our changes applied. */
+const STACK_FILE = "gangway.stack.yaml";
+
+/** 50 bits, lowercase base32 without lookalikes. §8.3: "unguessable suffix in the hostname". */
+function unguessable(): string {
+  const alphabet = "abcdefghjkmnpqrstvwxyz0123456789";
+  return Array.from(randomBytes(10), (b) => alphabet[b % 32]).join("");
+}
+
+function defaultName(source: DeploySource): string {
+  // "ghcr.io/acme/web-app:1.2" -> "web-app"
+  const last = source.image.split("/").pop() ?? source.image;
+  return slugify(last.split(/[:@]/)[0] ?? last) || "preview";
+}
+
+export function urlsFor(ctx: Pick<PreviewContext, "table" | "origin">, previewId: string): PreviewUrl[] {
+  return ctx.table.forPreview(previewId)
+    .map((e) => ({ service: e.service, url: `${publicOriginFor(e.hostname, ctx.origin)}/`, primary: e.primary }))
+    .sort((a, b) => Number(b.primary) - Number(a.primary) || a.service.localeCompare(b.service));
+}
+
+/* ------------------------------------------------------------------ plan */
+
+async function writeSource(source: DeploySource, wd: Workdir): Promise<PreviewSource> {
+  switch (source.kind) {
+    case "image":
+      await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage(source), { mode: 0o600 });
+      return { kind: "image", image: source.image };
+  }
+}
+
+type Planned = { model: ComposeModel; resolved: unknown };
+
+async function readModel(ctx: PreviewContext, host: Host, wd: Workdir): Promise<Planned> {
+  const argv = composeArgv({
+    project: PLAN_PROJECT, files: [join(wd.srcDir, COMPOSE_FILE)], projectDirectory: wd.srcDir, docker: ctx.docker,
+    // YAML, not `--format json`: JSON output drops service-level x-gangway. See compose-model.ts.
+    command: "config",
+  });
+  const r = await ctx.compose.capture(argv, host, { cwd: wd.srcDir });
+  if (r.code !== 0) throw unprocessable("the compose file is not valid", { compose: redactString(r.stderr).slice(-2_000) });
+  let resolved: unknown;
+  try { resolved = parseYaml(r.stdout); } catch { throw new AppError("internal", "could not read `compose config` output"); }
+
+  const model = parseComposeModel(PLAN_PROJECT, resolved);
+  if (model.violations.length > 0) {
+    throw unprocessable("the compose file asks for things a preview may not have", { violations: model.violations });
+  }
+  return { model, resolved };
+}
+
+export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
+  const id = ulid(ctx.now());
+  // §9: placement is decided here and nowhere else, even while there is one host.
+  const host = place({ capability: "preview", hostId: input.hostId }, ctx.hosts.list());
+  const wd = await ctx.workdirs.create(id);
+
+  let preview: Preview;
+  let planned: Planned;
+  let routes: PlannedRoute[];
+  let visibility: Visibility;
+  try {
+    const source = await writeSource(input.source, wd);
+    planned = await readModel(ctx, host, wd);
+    const { model } = planned;
+    const exposed = selectExposed(model);
+
+    const defaults = ctx.defaults();
+    visibility = input.visibility ?? model.x.visibility ?? defaults.visibility;
+    if (visibility === "private") throw unprocessable("private previews need accounts, which arrive in Phase 2");
+
+    const ttlText = input.ttl === undefined ? (model.x.ttl ?? defaults.ttl) : input.ttl;
+    const ttlMs = ttlText === null ? null : parseDuration(ttlText);
+    if (ttlText !== null && ttlMs === null) throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
+
+    const stem = slugify(input.name ?? defaultName(input.source));
+    if (stem === "") throw unprocessable("name has no usable characters");
+    const slug = visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
+    const project = `gw-${slug}`;
+
+    const existing = ctx.previews.getByProject(project);
+    if (existing && existing.state !== "destroyed") {
+      throw conflict(`a preview named "${slug}" already exists`, { previewId: existing.id, state: existing.state });
+    }
+
+    // ---- from here to the end of the block is SYNCHRONOUS. Ports are allocated from
+    // the route table and claimed in the route table with no await in between, so two
+    // concurrent deploys cannot be handed the same port.
+    routes = planRoutes({
+      previewId: id, slug, baseDomain: ctx.baseDomain(), host, exposed,
+      allocate: (n) => allocatePorts(host.ports, ctx.table.usedPorts(host.upstream.address), n, host.id),
+    });
+    if (existing) {
+      ctx.previews.delete(existing.id);
+      ctx.logs.remove(existing.id);
+    }
+    preview = ctx.previews.create({
+      id, project, hostId: host.id, state: "building", source, visibility,
+      ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs),
+    });
+    try {
+      for (const route of routes) {
+        ctx.table.apply({ route: { ...route, createdAt: preview.createdAt }, project, visibility, state: "building" });
+      }
+    } catch (e) {
+      ctx.table.removePreview(id);
+      ctx.previews.delete(id);
+      throw /UNIQUE|PRIMARY/i.test(String(e)) ? conflict("that hostname is already taken by another preview") : e;
+    }
+    // ---- end synchronous block
+  } catch (e) {
+    await wd.cleanup();
+    ctx.logs.remove(id);
+    throw e;
+  }
+
+  const urls = urlsFor(ctx, id);
+  ctx.bus.publish("preview.created", { project: preview.project, by: input.actor.tokenId, urls: urls.map((u) => u.url) }, id);
+  ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
+
+  const abort = new AbortController();
+  const done = run(ctx, { preview, host, wd, ...planned, routes, visibility, signal: abort.signal })
+    .finally(() => { ctx.inflight.delete(id); });
+  ctx.inflight.set(id, { abort, done });
+
+  return { preview, urls, done };
+}
+
+/* ------------------------------------------------------------------ run */
+
+type RunInput = {
+  preview: Preview; host: Host; wd: Workdir; model: ComposeModel; resolved: unknown;
+  routes: PlannedRoute[]; visibility: Visibility; signal: AbortSignal;
+};
+
+class StepFailed extends Error {}
+
+async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
+  const { preview, host, wd } = r;
+  const id = preview.id;
+  const log = (line: string) => ctx.logs.append(id, "system", line);
+  const stackPath = join(wd.dir, STACK_FILE);
+  // ONE file. The user's compose.yaml is not on this command line: it has already been
+  // read, by compose itself, into the document the stack file was built from.
+  const base = { project: preview.project, files: [stackPath], projectDirectory: wd.srcDir, docker: ctx.docker };
+
+  /** Streams a compose command into the preview log; throws unless it exits 0. */
+  const step = async (what: string, argv: string[], stream: "build" | "stdout") => {
+    log(`$ compose ${what}`);
+    for await (const ev of ctx.compose.stream(argv, host, { cwd: wd.srcDir, signal: r.signal })) {
+      if (ev.type === "line") ctx.logs.append(id, ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream, ev.line);
+      else if (ev.code !== 0) throw new StepFailed(`compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`);
+    }
+    r.signal.throwIfAborted();
+  };
+
+  let upAttempted = false;
+  try {
+    await writeFile(stackPath, buildStack({
+      resolved: r.resolved, planProject: PLAN_PROJECT,
+      model: r.model, routes: r.routes, createdAt: preview.createdAt,
+      ctx: { instance: ctx.instance, env: ctx.env, project: preview.project, hostId: host.id, visibility: r.visibility },
+      publishBind: host.publishBind, origin: ctx.origin,
+    }), { mode: 0o600 });
+
+    const toBuild = r.model.services.filter((s) => s.hasBuild).map((s) => s.name);
+    if (toBuild.length > 0) await step("build", buildArgv(base, toBuild), "build");
+
+    ctx.states.transition(id, "starting");
+    upAttempted = true;
+    await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout");
+
+    await waitHealthy(ctx, r, base);
+    await waitAnswering(ctx, r);
+
+    log("awake");
+    return ctx.states.transition(id, "awake");
+  } catch (e) {
+    // destroy() aborted us and owns the preview from here; do not fight it for the state.
+    if (r.signal.aborted) return ctx.previews.get(id) ?? preview;
+
+    const message = redactString(e instanceof Error ? e.message : String(e));
+    if (!(e instanceof StepFailed)) ctx.logger.error("deploy pipeline error", { previewId: id, err: e });
+    log(`FAILED: ${message}`);
+    if (upAttempted) await salvage(ctx, r);
+    return ctx.states.transition(id, "failed", message);
+  } finally {
+    await wd.cleanup();
+  }
+}
+
+/** §5 step 7 / §7.4: gate on healthchecks, not on container start. */
+async function waitHealthy(ctx: PreviewContext, r: RunInput, base: Omit<ComposeSpec, "command" | "args">): Promise<void> {
+  const deadline = Date.now() + ctx.timings.startTimeoutMs;
+  const argv = psArgv(base, ["--all"]);
+  let last = "";
+  for (;;) {
+    r.signal.throwIfAborted();
+    const res = await ctx.compose.capture(argv, r.host, { cwd: r.wd.srcDir, signal: r.signal });
+    const rows = res.code === 0 ? parseComposePs(res.stdout) : [];
+    const routed = new Set(r.routes.map((x) => x.service));
+
+    for (const c of rows) {
+      const died = c.state === "dead" || (c.state === "exited" && (c.exitCode !== 0 || routed.has(c.service)));
+      if (died) throw new StepFailed(`service "${c.service}" exited${c.exitCode === null ? "" : ` with code ${c.exitCode}`}`);
+      if (c.health === "unhealthy") throw new StepFailed(`service "${c.service}" is unhealthy`);
+    }
+    // A one-shot service (a migration) that exited 0 is done, not broken.
+    const waiting = rows.filter((c) => !(c.state === "exited" && c.exitCode === 0))
+      .filter((c) => c.state !== "running" || (c.health !== null && c.health !== "healthy"));
+    const seen = new Set(rows.map((c) => c.service));
+    const missing = [...routed].filter((s) => !seen.has(s));
+    if (rows.length > 0 && waiting.length === 0 && missing.length === 0) return;
+
+    const status = [...waiting.map((c) => `${c.service}: ${c.health ?? c.state}`), ...missing.map((s) => `${s}: not created`)].join(", ");
+    if (status !== last) { ctx.logs.append(r.preview.id, "system", `waiting for ${status || "containers"}`); last = status; }
+    if (Date.now() >= deadline) throw new StepFailed(`timed out after ${Math.round(ctx.timings.startTimeoutMs / 1000)}s waiting for ${status || "containers"}`);
+    await sleep(ctx.timings.pollIntervalMs);
+  }
+}
+
+/** Running is not listening. Do not call it awake until the URL would actually work. */
+async function waitAnswering(ctx: PreviewContext, r: RunInput): Promise<void> {
+  const deadline = Date.now() + ctx.timings.probeTimeoutMs;
+  let pending = [...r.routes];
+  for (;;) {
+    r.signal.throwIfAborted();
+    const results = await Promise.all(pending.map((route) => ctx.probe(route, r.host)));
+    pending = pending.filter((_, i) => !results[i]);
+    if (pending.length === 0) return;
+    if (Date.now() >= deadline) {
+      throw new StepFailed(`${pending.map((p) => `${p.service}:${p.containerPort}`).join(", ")} never answered HTTP -- is that the right port, and does the app listen on 0.0.0.0?`);
+    }
+    await sleep(ctx.timings.pollIntervalMs);
+  }
+}
+
+/**
+ * A failed stack is torn down -- it is holding ports and memory on a box that runs real
+ * workloads -- but its last words are kept first, because the container logs are the
+ * only thing that says WHY, and the failure page shows them (§6.1).
+ */
+async function salvage(ctx: PreviewContext, r: RunInput): Promise<void> {
+  const empty = await mkdtemp(join(tmpdir(), "gangway-salvage-"));
+  try {
+    const logs = await ctx.compose.capture(
+      composeArgv({ project: r.preview.project, files: [], command: "logs", args: ["--no-color", "--tail", "60"], docker: ctx.docker }),
+      r.host, { cwd: empty },
+    );
+    if (logs.stdout) ctx.logs.append(r.preview.id, "stdout", logs.stdout);
+    await ctx.compose.capture(downArgv({ project: r.preview.project, files: [], docker: ctx.docker }), r.host, { cwd: empty });
+  } catch (e) {
+    ctx.logger.warn("could not tear down a failed stack; the reconciler will", { previewId: r.preview.id, err: e });
+  } finally {
+    await rm(empty, { recursive: true, force: true });
+  }
+}

@@ -1,0 +1,64 @@
+/**
+ * Teardown (§5 step 11): `docker compose -p <project> down -v`, routes removed.
+ *
+ * Addressed by PROJECT NAME ALONE, with no compose files. Verified against Compose
+ * v2.29.2: a file-less `down -v --remove-orphans` removes the containers, the named
+ * volumes and the network, found through the labels compose itself wrote. That matters
+ * because scratch does not survive a restart (Workdirs.prune) and a compose file that no
+ * longer parses must never be able to block a destroy.
+ *
+ * It runs from a fresh empty directory: given no `-f`, compose searches the cwd AND ITS
+ * PARENTS for a compose.yaml, and this repository has one.
+ *
+ * Routes are removed only AFTER the daemon confirms. If `down` fails the containers may
+ * still hold their ports, so the ledger must keep saying so.
+ */
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Preview } from "../../../shared/src/domain.ts";
+import type { Actor } from "../auth/actor.ts";
+import { downArgv } from "../docker/compose.ts";
+import { AppError, notFound } from "../errors.ts";
+import { redactString } from "../logger.ts";
+import type { PreviewContext } from "./context.ts";
+
+export async function destroy(ctx: PreviewContext, previewId: string, actor: Actor): Promise<Preview> {
+  const preview = ctx.previews.get(previewId);
+  if (!preview || preview.state === "destroyed") throw notFound(`no such preview: ${previewId}`);
+  if (preview.state === "destroying") throw new AppError("conflict", "this preview is already being destroyed");
+
+  const host = ctx.hosts.get(preview.hostId);
+  if (!host) throw new AppError("internal", `preview ${previewId} is on unknown host ${preview.hostId}`);
+
+  // Claim it first (synchronously), so a second DELETE gets the 409 above...
+  ctx.states.transition(previewId, "destroying");
+  ctx.logs.append(previewId, "system", `destroying (requested by ${actor.tokenId})`);
+
+  // ...then stop a deploy that is still running, and let it unwind before we `down`:
+  // otherwise its `up` can recreate what we are removing.
+  const running = ctx.inflight.get(previewId);
+  if (running) {
+    running.abort.abort();
+    await running.done.catch(() => {});
+  }
+
+  const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
+  try {
+    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }), host, { cwd: empty });
+    if (res.code !== 0) throw new Error(`compose down exited ${res.code}: ${res.stderr.slice(-500)}`);
+  } catch (e) {
+    const message = redactString(e instanceof Error ? e.message : String(e));
+    ctx.logs.append(previewId, "system", `destroy FAILED: ${message}`);
+    ctx.states.transition(previewId, "failed", `destroy failed: ${message}`);
+    throw e instanceof AppError ? e : new AppError("bad_gateway", "the host could not tear the preview down; it is still there", { cause: message });
+  } finally {
+    await rm(empty, { recursive: true, force: true });
+  }
+
+  ctx.table.removePreview(previewId);
+  const gone = ctx.states.transition(previewId, "destroyed");
+  await ctx.workdirs.remove(previewId);
+  ctx.logs.remove(previewId); // §15.4 default: discard on destroy
+  return gone;
+}
