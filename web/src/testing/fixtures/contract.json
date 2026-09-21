@@ -1,0 +1,50 @@
+{
+  "_": "The /v1 wire contract, pinned from both sides. server/test/unit/web-contract.test.ts asserts the server's real output has exactly this SHAPE and these literals; web/src/app/core/api.types.spec.ts asserts this file satisfies the UI's types. Values are examples; shapes and lists are the contract.",
+  "preview": {
+    "id": "01M32T8NBMWNSVJZT7XYX2MRZY",
+    "project": "gw-contract",
+    "hostId": "local",
+    "kind": "preview",
+    "state": "awake",
+    "source": { "kind": "image", "image": "traefik/whoami:v1.10" },
+    "visibility": "public",
+    "ttlExpiresAt": "2026-09-28T20:24:15.180Z",
+    "lastSeenAt": null,
+    "error": null,
+    "createdAt": "2026-09-21T20:24:15.180Z",
+    "updatedAt": "2026-09-21T20:24:16.100Z",
+    "destroyedAt": null,
+    "urls": [{ "service": "web", "url": "https://contract.preview.localhost:8443/", "primary": true }]
+  },
+  "previewList": { "seq": 3, "previews": [] },
+  "previewEvent": { "seq": 2, "type": "preview.state", "at": "2026-09-21T20:24:15.900Z", "state": "starting", "from": "building" },
+  "sessionAnonymous": { "authenticated": false, "setupRequired": true },
+  "sessionUser": {
+    "authenticated": true,
+    "setupRequired": false,
+    "user": { "id": "01M32T80F881ZTYFWN40SMVWT6", "email": "ada@example.com", "role": { "id": "admin", "name": "admin" } },
+    "permissions": ["previews.read"]
+  },
+  "login": {
+    "user": { "id": "01M32T80F881ZTYFWN40SMVWT6", "email": "ada@example.com", "role": { "id": "admin", "name": "admin" } },
+    "permissions": ["previews.read"]
+  },
+  "token": {
+    "id": "01M32T80JC0F8X7NAF659PWE91", "name": "ci", "prefix": "gw_2t3Gr_pN", "scopes": ["deploy"],
+    "userId": "01M32T80F881ZTYFWN40SMVWT6", "appName": null,
+    "expiresAt": null, "lastUsedAt": null, "revokedAt": null, "createdAt": "2026-09-21T20:24:15.180Z"
+  },
+  "problem": { "type": "https://gangway.dev/errors/forbidden", "title": "forbidden", "status": 403, "detail": "requires the \"previews.destroy\" permission", "instance": "/v1/previews/x", "requestId": "01M32T80F881ZTYFWN40SMVWT6" },
+  "previewStates": ["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"],
+  "visibilities": ["public", "unlisted", "private"],
+  "logStreams": ["system", "build", "stdout", "stderr"],
+  "scopes": ["read", "deploy", "admin"],
+  "streamEventTypes": ["preview.created", "preview.adopted", "preview.state", "reset"],
+  "permissions": [
+    "previews.read", "previews.deploy", "previews.destroy", "previews.view_private",
+    "logs.read", "events.read", "hosts.read", "hosts.manage",
+    "tokens.manage_own", "tokens.manage_all", "users.read", "users.manage", "roles.read", "roles.manage",
+    "audit.read", "settings.read", "settings.write", "surfaces.manage", "github.manage",
+    "apps.read", "apps.install", "jobs.claim"
+  ]
+}

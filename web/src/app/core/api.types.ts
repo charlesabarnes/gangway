@@ -1,0 +1,95 @@
+/**
+ * The wire shapes of `/v1`, as the browser sees them. Hand-written on purpose: the server's
+ * domain types carry `Date`s and Bun-only import conventions, and what crosses the network
+ * is JSON -- every timestamp here is an ISO string.
+ *
+ * Kept honest by `src/testing/fixtures/*.json`: the SERVER's test suite asserts its real
+ * output matches those files, and this project's specs assert the files satisfy these
+ * types. Change either side alone and a test fails.
+ */
+
+export type PreviewState = 'building' | 'starting' | 'awake' | 'asleep' | 'failed' | 'destroying' | 'destroyed';
+export const PREVIEW_STATES: readonly PreviewState[] = ['building', 'starting', 'awake', 'asleep', 'failed', 'destroying', 'destroyed'];
+
+export type Visibility = 'public' | 'unlisted' | 'private';
+
+export type PreviewSource =
+  | { kind: 'pr'; repo: string; number: number; sha: string }
+  | { kind: 'manual'; userId: string }
+  | { kind: 'agent'; tokenId: string; idempotencyKey: string }
+  | { kind: 'image'; image: string }
+  | { kind: 'tarball'; uploadId: string }
+  | { kind: 'git'; repo: string; ref: string };
+export type SourceKind = PreviewSource['kind'];
+
+export type PreviewUrl = { service: string; url: string; primary: boolean };
+
+export type Preview = {
+  id: string;
+  project: string;
+  hostId: string;
+  kind: 'preview' | 'job';
+  state: PreviewState;
+  source: PreviewSource;
+  visibility: Visibility;
+  ttlExpiresAt: string | null;
+  lastSeenAt: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+  destroyedAt: string | null;
+  urls: PreviewUrl[];
+};
+
+/** `seq` is the event cursor to follow `/v1/events` from -- read by the server BEFORE the list. */
+export type PreviewList = { seq: number; previews: Preview[] };
+
+export type PreviewEvent = { seq: number; type: string; at: string; state?: PreviewState; from?: PreviewState; error?: string };
+
+export type Build = {
+  id: string; previewId: string; service: string | null;
+  state: 'running' | 'succeeded' | 'failed' | 'cancelled';
+  startedAt: string; finishedAt: string | null; exitCode: number | null;
+};
+
+export type LogStream = 'system' | 'build' | 'stdout' | 'stderr';
+export const LOG_STREAMS: readonly LogStream[] = ['system', 'build', 'stdout', 'stderr'];
+export type LogLine = { n: number; at: string; stream: LogStream; line: string };
+
+/** What `/v1/events` carries. `reset` is synthetic: drop local state, refetch, keep following. */
+export type StreamEvent =
+  | { type: 'preview.created'; previewId: string; at: string }
+  | { type: 'preview.adopted'; previewId: string; at: string }
+  | { type: 'preview.state'; previewId: string; at: string; state: PreviewState; from: PreviewState; error?: string }
+  | { type: 'reset'; at: string };
+export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'preview.state', 'reset'] as const;
+
+/**
+ * Permissions are what the UI gates on -- never a role name, because which role holds what
+ * is the operator's to change. Mirrors `shared/src/permissions.ts`; pinned by
+ * `fixtures/permissions.json`.
+ */
+export const PERMISSIONS = [
+  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.view_private',
+  'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
+  'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
+  'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage',
+  'apps.read', 'apps.install', 'jobs.claim',
+] as const;
+export type Permission = (typeof PERMISSIONS)[number];
+
+export type Scope = 'read' | 'deploy' | 'admin';
+
+export type SessionUser = { id: string; email: string; role: { id: string; name: string } };
+
+/** `GET /v1/auth/session` is always 200; this is its whole range. */
+export type SessionInfo =
+  | { authenticated: false; setupRequired: boolean }
+  | { authenticated: true; setupRequired: false; user?: SessionUser; token?: { id: string; scopes: Scope[] }; permissions: Permission[] };
+
+export type LoginResponse = { user: SessionUser; permissions: Permission[] };
+
+export type ApiToken = {
+  id: string; name: string; prefix: string; scopes: Scope[]; userId: string | null; appName: string | null;
+  expiresAt: string | null; lastUsedAt: string | null; revokedAt: string | null; createdAt: string;
+};

@@ -15,7 +15,8 @@ import { join } from "node:path";
 import { redactString } from "../logger.ts";
 import { isUlid } from "../util/ulid.ts";
 
-export type LogStream = "system" | "build" | "stdout" | "stderr";
+export const LOG_STREAMS = ["system", "build", "stdout", "stderr"] as const;
+export type LogStream = (typeof LOG_STREAMS)[number];
 export type LogLine = { n: number; ts: number; stream: LogStream; line: string };
 export type LogListener = (l: LogLine) => void;
 

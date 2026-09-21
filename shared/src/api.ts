@@ -6,6 +6,10 @@
 import { z } from "zod";
 import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
 
+/** Runtime copies of the domain's string unions, so the web contract test has something to compare. */
+export const PREVIEW_STATE_VALUES = ["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"] as const;
+export const VISIBILITY_VALUES = ["public", "unlisted", "private"] as const;
+
 /** A Docker image reference. Conservative on purpose: it becomes an argument to a CLI. */
 const imageRef = z.string().max(255).regex(/^[a-z0-9][a-z0-9._/:@-]*$/i, "not a valid image reference");
 
@@ -40,7 +44,7 @@ export const DeploySourceSchema = z.discriminatedUnion("kind", [
  */
 export const TarballDeployQuerySchema = z.object({
   name: z.string().min(1).max(40).optional(),
-  visibility: z.enum(["public", "unlisted", "private"]).optional(),
+  visibility: z.enum(VISIBILITY_VALUES).optional(),
   /** `12h`, `7d`, or `none` for no expiry. */
   ttl: z.string().max(16).optional(),
   hostId: z.string().min(1).max(64).optional(),
@@ -51,14 +55,14 @@ export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", 
 export const DeployRequestSchema = z.strictObject({
   source: DeploySourceSchema,
   name: z.string().min(1).max(40).optional(),
-  visibility: z.enum(["public", "unlisted", "private"]).optional(),
+  visibility: z.enum(VISIBILITY_VALUES).optional(),
   /** `12h`, `7d`; null for no expiry. Omitted means the server default. */
   ttl: z.string().max(16).nullable().optional(),
   hostId: z.string().min(1).max(64).optional(),
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
 
-const previewState = z.enum(["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"]);
+const previewState = z.enum(PREVIEW_STATE_VALUES);
 
 export const PreviewListQuerySchema = z.object({
   /** Repeatable (`?state=awake&state=asleep`) or comma-joined. Naming `destroyed` includes it. */
