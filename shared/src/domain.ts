@@ -4,6 +4,7 @@
  * Timestamps are epoch milliseconds at the storage boundary and `Date` in the domain.
  * Repositories do the conversion so nothing above them handles raw integers.
  */
+import type { Scope } from "./permissions.ts";
 
 export type HostCapability = "preview" | "runner";
 export type UpstreamDial = "direct" | "socks5";
@@ -96,6 +97,68 @@ export type Certificate = {
   notBefore: Date | null;
   notAfter: Date | null;
   updatedAt: Date;
+};
+
+/* ------------------------------------------------------------------ accounts (§8) */
+
+/** A named set of permissions. Which permissions is data: see `permissions.ts`. */
+export type Role = {
+  id: string;
+  name: string;
+  description: string;
+  /** Shipped with gangway. `admin` is builtin AND immutable; the other two are editable. */
+  builtin: boolean;
+  createdAt: Date;
+};
+
+/** Never carries password material: that type exists only inside the server. */
+export type User = {
+  id: string;
+  email: string;
+  roleId: string;
+  disabled: boolean;
+  createdAt: Date;
+};
+
+export type Session = {
+  /** sha256 of the cookie's secret -- the secret itself is never stored. */
+  id: string;
+  userId: string;
+  createdAt: Date;
+  expiresAt: Date;
+  lastSeenAt: Date | null;
+  ip: string | null;
+  userAgent: string | null;
+};
+
+/** §8.2. The secret is shown once at creation and is not part of this type. */
+export type ApiToken = {
+  id: string;
+  name: string;
+  /** The first characters of the secret, in clear, so a token can be recognised in a list. */
+  prefix: string;
+  scopes: Scope[];
+  /** null for a token that belongs to no account (minted with the env admin token). */
+  userId: string | null;
+  appName: string | null;
+  expiresAt: Date | null;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+  createdAt: Date;
+};
+
+export type AuditActorType = "user" | "token" | "app" | "system" | "github";
+
+/** §10.5.2. Append-only; `old`/`new` are redacted before they are written. */
+export type AuditEntry = {
+  seq: number;
+  actorType: AuditActorType;
+  actorId: string | null;
+  action: string;
+  target: string | null;
+  old: unknown;
+  new: unknown;
+  createdAt: Date;
 };
 
 export const PREVIEW_ACTIVE_STATES: readonly PreviewState[] = [

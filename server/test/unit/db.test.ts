@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase as openBun } from "../../src/db/sqlite.ts";
 import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import { compareVersion, type Db, type OpenOptions } from "../../src/db/types.ts";
 import { checksum, loadMigrations, migrate } from "../../src/db/migrate.ts";
+import { DEFAULT_ROLE_PERMISSIONS, isPermission } from "../../../shared/src/permissions.ts";
 
 const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const tmps: string[] = [];
@@ -85,7 +86,7 @@ for (const [name, open] of DRIVERS) {
     test("the real 0001 schema applies and enforces its constraints", () => {
       const { db } = fresh();
       const res = migrate(db, MIGRATIONS);
-      expect(res.applied).toEqual([1, 2]);
+      expect(res.applied).toEqual([1, 2, 3]);
 
       const now = Date.now();
       db.run(`INSERT INTO hosts (id, name, docker_host, created_at)
@@ -120,13 +121,75 @@ for (const [name, open] of DRIVERS) {
     test("migrate is idempotent across reopen", () => {
       const dir = tmp();
       const a = open({ path: join(dir, "g.db") });
-      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2]);
+      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2, 3]);
       a.db.close();
       const b = open({ path: join(dir, "g.db") });
       const r = migrate(b.db, MIGRATIONS);
       expect(r.applied).toEqual([]);
-      expect(r.alreadyApplied).toEqual([1, 2]);
+      expect(r.alreadyApplied).toEqual([1, 2, 3]);
       b.db.close();
+    });
+
+    describe("0003 roles and permissions", () => {
+      const grants = (db: Db, role: string) =>
+        db.query<{ permission_id: string }>("SELECT permission_id FROM role_permissions WHERE role_id = $r ORDER BY permission_id", { r: role }).map((r) => r.permission_id);
+
+      test("seeds three builtin roles, and member/viewer exactly as the code's defaults say", () => {
+        const { db } = fresh();
+        migrate(db, MIGRATIONS);
+        expect(db.query<{ id: string; builtin: number }>("SELECT id, builtin FROM roles ORDER BY id")).toEqual([
+          { id: "admin", builtin: 1 }, { id: "member", builtin: 1 }, { id: "viewer", builtin: 1 },
+        ]);
+        expect(grants(db, "member")).toEqual([...DEFAULT_ROLE_PERMISSIONS.member].sort());
+        expect(grants(db, "viewer")).toEqual([...DEFAULT_ROLE_PERMISSIONS.viewer].sort());
+        db.close();
+      });
+
+      test("every seeded permission still exists in code: an id is never renamed", () => {
+        const { db } = fresh();
+        migrate(db, MIGRATIONS);
+        const seeded = db.query<{ id: string }>("SELECT id FROM permissions").map((r) => r.id);
+        expect(seeded.length).toBeGreaterThan(20);
+        for (const id of seeded) expect(isPermission(id)).toBe(true);
+        expect(grants(db, "admin")).toEqual([...seeded].sort());
+        db.close();
+      });
+
+      test("a grant must name a real role and a real permission; a role in use cannot be deleted", () => {
+        const { db } = fresh();
+        migrate(db, MIGRATIONS);
+        expect(() => db.run("INSERT INTO role_permissions (role_id, permission_id) VALUES ('viewer', 'previews.levitate')")).toThrow();
+        expect(() => db.run("INSERT INTO role_permissions (role_id, permission_id) VALUES ('ghost', 'previews.read')")).toThrow();
+        expect(() => db.run("INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u', 'a@b.c', 'h', 's', 'ghost', 1)")).toThrow();
+        db.run("INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u', 'a@b.c', 'h', 's', 'viewer', 1)");
+        expect(() => db.run("DELETE FROM roles WHERE id = 'viewer'")).toThrow();
+        db.close();
+      });
+
+      test("upgrades a populated 0002 database: users keep their role, sessions and tokens keep their owner", () => {
+        const upTo2 = tmp();
+        for (const f of readdirSync(MIGRATIONS)) if (/^000[12]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo2, f));
+        const path = join(tmp(), "g.db");
+        const a = open({ path });
+        expect(migrate(a.db, upTo2).applied).toEqual([1, 2]);
+        a.db.run("INSERT INTO users (id, email, password_hash, password_salt, role, disabled, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'member', 1, 42)");
+        a.db.run("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES ('s1', 'u1', 1, 2)");
+        a.db.run("INSERT INTO api_tokens (id, name, prefix, token_hash, user_id, created_at) VALUES ('t1', 'ci', 'gw_abc', 'hash', 'u1', 1)");
+        a.db.close();
+
+        const b = open({ path });
+        expect(migrate(b.db, MIGRATIONS).applied).toEqual([3]);
+        expect(b.db.get<Record<string, unknown>>("SELECT id, email, role_id, disabled, created_at FROM users")).toEqual(
+          { id: "u1", email: "ada@example.com", role_id: "member", disabled: 1, created_at: 42 });
+        expect(b.db.query("PRAGMA foreign_key_check")).toEqual([]);
+        expect(Number(b.db.pragma<any>("PRAGMA foreign_keys")!.foreign_keys)).toBe(1);
+
+        // The children followed the rename: deleting the user still cascades to both.
+        b.db.run("DELETE FROM users WHERE id = 'u1'");
+        expect(b.db.query("SELECT id FROM sessions")).toEqual([]);
+        expect(b.db.query("SELECT id FROM api_tokens")).toEqual([]);
+        b.db.close();
+      });
     });
   });
 }

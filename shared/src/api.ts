@@ -4,6 +4,7 @@
  * deploy request is, shared with the Angular client for free.
  */
 import { z } from "zod";
+import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
 
 /** A Docker image reference. Conservative on purpose: it becomes an argument to a CLI. */
 const imageRef = z.string().max(255).regex(/^[a-z0-9][a-z0-9._/:@-]*$/i, "not a valid image reference");
@@ -61,3 +62,62 @@ export const PreviewListQuerySchema = z.object({
   state: z.enum(["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"]).optional(),
   hostId: z.string().optional(),
 });
+
+/* ------------------------------------------------------------------ accounts (§8) */
+
+/** Lowercased here because `users.email` is UNIQUE without NOCASE: Ada@ and ada@ are one person. */
+const email = z.string().trim().toLowerCase().pipe(z.string().email().max(254));
+
+/**
+ * Length is the only rule (NIST 800-63B): composition rules make passwords worse. The cap
+ * is not about strength -- scrypt is CPU-bound and the input is attacker-supplied.
+ */
+const password = z.string().min(12, "at least 12 characters").max(256);
+
+export const LoginRequestSchema = z.strictObject({
+  email,
+  /** NOT the `password` schema: a login must never reveal the rules by failing validation. */
+  password: z.string().min(1).max(1024),
+});
+export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
+export const SetupRequestSchema = z.strictObject({ token: z.string().min(1).max(256), email, password });
+export type SetupRequest = z.infer<typeof SetupRequestSchema>;
+
+const roleId = z.string().min(1).max(64);
+
+export const CreateUserSchema = z.strictObject({ email, password, roleId });
+export type CreateUserRequest = z.infer<typeof CreateUserSchema>;
+
+export const UpdateUserSchema = z.strictObject({
+  roleId: roleId.optional(),
+  disabled: z.boolean().optional(),
+  /** An admin reset. Ends every session the account has. */
+  password: password.optional(),
+}).refine((u) => Object.keys(u).length > 0, "nothing to change");
+export type UpdateUserRequest = z.infer<typeof UpdateUserSchema>;
+
+export const ChangePasswordSchema = z.strictObject({ current: z.string().min(1).max(1024), next: password });
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordSchema>;
+
+export const CreateTokenSchema = z.strictObject({
+  name: z.string().trim().min(1).max(100),
+  scopes: z.array(z.enum(SCOPES)).min(1).max(SCOPES.length),
+  /** A duration like `90d`. Omitted: the token does not expire. */
+  expiresIn: z.string().max(16).optional(),
+});
+export type CreateTokenRequest = z.infer<typeof CreateTokenSchema>;
+
+/** The COMPLETE set a role should hold afterwards -- a PUT, not a patch. */
+export const SetRolePermissionsSchema = z.strictObject({
+  permissions: z.array(z.string().refine((s): s is Permission => isPermission(s), "not a known permission")).max(ALL_PERMISSIONS.length),
+});
+export type SetRolePermissionsRequest = z.infer<typeof SetRolePermissionsSchema>;
+
+export const AuditQuerySchema = z.object({
+  /** Entries with a seq BELOW this one: the log is read newest-first. */
+  before: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  action: z.string().max(64).optional(),
+});
+export type AuditQuery = z.infer<typeof AuditQuerySchema>;

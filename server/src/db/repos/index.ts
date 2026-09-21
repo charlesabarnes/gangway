@@ -6,3 +6,8 @@ export { CertificatesRepo } from "./certificates.ts";
 export { SqliteSettingsStore } from "./settings.ts";
 export { IdempotencyRepo, type IdempotencyRecord } from "./idempotency.ts";
 export { BuildsRepo, type Build, type BuildState } from "./builds.ts";
+export { UsersRepo, type CreateUser, type UserCredentials } from "./users.ts";
+export { SessionsRepo, type CreateSession } from "./sessions.ts";
+export { TokensRepo, type CreateToken } from "./tokens.ts";
+export { AuditRepo, type AppendAudit } from "./audit.ts";
+export { RolesRepo } from "./roles.ts";

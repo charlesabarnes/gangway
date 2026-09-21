@@ -48,8 +48,8 @@ export const isPermission = (s: string): s is Permission => KNOWN.has(s);
  * token never exceeds its owner: the effective set is the bundle INTERSECTED with the
  * owner's role, at verify time.
  */
-export type Scope = "read" | "deploy" | "admin";
-export const SCOPES: readonly Scope[] = ["read", "deploy", "admin"];
+export const SCOPES = ["read", "deploy", "admin"] as const;
+export type Scope = (typeof SCOPES)[number];
 
 const READ: readonly Permission[] = ["previews.read", "logs.read", "events.read", "hosts.read"];
 

@@ -1,7 +1,9 @@
 /** Row <-> domain conversion. The only place epoch-millis integers become Dates. */
 import type {
-  Certificate, GangwayEvent, Host, HostCapability, Preview, PreviewSource, Route,
+  ApiToken, AuditActorType, AuditEntry, Certificate, GangwayEvent, Host, HostCapability, Preview, PreviewSource,
+  Role, Route, Session, User,
 } from "../../../../shared/src/domain.ts";
+import type { Scope } from "../../../../shared/src/permissions.ts";
 
 export const toDate = (n: number | null | undefined): Date | null =>
   n === null || n === undefined ? null : new Date(n);
@@ -117,5 +119,60 @@ export function rowToCert(r: CertRow): Certificate {
     notBefore: toDate(r.not_before),
     notAfter: toDate(r.not_after),
     updatedAt: new Date(r.updated_at),
+  };
+}
+
+/* ------------------------------------------------------------------ accounts (§8) */
+
+export type RoleRow = { id: string; name: string; description: string; builtin: number; created_at: number };
+
+export const rowToRole = (r: RoleRow): Role =>
+  ({ id: r.id, name: r.name, description: r.description, builtin: bool(r.builtin), createdAt: new Date(r.created_at) });
+
+/** The columns a `User` is made of. Password material is deliberately NOT among them. */
+export const USER_COLUMNS = "id, email, role_id, disabled, created_at";
+export type UserRow = { id: string; email: string; role_id: string; disabled: number; created_at: number };
+
+export const rowToUser = (r: UserRow): User =>
+  ({ id: r.id, email: r.email, roleId: r.role_id, disabled: bool(r.disabled), createdAt: new Date(r.created_at) });
+
+export type SessionRow = {
+  id: string; user_id: string; created_at: number; expires_at: number;
+  last_seen_at: number | null; ip: string | null; user_agent: string | null;
+};
+
+export function rowToSession(r: SessionRow): Session {
+  return {
+    id: r.id, userId: r.user_id, createdAt: new Date(r.created_at), expiresAt: new Date(r.expires_at),
+    lastSeenAt: toDate(r.last_seen_at), ip: r.ip, userAgent: r.user_agent,
+  };
+}
+
+/** Everything but `token_hash`: a listing has no use for it, so it never leaves the repo. */
+export const TOKEN_COLUMNS = "id, name, prefix, scopes, user_id, app_name, expires_at, last_used_at, revoked_at, created_at";
+export type TokenRow = {
+  id: string; name: string; prefix: string; scopes: string; user_id: string | null; app_name: string | null;
+  expires_at: number | null; last_used_at: number | null; revoked_at: number | null; created_at: number;
+};
+
+export function rowToToken(r: TokenRow): ApiToken {
+  return {
+    id: r.id, name: r.name, prefix: r.prefix, scopes: JSON.parse(r.scopes) as Scope[],
+    userId: r.user_id, appName: r.app_name,
+    expiresAt: toDate(r.expires_at), lastUsedAt: toDate(r.last_used_at), revokedAt: toDate(r.revoked_at),
+    createdAt: new Date(r.created_at),
+  };
+}
+
+export type AuditRow = {
+  seq: number; actor_type: string; actor_id: string | null; action: string; target: string | null;
+  old_json: string | null; new_json: string | null; created_at: number;
+};
+
+export function rowToAuditEntry(r: AuditRow): AuditEntry {
+  return {
+    seq: r.seq, actorType: r.actor_type as AuditActorType, actorId: r.actor_id, action: r.action, target: r.target,
+    old: r.old_json === null ? null : JSON.parse(r.old_json), new: r.new_json === null ? null : JSON.parse(r.new_json),
+    createdAt: new Date(r.created_at),
   };
 }
