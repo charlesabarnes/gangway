@@ -58,9 +58,19 @@ export const DeployRequestSchema = z.strictObject({
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
 
+const previewState = z.enum(["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"]);
+
 export const PreviewListQuerySchema = z.object({
-  state: z.enum(["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"]).optional(),
+  /** Repeatable (`?state=awake&state=asleep`) or comma-joined. Naming `destroyed` includes it. */
+  state: z.array(previewState).max(7).optional(),
   hostId: z.string().optional(),
+  /** Destroyed previews are left out unless asked for. */
+  includeDestroyed: z.enum(["true", "false"]).optional(),
+});
+
+export const PreviewLogsQuerySchema = z.object({
+  /** Start from only the last N lines. The stream says so when it skipped any. */
+  tail: z.coerce.number().int().min(1).max(5_000).optional(),
 });
 
 /* ------------------------------------------------------------------ accounts (§8) */

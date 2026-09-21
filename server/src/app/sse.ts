@@ -19,6 +19,13 @@ export type SseOptions = {
   signal?: AbortSignal | undefined;
 };
 
+/**
+ * How far behind a client may fall before it is disconnected. A source that REPLAYS on
+ * subscribe must deliver fewer than this synchronously, or the stream closes before its
+ * first frame (previews/logs.ts bounds its replay for exactly this reason).
+ */
+export const SSE_MAX_QUEUE = 5_000;
+
 /** `Last-Event-ID` from a reconnecting EventSource, or `?after=` for curl. */
 export function resumeCursor(c: Context<AppEnv>): number {
   const raw = c.req.header("last-event-id") ?? c.req.query("after") ?? "0";
@@ -28,7 +35,7 @@ export function resumeCursor(c: Context<AppEnv>): number {
 
 export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): Response {
   const heartbeatMs = o.heartbeatMs ?? 15_000;
-  const maxQueue = o.maxQueue ?? 5_000;
+  const maxQueue = o.maxQueue ?? SSE_MAX_QUEUE;
 
   const res = streamSSE(c, async (stream) => {
     const queue: SseMessage[] = [];

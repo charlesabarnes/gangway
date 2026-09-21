@@ -75,13 +75,34 @@ export class PreviewLogs {
     return this.read(previewId).slice(-count).map((l) => l.line);
   }
 
-  follow(previewId: string, afterLine: number, deliver: LogListener): () => void {
+  /**
+   * Replay what is on disk after `afterLine`, then follow. Subscribed BEFORE the read, so a
+   * line appended in between is neither lost nor doubled.
+   *
+   * The replay is delivered synchronously, into a consumer with a bounded queue (app/sse.ts
+   * disconnects a client that falls 5000 behind). A build log longer than that used to
+   * overflow the queue before a single frame had been written: the stream closed empty, the
+   * browser reconnected with no Last-Event-ID, and did it again, forever. So the replay is
+   * bounded HERE -- by `tail` (what the caller asked for) and `maxReplay` (what the consumer
+   * can take) -- and the cut is said out loud: one `system` line, numbered as the last line
+   * skipped, so resuming from it lands exactly on the first line that was shown.
+   */
+  follow(previewId: string, afterLine: number, deliver: LogListener, o: { tail?: number | undefined; maxReplay?: number | undefined } = {}): () => void {
     let cursor = afterLine;
     const emit = (l: LogLine) => { if (l.n > cursor) { cursor = l.n; deliver(l); } };
     let set = this.#listeners.get(previewId);
     if (!set) this.#listeners.set(previewId, (set = new Set()));
     set.add(emit);
-    for (const l of this.read(previewId, cursor)) emit(l);
+
+    let backlog = this.read(previewId, cursor);
+    const keep = Math.max(1, Math.min(o.tail ?? Infinity, o.maxReplay ?? Infinity));
+    const skipped = backlog.length - keep;
+    if (skipped > 0) {
+      backlog = backlog.slice(-keep);
+      const first = backlog[0]!;
+      emit({ n: first.n - 1, ts: first.ts, stream: "system", line: `... ${skipped} earlier line${skipped === 1 ? "" : "s"} not shown` });
+    }
+    for (const l of backlog) emit(l);
     return () => {
       set.delete(emit);
       if (set.size === 0) this.#listeners.delete(previewId);

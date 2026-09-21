@@ -32,6 +32,20 @@ export class EventBus {
     return () => { this.#listeners.delete(listener); };
   }
 
+  /**
+   * The cursor to follow FROM. A client that lists previews and then opens the stream must
+   * read this BEFORE the list: a change landing in between is then replayed (harmlessly,
+   * it is already in the list) rather than missed.
+   */
+  latestSeq(): number {
+    return this.#repo.latestSeq();
+  }
+
+  /** One preview's history, oldest first. Gone when the preview row is: the FK cascades. */
+  history(previewId: string, limit = 200): GangwayEvent[] {
+    return this.#repo.forPreview(previewId, limit);
+  }
+
   get listenerCount(): number {
     return this.#listeners.size;
   }
