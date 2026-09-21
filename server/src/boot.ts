@@ -11,7 +11,9 @@ import { join, resolve } from "node:path";
 import { createApp, surfaceHandler } from "./app/app.ts";
 import { auditRoutes } from "./app/routes/audit.ts";
 import { authRoutes } from "./app/routes/auth.ts";
+import { roleRoutes } from "./app/routes/roles.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
+import { userRoutes } from "./app/routes/users.ts";
 import { eventRoutes } from "./app/routes/events.ts";
 import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
@@ -164,7 +166,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   /* ---- accounts (§8.1). The matrix is loaded once and kept write-through (ADR-0009). */
   const users = new UsersRepo(db);
   const rolesRepo = new RolesRepo(db);
-  const roles = new RolePermissions(rolesRepo);
+  const roles = new RolePermissions(rolesRepo, audit);
   const sessions = new Sessions(new SessionsRepo(db), roles);
   const accounts = new Accounts({
     db, users, roles: rolesRepo, sessions, audit,
@@ -206,6 +208,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
       auditRoutes(api, auditRepo);
       tokenRoutes(api, tokens);
+      userRoutes(api, accounts);
+      roleRoutes(api, roles);
     },
     publicV1: (pub) => authRoutes(pub, { auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000) }),
   });

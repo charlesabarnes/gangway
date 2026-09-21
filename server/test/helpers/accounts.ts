@@ -31,11 +31,11 @@ export function setupAccounts() {
   const now = () => clock.t;
   const users = new UsersRepo(db, now);
   const rolesRepo = new RolesRepo(db);
-  const roles = new RolePermissions(rolesRepo);
-  const sessionsRepo = new SessionsRepo(db, now);
-  const sessions = new Sessions(sessionsRepo, roles, now);
   const auditRepo = new AuditRepo(db, now);
   const audit = new Audit(auditRepo, new Logger("error", {}, () => {}));
+  const roles = new RolePermissions(rolesRepo, audit);
+  const sessionsRepo = new SessionsRepo(db, now);
+  const sessions = new Sessions(sessionsRepo, roles, now);
   const passwords = new Passwords({ ln: 10 });
   const limiter = new LoginLimiter({}, now);
   const accounts = new Accounts({ db, users, roles: rolesRepo, sessions, passwords, limiter, audit, now });
