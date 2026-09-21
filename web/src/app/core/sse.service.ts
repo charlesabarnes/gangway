@@ -59,10 +59,12 @@ export class SseService {
    * `types` must be listed: a NAMED event never reaches `onmessage`, and gangway names
    * every event. Malformed JSON is dropped, not thrown -- one bad frame must not end a stream.
    */
-  open<T>(url: string, types: readonly string[], onMessage: (m: SseMessage<T>) => void): SseHandle {
+  open<T>(url: string, types: readonly string[], onMessage: (m: SseMessage<T>) => void, o: { after?: string | number } = {}): SseHandle {
     const status = signal<SseStatus>('connecting');
     let source: EventSourceLike | null = null;
-    let lastId = '';
+    // The cursor is an OPTION, never part of `url`: a reconnect appends its own `after`, and
+    // a URL that already carried one would send two -- the server reads the first, the stale one.
+    let lastId = o.after === undefined ? '' : String(o.after);
     let failures = 0;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let hiddenTimer: ReturnType<typeof setTimeout> | null = null;

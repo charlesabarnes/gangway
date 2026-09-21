@@ -84,6 +84,18 @@ describe('SseService', () => {
     expect(FakeEventSource.last.url).toBe('/v1/previews/x/logs?tail=2000&after=977');
   });
 
+  it('starts from a given cursor, and a reconnect REPLACES it rather than sending two', async () => {
+    const t = setup();
+    TestBed.inject(SseService).open('/v1/events', ['preview.state'], () => {}, { after: 3 });
+    expect(FakeEventSource.last.url).toBe('/v1/events?after=3');
+    FakeEventSource.last.open();
+    FakeEventSource.last.emit('preview.state', { n: 1 }, '9');
+    FakeEventSource.last.fail();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(FakeEventSource.last.url).toBe('/v1/events?after=9');
+    void t;
+  });
+
   it('backs off 1, 2, 5, 10, 15, 15 seconds; a successful open resets it', async () => {
     const t = setup();
     t.open();
