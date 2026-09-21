@@ -1,6 +1,6 @@
 import contract from '../../testing/fixtures/contract.json';
 import {
-  LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, STREAM_EVENT_TYPES,
+  LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
   type ApiToken, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
@@ -40,6 +40,11 @@ describe('the /v1 wire contract', () => {
     expect([...STREAM_EVENT_TYPES]).toEqual(contract.streamEventTypes);
     expect(visibilities).toEqual(contract.visibilities);
     expect(scopes).toEqual(contract.scopes);
+  });
+
+  it('what each token scope grants matches the server, scope by scope', () => {
+    const sorted = (o: Record<string, readonly string[]>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
+    expect(sorted(SCOPE_PERMISSIONS)).toEqual(sorted(contract.scopePermissions));
   });
 
   it('the permission ids the UI gates on are exactly the server catalogue', () => {

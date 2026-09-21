@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { PREVIEW_STATE_VALUES, VISIBILITY_VALUES } from "../../../shared/src/api.ts";
-import { ALL_PERMISSIONS, SCOPES } from "../../../shared/src/permissions.ts";
+import { ALL_PERMISSIONS, SCOPES, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
@@ -42,6 +42,11 @@ describe("string unions the UI switches on", () => {
     expect(contract["visibilities"]).toEqual([...VISIBILITY_VALUES]);
     expect(contract["logStreams"]).toEqual([...LOG_STREAMS]);
     expect(contract["scopes"]).toEqual([...SCOPES]);
+  });
+
+  test("what each token scope grants: the UI greys out a scope the role does not cover, from this", () => {
+    const sorted = (o: Record<string, readonly string[]>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
+    expect(sorted(contract["scopePermissions"] as Record<string, string[]>)).toEqual(sorted(SCOPE_PERMISSIONS));
   });
 
   test("the permission ids the UI gates on are exactly the catalogue", () => {

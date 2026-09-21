@@ -79,6 +79,19 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 export type Scope = 'read' | 'deploy' | 'admin';
+export const SCOPES: readonly Scope[] = ['read', 'deploy', 'admin'];
+
+const READ_BUNDLE: readonly Permission[] = ['previews.read', 'logs.read', 'events.read', 'hosts.read'];
+/**
+ * What each token scope grants. The server refuses to mint a scope the role does not fully
+ * cover (a do-nothing "admin" token would turn real the day its owner was promoted), so
+ * the form greys those out -- from this table, pinned by `contract.json`.
+ */
+export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
+  read: READ_BUNDLE,
+  deploy: [...READ_BUNDLE, 'previews.deploy', 'previews.destroy'],
+  admin: PERMISSIONS,
+};
 
 export type SessionUser = { id: string; email: string; role: { id: string; name: string } };
 
