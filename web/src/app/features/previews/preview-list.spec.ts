@@ -145,6 +145,8 @@ describe('PreviewList', () => {
       r.http.expectOne('/v1/previews?includeDestroyed=true').flush({ seq: 9, previews: [...ALL, p('gone', { state: 'destroyed' })] });
       await r.settle();
       expect(names(r)).toContain('gone');
+      const gone = r.allByTestId('row').find((row) => row.textContent?.includes('gone'))!;
+      expect(gone.querySelector('[data-testid="expires"]')!.textContent?.trim()).toBe('—'); // not "in 6 d"
     });
   });
 

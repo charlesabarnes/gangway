@@ -56,7 +56,12 @@ import { displayName, sourceLabel } from './source-label';
 
           <dl class="space-y-3 text-sm" data-testid="facts">
             <div><dt class="text-neutral-500">Source</dt><dd class="mt-0.5 break-words"><span class="mr-1.5 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800">{{ p.source.kind }}</span>{{ source() }}</dd></div>
-            <div><dt class="text-neutral-500">Expires</dt><dd class="mt-0.5" [title]="p.ttlExpiresAt ?? ''" data-testid="ttl">{{ p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never' }}</dd></div>
+            @if (p.state === 'destroyed') {
+              <!-- "Expires in 59 min" under something already gone reads as if it were still there. -->
+              <div><dt class="text-neutral-500">Destroyed</dt><dd class="mt-0.5" [title]="p.destroyedAt ?? ''" data-testid="ttl">{{ p.destroyedAt ? (p.destroyedAt | relativeTime: clock.now()) : 'yes' }}</dd></div>
+            } @else {
+              <div><dt class="text-neutral-500">Expires</dt><dd class="mt-0.5" [title]="p.ttlExpiresAt ?? ''" data-testid="ttl">{{ p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never' }}</dd></div>
+            }
             <div><dt class="text-neutral-500">Created</dt><dd class="mt-0.5" [title]="p.createdAt">{{ p.createdAt | relativeTime: clock.now() }}</dd></div>
             <div><dt class="text-neutral-500">Last visited</dt><dd class="mt-0.5" [title]="p.lastSeenAt ?? ''">{{ p.lastSeenAt ? (p.lastSeenAt | relativeTime: clock.now()) : 'not yet' }}</dd></div>
             <div><dt class="text-neutral-500">Host</dt><dd class="mt-0.5 font-mono text-xs">{{ p.hostId }}</dd></div>

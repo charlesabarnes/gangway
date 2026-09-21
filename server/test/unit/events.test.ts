@@ -139,12 +139,38 @@ describe("GET /v1/events", () => {
     expect(viaQuery.frames.map((f) => f["id"])).toEqual(["3"]);
   });
 
+  test("an IDLE stream says something at once, so `onopen` does not wait for the first heartbeat", async () => {
+    // No events, and a heartbeat far in the future: the only thing that can arrive is the greeting.
+    const { dir: _dir, hosts: _hosts, ...t } = setup();
+    void _dir; void _hosts;
+    const started = performance.now();
+    const res = await t.get("/v1/events");
+    const reader = res.body!.getReader();
+    const first = await Promise.race([reader.read(), Bun.sleep(1000).then(() => null)]);
+    await reader.cancel().catch(() => {});
+    expect(first).not.toBeNull();
+    expect(new TextDecoder().decode(first!.value)).toBe(": connected\n\n");
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   test("an idle stream sends keepalive comments, and a disconnect unsubscribes", async () => {
     const { bus, get } = setup();
     bus.publish("one");
     const res = await get("/v1/events");
     const { comments } = await readFrames(res, 1, true);
     expect(comments).toBeGreaterThan(0);
+    // The greeting alone is not a heartbeat: wait for one that is.
+    const idle = await get("/v1/events?after=999");
+    const reader = idle.body!.getReader();
+    let text = "";
+    const deadline = Date.now() + 1000;
+    while (!text.includes(": keepalive") && Date.now() < deadline) {
+      const next = await Promise.race([reader.read(), Bun.sleep(200).then(() => null)]);
+      if (next?.value) text += new TextDecoder().decode(next.value);
+    }
+    await reader.cancel().catch(() => {});
+    expect(text).toStartWith(": connected\n\n");
+    expect(text).toContain(": keepalive\n\n");
     await Bun.sleep(80);
     expect(bus.listenerCount).toBe(0);
   });

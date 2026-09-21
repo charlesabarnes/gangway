@@ -86,7 +86,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
                     <td class="max-w-56 truncate px-4 py-3 text-neutral-600 dark:text-neutral-400" [title]="label(p)">
                       <span class="mr-1.5 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800">{{ p.source.kind }}</span>{{ label(p) }}
                     </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400" [title]="p.ttlExpiresAt ?? ''">{{ p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never' }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400" [title]="p.ttlExpiresAt ?? ''" data-testid="expires">{{ p.state === 'destroyed' ? '—' : p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never' }}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400" [title]="p.createdAt">{{ p.createdAt | relativeTime: clock.now() }}</td>
                     <td class="px-4 py-3 text-right">
                       @if (canDestroy() && destroyable(p)) {

@@ -54,6 +54,12 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
     if (o.signal?.aborted) close();
 
     try {
+      // Say something at once. An idle stream otherwise sends no BODY byte until its first
+      // event or heartbeat, and an intermediary may sit on the response headers until it
+      // has one -- so the browser's `onopen` fires 15 seconds late and the UI says
+      // "connecting" on a connection that is fine. Seen through the Angular dev proxy;
+      // a comment line is invisible to EventSource and costs nothing.
+      await stream.write(": connected\n\n");
       while (open) {
         const batch = queue.splice(0);
         for (const m of batch) await stream.writeSSE(m);

@@ -139,6 +139,9 @@ describe('PreviewDetail', () => {
     await answerHistory(r);
     expect(r.text('logs-gone')).toContain('deleted when a preview is destroyed');
     expect(r.byTestId('destroy')).toBeNull();
+    // Found in a real browser: "Expires in 59 min" under something already gone.
+    expect(r.text('facts')).toContain('Destroyed');
+    expect(r.text('facts')).not.toContain('Expires');
   });
 
   describe('destroy', () => {
