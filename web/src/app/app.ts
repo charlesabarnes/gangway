@@ -4,9 +4,10 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 import { AuthService } from './core/auth.service';
 import { HealthService } from './health';
+import { Toasts } from './ui/toast';
 
 @Component({
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, Toasts],
   selector: 'app-root',
   templateUrl: './app.html',
 })
