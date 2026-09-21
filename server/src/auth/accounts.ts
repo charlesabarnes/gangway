@@ -101,6 +101,10 @@ export class Accounts {
     return this.#d.users.list();
   }
 
+  getUser(id: string): User | undefined {
+    return this.#d.users.get(id);
+  }
+
   async createUser(actor: Actor, input: { email: string; password: string; roleId: string }): Promise<User> {
     const { db, users, roles, passwords, audit } = this.#d;
     if (!roles.get(input.roleId)) throw unprocessable(`no such role: ${input.roleId}`);

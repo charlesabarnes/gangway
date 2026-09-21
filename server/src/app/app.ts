@@ -8,23 +8,27 @@
  * answers on `app` only, so `api.<domain>/` is never a web page.
  */
 import { Hono } from "hono";
-import type { TokenVerifier } from "../auth/actor.ts";
 import { AppError, notFound } from "../errors.ts";
 import type { Logger } from "../logger.ts";
 import type { Surface, SurfaceHandler } from "../net/dispatch.ts";
 import { ulid } from "../util/ulid.ts";
 import type { AppEnv } from "./env.ts";
-import { authenticate } from "./middleware/auth.ts";
+import { authenticate, type AuthDeps } from "./middleware/auth.ts";
 import { errorHandler, problemResponse } from "./problem.ts";
 import { serveStatic } from "./static.ts";
 
-export type AppDeps = {
+export type AppDeps = AuthDeps & {
   logger: Logger;
-  verifyToken: TokenVerifier;
   /** The built Angular app. Absent until T33; the `app` surface then serves only /v1. */
   staticDir?: string | undefined;
-  /** Mounted under /v1, behind authentication. */
+  /** Mounted under /v1, behind authentication. Every route here names a permission. */
   v1: (api: Hono<AppEnv>) => void;
+  /**
+   * Mounted under /v1 BEFORE authentication: login, setup, "who am I". Each handler here
+   * answers for its own access. Registered first, so these paths never reach `authenticate`
+   * -- and anything that is not one of them still does, so an unknown /v1 path stays a 401.
+   */
+  publicV1?: ((pub: Hono<AppEnv>) => void) | undefined;
   health?: () => Record<string, unknown>;
   /** True once shutdown has begun: the control plane answers 503 while previews keep serving. */
   draining?: () => boolean;
@@ -55,8 +59,14 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
     return problemResponse(c, new AppError("unavailable", "gangway is shutting down"), { "retry-after": "5", connection: "close" });
   });
 
+  if (d.publicV1) {
+    const pub = new Hono<AppEnv>();
+    d.publicV1(pub);
+    app.route("/v1", pub);
+  }
+
   const api = new Hono<AppEnv>();
-  api.use(authenticate(d.verifyToken));
+  api.use(authenticate(d));
   d.v1(api);
   app.route("/v1", api);
 

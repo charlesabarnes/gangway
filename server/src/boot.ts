@@ -10,14 +10,24 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createApp, surfaceHandler } from "./app/app.ts";
 import { auditRoutes } from "./app/routes/audit.ts";
+import { authRoutes } from "./app/routes/auth.ts";
 import { eventRoutes } from "./app/routes/events.ts";
 import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
 import { Audit } from "./audit/audit.ts";
+import { Accounts } from "./auth/accounts.ts";
 import { staticTokenVerifier } from "./auth/actor.ts";
+import { Bootstrap } from "./auth/bootstrap.ts";
+import { LoginLimiter } from "./auth/limiter.ts";
+import { Passwords } from "./auth/password.ts";
+import { RolePermissions } from "./auth/roles.ts";
+import { Sessions } from "./auth/sessions.ts";
 import type { Config } from "./config.ts";
 import { migrate } from "./db/migrate.ts";
-import { AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, RoutesRepo, SqliteSettingsStore } from "./db/repos/index.ts";
+import {
+  AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, RolesRepo, RoutesRepo,
+  SessionsRepo, SqliteSettingsStore, UsersRepo,
+} from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
 import { DockerClients } from "./docker/client.ts";
 import { Reconciler, type ClientSource, type ReconcileReport } from "./reconcile/reconciler.ts";
@@ -47,6 +57,7 @@ import { CloudflareDnsProvider } from "./tls/dns/cloudflare.ts";
 import { ManualDnsProvider } from "./tls/dns/manual.ts";
 import type { DnsProvider } from "./tls/dns/provider.ts";
 import { FileProvider, SelfSignedProvider } from "./tls/provider.ts";
+import { normalizeHost } from "../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../shared/src/url.ts";
 
 export type BootOverrides = {
@@ -66,6 +77,8 @@ export type Running = {
   listener: RunningListener;
   ctx: PreviewContext;
   adminToken: string;
+  /** §8.1 first run: where the first admin is created. null once any account exists. */
+  setupUrl: string | null;
   origin: (label: string) => string;
   caPath: string | null;
   reconciler: Reconciler;
@@ -146,7 +159,18 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
 
-  /* ---- auth (§8.1 headless bootstrap) */
+  /* ---- accounts (§8.1). The matrix is loaded once and kept write-through (ADR-0009). */
+  const users = new UsersRepo(db);
+  const rolesRepo = new RolesRepo(db);
+  const roles = new RolePermissions(rolesRepo);
+  const sessions = new Sessions(new SessionsRepo(db), roles);
+  const accounts = new Accounts({
+    db, users, roles: rolesRepo, sessions, audit,
+    passwords: new Passwords(), limiter: new LoginLimiter(),
+  });
+  const bootstrap = new Bootstrap(() => users.count());
+
+  /* ---- headless bootstrap (§8.1): the env token works whether or not anyone has an account */
   let adminToken = config.adminToken;
   if (!adminToken) {
     adminToken = `gw_${randomBytes(24).toString("base64url")}`;
@@ -158,10 +182,17 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const draining = () => shutdown.signal.aborted;
 
   /* ---- application surfaces */
+  const auth = {
+    verifyToken: staticTokenVerifier(adminToken),
+    resolveSession: (secret: string) => sessions.resolve(secret)?.actor ?? null,
+    // What a browser on this Host sends as `Origin`. From the PUBLIC scheme and port, never
+    // the listener's: behind a reverse proxy they differ, and the browser only knows one.
+    originFor: (host: string) => publicOriginFor(normalizeHost(host) ?? "", ctx.origin),
+  };
   const staticDir = resolve(import.meta.dir, "../../web/dist/browser");
   const app = createApp({
     logger: logger.child({ mod: "app" }),
-    verifyToken: staticTokenVerifier(adminToken),
+    ...auth,
     staticDir: existsSync(staticDir) ? staticDir : undefined,
     health: () => ({ routes: table.size }),
     draining,
@@ -171,6 +202,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
       auditRoutes(api, auditRepo);
     },
+    publicV1: (pub) => authRoutes(pub, { auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000) }),
   });
 
   /* ---- TLS */
@@ -288,7 +320,20 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     });
   }
   scheduler.register({ name: "idempotency-purge", intervalMs: 3_600_000, run: () => deploys.purge() });
+  // Expired sessions are already refused; this only reclaims the rows.
+  scheduler.register({ name: "session-purge", intervalMs: 3_600_000, run: () => { sessions.purge(); } });
   scheduler.start();
+
+  // §8.1 first run. AFTER the listener is up, so the link works the moment it is read, and
+  // through `announce`: the logger would redact it. Not printed when the UI is off -- there
+  // is no page to open, and the env admin token is the way in.
+  const setupUrl = surfaceEnabled("app") ? bootstrap.url(origin("app")) : null;
+  if (setupUrl) announce(`\n  No accounts exist yet. Create the first admin here (one use, this run only):\n\n    ${setupUrl}\n`);
+  // Behind a reverse proxy with nobody trusted, every visitor has the PROXY's address: one
+  // person failing to log in would lock out everyone, and the audit log would name nobody.
+  if (users.count() > 0 && config.trustedProxies.length === 0) {
+    logger.warn("accounts exist but GANGWAY_TRUSTED_PROXIES is empty; if a reverse proxy sits in front, login rate limits and audit IPs will all be the proxy's");
+  }
 
   logger.info("listening", { address: config.listenAddress, port: listener.port, baseDomain: baseDomain(), routes: table.size, hosts: seeded.map((h) => h.id) });
 
@@ -322,7 +367,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   };
 
   return {
-    listener, ctx, adminToken, origin, caPath, reconciler, scheduler, reconciled,
+    listener, ctx, adminToken, setupUrl, origin, caPath, reconciler, scheduler, reconciled,
     stop: (o = {}) => (stopped ??= stop(o.graceMs ?? config.shutdownGraceMs)),
   };
 }

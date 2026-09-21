@@ -70,7 +70,7 @@ async function start(stateDir: string, upstreamPort: number, seed?: ContainerSum
     hostId: "local", info: async () => ({ Name: "test-daemon", OperatingSystem: "Linux" }),
     listContainers: async () => [...containers.values(), ...(seed ?? [])], stopContainer: async () => {},
   }) };
-  const running = await boot(config, { compose, clients, logger: new Logger("error", {}, () => {}), timings: { pollIntervalMs: 10 } });
+  const running = await boot(config, { compose, clients, announce: () => {}, logger: new Logger("error", {}, () => {}), timings: { pollIntervalMs: 10 } });
   cleanups.push(async () => { await running.stop(); for (const f of fixtures.values()) f.stop(true); });
   return Object.assign(running, { daemon: containers });
 }
@@ -160,7 +160,7 @@ test("T26: the scheduler owns the periodic work -- visits reach SQLite, an expir
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
   const call = client(running);
-  expect(running.scheduler.status().map((j) => [j.name, j.enabled])).toEqual([["reconcile", true], ["ttl-sweep", true], ["lastseen-flush", true], ["idempotency-purge", true]]);
+  expect(running.scheduler.status().map((j) => [j.name, j.enabled])).toEqual([["reconcile", true], ["ttl-sweep", true], ["lastseen-flush", true], ["idempotency-purge", true], ["session-purge", true]]);
 
   const res = await call("api.preview.localhost", "/v1/previews?wait=true", {
     method: "POST", headers: { "content-type": "application/json" },
