@@ -11,22 +11,24 @@ import { join, resolve } from "node:path";
 import { createApp, surfaceHandler } from "./app/app.ts";
 import { auditRoutes } from "./app/routes/audit.ts";
 import { authRoutes } from "./app/routes/auth.ts";
+import { tokenRoutes } from "./app/routes/tokens.ts";
 import { eventRoutes } from "./app/routes/events.ts";
 import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
 import { Audit } from "./audit/audit.ts";
 import { Accounts } from "./auth/accounts.ts";
-import { staticTokenVerifier } from "./auth/actor.ts";
+import { chainVerifiers, staticTokenVerifier } from "./auth/actor.ts";
 import { Bootstrap } from "./auth/bootstrap.ts";
 import { LoginLimiter } from "./auth/limiter.ts";
 import { Passwords } from "./auth/password.ts";
 import { RolePermissions } from "./auth/roles.ts";
 import { Sessions } from "./auth/sessions.ts";
+import { Tokens } from "./auth/tokens.ts";
 import type { Config } from "./config.ts";
 import { migrate } from "./db/migrate.ts";
 import {
   AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, RolesRepo, RoutesRepo,
-  SessionsRepo, SqliteSettingsStore, UsersRepo,
+  SessionsRepo, SqliteSettingsStore, TokensRepo, UsersRepo,
 } from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
 import { DockerClients } from "./docker/client.ts";
@@ -168,6 +170,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     db, users, roles: rolesRepo, sessions, audit,
     passwords: new Passwords(), limiter: new LoginLimiter(),
   });
+  const tokens = new Tokens(new TokensRepo(db), roles, audit);
   const bootstrap = new Bootstrap(() => users.count());
 
   /* ---- headless bootstrap (§8.1): the env token works whether or not anyone has an account */
@@ -183,7 +186,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   /* ---- application surfaces */
   const auth = {
-    verifyToken: staticTokenVerifier(adminToken),
+    // Database tokens first: they are the common case. The env token stays, always (§8.1).
+    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken)),
     resolveSession: (secret: string) => sessions.resolve(secret)?.actor ?? null,
     // What a browser on this Host sends as `Origin`. From the PUBLIC scheme and port, never
     // the listener's: behind a reverse proxy they differ, and the browser only knows one.
@@ -201,6 +205,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       eventRoutes(api, bus, { signal: shutdown.signal });
       previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
       auditRoutes(api, auditRepo);
+      tokenRoutes(api, tokens);
     },
     publicV1: (pub) => authRoutes(pub, { auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000) }),
   });

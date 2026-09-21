@@ -58,6 +58,20 @@ export function auditActor(a: Actor): { type: "user" | "token" | "system"; id: s
 /** Resolves a presented bearer credential to an actor, or null. Never throws. */
 export type TokenVerifier = (presented: string) => Actor | null | Promise<Actor | null>;
 
+/** The first verifier to recognise the credential answers; none does, and it is nobody's. */
+export function chainVerifiers(...verifiers: TokenVerifier[]): TokenVerifier {
+  return async (presented) => {
+    for (const verify of verifiers) {
+      const actor = await verify(presented);
+      if (actor) return actor;
+    }
+    return null;
+  };
+}
+
+/** The env admin token's id. It is the one token that may mint others: it is the operator. */
+export const ENV_ADMIN_TOKEN_ID = "env:admin";
+
 const sha256 = (s: string) => createHash("sha256").update(s).digest();
 
 /**
@@ -67,6 +81,6 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest();
  */
 export function staticTokenVerifier(adminToken: string): TokenVerifier {
   const expected = sha256(adminToken);
-  const actor = tokenActor("env:admin", ["admin"]);
+  const actor = tokenActor(ENV_ADMIN_TOKEN_ID, ["admin"]);
   return (presented) => (timingSafeEqual(sha256(presented), expected) ? actor : null);
 }
