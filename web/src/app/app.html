@@ -1,9 +1,28 @@
-<header class="border-b border-neutral-200 dark:border-neutral-800">
-  <div class="mx-auto flex max-w-3xl items-center gap-3 px-6 py-4">
-    <span class="size-2.5 rounded-full bg-accent" aria-hidden="true"></span>
-    <a routerLink="/" class="font-semibold tracking-tight">gangway</a>
-  </div>
-</header>
-<main>
-  <router-outlet />
-</main>
+@if (chrome()) {
+  <header class="border-b border-neutral-200 dark:border-neutral-800">
+    <div class="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3.5">
+      <a routerLink="/" class="flex items-center gap-2.5 font-semibold tracking-tight">
+        <span class="size-2.5 rounded-full bg-accent" aria-hidden="true"></span>gangway
+      </a>
+      <nav class="flex items-center gap-1 text-sm" aria-label="Main">
+        <a routerLink="/previews" routerLinkActive="bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+           class="rounded-md px-2.5 py-1.5 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">Previews</a>
+      </nav>
+
+      <div class="ml-auto flex items-center gap-4 text-sm">
+        @switch (health()?.status) {
+          @case ('draining') { <span class="text-amber-600 dark:text-amber-400" role="status" data-testid="health">shutting down</span> }
+          @case ('unreachable') { <span class="text-red-600 dark:text-red-400" role="status" data-testid="health">server unreachable</span> }
+        }
+        @if (auth.user(); as user) {
+          <a routerLink="/account" class="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100" data-testid="who">
+            <span>{{ user.email }}</span>
+            <span class="rounded-full border border-neutral-300 px-2 py-0.5 text-xs text-neutral-500 dark:border-neutral-700">{{ user.role.name }}</span>
+          </a>
+        }
+        <button type="button" (click)="logout()" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100" data-testid="logout">Log out</button>
+      </div>
+    </div>
+  </header>
+}
+<router-outlet />

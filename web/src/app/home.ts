@@ -5,7 +5,7 @@ import { HealthService } from './health';
 @Component({
   selector: 'app-home',
   template: `
-    <section class="mx-auto max-w-3xl px-6 py-16">
+    <section class="mx-auto max-w-5xl px-6 py-12">
       <h1 class="text-2xl font-semibold tracking-tight">Previews</h1>
       <p class="mt-2 text-neutral-600 dark:text-neutral-400">
         The list, the detail page and the live log arrive in Phase 2. Until then the API is the interface:

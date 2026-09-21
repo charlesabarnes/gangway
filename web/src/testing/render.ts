@@ -8,8 +8,10 @@ export type Rendered<T> = {
   fixture: ComponentFixture<T>;
   http: HttpTestingController;
   el: HTMLElement;
-  /** Let pending microtasks, signals and the zoneless scheduler settle, then re-render. */
+  /** Let pending promises, signals and the zoneless scheduler settle, then re-render. */
   settle(): Promise<void>;
+  /** Re-render until `done()` is true. For anything several promise-turns away (a rejected request, a navigation). */
+  until(done: () => boolean, what?: string): Promise<void>;
   byTestId(id: string): HTMLElement | null;
   allByTestId(id: string): HTMLElement[];
   text(id: string): string | undefined;
@@ -31,11 +33,22 @@ export async function render<T>(component: Type<T>, o: RenderOptions = {}): Prom
   const fixture = TestBed.createComponent(component);
   for (const [k, v] of Object.entries(o.inputs ?? {})) fixture.componentRef.setInput(k, v);
   const el = fixture.nativeElement as HTMLElement;
-  const settle = async () => { fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); };
+  // A macrotask turn, not just microtasks: a rejected firstValueFrom reaches its `catch`
+  // several turns after the flush. Real setTimeout on purpose -- specs that fake timers
+  // fake only setInterval.
+  const turn = () => new Promise<void>((r) => setTimeout(r));
+  const settle = async () => {
+    for (let i = 0; i < 3; i++) { fixture.detectChanges(); await fixture.whenStable(); await turn(); }
+    fixture.detectChanges();
+  };
+  const until = async (done: () => boolean, what = 'condition') => {
+    for (let i = 0; i < 100; i++) { if (done()) return; await settle(); }
+    throw new Error(`gave up waiting for: ${what}`);
+  };
   await settle();
   const allByTestId = (id: string) => Array.from(el.querySelectorAll<HTMLElement>(`[data-testid="${id}"]`));
   return {
-    fixture, el, settle, allByTestId,
+    fixture, el, settle, until, allByTestId,
     http: TestBed.inject(HttpTestingController),
     byTestId: (id) => allByTestId(id)[0] ?? null,
     text: (id) => allByTestId(id)[0]?.textContent?.replace(/\s+/g, ' ').trim(),
