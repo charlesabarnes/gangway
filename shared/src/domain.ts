@@ -47,6 +47,16 @@ export type ForgeId = "github";
 /** What a PR from a fork gets: nothing until asked (`ask`), a preview (`auto`), or never. */
 export type ForkPolicy = "ask" | "auto" | "never";
 
+/**
+ * Secrets have a LEVEL; a preview has a CLEARANCE and receives every secret at or below
+ * it (ADR-0012). `none` is a clearance only: no .env at all.
+ */
+export type SecretLevel = "low" | "standard" | "high";
+export type Clearance = "none" | SecretLevel;
+export const CLEARANCES: readonly Clearance[] = ["none", "low", "standard", "high"];
+export const SECRET_LEVELS: readonly SecretLevel[] = ["low", "standard", "high"];
+export const clears = (clearance: Clearance, level: SecretLevel): boolean => CLEARANCES.indexOf(clearance) >= CLEARANCES.indexOf(level);
+
 /** A repository a forge has sent a pull request from, and how its previews are shaped. */
 export type Repo = {
   id: string;
@@ -63,6 +73,9 @@ export type Repo = {
   ttl: string | null;
   forks: ForkPolicy;
   drafts: boolean;
+  /** The clearance a same-repo PR is deployed with, and a fork's PR (ADR-0012). */
+  prClearance: Clearance;
+  forkClearance: Clearance;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -87,6 +100,8 @@ export type Preview = {
   ttlExpiresAt: Date | null;
   /** Idle-sleep after this long without a request (ADR-0012). null: the server default; 0: never. */
   idleAfterMs: number | null;
+  /** The clearance this preview was deployed with; null when no repository was involved. */
+  secretLevel: Clearance | null;
   /** Written by the proxy on every request; the idle-sleep sweeper reads it. */
   lastSeenAt: Date | null;
   error: string | null;

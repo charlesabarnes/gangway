@@ -1,4 +1,4 @@
-import type { Preview, PreviewKind, PreviewSource, PreviewState, Visibility } from "../../../../shared/src/domain.ts";
+import type { Clearance, Preview, PreviewKind, PreviewSource, PreviewState, Visibility } from "../../../../shared/src/domain.ts";
 import type { Db } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 
@@ -12,6 +12,7 @@ export type CreatePreview = {
   visibility: Visibility;
   ttlExpiresAt?: Date | null;
   idleAfterMs?: number | null;
+  secretLevel?: Clearance | null;
 };
 
 export type PreviewFilter = {
@@ -35,13 +36,13 @@ export class PreviewsRepo {
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
       `INSERT INTO previews (id, project, host_id, kind, state, source_kind, source_json,
-                             visibility, ttl_expires_at, idle_after_ms, created_at, updated_at)
+                             visibility, ttl_expires_at, idle_after_ms, secret_level, created_at, updated_at)
        VALUES ($id, $project, $host_id, $kind, $state, $source_kind, $source_json,
-               $visibility, $ttl, $idle, $now, $now)`,
+               $visibility, $ttl, $idle, $level, $now, $now)`,
       {
         id: p.id, project: p.project, host_id: p.hostId, kind: p.kind ?? "preview",
         state: p.state, source_kind, source_json, visibility: p.visibility,
-        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, now,
+        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, now,
       },
     );
     return this.get(p.id)!;

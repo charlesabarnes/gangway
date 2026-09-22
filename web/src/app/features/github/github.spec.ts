@@ -27,7 +27,7 @@ async function open(o: { permissions?: Permission[]; status?: GitHubStatus; repo
   if (perms.includes('github.manage')) r.http.expectOne('/v1/github').flush(o.status ?? status());
   else r.http.expectNone('/v1/github');
   await r.settle();
-  if (perms.includes('repos.secrets')) for (const repo of o.repos ?? []) r.http.expectOne(`/v1/repos/${repo.id}/env`).flush({ names: o.secretNames?.[repo.id] ?? [] });
+  if (perms.includes('repos.secrets')) for (const repo of o.repos ?? []) r.http.expectOne(`/v1/repos/${repo.id}/env`).flush({ secrets: (o.secretNames?.[repo.id] ?? []).map((name) => ({ name, level: 'high' })) });
   await r.settle();
   return r;
 }
@@ -83,12 +83,13 @@ describe('GitHub', () => {
     const slug = second.querySelector('[data-testid="slug"]') as HTMLInputElement; slug.value = 'legacy'; slug.dispatchEvent(new Event('input'));
     const enabled = second.querySelector('[data-testid="enabled"]') as HTMLInputElement; enabled.checked = true; enabled.dispatchEvent(new Event('change'));
     const forks = second.querySelector('[data-testid="forks"]') as HTMLSelectElement; forks.value = 'auto'; forks.dispatchEvent(new Event('change'));
+    const fc = second.querySelector('[data-testid="fork-clearance"]') as HTMLSelectElement; fc.value = 'low'; fc.dispatchEvent(new Event('change'));
     await r.settle();
     expect(save().disabled).toBe(false);
     second.querySelector('[data-testid="form-r2"]')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
     const req = r.http.expectOne({ method: 'PATCH', url: '/v1/repos/r2' });
-    expect(req.request.body).toEqual({ slug: 'legacy', enabled: true, forks: 'auto' });
-    req.flush({ repo: repo({ id: 'r2', fullName: 'other/web-app', slug: 'legacy', enabled: true, forks: 'auto' }) });
+    expect(req.request.body).toEqual({ slug: 'legacy', enabled: true, forks: 'auto', forkClearance: 'low' });
+    req.flush({ repo: repo({ id: 'r2', fullName: 'other/web-app', slug: 'legacy', enabled: true, forks: 'auto', forkClearance: 'low' }) });
     await r.settle();
     expect(r.allByTestId('disabled')).toHaveLength(0);
     expect(r.allByTestId('repo')[1]!.textContent).toContain('legacy-pr-');
@@ -113,16 +114,22 @@ describe('GitHub', () => {
 });
 
 describe('secrets', () => {
-  it('lists names as chips (never a value), sets one with a PATCH, removes one with an unset', async () => {
+  it('lists names as chips with their level (never a value), sets one with a PATCH, re-levels, removes one with an unset', async () => {
     const r = await open({ repos: [repo()], secretNames: { [repo().id]: ['FONTAWESOME_TOKEN'] } });
-    expect(r.allByTestId('secret').map((e) => e.textContent?.trim())).toEqual(['FONTAWESOME_TOKEN=••••×']);
+    expect(r.allByTestId('secret').map((e) => e.firstChild?.textContent?.trim())).toEqual(['FONTAWESOME_TOKEN']);
+    expect(r.el.textContent).not.toContain('=fa');
+    expect((r.byTestId('level') as HTMLSelectElement).value).toBe('high');
+    const sel = r.byTestId('level') as HTMLSelectElement; sel.value = 'low'; sel.dispatchEvent(new Event('change')); await r.settle();
+    const rl = r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}/env` });
+    expect(rl.request.body).toEqual({ levels: { FONTAWESOME_TOKEN: 'low' } });
+    rl.flush({ secrets: [{ name: 'FONTAWESOME_TOKEN', level: 'low' }] }); await r.settle();
     expect((r.byTestId('set-secret') as HTMLButtonElement).disabled).toBe(true);
     type(r, 'secret-name', 'API_KEY'); type(r, 'secret-value', 's3cret'); await r.settle();
     expect((r.byTestId('set-secret') as HTMLButtonElement).disabled).toBe(false);
     r.byTestId('secret-name')!.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
     const req = r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}/env` });
-    expect(req.request.body).toEqual({ set: { API_KEY: 's3cret' } });
-    req.flush({ names: ['API_KEY', 'FONTAWESOME_TOKEN'] });
+    expect(req.request.body).toEqual({ set: { API_KEY: { value: 's3cret', level: 'standard' } } });
+    req.flush({ secrets: [{ name: 'API_KEY', level: 'standard' }, { name: 'FONTAWESOME_TOKEN', level: 'low' }] });
     await r.settle();
     expect(r.allByTestId('secret')).toHaveLength(2);
     expect(r.el.textContent).not.toContain('s3cret');
@@ -131,20 +138,22 @@ describe('secrets', () => {
     (r.allByTestId('unset')[0] as HTMLButtonElement).click(); await r.settle();
     const un = r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}/env` });
     expect(un.request.body).toEqual({ unset: ['API_KEY'] });
-    un.flush({ names: ['FONTAWESOME_TOKEN'] });
+    un.flush({ secrets: [{ name: 'FONTAWESOME_TOKEN', level: 'low' }] });
     await r.settle();
     expect(r.allByTestId('secret')).toHaveLength(1);
   });
 
   it('a pasted .env becomes one PATCH: comments and blanks skipped, quotes removed, the textarea cleared', async () => {
     const r = await open({ repos: [repo()] });
+    const lv = r.byTestId('pasted-level') as HTMLSelectElement; lv.value = 'high'; lv.dispatchEvent(new Event('change')); await r.settle();
     const ta = r.byTestId('secret-paste') as HTMLTextAreaElement;
     ta.value = '# staging\nexport DB_HOST=db.example\nJWT_SECRET="a b" # trailing\nEMPTY=\nbad-name=x\nPORT=3000 # comment\n\n'; ta.dispatchEvent(new Event('input')); await r.settle();
     expect(r.text('set-pasted')).toContain('Set 4 variables');
     ta.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
     const req = r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}/env` });
-    expect(req.request.body).toEqual({ set: { DB_HOST: 'db.example', JWT_SECRET: 'a b', EMPTY: '', PORT: '3000' } });
-    req.flush({ names: ['DB_HOST', 'EMPTY', 'JWT_SECRET', 'PORT'] });
+    const at = (value: string) => ({ value, level: 'high' });
+    expect(req.request.body).toEqual({ set: { DB_HOST: at('db.example'), JWT_SECRET: at('a b'), EMPTY: at(''), PORT: at('3000') } });
+    req.flush({ secrets: ['DB_HOST', 'EMPTY', 'JWT_SECRET', 'PORT'].map((name) => ({ name, level: 'high' })) });
     await r.settle();
     expect(r.allByTestId('secret')).toHaveLength(4);
     expect((r.byTestId('secret-paste') as HTMLTextAreaElement).value).toBe('');

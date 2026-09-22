@@ -111,7 +111,7 @@ export function parseGitHubEvent(event: string | null, payload: unknown): ForgeE
       if (command === null) return { type: "ignored", reason: "not a /preview command" };
       if (typeof p.comment?.id !== "number") return { type: "ignored", reason: "comment without an id" };
       return {
-        type: "pr.command", repo, number: p.issue.number, command, commentId: p.comment.id,
+        type: "pr.command", repo, number: p.issue.number, ...command, commentId: p.comment.id,
         author: p.comment.user?.login ?? "", association: associationOf(p.comment.author_association),
       };
     }

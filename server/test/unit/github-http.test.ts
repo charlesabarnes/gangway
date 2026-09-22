@@ -136,9 +136,9 @@ describe("/v1/repos", () => {
     expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { slug: "Web App" } })).status).toBe(422);
     expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { ttl: "soon" } })).status).toBe(422);
     expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { nope: 1 } })).status).toBe(422);
-    const ok = await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { slug: "legacy", enabled: true, forks: "auto", visibility: "public", ttl: "2d", drafts: true } });
+    const ok = await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { slug: "legacy", enabled: true, forks: "auto", visibility: "public", ttl: "2d", drafts: true, forkClearance: "low", prClearance: "high" } });
     expect(ok.status).toBe(200);
-    expect(((await ok.json()) as any).repo).toMatchObject({ slug: "legacy", enabled: true, disabledReason: null, forks: "auto", visibility: "public", ttl: "2d", drafts: true });
+    expect(((await ok.json()) as any).repo).toMatchObject({ slug: "legacy", enabled: true, disabledReason: null, forks: "auto", visibility: "public", ttl: "2d", drafts: true, forkClearance: "low", prClearance: "high" });
     expect(t.s.auditRepo.page({ limit: 1 }).entries[0]).toMatchObject({ action: "repo.updated", target: "r2", old: { slug: "web-app-x1y2z3", enabled: false }, new: { slug: "legacy", enabled: true } });
 
     expect((await t.call("/v1/repos/r2", { method: "DELETE", as: t.ada })).status).toBe(204);
@@ -149,12 +149,13 @@ describe("/v1/repos", () => {
   test("secrets: PATCH merges and answers with NAMES; GET lists names; a value never comes back anywhere", async () => {
     const t = await make();
     t.repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "1", slug: "web-app" });
-    expect(await (await t.call("/v1/repos/r1/env", { as: t.ada })).json()).toEqual({ names: [] });
-    let res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { FONTAWESOME_TOKEN: "fa-secret-value", B: "2" } } });
+    expect(await (await t.call("/v1/repos/r1/env", { as: t.ada })).json()).toEqual({ secrets: [] });
+    let res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { FONTAWESOME_TOKEN: { value: "fa-secret-value", level: "high" }, B: "2" } } });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ names: ["B", "FONTAWESOME_TOKEN"] });
-    res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { unset: ["B"] } });
-    expect(await res.json()).toEqual({ names: ["FONTAWESOME_TOKEN"] });
+    expect(await res.json()).toEqual({ secrets: [{ name: "B", level: "standard" }, { name: "FONTAWESOME_TOKEN", level: "high" }] });
+    res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { unset: ["B"], levels: { FONTAWESOME_TOKEN: "standard" } } });
+    expect(await res.json()).toEqual({ secrets: [{ name: "FONTAWESOME_TOKEN", level: "standard" }] });
+    expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { levels: { FONTAWESOME_TOKEN: "top" } } })).status).toBe(422);
     expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: {} })).status).toBe(422);
     expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { "bad-name": "x" } } })).status).toBe(422);
     expect((await t.call("/v1/repos/nope/env", { as: t.ada })).status).toBe(404);

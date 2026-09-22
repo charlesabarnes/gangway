@@ -19,7 +19,7 @@ import { randomBytes } from "node:crypto";
 import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { projectNameFor, type Host, type Preview, type PreviewSource, type Route, type Visibility } from "../../../shared/src/domain.ts";
+import { projectNameFor, type Clearance, type Host, type Preview, type PreviewSource, type Route, type Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
 import { actorId, type Actor } from "../auth/actor.ts";
@@ -60,6 +60,8 @@ export type DeployInput = {
    * empty -- it is final; absent, the context may supply a repository's secrets by source.
    */
   env?: Record<string, string> | undefined;
+  /** The clearance to deploy with (ADR-0012). Recorded on the row; the context's lookup filters by it. */
+  secretLevel?: Clearance | undefined;
   /** The hostname stem. Defaults to something derived from the source. */
   name?: string | undefined;
   visibility?: Visibility | undefined;
@@ -203,7 +205,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let routes: PlannedRoute[];
   let visibility: Visibility;
   try {
-    const env = input.env !== undefined ? input.env : ctx.secretsFor?.(input.source);
+    const env = input.env !== undefined ? input.env : ctx.secretsFor?.(input.source, input.secretLevel);
     const { source, composeFile } = await writeSource(ctx, id, input.source, env, wd);
     planned = await readModel(ctx, host, wd, composeFile);
     const { model } = planned;
@@ -247,6 +249,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     preview = ctx.previews.create({
       id, project, hostId: host.id, state: "building", source, visibility,
       ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
+      secretLevel: input.secretLevel ?? (env && Object.keys(env).length > 0 ? "standard" : null),
     });
     try {
       for (const route of routes) {

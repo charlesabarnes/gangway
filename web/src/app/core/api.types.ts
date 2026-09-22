@@ -35,6 +35,8 @@ export type Preview = {
   ttlExpiresAt: string | null;
   /** Idle-sleep after this many ms without a request; null: the server default; 0: never. */
   idleAfterMs: number | null;
+  /** The clearance this preview was deployed with; null when no repository was involved. */
+  secretLevel: Clearance | null;
   lastSeenAt: string | null;
   error: string | null;
   createdAt: string;
@@ -123,9 +125,16 @@ export type ManifestStart = { action: string; manifest: Record<string, unknown>;
 export type ForkPolicy = 'ask' | 'auto' | 'never';
 export const FORK_POLICIES: readonly ForkPolicy[] = ['ask', 'auto', 'never'];
 
+/** Secrets have a level; a preview has a clearance and gets every secret at or below it. */
+export type SecretLevel = 'low' | 'standard' | 'high';
+export type Clearance = 'none' | SecretLevel;
+export const CLEARANCES: readonly Clearance[] = ['none', 'low', 'standard', 'high'];
+export const SECRET_LEVELS: readonly SecretLevel[] = ['low', 'standard', 'high'];
+export type SecretListing = { name: string; level: SecretLevel };
+
 export type Repo = {
   id: string; forge: 'github'; fullName: string; installationId: string; slug: string;
   enabled: boolean; disabledReason: string | null; visibility: Visibility | null; ttl: string | null;
-  forks: ForkPolicy; drafts: boolean; createdAt: string; updatedAt: string;
+  forks: ForkPolicy; drafts: boolean; prClearance: Clearance; forkClearance: Clearance; createdAt: string; updatedAt: string;
 };
-export type RepoPatch = Partial<Pick<Repo, 'slug' | 'enabled' | 'visibility' | 'ttl' | 'forks' | 'drafts'>>;
+export type RepoPatch = Partial<Pick<Repo, 'slug' | 'enabled' | 'visibility' | 'ttl' | 'forks' | 'drafts' | 'prClearance' | 'forkClearance'>>;

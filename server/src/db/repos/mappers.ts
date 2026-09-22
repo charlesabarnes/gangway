@@ -1,6 +1,6 @@
 /** Row <-> domain conversion. The only place epoch-millis integers become Dates. */
 import type {
-  ApiToken, AuditActorType, AuditEntry, Certificate, ForgeId, ForkPolicy, GangwayEvent, Host, HostCapability, Preview, PreviewSource, Repo,
+  ApiToken, AuditActorType, AuditEntry, Certificate, Clearance, ForgeId, ForkPolicy, GangwayEvent, Host, HostCapability, Preview, PreviewSource, Repo,
   Role, Route, Session, User, Visibility,
 } from "../../../../shared/src/domain.ts";
 import type { Scope } from "../../../../shared/src/permissions.ts";
@@ -47,6 +47,7 @@ export type PreviewRow = {
   ttl_expires_at: number | null; last_seen_at: number | null; error: string | null;
   created_at: number; updated_at: number; destroyed_at: number | null;
   idle_after_ms?: number | null;
+  secret_level?: string | null;
 };
 
 export function rowToPreview(r: PreviewRow): Preview {
@@ -60,6 +61,7 @@ export function rowToPreview(r: PreviewRow): Preview {
     visibility: r.visibility as Preview["visibility"],
     ttlExpiresAt: toDate(r.ttl_expires_at),
     idleAfterMs: r.idle_after_ms ?? null,
+    secretLevel: (r.secret_level ?? null) as Clearance | null,
     lastSeenAt: toDate(r.last_seen_at),
     error: r.error,
     createdAt: new Date(r.created_at),
@@ -182,11 +184,14 @@ export function rowToAuditEntry(r: AuditRow): AuditEntry {
 export type RepoRow = {
   id: string; forge: string; full_name: string; installation_id: string; slug: string; enabled: number;
   disabled_reason: string | null; visibility: string | null; ttl: string | null; forks: string; drafts: number;
+  pr_clearance?: string; fork_clearance?: string;
   created_at: number; updated_at: number;
 };
 
 export const rowToRepo = (r: RepoRow): Repo => ({
   id: r.id, forge: r.forge as ForgeId, fullName: r.full_name, installationId: r.installation_id, slug: r.slug,
   enabled: bool(r.enabled), disabledReason: r.disabled_reason, visibility: r.visibility as Visibility | null, ttl: r.ttl,
-  forks: r.forks as ForkPolicy, drafts: bool(r.drafts), createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
+  forks: r.forks as ForkPolicy, drafts: bool(r.drafts),
+  prClearance: (r.pr_clearance ?? "standard") as Clearance, forkClearance: (r.fork_clearance ?? "none") as Clearance,
+  createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
 });

@@ -90,9 +90,11 @@ describe("parsing GitHub's webhook", () => {
 
 describe("parsePreviewCommand", () => {
   test.each([
-    ["/preview deploy", "deploy"], ["/PREVIEW Redeploy", "redeploy"], ["  /preview destroy  \nmore", "destroy"], ["/preview status", "status"],
+    ["/preview deploy", { command: "deploy" }], ["/PREVIEW Redeploy", { command: "redeploy" }], ["  /preview destroy  \nmore", { command: "destroy" }], ["/preview status", { command: "status" }],
+    ["/preview secrets high", { command: "secrets", level: "high" }], ["/preview secrets NONE", { command: "secrets", level: "none" }],
+    ["/preview secrets", null], ["/preview secrets top", null],
     ["/preview", null], ["/preview launch", null], ["hello\n/preview deploy", null], ["/preview deploy now", null],
-  ])("%j -> %j", (body, want) => expect(parsePreviewCommand(body)).toBe(want as never));
+  ])("%j -> %j", (body, want) => expect(parsePreviewCommand(body)).toEqual(want as never));
 });
 
 describe("the signature", () => {

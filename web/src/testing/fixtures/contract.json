@@ -13,6 +13,7 @@
     "visibility": "public",
     "ttlExpiresAt": "2026-09-28T20:24:15.180Z",
     "idleAfterMs": null,
+    "secretLevel": null,
     "lastSeenAt": null,
     "error": null,
     "createdAt": "2026-09-21T20:24:15.180Z",
@@ -211,6 +212,8 @@
     "ttl": null,
     "forks": "ask",
     "drafts": false,
+    "prClearance": "standard",
+    "forkClearance": "none",
     "createdAt": "2026-09-21T20:00:00.000Z",
     "updatedAt": "2026-09-21T20:00:00.000Z"
   },
@@ -218,5 +221,11 @@
     "ask",
     "auto",
     "never"
+  ],
+  "clearances": [
+    "none",
+    "low",
+    "standard",
+    "high"
   ]
 }

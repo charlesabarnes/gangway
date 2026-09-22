@@ -7,7 +7,7 @@ import type { AuditSink } from "../audit/audit.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
 import type { DeploySource } from "./deploy.ts";
 import type { CloneOptions } from "./source/git.ts";
-import type { Preview, Visibility } from "../../../shared/src/domain.ts";
+import type { Clearance, Preview, Visibility } from "../../../shared/src/domain.ts";
 import type { PublicOrigin } from "../../../shared/src/url.ts";
 import type { HostsRepo } from "../db/repos/hosts.ts";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
@@ -64,7 +64,7 @@ export type PreviewContext = {
    * A repository's secrets for a source that names one (ADR-0012) -- a `git` clone URL of a
    * registered repository. Absent, or returning undefined: no `.env` is written.
    */
-  secretsFor?: ((source: DeploySource) => Record<string, string> | undefined) | undefined;
+  secretsFor?: ((source: DeploySource, clearance: Clearance | undefined) => Record<string, string> | undefined) | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

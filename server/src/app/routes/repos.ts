@@ -43,7 +43,7 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
   api.get("/repos/:id/env", requirePermission("repos.secrets"), (c) => {
     const repo = repos.get(c.req.param("id"));
     if (!repo) throw notFound(`no such repository: ${c.req.param("id")}`);
-    return c.json({ names: env ? env.names(repo.id) : [] });
+    return c.json({ secrets: env ? env.list(repo.id) : [] });
   });
 
   api.patch("/repos/:id/env", requirePermission("repos.secrets"), async (c) => {
@@ -52,8 +52,7 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
     if (!env) throw notFound("secrets are not available on this server");
     const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
     const patch = RepoEnvPatchSchema.parse(body);
-    const names = env.update(c.get("actor"), repo, patch);
-    return c.json({ names });
+    return c.json({ secrets: env.update(c.get("actor"), repo, patch) });
   });
 
   api.delete("/repos/:id", requirePermission("github.manage"), (c) => {
@@ -66,5 +65,5 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
   });
 }
 
-const pick = (r: { fullName: string; slug: string; enabled: boolean; visibility: unknown; ttl: unknown; forks: string; drafts: boolean }) =>
-  ({ fullName: r.fullName, slug: r.slug, enabled: r.enabled, visibility: r.visibility, ttl: r.ttl, forks: r.forks, drafts: r.drafts });
+const pick = (r: { fullName: string; slug: string; enabled: boolean; visibility: unknown; ttl: unknown; forks: string; drafts: boolean; prClearance: string; forkClearance: string }) =>
+  ({ fullName: r.fullName, slug: r.slug, enabled: r.enabled, visibility: r.visibility, ttl: r.ttl, forks: r.forks, drafts: r.drafts, prClearance: r.prClearance, forkClearance: r.forkClearance });

@@ -80,7 +80,7 @@ function fakePreviews(instance = "test") {
         id, project: `gw-${instance}-${slug}`, hostId: "local", kind: "preview", state: "building",
         source: s.kind === "pr" ? { kind: "pr", repo: s.repo, number: s.number, sha: s.sha } : { kind: "image", image: "x" },
         visibility: input.visibility ?? "unlisted", ttlExpiresAt: input.ttl ? new Date(Date.now() + 86_400_000) : null,
-        idleAfterMs: null, lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
+        idleAfterMs: null, secretLevel: input.secretLevel ?? null, lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
       };
       rows.set(id, preview);
       const done = new Promise<Preview>((resolve) => pending.set(id, (final) => { rows.set(id, final); resolve(final); }));
@@ -247,18 +247,49 @@ describe("forks and drafts (§9)", () => {
     expect(t.deploys[0]!.visibility).toBe("public");
   });
 
-  test("secrets: a same-repo PR gets the repository's env; a fork's PR gets an EMPTY env, explicitly, whatever the policy", async () => {
+  test("secrets: a same-repo PR is deployed at the repo's prClearance, a fork's at forkClearance (none: an EMPTY env, explicitly)", async () => {
     const t = make();
+    const asked: string[] = [];
     const withSecrets = new PrPreviews({
       forge: t.forge, repos: t.repos, instance: "test", previews: t.previews, logger: new Logger("error", {}, () => {}),
-      secretsFor: () => ({ FONTAWESOME_TOKEN: "fa-real" }),
+      secretsFor: (_repo, clearance) => { asked.push(clearance); return { LEVEL: clearance }; },
     });
     await withSecrets.handle(updated());
-    expect(t.deploys[0]!.env).toEqual({ FONTAWESOME_TOKEN: "fa-real" });
+    expect(t.deploys[0]).toMatchObject({ env: { LEVEL: "standard" }, secretLevel: "standard" });
     const repo = t.repos.getByFullName("github", "acme/web-app")!;
     t.repos.update(repo.id, { forks: "auto" });
     await withSecrets.handle(updated(pull({ number: 124, fromFork: true })));
-    expect(t.deploys[1]!.env).toEqual({});
+    expect(t.deploys[1]).toMatchObject({ env: {}, secretLevel: "none" });
+    expect(asked).toEqual(["standard"]); // none is never even asked for
+    t.repos.update(repo.id, { forkClearance: "low", prClearance: "high" });
+    await withSecrets.handle(updated(pull({ number: 125, fromFork: true })));
+    expect(t.deploys[2]).toMatchObject({ env: { LEVEL: "low" }, secretLevel: "low" });
+    expect([...t.comments.values()].at(-1)).toContain("Secrets: **low**");
+  });
+
+  test("`/preview secrets high` redeploys THIS pull request at that level, and the level sticks across pushes; a later policy change does not touch it", async () => {
+    const t = make({ prs: { 123: pull() } });
+    const svc = new PrPreviews({
+      forge: t.forge, repos: t.repos, instance: "test", previews: t.previews, logger: new Logger("error", {}, () => {}),
+      secretsFor: (_repo, clearance) => ({ LEVEL: clearance }),
+    });
+    const first = await svc.handle(updated());
+    if (first.action !== "deployed") throw new Error();
+    t.settle("P1", "awake"); await first.settled;
+    const raised = await svc.handle({ ...command("deploy", "owner"), command: "secrets", level: "high" } as never);
+    expect(raised).toMatchObject({ action: "deployed", previewId: "P2" });
+    expect(t.deploys[1]).toMatchObject({ env: { LEVEL: "high" }, secretLevel: "high" });
+    t.settle("P2", "awake");
+    const repo = t.repos.getByFullName("github", "acme/web-app")!;
+    t.repos.update(repo.id, { prClearance: "low" });
+    const pushed = await svc.handle(updated(pull({ headSha: "b".repeat(40) }), "synchronize"));
+    expect(pushed).toMatchObject({ action: "deployed", previewId: "P3" });
+    expect(t.deploys[2]).toMatchObject({ secretLevel: "high" });
+    // A brand-new PR follows the (now lower) policy.
+    await svc.handle(updated(pull({ number: 200 })));
+    expect(t.deploys[3]).toMatchObject({ secretLevel: "low" });
+    // And a contributor cannot raise anything.
+    expect(await svc.handle({ ...command("deploy", "other"), command: "secrets", level: "high" } as never)).toMatchObject({ action: "ignored" });
   });
 
   test("a draft is ignored unless the repository opts in", async () => {

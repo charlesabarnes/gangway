@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { PREVIEW_STATE_VALUES, VISIBILITY_VALUES } from "../../../shared/src/api.ts";
+import { CLEARANCES } from "../../../shared/src/domain.ts";
 import { ALL_PERMISSIONS, SCOPES, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import type { AppEnv } from "../../src/app/env.ts";
@@ -141,5 +142,6 @@ describe("github wire shapes (ADR-0011)", () => {
     const { repo } = await (await app.request("/repos/r1")).json() as { repo: unknown };
     expect(shapeOf(repo)).toEqual(shapeOf(contract["repo"]));
     expect(contract["forkPolicies"]).toEqual(["ask", "auto", "never"]);
+    expect(contract["clearances"]).toEqual([...CLEARANCES]);
   });
 });

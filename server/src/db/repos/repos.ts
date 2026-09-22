@@ -1,4 +1,4 @@
-import type { ForgeId, ForkPolicy, Repo, Visibility } from "../../../../shared/src/domain.ts";
+import type { Clearance, ForgeId, ForkPolicy, Repo, Visibility } from "../../../../shared/src/domain.ts";
 import type { Db, Params } from "../types.ts";
 import { num, rowToRepo, type RepoRow } from "./mappers.ts";
 
@@ -11,11 +11,13 @@ export type CreateRepo = {
 export type RepoPatch = {
   slug?: string | undefined; enabled?: boolean | undefined; disabledReason?: string | null | undefined; installationId?: string | undefined;
   visibility?: Visibility | null | undefined; ttl?: string | null | undefined; forks?: ForkPolicy | undefined; drafts?: boolean | undefined;
+  prClearance?: Clearance | undefined; forkClearance?: Clearance | undefined;
 };
 
 const COLUMNS: Record<keyof RepoPatch, string> = {
   slug: "slug", enabled: "enabled", disabledReason: "disabled_reason", installationId: "installation_id",
   visibility: "visibility", ttl: "ttl", forks: "forks", drafts: "drafts",
+  prClearance: "pr_clearance", forkClearance: "fork_clearance",
 };
 
 /** Repositories a forge sends pull requests from, and how their previews are shaped (ADR-0011). */

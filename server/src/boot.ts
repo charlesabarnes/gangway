@@ -183,11 +183,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   /* ---- pull requests (ADR-0011). Credentials are read from settings on every use. */
   const reposRepo = new ReposRepo(db);
   const repoEnv = new RepoEnv(reposRepo, new SecretBox(loadOrCreateSecretsKey(stateDir)), audit);
-  ctx.secretsFor = (source) => {
+  ctx.secretsFor = (source, clearance) => {
     if (source.kind !== "git") return undefined;
     const full = githubFullName(source.repo);
     const repo = full ? reposRepo.getByFullName("github", full) : undefined;
-    return repo ? repoEnv.valuesFor(repo.id) : undefined;
+    return repo ? repoEnv.valuesFor(repo.id, clearance ?? repo.prClearance) : undefined;
   };
   const githubApp = new GitHubApp({
     credentials: () => ({ appId: settings.get(SETTINGS.githubAppId), privateKey: settings.get(SETTINGS.githubPrivateKey) }),
@@ -196,7 +196,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const forge = new GitHubForge({ app: githubApp, webhookSecret: () => settings.get(SETTINGS.githubWebhookSecret) });
   const prPreviews = new PrPreviews({
     forge, repos: reposRepo, instance: config.instanceId, logger: logger.child({ mod: "pr" }),
-    secretsFor: (repo) => repoEnv.valuesFor(repo.id),
+    secretsFor: (repo, clearance) => repoEnv.valuesFor(repo.id, clearance),
     previews: {
       deploy: (input) => deploy(ctx, input),
       destroy: (id, actor) => destroy(ctx, id, actor),

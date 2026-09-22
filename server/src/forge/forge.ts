@@ -48,14 +48,17 @@ export type PullRequest = {
  */
 export type Association = "owner" | "member" | "collaborator" | "other";
 
-export type PreviewCommand = "deploy" | "redeploy" | "destroy" | "status";
-export const PREVIEW_COMMANDS: readonly PreviewCommand[] = ["deploy", "redeploy", "destroy", "status"];
+import { CLEARANCES, type Clearance } from "../../../shared/src/domain.ts";
+
+export type PreviewCommand = "deploy" | "redeploy" | "destroy" | "status" | "secrets";
+export const PREVIEW_COMMANDS: readonly PreviewCommand[] = ["deploy", "redeploy", "destroy", "status", "secrets"];
+export type ParsedCommand = { command: Exclude<PreviewCommand, "secrets"> } | { command: "secrets"; level: Clearance };
 
 export type ForgeEvent =
   | { type: "pr.updated"; pr: PullRequest; action: "opened" | "reopened" | "synchronize" | "ready_for_review" }
   | { type: "pr.closed"; pr: PullRequest; merged: boolean }
   /** `/preview <command>` in a comment. The PR itself is fetched when it is needed. */
-  | { type: "pr.command"; repo: ForgeRepo; number: number; command: PreviewCommand; author: string; association: Association; commentId: number }
+  | ({ type: "pr.command"; repo: ForgeRepo; number: number; author: string; association: Association; commentId: number } & ParsedCommand)
   | { type: "ignored"; reason: string };
 
 export type DeploymentState = "in_progress" | "success" | "failure" | "inactive";
@@ -82,10 +85,13 @@ export type Forge = {
  * `/preview deploy`, `/preview   status` -- the FIRST line of a comment, so a sentence that
  * mentions the command in passing is not one. Case-insensitive on the verb.
  */
-export function parsePreviewCommand(body: string): PreviewCommand | null {
+export function parsePreviewCommand(body: string): ParsedCommand | null {
   const first = body.split(/\r?\n/, 1)[0]?.trim() ?? "";
-  const m = /^\/preview\s+([a-z]+)\s*$/i.exec(first);
+  const m = /^\/preview\s+([a-z]+)(?:\s+([a-z]+))?\s*$/i.exec(first);
   if (!m) return null;
   const verb = m[1]!.toLowerCase();
-  return (PREVIEW_COMMANDS as readonly string[]).includes(verb) ? (verb as PreviewCommand) : null;
+  const arg = m[2]?.toLowerCase();
+  if (verb === "secrets") return arg !== undefined && (CLEARANCES as readonly string[]).includes(arg) ? { command: "secrets", level: arg as Clearance } : null;
+  if (arg !== undefined) return null;
+  return (PREVIEW_COMMANDS as readonly string[]).includes(verb) ? { command: verb as Exclude<PreviewCommand, "secrets"> } : null;
 }

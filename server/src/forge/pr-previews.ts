@@ -13,7 +13,7 @@
  *   - the forge is told AFTER the preview exists and again when it settles; a forge
  *     call failing never fails the deploy
  */
-import type { Repo, Visibility } from "../../../shared/src/domain.ts";
+import type { Clearance, Repo, Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
@@ -39,8 +39,8 @@ export type PrPreviewsDeps = {
     forgeRefs(id: string): { commentId: number | null; deploymentId: number | null };
     setForgeRefs(id: string, refs: { commentId?: number | null; deploymentId?: number | null }): void;
   };
-  /** The repository's secrets (ADR-0012). A fork's PR never gets them, whatever this returns. */
-  secretsFor?: ((repo: Repo) => Record<string, string>) | undefined;
+  /** The repository's secrets at or below a clearance (ADR-0012). */
+  secretsFor?: ((repo: Repo, clearance: Clearance) => Record<string, string>) | undefined;
   /** Where a human reads the build log: the UI's preview page, when the UI is on. */
   logUrlFor?: ((previewId: string) => string | undefined) | undefined;
   logger: Logger;
@@ -132,6 +132,16 @@ export class PrPreviews {
       await this.#say({ repo: ev.repo, number: ev.number }, existing ? this.#d.previews.forgeRefs(existing.id).commentId : null, body);
       return { action: "commented", previewId: existing?.id ?? null };
     }
+    if (ev.command === "secrets") {
+      // Raise or lower THIS pull request's clearance: a redeploy at that level, and it sticks.
+      if (!repo.enabled) return { action: "ignored", reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}` };
+      const pr = await this.#d.forge.pullRequest(ev.repo, ev.number);
+      if (pr.fromFork && repo.forks === "never") {
+        await this.#say(pr, this.#refsOf(repo, pr.number).commentId, `Pull requests from forks are never previewed for ${repo.fullName}.`);
+        return { action: "commented", previewId: null };
+      }
+      return this.#deploy(repo, pr, actor, { force: true, clearance: ev.level });
+    }
     if (ev.command === "destroy") {
       const existing = this.current(repo, ev.number);
       if (!existing) return { action: "ignored", reason: `#${ev.number} has no preview to destroy` };
@@ -151,10 +161,17 @@ export class PrPreviews {
 
   /* ---------------------------------------------------------------- the two moves */
 
-  async #deploy(repo: Repo, pr: PullRequest, actor: Actor, o: { force?: boolean } = {}): Promise<Outcome> {
+  #refsOf(repo: Repo, number: number): { commentId: number | null; deploymentId: number | null } {
+    const existing = this.current(repo, number);
+    return existing ? this.#d.previews.forgeRefs(existing.id) : { commentId: null, deploymentId: null };
+  }
+
+  async #deploy(repo: Repo, pr: PullRequest, actor: Actor, o: { force?: boolean; clearance?: Clearance } = {}): Promise<Outcome> {
     const name = this.previewName(repo, pr.number);
     const existing = this.current(repo, pr.number);
     let refs = { commentId: null as number | null, deploymentId: null as number | null };
+    // The clearance: asked for now, else what this PR already had, else the repository's policy.
+    const clearance: Clearance = o.clearance ?? existing?.secretLevel ?? (pr.fromFork ? repo.forkClearance : repo.prClearance);
     if (existing) {
       const sameHead = existing.source.kind === "pr" && existing.source.sha === pr.headSha;
       const live = existing.state === "building" || existing.state === "starting" || existing.state === "awake";
@@ -170,10 +187,10 @@ export class PrPreviews {
     const visibility: Visibility = pr.fromFork ? "public" : (repo.visibility ?? undefined) as Visibility;
     let result: DeployResult;
     try {
-      // Given explicitly, even as {} for a fork: the pipeline's by-source lookup must not fill it in.
-      const env = pr.fromFork ? {} : (this.#d.secretsFor?.(repo) ?? {});
+      // Given explicitly, even as {}: the pipeline's by-source lookup must not fill it in.
+      const env = clearance === "none" ? {} : (this.#d.secretsFor?.(repo, clearance) ?? {});
       result = await this.#d.previews.deploy({
-        actor, name, env, ...(visibility ? { visibility } : {}), ...(repo.ttl !== null ? { ttl: repo.ttl } : {}),
+        actor, name, env, secretLevel: clearance, ...(visibility ? { visibility } : {}), ...(repo.ttl !== null ? { ttl: repo.ttl } : {}),
         source: { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential },
       });
     } catch (e) {
@@ -262,6 +279,7 @@ export class PrPreviews {
     const state = phase === "status" ? p.state : phase;
     const title = { building: "🚧 Building preview", ready: "✅ Preview ready", failed: "❌ Preview failed", status: `Preview is **${p.state}**` }[phase];
     lines.push(`### ${title}${sha ? ` for \`${sha}\`` : ""}`);
+    if (p.secretLevel) lines.push("", `_Secrets: **${p.secretLevel}**${p.secretLevel === "none" ? " (no .env)" : ""} · \`/preview secrets low|standard|high|none\` to change._`);
     if (primary && state !== "failed") lines.push("", `**${primary.url}**`);
     if (urls.length > 1) lines.push("", ...urls.map((u) => `- \`${u.service}\`: ${u.url}`));
     if (p.state === "failed" && p.error) lines.push("", "```", p.error.slice(0, 2000), "```");

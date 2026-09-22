@@ -51,19 +51,34 @@ describe("RepoEnv", () => {
     return { db, repos, repo, env, audited };
   };
 
-  test("set merges, unset removes, names come back sorted; the row holds ciphertext only; the audit holds names only", () => {
+  test("set merges (a plain string is `standard`), levels re-level, unset removes; the listing is names+levels; the row holds ciphertext only; the audit holds names only", () => {
     const { repos, repo, env, audited, db } = setup();
-    expect(env.names(repo.id)).toEqual([]);
-    expect(env.update(null, repo, { set: { FONTAWESOME_TOKEN: "fa-abc", B: "2" } })).toEqual(["B", "FONTAWESOME_TOKEN"]);
-    expect(env.update(null, repo, { set: { A: "1" }, unset: ["B"] })).toEqual(["A", "FONTAWESOME_TOKEN"]);
-    expect(env.valuesFor(repo.id)).toEqual({ A: "1", FONTAWESOME_TOKEN: "fa-abc" });
+    expect(env.list(repo.id)).toEqual([]);
+    expect(env.update(null, repo, { set: { FONTAWESOME_TOKEN: { value: "fa-abc", level: "high" }, B: "2", PUBLIC_KEY: { value: "pk", level: "low" } } }))
+      .toEqual([{ name: "B", level: "standard" }, { name: "FONTAWESOME_TOKEN", level: "high" }, { name: "PUBLIC_KEY", level: "low" }]);
+    // A plain string on an existing name keeps its level.
+    expect(env.update(null, repo, { set: { FONTAWESOME_TOKEN: "fa-new" }, levels: { B: "high" } })).toEqual([{ name: "B", level: "high" }, { name: "FONTAWESOME_TOKEN", level: "high" }, { name: "PUBLIC_KEY", level: "low" }]);
+    expect(env.valuesFor(repo.id, "high")).toEqual({ B: "2", FONTAWESOME_TOKEN: "fa-new", PUBLIC_KEY: "pk" });
+    expect(env.valuesFor(repo.id, "standard")).toEqual({ PUBLIC_KEY: "pk" });
+    expect(env.valuesFor(repo.id, "low")).toEqual({ PUBLIC_KEY: "pk" });
+    expect(env.valuesFor(repo.id, "none")).toEqual({});
     const row = db.get<{ env_ciphertext: string }>("SELECT env_ciphertext FROM repos WHERE id = 'r1'")!;
     expect(row.env_ciphertext).toMatch(/^v1\./);
-    expect(row.env_ciphertext).not.toContain("fa-abc");
-    expect(JSON.stringify(audited)).not.toContain("fa-abc");
-    expect(audited.at(-1)).toMatchObject({ action: "repo.env.changed", target: "r1", old: { names: ["B", "FONTAWESOME_TOKEN"] }, new: { names: ["A", "FONTAWESOME_TOKEN"], set: ["A"], unset: ["B"] } });
-    expect(env.update(null, repo, { unset: ["A", "FONTAWESOME_TOKEN"] })).toEqual([]);
+    expect(row.env_ciphertext).not.toContain("fa-new");
+    expect(JSON.stringify(audited)).not.toMatch(/fa-new|fa-abc/);
+    expect(audited.at(-1)).toMatchObject({ action: "repo.env.changed", target: "r1", new: { names: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"], set: ["FONTAWESOME_TOKEN"], levels: { B: "high" } } });
+    expect(env.update(null, repo, { unset: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"] })).toEqual([]);
     expect(repos.envCiphertext(repo.id)).toBeNull();
+    expect(() => env.update(null, repo, { levels: { NOPE: "low" } })).toThrow(/not set/);
+  });
+
+  test("the first shape -- a bare string per name -- reads as `standard`", () => {
+    const { repos, repo, env } = setup();
+    const box = new SecretBox(randomBytes(32));
+    const legacy = new RepoEnv(repos, box);
+    repos.setEnvCiphertext(repo.id, box.seal(JSON.stringify({ OLD: "v" })));
+    expect(legacy.list(repo.id)).toEqual([{ name: "OLD", level: "standard" }]);
+    void env;
   });
 
   test("a bad name or an oversized value is refused", () => {

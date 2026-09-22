@@ -11,7 +11,7 @@ const HOST = "h1";
 const mkPreview = (id: string, state: PreviewState = "awake", over: Partial<Preview> = {}): Preview => ({
   id, project: `gw-${id}`, hostId: HOST, kind: "preview", state,
   source: { kind: "manual", userId: "u1" }, visibility: "public",
-  ttlExpiresAt: null, idleAfterMs: null, lastSeenAt: null, error: null,
+  ttlExpiresAt: null, idleAfterMs: null, secretLevel: null, lastSeenAt: null, error: null,
   createdAt: new Date(NOW), updatedAt: new Date(NOW), destroyedAt: null,
   ...over,
 });

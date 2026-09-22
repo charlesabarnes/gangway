@@ -149,14 +149,18 @@ export const RepoPatchSchema = z.strictObject({
   ttl: z.string().max(16).nullable().optional(),
   forks: z.enum(["ask", "auto", "never"]).optional(),
   drafts: z.boolean().optional(),
+  prClearance: z.enum(["none", "low", "standard", "high"]).optional(),
+  forkClearance: z.enum(["none", "low", "standard", "high"]).optional(),
 });
 export type RepoPatchRequest = z.infer<typeof RepoPatchSchema>;
 
 /** `PATCH /v1/repos/:id/env`: merge secrets in, take names out. Values are never returned. */
+const secretLevel = z.enum(["low", "standard", "high"]);
 export const RepoEnvPatchSchema = z.strictObject({
-  set: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name"), z.string()).optional(),
+  set: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name"), z.union([z.string(), z.strictObject({ value: z.string(), level: secretLevel })])).optional(),
   unset: z.array(z.string()).max(100).optional(),
-}).refine((v) => Object.keys(v.set ?? {}).length > 0 || (v.unset ?? []).length > 0, "nothing to change");
+  levels: z.record(z.string(), secretLevel).optional(),
+}).refine((v) => Object.keys(v.set ?? {}).length > 0 || (v.unset ?? []).length > 0 || Object.keys(v.levels ?? {}).length > 0, "nothing to change");
 export type RepoEnvPatchRequest = z.infer<typeof RepoEnvPatchSchema>;
 
 export const AuditQuerySchema = z.object({
