@@ -38,6 +38,9 @@ export function redact(value: unknown, depth = 0): unknown {
   if (typeof value === "string") return redactString(value);
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
+  // A Date has no own enumerable properties: walked as an object it becomes `{}`. The first
+  // production audit row (token.created, expiresAt) stored exactly that.
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (value instanceof Error) {
     return { name: value.name, message: redactString(value.message), stack: value.stack ? redactString(value.stack) : undefined };
   }

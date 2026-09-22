@@ -44,6 +44,14 @@ describe("redaction", () => {
     expect(o.keep).toBe("visible");
   });
 
+  test("keeps a Date as its ISO string instead of flattening it to {}", () => {
+    const at = new Date("2026-12-20T00:22:00.964Z");
+    const o = redact({ expiresAt: at, nested: [at], none: null }) as any;
+    expect(o.expiresAt).toBe("2026-12-20T00:22:00.964Z");
+    expect(o.nested[0]).toBe("2026-12-20T00:22:00.964Z");
+    expect(o.none).toBeNull();
+  });
+
   test("log lines are redacted end to end", () => {
     const lines: string[] = [];
     new Logger("info", {}, (l) => lines.push(l))
