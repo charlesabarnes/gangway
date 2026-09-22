@@ -16,7 +16,7 @@ const status = (over: Partial<GitHubStatus> = {}): GitHubStatus => ({ ...(contra
 const repo = (over: Partial<Repo> = {}): Repo => ({ ...(contract.repo as Repo), ...over });
 const NOT_CONNECTED = status({ configured: false, appId: '', appSlug: '', appUrl: null, installUrl: null, missing: ['github.appId', 'github.privateKey', 'github.webhookSecret'] });
 
-async function open(o: { permissions?: Permission[]; status?: GitHubStatus; repos?: Repo[] } = {}) {
+async function open(o: { permissions?: Permission[]; status?: GitHubStatus; repos?: Repo[]; secretNames?: Record<string, string[]> } = {}) {
   const r = await render(Host);
   const perms = o.permissions ?? [...PERMISSIONS];
   const loading = TestBed.inject(AuthService).refresh();
@@ -26,6 +26,8 @@ async function open(o: { permissions?: Permission[]; status?: GitHubStatus; repo
   r.http.expectOne('/v1/repos').flush({ repos: o.repos ?? [] });
   if (perms.includes('github.manage')) r.http.expectOne('/v1/github').flush(o.status ?? status());
   else r.http.expectNone('/v1/github');
+  await r.settle();
+  if (perms.includes('repos.secrets')) for (const repo of o.repos ?? []) r.http.expectOne(`/v1/repos/${repo.id}/env`).flush({ names: o.secretNames?.[repo.id] ?? [] });
   await r.settle();
   return r;
 }
@@ -83,7 +85,7 @@ describe('GitHub', () => {
     const forks = second.querySelector('[data-testid="forks"]') as HTMLSelectElement; forks.value = 'auto'; forks.dispatchEvent(new Event('change'));
     await r.settle();
     expect(save().disabled).toBe(false);
-    second.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
+    second.querySelector('[data-testid="form-r2"]')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
     const req = r.http.expectOne({ method: 'PATCH', url: '/v1/repos/r2' });
     expect(req.request.body).toEqual({ slug: 'legacy', enabled: true, forks: 'auto' });
     req.flush({ repo: repo({ id: 'r2', fullName: 'other/web-app', slug: 'legacy', enabled: true, forks: 'auto' }) });
@@ -107,6 +109,43 @@ describe('GitHub', () => {
     await choose(r, 'visibility', '');
     r.byTestId('form-' + repo().id)!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
     expect(r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}` }).request.body).toEqual({ visibility: null });
+  });
+});
+
+describe('secrets', () => {
+  it('lists names as chips (never a value), sets one with a PATCH, removes one with an unset', async () => {
+    const r = await open({ repos: [repo()], secretNames: { [repo().id]: ['FONTAWESOME_TOKEN'] } });
+    expect(r.allByTestId('secret').map((e) => e.textContent?.trim())).toEqual(['FONTAWESOME_TOKEN=••••×']);
+    expect((r.byTestId('set-secret') as HTMLButtonElement).disabled).toBe(true);
+    type(r, 'secret-name', 'API_KEY'); type(r, 'secret-value', 's3cret'); await r.settle();
+    expect((r.byTestId('set-secret') as HTMLButtonElement).disabled).toBe(false);
+    r.byTestId('secret-name')!.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
+    const req = r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}/env` });
+    expect(req.request.body).toEqual({ set: { API_KEY: 's3cret' } });
+    req.flush({ names: ['API_KEY', 'FONTAWESOME_TOKEN'] });
+    await r.settle();
+    expect(r.allByTestId('secret')).toHaveLength(2);
+    expect(r.el.textContent).not.toContain('s3cret');
+    expect((r.byTestId('secret-value') as HTMLInputElement).value).toBe('');
+
+    (r.allByTestId('unset')[0] as HTMLButtonElement).click(); await r.settle();
+    const un = r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}/env` });
+    expect(un.request.body).toEqual({ unset: ['API_KEY'] });
+    un.flush({ names: ['FONTAWESOME_TOKEN'] });
+    await r.settle();
+    expect(r.allByTestId('secret')).toHaveLength(1);
+  });
+
+  it('a bad name keeps the button disabled', async () => {
+    const r = await open({ repos: [repo()] });
+    type(r, 'secret-name', '1bad'); type(r, 'secret-value', 'x'); await r.settle();
+    expect((r.byTestId('set-secret') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('without repos.secrets there is no section and no request', async () => {
+    const ro = await open({ permissions: ['previews.read', 'github.manage'], repos: [repo()] });
+    expect(ro.byTestId('secrets-' + repo().id)).toBeNull();
+    ro.http.expectNone(`/v1/repos/${repo().id}/env`);
   });
 });
 

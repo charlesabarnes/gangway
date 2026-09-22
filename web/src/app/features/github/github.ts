@@ -66,6 +66,25 @@ const VISIBILITIES: { value: Visibility | ''; label: string }[] = [{ value: '', 
               <span class="ml-auto font-mono text-xs text-neutral-500">{{ r.slug }}-pr-…</span>
             </div>
             @if (r.disabledReason; as why) { <p class="mt-1 text-sm text-amber-700 dark:text-amber-400" data-testid="why">{{ why }}</p> }
+            @if (canSecrets()) {
+              <div class="mt-3 rounded-md border border-dashed border-neutral-300 p-3 dark:border-neutral-700" [attr.data-testid]="'secrets-' + r.id">
+                <p class="text-xs font-medium text-neutral-700 dark:text-neutral-300">Secrets <span class="font-normal text-neutral-500">— written to <code class="font-mono">.env</code> at deploy; never shown again; never given to a fork's PR</span></p>
+                <ul class="mt-2 flex flex-wrap gap-2">
+                  @for (n of secretNames()[r.id] ?? []; track n) {
+                    <li class="flex items-center gap-1 rounded-full border border-neutral-300 px-2.5 py-0.5 font-mono text-xs dark:border-neutral-700" data-testid="secret">
+                      {{ n }}<span class="text-neutral-400">=••••</span>
+                      <button type="button" (click)="unsetSecret(r, n)" class="ml-1 text-neutral-500 hover:text-red-600" [attr.aria-label]="'Remove ' + n" data-testid="unset">×</button>
+                    </li>
+                  } @empty { <li class="text-xs text-neutral-500" data-testid="no-secrets">None yet.</li> }
+                </ul>
+                <form (submit)="setSecret($event, r)" novalidate class="mt-2 flex flex-wrap items-end gap-2">
+                  <label class="text-xs text-neutral-500">Name<input [class]="field" placeholder="FONTAWESOME_TOKEN" autocomplete="off" [value]="secretDraft()[r.id]?.name ?? ''" (input)="draftSecret(r, 'name', $any($event.target).value)" data-testid="secret-name" /></label>
+                  <label class="min-w-64 flex-1 text-xs text-neutral-500">Value<input [class]="field" type="password" autocomplete="new-password" [value]="secretDraft()[r.id]?.value ?? ''" (input)="draftSecret(r, 'value', $any($event.target).value)" data-testid="secret-value" /></label>
+                  <button appBtn variant="ghost" type="submit" [disabled]="!secretReady(r)" data-testid="set-secret">Set</button>
+                </form>
+                @if (secretError()?.id === r.id) { <p class="mt-1 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="secret-error">{{ secretError()?.message }}</p> }
+              </div>
+            }
             @if (canManage()) {
               <form (submit)="save($event, r)" novalidate class="mt-3 grid gap-3 sm:grid-cols-6" [attr.data-testid]="'form-' + r.id">
                 <label class="text-xs text-neutral-500 sm:col-span-2">Slug<input [class]="field" [value]="draft(r).slug" (input)="edit(r, 'slug', $any($event.target).value)" data-testid="slug" /></label>
@@ -102,6 +121,10 @@ export class GitHub {
   protected readonly visibilities = VISIBILITIES;
 
   protected readonly canManage = computed(() => this.auth.can('github.manage'));
+  protected readonly canSecrets = computed(() => this.auth.can('repos.secrets'));
+  protected readonly secretNames = signal<Record<string, string[]>>({});
+  protected readonly secretDraft = signal<Record<string, { name: string; value: string }>>({});
+  protected readonly secretError = signal<{ id: string; message: string } | null>(null);
   protected readonly status = signal<GitHubStatus | null>(null);
   protected readonly repos = signal<Repo[]>([]);
   protected readonly drafts = signal<Record<string, RepoPatch>>({});
@@ -118,8 +141,47 @@ export class GitHub {
   }
 
   async #loadRepos(): Promise<void> {
-    try { this.repos.set((await firstValueFrom(this.#http.get<{ repos: Repo[] }>('/v1/repos'))).repos); }
-    catch (e) { this.#toasts.problem('Could not load repositories', toProblem(e)); }
+    try {
+      const repos = (await firstValueFrom(this.#http.get<{ repos: Repo[] }>('/v1/repos'))).repos;
+      this.repos.set(repos);
+      if (this.canSecrets()) await Promise.all(repos.map((r) => this.#loadSecretNames(r.id)));
+    } catch (e) { this.#toasts.problem('Could not load repositories', toProblem(e)); }
+  }
+
+  async #loadSecretNames(id: string): Promise<void> {
+    const { names } = await firstValueFrom(this.#http.get<{ names: string[] }>(`/v1/repos/${id}/env`));
+    this.secretNames.update((all) => ({ ...all, [id]: names }));
+  }
+
+  protected draftSecret(r: Repo, key: 'name' | 'value', v: string): void {
+    this.secretDraft.update((all) => ({ ...all, [r.id]: { name: '', value: '', ...all[r.id], [key]: v } }));
+  }
+
+  protected secretReady(r: Repo): boolean {
+    const d = this.secretDraft()[r.id];
+    return !!d && /^[A-Za-z_][A-Za-z0-9_]*$/.test(d.name) && d.value !== '';
+  }
+
+  protected async setSecret(e: Event, r: Repo): Promise<void> {
+    e.preventDefault();
+    const d = this.secretDraft()[r.id];
+    if (!d || !this.secretReady(r)) return;
+    await this.#patchSecrets(r, { set: { [d.name]: d.value } });
+    this.secretDraft.update((all) => ({ ...all, [r.id]: { name: '', value: '' } }));
+  }
+
+  protected unsetSecret(r: Repo, name: string): Promise<void> {
+    return this.#patchSecrets(r, { unset: [name] });
+  }
+
+  async #patchSecrets(r: Repo, body: { set?: Record<string, string>; unset?: string[] }): Promise<void> {
+    this.secretError.set(null);
+    try {
+      const { names } = await firstValueFrom(this.#http.patch<{ names: string[] }>(`/v1/repos/${r.id}/env`, body));
+      this.secretNames.update((all) => ({ ...all, [r.id]: names }));
+    } catch (err) {
+      this.secretError.set({ id: r.id, message: toProblem(err).detail });
+    }
   }
 
   async #loadStatus(): Promise<void> {
