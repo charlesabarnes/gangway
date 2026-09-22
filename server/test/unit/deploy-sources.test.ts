@@ -104,3 +104,43 @@ describe("git source", () => {
     expect(s.previews.list({ includeDestroyed: true })).toEqual([]);
   });
 });
+
+describe("the seed hook (§7.3, ADR-0012)", () => {
+  const SEEDED = `services:\n  web:\n    build: .\n    x-gangway: { expose: true, port: 3000 }\n  db:\n    image: postgres:16\nx-gangway:\n  seed: ./scripts/seed.sh --fast\n`;
+
+  test("runs once in the primary service after the stack is healthy and before the URL answers; its output is the `seed` stream", async () => {
+    const s = setupPreviewContext();
+    const archive = await tarball([{ name: "compose.yaml", content: SEEDED }, { name: "Dockerfile", content: "FROM nginx" }]);
+    const res = await deploy(s.ctx, { ...base, name: "seeded", source: { kind: "tarball", archive } });
+    const final = await res.done;
+    expect(final.state).toBe("awake");
+    expect(s.fake.runs).toHaveLength(1);
+    const argv = s.fake.runs[0]!;
+    expect(argv.slice(argv.indexOf("run"))).toEqual(["run", "--rm", "--no-deps", "-T", "web", "sh", "-c", "./scripts/seed.sh --fast"]);
+    const lines = s.ctx.logs.read(res.preview.id);
+    const at = (needle: string) => lines.findIndex((l) => l.line.includes(needle));
+    // Order: up, then healthy, then the seed, then awake.
+    expect(at("$ compose up")).toBeLessThan(at("seeding: ./scripts/seed.sh --fast (in web)"));
+    expect(at("seeding:")).toBeLessThan(at("awake"));
+    expect(lines.some((l) => l.stream === "seed" && l.line === "seeded 3 rows")).toBe(true);
+  });
+
+  test("`seed: { service, command }` picks the service; a failing seed fails the preview", async () => {
+    const s = setupPreviewContext();
+    s.fake.runExit = 3;
+    const doc = SEEDED.replace("seed: ./scripts/seed.sh --fast", "seed: { service: db, command: psql -f seed.sql }");
+    const archive = await tarball([{ name: "compose.yaml", content: doc }, { name: "Dockerfile", content: "FROM nginx" }]);
+    const res = await deploy(s.ctx, { ...base, name: "badseed", source: { kind: "tarball", archive } });
+    const final = await res.done;
+    expect(final.state).toBe("failed");
+    expect(final.error).toContain("run (seed) exited 3");
+    expect(s.fake.runs[0]!.slice(-4)).toEqual(["db", "sh", "-c", "psql -f seed.sql"]);
+  });
+
+  test("no seed, no run", async () => {
+    const s = setupPreviewContext();
+    const archive = await tarball([{ name: "compose.yaml", content: COMPOSE }, { name: "Dockerfile", content: "FROM nginx" }]);
+    await (await deploy(s.ctx, { ...base, name: "plain", source: { kind: "tarball", archive } })).done;
+    expect(s.fake.runs).toEqual([]);
+  });
+});

@@ -52,8 +52,8 @@ export type Build = {
   startedAt: string; finishedAt: string | null; exitCode: number | null;
 };
 
-export type LogStream = 'system' | 'build' | 'stdout' | 'stderr';
-export const LOG_STREAMS: readonly LogStream[] = ['system', 'build', 'stdout', 'stderr'];
+export type LogStream = 'system' | 'build' | 'seed' | 'stdout' | 'stderr';
+export const LOG_STREAMS: readonly LogStream[] = ['system', 'build', 'seed', 'stdout', 'stderr'];
 export type LogLine = { n: number; at: string; stream: LogStream; line: string };
 
 /** What `/v1/events` carries. `reset` is synthetic: drop local state, refetch, keep following. */

@@ -14,7 +14,7 @@ export const FRAME = new InjectionToken<(cb: () => void) => void>('FRAME', {
 const TAIL = 2_000;
 
 const STREAM_CLASS: Record<LogStream, string> = {
-  system: 'text-sky-400', build: 'text-neutral-400', stdout: 'text-neutral-100', stderr: 'text-amber-300',
+  system: 'text-sky-400', build: 'text-neutral-400', seed: 'text-violet-300', stdout: 'text-neutral-100', stderr: 'text-amber-300',
 };
 
 /**

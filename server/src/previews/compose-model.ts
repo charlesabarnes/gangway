@@ -48,7 +48,12 @@ export type ServiceExtension = z.infer<typeof ServiceExtensionSchema>;
 
 export const StackExtensionSchema = z.strictObject({
   ttl: z.string().refine((s) => parseDuration(s) !== null, "expected a duration like 12h or 7d").optional(),
-  seed: z.string().min(1).optional(),
+  /**
+   * §7.3: run once after the stack is healthy, before routes go live (ADR-0012). A string
+   * runs in the PRIMARY service; `{ service, command }` picks another. `sh -c`, so a
+   * script path or a one-liner both work.
+   */
+  seed: z.union([z.string().min(1), z.strictObject({ service: z.string().min(1), command: z.string().min(1) })]).optional(),
   visibility: z.enum(["public", "unlisted", "private"]).optional(),
 });
 export type StackExtension = z.infer<typeof StackExtensionSchema>;

@@ -42,13 +42,19 @@ export function setupPreviewContext() {
   const routes = new RoutesRepo(db);
   const table = new RouteTable(routes);
   const bus = new EventBus(new EventsRepo(db));
-  const fake = { downs: [] as string[], ups: 0, builds: 0, buildExit: 0, failDownFor: new Set<string>(), planDelayMs: 0 };
+  const fake = { downs: [] as string[], ups: 0, builds: 0, buildExit: 0, failDownFor: new Set<string>(), planDelayMs: 0, runs: [] as string[][], runExit: 0 };
   const compose: ComposeRunner = {
     async *stream(argv): AsyncGenerator<ComposeEvent> {
       if (argv.includes("build")) {
         fake.builds++;
         yield { type: "line", stream: "stderr", line: "#1 [internal] load build definition from Dockerfile" };
         yield { type: "exit", code: fake.buildExit, signal: null };
+        return;
+      }
+      if (argv.includes("run")) {
+        fake.runs.push(argv);
+        yield { type: "line", stream: "stdout", line: "seeded 3 rows" };
+        yield { type: "exit", code: fake.runExit, signal: null };
         return;
       }
       fake.ups++; yield { type: "exit", code: 0, signal: null }; },

@@ -23,7 +23,7 @@ import { projectNameFor, type Host, type Preview, type PreviewSource, type Visib
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
 import { actorId, type Actor } from "../auth/actor.ts";
-import { buildArgv, composeArgv, downArgv, parseComposePs, psArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
+import { buildArgv, composeArgv, downArgv, parseComposePs, psArgv, runArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
 import { AppError, conflict } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { allocatePorts } from "../routing/ports.ts";
@@ -274,7 +274,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   const base = { project: preview.project, files: [stackPath], projectDirectory: wd.srcDir, docker: ctx.docker };
 
   /** Streams a compose command into the preview log; throws unless it exits 0. */
-  const step = async (what: string, argv: string[], stream: "build" | "stdout") => {
+  const step = async (what: string, argv: string[], stream: "build" | "seed" | "stdout") => {
     log(`$ compose ${what}`);
     for await (const ev of ctx.compose.stream(argv, host, { cwd: wd.srcDir, signal: r.signal })) {
       if (ev.type === "line") ctx.logs.append(id, ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream, ev.line);
@@ -310,6 +310,14 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout");
 
     await waitHealthy(ctx, r, base);
+
+    // §7.3 / ADR-0012: the seed runs once, healthy but not yet routed. Failing it fails the preview.
+    const seed = seedFor(r.model, r.routes);
+    if (seed) {
+      log(`seeding: ${seed.command} (in ${seed.service})`);
+      await step("run (seed)", runArgv(base, seed.service, ["sh", "-c", seed.command], ["--no-deps", "-T"]), "seed");
+    }
+
     await waitAnswering(ctx, r);
 
     log("awake");
@@ -326,6 +334,16 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   } finally {
     await wd.cleanup();
   }
+}
+
+/** The seed hook as `{ service, command }`, the primary route's service filling in. */
+export function seedFor(model: ComposeModel, routes: PlannedRoute[]): { service: string; command: string } | null {
+  const seed = model.x.seed;
+  if (seed === undefined) return null;
+  if (typeof seed !== "string") return seed;
+  const primary = routes.find((r) => r.primary) ?? routes[0];
+  if (!primary) throw unprocessable("x-gangway.seed names no service and nothing is exposed to run it in");
+  return { service: primary.service, command: seed };
 }
 
 /** §5 step 7 / §7.4: gate on healthchecks, not on container start. */

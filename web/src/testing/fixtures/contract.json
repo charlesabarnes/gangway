@@ -107,6 +107,7 @@
   "logStreams": [
     "system",
     "build",
+    "seed",
     "stdout",
     "stderr"
   ],
