@@ -118,10 +118,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+      pull-requests: write
     steps:
       - env:
           PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           oidc=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$GANGWAY_API" | jq -r .value)
           curl -fsS -X DELETE "$GANGWAY_API/v1/projects/$GANGWAY_PROJECT/pulls/$PR" -H "Authorization: Bearer $oidc"
+          # The comment said "ready" with a URL that is now gone: say so instead.
+          marker='<!-- gangway-preview -->'
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$(printf '%s\n_Preview torn down: this pull request is closed._' "$marker")" > /dev/null
+          fi
