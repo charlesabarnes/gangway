@@ -16,6 +16,7 @@
 import type { Repo, Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { forgeActor, type Actor } from "../auth/actor.ts";
+import { AppError } from "../errors.ts";
 import type { ReposRepo } from "../db/repos/repos.ts";
 import type { Logger } from "../logger.ts";
 import type { DeployInput, DeployResult, PreviewUrl } from "../previews/deploy.ts";
@@ -47,6 +48,8 @@ export type PrPreviewsDeps = {
 export type Outcome =
   | { action: "deployed"; previewId: string; name: string; settled: Promise<void> }
   | { action: "destroyed"; previewId: string }
+  /** The plan refused the source (a bad compose file, the policy) -- said on the PR, nothing deployed. */
+  | { action: "refused"; reason: string }
   | { action: "commented"; previewId: string | null }
   | { action: "ignored"; reason: string };
 
@@ -163,10 +166,20 @@ export class PrPreviews {
     // Minted for public repositories too: one code path, and authenticated fetches are not rate-limited like anonymous ones.
     const credential = await this.#d.forge.cloneCredential(pr.repo);
     const visibility: Visibility = pr.fromFork ? "public" : (repo.visibility ?? undefined) as Visibility;
-    const result = await this.#d.previews.deploy({
-      actor, name, ...(visibility ? { visibility } : {}), ...(repo.ttl !== null ? { ttl: repo.ttl } : {}),
-      source: { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential },
-    });
+    let result: DeployResult;
+    try {
+      result = await this.#d.previews.deploy({
+        actor, name, ...(visibility ? { visibility } : {}), ...(repo.ttl !== null ? { ttl: repo.ttl } : {}),
+        source: { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential },
+      });
+    } catch (e) {
+      // Refused before a preview existed: no row, no deployment, and -- unless said here --
+      // no word to the author. Found on tower: a policy refusal was silence on the PR.
+      if (!(e instanceof AppError) || e.status >= 500) throw e;
+      const why = this.#refusal(e);
+      await this.#say(pr, refs.commentId, `### ❌ Preview refused for \`${pr.headSha.slice(0, 7)}\`\n\n${why}\n\n\`/preview redeploy\` after a fix.`);
+      return { action: "refused", reason: e.message };
+    }
     const id = result.preview.id;
 
     // Tell the forge. Failures are logged and do not touch the preview.
@@ -222,6 +235,13 @@ export class PrPreviews {
     } catch (e) {
       this.#d.logger.warn("forge deployment not retired", { repo: repo.fullName, deploymentId, err: e });
     }
+  }
+
+  /** The message, and the part of the detail a human can act on (compose's stderr, a policy note). */
+  #refusal(e: AppError): string {
+    const d = e.detail ?? {};
+    const text = [d["compose"], d["reason"], d["message"]].find((v) => typeof v === "string" && v.trim() !== "") as string | undefined;
+    return text ? `${e.message}\n\n\`\`\`\n${text.trim().slice(-1500)}\n\`\`\`` : e.message;
   }
 
   #logUrl(previewId: string): { logUrl?: string } {

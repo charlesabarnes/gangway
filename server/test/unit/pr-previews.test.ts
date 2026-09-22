@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Preview } from "../../../shared/src/domain.ts";
 import type { Actor } from "../../src/auth/actor.ts";
+import { AppError } from "../../src/errors.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { ReposRepo } from "../../src/db/repos/repos.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
@@ -159,6 +160,20 @@ describe("a pull request opens", () => {
     expect(t.comments.get(1)).toContain("❌ Preview failed");
     expect(t.comments.get(1)).toContain("compose up exited 1");
     expect(t.deployments[0]!.statuses.at(-1)).toMatchObject({ state: "failure" });
+  });
+
+  test("a plan refused before any preview exists is SAID on the PR, with compose's stderr, and is a `refused` outcome", async () => {
+    const t = make();
+    t.previews.deploy = async () => { throw new AppError("unprocessable", "the compose file is not valid", { compose: "service nginx: volumes: bind mounts are not allowed" }); };
+    const out = await t.service.handle(updated());
+    expect(out).toEqual({ action: "refused", reason: "the compose file is not valid" });
+    const body = [...t.comments.values()][0]!;
+    expect(body).toContain("❌ Preview refused for `aaaaaaa`");
+    expect(body).toContain("bind mounts are not allowed");
+    expect(t.deployments).toEqual([]);
+    // Not a crash: a 500 from the pipeline still is.
+    t.previews.deploy = async () => { throw new AppError("internal", "boom"); };
+    await expect(t.service.handle(updated(pull({ headSha: "b".repeat(40) }), "synchronize"))).rejects.toThrow("boom");
   });
 
   test("the forge being down does not fail the deploy", async () => {

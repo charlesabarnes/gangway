@@ -52,6 +52,15 @@ describe("redaction", () => {
     expect(o.none).toBeNull();
   });
 
+  test("an AppError keeps its code and detail (redacted) -- compose's stderr lives there", () => {
+    const o = redact(new AppError("unprocessable", "the compose file is not valid", { compose: "bad indent; token gw_abcdefghijklmnopqrstuvwxyz012345" })) as any;
+    expect(o).toMatchObject({ name: "AppError", code: "unprocessable", message: "the compose file is not valid" });
+    expect(o.detail.compose).toContain("bad indent");
+    expect(o.detail.compose).not.toContain("abcdefghijklmnop");
+    expect(redact(new Error("plain"))).toMatchObject({ name: "Error", message: "plain" });
+    expect((redact(new Error("plain")) as any).detail).toBeUndefined();
+  });
+
   test("log lines are redacted end to end", () => {
     const lines: string[] = [];
     new Logger("info", {}, (l) => lines.push(l))

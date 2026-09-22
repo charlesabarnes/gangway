@@ -42,7 +42,14 @@ export function redact(value: unknown, depth = 0): unknown {
   // production audit row (token.created, expiresAt) stored exactly that.
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (value instanceof Error) {
-    return { name: value.name, message: redactString(value.message), stack: value.stack ? redactString(value.stack) : undefined };
+    // An AppError's `code` and `detail` are the part worth reading -- `compose config`'s
+    // stderr lives there. Found on tower: "the compose file is not valid", and nothing else.
+    const extra = value as Error & { code?: unknown; detail?: unknown };
+    return {
+      name: value.name, message: redactString(value.message), stack: value.stack ? redactString(value.stack) : undefined,
+      ...(extra.code !== undefined ? { code: extra.code } : {}),
+      ...(extra.detail !== undefined ? { detail: redact(extra.detail, depth + 1) } : {}),
+    };
   }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
