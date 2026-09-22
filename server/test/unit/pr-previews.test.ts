@@ -164,12 +164,13 @@ describe("a pull request opens", () => {
 
   test("a plan refused before any preview exists is SAID on the PR, with compose's stderr, and is a `refused` outcome", async () => {
     const t = make();
-    t.previews.deploy = async () => { throw new AppError("unprocessable", "the compose file is not valid", { compose: "service nginx: volumes: bind mounts are not allowed" }); };
+    t.previews.deploy = async () => { throw new AppError("unprocessable", "the compose file is not valid", { compose: 'time="2026-09-22T01:30:23Z" level=warning msg="The \\"FONTAWESOME_TOKEN\\" variable is not set."\nservice nginx: volumes: bind mounts are not allowed' }); };
     const out = await t.service.handle(updated());
     expect(out).toEqual({ action: "refused", reason: "the compose file is not valid" });
     const body = [...t.comments.values()][0]!;
     expect(body).toContain("❌ Preview refused for `aaaaaaa`");
     expect(body).toContain("bind mounts are not allowed");
+    expect(body).not.toContain("level=warning"); // compose's interpolation noise, seen on tower, is not the reason
     expect(t.deployments).toEqual([]);
     // Not a crash: a 500 from the pipeline still is.
     t.previews.deploy = async () => { throw new AppError("internal", "boom"); };

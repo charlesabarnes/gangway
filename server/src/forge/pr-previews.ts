@@ -241,7 +241,9 @@ export class PrPreviews {
   #refusal(e: AppError): string {
     const d = e.detail ?? {};
     const text = [d["compose"], d["reason"], d["message"]].find((v) => typeof v === "string" && v.trim() !== "") as string | undefined;
-    return text ? `${e.message}\n\n\`\`\`\n${text.trim().slice(-1500)}\n\`\`\`` : e.message;
+    // Compose warns about every unset `${VAR}` before saying what is wrong; the warnings are not it.
+    const shown = text?.split(/\r?\n/).filter((l) => !/^time="[^"]*" level=warning /.test(l)).join("\n").trim();
+    return shown ? `${e.message}\n\n\`\`\`\n${shown.slice(-1500)}\n\`\`\`` : e.message;
   }
 
   #logUrl(previewId: string): { logUrl?: string } {
