@@ -144,3 +144,47 @@ describe("the seed hook (§7.3, ADR-0012)", () => {
     expect(s.fake.runs).toEqual([]);
   });
 });
+
+describe("repository secrets become .env (ADR-0012)", () => {
+  // The fake `config` returns the compose file as-is; what matters is what is on disk when it runs.
+  const dotenvAtConfig = (s: ReturnType<typeof setupPreviewContext>) => {
+    let seen: string | null = null;
+    const inner = s.ctx.compose.capture.bind(s.ctx.compose);
+    s.ctx.compose = { ...s.ctx.compose, capture: async (argv, host, o) => {
+      if (argv.includes("config")) { const dir = argv[argv.indexOf("--project-directory") + 1]!; seen = await Bun.file(`${dir}/.env`).text().catch(() => null); }
+      return inner(argv, host, o);
+    } };
+    return () => seen;
+  };
+
+  test("`env` on the input is written before compose reads anything; a committed .env is kept and the secrets appended", async () => {
+    const s = setupPreviewContext();
+    const read = dotenvAtConfig(s);
+    const archive = await tarball([{ name: "compose.yaml", content: COMPOSE }, { name: "Dockerfile", content: "FROM nginx" }, { name: ".env", content: "PORT=3000\nFONTAWESOME_TOKEN=placeholder\n" }]);
+    const res = await deploy(s.ctx, { ...base, name: "secret", env: { FONTAWESOME_TOKEN: "fa-real", API_KEY: 'k"1' }, source: { kind: "tarball", archive } });
+    await res.done;
+    expect(read()).toBe('PORT=3000\nFONTAWESOME_TOKEN=placeholder\n# --- gangway: repository secrets ---\nFONTAWESOME_TOKEN="fa-real"\nAPI_KEY="k\\"1"\n');
+    expect(s.ctx.logs.tail(res.preview.id).join("\n")).toContain("wrote .env with 2 repository secrets");
+    expect(s.ctx.logs.tail(res.preview.id).join("\n")).not.toContain("fa-real");
+  });
+
+  test("no env and no lookup: no .env; an empty env given explicitly: no .env either (a fork)", async () => {
+    const s = setupPreviewContext();
+    const read = dotenvAtConfig(s);
+    s.ctx.secretsFor = () => ({ LEAK: "no" });
+    const archive = await tarball([{ name: "compose.yaml", content: COMPOSE }, { name: "Dockerfile", content: "FROM nginx" }]);
+    await (await deploy(s.ctx, { ...base, name: "fork", env: {}, source: { kind: "tarball", archive } })).done;
+    expect(read()).toBeNull();
+  });
+
+  test("absent on the input, the context supplies a repository's secrets by source", async () => {
+    const s = setupPreviewContext();
+    const read = dotenvAtConfig(s);
+    const asked: string[] = [];
+    s.ctx.secretsFor = (src) => { asked.push(src.kind); return src.kind === "tarball" ? { FROM_CTX: "1" } : undefined; };
+    const archive = await tarball([{ name: "compose.yaml", content: COMPOSE }, { name: "Dockerfile", content: "FROM nginx" }]);
+    await (await deploy(s.ctx, { ...base, name: "looked-up", source: { kind: "tarball", archive } })).done;
+    expect(asked).toEqual(["tarball"]);
+    expect(read()).toContain('FROM_CTX="1"');
+  });
+});

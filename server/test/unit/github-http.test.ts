@@ -7,7 +7,10 @@ import { repoRoutes } from "../../src/app/routes/repos.ts";
 import { chainVerifiers, staticTokenVerifier } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
+import { randomBytes } from "node:crypto";
 import { ReposRepo } from "../../src/db/repos/repos.ts";
+import { SecretBox } from "../../src/secrets/box.ts";
+import { RepoEnv } from "../../src/secrets/repo-env.ts";
 import { GitHubApp } from "../../src/forge/github/app.ts";
 import { ManifestStates } from "../../src/forge/github/manifest.ts";
 import { Logger } from "../../src/logger.ts";
@@ -45,7 +48,7 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
   const hono = createApp({
     ...auth, logger: new Logger("error", {}, () => {}),
     v1: (api) => {
-      repoRoutes(api, repos, s.audit);
+      repoRoutes(api, repos, s.audit, new RepoEnv(repos, new SecretBox(randomBytes(32)), s.audit));
       githubRoutes(api, { app, settings, states, audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
     },
     publicV1: (pub) => authRoutes(pub, { auth, accounts: s.accounts, bootstrap: new Bootstrap(() => s.users.count()), roles: s.roles, sessionMaxAgeSec: 60 }),
@@ -141,5 +144,22 @@ describe("/v1/repos", () => {
     expect((await t.call("/v1/repos/r2", { method: "DELETE", as: t.ada })).status).toBe(204);
     expect((await t.call("/v1/repos/r2", { as: t.ada })).status).toBe(404);
     expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { enabled: true } })).status).toBe(404);
+  });
+
+  test("secrets: PATCH merges and answers with NAMES; GET lists names; a value never comes back anywhere", async () => {
+    const t = await make();
+    t.repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "1", slug: "web-app" });
+    expect(await (await t.call("/v1/repos/r1/env", { as: t.ada })).json()).toEqual({ names: [] });
+    let res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { FONTAWESOME_TOKEN: "fa-secret-value", B: "2" } } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ names: ["B", "FONTAWESOME_TOKEN"] });
+    res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { unset: ["B"] } });
+    expect(await res.json()).toEqual({ names: ["FONTAWESOME_TOKEN"] });
+    expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: {} })).status).toBe(422);
+    expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { "bad-name": "x" } } })).status).toBe(422);
+    expect((await t.call("/v1/repos/nope/env", { as: t.ada })).status).toBe(404);
+    // The repo row, the audit log and the repos listing carry no value.
+    const everything = JSON.stringify([await (await t.call("/v1/repos", { as: t.ada })).json(), t.s.auditRepo.page({ limit: 10 }).entries]);
+    expect(everything).not.toContain("fa-secret-value");
   });
 });

@@ -39,6 +39,8 @@ export type PrPreviewsDeps = {
     forgeRefs(id: string): { commentId: number | null; deploymentId: number | null };
     setForgeRefs(id: string, refs: { commentId?: number | null; deploymentId?: number | null }): void;
   };
+  /** The repository's secrets (ADR-0012). A fork's PR never gets them, whatever this returns. */
+  secretsFor?: ((repo: Repo) => Record<string, string>) | undefined;
   /** Where a human reads the build log: the UI's preview page, when the UI is on. */
   logUrlFor?: ((previewId: string) => string | undefined) | undefined;
   logger: Logger;
@@ -168,8 +170,10 @@ export class PrPreviews {
     const visibility: Visibility = pr.fromFork ? "public" : (repo.visibility ?? undefined) as Visibility;
     let result: DeployResult;
     try {
+      // Given explicitly, even as {} for a fork: the pipeline's by-source lookup must not fill it in.
+      const env = pr.fromFork ? {} : (this.#d.secretsFor?.(repo) ?? {});
       result = await this.#d.previews.deploy({
-        actor, name, ...(visibility ? { visibility } : {}), ...(repo.ttl !== null ? { ttl: repo.ttl } : {}),
+        actor, name, env, ...(visibility ? { visibility } : {}), ...(repo.ttl !== null ? { ttl: repo.ttl } : {}),
         source: { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential },
       });
     } catch (e) {

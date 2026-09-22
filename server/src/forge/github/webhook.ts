@@ -10,6 +10,15 @@ export const SIGNATURE_HEADER = "x-hub-signature-256";
 export const EVENT_HEADER = "x-github-event";
 export const DELIVERY_HEADER = "x-github-delivery";
 
+/** `https://github.com/acme/web-app(.git)` -> `acme/web-app`; anything else -> null. */
+export function githubFullName(cloneUrl: string): string | null {
+  let u: URL;
+  try { u = new URL(cloneUrl); } catch { return null; }
+  if (u.hostname.toLowerCase() !== "github.com") return null;
+  const m = /^\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(u.pathname);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
 export function signPayload(secret: string, rawBody: Uint8Array): string {
   return `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;
 }

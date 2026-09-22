@@ -75,7 +75,7 @@ export const PERMISSIONS = [
   'previews.read', 'previews.deploy', 'previews.destroy', 'previews.view_private',
   'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
   'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
-  'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage',
+  'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.secrets',
   'apps.read', 'apps.install', 'jobs.claim',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];

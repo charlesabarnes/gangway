@@ -1,8 +1,9 @@
 import type { Hono } from "hono";
-import { RepoPatchSchema } from "../../../../shared/src/api.ts";
+import { RepoEnvPatchSchema, RepoPatchSchema } from "../../../../shared/src/api.ts";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { ReposRepo } from "../../db/repos/repos.ts";
 import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
+import type { RepoEnv } from "../../secrets/repo-env.ts";
 import { parseDuration } from "../../util/duration.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -12,7 +13,7 @@ import { requirePermission } from "../middleware/auth.ts";
  * per-repository knobs. Rows are made by webhooks; here they are read, tuned, or
  * forgotten (the next webhook makes a fresh one).
  */
-export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink): void {
+export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink, env?: RepoEnv): void {
   api.get("/repos", requirePermission("previews.read"), (c) => c.json({ repos: repos.list() }));
 
   api.get("/repos/:id", requirePermission("previews.read"), (c) => {
@@ -36,6 +37,23 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
     const after = repos.update(id, { ...patch, ...(patch.enabled === true ? { disabledReason: null } : {}) })!;
     audit.record(c.get("actor"), "repo.updated", id, { old: pick(before), new: pick(after) });
     return c.json({ repo: after });
+  });
+
+  // ADR-0012: names in, names out. `repos.secrets` is its own authority.
+  api.get("/repos/:id/env", requirePermission("repos.secrets"), (c) => {
+    const repo = repos.get(c.req.param("id"));
+    if (!repo) throw notFound(`no such repository: ${c.req.param("id")}`);
+    return c.json({ names: env ? env.names(repo.id) : [] });
+  });
+
+  api.patch("/repos/:id/env", requirePermission("repos.secrets"), async (c) => {
+    const repo = repos.get(c.req.param("id"));
+    if (!repo) throw notFound(`no such repository: ${c.req.param("id")}`);
+    if (!env) throw notFound("secrets are not available on this server");
+    const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+    const patch = RepoEnvPatchSchema.parse(body);
+    const names = env.update(c.get("actor"), repo, patch);
+    return c.json({ names });
   });
 
   api.delete("/repos/:id", requirePermission("github.manage"), (c) => {

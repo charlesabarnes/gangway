@@ -71,6 +71,15 @@ export class ReposRepo {
     return this.get(id);
   }
 
+  /** The sealed secrets map (ADR-0012); the repo never sees plaintext. */
+  envCiphertext(id: string): string | null {
+    return this.#db.get<{ env_ciphertext: string | null }>("SELECT env_ciphertext FROM repos WHERE id = $id", { id })?.env_ciphertext ?? null;
+  }
+
+  setEnvCiphertext(id: string, sealed: string | null): void {
+    this.#db.run("UPDATE repos SET env_ciphertext = $v, updated_at = $now WHERE id = $id", { id, v: sealed, now: this.#now() });
+  }
+
   delete(id: string): boolean {
     return this.#db.run("DELETE FROM repos WHERE id = $id", { id }).changes > 0;
   }

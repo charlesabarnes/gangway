@@ -30,6 +30,7 @@ export const PERMISSIONS = [
   { id: "settings.write", feature: "settings", description: "Change server settings" },
   { id: "surfaces.manage", feature: "settings", description: "Enable and disable the UI and MCP surfaces" },
   { id: "github.manage", feature: "github", description: "Connect and configure the GitHub App" },
+  { id: "repos.secrets", feature: "github", description: "Set a repository's secrets (values are never shown)" },
   { id: "apps.read", feature: "apps", description: "See the system app catalog and what is installed" },
   { id: "apps.install", feature: "apps", description: "Install and uninstall system apps" },
   { id: "jobs.claim", feature: "jobs", description: "Create and claim ephemeral jobs" },

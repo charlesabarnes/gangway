@@ -35,6 +35,7 @@ import { parse as parseYaml } from "yaml";
 import { buildStack, composeForDockerfile, composeForImage, parseComposeModel, planRoutes, selectExposed, type ComposeModel, type PlannedRoute } from "./compose-model.ts";
 import type { PreviewContext } from "./context.ts";
 import { cloneRepo } from "./source/git.ts";
+import { dotenvLine } from "../secrets/repo-env.ts";
 import { assertNoEscapingSymlinks, COMPOSE_FILENAMES, inspectComposeFile } from "./source/guard.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
@@ -54,6 +55,11 @@ export type DeploySource =
 export type DeployInput = {
   actor: Actor;
   source: DeploySource;
+  /**
+   * Written to `<checkout>/.env` before compose reads anything (ADR-0012). Given -- even
+   * empty -- it is final; absent, the context may supply a repository's secrets by source.
+   */
+  env?: Record<string, string> | undefined;
   /** The hostname stem. Defaults to something derived from the source. */
   name?: string | undefined;
   visibility?: Visibility | undefined;
@@ -104,8 +110,26 @@ export function urlsFor(ctx: Pick<PreviewContext, "table" | "origin">, previewId
 
 type Materialized = { source: PreviewSource; composeFile: string };
 
+/**
+ * ADR-0012: the repository's secrets, as the `.env` compose reads for `${VAR}` and for
+ * `env_file: .env`. A committed `.env` is kept and the secrets appended, so a secret
+ * wins over a committed placeholder.
+ */
+async function writeDotenv(srcDir: string, env: Record<string, string>): Promise<number> {
+  const names = Object.keys(env);
+  if (names.length === 0) return 0;
+  const file = join(srcDir, ".env");
+  const st = await lstat(file).catch(() => null);
+  if (st && !st.isFile()) throw unprocessable(".env in the source is not a regular file");
+  const committed = st ? await Bun.file(file).text() : "";
+  const lines = names.map((k) => dotenvLine(k, env[k]!));
+  const body = `${committed.replace(/\s*$/, "")}${committed.trim() === "" ? "" : "\n"}# --- gangway: repository secrets ---\n${lines.join("\n")}\n`;
+  await writeFile(file, body, { mode: 0o600 });
+  return names.length;
+}
+
 /** §5 steps 2-3: put the source on disk and find its compose file -- trusting neither. */
-async function writeSource(ctx: PreviewContext, id: string, source: DeploySource, wd: Workdir): Promise<Materialized> {
+async function writeSource(ctx: PreviewContext, id: string, source: DeploySource, env: Record<string, string> | undefined, wd: Workdir): Promise<Materialized> {
   if (source.kind === "image") {
     await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage(source), { mode: 0o600 });
     return { source: { kind: "image", image: source.image }, composeFile: COMPOSE_FILE };
@@ -128,6 +152,10 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
 
   // Both checks come BEFORE `compose config`, which opens whatever the file points it at.
   await assertNoEscapingSymlinks(wd.srcDir);
+  if (env) {
+    const n = await writeDotenv(wd.srcDir, env);
+    if (n > 0) ctx.logs.append(id, "system", `wrote .env with ${n} repository secret${n === 1 ? "" : "s"}`);
+  }
   const found = await inspectComposeFile(wd.srcDir);
   if (found) return { source: recorded, composeFile: found };
 
@@ -175,7 +203,8 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let routes: PlannedRoute[];
   let visibility: Visibility;
   try {
-    const { source, composeFile } = await writeSource(ctx, id, input.source, wd);
+    const env = input.env !== undefined ? input.env : ctx.secretsFor?.(input.source);
+    const { source, composeFile } = await writeSource(ctx, id, input.source, env, wd);
     planned = await readModel(ctx, host, wd, composeFile);
     const { model } = planned;
     const exposed = selectExposed(model);

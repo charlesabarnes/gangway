@@ -143,6 +143,7 @@
     "settings.write",
     "surfaces.manage",
     "github.manage",
+    "repos.secrets",
     "apps.read",
     "apps.install",
     "jobs.claim"
@@ -182,6 +183,7 @@
       "settings.write",
       "surfaces.manage",
       "github.manage",
+      "repos.secrets",
       "apps.read",
       "apps.install",
       "jobs.claim"

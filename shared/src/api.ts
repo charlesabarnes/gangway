@@ -152,6 +152,13 @@ export const RepoPatchSchema = z.strictObject({
 });
 export type RepoPatchRequest = z.infer<typeof RepoPatchSchema>;
 
+/** `PATCH /v1/repos/:id/env`: merge secrets in, take names out. Values are never returned. */
+export const RepoEnvPatchSchema = z.strictObject({
+  set: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name"), z.string()).optional(),
+  unset: z.array(z.string()).max(100).optional(),
+}).refine((v) => Object.keys(v.set ?? {}).length > 0 || (v.unset ?? []).length > 0, "nothing to change");
+export type RepoEnvPatchRequest = z.infer<typeof RepoEnvPatchSchema>;
+
 export const AuditQuerySchema = z.object({
   /** Entries with a seq BELOW this one: the log is read newest-first. */
   before: z.coerce.number().int().positive().optional(),

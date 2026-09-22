@@ -247,6 +247,20 @@ describe("forks and drafts (§9)", () => {
     expect(t.deploys[0]!.visibility).toBe("public");
   });
 
+  test("secrets: a same-repo PR gets the repository's env; a fork's PR gets an EMPTY env, explicitly, whatever the policy", async () => {
+    const t = make();
+    const withSecrets = new PrPreviews({
+      forge: t.forge, repos: t.repos, instance: "test", previews: t.previews, logger: new Logger("error", {}, () => {}),
+      secretsFor: () => ({ FONTAWESOME_TOKEN: "fa-real" }),
+    });
+    await withSecrets.handle(updated());
+    expect(t.deploys[0]!.env).toEqual({ FONTAWESOME_TOKEN: "fa-real" });
+    const repo = t.repos.getByFullName("github", "acme/web-app")!;
+    t.repos.update(repo.id, { forks: "auto" });
+    await withSecrets.handle(updated(pull({ number: 124, fromFork: true })));
+    expect(t.deploys[1]!.env).toEqual({});
+  });
+
   test("a draft is ignored unless the repository opts in", async () => {
     const t = make();
     expect(await t.service.handle(updated(pull({ draft: true })))).toMatchObject({ action: "ignored", reason: "#123 is a draft" });
