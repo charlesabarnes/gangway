@@ -117,3 +117,19 @@ describe("loadConfig", () => {
     expect(s.get(SETTINGS.acmeDirectoryUrl)).toContain("staging");
   });
 });
+
+describe("secrets in the view", () => {
+  test("a secret is reported as set or not, never as its value; a plain setting keeps its value", () => {
+    const { settings } = mk({ "github.appId": "12345" });
+    settings.set(SETTINGS.githubPrivateKey, "-----BEGIN RSA PRIVATE KEY-----\\nabc\\n-----END RSA PRIVATE KEY-----");
+    const view = Object.fromEntries(settings.view().map((v) => [v.key, v]));
+    expect(view["github.privateKey"]).toMatchObject({ secret: true, value: null, set: true, source: "database" });
+    expect(view["github.webhookSecret"]).toMatchObject({ secret: true, value: null, set: false, source: "default" });
+    expect(view["acme.cloudflare.apiToken"]).toMatchObject({ secret: true, value: null });
+    expect(view["github.appId"]).toMatchObject({ secret: false, value: "12345", set: true, source: "config", managedByConfig: true });
+    expect(view["defaults.ttl"]).toMatchObject({ secret: false, value: "7d", set: true });
+    // The value itself is stored with real newlines: an env-var PEM with literal \n is usable.
+    expect(settings.get(SETTINGS.githubPrivateKey)).toBe("-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----");
+    expect(JSON.stringify(settings.view())).not.toContain("abc");
+  });
+});

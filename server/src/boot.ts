@@ -12,6 +12,7 @@ import { createApp, surfaceHandler } from "./app/app.ts";
 import { auditRoutes } from "./app/routes/audit.ts";
 import { authRoutes } from "./app/routes/auth.ts";
 import { roleRoutes } from "./app/routes/roles.ts";
+import { settingsRoutes } from "./app/routes/settings.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
 import { userRoutes } from "./app/routes/users.ts";
 import { eventRoutes } from "./app/routes/events.ts";
@@ -218,6 +219,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       tokenRoutes(api, tokens);
       userRoutes(api, accounts);
       roleRoutes(api, roles);
+      settingsRoutes(api, settings, audit);
     },
     publicV1: (pub) => authRoutes(pub, {
       auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000),

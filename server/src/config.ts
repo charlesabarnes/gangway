@@ -134,6 +134,12 @@ const SETTING_ENV_MAP = {
   GANGWAY_ACME_EMAIL: "acme.email",
   GANGWAY_CF_API_TOKEN: "acme.cloudflare.apiToken",
   GANGWAY_CF_ZONE_ID: "acme.cloudflare.zoneId",
+  GANGWAY_GITHUB_APP_ID: "github.appId",
+  GANGWAY_GITHUB_APP_SLUG: "github.appSlug",
+  GANGWAY_GITHUB_CLIENT_ID: "github.clientId",
+  GANGWAY_GITHUB_CLIENT_SECRET: "github.clientSecret",
+  GANGWAY_GITHUB_PRIVATE_KEY: "github.privateKey",
+  GANGWAY_GITHUB_WEBHOOK_SECRET: "github.webhookSecret",
 } as const;
 
 function coerceEnv(raw: string): unknown {

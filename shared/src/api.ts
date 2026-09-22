@@ -128,6 +128,12 @@ export const SetRolePermissionsSchema = z.strictObject({
 });
 export type SetRolePermissionsRequest = z.infer<typeof SetRolePermissionsSchema>;
 
+/** `PUT /v1/settings`: a partial map of key -> value. Each value is checked against its own schema. */
+export const SetSettingsSchema = z.strictObject({
+  values: z.record(z.string().min(1).max(64), z.unknown()).refine((v) => Object.keys(v).length > 0, "no settings given"),
+});
+export type SetSettingsRequest = z.infer<typeof SetSettingsSchema>;
+
 export const AuditQuerySchema = z.object({
   /** Entries with a seq BELOW this one: the log is read newest-first. */
   before: z.coerce.number().int().positive().optional(),

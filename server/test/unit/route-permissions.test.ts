@@ -13,6 +13,7 @@ import { eventRoutes } from "../../src/app/routes/events.ts";
 import { hostRoutes } from "../../src/app/routes/hosts.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { roleRoutes } from "../../src/app/routes/roles.ts";
+import { settingsRoutes } from "../../src/app/routes/settings.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { userRoutes } from "../../src/app/routes/users.ts";
 
@@ -27,6 +28,7 @@ export function registerAuthenticated(api: Hono<AppEnv>): void {
   tokenRoutes(api, none);
   userRoutes(api, none);
   roleRoutes(api, none);
+  settingsRoutes(api, none, none);
 }
 
 describe("route permissions", () => {

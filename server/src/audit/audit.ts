@@ -21,6 +21,7 @@ export type AuditAction =
   | "auth.setup" | "auth.login" | "auth.login.failed" | "auth.login.blocked" | "auth.logout" | "auth.password.changed"
   | "user.created" | "user.updated"
   | "role.permissions.changed"
+  | "settings.changed"
   | "token.created" | "token.revoked";
 
 export type AuditChange = { old?: unknown; new?: unknown };
