@@ -10,7 +10,9 @@
  * not get to answer them differently.
  */
 
-export type ForgeId = "github";
+import type { ForgeId } from "../../../shared/src/domain.ts";
+
+export type { ForgeId };
 
 export type ForgeRepo = {
   forge: ForgeId;

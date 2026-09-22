@@ -10,6 +10,7 @@
  * or a disabled account takes effect on the next request, not the next login.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { ForgeId } from "../../../shared/src/domain.ts";
 import { SCOPE_PERMISSIONS, type Permission, type Scope } from "../../../shared/src/permissions.ts";
 
 export type { Permission, Scope };
@@ -24,7 +25,13 @@ export type Actor =
       /** The owning account, for a database token. Absent on the env token and system actors. */
       userId?: string;
     }
-  | { kind: "user"; userId: string; roleId: string; permissions: ReadonlySet<Permission>; sessionId: string };
+  | { kind: "user"; userId: string; roleId: string; permissions: ReadonlySet<Permission>; sessionId: string }
+  /**
+   * A forge acting on a webhook (ADR-0011). `login` is whoever caused it -- the PR author,
+   * the commenter -- for the audit line; the permissions are FIXED and not a role, so the
+   * owner editing `member` never changes what a pull request may do.
+   */
+  | { kind: "forge"; forge: ForgeId; login: string; permissions: ReadonlySet<Permission> };
 
 export function permissionsForScopes(scopes: readonly Scope[]): ReadonlySet<Permission> {
   return new Set(scopes.flatMap((s) => SCOPE_PERMISSIONS[s]));
@@ -41,17 +48,24 @@ export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor =>
  */
 export const systemActor = (job: string): Actor => tokenActor(`system:${job}`, ["admin"]);
 
+export const FORGE_PERMISSIONS: readonly Permission[] = ["previews.deploy", "previews.destroy", "previews.read", "logs.read"];
+
+export const forgeActor = (forge: ForgeId, login: string): Actor =>
+  ({ kind: "forge", forge, login, permissions: new Set(FORGE_PERMISSIONS) });
+
 export const can = (actor: Actor, needed: Permission): boolean => actor.permissions.has(needed);
 
 /**
  * One stable string per principal: the idempotency-key owner, the `by` on events, log
  * lines. A user's id is prefixed so it can never equal a token id.
  */
-export const actorId = (a: Actor): string => (a.kind === "user" ? `user:${a.userId}` : a.tokenId);
+export const actorId = (a: Actor): string =>
+  a.kind === "user" ? `user:${a.userId}` : a.kind === "forge" ? `${a.forge}:${a.login}` : a.tokenId;
 
 /** The `audit.actor_type` / `actor_id` pair. */
-export function auditActor(a: Actor): { type: "user" | "token" | "system"; id: string } {
+export function auditActor(a: Actor): { type: "user" | "token" | "system" | "github"; id: string } {
   if (a.kind === "user") return { type: "user", id: a.userId };
+  if (a.kind === "forge") return { type: a.forge, id: a.login };
   return a.tokenId.startsWith("system:") ? { type: "system", id: a.tokenId.slice("system:".length) } : { type: "token", id: a.tokenId };
 }
 

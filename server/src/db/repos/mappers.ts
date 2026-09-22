@@ -1,7 +1,7 @@
 /** Row <-> domain conversion. The only place epoch-millis integers become Dates. */
 import type {
-  ApiToken, AuditActorType, AuditEntry, Certificate, GangwayEvent, Host, HostCapability, Preview, PreviewSource,
-  Role, Route, Session, User,
+  ApiToken, AuditActorType, AuditEntry, Certificate, ForgeId, ForkPolicy, GangwayEvent, Host, HostCapability, Preview, PreviewSource, Repo,
+  Role, Route, Session, User, Visibility,
 } from "../../../../shared/src/domain.ts";
 import type { Scope } from "../../../../shared/src/permissions.ts";
 
@@ -176,3 +176,15 @@ export function rowToAuditEntry(r: AuditRow): AuditEntry {
     createdAt: new Date(r.created_at),
   };
 }
+
+export type RepoRow = {
+  id: string; forge: string; full_name: string; installation_id: string; slug: string; enabled: number;
+  disabled_reason: string | null; visibility: string | null; ttl: string | null; forks: string; drafts: number;
+  created_at: number; updated_at: number;
+};
+
+export const rowToRepo = (r: RepoRow): Repo => ({
+  id: r.id, forge: r.forge as ForgeId, fullName: r.full_name, installationId: r.installation_id, slug: r.slug,
+  enabled: bool(r.enabled), disabledReason: r.disabled_reason, visibility: r.visibility as Visibility | null, ttl: r.ttl,
+  forks: r.forks as ForkPolicy, drafts: bool(r.drafts), createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
+});

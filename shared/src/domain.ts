@@ -42,6 +42,31 @@ export type Visibility = "public" | "unlisted" | "private";
 /** §12.3: "A CI job is a preview with no route." */
 export type PreviewKind = "preview" | "job";
 
+/** Where pull requests come from (ADR-0011). One so far; the union is the point. */
+export type ForgeId = "github";
+/** What a PR from a fork gets: nothing until asked (`ask`), a preview (`auto`), or never. */
+export type ForkPolicy = "ask" | "auto" | "never";
+
+/** A repository a forge has sent a pull request from, and how its previews are shaped. */
+export type Repo = {
+  id: string;
+  forge: ForgeId;
+  /** `owner/name` as the forge spells it. */
+  fullName: string;
+  installationId: string;
+  /** The hostname stem: previews are `<slug>-pr-<n>`. Unique across repositories. */
+  slug: string;
+  enabled: boolean;
+  disabledReason: string | null;
+  /** null: the server default. */
+  visibility: Visibility | null;
+  ttl: string | null;
+  forks: ForkPolicy;
+  drafts: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type PreviewSource =
   | { kind: "pr"; repo: string; number: number; sha: string }
   | { kind: "manual"; userId: string }

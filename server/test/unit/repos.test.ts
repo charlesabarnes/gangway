@@ -7,7 +7,7 @@ import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import type { Db, OpenOptions } from "../../src/db/types.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import {
-  CertificatesRepo, EventsRepo, HostsRepo, PreviewsRepo, RoutesRepo, SqliteSettingsStore,
+  CertificatesRepo, EventsRepo, HostsRepo, PreviewsRepo, ReposRepo, RoutesRepo, SqliteSettingsStore,
 } from "../../src/db/repos/index.ts";
 import { SETTINGS, Settings } from "../../src/settings.ts";
 
@@ -41,6 +41,7 @@ for (const [name, open] of DRIVERS) {
         routes: new RoutesRepo(db, now),
         events: new EventsRepo(db, now),
         certs: new CertificatesRepo(db, now),
+        repos: new ReposRepo(db, now),
       };
     };
 
@@ -226,6 +227,42 @@ for (const [name, open] of DRIVERS) {
       expect(pinned.effective(SETTINGS.surfacesMcp).managedByConfig).toBe(true);
       // ...and the stored value survives underneath
       expect(store.get("surfaces.mcp")).toBe(true);
+    });
+
+    test("repos: created by full name with a unique slug; patched in place; the slug is one namespace", () => {
+      const { repos } = setup();
+      const r = repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "4242", slug: "web-app" });
+      expect(r).toMatchObject({ forge: "github", fullName: "acme/web-app", slug: "web-app", enabled: true, disabledReason: null, visibility: null, ttl: null, forks: "ask", drafts: false });
+      expect(repos.getByFullName("github", "acme/web-app")?.id).toBe("r1");
+      expect(repos.getBySlug("web-app")?.id).toBe("r1");
+      expect(repos.getByFullName("github", "other/web-app")).toBeUndefined();
+
+      // Another org's repo with the same derived slug cannot take it.
+      expect(() => repos.create({ id: "r2", forge: "github", fullName: "other/web-app", installationId: "1", slug: "web-app" })).toThrow();
+      const r2 = repos.create({ id: "r2", forge: "github", fullName: "other/web-app", installationId: "1", slug: "web-app-2", enabled: false, disabledReason: "slug web-app is taken by acme/web-app" });
+      expect(r2).toMatchObject({ enabled: false, disabledReason: "slug web-app is taken by acme/web-app" });
+
+      clock += 1000;
+      const patched = repos.update("r1", { visibility: "public", ttl: "2d", forks: "auto", drafts: true, installationId: "4243" });
+      expect(patched).toMatchObject({ visibility: "public", ttl: "2d", forks: "auto", drafts: true, installationId: "4243", slug: "web-app" });
+      expect(patched!.updatedAt.getTime()).toBe(now());
+      expect(repos.update("r1", {})?.slug).toBe("web-app");
+      expect(repos.update("r2", { slug: "legacy", enabled: true, disabledReason: null })).toMatchObject({ slug: "legacy", enabled: true, disabledReason: null });
+      expect(repos.list().map((r) => r.fullName)).toEqual(["acme/web-app", "other/web-app"]);
+      expect(repos.delete("r2")).toBe(true);
+      expect(repos.delete("r2")).toBe(false);
+    });
+
+    test("previews: forge refs default to null and are written independently", () => {
+      const { previews } = seeded();
+      const p = previews.create({ id: "01J0000000000000000000000P", project: "gw-x", hostId: "local", state: "building", source: { kind: "pr", repo: "acme/web-app", number: 7, sha: "abc" }, visibility: "public", ttlExpiresAt: null });
+      expect(previews.forgeRefs(p.id)).toEqual({ commentId: null, deploymentId: null });
+      previews.setForgeRefs(p.id, { commentId: 11 });
+      expect(previews.forgeRefs(p.id)).toEqual({ commentId: 11, deploymentId: null });
+      previews.setForgeRefs(p.id, { deploymentId: 22 });
+      expect(previews.forgeRefs(p.id)).toEqual({ commentId: 11, deploymentId: 22 });
+      expect(previews.forgeRefs("nope")).toEqual({ commentId: null, deploymentId: null });
+      expect(previews.get(p.id)?.source).toEqual({ kind: "pr", repo: "acme/web-app", number: 7, sha: "abc" });
     });
   });
 }

@@ -62,7 +62,7 @@ export class Tokens {
   };
 
   mint(actor: Actor, input: { name: string; scopes: readonly Scope[]; expiresIn?: string | undefined }): { token: ApiToken; secret: string } {
-    const owner = actor.kind === "user" ? actor.userId : actor.tokenId === ENV_ADMIN_TOKEN_ID ? null : undefined;
+    const owner = actor.kind === "user" ? actor.userId : actor.kind === "token" && actor.tokenId === ENV_ADMIN_TOKEN_ID ? null : undefined;
     if (owner === undefined) throw forbidden("an API token cannot create API tokens; log in, or use the server's admin token");
 
     const scopes = [...new Set(input.scopes)];

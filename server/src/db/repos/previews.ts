@@ -125,6 +125,18 @@ export class PreviewsRepo {
     ).map(rowToPreview);
   }
 
+  /** The forge-side objects a PR preview keeps current (ADR-0011): ids only. */
+  forgeRefs(id: string): { commentId: number | null; deploymentId: number | null } {
+    const r = this.#db.get<{ forge_comment_id: number | null; forge_deployment_id: number | null }>(
+      "SELECT forge_comment_id, forge_deployment_id FROM previews WHERE id = $id", { id });
+    return { commentId: r?.forge_comment_id ?? null, deploymentId: r?.forge_deployment_id ?? null };
+  }
+
+  setForgeRefs(id: string, refs: { commentId?: number | null; deploymentId?: number | null }): void {
+    if (refs.commentId !== undefined) this.#db.run("UPDATE previews SET forge_comment_id = $v WHERE id = $id", { id, v: refs.commentId });
+    if (refs.deploymentId !== undefined) this.#db.run("UPDATE previews SET forge_deployment_id = $v WHERE id = $id", { id, v: refs.deploymentId });
+  }
+
   delete(id: string): boolean {
     return this.#db.run("DELETE FROM previews WHERE id = $id", { id }).changes > 0;
   }

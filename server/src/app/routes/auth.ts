@@ -63,6 +63,8 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   const describe = (actor: Actor) => {
     const permissions = [...actor.permissions].sort();
     if (actor.kind === "token") return { authenticated: true, setupRequired: false, token: { id: actor.tokenId, scopes: actor.scopes }, permissions };
+    // A forge actor never holds a session or a bearer; only here for the type's sake.
+    if (actor.kind === "forge") return { authenticated: true, setupRequired: false, permissions };
     const user = d.accounts.getUser(actor.userId);
     return { authenticated: true, setupRequired: false, ...(user ? { user: wireUser(user) } : {}), permissions };
   };
