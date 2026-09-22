@@ -187,7 +187,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     previews: {
       deploy: (input) => deploy(ctx, input),
       destroy: (id, actor) => destroy(ctx, id, actor),
-      getByProject: (project) => ctx.previews.getByProject(project),
+      findPullRequest: (repo, number) => ctx.previews.findPullRequest(repo, number),
       urls: (id) => urlsFor(ctx, id),
       forgeRefs: (id) => ctx.previews.forgeRefs(id),
       setForgeRefs: (id, refs) => ctx.previews.setForgeRefs(id, refs),

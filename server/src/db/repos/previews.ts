@@ -125,6 +125,22 @@ export class PreviewsRepo {
     ).map(rowToPreview);
   }
 
+  /**
+   * The live preview of a pull request, by its SOURCE (ADR-0011). Not by name: an unlisted
+   * preview's project carries an unguessable suffix, so the name is not stable across
+   * deploys of the same PR; the repository and number are.
+   */
+  findPullRequest(repo: string, number: number): Preview | undefined {
+    const r = this.#db.get<PreviewRow>(
+      `SELECT * FROM previews
+        WHERE source_kind = 'pr' AND json_extract(source_json, '$.repo') = $repo AND json_extract(source_json, '$.number') = $number
+          AND state != 'destroyed'
+        ORDER BY id DESC LIMIT 1`,
+      { repo, number },
+    );
+    return r ? rowToPreview(r) : undefined;
+  }
+
   /** The forge-side objects a PR preview keeps current (ADR-0011): ids only. */
   forgeRefs(id: string): { commentId: number | null; deploymentId: number | null } {
     const r = this.#db.get<{ forge_comment_id: number | null; forge_deployment_id: number | null }>(

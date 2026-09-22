@@ -67,15 +67,16 @@ function fakePreviews(instance = "test") {
   const pending = new Map<string, (final: Preview) => void>();
   let seq = 0;
   const urlsFor = (p: Preview): PreviewUrl[] => [{ service: "web", url: `https://${p.project.replace(`gw-${instance}-`, "")}.preview.example.com/`, primary: true }];
+  void urlsFor;
   const previews = {
     async deploy(input: DeployInput): Promise<DeployResult> {
       deploys.push(input);
-      // Like deploy.ts: `project` is unique, and a destroyed row under the same name is replaced.
-      for (const [k, v] of rows) if (v.project === `gw-${instance}-${input.name}` && v.state === "destroyed") rows.delete(k);
       const id = `P${++seq}`;
+      // Like deploy.ts: an unlisted preview's name gets an unguessable suffix, so the project is NOT the PR's stable name.
+      const slug = (input.visibility ?? "unlisted") === "unlisted" ? `${input.name}-${id.toLowerCase()}x` : input.name;
       const s = input.source;
       const preview: Preview = {
-        id, project: `gw-${instance}-${input.name}`, hostId: "local", kind: "preview", state: "building",
+        id, project: `gw-${instance}-${slug}`, hostId: "local", kind: "preview", state: "building",
         source: s.kind === "pr" ? { kind: "pr", repo: s.repo, number: s.number, sha: s.sha } : { kind: "image", image: "x" },
         visibility: input.visibility ?? "unlisted", ttlExpiresAt: input.ttl ? new Date(Date.now() + 86_400_000) : null,
         lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
@@ -91,7 +92,7 @@ function fakePreviews(instance = "test") {
       rows.set(id, gone);
       return gone;
     },
-    getByProject: (project: string) => [...rows.values()].find((p) => p.project === project),
+    findPullRequest: (repo: string, number: number) => [...rows.values()].reverse().find((p) => p.source.kind === "pr" && p.source.repo === repo && p.source.number === number && p.state !== "destroyed"),
     urls: (id: string) => urlsFor(rows.get(id)!),
     forgeRefs: (id: string) => refs.get(id) ?? { commentId: null, deploymentId: null },
     setForgeRefs: (id: string, r: { commentId?: number | null; deploymentId?: number | null }) => { refs.set(id, { ...previews.forgeRefs(id), ...r }); },
@@ -137,7 +138,8 @@ describe("a pull request opens", () => {
     expect(t.deploys[0]!.visibility).toBeUndefined(); // the server default
     // Told the forge as soon as the preview row existed.
     expect([...t.comments.values()][0]).toContain("🚧 Building preview for `aaaaaaa`");
-    expect([...t.comments.values()][0]).toContain("https://web-app-pr-123.preview.example.com/");
+    // The server default is unlisted: the URL carries the unguessable suffix, and is found again by SOURCE, not name.
+    expect([...t.comments.values()][0]).toContain("https://web-app-pr-123-p1x.preview.example.com/");
     expect(t.deployments[0]).toMatchObject({ env: "preview/web-app-pr-123", sha: "a".repeat(40), statuses: [{ state: "in_progress", logUrl: "https://app.preview.example.com/previews/P1" }] });
     expect(t.previews.forgeRefs("P1")).toEqual({ commentId: 1, deploymentId: 500 });
 
@@ -145,7 +147,7 @@ describe("a pull request opens", () => {
     await out.settled;
     expect(t.comments.size).toBe(1);
     expect(t.comments.get(1)).toContain("✅ Preview ready");
-    expect(t.deployments[0]!.statuses.at(-1)).toEqual({ state: "success", environmentUrl: "https://web-app-pr-123.preview.example.com/", logUrl: "https://app.preview.example.com/previews/P1" });
+    expect(t.deployments[0]!.statuses.at(-1)).toEqual({ state: "success", environmentUrl: "https://web-app-pr-123-p1x.preview.example.com/", logUrl: "https://app.preview.example.com/previews/P1" });
   });
 
   test("a failed build is reported as failed, with the error, and the deployment marked failure", async () => {
@@ -268,7 +270,7 @@ describe("/preview commands", () => {
     expect(await t.service.handle(command("status", "member"))).toEqual({ action: "commented", previewId: "P1" });
     expect(t.comments.size).toBe(2); // the status comment from before the preview existed, plus the sticky one
     expect(t.comments.get(2)).toContain("Preview is **awake**");
-    expect(t.comments.get(2)).toContain("https://web-app-pr-123.preview.example.com/");
+    expect(t.comments.get(2)).toContain("https://web-app-pr-123-p1x.preview.example.com/");
   });
 
   test("redeploy rebuilds the same head; destroy tears down", async () => {

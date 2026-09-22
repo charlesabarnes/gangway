@@ -13,7 +13,7 @@
  *   - the forge is told AFTER the preview exists and again when it settles; a forge
  *     call failing never fails the deploy
  */
-import { projectNameFor, type Repo, type Visibility } from "../../../shared/src/domain.ts";
+import type { Repo, Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import type { ReposRepo } from "../db/repos/repos.ts";
@@ -33,7 +33,7 @@ export type PrPreviewsDeps = {
   previews: {
     deploy(input: DeployInput): Promise<DeployResult>;
     destroy(id: string, actor: Actor): Promise<Preview>;
-    getByProject(project: string): Preview | undefined;
+    findPullRequest(repo: string, number: number): Preview | undefined;
     urls(id: string): PreviewUrl[];
     forgeRefs(id: string): { commentId: number | null; deploymentId: number | null };
     setForgeRefs(id: string, refs: { commentId?: number | null; deploymentId?: number | null }): void;
@@ -89,9 +89,9 @@ export class PrPreviews {
 
   previewName(repo: Repo, number: number): string { return `${repo.slug}-pr-${number}`; }
 
+  /** By source, not by name: an unlisted preview's name carries a suffix that changes per deploy. */
   current(repo: Repo, number: number): Preview | undefined {
-    const p = this.#d.previews.getByProject(projectNameFor(this.#d.instance, this.previewName(repo, number)));
-    return p && p.state !== "destroyed" ? p : undefined;
+    return this.#d.previews.findPullRequest(repo.fullName, number);
   }
 
   /* ---------------------------------------------------------------- events */
@@ -197,11 +197,10 @@ export class PrPreviews {
   }
 
   async #destroy(repo: Repo, pr: PullRequest, existing: Preview, actor: Actor, why: string): Promise<Outcome> {
-    void repo;
     const refs = this.#d.previews.forgeRefs(existing.id);
     await this.#d.previews.destroy(existing.id, actor);
     await this.#retireDeployment(pr.repo, refs.deploymentId);
-    await this.#say(pr, refs.commentId, `Preview **${existing.project.slice(projectNameFor(this.#d.instance, "").length)}** ${why}; its containers and URLs are gone.`);
+    await this.#say(pr, refs.commentId, `Preview **${this.previewName(repo, pr.number)}** ${why}; its containers and URLs are gone.`);
     return { action: "destroyed", previewId: existing.id };
   }
 

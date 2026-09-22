@@ -263,6 +263,13 @@ for (const [name, open] of DRIVERS) {
       expect(previews.forgeRefs(p.id)).toEqual({ commentId: 11, deploymentId: 22 });
       expect(previews.forgeRefs("nope")).toEqual({ commentId: null, deploymentId: null });
       expect(previews.get(p.id)?.source).toEqual({ kind: "pr", repo: "acme/web-app", number: 7, sha: "abc" });
+
+      // Found by source: the NAME of an unlisted preview is not stable, the PR is.
+      expect(previews.findPullRequest("acme/web-app", 7)?.id).toBe(p.id);
+      expect(previews.findPullRequest("acme/web-app", 8)).toBeUndefined();
+      expect(previews.findPullRequest("other/web-app", 7)).toBeUndefined();
+      previews.setState(p.id, "destroyed");
+      expect(previews.findPullRequest("acme/web-app", 7)).toBeUndefined();
     });
   });
 }
