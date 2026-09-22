@@ -5,6 +5,7 @@
  * which is exactly the contract a real container has to meet.
  */
 import { afterEach, describe, expect, test } from "bun:test";
+import { createHmac } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -340,3 +341,23 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
   expect(refused.status).toBe(403);
   expect(((await refused.json()) as { detail: string }).detail).toContain("previews.view_private");
 }, 30_000);
+
+test("T53: the hooks surface is dispatched -- a signed delivery is 202'd on hooks.<base>, an unsigned one 401'd, and nothing else answers there", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const running = await start(dir, await freePort(), undefined, { GANGWAY_GITHUB_WEBHOOK_SECRET: "hook-s3cret" });
+  const call = client(running);
+  const HOOKS = "hooks.preview.localhost";
+
+  const body = JSON.stringify({ zen: "Keep it logically awesome.", hook_id: 1 });
+  const sign = (secret: string) => `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+  const headers = (secret: string) => ({ "content-type": "application/json", "x-github-event": "ping", "x-github-delivery": "e2e-1", "x-hub-signature-256": sign(secret), authorization: "" });
+
+  const ok = await call(HOOKS, "/github", { method: "POST", body, headers: headers("hook-s3cret") });
+  expect(ok.status).toBe(202);
+  expect(await ok.json()).toEqual({ accepted: false, deliveryId: "e2e-1", reason: "ping" });
+  expect((await call(HOOKS, "/github", { method: "POST", body, headers: headers("wrong") })).status).toBe(401);
+  // The API does not answer on the hooks host, and hooks do not answer on the API host.
+  expect((await call(HOOKS, "/v1/previews")).status).toBe(404);
+  expect((await call("api.preview.localhost", "/github", { method: "POST", body, headers: headers("hook-s3cret") })).status).toBe(404);
+});

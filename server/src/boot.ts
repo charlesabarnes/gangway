@@ -30,7 +30,7 @@ import { Tokens } from "./auth/tokens.ts";
 import type { Config } from "./config.ts";
 import { migrate } from "./db/migrate.ts";
 import {
-  AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, RolesRepo, RoutesRepo,
+  AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, ReposRepo, RolesRepo, RoutesRepo,
   SessionsRepo, SqliteSettingsStore, TokensRepo, UsersRepo,
 } from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
@@ -38,6 +38,10 @@ import { DockerClients } from "./docker/client.ts";
 import { Reconciler, type ClientSource, type ReconcileReport } from "./reconcile/reconciler.ts";
 import { createComposeRunner, type ComposeRunner } from "./docker/runner.ts";
 import { EventBus } from "./events/bus.ts";
+import { GitHubApp } from "./forge/github/app.ts";
+import { GitHubForge } from "./forge/github/forge.ts";
+import { Hooks } from "./forge/hooks.ts";
+import { PrPreviews } from "./forge/pr-previews.ts";
 import { seedHosts } from "./hosts/seed.ts";
 import { flushLastSeen, sweepExpired } from "./scheduler/jobs.ts";
 import { Scheduler } from "./scheduler/scheduler.ts";
@@ -49,6 +53,8 @@ import { clientIpOf, startListener, type RunningListener } from "./net/listener.
 import { clientIpResolver } from "./net/trustedproxy.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
 import { DEFAULT_TIMINGS, type PreviewContext } from "./previews/context.ts";
+import { deploy, urlsFor } from "./previews/deploy.ts";
+import { destroy } from "./previews/destroy.ts";
 import { IdempotentDeploys } from "./previews/idempotent.ts";
 import { PreviewLogs } from "./previews/logs.ts";
 import { httpProbe, type RouteProbe } from "./previews/probe.ts";
@@ -165,6 +171,27 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   };
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
+
+  /* ---- pull requests (ADR-0011). Credentials are read from settings on every use. */
+  const reposRepo = new ReposRepo(db);
+  const githubApp = new GitHubApp({
+    credentials: () => ({ appId: settings.get(SETTINGS.githubAppId), privateKey: settings.get(SETTINGS.githubPrivateKey) }),
+    log: logger.child({ mod: "github" }),
+  });
+  const forge = new GitHubForge({ app: githubApp, webhookSecret: () => settings.get(SETTINGS.githubWebhookSecret) });
+  const prPreviews = new PrPreviews({
+    forge, repos: reposRepo, instance: config.instanceId, logger: logger.child({ mod: "pr" }),
+    previews: {
+      deploy: (input) => deploy(ctx, input),
+      destroy: (id, actor) => destroy(ctx, id, actor),
+      getByProject: (project) => ctx.previews.getByProject(project),
+      urls: (id) => urlsFor(ctx, id),
+      forgeRefs: (id) => ctx.previews.forgeRefs(id),
+      setForgeRefs: (id, refs) => ctx.previews.setForgeRefs(id, refs),
+    },
+    logUrlFor: (id) => (settings.get(SETTINGS.surfacesUi) ? `${publicOriginFor(`app.${baseDomain()}`, ctx.origin)}/previews/${id}` : undefined),
+  });
+  const hooks = new Hooks({ forge, service: prPreviews, logger: logger.child({ mod: "hooks" }) });
 
   /* ---- accounts (§8.1). The matrix is loaded once and kept write-through (ADR-0009). */
   const users = new UsersRepo(db);
@@ -284,7 +311,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
         limits: DEFAULT_LIMITS, timeoutMs: config.upstreamTimeoutMs, publicPort: config.publicPort,
       }) : null;
     }),
-    handlers: { app: surfaceHandler(app, "app"), api: surfaceHandler(app, "api") },
+    handlers: { app: surfaceHandler(app, "app"), api: surfaceHandler(app, "api"), hooks: hooks.handler() },
     logTailFor: (id) => ctx.logs.tail(id, 50),
     clientIpFor: (req) => resolveClientIp(clientIpOf(req), req.headers.get("x-forwarded-for")),
     onProxied: (entry) => table.touch(entry.hostname, Date.now()),
@@ -374,7 +401,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     const left = () => Math.max(0, graceMs - (Date.now() - began));
     await scheduler.stop(graceMs);
     await reconciled;
-    const drained = await drain(() => listener.pending().requests === 0 && ctx.inflight.size === 0, { timeoutMs: left() });
+    const drained = await drain(() => listener.pending().requests === 0 && ctx.inflight.size === 0 && hooks.inflight === 0, { timeoutMs: left() });
 
     // 3. Out of patience. An aborted pipeline leaves its row `building`/`starting`, which
     //    is exactly what the next boot's reconciler rescues (§11) -- from evidence.
