@@ -284,3 +284,21 @@ describe("cloneRepo timeout", () => {
     expect(await stat(marker).catch(() => null)).toBeNull();
   }, 20_000);
 });
+
+describe("cloneRepo by commit sha (a pull request's head)", () => {
+  test("a 40-hex ref is fetched into an empty repository and checked out detached; HEAD is that sha", async () => {
+    const dest = path.join(await scratch(), "dest");
+    const result = await cloneRepo({ repo: repo.url, ref: repo.sha, destDir: dest, allowedHosts: ["file"] });
+    expect(result.sha).toBe(repo.sha);
+    expect(result.ref).toBe(repo.sha);
+    expect(await Bun.file(path.join(dest, "README.md")).text()).toBe("hello from the fixture\n");
+  });
+
+  test("a sha the remote does not have is a clone_failed, and the destination is left empty", async () => {
+    const dest = path.join(await scratch(), "dest");
+    await expectReject(
+      () => cloneRepo({ repo: repo.url, ref: "0123456789abcdef0123456789abcdef01234567", destDir: dest, allowedHosts: ["file"], logger: new Logger("error", {}, () => {}) }),
+      "clone_failed",
+    );
+  });
+});

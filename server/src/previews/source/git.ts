@@ -70,10 +70,14 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
   try {
     const env = await buildEnv(helperDir, options.token);
 
+    // A commit sha (a pull request's head) cannot be `--branch`ed; it is fetched into an
+    // empty repository instead. GitHub serves any reachable sha to a shallow fetch.
     // `--` keeps a ref or URL that starts with "-" from being read as an option.
-    const clone = await run(gitPath, [
-      "clone", "--depth", "1", "--single-branch", "--branch", ref, "--", url.href, options.destDir,
-    ], { env, timeoutMs });
+    const clone = SHA_RE.test(ref)
+      ? await cloneSha(gitPath, url.href, ref, options.destDir, env, timeoutMs)
+      : await run(gitPath, [
+        "clone", "--depth", "1", "--single-branch", "--branch", ref, "--", url.href, options.destDir,
+      ], { env, timeoutMs });
 
     if (clone.timedOut) {
       await resetDest(options.destDir);
@@ -103,6 +107,26 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
   } finally {
     await rm(helperDir, { recursive: true, force: true });
   }
+}
+
+const SHA_RE = /^[0-9a-f]{40}$/i;
+
+/** `init` + `fetch --depth 1 <sha>` + `checkout FETCH_HEAD`, reported like one `clone`. */
+async function cloneSha(
+  gitPath: string, href: string, sha: string, destDir: string, env: Record<string, string>, timeoutMs: number,
+): Promise<RunResult> {
+  const steps: string[][] = [
+    ["init", "--quiet", "--", destDir],
+    ["-C", destDir, "remote", "add", "origin", "--", href],
+    ["-C", destDir, "fetch", "--depth", "1", "--quiet", "origin", sha],
+    ["-C", destDir, "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+  ];
+  let last: RunResult = { code: 0, stdout: "", stderr: "", timedOut: false };
+  for (const args of steps) {
+    last = await run(gitPath, args, { env, timeoutMs });
+    if (last.timedOut || last.code !== 0) return last;
+  }
+  return last;
 }
 
 function parseRepoUrl(repo: string, allowed: readonly string[]): URL {

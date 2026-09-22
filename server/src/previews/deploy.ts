@@ -43,6 +43,11 @@ export type DeploySource =
   | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined }
   /** Cloned by the server itself. `port` is only for a repo with a Dockerfile and no compose file. */
   | { kind: "git"; repo: string; ref: string; port?: number | undefined }
+  /**
+   * A pull request's head (ADR-0011). `credential` is presented to git and forgotten: it is
+   * not on the recorded source, not in a label, not in the log.
+   */
+  | { kind: "pr"; repo: string; number: number; sha: string; cloneUrl: string; credential: string | undefined; port?: number | undefined }
   /** A tar or tar.gz of the project, compose file (or Dockerfile) at its root. */
   | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined };
 
@@ -82,6 +87,7 @@ function unguessable(): string {
 
 function defaultName(source: DeploySource): string {
   if (source.kind === "tarball") return "preview";
+  if (source.kind === "pr") return `${source.repo.split("/").pop() ?? "repo"}-pr-${source.number}`;
   // "ghcr.io/acme/web-app:1.2" -> "web-app";  "https://github.com/acme/web-app.git" -> "web-app"
   const from = source.kind === "git" ? source.repo.replace(/\/+$/, "").replace(/\.git$/, "") : source.image;
   const last = from.split("/").pop() ?? from;
@@ -110,6 +116,10 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
     const cloned = await cloneRepo({ repo: source.repo, ref: source.ref, destDir: wd.srcDir, logger: ctx.logger, ...ctx.git });
     ctx.logs.append(id, "system", `cloned ${source.repo} @ ${cloned.ref} (${cloned.sha.slice(0, 12)}) in ${cloned.durationMs}ms`);
     recorded = { kind: "git", repo: source.repo, ref: source.ref };
+  } else if (source.kind === "pr") {
+    const cloned = await cloneRepo({ repo: source.cloneUrl, ref: source.sha, destDir: wd.srcDir, token: source.credential, logger: ctx.logger, ...ctx.git });
+    ctx.logs.append(id, "system", `fetched ${source.repo}#${source.number} @ ${cloned.sha.slice(0, 12)} in ${cloned.durationMs}ms`);
+    recorded = { kind: "pr", repo: source.repo, number: source.number, sha: source.sha };
   } else {
     const r = await extractTarball(source.archive, wd.srcDir);
     ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
