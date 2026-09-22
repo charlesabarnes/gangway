@@ -136,6 +136,20 @@ describe('secrets', () => {
     expect(r.allByTestId('secret')).toHaveLength(1);
   });
 
+  it('a pasted .env becomes one PATCH: comments and blanks skipped, quotes removed, the textarea cleared', async () => {
+    const r = await open({ repos: [repo()] });
+    const ta = r.byTestId('secret-paste') as HTMLTextAreaElement;
+    ta.value = '# staging\nexport DB_HOST=db.example\nJWT_SECRET="a b" # trailing\nEMPTY=\nbad-name=x\nPORT=3000 # comment\n\n'; ta.dispatchEvent(new Event('input')); await r.settle();
+    expect(r.text('set-pasted')).toContain('Set 4 variables');
+    ta.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
+    const req = r.http.expectOne({ method: 'PATCH', url: `/v1/repos/${repo().id}/env` });
+    expect(req.request.body).toEqual({ set: { DB_HOST: 'db.example', JWT_SECRET: 'a b', EMPTY: '', PORT: '3000' } });
+    req.flush({ names: ['DB_HOST', 'EMPTY', 'JWT_SECRET', 'PORT'] });
+    await r.settle();
+    expect(r.allByTestId('secret')).toHaveLength(4);
+    expect((r.byTestId('secret-paste') as HTMLTextAreaElement).value).toBe('');
+  });
+
   it('a bad name keeps the button disabled', async () => {
     const r = await open({ repos: [repo()] });
     type(r, 'secret-name', '1bad'); type(r, 'secret-value', 'x'); await r.settle();

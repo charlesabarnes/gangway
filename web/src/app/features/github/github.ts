@@ -82,6 +82,16 @@ const VISIBILITIES: { value: Visibility | ''; label: string }[] = [{ value: '', 
                   <label class="min-w-64 flex-1 text-xs text-neutral-500">Value<input [class]="field" type="password" autocomplete="new-password" [value]="secretDraft()[r.id]?.value ?? ''" (input)="draftSecret(r, 'value', $any($event.target).value)" data-testid="secret-value" /></label>
                   <button appBtn variant="ghost" type="submit" [disabled]="!secretReady(r)" data-testid="set-secret">Set</button>
                 </form>
+                <details class="mt-2">
+                  <summary class="cursor-pointer text-xs text-neutral-500">Paste a .env instead</summary>
+                  <form (submit)="pasteSecrets($event, r)" novalidate class="mt-2">
+                    <textarea [class]="field" rows="5" spellcheck="false" placeholder="KEY=value&#10;OTHER=&quot;quoted value&quot;" [value]="pasted()[r.id] ?? ''" (input)="draftPaste(r, $any($event.target).value)" data-testid="secret-paste"></textarea>
+                    <div class="mt-2 flex items-center gap-3">
+                      <button appBtn variant="ghost" type="submit" [disabled]="parseDotenv(pasted()[r.id] ?? '').length === 0" data-testid="set-pasted">Set {{ parseDotenv(pasted()[r.id] ?? '').length }} variable{{ parseDotenv(pasted()[r.id] ?? '').length === 1 ? '' : 's' }}</button>
+                      <span class="text-xs text-neutral-500">Comments and blank lines are skipped; quotes are removed. Existing names are overwritten, others kept.</span>
+                    </div>
+                  </form>
+                </details>
                 @if (secretError()?.id === r.id) { <p class="mt-1 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="secret-error">{{ secretError()?.message }}</p> }
               </div>
             }
@@ -125,6 +135,7 @@ export class GitHub {
   protected readonly secretNames = signal<Record<string, string[]>>({});
   protected readonly secretDraft = signal<Record<string, { name: string; value: string }>>({});
   protected readonly secretError = signal<{ id: string; message: string } | null>(null);
+  protected readonly pasted = signal<Record<string, string>>({});
   protected readonly status = signal<GitHubStatus | null>(null);
   protected readonly repos = signal<Repo[]>([]);
   protected readonly drafts = signal<Record<string, RepoPatch>>({});
@@ -168,6 +179,39 @@ export class GitHub {
     if (!d || !this.secretReady(r)) return;
     await this.#patchSecrets(r, { set: { [d.name]: d.value } });
     this.secretDraft.update((all) => ({ ...all, [r.id]: { name: '', value: '' } }));
+  }
+
+  /** `KEY=value` lines, as a .env file has them: comments and blanks skipped, one layer of quotes removed. */
+  protected parseDotenv(text: string): [string, string][] {
+    const out: [string, string][] = [];
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim().replace(/^export\s+/, '');
+      if (line === '' || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq <= 0) continue;
+      const name = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
+      const q = value[0];
+      const close = q === '"' || q === "'" ? value.indexOf(q, 1) : -1;
+      if (close > 0) value = value.slice(1, close); // quoted: everything after the closing quote is a comment
+      else value = value.replace(/\s+#.*$/, '');
+      if (q === '"' && close > 0) value = value.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      out.push([name, value]);
+    }
+    return out;
+  }
+
+  protected draftPaste(r: Repo, text: string): void {
+    this.pasted.update((all) => ({ ...all, [r.id]: text }));
+  }
+
+  protected async pasteSecrets(e: Event, r: Repo): Promise<void> {
+    e.preventDefault();
+    const pairs = this.parseDotenv(this.pasted()[r.id] ?? '');
+    if (pairs.length === 0) return;
+    await this.#patchSecrets(r, { set: Object.fromEntries(pairs) });
+    if (!this.secretError()) this.pasted.update((all) => ({ ...all, [r.id]: '' }));
   }
 
   protected unsetSecret(r: Repo, name: string): Promise<void> {
