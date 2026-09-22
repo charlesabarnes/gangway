@@ -3,7 +3,7 @@ import { RepoEnvPatchSchema, RepoPatchSchema } from "../../../../shared/src/api.
 import type { AuditSink } from "../../audit/audit.ts";
 import type { ReposRepo } from "../../db/repos/repos.ts";
 import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
-import type { RepoEnv } from "../../secrets/repo-env.ts";
+import type { Secrets } from "../../secrets/secrets.ts";
 import { parseDuration } from "../../util/duration.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -13,7 +13,7 @@ import { requirePermission } from "../middleware/auth.ts";
  * per-repository knobs. Rows are made by webhooks; here they are read, tuned, or
  * forgotten (the next webhook makes a fresh one).
  */
-export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink, env?: RepoEnv): void {
+export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink, secrets?: Secrets): void {
   api.get("/repos", requirePermission("previews.read"), (c) => c.json({ repos: repos.list() }));
 
   api.get("/repos/:id", requirePermission("previews.read"), (c) => {
@@ -43,16 +43,16 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
   api.get("/repos/:id/env", requirePermission("repos.secrets"), (c) => {
     const repo = repos.get(c.req.param("id"));
     if (!repo) throw notFound(`no such repository: ${c.req.param("id")}`);
-    return c.json({ secrets: env ? env.list(repo.id) : [] });
+    return c.json({ secrets: secrets ? secrets.repo(repo.id).list() : [] });
   });
 
   api.patch("/repos/:id/env", requirePermission("repos.secrets"), async (c) => {
     const repo = repos.get(c.req.param("id"));
     if (!repo) throw notFound(`no such repository: ${c.req.param("id")}`);
-    if (!env) throw notFound("secrets are not available on this server");
+    if (!secrets) throw notFound("secrets are not available on this server");
     const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
     const patch = RepoEnvPatchSchema.parse(body);
-    return c.json({ secrets: env.update(c.get("actor"), repo, patch) });
+    return c.json({ secrets: secrets.repo(repo.id).update(c.get("actor"), patch) });
   });
 
   api.delete("/repos/:id", requirePermission("github.manage"), (c) => {

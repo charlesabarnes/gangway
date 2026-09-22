@@ -35,7 +35,7 @@ import { parse as parseYaml } from "yaml";
 import { buildStack, composeForDockerfile, composeForImage, parseComposeModel, planRoutes, selectExposed, type ComposeModel, type PlannedRoute } from "./compose-model.ts";
 import type { PreviewContext } from "./context.ts";
 import { cloneRepo } from "./source/git.ts";
-import { dotenvLine } from "../secrets/repo-env.ts";
+import { dotenvLine } from "../secrets/secrets.ts";
 import { assertNoEscapingSymlinks, COMPOSE_FILENAMES, inspectComposeFile } from "./source/guard.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
@@ -205,7 +205,9 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let routes: PlannedRoute[];
   let visibility: Visibility;
   try {
-    const env = input.env !== undefined ? input.env : ctx.secretsFor?.(input.source, input.secretLevel);
+    const looked = input.env === undefined ? ctx.secretsFor?.(input.source, input.secretLevel) : undefined;
+    const env = input.env !== undefined ? input.env : looked?.env;
+    const secretLevel: Clearance | null = input.secretLevel ?? looked?.clearance ?? null;
     const { source, composeFile } = await writeSource(ctx, id, input.source, env, wd);
     planned = await readModel(ctx, host, wd, composeFile);
     const { model } = planned;
@@ -249,7 +251,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     preview = ctx.previews.create({
       id, project, hostId: host.id, state: "building", source, visibility,
       ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
-      secretLevel: input.secretLevel ?? (env && Object.keys(env).length > 0 ? "standard" : null),
+      secretLevel,
     });
     try {
       for (const route of routes) {

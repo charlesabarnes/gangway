@@ -171,7 +171,7 @@ describe("repository secrets become .env (ADR-0012)", () => {
   test("no env and no lookup: no .env; an empty env given explicitly: no .env either (a fork)", async () => {
     const s = setupPreviewContext();
     const read = dotenvAtConfig(s);
-    s.ctx.secretsFor = () => ({ LEAK: "no" });
+    s.ctx.secretsFor = () => ({ env: { LEAK: "no" }, clearance: "standard" });
     const archive = await tarball([{ name: "compose.yaml", content: COMPOSE }, { name: "Dockerfile", content: "FROM nginx" }]);
     await (await deploy(s.ctx, { ...base, name: "fork", env: {}, source: { kind: "tarball", archive } })).done;
     expect(read()).toBeNull();
@@ -181,10 +181,12 @@ describe("repository secrets become .env (ADR-0012)", () => {
     const s = setupPreviewContext();
     const read = dotenvAtConfig(s);
     const asked: string[] = [];
-    s.ctx.secretsFor = (src) => { asked.push(src.kind); return src.kind === "tarball" ? { FROM_CTX: "1" } : undefined; };
+    s.ctx.secretsFor = (src) => { asked.push(src.kind); return src.kind === "tarball" ? { env: { FROM_CTX: "1" }, clearance: "low" } : undefined; };
     const archive = await tarball([{ name: "compose.yaml", content: COMPOSE }, { name: "Dockerfile", content: "FROM nginx" }]);
-    await (await deploy(s.ctx, { ...base, name: "looked-up", source: { kind: "tarball", archive } })).done;
+    const res = await deploy(s.ctx, { ...base, name: "looked-up", source: { kind: "tarball", archive } });
+    await res.done;
     expect(asked).toEqual(["tarball"]);
     expect(read()).toContain('FROM_CTX="1"');
+    expect(s.previews.get(res.preview.id)!.secretLevel).toBe("low"); // the clearance the lookup applied is what the row records
   });
 });

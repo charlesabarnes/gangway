@@ -56,6 +56,8 @@ export const SETTINGS = {
   defaultTtl: def("defaults.ttl", z.string(), "7d"),
   defaultVisibility: def("defaults.visibility", z.enum(["public", "unlisted", "private"]), "unlisted"),
   /** Idle-sleep after this long without a request (ADR-0012). `never` or `0` switches it off. */
+  /** The clearance a preview with NO repository (an image, a tarball) is deployed with (ADR-0012). */
+  secretsDefaultClearance: def("secrets.defaultClearance", z.enum(["none", "low", "standard", "high"]), "standard"),
   defaultIdleAfter: def("defaults.idleAfter", z.string().refine((s) => s === "never" || s === "0" || parseDuration(s) !== null, "expected a duration like 30m, or never"), "30m"),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",

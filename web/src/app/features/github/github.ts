@@ -1,20 +1,18 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { CLEARANCES, FORK_POLICIES, SECRET_LEVELS, type Clearance, type ForkPolicy, type GitHubStatus, type ManifestStart, type Repo, type RepoPatch, type SecretLevel, type SecretListing, type Visibility } from '../../core/api.types';
+import { CLEARANCES, FORK_POLICIES, type Clearance, type ForkPolicy, type GitHubStatus, type ManifestStart, type Repo, type RepoPatch, type SecretListing, type Visibility } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { ToastService } from '../../ui/toast';
+import { SecretsEditor } from './secrets-editor';
 
 const FIELD = 'block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent/30 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900';
 const FORK_HELP: Record<ForkPolicy, string> = {
   ask: 'a collaborator comments /preview deploy',
   auto: 'built automatically, public, no secrets',
   never: 'never built',
-};
-const LEVEL_CLASS: Record<SecretLevel, string> = {
-  low: 'border-emerald-400 text-emerald-700 dark:text-emerald-300', standard: 'border-neutral-300 dark:border-neutral-700', high: 'border-red-400 text-red-700 dark:text-red-300',
 };
 const CLEARANCE_HELP: Record<Clearance, string> = { none: 'no .env at all', low: 'low only', standard: 'low + standard', high: 'everything' };
 const VISIBILITIES: { value: Visibility | ''; label: string }[] = [{ value: '', label: 'server default' }, { value: 'public', label: 'public' }, { value: 'unlisted', label: 'unlisted' }, { value: 'private', label: 'private' }];
@@ -26,7 +24,7 @@ const VISIBILITIES: { value: Visibility | ''; label: string }[] = [{ value: '', 
  */
 @Component({
   selector: 'app-github',
-  imports: [Btn],
+  imports: [Btn, SecretsEditor],
   template: `
     <section class="mx-auto max-w-4xl px-6 py-10">
       <h1 class="text-2xl font-semibold tracking-tight">GitHub</h1>
@@ -59,6 +57,14 @@ const VISIBILITIES: { value: Visibility | ''; label: string }[] = [{ value: '', 
         </div>
       }
 
+      @if (canSecrets()) {
+        <h2 class="mt-10 text-base font-semibold">Secrets for every preview</h2>
+        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Written to <code class="font-mono">.env</code> in every checkout at deploy, at or below the preview's clearance — <span class="font-mono">low</span> &lt; <span class="font-mono">standard</span> &lt; <span class="font-mono">high</span>. A repository's own secrets add to these and win on a name. A preview with no repository (an image, a tarball) gets these at the server default clearance.</p>
+        <div class="mt-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800" data-testid="global-secrets">
+          @if (globalLoaded()) { <app-secrets-editor url="/v1/secrets" [initial]="globalSecrets()" /> } @else { <p class="text-sm text-neutral-500">Loading…</p> }
+        </div>
+      }
+
       <h2 class="mt-10 text-base font-semibold">Repositories</h2>
       <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Previews are named <code class="font-mono">&lt;slug&gt;-pr-&lt;n&gt;</code>. A repository appears here after its first pull request.</p>
       <ul class="mt-4 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800" data-testid="repos">
@@ -72,37 +78,8 @@ const VISIBILITIES: { value: Visibility | ''; label: string }[] = [{ value: '', 
             @if (r.disabledReason; as why) { <p class="mt-1 text-sm text-amber-700 dark:text-amber-400" data-testid="why">{{ why }}</p> }
             @if (canSecrets()) {
               <div class="mt-3 rounded-md border border-dashed border-neutral-300 p-3 dark:border-neutral-700" [attr.data-testid]="'secrets-' + r.id">
-                <p class="text-xs font-medium text-neutral-700 dark:text-neutral-300">Secrets <span class="font-normal text-neutral-500">— written to <code class="font-mono">.env</code> at deploy; never shown again; never given to a fork's PR</span></p>
-                <ul class="mt-2 flex flex-wrap gap-2">
-                  @for (s of secrets()[r.id] ?? []; track s.name) {
-                    <li class="flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-xs" [class]="levelClass[s.level]" data-testid="secret">
-                      {{ s.name }}<span class="text-neutral-400">=••••</span>
-                      <select class="ml-1 bg-transparent text-[11px]" (change)="relevel(r, s.name, $any($event.target).value)" [attr.aria-label]="'Level of ' + s.name" data-testid="level">
-                        @for (l of levels; track l) { <option [value]="l" [selected]="l === s.level">{{ l }}</option> }</select>
-                      <button type="button" (click)="unsetSecret(r, s.name)" class="ml-1 text-neutral-500 hover:text-red-600" [attr.aria-label]="'Remove ' + s.name" data-testid="unset">×</button>
-                    </li>
-                  } @empty { <li class="text-xs text-neutral-500" data-testid="no-secrets">None yet.</li> }
-                </ul>
-                <form (submit)="setSecret($event, r)" novalidate class="mt-2 flex flex-wrap items-end gap-2">
-                  <label class="text-xs text-neutral-500">Name<input [class]="field" placeholder="FONTAWESOME_TOKEN" autocomplete="off" [value]="secretDraft()[r.id]?.name ?? ''" (input)="draftSecret(r, 'name', $any($event.target).value)" data-testid="secret-name" /></label>
-                  <label class="min-w-64 flex-1 text-xs text-neutral-500">Value<input [class]="field" type="password" autocomplete="new-password" [value]="secretDraft()[r.id]?.value ?? ''" (input)="draftSecret(r, 'value', $any($event.target).value)" data-testid="secret-value" /></label>
-                  <label class="text-xs text-neutral-500">Level<select [class]="field" (change)="draftSecret(r, 'level', $any($event.target).value)" data-testid="secret-level">
-                    @for (l of levels; track l) { <option [value]="l" [selected]="l === (secretDraft()[r.id]?.level ?? 'standard')">{{ l }}</option> }</select></label>
-                  <button appBtn variant="ghost" type="submit" [disabled]="!secretReady(r)" data-testid="set-secret">Set</button>
-                </form>
-                <details class="mt-2">
-                  <summary class="cursor-pointer text-xs text-neutral-500">Paste a .env instead</summary>
-                  <form (submit)="pasteSecrets($event, r)" novalidate class="mt-2">
-                    <textarea [class]="field" rows="5" spellcheck="false" placeholder="KEY=value&#10;OTHER=&quot;quoted value&quot;" [value]="pasted()[r.id] ?? ''" (input)="draftPaste(r, $any($event.target).value)" data-testid="secret-paste"></textarea>
-                    <div class="mt-2 flex flex-wrap items-center gap-3">
-                      <label class="text-xs text-neutral-500">all at level <select [class]="field + ' inline w-auto'" (change)="draftPasteLevel(r, $any($event.target).value)" data-testid="pasted-level">
-                        @for (l of levels; track l) { <option [value]="l" [selected]="l === (pastedLevel()[r.id] ?? 'standard')">{{ l }}</option> }</select></label>
-                      <button appBtn variant="ghost" type="submit" [disabled]="parseDotenv(pasted()[r.id] ?? '').length === 0" data-testid="set-pasted">Set {{ parseDotenv(pasted()[r.id] ?? '').length }} variable{{ parseDotenv(pasted()[r.id] ?? '').length === 1 ? '' : 's' }}</button>
-                      <span class="text-xs text-neutral-500">Comments and blank lines are skipped; quotes are removed. Existing names are overwritten, others kept.</span>
-                    </div>
-                  </form>
-                </details>
-                @if (secretError()?.id === r.id) { <p class="mt-1 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="secret-error">{{ secretError()?.message }}</p> }
+                <p class="text-xs font-medium text-neutral-700 dark:text-neutral-300">This repository's secrets <span class="font-normal text-neutral-500">— on top of the global ones; a name here wins</span></p>
+                <app-secrets-editor [url]="'/v1/repos/' + r.id + '/env'" [initial]="secrets()[r.id] ?? []" />
               </div>
             }
             @if (canManage()) {
@@ -142,8 +119,6 @@ export class GitHub {
   protected readonly field = FIELD;
   protected readonly forkPolicies = FORK_POLICIES;
   protected readonly forkHelp = FORK_HELP;
-  protected readonly levels = SECRET_LEVELS;
-  protected readonly levelClass = LEVEL_CLASS;
   protected readonly clearances = CLEARANCES;
   protected readonly clearanceHelp = CLEARANCE_HELP;
   protected readonly visibilities = VISIBILITIES;
@@ -151,10 +126,8 @@ export class GitHub {
   protected readonly canManage = computed(() => this.auth.can('github.manage'));
   protected readonly canSecrets = computed(() => this.auth.can('repos.secrets'));
   protected readonly secrets = signal<Record<string, SecretListing[]>>({});
-  protected readonly secretDraft = signal<Record<string, { name: string; value: string; level: SecretLevel }>>({});
-  protected readonly pastedLevel = signal<Record<string, SecretLevel>>({});
-  protected readonly secretError = signal<{ id: string; message: string } | null>(null);
-  protected readonly pasted = signal<Record<string, string>>({});
+  protected readonly globalSecrets = signal<SecretListing[]>([]);
+  protected readonly globalLoaded = signal(false);
   protected readonly status = signal<GitHubStatus | null>(null);
   protected readonly repos = signal<Repo[]>([]);
   protected readonly drafts = signal<Record<string, RepoPatch>>({});
@@ -168,6 +141,7 @@ export class GitHub {
     // The status card is gated on a permission that arrives with the session, possibly
     // after this page did; an effect asks once it is there (and again if it is granted later).
     effect(() => { if (this.canManage()) untracked(() => void this.#loadStatus()); });
+    effect(() => { if (this.canSecrets()) untracked(() => void this.#loadGlobal()); });
   }
 
   async #loadRepos(): Promise<void> {
@@ -178,82 +152,16 @@ export class GitHub {
     } catch (e) { this.#toasts.problem('Could not load repositories', toProblem(e)); }
   }
 
+  async #loadGlobal(): Promise<void> {
+    try {
+      this.globalSecrets.set((await firstValueFrom(this.#http.get<{ secrets: SecretListing[] }>('/v1/secrets'))).secrets);
+      this.globalLoaded.set(true);
+    } catch (e) { this.#toasts.problem('Could not load secrets', toProblem(e)); }
+  }
+
   async #loadSecrets(id: string): Promise<void> {
     const { secrets } = await firstValueFrom(this.#http.get<{ secrets: SecretListing[] }>(`/v1/repos/${id}/env`));
     this.secrets.update((all) => ({ ...all, [id]: secrets }));
-  }
-
-  protected draftSecret(r: Repo, key: 'name' | 'value' | 'level', v: string): void {
-    this.secretDraft.update((all) => ({ ...all, [r.id]: { name: '', value: '', level: 'standard', ...all[r.id], [key]: v } }));
-  }
-
-  protected draftPasteLevel(r: Repo, level: SecretLevel): void {
-    this.pastedLevel.update((all) => ({ ...all, [r.id]: level }));
-  }
-
-  protected relevel(r: Repo, name: string, level: SecretLevel): Promise<void> {
-    return this.#patchSecrets(r, { levels: { [name]: level } });
-  }
-
-  protected secretReady(r: Repo): boolean {
-    const d = this.secretDraft()[r.id];
-    return !!d && /^[A-Za-z_][A-Za-z0-9_]*$/.test(d.name) && d.value !== '';
-  }
-
-  protected async setSecret(e: Event, r: Repo): Promise<void> {
-    e.preventDefault();
-    const d = this.secretDraft()[r.id];
-    if (!d || !this.secretReady(r)) return;
-    await this.#patchSecrets(r, { set: { [d.name]: { value: d.value, level: d.level } } });
-    this.secretDraft.update((all) => ({ ...all, [r.id]: { name: '', value: '', level: d.level } }));
-  }
-
-  /** `KEY=value` lines, as a .env file has them: comments and blanks skipped, one layer of quotes removed. */
-  protected parseDotenv(text: string): [string, string][] {
-    const out: [string, string][] = [];
-    for (const raw of text.split(/\r?\n/)) {
-      const line = raw.trim().replace(/^export\s+/, '');
-      if (line === '' || line.startsWith('#')) continue;
-      const eq = line.indexOf('=');
-      if (eq <= 0) continue;
-      const name = line.slice(0, eq).trim();
-      let value = line.slice(eq + 1).trim();
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
-      const q = value[0];
-      const close = q === '"' || q === "'" ? value.indexOf(q, 1) : -1;
-      if (close > 0) value = value.slice(1, close); // quoted: everything after the closing quote is a comment
-      else value = value.replace(/\s+#.*$/, '');
-      if (q === '"' && close > 0) value = value.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-      out.push([name, value]);
-    }
-    return out;
-  }
-
-  protected draftPaste(r: Repo, text: string): void {
-    this.pasted.update((all) => ({ ...all, [r.id]: text }));
-  }
-
-  protected async pasteSecrets(e: Event, r: Repo): Promise<void> {
-    e.preventDefault();
-    const pairs = this.parseDotenv(this.pasted()[r.id] ?? '');
-    if (pairs.length === 0) return;
-    const level = this.pastedLevel()[r.id] ?? 'standard';
-    await this.#patchSecrets(r, { set: Object.fromEntries(pairs.map(([k, v]) => [k, { value: v, level }])) });
-    if (!this.secretError()) this.pasted.update((all) => ({ ...all, [r.id]: '' }));
-  }
-
-  protected unsetSecret(r: Repo, name: string): Promise<void> {
-    return this.#patchSecrets(r, { unset: [name] });
-  }
-
-  async #patchSecrets(r: Repo, body: { set?: Record<string, { value: string; level: SecretLevel }>; unset?: string[]; levels?: Record<string, SecretLevel> }): Promise<void> {
-    this.secretError.set(null);
-    try {
-      const { secrets } = await firstValueFrom(this.#http.patch<{ secrets: SecretListing[] }>(`/v1/repos/${r.id}/env`, body));
-      this.secrets.update((all) => ({ ...all, [r.id]: secrets }));
-    } catch (err) {
-      this.secretError.set({ id: r.id, message: toProblem(err).detail });
-    }
   }
 
   async #loadStatus(): Promise<void> {

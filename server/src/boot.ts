@@ -66,7 +66,8 @@ import { Workdirs } from "./previews/source/workdir.ts";
 import { Waker, sweepIdle } from "./previews/sleep.ts";
 import { PreviewStates } from "./previews/state.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "./secrets/box.ts";
-import { RepoEnv } from "./secrets/repo-env.ts";
+import { Secrets } from "./secrets/secrets.ts";
+import { secretRoutes } from "./app/routes/secrets.ts";
 import { githubFullName } from "./forge/github/webhook.ts";
 import { RouteTable } from "./routing/table.ts";
 import { SETTINGS, Settings, idleMs } from "./settings.ts";
@@ -182,12 +183,14 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   /* ---- pull requests (ADR-0011). Credentials are read from settings on every use. */
   const reposRepo = new ReposRepo(db);
-  const repoEnv = new RepoEnv(reposRepo, new SecretBox(loadOrCreateSecretsKey(stateDir)), audit);
-  ctx.secretsFor = (source, clearance) => {
-    if (source.kind !== "git") return undefined;
-    const full = githubFullName(source.repo);
+  const secrets = new Secrets(reposRepo, settingsStore, new SecretBox(loadOrCreateSecretsKey(stateDir)), audit);
+  // ADR-0012: a git deploy of a registered repository gets that repository's clearance and
+  // secrets; anything else (an image, a tarball) gets the global set at the server default.
+  ctx.secretsFor = (source, requested) => {
+    const full = source.kind === "git" ? githubFullName(source.repo) : null;
     const repo = full ? reposRepo.getByFullName("github", full) : undefined;
-    return repo ? repoEnv.valuesFor(repo.id, clearance ?? repo.prClearance) : undefined;
+    const clearance = requested ?? repo?.prClearance ?? settings.get(SETTINGS.secretsDefaultClearance);
+    return { env: secrets.valuesFor(repo?.id ?? null, clearance), clearance };
   };
   const githubApp = new GitHubApp({
     credentials: () => ({ appId: settings.get(SETTINGS.githubAppId), privateKey: settings.get(SETTINGS.githubPrivateKey) }),
@@ -196,7 +199,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const forge = new GitHubForge({ app: githubApp, webhookSecret: () => settings.get(SETTINGS.githubWebhookSecret) });
   const prPreviews = new PrPreviews({
     forge, repos: reposRepo, instance: config.instanceId, logger: logger.child({ mod: "pr" }),
-    secretsFor: (repo, clearance) => repoEnv.valuesFor(repo.id, clearance),
+    secretsFor: (repo, clearance) => secrets.valuesFor(repo.id, clearance),
     previews: {
       deploy: (input) => deploy(ctx, input),
       destroy: (id, actor) => destroy(ctx, id, actor),
@@ -263,7 +266,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       userRoutes(api, accounts);
       roleRoutes(api, roles);
       settingsRoutes(api, settings, audit);
-      repoRoutes(api, reposRepo, audit, repoEnv);
+      repoRoutes(api, reposRepo, audit, secrets);
+      secretRoutes(api, secrets);
       githubRoutes(api, { app: githubApp, settings, states: new ManifestStates(), audit, baseDomain, originFor: (label) => publicOriginFor(`${label}.${baseDomain()}`, ctx.origin) });
     },
     publicV1: (pub) => authRoutes(pub, {

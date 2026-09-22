@@ -64,7 +64,7 @@ export type PreviewContext = {
    * A repository's secrets for a source that names one (ADR-0012) -- a `git` clone URL of a
    * registered repository. Absent, or returning undefined: no `.env` is written.
    */
-  secretsFor?: ((source: DeploySource, clearance: Clearance | undefined) => Record<string, string> | undefined) | undefined;
+  secretsFor?: ((source: DeploySource, requested: Clearance | undefined) => { env: Record<string, string>; clearance: Clearance } | undefined) | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

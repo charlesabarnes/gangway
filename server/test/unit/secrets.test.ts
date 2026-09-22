@@ -9,7 +9,8 @@ import { ReposRepo } from "../../src/db/repos/repos.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import { githubFullName } from "../../src/forge/github/webhook.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "../../src/secrets/box.ts";
-import { RepoEnv, dotenvLine } from "../../src/secrets/repo-env.ts";
+import { Secrets, dotenvLine } from "../../src/secrets/secrets.ts";
+import { MemorySettingsStore } from "../../src/settings.ts";
 
 const tmps: string[] = [];
 afterEach(() => { for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true }); });
@@ -39,7 +40,7 @@ describe("SecretBox", () => {
   });
 });
 
-describe("RepoEnv", () => {
+describe("Secrets: two scopes, one shape", () => {
   const setup = () => {
     const dir = tmp();
     const { db } = openDatabase({ path: join(dir, "g.db") });
@@ -47,45 +48,60 @@ describe("RepoEnv", () => {
     const repos = new ReposRepo(db);
     const repo = repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "1", slug: "web-app" });
     const audited: unknown[] = [];
-    const env = new RepoEnv(repos, new SecretBox(randomBytes(32)), { record: (_a, action, target, change) => audited.push({ action, target, ...change }) });
-    return { db, repos, repo, env, audited };
+    const store = new MemorySettingsStore();
+    const secrets = new Secrets(repos, store, new SecretBox(randomBytes(32)), { record: (_a, action, target, change) => audited.push({ action, target, ...change }) });
+    return { db, repos, repo, secrets, audited, store };
   };
 
-  test("set merges (a plain string is `standard`), levels re-level, unset removes; the listing is names+levels; the row holds ciphertext only; the audit holds names only", () => {
-    const { repos, repo, env, audited, db } = setup();
-    expect(env.list(repo.id)).toEqual([]);
-    expect(env.update(null, repo, { set: { FONTAWESOME_TOKEN: { value: "fa-abc", level: "high" }, B: "2", PUBLIC_KEY: { value: "pk", level: "low" } } }))
+  test("a repository's map: set merges (a plain string is `standard`), levels re-level, unset removes; the row holds ciphertext only; the audit holds names only", () => {
+    const { repos, repo, secrets, audited, db } = setup();
+    const m = secrets.repo(repo.id);
+    expect(m.list()).toEqual([]);
+    expect(m.update(null, { set: { FONTAWESOME_TOKEN: { value: "fa-abc", level: "high" }, B: "2", PUBLIC_KEY: { value: "pk", level: "low" } } }))
       .toEqual([{ name: "B", level: "standard" }, { name: "FONTAWESOME_TOKEN", level: "high" }, { name: "PUBLIC_KEY", level: "low" }]);
-    // A plain string on an existing name keeps its level.
-    expect(env.update(null, repo, { set: { FONTAWESOME_TOKEN: "fa-new" }, levels: { B: "high" } })).toEqual([{ name: "B", level: "high" }, { name: "FONTAWESOME_TOKEN", level: "high" }, { name: "PUBLIC_KEY", level: "low" }]);
-    expect(env.valuesFor(repo.id, "high")).toEqual({ B: "2", FONTAWESOME_TOKEN: "fa-new", PUBLIC_KEY: "pk" });
-    expect(env.valuesFor(repo.id, "standard")).toEqual({ PUBLIC_KEY: "pk" });
-    expect(env.valuesFor(repo.id, "low")).toEqual({ PUBLIC_KEY: "pk" });
-    expect(env.valuesFor(repo.id, "none")).toEqual({});
+    expect(m.update(null, { set: { FONTAWESOME_TOKEN: "fa-new" }, levels: { B: "high" } })).toEqual([{ name: "B", level: "high" }, { name: "FONTAWESOME_TOKEN", level: "high" }, { name: "PUBLIC_KEY", level: "low" }]);
+    expect(secrets.valuesFor(repo.id, "high")).toEqual({ B: "2", FONTAWESOME_TOKEN: "fa-new", PUBLIC_KEY: "pk" });
+    expect(secrets.valuesFor(repo.id, "standard")).toEqual({ PUBLIC_KEY: "pk" });
+    expect(secrets.valuesFor(repo.id, "none")).toEqual({});
     const row = db.get<{ env_ciphertext: string }>("SELECT env_ciphertext FROM repos WHERE id = 'r1'")!;
     expect(row.env_ciphertext).toMatch(/^v1\./);
-    expect(row.env_ciphertext).not.toContain("fa-new");
-    expect(JSON.stringify(audited)).not.toMatch(/fa-new|fa-abc/);
+    expect(JSON.stringify([row, audited])).not.toMatch(/fa-new|fa-abc/);
     expect(audited.at(-1)).toMatchObject({ action: "repo.env.changed", target: "r1", new: { names: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"], set: ["FONTAWESOME_TOKEN"], levels: { B: "high" } } });
-    expect(env.update(null, repo, { unset: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"] })).toEqual([]);
+    expect(m.update(null, { unset: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"] })).toEqual([]);
     expect(repos.envCiphertext(repo.id)).toBeNull();
-    expect(() => env.update(null, repo, { levels: { NOPE: "low" } })).toThrow(/not set/);
+    expect(() => m.update(null, { levels: { NOPE: "low" } })).toThrow(/not set/);
+  });
+
+  test("the global map reaches a preview with no repository too, and a repository's entry wins on a name", () => {
+    const { repo, secrets, store, audited } = setup();
+    secrets.global().update(null, { set: { SHARED: "global", ONLY_GLOBAL: { value: "g", level: "low" }, TOP: { value: "t", level: "high" } } });
+    secrets.repo(repo.id).update(null, { set: { SHARED: "repo" } });
+    expect(store.get("secrets.global")).toMatch(/^v1\./);
+    expect(audited.at(-2)).toMatchObject({ action: "secrets.changed", target: null });
+    expect(secrets.valuesFor(null, "standard")).toEqual({ SHARED: "global", ONLY_GLOBAL: "g" });
+    expect(secrets.valuesFor(repo.id, "standard")).toEqual({ SHARED: "repo", ONLY_GLOBAL: "g" });
+    expect(secrets.valuesFor(repo.id, "high")).toEqual({ SHARED: "repo", ONLY_GLOBAL: "g", TOP: "t" });
+    expect(secrets.valuesFor(repo.id, "low")).toEqual({ ONLY_GLOBAL: "g" });
+    expect(secrets.valuesFor(null, "none")).toEqual({});
+    expect(secrets.global().update(null, { unset: ["SHARED", "ONLY_GLOBAL", "TOP"] })).toEqual([]);
+    expect(secrets.valuesFor(repo.id, "high")).toEqual({ SHARED: "repo" });
   });
 
   test("the first shape -- a bare string per name -- reads as `standard`", () => {
-    const { repos, repo, env } = setup();
+    const { repos, repo, secrets } = setup();
     const box = new SecretBox(randomBytes(32));
-    const legacy = new RepoEnv(repos, box);
+    const legacy = new Secrets(repos, new MemorySettingsStore(), box);
     repos.setEnvCiphertext(repo.id, box.seal(JSON.stringify({ OLD: "v" })));
-    expect(legacy.list(repo.id)).toEqual([{ name: "OLD", level: "standard" }]);
-    void env;
+    expect(legacy.repo(repo.id).list()).toEqual([{ name: "OLD", level: "standard" }]);
+    void secrets;
   });
 
   test("a bad name or an oversized value is refused", () => {
-    const { repo, env } = setup();
-    expect(() => env.update(null, repo, { set: { "1BAD": "x" } })).toThrow(/not a valid environment variable name/);
-    expect(() => env.update(null, repo, { set: { "with-dash": "x" } })).toThrow(/not a valid/);
-    expect(() => env.update(null, repo, { set: { BIG: "x".repeat(17 * 1024) } })).toThrow(/longer than/);
+    const { repo, secrets } = setup();
+    const m = secrets.repo(repo.id);
+    expect(() => m.update(null, { set: { "1BAD": "x" } })).toThrow(/not a valid environment variable name/);
+    expect(() => m.update(null, { set: { "with-dash": "x" } })).toThrow(/not a valid/);
+    expect(() => m.update(null, { set: { BIG: "x".repeat(17 * 1024) } })).toThrow(/longer than/);
   });
 });
 

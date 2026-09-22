@@ -15,6 +15,7 @@ import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { roleRoutes } from "../../src/app/routes/roles.ts";
 import { githubRoutes } from "../../src/app/routes/github.ts";
 import { repoRoutes } from "../../src/app/routes/repos.ts";
+import { secretRoutes } from "../../src/app/routes/secrets.ts";
 import { settingsRoutes } from "../../src/app/routes/settings.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { userRoutes } from "../../src/app/routes/users.ts";
@@ -32,6 +33,7 @@ export function registerAuthenticated(api: Hono<AppEnv>): void {
   roleRoutes(api, none);
   settingsRoutes(api, none, none);
   repoRoutes(api, none, none);
+  secretRoutes(api, none);
   githubRoutes(api, none);
 }
 

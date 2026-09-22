@@ -10,7 +10,8 @@ import { Tokens } from "../../src/auth/tokens.ts";
 import { randomBytes } from "node:crypto";
 import { ReposRepo } from "../../src/db/repos/repos.ts";
 import { SecretBox } from "../../src/secrets/box.ts";
-import { RepoEnv } from "../../src/secrets/repo-env.ts";
+import { Secrets } from "../../src/secrets/secrets.ts";
+import { secretRoutes } from "../../src/app/routes/secrets.ts";
 import { GitHubApp } from "../../src/forge/github/app.ts";
 import { ManifestStates } from "../../src/forge/github/manifest.ts";
 import { Logger } from "../../src/logger.ts";
@@ -48,7 +49,9 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
   const hono = createApp({
     ...auth, logger: new Logger("error", {}, () => {}),
     v1: (api) => {
-      repoRoutes(api, repos, s.audit, new RepoEnv(repos, new SecretBox(randomBytes(32)), s.audit));
+      const secrets = new Secrets(repos, new MemorySettingsStore(), new SecretBox(randomBytes(32)), s.audit);
+      repoRoutes(api, repos, s.audit, secrets);
+      secretRoutes(api, secrets);
       githubRoutes(api, { app, settings, states, audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
     },
     publicV1: (pub) => authRoutes(pub, { auth, accounts: s.accounts, bootstrap: new Bootstrap(() => s.users.count()), roles: s.roles, sessionMaxAgeSec: 60 }),
@@ -159,8 +162,13 @@ describe("/v1/repos", () => {
     expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: {} })).status).toBe(422);
     expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { "bad-name": "x" } } })).status).toBe(422);
     expect((await t.call("/v1/repos/nope/env", { as: t.ada })).status).toBe(404);
+    // The global map has the same shape at /v1/secrets.
+    expect(await (await t.call("/v1/secrets", { as: t.ada })).json()).toEqual({ secrets: [] });
+    res = await t.call("/v1/secrets", { method: "PATCH", as: t.ada, json: { set: { SHARED: { value: "global-secret-value", level: "low" } } } });
+    expect(await res.json()).toEqual({ secrets: [{ name: "SHARED", level: "low" }] });
+    expect(t.s.auditRepo.page({ limit: 1 }).entries[0]).toMatchObject({ action: "secrets.changed", target: null });
     // The repo row, the audit log and the repos listing carry no value.
     const everything = JSON.stringify([await (await t.call("/v1/repos", { as: t.ada })).json(), t.s.auditRepo.page({ limit: 10 }).entries]);
-    expect(everything).not.toContain("fa-secret-value");
+    expect(everything).not.toMatch(/fa-secret-value|global-secret-value/);
   });
 });
