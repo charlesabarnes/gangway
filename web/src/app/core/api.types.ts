@@ -106,3 +106,24 @@ export type ApiToken = {
   id: string; name: string; prefix: string; scopes: Scope[]; userId: string | null; appName: string | null;
   expiresAt: string | null; lastUsedAt: string | null; revokedAt: string | null; createdAt: string;
 };
+
+/* ---- Phase 3: GitHub and repositories (ADR-0011) */
+
+/** `GET /v1/github`: connected or not, and where to go next. Never a secret. */
+export type GitHubStatus = {
+  configured: boolean; appId: string; appSlug: string; appUrl: string | null; installUrl: string | null;
+  webhookUrl: string; missing: string[]; managedByConfig: boolean;
+};
+
+/** `GET /v1/github/manifest`: what the browser posts to GitHub as a form, and the state GitHub echoes back. */
+export type ManifestStart = { action: string; manifest: Record<string, unknown>; state: string };
+
+export type ForkPolicy = 'ask' | 'auto' | 'never';
+export const FORK_POLICIES: readonly ForkPolicy[] = ['ask', 'auto', 'never'];
+
+export type Repo = {
+  id: string; forge: 'github'; fullName: string; installationId: string; slug: string;
+  enabled: boolean; disabledReason: string | null; visibility: Visibility | null; ttl: string | null;
+  forks: ForkPolicy; drafts: boolean; createdAt: string; updatedAt: string;
+};
+export type RepoPatch = Partial<Pick<Repo, 'slug' | 'enabled' | 'visibility' | 'ttl' | 'forks' | 'drafts'>>;

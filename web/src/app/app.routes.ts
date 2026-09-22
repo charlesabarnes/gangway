@@ -12,6 +12,9 @@ export const routes: Routes = [
   { path: 'previews', title: 'Previews · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-list').then((m) => m.PreviewList) },
   { path: 'previews/:id', title: 'Preview · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-detail').then((m) => m.PreviewDetail) },
   { path: 'account', title: 'Account · gangway', canActivate: [authGuard], loadComponent: () => import('./features/account/account').then((m) => m.Account) },
+  { path: 'github', title: 'GitHub · gangway', canActivate: [authGuard], loadComponent: () => import('./features/github/github').then((m) => m.GitHub) },
+  // GitHub's manifest flow sends the browser back here with ?code=&state= (ADR-0011).
+  { path: 'github/callback', title: 'GitHub · gangway', canActivate: [authGuard], loadComponent: () => import('./features/github/github-callback').then((m) => m.GitHubCallback) },
   // The server answers every unknown path on the `app` surface with index.html (SPA
   // fallback), so an unknown path is the router's to handle, not a 404 page's.
   { path: '**', redirectTo: '' },

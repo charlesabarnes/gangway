@@ -184,5 +184,35 @@
       "apps.install",
       "jobs.claim"
     ]
-  }
+  },
+  "githubStatus": {
+    "configured": true,
+    "appId": "777",
+    "appSlug": "gangway-preview",
+    "appUrl": "https://github.com/apps/gangway-preview",
+    "installUrl": "https://github.com/apps/gangway-preview/installations/new",
+    "webhookUrl": "https://hooks.preview.localhost:8443/github",
+    "missing": [],
+    "managedByConfig": false
+  },
+  "repo": {
+    "id": "01M32T8NBMWNSVJZT7XYX2MRZZ",
+    "forge": "github",
+    "fullName": "acme/web-app",
+    "installationId": "4242",
+    "slug": "web-app",
+    "enabled": true,
+    "disabledReason": null,
+    "visibility": null,
+    "ttl": null,
+    "forks": "ask",
+    "drafts": false,
+    "createdAt": "2026-09-21T20:00:00.000Z",
+    "updatedAt": "2026-09-21T20:00:00.000Z"
+  },
+  "forkPolicies": [
+    "ask",
+    "auto",
+    "never"
+  ]
 }

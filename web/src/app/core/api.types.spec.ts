@@ -1,7 +1,8 @@
 import contract from '../../testing/fixtures/contract.json';
 import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
-  type ApiToken, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Scope, type SessionInfo, type Visibility,
+  FORK_POLICIES,
+  type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Repo, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
 /**
@@ -18,6 +19,8 @@ describe('the /v1 wire contract', () => {
     const user: SessionInfo = contract.sessionUser as SessionInfo;
     const login: LoginResponse = contract.login as LoginResponse;
     const token: ApiToken = contract.token as ApiToken;
+    const github: GitHubStatus = contract.githubStatus as GitHubStatus;
+    const repo: Repo = contract.repo as Repo;
 
     // Every key the server sends is one the type knows, and the other way round.
     const keys = (o: object) => Object.keys(o).sort();
@@ -25,6 +28,10 @@ describe('the /v1 wire contract', () => {
     const TOKEN_KEYS: (keyof ApiToken)[] = ['id', 'name', 'prefix', 'scopes', 'userId', 'appName', 'expiresAt', 'lastUsedAt', 'revokedAt', 'createdAt'];
     expect(keys(preview)).toEqual([...PREVIEW_KEYS].sort());
     expect(keys(token)).toEqual([...TOKEN_KEYS].sort());
+    const REPO_KEYS: (keyof Repo)[] = ['id', 'forge', 'fullName', 'installationId', 'slug', 'enabled', 'disabledReason', 'visibility', 'ttl', 'forks', 'drafts', 'createdAt', 'updatedAt'];
+    const GITHUB_KEYS: (keyof GitHubStatus)[] = ['configured', 'appId', 'appSlug', 'appUrl', 'installUrl', 'webhookUrl', 'missing', 'managedByConfig'];
+    expect(keys(repo)).toEqual([...REPO_KEYS].sort());
+    expect(keys(github)).toEqual([...GITHUB_KEYS].sort());
     expect(keys(list)).toEqual(['previews', 'seq']);
     expect(keys(login)).toEqual(['permissions', 'user']);
     expect(event.type).toBe('preview.state');
@@ -40,6 +47,7 @@ describe('the /v1 wire contract', () => {
     expect([...STREAM_EVENT_TYPES]).toEqual(contract.streamEventTypes);
     expect(visibilities).toEqual(contract.visibilities);
     expect(scopes).toEqual(contract.scopes);
+    expect([...FORK_POLICIES]).toEqual(contract.forkPolicies);
   });
 
   it('what each token scope grants matches the server, scope by scope', () => {

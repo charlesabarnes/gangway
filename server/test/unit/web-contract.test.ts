@@ -15,12 +15,17 @@ import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
+import { githubRoutes } from "../../src/app/routes/github.ts";
+import { repoRoutes } from "../../src/app/routes/repos.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { staticTokenVerifier, tokenActor } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
+import { ReposRepo } from "../../src/db/repos/repos.ts";
+import { ManifestStates } from "../../src/forge/github/manifest.ts";
 import { Logger } from "../../src/logger.ts";
+import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { LOG_STREAMS } from "../../src/previews/logs.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
@@ -115,5 +120,26 @@ describe("account wire shapes", () => {
     void tokenActor;
     const denied = await call("/v1/tokens", { headers: { authorization: "Bearer gw_nope" } });
     expect(Object.keys(await denied.json() as object).sort()).toEqual(Object.keys(contract["problem"] as object).sort());
+  });
+});
+
+describe("github wire shapes (ADR-0011)", () => {
+  test("the status and a repository", async () => {
+    const s = setupAccounts();
+    const settings = new Settings({}, new MemorySettingsStore());
+    settings.set(SETTINGS.githubAppId, "777"); settings.set(SETTINGS.githubAppSlug, "gangway-preview");
+    settings.set(SETTINGS.githubPrivateKey, "k"); settings.set(SETTINGS.githubWebhookSecret, "s");
+    const repos = new ReposRepo(s.db, s.now);
+    repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "4242", slug: "web-app" });
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler(quiet));
+    app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
+    repoRoutes(app, repos, s.audit);
+    githubRoutes(app, { app: null as never, settings, states: new ManifestStates(), audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
+
+    expect(shapeOf(await (await app.request("/github")).json())).toEqual(shapeOf(contract["githubStatus"]));
+    const { repo } = await (await app.request("/repos/r1")).json() as { repo: unknown };
+    expect(shapeOf(repo)).toEqual(shapeOf(contract["repo"]));
+    expect(contract["forkPolicies"]).toEqual(["ask", "auto", "never"]);
   });
 });
