@@ -5,8 +5,8 @@ import { Logger } from "../../src/logger.ts";
 import { deploy } from "../../src/previews/deploy.ts";
 import { fixedPolicy, PolicyResolver, triggerOf, type Policy } from "../../src/previews/policy.ts";
 import { TemplatesRepo } from "../../src/db/repos/templates.ts";
-import { ReposRepo } from "../../src/db/repos/repos.ts";
-import type { Repo, Template } from "../../../shared/src/domain.ts";
+import { ProjectsRepo } from "../../src/db/repos/projects.ts";
+import type { Project, Template } from "../../../shared/src/domain.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
 const USER = { kind: "user", userId: "u1", roleId: "admin", permissions: new Set(), sessionId: "s" } as const;
@@ -27,14 +27,15 @@ describe("PolicyResolver", () => {
   const setup = () => {
     const s = setupPreviewContext();
     const templates = new TemplatesRepo(s.db);
-    const repos = new ReposRepo(s.db);
+    const repos = new ProjectsRepo(s.db);
     templates.create({ id: "staging", name: "Staging", visibility: "private", clearance: "high" });
     templates.create({ id: "ci", name: "CI", ttl: "1h" });
     const defaults: Record<string, string> = { pr: "default", api: "ci", manual: "default" };
     const lines: string[] = [];
     const policy = new PolicyResolver({
       templates, defaultFor: (t) => defaults[t]!, logger: new Logger("warn", {}, (l) => lines.push(l)),
-      repoFor: (source) => (source.kind === "pr" ? repos.getByFullName("github", source.repo) : undefined),
+      project: (ref) => repos.find(ref),
+      projectForSource: (source) => (source.kind === "pr" ? repos.getByFullName("github", source.repo) : undefined),
     });
     return { s, templates, repos, defaults, policy, lines };
   };
@@ -49,9 +50,9 @@ describe("PolicyResolver", () => {
     const { policy, repos, defaults, lines } = setup();
     expect(policy.resolve({ source: IMAGE, actor: ACTOR }).template.id).toBe("ci");
     expect(policy.resolve({ source: IMAGE, actor: USER as never }).template.id).toBe("default");
-    const repo = repos.create({ id: "r1", forge: "github", fullName: "acme/web", installationId: "1", slug: "web" });
+    const repo = repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web", installationId: "1", slug: "web" });
     const resolved = policy.resolve({ source: PR, actor: FORGE as never });
-    expect(resolved).toMatchObject({ template: { id: "default" }, repo: { id: "r1" }, trigger: "pr" });
+    expect(resolved).toMatchObject({ template: { id: "default" }, project: { id: "r1" }, trigger: "pr" });
     repos.update(repo.id, { templateId: "staging" });
     expect(policy.resolve({ source: PR, actor: FORGE as never }).template.id).toBe("staging");
 
@@ -60,17 +61,26 @@ describe("PolicyResolver", () => {
     expect(policy.resolve({ source: IMAGE, actor: ACTOR }).template.id).toBe("default");
     expect(lines.filter((l) => l.includes("template not found"))).toHaveLength(1);
   });
+
+  test("a project named by the request wins over the source's, by id or slug; an unknown one is a 422", () => {
+    const { policy, repos } = setup();
+    repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web", slug: "web", templateId: "staging" });
+    repos.create({ id: "r2", name: "ci box", slug: "ci-box", templateId: "ci" });
+    expect(policy.resolve({ source: IMAGE, actor: ACTOR, projectId: "ci-box" })).toMatchObject({ project: { id: "r2" }, template: { id: "ci" } });
+    expect(policy.resolve({ source: PR, actor: FORGE as never, projectId: "r2" }).project?.id).toBe("r2");
+    expect(() => policy.resolve({ source: IMAGE, actor: ACTOR, projectId: "ghost" })).toThrow(AppError);
+  });
 });
 
 describe("deploy follows the template", () => {
   /** A policy with one template and, optionally, one repository -- what the resolver would hand back. */
-  const withRepo = (fields: Partial<Template>, repo?: Partial<Repo>): Policy => {
+  const withRepo = (fields: Partial<Template>, repo?: Partial<Project>): Policy => {
     const base = fixedPolicy(fields);
-    const full: Repo | undefined = repo && {
-      id: "r1", forge: "github", fullName: "acme/web", installationId: "1", slug: "web", enabled: true, disabledReason: null, templateId: null,
+    const full: Project | undefined = repo && {
+      id: "r1", name: "web", forge: "github", fullName: "acme/web", installationId: "1", prTrigger: "workflow", slug: "web", enabled: true, disabledReason: null, templateId: null,
       visibility: null, ttl: null, prClearance: null, forks: "ask", drafts: false, forkClearance: "none", createdAt: new Date(0), updatedAt: new Date(0), ...repo,
     };
-    return { resolve: (i) => ({ ...base.resolve(i), repo: full }), default: base.default };
+    return { resolve: (i) => ({ ...base.resolve(i), project: full }), default: base.default };
   };
 
   test("visibility, ttl, idle, clearance and placement come from the template; the row records which one", async () => {
@@ -79,17 +89,18 @@ describe("deploy follows the template", () => {
     const asked: [string | null, string][] = [];
     s.ctx.secretsFor = (repoId, clearance) => { asked.push([repoId, clearance]); return {}; };
     const p = await (await deploy(s.ctx, { actor: ACTOR, name: "tpl", source: IMAGE })).done;
-    expect(p).toMatchObject({ visibility: "private", ttlExpiresAt: null, idleAfterMs: 600_000, secretLevel: "high", templateId: "staging", hostId: "local" });
+    expect(p).toMatchObject({ visibility: "private", ttlExpiresAt: null, idleAfterMs: 600_000, secretLevel: "high", templateId: "staging", hostId: "local", projectId: null });
     expect(asked).toEqual([[null, "high"]]);
   });
 
   test("the repository's overrides sit on top of the template, and the request on top of those", async () => {
     const s = setupPreviewContext();
+    new ProjectsRepo(s.db).create({ id: "r1", name: "web", slug: "web", forge: "github", fullName: "acme/web" }); // the preview's project_id references it
     s.ctx.policy = withRepo({ visibility: "public", ttl: "7d", clearance: "standard" }, { visibility: "private", ttl: "2h", prClearance: "low" });
     const asked: [string | null, string][] = [];
     s.ctx.secretsFor = (repoId, clearance) => { asked.push([repoId, clearance]); return {}; };
     const a = await (await deploy(s.ctx, { actor: ACTOR, name: "over", source: IMAGE })).done;
-    expect(a).toMatchObject({ visibility: "private", secretLevel: "low" });
+    expect(a).toMatchObject({ visibility: "private", secretLevel: "low", projectId: "r1" });
     expect(a.ttlExpiresAt!.getTime() - s.ctx.now()).toBeLessThanOrEqual(2 * 3_600_000);
     expect(asked).toEqual([["r1", "low"]]); // the repository's secrets, at the override's clearance
     const b = await (await deploy(s.ctx, { actor: ACTOR, name: "req", source: IMAGE, visibility: "public", ttl: null, secretLevel: "none" })).done;

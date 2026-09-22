@@ -1,8 +1,8 @@
 import contract from '../../testing/fixtures/contract.json';
 import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
-  CLEARANCES, FORK_POLICIES, TRIGGERS, type Template,
-  type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Repo, type Scope, type SessionInfo, type Visibility,
+  CLEARANCES, FORK_POLICIES, PR_TRIGGERS, TRIGGERS, type Template,
+  type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Project, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
 /**
@@ -20,17 +20,18 @@ describe('the /v1 wire contract', () => {
     const login: LoginResponse = contract.login as LoginResponse;
     const token: ApiToken = contract.token as ApiToken;
     const github: GitHubStatus = contract.githubStatus as GitHubStatus;
-    const repo: Repo = contract.repo as Repo;
+    const repo: Project = contract.project as Project;
 
     // Every key the server sends is one the type knows, and the other way round.
     const keys = (o: object) => Object.keys(o).sort();
-    const PREVIEW_KEYS: (keyof Preview)[] = ['id', 'project', 'hostId', 'kind', 'state', 'source', 'visibility', 'ttlExpiresAt', 'idleAfterMs', 'secretLevel', 'templateId', 'lastSeenAt', 'error', 'createdAt', 'updatedAt', 'destroyedAt', 'urls'];
+    const PREVIEW_KEYS: (keyof Preview)[] = ['id', 'project', 'hostId', 'kind', 'state', 'source', 'visibility', 'ttlExpiresAt', 'idleAfterMs', 'secretLevel', 'templateId', 'projectId', 'lastSeenAt', 'error', 'createdAt', 'updatedAt', 'destroyedAt', 'urls'];
     const TOKEN_KEYS: (keyof ApiToken)[] = ['id', 'name', 'prefix', 'scopes', 'userId', 'appName', 'expiresAt', 'lastUsedAt', 'revokedAt', 'createdAt'];
     expect(keys(preview)).toEqual([...PREVIEW_KEYS].sort());
     expect(keys(token)).toEqual([...TOKEN_KEYS].sort());
-    const REPO_KEYS: (keyof Repo)[] = ['id', 'forge', 'fullName', 'installationId', 'slug', 'enabled', 'disabledReason', 'templateId', 'visibility', 'ttl', 'forks', 'drafts', 'prClearance', 'forkClearance', 'createdAt', 'updatedAt'];
+    const REPO_KEYS: (keyof Project)[] = ['id', 'name', 'forge', 'fullName', 'installationId', 'prTrigger', 'slug', 'enabled', 'disabledReason', 'templateId', 'visibility', 'ttl', 'forks', 'drafts', 'prClearance', 'forkClearance', 'createdAt', 'updatedAt'];
     const GITHUB_KEYS: (keyof GitHubStatus)[] = ['configured', 'appId', 'appSlug', 'appUrl', 'installUrl', 'webhookUrl', 'missing', 'managedByConfig'];
     expect(keys(repo)).toEqual([...REPO_KEYS].sort());
+    expect(contract.prTriggers).toEqual([...PR_TRIGGERS]);
     const template: Template = contract.template as Template;
     const TEMPLATE_KEYS: (keyof Template)[] = ['id', 'name', 'description', 'builtin', 'visibility', 'ttl', 'idleAfter', 'clearance', 'hostId', 'createdAt', 'updatedAt'];
     expect(keys(template)).toEqual([...TEMPLATE_KEYS].sort());

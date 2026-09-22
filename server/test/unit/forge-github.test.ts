@@ -281,3 +281,30 @@ describe("GitHubForge", () => {
     expect(gh.calls.at(-1)).toMatchObject({ method: "POST", path: "/repos/acme/web-app/deployments/555/statuses", body: { state: "success", environment_url: "https://web-app-pr-123.preview.example.com/", auto_inactive: false } });
   });
 });
+
+describe("GitHubApp.installedRepositories (ADR-0014)", () => {
+  test("every repository across installations, sorted, each with its installation", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const calls: string[] = [];
+    const app = new GitHubApp({
+      credentials: () => ({ appId: "1", privateKey: privateKey.export({ type: "pkcs1", format: "pem" }).toString() }),
+      baseUrl: "https://api.github.test", log: new Logger("error", {}, () => {}),
+      fetch: async (url, init) => {
+        calls.push(`${init?.method ?? "GET"} ${url.replace("https://api.github.test", "")}`);
+        if (url.endsWith("/app/installations?per_page=100")) return Response.json([{ id: 11 }, { id: 22 }]);
+        const tok = /\/app\/installations\/(\d+)\/access_tokens$/.exec(url);
+        if (tok) return Response.json({ token: `ghs_${tok[1]}`, expires_at: new Date(Date.now() + 3_600_000).toISOString() }, { status: 201 });
+        if (url.endsWith("/installation/repositories?per_page=100")) {
+          const auth = new Headers(init?.headers).get("authorization");
+          return Response.json({ repositories: auth === "token ghs_11" ? [{ full_name: "acme/web", private: true }] : [{ full_name: "acme/api", private: false }] });
+        }
+        return new Response("{}", { status: 404 });
+      },
+    });
+    expect(await app.installedRepositories()).toEqual([
+      { fullName: "acme/api", installationId: "22", private: false },
+      { fullName: "acme/web", installationId: "11", private: true },
+    ]);
+    expect(calls[0]).toBe("GET /app/installations?per_page=100");
+  });
+});

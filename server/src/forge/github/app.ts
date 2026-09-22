@@ -151,6 +151,22 @@ export class GitHubApp {
     };
   }
 
+  /**
+   * Every repository the App is installed on, across installations (ADR-0014): what the
+   * New project form offers. The first 100 per installation; past that, type the name.
+   */
+  async installedRepositories(): Promise<{ fullName: string; installationId: string; private: boolean }[]> {
+    const installs = await this.request<{ id: number }[]>("GET", "/app/installations?per_page=100", { auth: `Bearer ${this.jwt()}` });
+    if (installs.status !== 200 || !Array.isArray(installs.body)) throw new AppError("bad_gateway", `GitHub did not list the App's installations (${installs.status})`);
+    const out: { fullName: string; installationId: string; private: boolean }[] = [];
+    for (const inst of installs.body) {
+      const id = String(inst.id);
+      const r = await this.asInstallation<{ repositories?: { full_name: string; private: boolean }[] }>(id, "GET", "/installation/repositories?per_page=100");
+      for (const repo of r.body?.repositories ?? []) out.push({ fullName: repo.full_name, installationId: id, private: repo.private });
+    }
+    return out.sort((x, y) => x.fullName.localeCompare(y.fullName));
+  }
+
   /** As an installation: mints (or reuses) the token and makes the call. */
   async asInstallation<T = unknown>(installationId: string, method: string, path: string, body?: unknown): Promise<GitHubResponse<T>> {
     const token = await this.installationToken(installationId);

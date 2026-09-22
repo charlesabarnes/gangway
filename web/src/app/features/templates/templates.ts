@@ -15,8 +15,8 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 
 /**
  * Templates (ADR-0013): named preview policies. What a deploy gets unless the request,
- * its repository or the stack file says otherwise. `default` is built in and can be edited
- * but never removed; Settings picks one per trigger, a repository picks its own.
+ * its project or the stack file says otherwise. `default` is built in and can be edited
+ * but never removed; Settings picks one per trigger, a project picks its own.
  */
 @Component({
   selector: 'app-templates',
@@ -24,7 +24,7 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
   template: `
     <section class="mx-auto max-w-4xl px-6 py-10">
       <h1 class="text-2xl font-semibold tracking-tight">Templates</h1>
-      <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">A template is what a preview gets when nothing more specific is said: its visibility, how long it lives, when it sleeps, which secrets it may read, and where it runs. <a routerLink="/settings" class="underline decoration-neutral-400 underline-offset-2">Settings</a> picks one per trigger; a <a routerLink="/repos" class="underline decoration-neutral-400 underline-offset-2">repository</a> picks its own.</p>
+      <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">A template is what a preview gets when nothing more specific is said: its visibility, how long it lives, when it sleeps, which secrets it may read, and where it runs. <a routerLink="/settings" class="underline decoration-neutral-400 underline-offset-2">Settings</a> picks one per trigger; a <a routerLink="/projects" class="underline decoration-neutral-400 underline-offset-2">project</a> picks its own.</p>
 
       <ul class="mt-6 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800" data-testid="templates">
         @for (t of templates(); track t.id) {
@@ -71,7 +71,7 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
       }
 
       <app-confirm-dialog [heading]="'Delete ' + (pendingDelete()?.name ?? '') + '?'" confirmLabel="Delete" (confirmed)="deleteConfirmed()">
-        Repositories on it go back to the pull-request default. Running previews keep what they were deployed with.
+        Projects on it go back to the default for their trigger. Running previews keep what they were deployed with.
       </app-confirm-dialog>
     </section>
   `,

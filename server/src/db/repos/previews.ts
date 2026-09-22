@@ -14,12 +14,14 @@ export type CreatePreview = {
   idleAfterMs?: number | null;
   secretLevel?: Clearance | null;
   templateId?: string | null;
+  projectId?: string | null;
 };
 
 export type PreviewFilter = {
   state?: PreviewState | PreviewState[];
   hostId?: string;
   kind?: PreviewKind;
+  projectId?: string;
   includeDestroyed?: boolean;
 };
 
@@ -37,13 +39,13 @@ export class PreviewsRepo {
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
       `INSERT INTO previews (id, project, host_id, kind, state, source_kind, source_json,
-                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, created_at, updated_at)
+                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, created_at, updated_at)
        VALUES ($id, $project, $host_id, $kind, $state, $source_kind, $source_json,
-               $visibility, $ttl, $idle, $level, $template, $now, $now)`,
+               $visibility, $ttl, $idle, $level, $template, $projectId, $now, $now)`,
       {
         id: p.id, project: p.project, host_id: p.hostId, kind: p.kind ?? "preview",
         state: p.state, source_kind, source_json, visibility: p.visibility,
-        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, now,
+        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, projectId: p.projectId ?? null, now,
       },
     );
     return this.get(p.id)!;
@@ -70,6 +72,7 @@ export class PreviewsRepo {
     }
     if (f.hostId) { where.push("host_id = $hostId"); params["hostId"] = f.hostId; }
     if (f.kind) { where.push("kind = $kind"); params["kind"] = f.kind; }
+    if (f.projectId) { where.push("project_id = $projectId"); params["projectId"] = f.projectId; }
     if (!f.includeDestroyed && !f.state) where.push("state != 'destroyed'");
 
     const sql = `SELECT * FROM previews${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC`;

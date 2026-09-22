@@ -15,6 +15,7 @@
     "idleAfterMs": 0,
     "secretLevel": "standard",
     "templateId": "default",
+    "projectId": null,
     "lastSeenAt": null,
     "error": null,
     "createdAt": "2026-09-21T20:24:15.180Z",
@@ -205,20 +206,22 @@
     "missing": [],
     "managedByConfig": false
   },
-  "repo": {
+  "project": {
     "id": "01M32T8NBMWNSVJZT7XYX2MRZZ",
+    "name": "web-app",
+    "slug": "web-app",
     "forge": "github",
     "fullName": "acme/web-app",
     "installationId": "4242",
-    "slug": "web-app",
+    "prTrigger": "workflow",
     "enabled": true,
     "disabledReason": null,
     "templateId": null,
     "visibility": null,
     "ttl": null,
+    "prClearance": null,
     "forks": "ask",
     "drafts": false,
-    "prClearance": null,
     "forkClearance": "none",
     "createdAt": "2026-09-21T20:00:00.000Z",
     "updatedAt": "2026-09-21T20:00:00.000Z"
@@ -251,5 +254,9 @@
     "pr",
     "api",
     "manual"
+  ],
+  "prTriggers": [
+    "workflow",
+    "webhook"
   ]
 }

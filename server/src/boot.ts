@@ -13,7 +13,7 @@ import { auditRoutes } from "./app/routes/audit.ts";
 import { authRoutes } from "./app/routes/auth.ts";
 import { roleRoutes } from "./app/routes/roles.ts";
 import { githubRoutes } from "./app/routes/github.ts";
-import { repoRoutes } from "./app/routes/repos.ts";
+import { projectRoutes } from "./app/routes/projects.ts";
 import { settingsRoutes } from "./app/routes/settings.ts";
 import { templateRoutes } from "./app/routes/templates.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
@@ -23,7 +23,7 @@ import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
 import { Audit } from "./audit/audit.ts";
 import { Accounts } from "./auth/accounts.ts";
-import { chainVerifiers, staticTokenVerifier } from "./auth/actor.ts";
+import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor.ts";
 import { Bootstrap } from "./auth/bootstrap.ts";
 import { LoginLimiter } from "./auth/limiter.ts";
 import { Passwords } from "./auth/password.ts";
@@ -33,7 +33,7 @@ import { Tokens } from "./auth/tokens.ts";
 import type { Config } from "./config.ts";
 import { migrate } from "./db/migrate.ts";
 import {
-  AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, ReposRepo, RolesRepo, RoutesRepo, TemplatesRepo,
+  AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, ProjectsRepo, RolesRepo, RoutesRepo, TemplatesRepo,
   SessionsRepo, SqliteSettingsStore, TokensRepo, UsersRepo,
 } from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
@@ -59,6 +59,8 @@ import { wakingPage } from "./net/errorpages.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
 import { DEFAULT_TIMINGS, type PreviewContext } from "./previews/context.ts";
 import { PolicyResolver } from "./previews/policy.ts";
+import { Pulls } from "./projects/pulls.ts";
+import { GitHubOidc } from "./auth/oidc.ts";
 import { TRIGGERS, type Trigger } from "../../shared/src/domain.ts";
 import { deploy, urlsFor } from "./previews/deploy.ts";
 import { destroy } from "./previews/destroy.ts";
@@ -166,16 +168,18 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const dockerClients = new DockerClients();
   const compose = o.compose ?? createComposeRunner(dockerClients, (hostId, ok, err) => hosts.setState(hostId, ok ? "ready" : "unreachable", err));
 
-  /* ---- ADR-0013: which template a deploy follows. A PR's repository by full name, a git
-     deploy's by the name in its clone URL (as ADR-0012 matches secrets); the rest have none. */
-  const reposRepo = new ReposRepo(db);
+  /* ---- ADR-0013/0014: which project a deploy belongs to and which template it follows.
+     Named by the request, else the project whose repository the source is: a PR by full
+     name, a git deploy by the name in its clone URL; images and tarballs have none. */
+  const projects = new ProjectsRepo(db);
   const templates = new TemplatesRepo(db);
   const triggerDefault = (t: Trigger) => settings.get(t === "pr" ? SETTINGS.templatePr : t === "api" ? SETTINGS.templateApi : SETTINGS.templateManual);
   const policy = new PolicyResolver({
     templates,
-    repoFor: (source) => {
-      const full = source.kind === "pr" ? source.repo : source.kind === "git" ? githubFullName(source.repo) : null;
-      return full ? reposRepo.getByFullName("github", full) : undefined;
+    project: (ref) => projects.find(ref),
+    projectForSource: (source) => {
+      const full = source.kind === "pr" ? source.repo : source.kind === "pushed" ? source.pr.repo : source.kind === "git" ? githubFullName(source.repo) : null;
+      return full ? projects.getByFullName("github", full) : undefined;
     },
     defaultFor: triggerDefault,
     logger: logger.child({ mod: "policy" }),
@@ -199,7 +203,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
 
   /* ---- pull requests (ADR-0011). Credentials are read from settings on every use. */
-  const secrets = new Secrets(reposRepo, settingsStore, new SecretBox(loadOrCreateSecretsKey(stateDir)), audit);
+  const secrets = new Secrets(projects, settingsStore, new SecretBox(loadOrCreateSecretsKey(stateDir)), audit);
   // ADR-0012: the global map, plus the repository's when the deploy has one, at the clearance the pipeline resolved.
   ctx.secretsFor = (repoId, clearance) => secrets.valuesFor(repoId, clearance);
   const githubApp = new GitHubApp({
@@ -208,7 +212,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   });
   const forge = new GitHubForge({ app: githubApp, webhookSecret: () => settings.get(SETTINGS.githubWebhookSecret) });
   const prPreviews = new PrPreviews({
-    forge, repos: reposRepo, instance: config.instanceId, logger: logger.child({ mod: "pr" }), policy,
+    forge, repos: projects, instance: config.instanceId, logger: logger.child({ mod: "pr" }), policy,
     secretsFor: (repo, clearance) => secrets.valuesFor(repo.id, clearance),
     previews: {
       deploy: (input) => deploy(ctx, input),
@@ -251,10 +255,27 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     appOrigin: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin),
   });
 
+  /* ---- ADR-0014: pull requests from a project's own workflow. The workflow's OIDC
+     audience is our public API origin, so a token minted for anything else is refused. */
+  const apiOrigin = () => publicOriginFor(`api.${baseDomain()}`, ctx.origin);
+  const oidc = new GitHubOidc({ audience: apiOrigin, logger: logger.child({ mod: "oidc" }) });
+  const pulls = new Pulls({
+    projects,
+    previews: {
+      deploy: (input) => deploy(ctx, input),
+      destroy: (id, actor) => destroy(ctx, id, actor),
+      findPullRequest: (repo, number) => ctx.previews.findPullRequest(repo, number),
+    },
+  });
+
   /* ---- application surfaces */
   const auth = {
     // Database tokens first: they are the common case. The env token stays, always (§8.1).
-    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken)),
+    // Last: a GitHub Actions run's OIDC token (ADR-0014), confined to its project's pull routes.
+    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken), async (presented) => {
+      const claims = await oidc.verify(presented);
+      return claims ? workflowActor(claims) : null;
+    }),
     resolveSession: (secret: string) => sessions.resolve(secret)?.actor ?? null,
     // What a browser on this Host sends as `Origin`. From the PUBLIC scheme and port, never
     // the listener's: behind a reverse proxy they differ, and the browser only knows one.
@@ -276,7 +297,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       userRoutes(api, accounts);
       roleRoutes(api, roles);
       settingsRoutes(api, settings, audit, templates);
-      repoRoutes(api, reposRepo, audit, secrets, templates);
+      projectRoutes(api, {
+        projects, audit, secrets, templates, pulls, apiOrigin,
+        wire: (p) => ({ ...p, urls: urlsFor(ctx, p.id) }),
+      });
       templateRoutes(api, { templates, hosts, audit, namedByTrigger: (id) => TRIGGERS.filter((t) => triggerDefault(t) === id) });
       secretRoutes(api, secrets);
       githubRoutes(api, { app: githubApp, settings, states: new ManifestStates(), audit, baseDomain, originFor: (label) => publicOriginFor(`${label}.${baseDomain()}`, ctx.origin) });

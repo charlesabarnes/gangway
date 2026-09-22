@@ -3,7 +3,7 @@
  * For service-layer tests that need deploys to exist but not a daemon.
  */
 import { afterEach } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -46,9 +46,16 @@ export function setupPreviewContext() {
   const fake = {
     downs: [] as string[], ups: 0, builds: 0, buildExit: 0, failDownFor: new Set<string>(), planDelayMs: 0, runs: [] as string[][], runExit: 0,
     stops: [] as string[][], starts: [] as string[][], stopExit: 0, startExit: 0, psState: "running", answering: true,
+    /** What each `up` was given: its extra env, and the registry login it could read at that moment. */
+    upLogins: [] as { env: Record<string, string> | undefined; config: string | null }[],
+    downArgvs: [] as string[][],
   };
   const compose: ComposeRunner = {
-    async *stream(argv): AsyncGenerator<ComposeEvent> {
+    async *stream(argv, _host, o): AsyncGenerator<ComposeEvent> {
+      if (argv.includes("up")) {
+        const dir = o.env?.["DOCKER_CONFIG"];
+        fake.upLogins.push({ env: o.env, config: dir ? readFileSync(join(dir, "config.json"), "utf8") : null });
+      }
       if (argv.includes("build")) {
         fake.builds++;
         yield { type: "line", stream: "stderr", line: "#1 [internal] load build definition from Dockerfile" };
@@ -69,6 +76,7 @@ export function setupPreviewContext() {
       if (cmd === "start") { fake.starts.push(argv); return { code: fake.startExit, stdout: "", stderr: fake.startExit ? "cannot start" : "", signal: null }; }
       if (cmd === "down") {
         fake.downs.push(project);
+        fake.downArgvs.push(argv);
         if (fake.failDownFor.has(project)) return { code: 1, stdout: "", stderr: "daemon said no", signal: null };
       }
       if (cmd === "config" && fake.planDelayMs) await Bun.sleep(fake.planDelayMs);

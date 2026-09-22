@@ -11,5 +11,5 @@ export { SessionsRepo, type CreateSession } from "./sessions.ts";
 export { TokensRepo, type CreateToken } from "./tokens.ts";
 export { AuditRepo, type AppendAudit } from "./audit.ts";
 export { RolesRepo } from "./roles.ts";
-export { ReposRepo, type CreateRepo, type RepoPatch } from "./repos.ts";
+export { ProjectsRepo, type CreateProject, type ProjectPatch } from "./projects.ts";
 export { TemplatesRepo, DEFAULT_TEMPLATE_ID, type CreateTemplate, type TemplatePatch } from "./templates.ts";

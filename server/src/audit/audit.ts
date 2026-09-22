@@ -23,6 +23,7 @@ export type AuditAction =
   | "role.permissions.changed"
   | "settings.changed"
   | "github.connected" | "repo.updated" | "repo.deleted" | "repo.env.changed" | "secrets.changed"
+  | "project.created" | "project.updated" | "project.deleted" | "project.env.changed"
   | "template.created" | "template.updated" | "template.deleted"
   | "token.created" | "token.revoked";
 

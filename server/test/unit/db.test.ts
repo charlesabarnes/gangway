@@ -86,7 +86,7 @@ for (const [name, open] of DRIVERS) {
     test("the real 0001 schema applies and enforces its constraints", () => {
       const { db } = fresh();
       const res = migrate(db, MIGRATIONS);
-      expect(res.applied).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(res.applied).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
 
       const now = Date.now();
       db.run(`INSERT INTO hosts (id, name, docker_host, created_at)
@@ -121,12 +121,12 @@ for (const [name, open] of DRIVERS) {
     test("migrate is idempotent across reopen", () => {
       const dir = tmp();
       const a = open({ path: join(dir, "g.db") });
-      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
       a.db.close();
       const b = open({ path: join(dir, "g.db") });
       const r = migrate(b.db, MIGRATIONS);
       expect(r.applied).toEqual([]);
-      expect(r.alreadyApplied).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(r.alreadyApplied).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
       b.db.close();
     });
 
@@ -178,7 +178,7 @@ for (const [name, open] of DRIVERS) {
         a.db.close();
 
         const b = open({ path });
-        expect(migrate(b.db, MIGRATIONS).applied).toEqual([3, 4, 5, 6, 7]);
+        expect(migrate(b.db, MIGRATIONS).applied).toEqual([3, 4, 5, 6, 7, 8]);
         expect(b.db.get<Record<string, unknown>>("SELECT id, email, role_id, disabled, created_at FROM users")).toEqual(
           { id: "u1", email: "ada@example.com", role_id: "member", disabled: 1, created_at: 42 });
         expect(b.db.query("PRAGMA foreign_key_check")).toEqual([]);
@@ -212,8 +212,10 @@ for (const [name, open] of DRIVERS) {
         a.db.run("INSERT INTO repos (id, forge, full_name, slug, pr_clearance, fork_clearance, visibility, env_ciphertext, created_at, updated_at) VALUES ('r1', 'github', 'acme/a', 'a', 'standard', 'none', 'public', 'sealed', 1, 1), ('r2', 'github', 'acme/b', 'b', 'high', 'low', NULL, NULL, 1, 1)");
         a.db.close();
 
+        const upTo7 = tmp();
+        for (const f of readdirSync(MIGRATIONS)) if (/^000[1-7]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo7, f));
         const b = open({ path });
-        expect(migrate(b.db, MIGRATIONS).applied).toEqual([7]);
+        expect(migrate(b.db, upTo7).applied).toEqual([7]);
         expect(b.db.get<Record<string, unknown>>("SELECT visibility, ttl, idle_after, clearance FROM templates WHERE id = 'default'")).toEqual(
           { visibility: "private", ttl: "3d", idle_after: "30m", clearance: "low" });
         expect(b.db.query<{ key: string }>("SELECT key FROM settings ORDER BY key").map((r) => r.key)).toEqual(["baseDomain"]);
@@ -228,6 +230,34 @@ for (const [name, open] of DRIVERS) {
         expect(() => b.db.run("UPDATE repos SET template_id = 'ghost' WHERE id = 'r2'")).toThrow();
         b.db.run("DELETE FROM templates WHERE id = 'staging'");
         expect(b.db.get<{ template_id: string | null }>("SELECT template_id FROM repos WHERE id = 'r1'")!.template_id).toBeNull();
+        b.db.close();
+      });
+    });
+
+    describe("0008 projects (ADR-0014)", () => {
+      test("upgrades a populated 0007 database: each repository becomes a project named after it, still on the webhook; its PR previews are filed under it; its secrets come along", () => {
+        const upTo7 = tmp();
+        for (const f of readdirSync(MIGRATIONS)) if (/^000[1-7]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo7, f));
+        const path = join(tmp(), "g.db");
+        const a = open({ path });
+        migrate(a.db, upTo7);
+        a.db.run("INSERT INTO hosts (id, name, docker_host, capabilities, publish_bind, upstream_dial, upstream_address, port_range_start, port_range_end, created_at) VALUES ('local', 'local', 'unix:///x', '[\"preview\"]', '127.0.0.1', 'direct', '127.0.0.1', 31000, 31099, 1)");
+        a.db.run("INSERT INTO repos (id, forge, full_name, installation_id, slug, pr_clearance, fork_clearance, visibility, template_id, env_ciphertext, created_at, updated_at) VALUES ('r1', 'github', 'charlesabarnes/store-admin', '42', 'store-admin', 'high', 'none', 'private', 'default', 'sealed', 1, 1)");
+        a.db.run("INSERT INTO previews (id, project, host_id, state, source_kind, source_json, visibility, created_at, updated_at) VALUES ('p1', 'gw-t-store-admin-pr-4', 'local', 'awake', 'pr', '{\"repo\":\"charlesabarnes/store-admin\",\"number\":4,\"sha\":\"a\"}', 'unlisted', 1, 1), ('p2', 'gw-t-whoami', 'local', 'awake', 'image', '{\"image\":\"x\"}', 'public', 1, 1)");
+        a.db.close();
+
+        const b = open({ path });
+        expect(migrate(b.db, MIGRATIONS).applied).toEqual([8]);
+        expect(b.db.get<Record<string, unknown>>("SELECT id, name, slug, forge, full_name, installation_id, pr_trigger, template_id, visibility, pr_clearance, env_ciphertext FROM projects")).toEqual({
+          id: "r1", name: "store-admin", slug: "store-admin", forge: "github", full_name: "charlesabarnes/store-admin", installation_id: "42",
+          pr_trigger: "webhook", template_id: "default", visibility: "private", pr_clearance: "high", env_ciphertext: "sealed",
+        });
+        expect(b.db.query<Record<string, unknown>>("SELECT id, project_id FROM previews ORDER BY id")).toEqual([{ id: "p1", project_id: "r1" }, { id: "p2", project_id: null }]);
+        expect(b.db.query("SELECT name FROM sqlite_master WHERE name = 'repos'")).toEqual([]);
+        // A repository is both-or-neither.
+        expect(() => b.db.run("INSERT INTO projects (id, name, slug, forge, created_at, updated_at) VALUES ('x', 'x', 'x', 'github', 1, 1)")).toThrow();
+        b.db.run("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES ('y', 'whoami', 'whoami', 1, 1)");
+        expect(b.db.query("PRAGMA foreign_key_check")).toEqual([]);
         b.db.close();
       });
     });

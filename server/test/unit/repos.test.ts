@@ -7,7 +7,7 @@ import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import type { Db, OpenOptions } from "../../src/db/types.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import {
-  CertificatesRepo, EventsRepo, HostsRepo, PreviewsRepo, ReposRepo, RoutesRepo, SqliteSettingsStore,
+  CertificatesRepo, EventsRepo, HostsRepo, PreviewsRepo, ProjectsRepo, RoutesRepo, SqliteSettingsStore,
 } from "../../src/db/repos/index.ts";
 import { SETTINGS, Settings } from "../../src/settings.ts";
 
@@ -41,7 +41,7 @@ for (const [name, open] of DRIVERS) {
         routes: new RoutesRepo(db, now),
         events: new EventsRepo(db, now),
         certs: new CertificatesRepo(db, now),
-        repos: new ReposRepo(db, now),
+        repos: new ProjectsRepo(db, now),
       };
     };
 
@@ -229,28 +229,35 @@ for (const [name, open] of DRIVERS) {
       expect(store.get("surfaces.mcp")).toBe(true);
     });
 
-    test("repos: created by full name with a unique slug; patched in place; the slug is one namespace", () => {
-      const { repos } = setup();
-      const r = repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "4242", slug: "web-app" });
-      expect(r).toMatchObject({ forge: "github", fullName: "acme/web-app", slug: "web-app", enabled: true, disabledReason: null, visibility: null, ttl: null, forks: "ask", drafts: false });
-      expect(repos.getByFullName("github", "acme/web-app")?.id).toBe("r1");
-      expect(repos.getBySlug("web-app")?.id).toBe("r1");
-      expect(repos.getByFullName("github", "other/web-app")).toBeUndefined();
+    test("projects: made with or without a repository; found by id, slug or full name (any case); the slug is one namespace", () => {
+      const { repos, previews } = seeded();
+      const p = repos.create({ id: "p1", name: "Web app", slug: "web-app", forge: "github", fullName: "acme/web-app", installationId: "4242" });
+      expect(p).toMatchObject({ name: "Web app", forge: "github", fullName: "acme/web-app", slug: "web-app", prTrigger: "workflow", enabled: true, visibility: null, ttl: null, forks: "ask", drafts: false });
+      expect(repos.getByFullName("github", "Acme/Web-App")?.id).toBe("p1");
+      expect(repos.find("p1")?.id).toBe("p1");
+      expect(repos.find("web-app")?.id).toBe("p1");
+      expect(repos.find("nope")).toBeUndefined();
 
-      // Another org's repo with the same derived slug cannot take it.
-      expect(() => repos.create({ id: "r2", forge: "github", fullName: "other/web-app", installationId: "1", slug: "web-app" })).toThrow();
-      const r2 = repos.create({ id: "r2", forge: "github", fullName: "other/web-app", installationId: "1", slug: "web-app-2", enabled: false, disabledReason: "slug web-app is taken by acme/web-app" });
-      expect(r2).toMatchObject({ enabled: false, disabledReason: "slug web-app is taken by acme/web-app" });
+      const bare = repos.create({ id: "p2", name: "whoami", slug: "whoami" });
+      expect(bare).toMatchObject({ forge: null, fullName: null, installationId: "" });
+      expect(() => repos.create({ id: "p3", name: "x", slug: "web-app" })).toThrow();
+      expect(() => repos.create({ id: "p4", name: "x", slug: "x", forge: "github", fullName: "acme/web-app" })).toThrow();
 
       clock += 1000;
-      const patched = repos.update("r1", { visibility: "public", ttl: "2d", forks: "auto", drafts: true, installationId: "4243" });
-      expect(patched).toMatchObject({ visibility: "public", ttl: "2d", forks: "auto", drafts: true, installationId: "4243", slug: "web-app" });
+      const patched = repos.update("p1", { visibility: "public", ttl: "2d", forks: "auto", drafts: true, installationId: "4243", prTrigger: "webhook", name: "Store" });
+      expect(patched).toMatchObject({ visibility: "public", ttl: "2d", forks: "auto", drafts: true, installationId: "4243", prTrigger: "webhook", name: "Store", slug: "web-app" });
       expect(patched!.updatedAt.getTime()).toBe(now());
-      expect(repos.update("r1", {})?.slug).toBe("web-app");
-      expect(repos.update("r2", { slug: "legacy", enabled: true, disabledReason: null })).toMatchObject({ slug: "legacy", enabled: true, disabledReason: null });
-      expect(repos.list().map((r) => r.fullName)).toEqual(["acme/web-app", "other/web-app"]);
-      expect(repos.delete("r2")).toBe(true);
-      expect(repos.delete("r2")).toBe(false);
+      expect(repos.setRepository("p2", "github", "acme/whoami")).toMatchObject({ forge: "github", fullName: "acme/whoami" });
+      expect(repos.setRepository("p2", null, null)).toMatchObject({ forge: null, fullName: null });
+      expect(repos.list().map((r) => r.name)).toEqual(["Store", "whoami"]);
+
+      // A deleted project leaves its previews running and unowned.
+      const pv = previews.create({ id: "01J0000000000000000000000Q", project: "gw-y", hostId: "local", state: "awake", source: { kind: "image", image: "x" }, visibility: "public", projectId: "p1" });
+      expect(pv.projectId).toBe("p1");
+      expect(previews.list({ projectId: "p1" }).map((x) => x.id)).toEqual([pv.id]);
+      expect(repos.delete("p1")).toBe(true);
+      expect(repos.delete("p1")).toBe(false);
+      expect(previews.get(pv.id)!.projectId).toBeNull();
     });
 
     test("previews: forge refs default to null and are written independently", () => {

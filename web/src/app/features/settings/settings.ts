@@ -10,7 +10,7 @@ import { SecretsEditor } from '../secrets/secrets-editor';
 
 const FIELD = 'block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent/30 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900';
 const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
-  pr: { name: 'Pull requests', help: 'a repository can pick another' },
+  pr: { name: 'Pull requests', help: 'a project can pick another' },
   api: { name: 'API and CI', help: 'a token: a workflow, curl, an agent' },
   manual: { name: 'Deploy screen', help: 'a person, logged in' },
 };
@@ -34,7 +34,7 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
           @if (status(); as s) {
             @if (s.configured) {
               <p class="flex items-center gap-2 font-medium"><span class="size-2 rounded-full bg-emerald-500" aria-hidden="true"></span>Connected as <a [href]="s.appUrl" target="_blank" rel="noopener" class="underline decoration-neutral-400 underline-offset-2">{{ s.appSlug || 'app ' + s.appId }}</a></p>
-              <p class="mt-3 text-sm text-neutral-600 dark:text-neutral-400">Install the App on the repositories you want previews for. Each one appears under Repositories after its first pull request.</p>
+              <p class="mt-3 text-sm text-neutral-600 dark:text-neutral-400">The App is optional: a project can take pull requests from a workflow in its repository instead. Install it where a project should use it, then pick that repository when you make the project.</p>
               <div class="mt-3 flex flex-wrap items-center gap-3">
                 <a appBtn [href]="s.installUrl" target="_blank" rel="noopener" data-testid="install">Install on repositories</a>
                 @if (s.managedByConfig) { <span class="text-xs text-neutral-500" data-testid="managed">Credentials are managed by config (GANGWAY_GITHUB_*).</span> }
@@ -58,7 +58,7 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
 
       @if (canReadSettings()) {
         <h2 class="mt-10 text-base font-semibold">Default templates</h2>
-        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">What a deploy follows when neither the request nor its repository names a template.</p>
+        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">What a deploy follows when neither the request nor its project names a template.</p>
         <div class="mt-3 grid gap-3 rounded-lg border border-neutral-200 p-4 sm:grid-cols-3 dark:border-neutral-800" data-testid="defaults">
           @for (t of triggers; track t) {
             <label class="text-xs text-neutral-500">{{ triggerLabel[t].name }}
@@ -73,7 +73,7 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
 
       @if (canSecrets()) {
         <h2 class="mt-10 text-base font-semibold">Secrets for every preview</h2>
-        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Written to <code class="font-mono">.env</code> in every checkout at deploy, at or below the preview's clearance — <span class="font-mono">low</span> &lt; <span class="font-mono">standard</span> &lt; <span class="font-mono">high</span>. The clearance comes from the template; a repository's own secrets add to these and win on a name.</p>
+        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Written to <code class="font-mono">.env</code> in every checkout at deploy, at or below the preview's clearance — <span class="font-mono">low</span> &lt; <span class="font-mono">standard</span> &lt; <span class="font-mono">high</span>. The clearance comes from the template; a project's own secrets add to these and win on a name.</p>
         <div class="mt-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800" data-testid="global-secrets">
           @if (globalLoaded()) { <app-secrets-editor url="/v1/secrets" [initial]="globalSecrets()" /> } @else { <p class="text-sm text-neutral-500">Loading…</p> }
         </div>

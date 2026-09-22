@@ -43,6 +43,13 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
 
   api.get("/github", requirePermission("github.manage"), (c) => c.json(status()));
 
+  // ADR-0014: what the New project form offers -- repositories the App is installed on.
+  // Readable by whoever may make a project; empty (not an error) when the App is not connected.
+  api.get("/github/repositories", requirePermission("repos.manage"), async (c) => {
+    if (!status().configured) return c.json({ repositories: [] });
+    return c.json({ repositories: await d.app.installedRepositories() });
+  });
+
   /** The manifest and a one-time state; the UI posts the manifest to GitHub as a form. */
   api.get("/github/manifest", requirePermission("github.manage"), (c) => {
     if (GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key))) {

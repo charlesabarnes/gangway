@@ -96,13 +96,15 @@ export const upArgv = (base: Base, args: string[] = []): string[] =>
 /** §7.1: teardown is `down -v`. Orphans are removed because a renamed service otherwise
  *  leaves a container holding its published port forever. */
 /**
- * `--rmi local` removes the images compose BUILT for the project and nothing else.
+ * `--rmi local` removes the images compose BUILT for the project and nothing else. `all`
+ * is for a preview whose image was pushed for it alone, one tag per commit (ADR-0014):
+ * pulled, so `local` would leave one image on the host for every push.
  * Verified on tower, file-less: a built `gw-x-web:latest` goes; a pulled
  * `traefik/whoami:v1.10` -- which the operator's own containers may share -- stays.
  * Without it every build leaves an image on the host forever.
  */
-export const downArgv = (base: Base, args: string[] = []): string[] =>
-  composeArgv({ ...base, command: "down", args: ["-v", "--remove-orphans", "--rmi", "local", ...args] });
+export const downArgv = (base: Base, args: string[] = [], rmi: "local" | "all" = "local"): string[] =>
+  composeArgv({ ...base, command: "down", args: ["-v", "--remove-orphans", "--rmi", rmi, ...args] });
 
 /** §5 step 4 streams build progress to SSE; `plain` is the only parseable progress mode. */
 export const buildArgv = (base: Base, services: string[] = [], args: string[] = []): string[] =>

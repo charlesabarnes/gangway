@@ -85,8 +85,8 @@ export class TemplatesRepo {
     return this.#db.run("DELETE FROM templates WHERE id = $id AND builtin = 0", { id }).changes > 0;
   }
 
-  /** How many repositories name this template -- said before a delete, not after. */
+  /** How many projects name this template -- said before a delete, not after. */
   repoCount(id: string): number {
-    return this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM repos WHERE template_id = $id", { id })?.n ?? 0;
+    return this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", { id })?.n ?? 0;
   }
 }

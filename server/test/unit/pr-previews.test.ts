@@ -10,7 +10,7 @@ import type { Preview } from "../../../shared/src/domain.ts";
 import type { Actor } from "../../src/auth/actor.ts";
 import { AppError } from "../../src/errors.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { ReposRepo } from "../../src/db/repos/repos.ts";
+import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import type { DeploymentState, Forge, ForgeEvent, ForgeRepo, PullRequest } from "../../src/forge/forge.ts";
 import { MAX_REPO_SLUG, PrPreviews, slugFor } from "../../src/forge/pr-previews.ts";
@@ -81,7 +81,7 @@ function fakePreviews(instance = "test") {
         id, project: `gw-${instance}-${slug}`, hostId: "local", kind: "preview", state: "building",
         source: s.kind === "pr" ? { kind: "pr", repo: s.repo, number: s.number, sha: s.sha } : { kind: "image", image: "x" },
         visibility: input.visibility ?? "unlisted", ttlExpiresAt: input.ttl ? new Date(Date.now() + 86_400_000) : null,
-        idleAfterMs: null, secretLevel: input.secretLevel ?? null, templateId: input.template ?? "default", lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
+        idleAfterMs: null, secretLevel: input.secretLevel ?? null, templateId: input.template ?? "default", projectId: input.projectId ?? null, lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
       };
       rows.set(id, preview);
       const done = new Promise<Preview>((resolve) => pending.set(id, (final) => { rows.set(id, final); resolve(final); }));
@@ -106,11 +106,13 @@ function fakePreviews(instance = "test") {
   return { previews, rows, deploys, destroys, settle };
 }
 
-function make(o: Parameters<typeof fakeForge>[0] = {}) {
+/** `project: false`: acme/web-app is no project yet. Otherwise it is one, taking pull requests by webhook. */
+function make(o: Parameters<typeof fakeForge>[0] & { project?: false } = {}) {
   const d = mkdtempSync(join(tmpdir(), "gangway-pr-")); tmps.push(d);
   const { db } = openDatabase({ path: join(d, "g.db") });
   migrate(db, MIGRATIONS);
-  const repos = new ReposRepo(db);
+  const repos = new ProjectsRepo(db);
+  if (o.project !== false) repos.create({ id: "PRJ", name: "web-app", slug: "web-app", forge: "github", fullName: "acme/web-app", installationId: "4242", prTrigger: "webhook" });
   const f = fakeForge(o);
   const p = fakePreviews();
   const service = new PrPreviews({
@@ -126,15 +128,14 @@ const command = (cmd: "deploy" | "redeploy" | "destroy" | "status", association:
   ({ type: "pr.command", repo: ghRepo(), number, command: cmd, author: "maintainer", association, commentId: 1 });
 
 describe("a pull request opens", () => {
-  test("registers the repository, deploys the head as a `pr` source with a credential, and tells the forge twice", async () => {
+  test("deploys the head as a `pr` source with a credential, filed under the project, and tells the forge twice", async () => {
     const t = make();
     const out = await t.service.handle(updated());
     expect(out).toMatchObject({ action: "deployed", name: "web-app-pr-123" });
     if (out.action !== "deployed") throw new Error();
 
-    expect(t.repos.getByFullName("github", "acme/web-app")).toMatchObject({ slug: "web-app", enabled: true, installationId: "4242" });
     expect(t.deploys[0]).toMatchObject({
-      name: "web-app-pr-123", actor: { kind: "forge", forge: "github", login: "dev" },
+      name: "web-app-pr-123", projectId: "PRJ", actor: { kind: "forge", forge: "github", login: "dev" },
       source: { kind: "pr", repo: "acme/web-app", number: 123, sha: "a".repeat(40), cloneUrl: "https://github.com/acme/web-app.git", credential: "ghs_4242" },
     });
     expect(t.deploys[0]!.visibility).toBeUndefined(); // the server default
@@ -227,10 +228,9 @@ describe("closing", () => {
     expect(await t.service.handle(closed())).toMatchObject({ action: "ignored", reason: "#123 has no preview" });
   });
 
-  test("closing on a repository that never opened anything is ignored, and registers nothing", async () => {
+  test("closing a PR that has no preview is ignored", async () => {
     const t = make();
-    expect(await t.service.handle(closed())).toMatchObject({ action: "ignored" });
-    expect(t.repos.list()).toEqual([]);
+    expect(await t.service.handle(closed())).toMatchObject({ action: "ignored", reason: "#123 has no preview" });
   });
 });
 
@@ -313,7 +313,6 @@ describe("forks and drafts (§9)", () => {
 
   test("`/preview deploy` on a fork under `never` answers the maintainer and builds nothing", async () => {
     const t = make({ prs: { 123: pull({ fromFork: true }) } });
-    t.service.register(ghRepo());
     t.repos.update(t.repos.getByFullName("github", "acme/web-app")!.id, { forks: "never" });
     expect(await t.service.handle(command("deploy", "owner"))).toEqual({ action: "commented", previewId: null });
     expect([...t.comments.values()][0]).toContain("never previewed");
@@ -348,22 +347,26 @@ describe("/preview commands", () => {
   });
 });
 
-describe("repositories", () => {
-  test("a second repository whose slug is taken is registered DISABLED with the reason, and its PRs are ignored until the operator fixes it", async () => {
-    const t = make();
-    await t.service.handle(updated());
-    const other = pull({ repo: ghRepo({ fullName: "other/web-app", owner: "other", installationId: "1" }) });
-    expect(await t.service.handle(updated(other))).toMatchObject({ action: "ignored", reason: expect.stringContaining('slug "web-app" is taken by acme/web-app') });
-    const row = t.repos.getByFullName("github", "other/web-app")!;
-    expect(row).toMatchObject({ enabled: false });
-    expect(row.slug).toMatch(/^web-app-[0-9a-z]{6}$/);
-    t.repos.update(row.id, { slug: "legacy", enabled: true, disabledReason: null });
-    expect(await t.service.handle(updated(other))).toMatchObject({ action: "deployed", name: "legacy-pr-123" });
+describe("projects", () => {
+  test("a repository that is no project is ignored and nothing is made; `/preview` there is ignored too (ADR-0014)", async () => {
+    const t = make({ project: false, prs: { 123: pull() } });
+    expect(await t.service.handle(updated())).toMatchObject({ action: "ignored", reason: "acme/web-app is not a gangway project; create one to preview its pull requests" });
+    expect(await t.service.handle(command("deploy", "owner"))).toMatchObject({ action: "ignored" });
+    expect(t.repos.list()).toEqual([]);
+    expect(t.deploys).toHaveLength(0);
+    expect(t.comments.size).toBe(0);
+  });
+
+  test("a project that takes pull requests by workflow is left to its workflow: the webhook never makes a second preview", async () => {
+    const t = make({ prs: { 123: pull() } });
+    t.repos.update("PRJ", { prTrigger: "workflow" });
+    expect(await t.service.handle(updated())).toMatchObject({ action: "ignored", reason: expect.stringContaining("from its workflow") });
+    expect(await t.service.handle(closed())).toMatchObject({ action: "ignored" });
+    expect(t.deploys).toHaveLength(0);
   });
 
   test("an installation id that moved is updated on the row; a disabled repository stays disabled", async () => {
     const t = make();
-    await t.service.handle(updated());
     const row = t.repos.getByFullName("github", "acme/web-app")!;
     t.repos.update(row.id, { enabled: false, disabledReason: "paused" });
     expect(await t.service.handle(updated(pull({ repo: ghRepo({ installationId: "9" }) })))).toMatchObject({ action: "ignored", reason: "acme/web-app is disabled: paused" });

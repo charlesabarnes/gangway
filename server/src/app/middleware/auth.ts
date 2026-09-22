@@ -82,10 +82,18 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
       // which of the two it has.
       return problemResponse(c, unauthorized(), { "www-authenticate": 'Bearer realm="gangway"' });
     }
+    // ADR-0014: a workflow run is a credential for ONE route. Anywhere else it is nobody --
+    // a leaked token from a PR's CI must not list previews, read logs or deploy an image.
+    if (actor.kind === "workflow" && !WORKFLOW_PATH.test(c.req.path)) {
+      return problemResponse(c, forbidden("a workflow token may only deploy and tear down its own project's pull requests"));
+    }
     c.set("actor", actor);
     return next();
   };
 }
+
+/** The only path a workflow actor reaches. The route itself checks the project is its repository's. */
+export const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
 
 /** Marks the middleware so a test can prove no `/v1` route was registered without one. */
 export const PERMISSION_GUARD = Symbol("gangway.permission");

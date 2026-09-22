@@ -84,15 +84,31 @@ export type Template = {
 export type Trigger = "pr" | "api" | "manual";
 export const TRIGGERS: readonly Trigger[] = ["pr", "api", "manual"];
 
-/** A repository a forge has sent a pull request from, and how its previews are shaped. */
-export type Repo = {
+/**
+ * How a project's pull requests reach gangway (ADR-0014): a GitHub Actions `workflow` in
+ * the repository builds the image and calls in with an OIDC token, or the GitHub App's
+ * `webhook` has tower clone and build. Never both -- that would be two previews per PR.
+ */
+export type PrTrigger = "workflow" | "webhook";
+export const PR_TRIGGERS: readonly PrTrigger[] = ["workflow", "webhook"];
+
+/**
+ * The thing you preview (ADR-0014): a name, a hostname stem, where its code comes from,
+ * the template it follows with overrides on top, its secrets, and its previews. Made on
+ * purpose -- a pull request from a repository that is no project's is ignored.
+ */
+export type Project = {
   id: string;
-  forge: ForgeId;
-  /** `owner/name` as the forge spells it. */
-  fullName: string;
-  installationId: string;
-  /** The hostname stem: previews are `<slug>-pr-<n>`. Unique across repositories. */
+  name: string;
+  /** The hostname stem: previews are `<slug>-pr-<n>`. Unique across projects. */
   slug: string;
+  /** Where its code lives; both null for a project with no repository (images, tarballs). */
+  forge: ForgeId | null;
+  /** `owner/name` as the forge spells it. */
+  fullName: string | null;
+  /** The GitHub App installation, when the App is installed on the repository. */
+  installationId: string;
+  prTrigger: PrTrigger;
   enabled: boolean;
   disabledReason: string | null;
   /** The template its previews follow (ADR-0013); null: the PR trigger's default. */
@@ -101,7 +117,7 @@ export type Repo = {
   visibility: Visibility | null;
   ttl: string | null;
   prClearance: Clearance | null;
-  /** The trigger policy: forks, drafts, and what a fork's PR is cleared for (ADR-0012). */
+  /** The webhook's policy: forks, drafts, and what a fork's PR is cleared for (ADR-0012). */
   forks: ForkPolicy;
   drafts: boolean;
   forkClearance: Clearance;
@@ -110,7 +126,8 @@ export type Repo = {
 };
 
 export type PreviewSource =
-  | { kind: "pr"; repo: string; number: number; sha: string }
+  /** `image`: pushed for this commit by a workflow (ADR-0014), pulled once, removed with the preview. */
+  | { kind: "pr"; repo: string; number: number; sha: string; image?: string }
   | { kind: "manual"; userId: string }
   | { kind: "agent"; tokenId: string; idempotencyKey: string }
   | { kind: "image"; image: string }
@@ -133,6 +150,8 @@ export type Preview = {
   secretLevel: Clearance | null;
   /** The template it was deployed with (ADR-0013); null on rows from before templates. */
   templateId: string | null;
+  /** The project it belongs to (ADR-0014); null for one deployed outside any. */
+  projectId: string | null;
   /** Written by the proxy on every request; the idle-sleep sweeper reads it. */
   lastSeenAt: Date | null;
   error: string | null;
@@ -253,3 +272,7 @@ export const isActive = (s: PreviewState): boolean => PREVIEW_ACTIVE_STATES.incl
 export function projectNameFor(instance: string, slug: string): string {
   return `gw-${instance}-${slug}`;
 }
+
+/** A project with a repository: what the forge code works with. */
+export type RepoProject = Project & { forge: ForgeId; fullName: string };
+export const hasRepo = (p: Project): p is RepoProject => p.forge !== null && p.fullName !== null;

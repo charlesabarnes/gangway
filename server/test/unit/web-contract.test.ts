@@ -17,14 +17,14 @@ import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
 import { githubRoutes } from "../../src/app/routes/github.ts";
-import { repoRoutes } from "../../src/app/routes/repos.ts";
+import { projectRoutes } from "../../src/app/routes/projects.ts";
 import { templateRoutes } from "../../src/app/routes/templates.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { staticTokenVerifier, tokenActor } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
-import { ReposRepo } from "../../src/db/repos/repos.ts";
+import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import { TemplatesRepo } from "../../src/db/repos/templates.ts";
 import { ManifestStates } from "../../src/forge/github/manifest.ts";
 import { Logger } from "../../src/logger.ts";
@@ -132,19 +132,24 @@ describe("github wire shapes (ADR-0011)", () => {
     const settings = new Settings({}, new MemorySettingsStore());
     settings.set(SETTINGS.githubAppId, "777"); settings.set(SETTINGS.githubAppSlug, "gangway-preview");
     settings.set(SETTINGS.githubPrivateKey, "k"); settings.set(SETTINGS.githubWebhookSecret, "s");
-    const repos = new ReposRepo(s.db, s.now);
-    repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "4242", slug: "web-app" });
+    const repos = new ProjectsRepo(s.db, s.now);
+    repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web-app", installationId: "4242", slug: "web-app" });
     const app = new Hono<AppEnv>();
     app.onError(errorHandler(quiet));
     app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
     const templates = new TemplatesRepo(s.db, s.now);
-    repoRoutes(app, repos, s.audit, undefined, templates);
+    projectRoutes(app, { projects: repos, audit: s.audit, templates });
     templateRoutes(app, { templates, hosts: { get: () => undefined }, audit: s.audit, namedByTrigger: () => [] });
     githubRoutes(app, { app: null as never, settings, states: new ManifestStates(), audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
 
     expect(shapeOf(await (await app.request("/github")).json())).toEqual(shapeOf(contract["githubStatus"]));
-    const { repo } = await (await app.request("/repos/r1")).json() as { repo: unknown };
-    expect(shapeOf(repo)).toEqual(shapeOf(contract["repo"]));
+    const { project } = await (await app.request("/projects/r1")).json() as { project: unknown };
+    expect(shapeOf(project)).toEqual(shapeOf(contract["project"]));
+    // A project with no repository: forge and fullName are null, not absent.
+    repos.create({ id: "r2", name: "whoami", slug: "whoami" });
+    const bare = (await (await app.request("/projects/whoami")).json() as { project: Record<string, unknown> }).project;
+    expect(Object.keys(bare).sort()).toEqual(Object.keys(contract["project"] as object).sort());
+    expect(bare).toMatchObject({ forge: null, fullName: null });
     expect(contract["forkPolicies"]).toEqual(["ask", "auto", "never"]);
     expect(contract["clearances"]).toEqual([...CLEARANCES]);
     // ADR-0013: a template, and the triggers a default is set for.

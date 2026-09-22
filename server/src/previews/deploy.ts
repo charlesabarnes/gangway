@@ -16,8 +16,8 @@
  * written at the end of `plan`; `compose up` is in `run`. That ordering is structural.
  */
 import { randomBytes } from "node:crypto";
-import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { lstat, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { projectNameFor, type Clearance, type Host, type Preview, type PreviewSource, type Route, type Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
@@ -35,6 +35,7 @@ import { ulid } from "../util/ulid.ts";
 import { parse as parseYaml } from "yaml";
 import { buildStack, composeForDockerfile, composeForImage, parseComposeModel, planRoutes, selectExposed, type ComposeModel, type PlannedRoute } from "./compose-model.ts";
 import type { PreviewContext } from "./context.ts";
+import { rmiFor } from "./destroy.ts";
 import { cloneRepo } from "./source/git.ts";
 import { dotenvLine } from "../secrets/secrets.ts";
 import { assertNoEscapingSymlinks, COMPOSE_FILENAMES, inspectComposeFile } from "./source/guard.ts";
@@ -51,7 +52,15 @@ export type DeploySource =
    */
   | { kind: "pr"; repo: string; number: number; sha: string; cloneUrl: string; credential: string | undefined; port?: number | undefined }
   /** A tar or tar.gz of the project, compose file (or Dockerfile) at its root. */
-  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined };
+  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined }
+  /**
+   * An image a workflow built and pushed for one commit of a pull request (ADR-0014).
+   * `registry` logs in for this pull only: written to a DOCKER_CONFIG in the work
+   * directory for `up`, deleted after it, never recorded, never logged.
+   */
+  | { kind: "pushed"; image: string; port: number; pr: { repo: string; number: number; sha: string }; registry?: RegistryLogin | undefined };
+
+export type RegistryLogin = { server: string; username: string; password: string };
 
 export type DeployInput = {
   actor: Actor;
@@ -69,8 +78,10 @@ export type DeployInput = {
   /** A duration (`12h`, `7d`), or null for no expiry. */
   ttl?: string | null | undefined;
   hostId?: string | undefined;
-  /** A template by id (ADR-0013). Omitted: the repository's, else the trigger's default. */
+  /** A template by id (ADR-0013). Omitted: the project's, else the trigger's default. */
   template?: string | undefined;
+  /** The project it belongs to (ADR-0014). Omitted: found from the source's repository, if any. */
+  projectId?: string | undefined;
 };
 
 export type PreviewUrl = { service: string; url: string; primary: boolean };
@@ -99,6 +110,7 @@ function unguessable(): string {
 function defaultName(source: DeploySource): string {
   if (source.kind === "tarball") return "preview";
   if (source.kind === "pr") return `${source.repo.split("/").pop() ?? "repo"}-pr-${source.number}`;
+  if (source.kind === "pushed") return `${source.pr.repo.split("/").pop() ?? "repo"}-pr-${source.pr.number}`;
   // "ghcr.io/acme/web-app:1.2" -> "web-app";  "https://github.com/acme/web-app.git" -> "web-app"
   const from = source.kind === "git" ? source.repo.replace(/\/+$/, "").replace(/\.git$/, "") : source.image;
   const last = from.split("/").pop() ?? from;
@@ -113,7 +125,22 @@ export function urlsFor(ctx: Pick<PreviewContext, "table" | "origin">, previewId
 
 /* ------------------------------------------------------------------ plan */
 
-type Materialized = { source: PreviewSource; composeFile: string };
+type Materialized = { source: PreviewSource; composeFile: string; dockerConfig?: string };
+
+/**
+ * A DOCKER_CONFIG holding one registry login, for one `up`. The CLI looks for plugins
+ * under DOCKER_CONFIG too, so the caller's `cli-plugins` is linked in: without it a
+ * compose plugin installed per-user vanishes for exactly this command.
+ */
+async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<string> {
+  const cfg = join(dir, "docker-config");
+  await mkdir(cfg, { recursive: true, mode: 0o700 });
+  const auth = Buffer.from(`${login.username}:${login.password}`).toString("base64");
+  await writeFile(join(cfg, "config.json"), JSON.stringify({ auths: { [login.server]: { auth } } }), { mode: 0o600 });
+  const plugins = join(process.env["DOCKER_CONFIG"] ?? join(homedir(), ".docker"), "cli-plugins");
+  if (await lstat(plugins).catch(() => null)) await symlink(plugins, join(cfg, "cli-plugins")).catch(() => {});
+  return cfg;
+}
 
 /**
  * ADR-0012: the repository's secrets, as the `.env` compose reads for `${VAR}` and for
@@ -138,6 +165,16 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
   if (source.kind === "image") {
     await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage(source), { mode: 0o600 });
     return { source: { kind: "image", image: source.image }, composeFile: COMPOSE_FILE };
+  }
+  if (source.kind === "pushed") {
+    // No checkout, so no .env file: the project's secrets reach the one service as its environment.
+    await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage({ image: source.image, port: source.port, env }), { mode: 0o600 });
+    const dockerConfig = source.registry ? await writeDockerConfig(wd.dir, source.registry) : undefined;
+    if (env && Object.keys(env).length > 0) ctx.logs.append(id, "system", `passing ${Object.keys(env).length} secret(s) to the container`);
+    return {
+      source: { kind: "pr", repo: source.pr.repo, number: source.pr.number, sha: source.pr.sha, image: source.image },
+      composeFile: COMPOSE_FILE, ...(dockerConfig ? { dockerConfig } : {}),
+    };
   }
 
   let recorded: PreviewSource;
@@ -200,7 +237,7 @@ async function readModel(ctx: PreviewContext, host: Host, wd: Workdir, composeFi
 export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
   const id = ulid(ctx.now());
   // ADR-0013: the template first -- it may place the preview, and it fills every gap below.
-  const { template, repo } = ctx.policy.resolve({ source: input.source, actor: input.actor, template: input.template });
+  const { template, project: owner } = ctx.policy.resolve({ source: input.source, actor: input.actor, template: input.template, projectId: input.projectId });
   const allHosts = ctx.hosts.list();
   let wantedHost = input.hostId ?? template.hostId ?? undefined;
   if (input.hostId === undefined && template.hostId !== null && !allHosts.some((h) => h.id === template.hostId)) {
@@ -217,24 +254,26 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let planned: Planned;
   let routes: PlannedRoute[];
   let visibility: Visibility;
+  let dockerConfig: string | undefined;
   try {
-    // The clearance: asked for, else the repository's override, else the template's (ADR-0012, ADR-0013).
-    const secretLevel: Clearance = input.secretLevel ?? repo?.prClearance ?? template.clearance;
-    const env = input.env !== undefined ? input.env : secretLevel === "none" ? {} : ctx.secretsFor?.(repo?.id ?? null, secretLevel);
-    const { source, composeFile } = await writeSource(ctx, id, input.source, env, wd);
+    // The clearance: asked for, else the project's override, else the template's (ADR-0012, ADR-0013).
+    const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
+    const env = input.env !== undefined ? input.env : secretLevel === "none" ? {} : ctx.secretsFor?.(owner?.id ?? null, secretLevel);
+    const { source, composeFile, dockerConfig: login } = await writeSource(ctx, id, input.source, env, wd);
+    dockerConfig = login;
     planned = await readModel(ctx, host, wd, composeFile);
     const { model } = planned;
     const exposed = selectExposed(model);
 
-    // Per field: the request, the repository's override, the stack's own word, the template.
-    visibility = input.visibility ?? repo?.visibility ?? model.x.visibility ?? template.visibility;
+    // Per field: the request, the project's override, the stack's own word, the template.
+    visibility = input.visibility ?? owner?.visibility ?? model.x.visibility ?? template.visibility;
     // A private preview is opened by logging in to the UI (net/gate.ts). With the UI switched
     // off there is no login page to send anyone to: say so now, not with a dead link later.
     if (visibility === "private" && ctx.privateAvailable?.() === false) {
       throw unprocessable("private previews need the web UI, which is switched off (surfaces.ui); use unlisted instead");
     }
 
-    const ttlText = input.ttl !== undefined ? input.ttl : repo?.ttl ?? model.x.ttl ?? template.ttl;
+    const ttlText = input.ttl !== undefined ? input.ttl : owner?.ttl ?? model.x.ttl ?? template.ttl;
     const ttlMs = ttlText === null ? null : parseDuration(ttlText);
     if (ttlText !== null && ttlMs === null) throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
 
@@ -265,7 +304,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     preview = ctx.previews.create({
       id, project, hostId: host.id, state: "building", source, visibility,
       ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
-      secretLevel, templateId: template.id,
+      secretLevel, templateId: template.id, projectId: owner?.id ?? null,
     });
     try {
       for (const route of routes) {
@@ -292,7 +331,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   });
 
   const abort = new AbortController();
-  const done = run(ctx, { preview, host, wd, ...planned, routes, visibility, signal: abort.signal })
+  const done = run(ctx, { preview, host, wd, ...planned, routes, visibility, dockerConfig, signal: abort.signal })
     .finally(() => { ctx.inflight.delete(id); });
   ctx.inflight.set(id, { abort, done });
 
@@ -304,6 +343,8 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 type RunInput = {
   preview: Preview; host: Host; wd: Workdir; model: ComposeModel; resolved: unknown;
   routes: PlannedRoute[]; visibility: Visibility; signal: AbortSignal;
+  /** A one-deploy registry login (ADR-0014), for `up`'s pull. Deleted once `up` returns. */
+  dockerConfig?: string | undefined;
 };
 
 export class StepFailed extends Error {
@@ -324,9 +365,9 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   const base = { project: preview.project, files: [stackPath], projectDirectory: wd.srcDir, docker: ctx.docker };
 
   /** Streams a compose command into the preview log; throws unless it exits 0. */
-  const step = async (what: string, argv: string[], stream: "build" | "seed" | "stdout") => {
+  const step = async (what: string, argv: string[], stream: "build" | "seed" | "stdout", env?: Record<string, string>) => {
     log(`$ compose ${what}`);
-    for await (const ev of ctx.compose.stream(argv, host, { cwd: wd.srcDir, signal: r.signal })) {
+    for await (const ev of ctx.compose.stream(argv, host, { cwd: wd.srcDir, signal: r.signal, ...(env ? { env } : {}) })) {
       if (ev.type === "line") ctx.logs.append(id, ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream, ev.line);
       else if (ev.code !== 0) throw new StepFailed(`compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`, ev.code);
     }
@@ -357,7 +398,12 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
 
     ctx.states.transition(id, "starting");
     upAttempted = true;
-    await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout");
+    try {
+      await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout", r.dockerConfig ? { DOCKER_CONFIG: r.dockerConfig } : undefined);
+    } finally {
+      // The login was for this pull. Gone before anything else runs, success or not.
+      if (r.dockerConfig) await rm(r.dockerConfig, { recursive: true, force: true });
+    }
 
     const target: WaitTarget = { previewId: id, host, routes: r.routes, signal: r.signal, ps: psArgv(base, ["--all"]), cwd: wd.srcDir };
     await waitHealthy(ctx, target);
@@ -467,7 +513,7 @@ async function salvage(ctx: PreviewContext, r: RunInput): Promise<void> {
       r.host, { cwd: empty },
     );
     if (logs.stdout) ctx.logs.append(r.preview.id, "stdout", logs.stdout);
-    await ctx.compose.capture(downArgv({ project: r.preview.project, files: [], docker: ctx.docker }), r.host, { cwd: empty });
+    await ctx.compose.capture(downArgv({ project: r.preview.project, files: [], docker: ctx.docker }, [], rmiFor(r.preview)), r.host, { cwd: empty });
   } catch (e) {
     ctx.logger.warn("could not tear down a failed stack; the reconciler will", { previewId: r.preview.id, err: e });
   } finally {

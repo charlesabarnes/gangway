@@ -1,10 +1,10 @@
 /**
  * Pull-request previews (ADR-0011): a `ForgeEvent` in, a preview deployed, redeployed,
  * destroyed or left alone, and the forge told about it. Forge-agnostic: this file knows
- * `Forge`, `Repo` and the preview service, and nothing about GitHub.
+ * `Forge`, `Project` and the preview service, and nothing about GitHub.
  *
  * The rules, all of them here:
- *   - a repository is registered by its first event, with a slug derived from its name;
+ *   - only a PROJECT that takes pull requests by webhook is acted for; nothing is made here (ADR-0014);
  *     a taken slug leaves it DISABLED with the reason, for the operator to resolve
  *   - a fork's PR builds only under `repos.forks = auto`, or after `/preview deploy`
  *     from an owner, member or collaborator (§9: public visibility, no secrets)
@@ -13,11 +13,11 @@
  *   - the forge is told AFTER the preview exists and again when it settles; a forge
  *     call failing never fails the deploy
  */
-import type { Clearance, Repo } from "../../../shared/src/domain.ts";
+import type { Clearance, Project, RepoProject } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
-import type { ReposRepo } from "../db/repos/repos.ts";
+import type { ProjectsRepo } from "../db/repos/projects.ts";
 import type { Logger } from "../logger.ts";
 import type { DeployInput, DeployResult, DeploySource, PreviewUrl } from "../previews/deploy.ts";
 import type { Policy } from "../previews/policy.ts";
@@ -30,7 +30,7 @@ export const MAX_REPO_SLUG = 24;
 
 export type PrPreviewsDeps = {
   forge: Forge;
-  repos: ReposRepo;
+  repos: ProjectsRepo;
   instance: string;
   previews: {
     deploy(input: DeployInput): Promise<DeployResult>;
@@ -41,7 +41,7 @@ export type PrPreviewsDeps = {
     setForgeRefs(id: string, refs: { commentId?: number | null; deploymentId?: number | null }): void;
   };
   /** The repository's secrets at or below a clearance (ADR-0012). */
-  secretsFor?: ((repo: Repo, clearance: Clearance) => Record<string, string>) | undefined;
+  secretsFor?: ((repo: RepoProject, clearance: Clearance) => Record<string, string>) | undefined;
   /** The template a pull request follows (ADR-0013): its clearance is the fallback when the repository has no override. */
   policy: Policy;
   /** Where a human reads the build log: the UI's preview page, when the UI is on. */
@@ -78,34 +78,31 @@ export class PrPreviews {
 
   /* ---------------------------------------------------------------- repositories */
 
-  /** The row for a repository, made on first contact. Never enables a disabled one. */
-  register(fr: ForgeRepo): Repo {
+  /**
+   * The project for a repository, or why there is none to act for (ADR-0014). Nothing is
+   * made here: a project is made on purpose, and one that takes pull requests from its
+   * own workflow must not get a second preview from the webhook.
+   */
+  projectFor(fr: ForgeRepo): RepoProject | string {
     const existing = this.#d.repos.getByFullName(fr.forge, fr.fullName);
-    if (existing) {
-      return existing.installationId === fr.installationId ? existing : (this.#d.repos.update(existing.id, { installationId: fr.installationId }) ?? existing);
-    }
-    const wanted = slugFor(fr.name);
-    const taken = this.#d.repos.getBySlug(wanted);
-    const slug = taken ? `${wanted.slice(0, MAX_REPO_SLUG - 7)}-${ulid().slice(-6).toLowerCase()}` : wanted;
-    const repo = this.#d.repos.create({
-      id: ulid(this.#d.now?.() ?? Date.now()), forge: fr.forge, fullName: fr.fullName, installationId: fr.installationId, slug,
-      enabled: !taken, disabledReason: taken ? `slug "${wanted}" is taken by ${taken.fullName}; set a slug and enable this repository` : null,
-    });
-    this.#d.logger.info(taken ? "repository registered DISABLED: slug taken" : "repository registered", { repo: fr.fullName, slug, ...(taken ? { takenBy: taken.fullName } : {}) });
-    return repo;
+    if (!existing) return `${fr.fullName} is not a gangway project; create one to preview its pull requests`;
+    if (existing.prTrigger !== "webhook") return `${fr.fullName} takes pull requests from its workflow, not the GitHub App`;
+    if (existing.installationId === fr.installationId) return existing;
+    return (this.#d.repos.update(existing.id, { installationId: fr.installationId }) as RepoProject | undefined) ?? existing;
   }
 
-  previewName(repo: Repo, number: number): string { return `${repo.slug}-pr-${number}`; }
+  previewName(repo: RepoProject, number: number): string { return `${repo.slug}-pr-${number}`; }
 
   /** By source, not by name: an unlisted preview's name carries a suffix that changes per deploy. */
-  current(repo: Repo, number: number): Preview | undefined {
+  current(repo: RepoProject, number: number): Preview | undefined {
     return this.#d.previews.findPullRequest(repo.fullName, number);
   }
 
   /* ---------------------------------------------------------------- events */
 
   async #onUpdated(pr: PullRequest): Promise<Outcome> {
-    const repo = this.register(pr.repo);
+    const repo = this.projectFor(pr.repo);
+    if (typeof repo === "string") return { action: "ignored", reason: repo };
     if (!repo.enabled) return { action: "ignored", reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}` };
     if (pr.draft && !repo.drafts) return { action: "ignored", reason: `#${pr.number} is a draft` };
     if (pr.fromFork) {
@@ -116,8 +113,8 @@ export class PrPreviews {
   }
 
   async #onClosed(pr: PullRequest): Promise<Outcome> {
-    const repo = this.#d.repos.getByFullName(pr.repo.forge, pr.repo.fullName);
-    if (!repo) return { action: "ignored", reason: `${pr.repo.fullName} is not registered` };
+    const repo = this.projectFor(pr.repo);
+    if (typeof repo === "string") return { action: "ignored", reason: repo };
     const existing = this.current(repo, pr.number);
     if (!existing) return { action: "ignored", reason: `#${pr.number} has no preview` };
     return this.#destroy(repo, pr, existing, forgeActor(pr.repo.forge, pr.author), "closed");
@@ -126,7 +123,8 @@ export class PrPreviews {
   async #onCommand(ev: Extract<ForgeEvent, { type: "pr.command" }>): Promise<Outcome> {
     // Anyone else is answered with nothing: an error comment is an amplifier (ADR-0011).
     if (!SPEAKS_FOR_REPO.has(ev.association)) return { action: "ignored", reason: `/preview ${ev.command} from ${ev.author || "someone"} (${ev.association}) on #${ev.number}` };
-    const repo = this.register(ev.repo);
+    const repo = this.projectFor(ev.repo);
+    if (typeof repo === "string") return { action: "ignored", reason: repo };
     const actor = forgeActor(ev.repo.forge, ev.author);
 
     if (ev.command === "status") {
@@ -164,19 +162,19 @@ export class PrPreviews {
 
   /* ---------------------------------------------------------------- the two moves */
 
-  #refsOf(repo: Repo, number: number): { commentId: number | null; deploymentId: number | null } {
+  #refsOf(repo: RepoProject, number: number): { commentId: number | null; deploymentId: number | null } {
     const existing = this.current(repo, number);
     return existing ? this.#d.previews.forgeRefs(existing.id) : { commentId: null, deploymentId: null };
   }
 
-  async #deploy(repo: Repo, pr: PullRequest, actor: Actor, o: { force?: boolean; clearance?: Clearance } = {}): Promise<Outcome> {
+  async #deploy(repo: RepoProject, pr: PullRequest, actor: Actor, o: { force?: boolean; clearance?: Clearance } = {}): Promise<Outcome> {
     const name = this.previewName(repo, pr.number);
     const existing = this.current(repo, pr.number);
     let refs = { commentId: null as number | null, deploymentId: null as number | null };
     const source: DeploySource = { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential: undefined };
     // The clearance: asked for now, else what this PR already had, else the repository's
     // policy -- a fork's clearance, or the override on top of the template's.
-    const { template } = this.#d.policy.resolve({ source, actor });
+    const { template } = this.#d.policy.resolve({ source, actor, projectId: repo.id });
     const clearance: Clearance = o.clearance ?? existing?.secretLevel ?? (pr.fromFork ? repo.forkClearance : repo.prClearance ?? template.clearance);
     if (existing) {
       const sameHead = existing.source.kind === "pr" && existing.source.sha === pr.headSha;
@@ -197,7 +195,7 @@ export class PrPreviews {
       // Given explicitly, even as {}: the pipeline's by-source lookup must not fill it in.
       const env = clearance === "none" ? {} : (this.#d.secretsFor?.(repo, clearance) ?? {});
       result = await this.#d.previews.deploy({
-        actor, name, env, secretLevel: clearance, ...(pr.fromFork ? { visibility: "public" as const } : {}),
+        actor, name, env, secretLevel: clearance, projectId: repo.id, ...(pr.fromFork ? { visibility: "public" as const } : {}),
         source: { ...source, credential },
       });
     } catch (e) {
@@ -237,7 +235,7 @@ export class PrPreviews {
     return { action: "deployed", previewId: id, name, settled };
   }
 
-  async #destroy(repo: Repo, pr: PullRequest, existing: Preview, actor: Actor, why: string): Promise<Outcome> {
+  async #destroy(repo: RepoProject, pr: PullRequest, existing: Preview, actor: Actor, why: string): Promise<Outcome> {
     const refs = this.#d.previews.forgeRefs(existing.id);
     await this.#d.previews.destroy(existing.id, actor);
     await this.#retireDeployment(pr.repo, refs.deploymentId);

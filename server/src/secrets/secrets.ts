@@ -13,7 +13,7 @@
 import { SECRET_LEVELS, clears, type Clearance, type SecretLevel } from "../../../shared/src/domain.ts";
 import type { AuditAction, AuditSink } from "../audit/audit.ts";
 import type { Actor } from "../auth/actor.ts";
-import type { ReposRepo } from "../db/repos/repos.ts";
+import type { ProjectsRepo } from "../db/repos/projects.ts";
 import { unprocessable } from "../errors.ts";
 import type { SettingsStore } from "../settings.ts";
 import type { SecretBox } from "./box.ts";
@@ -99,13 +99,13 @@ export class SecretMap {
 }
 
 export class Secrets {
-  readonly #repos: ReposRepo;
+  readonly #projects: ProjectsRepo;
   readonly #store: SettingsStore;
   readonly #box: SecretBox;
   readonly #audit: AuditSink | undefined;
 
-  constructor(repos: ReposRepo, store: SettingsStore, box: SecretBox, audit?: AuditSink) {
-    this.#repos = repos;
+  constructor(projects: ProjectsRepo, store: SettingsStore, box: SecretBox, audit?: AuditSink) {
+    this.#projects = projects;
     this.#store = store;
     this.#box = box;
     this.#audit = audit;
@@ -118,23 +118,23 @@ export class Secrets {
     );
   }
 
-  repo(repoId: string): SecretMap {
+  project(projectId: string): SecretMap {
     return new SecretMap(
-      { read: () => this.#repos.envCiphertext(repoId), write: (s) => this.#repos.setEnvCiphertext(repoId, s) },
-      this.#box, { sink: this.#audit, action: "repo.env.changed", target: repoId },
+      { read: () => this.#projects.envCiphertext(projectId), write: (s) => this.#projects.setEnvCiphertext(projectId, s) },
+      this.#box, { sink: this.#audit, action: "project.env.changed", target: projectId },
     );
   }
 
   /**
-   * What a preview receives: the global entries, then the repository's over them, each
+   * What a preview receives: the global entries, then the project's over them, each
    * filtered by the clearance. `none` is nothing at all. Never for a response.
    */
-  valuesFor(repoId: string | null, clearance: Clearance): Record<string, string> {
+  valuesFor(projectId: string | null, clearance: Clearance): Record<string, string> {
     if (clearance === "none") return {};
     const out: Record<string, string> = {};
     const take = (m: Record<string, SecretEntry>) => { for (const [k, e] of Object.entries(m)) if (clears(clearance, e.level)) out[k] = e.value; };
     take(this.global().all());
-    if (repoId !== null) take(this.repo(repoId).all());
+    if (projectId !== null) take(this.project(projectId).all());
     return out;
   }
 }

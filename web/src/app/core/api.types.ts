@@ -40,6 +40,8 @@ export type Preview = {
   secretLevel: Clearance | null;
   /** The template it was deployed with (ADR-0013); null on previews from before templates. */
   templateId: string | null;
+  /** The project it belongs to (ADR-0014); null for one deployed outside any. */
+  projectId: string | null;
   lastSeenAt: string | null;
   error: string | null;
   createdAt: string;
@@ -136,12 +138,24 @@ export const SECRET_LEVELS: readonly SecretLevel[] = ['low', 'standard', 'high']
 export type SecretListing = { name: string; level: SecretLevel };
 
 /** `templateId` names the template its previews follow; `visibility`, `ttl` and `prClearance` override it (null: the template's). */
-export type Repo = {
-  id: string; forge: 'github'; fullName: string; installationId: string; slug: string;
+/** How a project's pull requests arrive (ADR-0014): its own GitHub Actions workflow, or the GitHub App's webhook. */
+export type PrTrigger = 'workflow' | 'webhook';
+export const PR_TRIGGERS: readonly PrTrigger[] = ['workflow', 'webhook'];
+
+/**
+ * The thing you preview (ADR-0014). `forge`/`fullName` are both null for a project with
+ * no repository. `templateId` names its template; `visibility`, `ttl` and `prClearance`
+ * override it (null: the template's).
+ */
+export type Project = {
+  id: string; name: string; slug: string; forge: 'github' | null; fullName: string | null; installationId: string; prTrigger: PrTrigger;
   enabled: boolean; disabledReason: string | null; templateId: string | null; visibility: Visibility | null; ttl: string | null;
   forks: ForkPolicy; drafts: boolean; prClearance: Clearance | null; forkClearance: Clearance; createdAt: string; updatedAt: string;
 };
-export type RepoPatch = Partial<Pick<Repo, 'slug' | 'enabled' | 'templateId' | 'visibility' | 'ttl' | 'forks' | 'drafts' | 'prClearance' | 'forkClearance'>>;
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'slug' | 'prTrigger' | 'enabled' | 'templateId' | 'visibility' | 'ttl' | 'forks' | 'drafts' | 'prClearance' | 'forkClearance'>> & { repository?: string | null };
+export type ProjectCreate = { name: string; slug?: string; repository?: string; prTrigger?: PrTrigger; templateId?: string | null };
+/** `GET /v1/github/repositories`: where the App is installed. */
+export type InstalledRepository = { fullName: string; installationId: string; private: boolean };
 
 /* ---- Templates (ADR-0013) */
 

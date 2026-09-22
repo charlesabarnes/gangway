@@ -2,13 +2,13 @@
 import { describe, expect, test } from "bun:test";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
-import { repoRoutes } from "../../src/app/routes/repos.ts";
+import { projectRoutes } from "../../src/app/routes/projects.ts";
 import { settingsRoutes } from "../../src/app/routes/settings.ts";
 import { templateRoutes } from "../../src/app/routes/templates.ts";
 import { chainVerifiers, staticTokenVerifier } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
-import { HostsRepo, ReposRepo, TemplatesRepo } from "../../src/db/repos/index.ts";
+import { HostsRepo, ProjectsRepo, TemplatesRepo } from "../../src/db/repos/index.ts";
 import { Logger } from "../../src/logger.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { TRIGGERS } from "../../../shared/src/domain.ts";
@@ -20,7 +20,7 @@ const HOST = "app.preview.localhost:8443";
 async function make() {
   const s = setupAccounts();
   const settings = new Settings({}, new MemorySettingsStore());
-  const repos = new ReposRepo(s.db, s.now);
+  const repos = new ProjectsRepo(s.db, s.now);
   const templates = new TemplatesRepo(s.db, s.now);
   const hosts = new HostsRepo(s.db, s.now);
   hosts.upsert({
@@ -39,7 +39,7 @@ async function make() {
     v1: (api) => {
       templateRoutes(api, { templates, hosts, audit: s.audit, namedByTrigger: (id) => TRIGGERS.filter((t) => triggerDefault(t) === id) });
       settingsRoutes(api, settings, s.audit, templates);
-      repoRoutes(api, repos, s.audit, undefined, templates);
+      projectRoutes(api, { projects: repos, audit: s.audit, templates });
     },
     publicV1: (pub) => authRoutes(pub, { auth, accounts: s.accounts, bootstrap: new Bootstrap(() => s.users.count()), roles: s.roles, sessionMaxAgeSec: 60 }),
   });
@@ -104,9 +104,9 @@ describe("/v1/templates (ADR-0013)", () => {
     expect(await refused.json()).toMatchObject({ triggers: ["api"] });
     await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "templates.default.api": "default" } } });
 
-    const repo = repos.create({ id: "r1", forge: "github", fullName: "acme/web", installationId: "1", slug: "web" });
-    expect((await call(`/v1/repos/${repo.id}`, { method: "PATCH", as: ada, json: { templateId: "ghost" } })).status).toBe(422);
-    expect((await call(`/v1/repos/${repo.id}`, { method: "PATCH", as: ada, json: { templateId: "staging", prClearance: null } })).status).toBe(200);
+    const repo = repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web", installationId: "1", slug: "web" });
+    expect((await call(`/v1/projects/${repo.id}`, { method: "PATCH", as: ada, json: { templateId: "ghost" } })).status).toBe(422);
+    expect((await call(`/v1/projects/${repo.id}`, { method: "PATCH", as: ada, json: { templateId: "staging", prClearance: null } })).status).toBe(200);
     expect(repos.get(repo.id)).toMatchObject({ templateId: "staging", prClearance: null });
 
     expect((await call("/v1/templates/staging", { method: "DELETE", as: ada })).status).toBe(204);
@@ -119,13 +119,13 @@ describe("/v1/templates (ADR-0013)", () => {
     s.roles.set("member", ["previews.read"], null);
     await s.accounts.createUser({ kind: "token", tokenId: "system:test", scopes: ["admin"], permissions: new Set(["users.manage"]) } as never, { email: "bob@example.com", password: PASSWORD, roleId: "member" });
     const bob = await login("bob@example.com");
-    const repo = repos.create({ id: "r1", forge: "github", fullName: "acme/web", installationId: "1", slug: "web" });
+    const repo = repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web", installationId: "1", slug: "web" });
     expect((await call("/v1/templates", { as: bob })).status).toBe(200);
     expect((await call("/v1/templates", { method: "POST", as: bob, json: { id: "x", name: "x" } })).status).toBe(403);
-    expect((await call(`/v1/repos/${repo.id}`, { method: "PATCH", as: bob, json: { templateId: "default" } })).status).toBe(403);
+    expect((await call(`/v1/projects/${repo.id}`, { method: "PATCH", as: bob, json: { templateId: "default" } })).status).toBe(403);
     s.roles.set("member", ["previews.read", "templates.manage", "repos.manage"], null);
     expect((await call("/v1/templates", { method: "POST", as: bob, json: { id: "x", name: "x" } })).status).toBe(201);
-    expect((await call(`/v1/repos/${repo.id}`, { method: "PATCH", as: bob, json: { templateId: "x" } })).status).toBe(200);
+    expect((await call(`/v1/projects/${repo.id}`, { method: "PATCH", as: bob, json: { templateId: "x" } })).status).toBe(200);
     void ada;
   });
 });

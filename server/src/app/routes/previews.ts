@@ -31,13 +31,14 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     let req: Omit<DeployInput, "actor">;
     if ((TARBALL_CONTENT_TYPES as readonly string[]).includes(contentType)) {
       // The body is the archive, streamed straight into the extractor -- never buffered.
-      const { ttl, ...q } = TarballDeployQuerySchema.parse(c.req.query());
+      const { ttl, project, ...q } = TarballDeployQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
       if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      req = { ...q, ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port: q.port, digest: `len:${c.req.header("content-length") ?? "?"}` } };
+      req = { ...q, ...(project ? { projectId: project } : {}), ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port: q.port, digest: `len:${c.req.header("content-length") ?? "?"}` } };
     } else {
       const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
-      req = DeployRequestSchema.parse(body);
+      const { project, ...parsed } = DeployRequestSchema.parse(body);
+      req = { ...parsed, ...(project ? { projectId: project } : {}) };
     }
     // §10.1 "Idempotency-Key honored": a retried POST returns the preview the first one made.
     const res = await deploys.deploy({ ...req, actor: c.get("actor") }, c.req.header("idempotency-key"));

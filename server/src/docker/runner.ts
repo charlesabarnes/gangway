@@ -6,12 +6,16 @@
 import type { Host } from "../../../shared/src/domain.ts";
 import { AppError } from "../errors.ts";
 import { verifyDaemon, type DockerClients } from "./client.ts";
-import { composeCapture, runCompose, type ComposeEvent, type ComposeResult } from "./compose.ts";
+import { composeCapture, composeEnv, runCompose, type ComposeEvent, type ComposeResult } from "./compose.ts";
 import { DockerGuardError } from "./guard.ts";
 
 export type ComposeTarget = Pick<Host, "id" | "dockerHost" | "expectName">;
 
-export type ComposeRunOpts = { cwd: string; signal?: AbortSignal | undefined };
+export type ComposeRunOpts = {
+  cwd: string; signal?: AbortSignal | undefined;
+  /** Added to the child's allowlisted environment -- a per-deploy DOCKER_CONFIG, say. Never DOCKER_HOST. */
+  env?: Record<string, string> | undefined;
+};
 
 export type ComposeRunner = {
   stream(argv: string[], host: ComposeTarget, o: ComposeRunOpts): AsyncIterable<ComposeEvent>;
@@ -35,6 +39,7 @@ export function createComposeRunner(clients: DockerClients, onHostState?: (hostI
   };
   const opts = (host: ComposeTarget, o: ComposeRunOpts) => ({
     dockerHost: host.dockerHost, cwd: o.cwd, signal: o.signal, preflight: preflight(host),
+    ...(o.env ? { env: composeEnv({ dockerHost: host.dockerHost, extra: o.env }) } : {}),
   });
   return {
     stream: (argv, host, o) => runCompose(argv, opts(host, o)),

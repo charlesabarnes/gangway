@@ -12,7 +12,9 @@ export const routes: Routes = [
   { path: 'previews', title: 'Previews · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-list').then((m) => m.PreviewList) },
   { path: 'previews/:id', title: 'Preview · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-detail').then((m) => m.PreviewDetail) },
   { path: 'account', title: 'Account · gangway', canActivate: [authGuard], loadComponent: () => import('./features/account/account').then((m) => m.Account) },
-  { path: 'repos', title: 'Repositories · gangway', canActivate: [authGuard], loadComponent: () => import('./features/repos/repos').then((m) => m.ReposPage) },
+  { path: 'projects', title: 'Projects · gangway', canActivate: [authGuard], loadComponent: () => import('./features/projects/projects').then((m) => m.ProjectsPage) },
+  { path: 'projects/:ref', title: 'Project · gangway', canActivate: [authGuard], loadComponent: () => import('./features/projects/project').then((m) => m.ProjectPage) },
+  { path: 'repos', redirectTo: 'projects' },
   { path: 'templates', title: 'Templates · gangway', canActivate: [authGuard], loadComponent: () => import('./features/templates/templates').then((m) => m.TemplatesPage) },
   { path: 'settings', title: 'Settings · gangway', canActivate: [authGuard], loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage) },
   // GitHub's manifest flow sends the browser back here with ?code=&state= (ADR-0011). The

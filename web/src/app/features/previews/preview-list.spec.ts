@@ -7,6 +7,7 @@ import contract from '../../../testing/fixtures/contract.json';
 import { render, type Rendered } from '../../../testing/render';
 import type { Permission, Preview, SessionInfo } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
+import { Clock } from '../../core/clock';
 import { EVENT_SOURCE_FACTORY, SSE_JITTER } from '../../core/sse.service';
 import { Toasts } from '../../ui/toast';
 import { PreviewList } from './preview-list';
@@ -42,6 +43,8 @@ async function open(o: { permissions?: Permission[]; query?: Record<string, stri
       { provide: SSE_JITTER, useValue: () => 0 },
     ],
   });
+  // The fixtures are dated around NOW; relative times must be read against it, not the wall clock.
+  TestBed.inject(Clock).set(NOW);
   const auth = TestBed.inject(AuthService);
   const loading = auth.refresh();
   r.http.expectOne('/v1/auth/session').flush(session);

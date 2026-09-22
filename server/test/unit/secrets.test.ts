@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { migrate } from "../../src/db/migrate.ts";
-import { ReposRepo } from "../../src/db/repos/repos.ts";
+import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import { githubFullName } from "../../src/forge/github/webhook.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "../../src/secrets/box.ts";
@@ -45,8 +45,8 @@ describe("Secrets: two scopes, one shape", () => {
     const dir = tmp();
     const { db } = openDatabase({ path: join(dir, "g.db") });
     migrate(db, join(import.meta.dir, "../../migrations"));
-    const repos = new ReposRepo(db);
-    const repo = repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "1", slug: "web-app" });
+    const repos = new ProjectsRepo(db);
+    const repo = repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web-app", installationId: "1", slug: "web-app" });
     const audited: unknown[] = [];
     const store = new MemorySettingsStore();
     const secrets = new Secrets(repos, store, new SecretBox(randomBytes(32)), { record: (_a, action, target, change) => audited.push({ action, target, ...change }) });
@@ -55,7 +55,7 @@ describe("Secrets: two scopes, one shape", () => {
 
   test("a repository's map: set merges (a plain string is `standard`), levels re-level, unset removes; the row holds ciphertext only; the audit holds names only", () => {
     const { repos, repo, secrets, audited, db } = setup();
-    const m = secrets.repo(repo.id);
+    const m = secrets.project(repo.id);
     expect(m.list()).toEqual([]);
     expect(m.update(null, { set: { FONTAWESOME_TOKEN: { value: "fa-abc", level: "high" }, B: "2", PUBLIC_KEY: { value: "pk", level: "low" } } }))
       .toEqual([{ name: "B", level: "standard" }, { name: "FONTAWESOME_TOKEN", level: "high" }, { name: "PUBLIC_KEY", level: "low" }]);
@@ -63,10 +63,10 @@ describe("Secrets: two scopes, one shape", () => {
     expect(secrets.valuesFor(repo.id, "high")).toEqual({ B: "2", FONTAWESOME_TOKEN: "fa-new", PUBLIC_KEY: "pk" });
     expect(secrets.valuesFor(repo.id, "standard")).toEqual({ PUBLIC_KEY: "pk" });
     expect(secrets.valuesFor(repo.id, "none")).toEqual({});
-    const row = db.get<{ env_ciphertext: string }>("SELECT env_ciphertext FROM repos WHERE id = 'r1'")!;
+    const row = db.get<{ env_ciphertext: string }>("SELECT env_ciphertext FROM projects WHERE id = 'r1'")!;
     expect(row.env_ciphertext).toMatch(/^v1\./);
     expect(JSON.stringify([row, audited])).not.toMatch(/fa-new|fa-abc/);
-    expect(audited.at(-1)).toMatchObject({ action: "repo.env.changed", target: "r1", new: { names: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"], set: ["FONTAWESOME_TOKEN"], levels: { B: "high" } } });
+    expect(audited.at(-1)).toMatchObject({ action: "project.env.changed", target: "r1", new: { names: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"], set: ["FONTAWESOME_TOKEN"], levels: { B: "high" } } });
     expect(m.update(null, { unset: ["B", "FONTAWESOME_TOKEN", "PUBLIC_KEY"] })).toEqual([]);
     expect(repos.envCiphertext(repo.id)).toBeNull();
     expect(() => m.update(null, { levels: { NOPE: "low" } })).toThrow(/not set/);
@@ -75,7 +75,7 @@ describe("Secrets: two scopes, one shape", () => {
   test("the global map reaches a preview with no repository too, and a repository's entry wins on a name", () => {
     const { repo, secrets, store, audited } = setup();
     secrets.global().update(null, { set: { SHARED: "global", ONLY_GLOBAL: { value: "g", level: "low" }, TOP: { value: "t", level: "high" } } });
-    secrets.repo(repo.id).update(null, { set: { SHARED: "repo" } });
+    secrets.project(repo.id).update(null, { set: { SHARED: "repo" } });
     expect(store.get("secrets.global")).toMatch(/^v1\./);
     expect(audited.at(-2)).toMatchObject({ action: "secrets.changed", target: null });
     expect(secrets.valuesFor(null, "standard")).toEqual({ SHARED: "global", ONLY_GLOBAL: "g" });
@@ -92,13 +92,13 @@ describe("Secrets: two scopes, one shape", () => {
     const box = new SecretBox(randomBytes(32));
     const legacy = new Secrets(repos, new MemorySettingsStore(), box);
     repos.setEnvCiphertext(repo.id, box.seal(JSON.stringify({ OLD: "v" })));
-    expect(legacy.repo(repo.id).list()).toEqual([{ name: "OLD", level: "standard" }]);
+    expect(legacy.project(repo.id).list()).toEqual([{ name: "OLD", level: "standard" }]);
     void secrets;
   });
 
   test("a bad name or an oversized value is refused", () => {
     const { repo, secrets } = setup();
-    const m = secrets.repo(repo.id);
+    const m = secrets.project(repo.id);
     expect(() => m.update(null, { set: { "1BAD": "x" } })).toThrow(/not a valid environment variable name/);
     expect(() => m.update(null, { set: { "with-dash": "x" } })).toThrow(/not a valid/);
     expect(() => m.update(null, { set: { BIG: "x".repeat(17 * 1024) } })).toThrow(/longer than/);

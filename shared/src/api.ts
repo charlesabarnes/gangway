@@ -51,6 +51,7 @@ export const TarballDeployQuerySchema = z.object({
   ttl: z.string().max(16).optional(),
   hostId: z.string().min(1).max(64).optional(),
   template: templateId.optional(),
+  project: z.string().min(1).max(64).optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
 });
 export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"] as const;
@@ -62,8 +63,10 @@ export const DeployRequestSchema = z.strictObject({
   /** `12h`, `7d`; null for no expiry. Omitted means the server default. */
   ttl: z.string().max(16).nullable().optional(),
   hostId: z.string().min(1).max(64).optional(),
-  /** A template by id (ADR-0013). Omitted: the repository's, else the trigger's default. */
+  /** A template by id (ADR-0013). Omitted: the project's, else the trigger's default. */
   template: templateId.optional(),
+  /** A project by id or slug (ADR-0014): the preview is filed under it and follows its policy. */
+  project: z.string().min(1).max(64).optional(),
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
 
@@ -147,8 +150,40 @@ export const ManifestExchangeSchema = z.strictObject({
 export type ManifestExchangeRequest = z.infer<typeof ManifestExchangeSchema>;
 
 /** `PATCH /v1/repos/:id`: the per-repository knobs (ADR-0011). */
-export const RepoPatchSchema = z.strictObject({
-  slug: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?$/, "a slug is 1-24 lowercase letters, digits and hyphens").optional(),
+const projectSlug = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?$/, "a slug is 1-24 lowercase letters, digits and hyphens");
+/** `owner/name`, as GitHub spells it. */
+const repository = z.string().trim().regex(/^[\w.-]+\/[\w.-]+$/, "a repository is owner/name");
+const prTrigger = z.enum(["workflow", "webhook"]);
+
+/** `POST /v1/projects` (ADR-0014). A project is made on purpose; the slug defaults from the name. */
+export const ProjectCreateSchema = z.strictObject({
+  name: z.string().trim().min(1).max(64),
+  slug: projectSlug.optional(),
+  /** Omitted: a project with no repository, for images and tarballs. */
+  repository: repository.optional(),
+  prTrigger: prTrigger.optional(),
+  templateId: z.string().min(1).max(32).nullable().optional(),
+});
+export type ProjectCreateRequest = z.infer<typeof ProjectCreateSchema>;
+
+/**
+ * `PUT /v1/projects/:ref/pulls/:n` (ADR-0014): the image a workflow pushed for the PR's
+ * head. `registry` logs in for this one pull and is never stored.
+ */
+export const PullDeploySchema = z.strictObject({
+  image: z.string().min(3).max(512).regex(/^[a-z0-9][a-z0-9._\/:@-]*$/i, "not an image reference"),
+  port: z.number().int().min(1).max(65535),
+  sha: z.string().regex(/^[0-9a-f]{7,64}$/, "a commit sha"),
+  registry: z.strictObject({ username: z.string().min(1).max(256), password: z.string().min(1).max(4096) }).optional(),
+});
+export type PullDeployRequestBody = z.infer<typeof PullDeploySchema>;
+
+export const ProjectPatchSchema = z.strictObject({
+  name: z.string().trim().min(1).max(64).optional(),
+  /** null: no repository any more. */
+  repository: repository.nullable().optional(),
+  prTrigger: prTrigger.optional(),
+  slug: projectSlug.optional(),
   enabled: z.boolean().optional(),
   visibility: z.enum(["public", "unlisted", "private"]).nullable().optional(),
   ttl: z.string().max(16).nullable().optional(),
@@ -158,7 +193,7 @@ export const RepoPatchSchema = z.strictObject({
   prClearance: z.enum(["none", "low", "standard", "high"]).nullable().optional(),
   forkClearance: z.enum(["none", "low", "standard", "high"]).optional(),
 });
-export type RepoPatchRequest = z.infer<typeof RepoPatchSchema>;
+export type ProjectPatchRequest = z.infer<typeof ProjectPatchSchema>;
 
 /* ------------------------------------------------------------------ templates (ADR-0013) */
 
@@ -189,12 +224,12 @@ export type TemplatePatchRequest = z.infer<typeof TemplatePatchSchema>;
 
 /** `PATCH /v1/repos/:id/env`: merge secrets in, take names out. Values are never returned. */
 const secretLevel = z.enum(["low", "standard", "high"]);
-export const RepoEnvPatchSchema = z.strictObject({
+export const EnvPatchSchema = z.strictObject({
   set: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name"), z.union([z.string(), z.strictObject({ value: z.string(), level: secretLevel })])).optional(),
   unset: z.array(z.string()).max(100).optional(),
   levels: z.record(z.string(), secretLevel).optional(),
 }).refine((v) => Object.keys(v.set ?? {}).length > 0 || (v.unset ?? []).length > 0 || Object.keys(v.levels ?? {}).length > 0, "nothing to change");
-export type RepoEnvPatchRequest = z.infer<typeof RepoEnvPatchSchema>;
+export type EnvPatchRequest = z.infer<typeof EnvPatchSchema>;
 
 export const AuditQuerySchema = z.object({
   /** Entries with a seq BELOW this one: the log is read newest-first. */

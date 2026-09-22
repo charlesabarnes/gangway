@@ -67,7 +67,7 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
 
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
   try {
-    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }), host, { cwd: empty });
+    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }, [], rmiFor(preview)), host, { cwd: empty });
     if (res.code !== 0) throw new Error(`compose down exited ${res.code}: ${res.stderr.slice(-500)}`);
   } catch (e) {
     const message = redactString(e instanceof Error ? e.message : String(e));
@@ -86,13 +86,19 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
 }
 
 /**
+ * `all` only for an image pushed for this preview's commit (ADR-0014): unique to it, and
+ * left behind by `local`. Anything else may be an image the operator's own containers share.
+ */
+export const rmiFor = (p: Preview): "local" | "all" => (p.source.kind === "pr" && p.source.image ? "all" : "local");
+
+/**
  * Best-effort `down` for a stack nobody is going to finish starting. Never throws: the
  * caller has already decided the preview's fate, and this only returns its resources.
  */
 export async function releaseStack(ctx: PreviewContext, preview: Preview, host: Host): Promise<boolean> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
   try {
-    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }), host, { cwd: empty });
+    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }, [], rmiFor(preview)), host, { cwd: empty });
     return res.code === 0;
   } catch {
     return false;

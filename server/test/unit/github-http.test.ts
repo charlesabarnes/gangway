@@ -3,12 +3,12 @@ import { describe, expect, test } from "bun:test";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
 import { githubRoutes } from "../../src/app/routes/github.ts";
-import { repoRoutes } from "../../src/app/routes/repos.ts";
+import { projectRoutes } from "../../src/app/routes/projects.ts";
 import { chainVerifiers, staticTokenVerifier } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
 import { randomBytes } from "node:crypto";
-import { ReposRepo } from "../../src/db/repos/repos.ts";
+import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import { SecretBox } from "../../src/secrets/box.ts";
 import { Secrets } from "../../src/secrets/secrets.ts";
 import { secretRoutes } from "../../src/app/routes/secrets.ts";
@@ -24,7 +24,7 @@ const HOST = "app.preview.localhost:8443";
 async function make(o: { overrides?: Record<string, unknown>; conversion?: number } = {}) {
   const s = setupAccounts();
   const settings = new Settings(o.overrides ?? {}, new MemorySettingsStore());
-  const repos = new ReposRepo(s.db, s.now);
+  const repos = new ProjectsRepo(s.db, s.now);
   const conversions: string[] = [];
   const app = new GitHubApp({
     credentials: () => ({ appId: "", privateKey: "" }), baseUrl: "https://api.github.test", log: new Logger("error", {}, () => {}),
@@ -50,7 +50,7 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
     ...auth, logger: new Logger("error", {}, () => {}),
     v1: (api) => {
       const secrets = new Secrets(repos, new MemorySettingsStore(), new SecretBox(randomBytes(32)), s.audit);
-      repoRoutes(api, repos, s.audit, secrets);
+      projectRoutes(api, { projects: repos, audit: s.audit, secrets });
       secretRoutes(api, secrets);
       githubRoutes(api, { app, settings, states, audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
     },
@@ -125,50 +125,5 @@ describe("/v1/github", () => {
     const t = await make({ overrides: { "github.appId": "1", "github.privateKey": "k", "github.webhookSecret": "s" } });
     expect((await (await t.call("/v1/github", { as: t.ada })).json() as any)).toMatchObject({ configured: true, managedByConfig: true, missing: [] });
     expect((await t.call("/v1/github/manifest", { as: t.ada })).status).toBe(409);
-  });
-});
-
-describe("/v1/repos", () => {
-  test("list, tune, and the slug is one namespace; enabling clears the reason; delete forgets", async () => {
-    const t = await make();
-    t.repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "1", slug: "web-app" });
-    t.repos.create({ id: "r2", forge: "github", fullName: "other/web-app", installationId: "2", slug: "web-app-x1y2z3", enabled: false, disabledReason: "slug taken" });
-    expect(((await (await t.call("/v1/repos", { as: t.ada })).json()) as any).repos.map((r: any) => r.fullName)).toEqual(["acme/web-app", "other/web-app"]);
-
-    expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { slug: "web-app" } })).status).toBe(409);
-    expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { slug: "Web App" } })).status).toBe(422);
-    expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { ttl: "soon" } })).status).toBe(422);
-    expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { nope: 1 } })).status).toBe(422);
-    const ok = await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { slug: "legacy", enabled: true, forks: "auto", visibility: "public", ttl: "2d", drafts: true, forkClearance: "low", prClearance: "high" } });
-    expect(ok.status).toBe(200);
-    expect(((await ok.json()) as any).repo).toMatchObject({ slug: "legacy", enabled: true, disabledReason: null, forks: "auto", visibility: "public", ttl: "2d", drafts: true, forkClearance: "low", prClearance: "high" });
-    expect(t.s.auditRepo.page({ limit: 1 }).entries[0]).toMatchObject({ action: "repo.updated", target: "r2", old: { slug: "web-app-x1y2z3", enabled: false }, new: { slug: "legacy", enabled: true } });
-
-    expect((await t.call("/v1/repos/r2", { method: "DELETE", as: t.ada })).status).toBe(204);
-    expect((await t.call("/v1/repos/r2", { as: t.ada })).status).toBe(404);
-    expect((await t.call("/v1/repos/r2", { method: "PATCH", as: t.ada, json: { enabled: true } })).status).toBe(404);
-  });
-
-  test("secrets: PATCH merges and answers with NAMES; GET lists names; a value never comes back anywhere", async () => {
-    const t = await make();
-    t.repos.create({ id: "r1", forge: "github", fullName: "acme/web-app", installationId: "1", slug: "web-app" });
-    expect(await (await t.call("/v1/repos/r1/env", { as: t.ada })).json()).toEqual({ secrets: [] });
-    let res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { FONTAWESOME_TOKEN: { value: "fa-secret-value", level: "high" }, B: "2" } } });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ secrets: [{ name: "B", level: "standard" }, { name: "FONTAWESOME_TOKEN", level: "high" }] });
-    res = await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { unset: ["B"], levels: { FONTAWESOME_TOKEN: "standard" } } });
-    expect(await res.json()).toEqual({ secrets: [{ name: "FONTAWESOME_TOKEN", level: "standard" }] });
-    expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { levels: { FONTAWESOME_TOKEN: "top" } } })).status).toBe(422);
-    expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: {} })).status).toBe(422);
-    expect((await t.call("/v1/repos/r1/env", { method: "PATCH", as: t.ada, json: { set: { "bad-name": "x" } } })).status).toBe(422);
-    expect((await t.call("/v1/repos/nope/env", { as: t.ada })).status).toBe(404);
-    // The global map has the same shape at /v1/secrets.
-    expect(await (await t.call("/v1/secrets", { as: t.ada })).json()).toEqual({ secrets: [] });
-    res = await t.call("/v1/secrets", { method: "PATCH", as: t.ada, json: { set: { SHARED: { value: "global-secret-value", level: "low" } } } });
-    expect(await res.json()).toEqual({ secrets: [{ name: "SHARED", level: "low" }] });
-    expect(t.s.auditRepo.page({ limit: 1 }).entries[0]).toMatchObject({ action: "secrets.changed", target: null });
-    // The repo row, the audit log and the repos listing carry no value.
-    const everything = JSON.stringify([await (await t.call("/v1/repos", { as: t.ada })).json(), t.s.auditRepo.page({ limit: 10 }).entries]);
-    expect(everything).not.toMatch(/fa-secret-value|global-secret-value/);
   });
 });

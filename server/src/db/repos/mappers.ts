@@ -1,6 +1,6 @@
 /** Row <-> domain conversion. The only place epoch-millis integers become Dates. */
 import type {
-  ApiToken, AuditActorType, AuditEntry, Certificate, Clearance, ForgeId, ForkPolicy, GangwayEvent, Host, HostCapability, Preview, PreviewSource, Repo,
+  ApiToken, AuditActorType, AuditEntry, Certificate, Clearance, ForgeId, ForkPolicy, GangwayEvent, Host, HostCapability, Preview, PreviewSource, PrTrigger, Project,
   Role, Route, Session, Template, User, Visibility,
 } from "../../../../shared/src/domain.ts";
 import type { Scope } from "../../../../shared/src/permissions.ts";
@@ -49,6 +49,7 @@ export type PreviewRow = {
   idle_after_ms?: number | null;
   secret_level?: string | null;
   template_id?: string | null;
+  project_id?: string | null;
 };
 
 export function rowToPreview(r: PreviewRow): Preview {
@@ -64,6 +65,7 @@ export function rowToPreview(r: PreviewRow): Preview {
     idleAfterMs: r.idle_after_ms ?? null,
     secretLevel: (r.secret_level ?? null) as Clearance | null,
     templateId: r.template_id ?? null,
+    projectId: r.project_id ?? null,
     lastSeenAt: toDate(r.last_seen_at),
     error: r.error,
     createdAt: new Date(r.created_at),
@@ -183,15 +185,16 @@ export function rowToAuditEntry(r: AuditRow): AuditEntry {
   };
 }
 
-export type RepoRow = {
-  id: string; forge: string; full_name: string; installation_id: string; slug: string; enabled: number;
-  disabled_reason: string | null; template_id: string | null; visibility: string | null; ttl: string | null; forks: string; drafts: number;
-  pr_clearance: string | null; fork_clearance: string;
+export type ProjectRow = {
+  id: string; name: string; slug: string; forge: string | null; full_name: string | null; installation_id: string; pr_trigger: string;
+  enabled: number; disabled_reason: string | null; template_id: string | null; visibility: string | null; ttl: string | null;
+  pr_clearance: string | null; forks: string; drafts: number; fork_clearance: string;
   created_at: number; updated_at: number;
 };
 
-export const rowToRepo = (r: RepoRow): Repo => ({
-  id: r.id, forge: r.forge as ForgeId, fullName: r.full_name, installationId: r.installation_id, slug: r.slug,
+export const rowToProject = (r: ProjectRow): Project => ({
+  id: r.id, name: r.name, slug: r.slug, forge: r.forge as ForgeId | null, fullName: r.full_name, installationId: r.installation_id,
+  prTrigger: r.pr_trigger as PrTrigger,
   enabled: bool(r.enabled), disabledReason: r.disabled_reason, templateId: r.template_id, visibility: r.visibility as Visibility | null, ttl: r.ttl,
   prClearance: r.pr_clearance as Clearance | null,
   forks: r.forks as ForkPolicy, drafts: bool(r.drafts), forkClearance: r.fork_clearance as Clearance,

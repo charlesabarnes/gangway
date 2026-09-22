@@ -145,7 +145,7 @@ describe("buildLabel", () => {
   });
   test("every generated label is a legal DNS label", () => {
     for (const n of [1, 42, 999]) {
-      for (const repo of ["acme", "My-Repo", "a.b.c"]) {
+      for (const repo of ["acme", "My-Project", "a.b.c"]) {
         const r = buildLabel({ kind: "pr", repo, number: n }, { service: "api" });
         if (r.ok) expect(isValidLabel(r.label)).toBe(true);
       }
