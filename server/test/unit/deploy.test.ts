@@ -110,7 +110,7 @@ describe("deploy: the happy path", () => {
     const { ctx, input, calls, events, dir, logs } = setup();
     const res = await deploy(ctx, input());
 
-    expect(res.preview).toMatchObject({ state: "building", project: "gw-web-app", hostId: "local", source: { kind: "image", image: "ghcr.io/acme/web-app:1.2" } });
+    expect(res.preview).toMatchObject({ state: "building", project: "gw-default-web-app", hostId: "local", source: { kind: "image", image: "ghcr.io/acme/web-app:1.2" } });
     expect(res.urls).toEqual([{ service: "web", url: "https://web-app.preview.localhost:8443/", primary: true }]);
     expect(ctx.table.lookup("web-app.preview.localhost")).toMatchObject({ state: "building", upstreamPort: 31000 });
 
@@ -138,11 +138,11 @@ describe("deploy: the happy path", () => {
     const res = await deploy(ctx, input());
     await res.done;
     const up = calls.find((c) => c.cmd === "up")!;
-    expect(up.argv.slice(0, 4)).toEqual(["docker", "compose", "--project-name", "gw-web-app"]);
+    expect(up.argv.slice(0, 4)).toEqual(["docker", "compose", "--project-name", "gw-default-web-app"]);
     expect(up.argv.filter((_, i) => up.argv[i - 1] === "--file").map((f) => f.split("/").pop())).toEqual(["gangway.stack.yaml"]);
     expect(up.argv.slice(-4)).toEqual(["up", "-d", "--no-build", "--remove-orphans"]);
     const stack = JSON.parse(up.stack!);
-    expect(stack.name).toBe("gw-web-app");
+    expect(stack.name).toBe("gw-default-web-app");
     expect(stack.services.web.ports).toEqual([{ mode: "ingress", host_ip: "127.0.0.1", target: 3000, published: "31000", protocol: "tcp" }]);
     expect("name" in stack.networks.default).toBe(false);
     expect(parseLabels(stack.services.web.labels)).toMatchObject({ ok: true, labels: { previewId: res.preview.id, hostname: "web-app.preview.localhost", port: 31000, env: "test" } });
@@ -281,7 +281,7 @@ describe("destroy", () => {
     expect(gone.state).toBe("destroyed");
     expect(gone.destroyedAt).not.toBeNull();
     const down = s.calls.at(-1)!;
-    expect(down.argv).toEqual(["docker", "compose", "--project-name", "gw-web-app", "down", "-v", "--remove-orphans", "--rmi", "local"]);
+    expect(down.argv).toEqual(["docker", "compose", "--project-name", "gw-default-web-app", "down", "-v", "--remove-orphans", "--rmi", "local"]);
     expect(down.cwd).toContain("gangway-down-");
     expect(existsSync(down.cwd)).toBe(false);
     expect(s.table.size).toBe(0);

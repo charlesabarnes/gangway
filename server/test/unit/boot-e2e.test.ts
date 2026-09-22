@@ -120,7 +120,7 @@ test("MILESTONE: deploy an image over REST, get a URL, open it, destroy it", asy
   const logs = await call(API, `/v1/previews/${preview.id}/logs`);
   const first = new TextDecoder().decode((await logs.body!.getReader().read()).value);
   expect(first).toContain("event: log");
-  expect(first).toContain("deploying gw-hello");
+  expect(first).toContain("deploying gw-default-hello");
   const bad = await call(API, "/v1/previews", { method: "POST", body: JSON.stringify({ source: { kind: "image", image: "--privileged", port: 80 } }) });
   expect(bad.status).toBe(422);
   expect((await call(API, "/v1/previews/not-an-id")).status).toBe(404);

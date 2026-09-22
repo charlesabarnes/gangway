@@ -160,7 +160,7 @@ describe("rule 1: provably ours, or not at all", () => {
     s.daemon.containers.push(orphan);
     const report = await s.reconciler.run();
     expect(s.daemon.stopped).toEqual(["c-orphan"]);
-    expect(report.changes).toEqual(["stopped orphan gw-hello-web-1 on local (incomplete-labels)"]);
+    expect(report.changes).toEqual(["stopped orphan gw-default-hello-web-1 on local (incomplete-labels)"]);
     expect(s.eventTypes().at(-1)).toBe("reconcile.completed");
   });
 
@@ -227,7 +227,7 @@ describe("§11's table", () => {
     s.daemon.containers = [];
     const composedBefore = s.daemon.composed.length;
     const report = await s.reconciler.run();
-    expect(report.changes).toEqual(["gw-hello: no running container; marked asleep"]);
+    expect(report.changes).toEqual(["gw-default-hello: no running container; marked asleep"]);
     expect(s.previews.get(preview.id)!.state).toBe("asleep");
     expect(s.table.lookup("hello.preview.localhost")!.state).toBe("asleep");
     expect(s.daemon.composed.length).toBe(composedBefore);
@@ -258,7 +258,7 @@ describe("§11's table", () => {
     expect(s.previews.get(preview.id)!.state).toBe("asleep");
 
     s.daemon.probe = true;
-    expect((await s.reconciler.run()).changes).toEqual(["gw-hello: asleep, but its containers are running and answering; marked awake"]);
+    expect((await s.reconciler.run()).changes).toEqual(["gw-default-hello: asleep, but its containers are running and answering; marked awake"]);
     expect(s.previews.get(preview.id)!.state).toBe("awake");
     expect(s.table.lookup("hello.preview.localhost")!.state).toBe("awake");
     expect(s.daemon.composed.length).toBe(composedBefore);
@@ -295,7 +295,7 @@ describe("§11's table", () => {
     s.previews.delete(preview.id);
     await s.reconciler.run();
     const back = s.previews.get(preview.id)!;
-    expect(back).toMatchObject({ project: "gw-hello", state: "awake", visibility: "public", source: { kind: "image", image: "traefik/whoami:v1.10" } });
+    expect(back).toMatchObject({ project: "gw-default-hello", state: "awake", visibility: "public", source: { kind: "image", image: "traefik/whoami:v1.10" } });
     expect(back.ttlExpiresAt!.getTime()).toBeGreaterThan(Date.now() + 6 * 86_400_000);
     expect(s.table.lookup(route.hostname)!.state).toBe("awake");
     expect(s.eventTypes()).toContain("preview.adopted");
@@ -367,7 +367,7 @@ describe("interrupted by a restart", () => {
     const report = await s.reconciler.run();
     expect(s.previews.get(preview.id)!.state).toBe("destroyed");
     expect(s.table.size).toBe(0);
-    expect(report.changes).toContain("gw-hello: interrupted teardown finished");
+    expect(report.changes).toContain("gw-default-hello: interrupted teardown finished");
   });
 
   test("...but never on a host we cannot see: no evidence, no verdict", async () => {

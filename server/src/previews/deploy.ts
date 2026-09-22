@@ -19,7 +19,7 @@ import { randomBytes } from "node:crypto";
 import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Host, Preview, PreviewSource, Visibility } from "../../../shared/src/domain.ts";
+import { projectNameFor, type Host, type Preview, type PreviewSource, type Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
 import { actorId, type Actor } from "../auth/actor.ts";
@@ -185,7 +185,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     const stem = slugify(input.name ?? defaultName(input.source));
     if (stem === "") throw unprocessable("name has no usable characters");
     const slug = visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
-    const project = `gw-${slug}`;
+    const project = projectNameFor(ctx.instance, slug);
 
     const existing = ctx.previews.getByProject(project);
     if (existing && existing.state !== "destroyed") {

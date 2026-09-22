@@ -20,7 +20,7 @@ describe("the audit log is written by the service layer", () => {
     const preview = await s.deployed("audited");
     expect(all(s.audit)).toEqual([expect.objectContaining({
       actorType: "token", actorId: "env:admin", action: "preview.deploy", target: preview.id, old: null,
-      new: { project: "gw-audited", visibility: "public", source: "image", hostId: preview.hostId, urls: ["https://audited.preview.localhost:8443/"] },
+      new: { project: "gw-default-audited", visibility: "public", source: "image", hostId: preview.hostId, urls: ["https://audited.preview.localhost:8443/"] },
     })]);
   });
 
@@ -37,7 +37,7 @@ describe("the audit log is written by the service layer", () => {
     await destroy(s.ctx, preview.id, user);
     expect(all(s.audit)[0]).toMatchObject({
       actorType: "user", actorId: "u-ada", action: "preview.destroy", target: preview.id,
-      old: { project: "gw-doomed", state: "awake", hostId: preview.hostId }, new: null,
+      old: { project: "gw-default-doomed", state: "awake", hostId: preview.hostId }, new: null,
     });
   });
 

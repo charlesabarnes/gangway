@@ -52,7 +52,7 @@ export type PreviewSource =
 
 export type Preview = {
   id: string;
-  /** The compose project name, e.g. "gw-acme-pr-123". Namespaces containers, network and volumes. */
+  /** The compose project name -- see `projectNameFor`. Namespaces containers, network and volumes. */
   project: string;
   hostId: string;
   kind: PreviewKind;
@@ -166,3 +166,17 @@ export const PREVIEW_ACTIVE_STATES: readonly PreviewState[] = [
 ];
 
 export const isActive = (s: PreviewState): boolean => PREVIEW_ACTIVE_STATES.includes(s);
+
+/**
+ * The compose project name for a preview: `gw-<instance>-<slug>`, e.g. `gw-tower-acme-pr-123`.
+ *
+ * The instance is IN the name, always, and not only for non-production. Two gangway
+ * installations can drive one daemon (a laptop's dev run and the standing container on the
+ * same host, §4.1); their reconcilers tell their containers apart by the `gangway.instance`
+ * label, but compose keys on the project name alone: with `gw-<slug>` a dev deploy named like
+ * a live preview RECREATED it. A mode flag ("prod omits the segment") would have been the
+ * next thing to misconfigure, so there is none. The slug alone stays the hostname.
+ */
+export function projectNameFor(instance: string, slug: string): string {
+  return `gw-${instance}-${slug}`;
+}

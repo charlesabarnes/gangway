@@ -81,7 +81,7 @@ describe("GET /v1/previews/:id/events and /builds", () => {
     const t = make();
     const p = await t.deployed("storied");
     const { events } = await (await t.get(`/previews/${p.id}/events`)).json() as { events: { seq: number; type: string; state?: string; from?: string }[] };
-    expect(events[0]).toMatchObject({ type: "preview.created", project: "gw-storied" });
+    expect(events[0]).toMatchObject({ type: "preview.created", project: "gw-default-storied" });
     expect(events.filter((e) => e.type === "preview.state").map((e) => e.state)).toEqual(["starting", "awake"]);
     expect(events.map((e) => e.seq)).toEqual([...events.map((e) => e.seq)].sort((a, b) => a - b));
   });

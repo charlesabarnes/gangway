@@ -92,7 +92,7 @@ describe("git source", () => {
     const s = setupPreviewContext();
     s.ctx.git = { gitPath: await fakeGit(s.ctx.workdirs.root.replace(/work$/, ""), { Dockerfile: "FROM nginx" }) };
     const res = await deploy(s.ctx, { ...base, source: { kind: "git", repo: "https://github.com/acme/web-app.git", ref: "main", port: 3000 } });
-    expect(res.preview).toMatchObject({ project: "gw-web-app", source: { kind: "git", repo: "https://github.com/acme/web-app.git", ref: "main" } });
+    expect(res.preview).toMatchObject({ project: "gw-default-web-app", source: { kind: "git", repo: "https://github.com/acme/web-app.git", ref: "main" } });
     expect((await res.done).state).toBe("awake");
     expect(s.ctx.logs.read(res.preview.id)[0]!.line).toMatch(/^cloned https:\/\/github.com\/acme\/web-app.git @ main \(0123456789ab\)/);
     expect(s.fake.builds).toBe(1);
