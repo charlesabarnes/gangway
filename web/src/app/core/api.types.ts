@@ -33,6 +33,8 @@ export type Preview = {
   source: PreviewSource;
   visibility: Visibility;
   ttlExpiresAt: string | null;
+  /** Idle-sleep after this many ms without a request; null: the server default; 0: never. */
+  idleAfterMs: number | null;
   lastSeenAt: string | null;
   error: string | null;
   createdAt: string;

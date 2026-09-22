@@ -22,8 +22,11 @@ export type DispatchDeps = {
   /** Read PER REQUEST so a toggle takes effect with no restart (§10.5). */
   surfaceEnabled: (s: Surface) => boolean;
   handlers: Partial<Record<Surface, SurfaceHandler>>;
-  /** Phase 4 wake-on-request; until then previews never enter `asleep`. */
-  wake?: (entry: RouteEntry, req: Request) => Promise<Response>;
+  /**
+   * Wake-on-request (ADR-0012). Resolves with a Response to send instead (the 202 page
+   * when the wake is taking long), or null: the preview is awake now, proxy the request.
+   */
+  wake?: (entry: RouteEntry, req: Request) => Promise<Response | null>;
   /** Visibility gate (§8.3). Returning a Response short-circuits before the upstream. */
   visibilityGate?: (entry: RouteEntry, req: Request) => Response | null;
   logTailFor?: (previewId: string) => string[];
@@ -80,8 +83,12 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
       return buildingPage(host, d.logUrlFor?.(entry.previewId));
     case "failed":
       return failedPage(host, d.logTailFor?.(entry.previewId) ?? [], d.logUrlFor?.(entry.previewId));
-    case "asleep":
-      return d.wake ? d.wake(entry, req) : wakingPage(host);
+    case "asleep": {
+      if (!d.wake) return wakingPage(host);
+      const instead = await d.wake(entry, req);
+      if (instead) return instead;
+      break; // woke: the entry says awake now; proxy this very request
+    }
     case "destroying":
     case "destroyed":
       return unknownPage(host);

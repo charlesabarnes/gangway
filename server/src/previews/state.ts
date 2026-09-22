@@ -13,7 +13,9 @@ import type { RouteTable } from "../routing/table.ts";
 
 const LEGAL: Record<PreviewState, readonly PreviewState[]> = {
   building: ["starting", "failed", "destroying"],
-  starting: ["awake", "failed", "destroying"],
+  // starting -> asleep: a WAKE that did not get there (ADR-0012). The containers are as they
+  // were; the next request tries again. A deploy never takes this edge.
+  starting: ["awake", "asleep", "failed", "destroying"],
   awake: ["asleep", "failed", "destroying", "building"],
   asleep: ["starting", "failed", "destroying"],
   failed: ["building", "destroying"],

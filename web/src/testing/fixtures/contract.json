@@ -12,6 +12,7 @@
     },
     "visibility": "public",
     "ttlExpiresAt": "2026-09-28T20:24:15.180Z",
+    "idleAfterMs": null,
     "lastSeenAt": null,
     "error": null,
     "createdAt": "2026-09-21T20:24:15.180Z",

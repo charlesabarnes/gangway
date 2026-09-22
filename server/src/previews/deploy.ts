@@ -19,7 +19,7 @@ import { randomBytes } from "node:crypto";
 import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { projectNameFor, type Host, type Preview, type PreviewSource, type Visibility } from "../../../shared/src/domain.ts";
+import { projectNameFor, type Host, type Preview, type PreviewSource, type Route, type Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
 import { actorId, type Actor } from "../auth/actor.ts";
@@ -213,9 +213,11 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
       ctx.previews.delete(existing.id);
       ctx.logs.remove(existing.id);
     }
+    // The stack's own idle choice is pinned on the row; the server default is read at sweep time.
+    const idleAfterMs = model.x.idle === undefined ? null : model.x.idle === "never" ? 0 : parseDuration(model.x.idle);
     preview = ctx.previews.create({
       id, project, hostId: host.id, state: "building", source, visibility,
-      ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs),
+      ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
     });
     try {
       for (const route of routes) {
@@ -256,7 +258,7 @@ type RunInput = {
   routes: PlannedRoute[]; visibility: Visibility; signal: AbortSignal;
 };
 
-class StepFailed extends Error {
+export class StepFailed extends Error {
   readonly exitCode: number | null;
   constructor(message: string, exitCode: number | null = null) {
     super(message);
@@ -309,7 +311,8 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     upAttempted = true;
     await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout");
 
-    await waitHealthy(ctx, r, base);
+    const target: WaitTarget = { previewId: id, host, routes: r.routes, signal: r.signal, ps: psArgv(base, ["--all"]), cwd: wd.srcDir };
+    await waitHealthy(ctx, target);
 
     // §7.3 / ADR-0012: the seed runs once, healthy but not yet routed. Failing it fails the preview.
     const seed = seedFor(r.model, r.routes);
@@ -318,7 +321,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
       await step("run (seed)", runArgv(base, seed.service, ["sh", "-c", seed.command], ["--no-deps", "-T"]), "seed");
     }
 
-    await waitAnswering(ctx, r);
+    await waitAnswering(ctx, target);
 
     log("awake");
     return ctx.states.transition(id, "awake");
@@ -346,14 +349,25 @@ export function seedFor(model: ComposeModel, routes: PlannedRoute[]): { service:
   return { service: primary.service, command: seed };
 }
 
+/** What the two waits need: a deploy has it from its plan, a wake from the route table. */
+export type WaitTarget = {
+  previewId: string;
+  host: Host;
+  routes: Pick<Route, "service" | "hostname" | "upstream" | "containerPort">[];
+  signal: AbortSignal;
+  /** The `ps` argv -- with the stack file for a deploy, file-less for a wake. */
+  ps: string[];
+  cwd: string;
+};
+
 /** §5 step 7 / §7.4: gate on healthchecks, not on container start. */
-async function waitHealthy(ctx: PreviewContext, r: RunInput, base: Omit<ComposeSpec, "command" | "args">): Promise<void> {
+export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<void> {
   const deadline = Date.now() + ctx.timings.startTimeoutMs;
-  const argv = psArgv(base, ["--all"]);
+  const argv = r.ps;
   let last = "";
   for (;;) {
     r.signal.throwIfAborted();
-    const res = await ctx.compose.capture(argv, r.host, { cwd: r.wd.srcDir, signal: r.signal });
+    const res = await ctx.compose.capture(argv, r.host, { cwd: r.cwd, signal: r.signal });
     const rows = res.code === 0 ? parseComposePs(res.stdout) : [];
     const routed = new Set(r.routes.map((x) => x.service));
 
@@ -370,14 +384,14 @@ async function waitHealthy(ctx: PreviewContext, r: RunInput, base: Omit<ComposeS
     if (rows.length > 0 && waiting.length === 0 && missing.length === 0) return;
 
     const status = [...waiting.map((c) => `${c.service}: ${c.health ?? c.state}`), ...missing.map((s) => `${s}: not created`)].join(", ");
-    if (status !== last) { ctx.logs.append(r.preview.id, "system", `waiting for ${status || "containers"}`); last = status; }
+    if (status !== last) { ctx.logs.append(r.previewId, "system", `waiting for ${status || "containers"}`); last = status; }
     if (Date.now() >= deadline) throw new StepFailed(`timed out after ${Math.round(ctx.timings.startTimeoutMs / 1000)}s waiting for ${status || "containers"}`);
     await sleep(ctx.timings.pollIntervalMs);
   }
 }
 
 /** Running is not listening. Do not call it awake until the URL would actually work. */
-async function waitAnswering(ctx: PreviewContext, r: RunInput): Promise<void> {
+export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise<void> {
   const deadline = Date.now() + ctx.timings.probeTimeoutMs;
   let pending = [...r.routes];
   for (;;) {

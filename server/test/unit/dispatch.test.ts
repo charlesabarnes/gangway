@@ -131,10 +131,15 @@ describe("preview state machine", () => {
     expect(body).not.toContain("line 29"); // only the last 50
   });
 
-  test("asleep calls wake when wired, else shows the waking page", async () => {
-    const woken = await dispatch(get(`acme-pr-1.${BASE}`), deps(
-      { wake: async () => new Response("WOKE", { status: 200 }) }, entry({ state: "asleep" })));
-    expect(await woken.text()).toBe("WOKE");
+  test("asleep: wake answering null means awake now -- THIS request is proxied; a Response is sent instead; unwired shows the waking page", async () => {
+    // The wake flips the entry to awake (as the state machine does through the table) and says "proxy it".
+    const e = entry({ state: "asleep" });
+    const proxied = await dispatch(get(`acme-pr-1.${BASE}`), deps({ wake: async (en) => { en.state = "awake"; return null; } }, e));
+    expect(await proxied.text()).toBe("upstream-ok");
+
+    const slow = await dispatch(get(`acme-pr-1.${BASE}`), deps({ wake: async () => new Response("still waking", { status: 202 }) }, entry({ state: "asleep" })));
+    expect(slow.status).toBe(202);
+    expect(await slow.text()).toBe("still waking");
 
     const res = await dispatch(get(`acme-pr-1.${BASE}`), deps({}, entry({ state: "asleep" })));
     expect(res.status).toBe(202);

@@ -59,6 +59,9 @@ export const ConfigSchema = z.object({
 
   /** How often expired previews are destroyed. 0 disables the sweep (TTLs are then advisory). */
   ttlSweepIntervalMs: z.coerce.number().int().min(0).default(60_000),
+  idleSweepIntervalMs: z.coerce.number().int().min(0).default(60_000),
+  /** How long a request waits for a wake before it gets the 202 page (§6.3: ~3 s). */
+  wakeWaitMs: z.coerce.number().int().min(0).default(3_000),
   /** How often in-memory "last visited" marks reach SQLite. Also flushed once at shutdown. */
   lastSeenFlushIntervalMs: z.coerce.number().int().min(0).default(30_000),
 
@@ -113,6 +116,8 @@ const ENV_MAP = {
   GANGWAY_RECONCILE_INTERVAL_MS: "reconcileIntervalMs",
   GANGWAY_RECONCILE_ORPHANS: "reconcileOrphans",
   GANGWAY_TTL_SWEEP_INTERVAL_MS: "ttlSweepIntervalMs",
+  GANGWAY_IDLE_SWEEP_INTERVAL_MS: "idleSweepIntervalMs",
+  GANGWAY_WAKE_WAIT_MS: "wakeWaitMs",
   GANGWAY_LAST_SEEN_FLUSH_INTERVAL_MS: "lastSeenFlushIntervalMs",
   GANGWAY_SHUTDOWN_GRACE_MS: "shutdownGraceMs",
   GANGWAY_TRUSTED_PROXIES: "trustedProxies",
@@ -130,6 +135,7 @@ const SETTING_ENV_MAP = {
   GANGWAY_SURFACE_MCP: "surfaces.mcp",
   GANGWAY_DEFAULT_TTL: "defaults.ttl",
   GANGWAY_DEFAULT_VISIBILITY: "defaults.visibility",
+  GANGWAY_DEFAULT_IDLE_AFTER: "defaults.idleAfter",
   GANGWAY_ACME_DIRECTORY_URL: "acme.directoryUrl",
   GANGWAY_ACME_EMAIL: "acme.email",
   GANGWAY_CF_API_TOKEN: "acme.cloudflare.apiToken",

@@ -108,6 +108,13 @@ export const downArgv = (base: Base, args: string[] = []): string[] =>
 export const buildArgv = (base: Base, services: string[] = [], args: string[] = []): string[] =>
   composeArgv({ ...base, command: "build", args: ["--progress=plain", ...args, ...services] });
 
+/** §7.4 idle-sleep acts on the WHOLE project. File-less, like `down`: the containers exist. */
+export const stopArgv = (base: Base, args: string[] = []): string[] =>
+  composeArgv({ ...base, command: "stop", args });
+
+export const startArgv = (base: Base, args: string[] = []): string[] =>
+  composeArgv({ ...base, command: "start", args });
+
 export const psArgv = (base: Base, args: string[] = []): string[] =>
   composeArgv({ ...base, command: "ps", args: ["--format", "json", ...args] });
 

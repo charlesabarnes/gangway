@@ -24,7 +24,7 @@ describe('the /v1 wire contract', () => {
 
     // Every key the server sends is one the type knows, and the other way round.
     const keys = (o: object) => Object.keys(o).sort();
-    const PREVIEW_KEYS: (keyof Preview)[] = ['id', 'project', 'hostId', 'kind', 'state', 'source', 'visibility', 'ttlExpiresAt', 'lastSeenAt', 'error', 'createdAt', 'updatedAt', 'destroyedAt', 'urls'];
+    const PREVIEW_KEYS: (keyof Preview)[] = ['id', 'project', 'hostId', 'kind', 'state', 'source', 'visibility', 'ttlExpiresAt', 'idleAfterMs', 'lastSeenAt', 'error', 'createdAt', 'updatedAt', 'destroyedAt', 'urls'];
     const TOKEN_KEYS: (keyof ApiToken)[] = ['id', 'name', 'prefix', 'scopes', 'userId', 'appName', 'expiresAt', 'lastUsedAt', 'revokedAt', 'createdAt'];
     expect(keys(preview)).toEqual([...PREVIEW_KEYS].sort());
     expect(keys(token)).toEqual([...TOKEN_KEYS].sort());

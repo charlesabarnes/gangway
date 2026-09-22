@@ -10,6 +10,13 @@
  * *managed by config* rather than silently failing when clicked.
  */
 import { z } from "zod";
+import { parseDuration } from "./util/duration.ts";
+
+/** `defaults.idleAfter` / `x-gangway.idle` as milliseconds; 0 means never. */
+export function idleMs(text: string): number {
+  if (text === "never" || text === "0") return 0;
+  return parseDuration(text) ?? 0;
+}
 
 export type SettingSource = "config" | "database" | "default";
 
@@ -48,6 +55,8 @@ export const SETTINGS = {
   surfacesMcp: def("surfaces.mcp", z.boolean(), false),
   defaultTtl: def("defaults.ttl", z.string(), "7d"),
   defaultVisibility: def("defaults.visibility", z.enum(["public", "unlisted", "private"]), "unlisted"),
+  /** Idle-sleep after this long without a request (ADR-0012). `never` or `0` switches it off. */
+  defaultIdleAfter: def("defaults.idleAfter", z.string().refine((s) => s === "never" || s === "0" || parseDuration(s) !== null, "expected a duration like 30m, or never"), "30m"),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),

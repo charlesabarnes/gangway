@@ -55,6 +55,8 @@ export const StackExtensionSchema = z.strictObject({
    */
   seed: z.union([z.string().min(1), z.strictObject({ service: z.string().min(1), command: z.string().min(1) })]).optional(),
   visibility: z.enum(["public", "unlisted", "private"]).optional(),
+  /** Idle-sleep after this long without a request; `never` opts the stack out (ADR-0012). */
+  idle: z.string().refine((s) => s === "never" || parseDuration(s) !== null, "expected a duration like 30m, or never").optional(),
 });
 export type StackExtension = z.infer<typeof StackExtensionSchema>;
 

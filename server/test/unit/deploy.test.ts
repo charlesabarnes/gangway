@@ -89,7 +89,7 @@ function setup(script: Script = {}) {
   const ctx: PreviewContext = {
     instance: "default", env: "test", origin: { scheme: "https", port: 8443 },
     baseDomain: () => "preview.localhost",
-    defaults: () => ({ ttl: "7d", visibility: "unlisted" }),
+    defaults: () => ({ ttl: "7d", visibility: "unlisted", idleAfterMs: 0 }),
     hosts, previews, table, bus, logs, compose,
     states: new PreviewStates(previews, table, bus),
     workdirs: new Workdirs(dir),

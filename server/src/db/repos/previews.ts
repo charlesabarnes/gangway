@@ -11,6 +11,7 @@ export type CreatePreview = {
   source: PreviewSource;
   visibility: Visibility;
   ttlExpiresAt?: Date | null;
+  idleAfterMs?: number | null;
 };
 
 export type PreviewFilter = {
@@ -34,13 +35,13 @@ export class PreviewsRepo {
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
       `INSERT INTO previews (id, project, host_id, kind, state, source_kind, source_json,
-                             visibility, ttl_expires_at, created_at, updated_at)
+                             visibility, ttl_expires_at, idle_after_ms, created_at, updated_at)
        VALUES ($id, $project, $host_id, $kind, $state, $source_kind, $source_json,
-               $visibility, $ttl, $now, $now)`,
+               $visibility, $ttl, $idle, $now, $now)`,
       {
         id: p.id, project: p.project, host_id: p.hostId, kind: p.kind ?? "preview",
         state: p.state, source_kind, source_json, visibility: p.visibility,
-        ttl: fromDate(p.ttlExpiresAt ?? null), now,
+        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, now,
       },
     );
     return this.get(p.id)!;

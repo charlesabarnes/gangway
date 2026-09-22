@@ -34,7 +34,8 @@ export type PreviewContext = {
   env: string;
   origin: PublicOrigin;
   baseDomain: () => string;
-  defaults: () => { ttl: string; visibility: Visibility };
+  /** `idleAfterMs` 0 means never (ADR-0012). */
+  defaults: () => { ttl: string; visibility: Visibility; idleAfterMs: number };
   hosts: HostsRepo;
   previews: PreviewsRepo;
   table: RouteTable;

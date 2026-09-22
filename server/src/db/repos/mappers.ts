@@ -46,6 +46,7 @@ export type PreviewRow = {
   source_kind: string; source_json: string; visibility: string;
   ttl_expires_at: number | null; last_seen_at: number | null; error: string | null;
   created_at: number; updated_at: number; destroyed_at: number | null;
+  idle_after_ms?: number | null;
 };
 
 export function rowToPreview(r: PreviewRow): Preview {
@@ -58,6 +59,7 @@ export function rowToPreview(r: PreviewRow): Preview {
     source: { kind: r.source_kind, ...JSON.parse(r.source_json) } as PreviewSource,
     visibility: r.visibility as Preview["visibility"],
     ttlExpiresAt: toDate(r.ttl_expires_at),
+    idleAfterMs: r.idle_after_ms ?? null,
     lastSeenAt: toDate(r.last_seen_at),
     error: r.error,
     createdAt: new Date(r.created_at),

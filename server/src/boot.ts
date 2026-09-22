@@ -54,6 +54,7 @@ import { DEFAULT_LIMITS } from "./net/limits.ts";
 import { PreviewGate, loadOrCreateGateKey, safePath } from "./net/gate.ts";
 import { clientIpOf, startListener, type RunningListener } from "./net/listener.ts";
 import { clientIpResolver } from "./net/trustedproxy.ts";
+import { wakingPage } from "./net/errorpages.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
 import { DEFAULT_TIMINGS, type PreviewContext } from "./previews/context.ts";
 import { deploy, urlsFor } from "./previews/deploy.ts";
@@ -62,10 +63,11 @@ import { IdempotentDeploys } from "./previews/idempotent.ts";
 import { PreviewLogs } from "./previews/logs.ts";
 import { httpProbe, type RouteProbe } from "./previews/probe.ts";
 import { Workdirs } from "./previews/source/workdir.ts";
+import { Waker, sweepIdle } from "./previews/sleep.ts";
 import { PreviewStates } from "./previews/state.ts";
 import { RouteTable } from "./routing/table.ts";
-import { SETTINGS, Settings } from "./settings.ts";
-import { drain } from "./util/async.ts";
+import { SETTINGS, Settings, idleMs } from "./settings.ts";
+import { drain, sleep } from "./util/async.ts";
 import { AcmeProvider, type AcmeConnect } from "./tls/acme.ts";
 import { CertStore } from "./tls/certstore.ts";
 import { CloudflareDnsProvider } from "./tls/dns/cloudflare.ts";
@@ -161,7 +163,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     instance: config.instanceId, env: config.environment,
     origin: { scheme: config.publicScheme, port: config.publicPort },
     baseDomain,
-    defaults: () => ({ ttl: settings.get(SETTINGS.defaultTtl), visibility: settings.get(SETTINGS.defaultVisibility) }),
+    defaults: () => ({ ttl: settings.get(SETTINGS.defaultTtl), visibility: settings.get(SETTINGS.defaultVisibility), idleAfterMs: idleMs(settings.get(SETTINGS.defaultIdleAfter)) }),
     hosts, previews, table, states, bus, workdirs, compose,
     logs: new PreviewLogs(stateDir),
     probe: o.probe ?? httpProbe,
@@ -305,9 +307,18 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const resolveClientIp = clientIpResolver(config.trustedProxies);
   if (config.trustedProxies.length > 0) logger.info("trusting X-Forwarded-For from reverse proxies", { trustedProxies: config.trustedProxies });
 
+  // ADR-0012: the request that finds a preview asleep starts the wake and waits a little.
+  const waker = new Waker(ctx, logger.child({ mod: "wake" }));
   const deps: DispatchDeps = {
     baseDomain, table, limits: DEFAULT_LIMITS, surfaceEnabled,
     visibilityGate: gate.check,
+    wake: async (entry) => {
+      const woke = await Promise.race([
+        waker.wake(entry.previewId).then(() => true, () => false),
+        sleep(config.wakeWaitMs).then(() => false),
+      ]);
+      return woke ? null : wakingPage(entry.hostname);
+    },
     // Each host is dialed its own way: one directly, another through a SOCKS tunnel.
     upstream: new PerHostUpstream((hostId) => {
       const host = hosts.get(hostId);
@@ -361,6 +372,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     initialDelayMs: 0,
   });
   scheduler.register({ name: "lastseen-flush", intervalMs: config.lastSeenFlushIntervalMs, run: () => flushLastSeen(ctx) });
+  scheduler.register({
+    name: "idle-sleep", intervalMs: config.idleSweepIntervalMs,
+    run: (signal) => sweepIdle(ctx, logger.child({ job: "idle-sleep" }), signal),
+  });
   if (acmeProvider) {
     const provider = acmeProvider;
     certStore.onSwap(() => listener.swapCerts());

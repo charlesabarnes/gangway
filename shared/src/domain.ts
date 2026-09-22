@@ -85,6 +85,8 @@ export type Preview = {
   source: PreviewSource;
   visibility: Visibility;
   ttlExpiresAt: Date | null;
+  /** Idle-sleep after this long without a request (ADR-0012). null: the server default; 0: never. */
+  idleAfterMs: number | null;
   /** Written by the proxy on every request; the idle-sleep sweeper reads it. */
   lastSeenAt: Date | null;
   error: string | null;

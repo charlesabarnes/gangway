@@ -80,7 +80,7 @@ function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
 
   const ctx: PreviewContext = {
     instance: "default", env: "test", origin: { scheme: "https", port: 8443 },
-    baseDomain: () => "preview.localhost", defaults: () => ({ ttl: "7d", visibility: "unlisted" }),
+    baseDomain: () => "preview.localhost", defaults: () => ({ ttl: "7d", visibility: "unlisted", idleAfterMs: 0 }),
     hosts, previews, table, bus, compose, logs: new PreviewLogs(dir), workdirs: new Workdirs(dir),
     states: new PreviewStates(previews, table, bus), probe: async () => daemon.probe,
     logger: new Logger("error", {}, () => {}), timings: { startTimeoutMs: 200, probeTimeoutMs: 200, pollIntervalMs: 5 },

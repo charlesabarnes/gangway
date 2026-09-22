@@ -42,7 +42,10 @@ export function setupPreviewContext() {
   const routes = new RoutesRepo(db);
   const table = new RouteTable(routes);
   const bus = new EventBus(new EventsRepo(db));
-  const fake = { downs: [] as string[], ups: 0, builds: 0, buildExit: 0, failDownFor: new Set<string>(), planDelayMs: 0, runs: [] as string[][], runExit: 0 };
+  const fake = {
+    downs: [] as string[], ups: 0, builds: 0, buildExit: 0, failDownFor: new Set<string>(), planDelayMs: 0, runs: [] as string[][], runExit: 0,
+    stops: [] as string[][], starts: [] as string[][], stopExit: 0, startExit: 0, psState: "running", answering: true,
+  };
   const compose: ComposeRunner = {
     async *stream(argv): AsyncGenerator<ComposeEvent> {
       if (argv.includes("build")) {
@@ -59,8 +62,10 @@ export function setupPreviewContext() {
       }
       fake.ups++; yield { type: "exit", code: 0, signal: null }; },
     async capture(argv): Promise<ComposeResult> {
-      const cmd = argv.find((a) => ["config", "ps", "down", "logs"].includes(a))!;
+      const cmd = argv.find((a) => ["config", "ps", "down", "logs", "stop", "start"].includes(a))!;
       const project = argv[argv.indexOf("--project-name") + 1] ?? "";
+      if (cmd === "stop") { fake.stops.push(argv); return { code: fake.stopExit, stdout: "", stderr: fake.stopExit ? "cannot stop" : "", signal: null }; }
+      if (cmd === "start") { fake.starts.push(argv); return { code: fake.startExit, stdout: "", stderr: fake.startExit ? "cannot start" : "", signal: null }; }
       if (cmd === "down") {
         fake.downs.push(project);
         if (fake.failDownFor.has(project)) return { code: 1, stdout: "", stderr: "daemon said no", signal: null };
@@ -79,7 +84,7 @@ export function setupPreviewContext() {
       }
       if (cmd === undefined && argv.includes("build")) fake.builds++;
       const stdout = cmd === "config" ? await Bun.file(argv[argv.indexOf("--file") + 1]!).text()
-        : cmd === "ps" ? JSON.stringify({ Service: "web", State: "running" }) : "";
+        : cmd === "ps" ? JSON.stringify({ Service: "web", State: fake.psState }) : "";
       return { code: 0, stdout, stderr: "", signal: null };
     },
   };
@@ -87,9 +92,9 @@ export function setupPreviewContext() {
   const auditRepo = new AuditRepo(db);
   const ctx: PreviewContext = {
     instance: "default", env: "test", origin: { scheme: "https", port: 8443 },
-    baseDomain: () => "preview.localhost", defaults: () => ({ ttl: "7d", visibility: "unlisted" }),
+    baseDomain: () => "preview.localhost", defaults: () => ({ ttl: "7d", visibility: "unlisted", idleAfterMs: 0 }),
     hosts, previews, table, bus, compose, logs: new PreviewLogs(dir), workdirs: new Workdirs(dir),
-    states: new PreviewStates(previews, table, bus), probe: async () => true,
+    states: new PreviewStates(previews, table, bus), probe: async () => fake.answering,
     logger: new Logger("error", {}, () => {}), timings: { startTimeoutMs: 200, probeTimeoutMs: 200, pollIntervalMs: 5 },
     now: () => Date.now() + clock.offset, inflight: new Map(), teardowns: new Set(),
     builds: new BuildsRepo(db),

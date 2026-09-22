@@ -29,10 +29,13 @@ async function start(stateDir: string, upstreamPort: number, seed?: ContainerSum
   /** What the fake daemon would list: one "container" per `up`, labelled as the stack file said. */
   const containers = new Map<string, ContainerSummary>();
   const project = (argv: string[]) => argv[argv.indexOf("--project-name") + 1]!;
+  // What `stop` and `start` need to remember: how to bring a project's stand-in back.
+  const starters = new Map<string, () => void>();
+  const stopped = new Set<string>();
   const compose: ComposeRunner = {
     async *stream(argv): AsyncGenerator<ComposeEvent> {
       const web = (await Bun.file(argv[argv.indexOf("--file") + 1]!).json()).services.web;
-      fixtures.set(project(argv), Bun.serve({
+      const serve = () => fixtures.set(project(argv), Bun.serve({
         hostname: web.ports[0].host_ip, port: Number(web.ports[0].published),
         fetch: async (req) => {
           const slow = new URL(req.url).searchParams.get("slow");
@@ -42,6 +45,8 @@ async function start(stateDir: string, upstreamPort: number, seed?: ContainerSum
           return Response.json({ iAm: "the container", host: req.headers.get("host"), proto: req.headers.get("x-forwarded-proto"), publicUrl: web.environment.PUBLIC_URL });
         },
       }));
+      serve();
+      starters.set(project(argv), serve);
       containers.set(project(argv), {
         id: `c-${project(argv)}`, names: [`${project(argv)}-web-1`], image: web.image, state: "running", status: "Up", createdAt: new Date(),
         labels: web.labels, ports: [{ ip: web.ports[0].host_ip, containerPort: web.ports[0].target, hostPort: Number(web.ports[0].published), protocol: "tcp" }],
@@ -55,8 +60,10 @@ async function start(stateDir: string, upstreamPort: number, seed?: ContainerSum
         const file = argv[argv.indexOf("--file") + 1]!;
         return ok(JSON.stringify({ services: (await Bun.file(file).json()).services, networks: { default: { name: "gw-plan_default" } } }));
       }
-      if (argv.includes("ps")) return ok(JSON.stringify({ Service: "web", State: "running" }));
-      if (argv.includes("down")) { fixtures.get(project(argv))?.stop(true); fixtures.delete(project(argv)); containers.delete(project(argv)); }
+      if (argv.includes("ps")) return ok(JSON.stringify({ Service: "web", State: stopped.has(project(argv)) ? "exited" : "running", ExitCode: 0 }));
+      if (argv.includes("stop")) { fixtures.get(project(argv))?.stop(true); fixtures.delete(project(argv)); stopped.add(project(argv)); }
+      if (argv.includes("start")) { starters.get(project(argv))?.(); stopped.delete(project(argv)); }
+      if (argv.includes("down")) { fixtures.get(project(argv))?.stop(true); fixtures.delete(project(argv)); containers.delete(project(argv)); starters.delete(project(argv)); }
       return ok("");
     },
   };
@@ -162,7 +169,7 @@ test("T26: the scheduler owns the periodic work -- visits reach SQLite, an expir
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
   const call = client(running);
-  expect(running.scheduler.status().map((j) => [j.name, j.enabled])).toEqual([["reconcile", true], ["ttl-sweep", true], ["lastseen-flush", true], ["idempotency-purge", true], ["session-purge", true]]);
+  expect(running.scheduler.status().map((j) => [j.name, j.enabled])).toEqual([["reconcile", true], ["ttl-sweep", true], ["lastseen-flush", true], ["idle-sleep", true], ["idempotency-purge", true], ["session-purge", true]]);
 
   const res = await call("api.preview.localhost", "/v1/previews?wait=true", {
     method: "POST", headers: { "content-type": "application/json" },
@@ -361,3 +368,40 @@ test("T53: the hooks surface is dispatched -- a signed delivery is 202'd on hook
   expect((await call(HOOKS, "/v1/previews")).status).toBe(404);
   expect((await call("api.preview.localhost", "/github", { method: "POST", body, headers: headers("hook-s3cret") })).status).toBe(404);
 });
+
+test("T57/T58: idle-sleep stops the stack; the next request wakes it and is answered by the container", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const upstreamPort = await freePort();
+  // A one-second idle window, swept every 100 ms, flushed every 50 ms; a wake gets 2 s before the 202 page.
+  const running = await start(dir, upstreamPort, undefined, {
+    GANGWAY_DEFAULT_IDLE_AFTER: "1s", GANGWAY_IDLE_SWEEP_INTERVAL_MS: "100", GANGWAY_LAST_SEEN_FLUSH_INTERVAL_MS: "50", GANGWAY_WAKE_WAIT_MS: "2000",
+  });
+  const call = client(running);
+  const API = "api.preview.localhost";
+
+  const res = await call(API, "/v1/previews?wait=true", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "sleepy", visibility: "public", source: { kind: "image", image: "traefik/whoami:v1.10", port: 80 } }),
+  });
+  const { preview } = await res.json() as { preview: { id: string; state: string } };
+  expect(preview.state).toBe("awake");
+  const HOST = "sleepy.preview.localhost";
+  expect((await call(HOST, "/")).status).toBe(200);
+
+  // Idle for over a second: the sweep puts it to sleep, and the stand-in container is gone.
+  const asleep = async () => ((await (await call(API, `/v1/previews/${preview.id}`)).json()) as { preview: { state: string } }).preview.state === "asleep";
+  const deadline = Date.now() + 5_000;
+  while (!(await asleep()) && Date.now() < deadline) await Bun.sleep(50);
+  expect(await asleep()).toBe(true);
+  expect(await fetch(`http://127.0.0.1:${upstreamPort}/`).then(() => true, () => false)).toBe(false);
+
+  // The next request wakes it -- and is answered by the container, not by a waking page.
+  const woke = await call(HOST, "/");
+  expect(woke.status).toBe(200);
+  expect(await woke.json()).toMatchObject({ iAm: "the container" });
+  expect(((await (await call(API, `/v1/previews/${preview.id}`)).json()) as { preview: { state: string } }).preview.state).toBe("awake");
+  const { events } = await (await call(API, `/v1/previews/${preview.id}/events`)).json() as { events: { type: string; state?: string }[] };
+  const states = events.filter((e) => e.type === "preview.state").map((e) => e.state);
+  expect(states.slice(-3)).toEqual(["asleep", "starting", "awake"]);
+}, 15_000);
