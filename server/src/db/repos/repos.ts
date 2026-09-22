@@ -7,10 +7,11 @@ export type CreateRepo = {
   enabled?: boolean; disabledReason?: string | null;
 };
 
-export type RepoPatch = Partial<{
-  slug: string; enabled: boolean; disabledReason: string | null; installationId: string;
-  visibility: Visibility | null; ttl: string | null; forks: ForkPolicy; drafts: boolean;
-}>;
+/** Absent AND undefined both mean "leave it": zod's optional output is passed straight through. */
+export type RepoPatch = {
+  slug?: string | undefined; enabled?: boolean | undefined; disabledReason?: string | null | undefined; installationId?: string | undefined;
+  visibility?: Visibility | null | undefined; ttl?: string | null | undefined; forks?: ForkPolicy | undefined; drafts?: boolean | undefined;
+};
 
 const COLUMNS: Record<keyof RepoPatch, string> = {
   slug: "slug", enabled: "enabled", disabledReason: "disabled_reason", installationId: "installation_id",

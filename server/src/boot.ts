@@ -12,6 +12,8 @@ import { createApp, surfaceHandler } from "./app/app.ts";
 import { auditRoutes } from "./app/routes/audit.ts";
 import { authRoutes } from "./app/routes/auth.ts";
 import { roleRoutes } from "./app/routes/roles.ts";
+import { githubRoutes } from "./app/routes/github.ts";
+import { repoRoutes } from "./app/routes/repos.ts";
 import { settingsRoutes } from "./app/routes/settings.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
 import { userRoutes } from "./app/routes/users.ts";
@@ -40,6 +42,7 @@ import { createComposeRunner, type ComposeRunner } from "./docker/runner.ts";
 import { EventBus } from "./events/bus.ts";
 import { GitHubApp } from "./forge/github/app.ts";
 import { GitHubForge } from "./forge/github/forge.ts";
+import { ManifestStates } from "./forge/github/manifest.ts";
 import { Hooks } from "./forge/hooks.ts";
 import { PrPreviews } from "./forge/pr-previews.ts";
 import { seedHosts } from "./hosts/seed.ts";
@@ -247,6 +250,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       userRoutes(api, accounts);
       roleRoutes(api, roles);
       settingsRoutes(api, settings, audit);
+      repoRoutes(api, reposRepo, audit);
+      githubRoutes(api, { app: githubApp, settings, states: new ManifestStates(), audit, baseDomain, originFor: (label) => publicOriginFor(`${label}.${baseDomain()}`, ctx.origin) });
     },
     publicV1: (pub) => authRoutes(pub, {
       auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000),

@@ -41,6 +41,10 @@ export type GitHubResponse<T> = { status: number; body: T; headers: Headers };
 
 type CachedToken = { token: string; expiresAt: number };
 
+export type ManifestConversion = {
+  appId: string; slug: string; clientId: string; clientSecret: string; webhookSecret: string; privateKey: string; htmlUrl: string;
+};
+
 const b64url = (s: string | Buffer) => Buffer.from(s).toString("base64url");
 
 export class GitHubApp {
@@ -108,8 +112,8 @@ export class GitHubApp {
   ): Promise<GitHubResponse<T>> {
     const url = path.startsWith("https://") ? path : `${this.#base}${path}`;
     const headers: Record<string, string> = {
-      accept: "application/vnd.github+json", authorization: o.auth, "x-github-api-version": API_VERSION,
-      "user-agent": "gangway",
+      accept: "application/vnd.github+json", "x-github-api-version": API_VERSION, "user-agent": "gangway",
+      ...(o.auth === "" ? {} : { authorization: o.auth }),
     };
     const init: RequestInit = { method, headers };
     if (o.body !== undefined) {
@@ -126,6 +130,25 @@ export class GitHubApp {
       this.#log.warn("GitHub API error", { method, path, status: res.status });
     }
     return { status: res.status, body, headers: res.headers };
+  }
+
+  /**
+   * The manifest flow's last step (§10.4): the one-time `code` GitHub redirected back with
+   * becomes the App's credentials. Unauthenticated; the code is the credential, once.
+   */
+  async convertManifest(code: string): Promise<ManifestConversion> {
+    const r = await this.request<Partial<Record<"id" | "slug" | "client_id" | "client_secret" | "webhook_secret" | "pem" | "html_url" | "message", unknown>>>(
+      "POST", `/app-manifests/${encodeURIComponent(code)}/conversions`, { auth: "" },
+    );
+    const b = r.body ?? {};
+    if (r.status !== 201 || typeof b.id !== "number" || typeof b.pem !== "string" || typeof b.slug !== "string") {
+      throw new AppError(r.status === 404 ? "unprocessable" : "internal", `GitHub did not convert the manifest (${r.status}): ${typeof b.message === "string" ? b.message : "the code may have been used already"}`, { status: r.status });
+    }
+    return {
+      appId: String(b.id), slug: b.slug, clientId: typeof b.client_id === "string" ? b.client_id : "",
+      clientSecret: typeof b.client_secret === "string" ? b.client_secret : "", webhookSecret: typeof b.webhook_secret === "string" ? b.webhook_secret : "",
+      privateKey: b.pem, htmlUrl: typeof b.html_url === "string" ? b.html_url : "",
+    };
   }
 
   /** As an installation: mints (or reuses) the token and makes the call. */

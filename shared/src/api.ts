@@ -134,6 +134,24 @@ export const SetSettingsSchema = z.strictObject({
 });
 export type SetSettingsRequest = z.infer<typeof SetSettingsSchema>;
 
+/** `POST /v1/github/manifest/exchange`: what GitHub sent the browser back with. */
+export const ManifestExchangeSchema = z.strictObject({
+  code: z.string().min(1).max(200),
+  state: z.string().min(1).max(200),
+});
+export type ManifestExchangeRequest = z.infer<typeof ManifestExchangeSchema>;
+
+/** `PATCH /v1/repos/:id`: the per-repository knobs (ADR-0011). */
+export const RepoPatchSchema = z.strictObject({
+  slug: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?$/, "a slug is 1-24 lowercase letters, digits and hyphens").optional(),
+  enabled: z.boolean().optional(),
+  visibility: z.enum(["public", "unlisted", "private"]).nullable().optional(),
+  ttl: z.string().max(16).nullable().optional(),
+  forks: z.enum(["ask", "auto", "never"]).optional(),
+  drafts: z.boolean().optional(),
+});
+export type RepoPatchRequest = z.infer<typeof RepoPatchSchema>;
+
 export const AuditQuerySchema = z.object({
   /** Entries with a seq BELOW this one: the log is read newest-first. */
   before: z.coerce.number().int().positive().optional(),
