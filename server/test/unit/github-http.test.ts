@@ -83,7 +83,7 @@ describe("/v1/github", () => {
     expect(manifest).toMatchObject({
       url: "https://app.preview.localhost:8443", redirect_url: "https://app.preview.localhost:8443/github/callback",
       hook_attributes: { url: "https://hooks.preview.localhost:8443/github", active: true }, public: false,
-      default_permissions: { contents: "read", metadata: "read", pull_requests: "write", deployments: "write" }, default_events: ["pull_request", "issue_comment"],
+      default_permissions: { contents: "read", metadata: "read", issues: "read", pull_requests: "write", deployments: "write" }, default_events: ["pull_request", "issue_comment"],
     });
 
     const ex = await t.call("/v1/github/manifest/exchange", { method: "POST", as: t.ada, json: { code: "one-time-code", state } });

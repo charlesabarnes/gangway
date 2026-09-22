@@ -12,7 +12,9 @@ import { randomBytes } from "node:crypto";
 export const MANIFEST_STATE_TTL_MS = 10 * 60_000;
 
 /** What `pull_request` + `issue_comment` and the six REST calls need, and nothing more. */
-export const APP_PERMISSIONS = { contents: "read", metadata: "read", pull_requests: "write", deployments: "write" } as const;
+// `issues: read` is what the issue_comment EVENT needs (GitHub refuses the manifest without
+// it, whatever the docs say); commenting on a PR is covered by pull_requests: write.
+export const APP_PERMISSIONS = { contents: "read", metadata: "read", issues: "read", pull_requests: "write", deployments: "write" } as const;
 export const APP_EVENTS = ["pull_request", "issue_comment"] as const;
 
 export type Manifest = {
