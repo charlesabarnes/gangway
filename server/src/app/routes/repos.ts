@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { RepoEnvPatchSchema, RepoPatchSchema } from "../../../../shared/src/api.ts";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { ReposRepo } from "../../db/repos/repos.ts";
+import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
 import { parseDuration } from "../../util/duration.ts";
@@ -10,10 +11,11 @@ import { requirePermission } from "../middleware/auth.ts";
 
 /**
  * `/v1/repos` (ADR-0011): the repositories pull requests have arrived from, and the
- * per-repository knobs. Rows are made by webhooks; here they are read, tuned, or
- * forgotten (the next webhook makes a fresh one).
+ * per-repository knobs: the template it follows and the overrides on top (ADR-0013). Rows
+ * are made by webhooks; here they are read, tuned, or forgotten (the next webhook makes
+ * a fresh one).
  */
-export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink, secrets?: Secrets): void {
+export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink, secrets?: Secrets, templates?: Pick<TemplatesRepo, "get">): void {
   api.get("/repos", requirePermission("previews.read"), (c) => c.json({ repos: repos.list() }));
 
   api.get("/repos/:id", requirePermission("previews.read"), (c) => {
@@ -22,13 +24,14 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
     return c.json({ repo });
   });
 
-  api.patch("/repos/:id", requirePermission("github.manage"), async (c) => {
+  api.patch("/repos/:id", requirePermission("repos.manage"), async (c) => {
     const id = c.req.param("id");
     const before = repos.get(id);
     if (!before) throw notFound(`no such repository: ${id}`);
     const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
     const patch = RepoPatchSchema.parse(body);
     if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null) throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
+    if (patch.templateId !== undefined && patch.templateId !== null && !templates?.get(patch.templateId)) throw unprocessable(`no such template: ${patch.templateId}`, { templateId: patch.templateId });
     if (patch.slug !== undefined && patch.slug !== before.slug) {
       const taken = repos.getBySlug(patch.slug);
       if (taken) throw conflict(`slug "${patch.slug}" is taken by ${taken.fullName}`, { takenBy: taken.fullName });
@@ -55,7 +58,7 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
     return c.json({ secrets: secrets.repo(repo.id).update(c.get("actor"), patch) });
   });
 
-  api.delete("/repos/:id", requirePermission("github.manage"), (c) => {
+  api.delete("/repos/:id", requirePermission("repos.manage"), (c) => {
     const id = c.req.param("id");
     const before = repos.get(id);
     if (!before) throw notFound(`no such repository: ${id}`);
@@ -65,5 +68,5 @@ export function repoRoutes(api: Hono<AppEnv>, repos: ReposRepo, audit: AuditSink
   });
 }
 
-const pick = (r: { fullName: string; slug: string; enabled: boolean; visibility: unknown; ttl: unknown; forks: string; drafts: boolean; prClearance: string; forkClearance: string }) =>
-  ({ fullName: r.fullName, slug: r.slug, enabled: r.enabled, visibility: r.visibility, ttl: r.ttl, forks: r.forks, drafts: r.drafts, prClearance: r.prClearance, forkClearance: r.forkClearance });
+const pick = (r: { fullName: string; slug: string; enabled: boolean; templateId: string | null; visibility: unknown; ttl: unknown; forks: string; drafts: boolean; prClearance: string | null; forkClearance: string }) =>
+  ({ fullName: r.fullName, slug: r.slug, enabled: r.enabled, templateId: r.templateId, visibility: r.visibility, ttl: r.ttl, forks: r.forks, drafts: r.drafts, prClearance: r.prClearance, forkClearance: r.forkClearance });

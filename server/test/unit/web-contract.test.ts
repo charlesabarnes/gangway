@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { PREVIEW_STATE_VALUES, VISIBILITY_VALUES } from "../../../shared/src/api.ts";
-import { CLEARANCES } from "../../../shared/src/domain.ts";
+import { CLEARANCES, TRIGGERS } from "../../../shared/src/domain.ts";
 import { ALL_PERMISSIONS, SCOPES, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import type { AppEnv } from "../../src/app/env.ts";
@@ -18,12 +18,14 @@ import { errorHandler } from "../../src/app/problem.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
 import { githubRoutes } from "../../src/app/routes/github.ts";
 import { repoRoutes } from "../../src/app/routes/repos.ts";
+import { templateRoutes } from "../../src/app/routes/templates.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { staticTokenVerifier, tokenActor } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
 import { ReposRepo } from "../../src/db/repos/repos.ts";
+import { TemplatesRepo } from "../../src/db/repos/templates.ts";
 import { ManifestStates } from "../../src/forge/github/manifest.ts";
 import { Logger } from "../../src/logger.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
@@ -135,7 +137,9 @@ describe("github wire shapes (ADR-0011)", () => {
     const app = new Hono<AppEnv>();
     app.onError(errorHandler(quiet));
     app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
-    repoRoutes(app, repos, s.audit);
+    const templates = new TemplatesRepo(s.db, s.now);
+    repoRoutes(app, repos, s.audit, undefined, templates);
+    templateRoutes(app, { templates, hosts: { get: () => undefined }, audit: s.audit, namedByTrigger: () => [] });
     githubRoutes(app, { app: null as never, settings, states: new ManifestStates(), audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
 
     expect(shapeOf(await (await app.request("/github")).json())).toEqual(shapeOf(contract["githubStatus"]));
@@ -143,5 +147,9 @@ describe("github wire shapes (ADR-0011)", () => {
     expect(shapeOf(repo)).toEqual(shapeOf(contract["repo"]));
     expect(contract["forkPolicies"]).toEqual(["ask", "auto", "never"]);
     expect(contract["clearances"]).toEqual([...CLEARANCES]);
+    // ADR-0013: a template, and the triggers a default is set for.
+    const { template } = await (await app.request("/templates/default")).json() as { template: unknown };
+    expect(shapeOf(template)).toEqual(shapeOf(contract["template"]));
+    expect(contract["triggers"]).toEqual([...TRIGGERS]);
   });
 });

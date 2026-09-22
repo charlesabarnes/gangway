@@ -5,9 +5,8 @@
  */
 import type { AuditSink } from "../audit/audit.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
-import type { DeploySource } from "./deploy.ts";
 import type { CloneOptions } from "./source/git.ts";
-import type { Clearance, Preview, Visibility } from "../../../shared/src/domain.ts";
+import type { Clearance, Preview } from "../../../shared/src/domain.ts";
 import type { PublicOrigin } from "../../../shared/src/url.ts";
 import type { HostsRepo } from "../db/repos/hosts.ts";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
@@ -18,6 +17,7 @@ import type { RouteTable } from "../routing/table.ts";
 import type { PreviewLogs } from "./logs.ts";
 import type { RouteProbe } from "./probe.ts";
 import type { Workdirs } from "./source/workdir.ts";
+import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
 
 export type PreviewTimings = {
@@ -35,8 +35,8 @@ export type PreviewContext = {
   env: string;
   origin: PublicOrigin;
   baseDomain: () => string;
-  /** `idleAfterMs` 0 means never (ADR-0012). */
-  defaults: () => { ttl: string; visibility: Visibility; idleAfterMs: number };
+  /** The template a deploy follows, and its repository if any (ADR-0013). */
+  policy: Policy;
   hosts: HostsRepo;
   previews: PreviewsRepo;
   table: RouteTable;
@@ -61,10 +61,10 @@ export type PreviewContext = {
   /** §10.5.2. Optional for the same reason; boot always supplies it. */
   audit?: AuditSink | undefined;
   /**
-   * A repository's secrets for a source that names one (ADR-0012) -- a `git` clone URL of a
-   * registered repository. Absent, or returning undefined: no `.env` is written.
+   * The secrets a preview receives at a clearance (ADR-0012): the global map, plus the
+   * repository's when it has one. Absent: no `.env` is written.
    */
-  secretsFor?: ((source: DeploySource, requested: Clearance | undefined) => { env: Record<string, string>; clearance: Clearance } | undefined) | undefined;
+  secretsFor?: ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

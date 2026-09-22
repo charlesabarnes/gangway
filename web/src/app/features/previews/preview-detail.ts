@@ -61,6 +61,7 @@ import { displayName, sourceLabel } from './source-label';
               <div><dt class="text-neutral-500">Destroyed</dt><dd class="mt-0.5" [title]="p.destroyedAt ?? ''" data-testid="ttl">{{ p.destroyedAt ? (p.destroyedAt | relativeTime: clock.now()) : 'yes' }}</dd></div>
             } @else {
               @if (p.secretLevel) { <div><dt class="text-neutral-500">Secrets</dt><dd class="mt-0.5" data-testid="secret-level">{{ p.secretLevel }}{{ p.secretLevel === 'none' ? ' (no .env)' : '' }}</dd></div> }
+              @if (p.templateId) { <div><dt class="text-neutral-500">Template</dt><dd class="mt-0.5"><a routerLink="/templates" class="underline decoration-neutral-400 underline-offset-2" data-testid="template">{{ p.templateId }}</a></dd></div> }
               <div><dt class="text-neutral-500">Expires</dt><dd class="mt-0.5" [title]="p.ttlExpiresAt ?? ''" data-testid="ttl">{{ p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never' }}</dd></div>
             }
             <div><dt class="text-neutral-500">Created</dt><dd class="mt-0.5" [title]="p.createdAt">{{ p.createdAt | relativeTime: clock.now() }}</dd></div>

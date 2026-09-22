@@ -1,7 +1,7 @@
 /** Row <-> domain conversion. The only place epoch-millis integers become Dates. */
 import type {
   ApiToken, AuditActorType, AuditEntry, Certificate, Clearance, ForgeId, ForkPolicy, GangwayEvent, Host, HostCapability, Preview, PreviewSource, Repo,
-  Role, Route, Session, User, Visibility,
+  Role, Route, Session, Template, User, Visibility,
 } from "../../../../shared/src/domain.ts";
 import type { Scope } from "../../../../shared/src/permissions.ts";
 
@@ -48,6 +48,7 @@ export type PreviewRow = {
   created_at: number; updated_at: number; destroyed_at: number | null;
   idle_after_ms?: number | null;
   secret_level?: string | null;
+  template_id?: string | null;
 };
 
 export function rowToPreview(r: PreviewRow): Preview {
@@ -62,6 +63,7 @@ export function rowToPreview(r: PreviewRow): Preview {
     ttlExpiresAt: toDate(r.ttl_expires_at),
     idleAfterMs: r.idle_after_ms ?? null,
     secretLevel: (r.secret_level ?? null) as Clearance | null,
+    templateId: r.template_id ?? null,
     lastSeenAt: toDate(r.last_seen_at),
     error: r.error,
     createdAt: new Date(r.created_at),
@@ -183,15 +185,26 @@ export function rowToAuditEntry(r: AuditRow): AuditEntry {
 
 export type RepoRow = {
   id: string; forge: string; full_name: string; installation_id: string; slug: string; enabled: number;
-  disabled_reason: string | null; visibility: string | null; ttl: string | null; forks: string; drafts: number;
-  pr_clearance?: string; fork_clearance?: string;
+  disabled_reason: string | null; template_id: string | null; visibility: string | null; ttl: string | null; forks: string; drafts: number;
+  pr_clearance: string | null; fork_clearance: string;
   created_at: number; updated_at: number;
 };
 
 export const rowToRepo = (r: RepoRow): Repo => ({
   id: r.id, forge: r.forge as ForgeId, fullName: r.full_name, installationId: r.installation_id, slug: r.slug,
-  enabled: bool(r.enabled), disabledReason: r.disabled_reason, visibility: r.visibility as Visibility | null, ttl: r.ttl,
-  forks: r.forks as ForkPolicy, drafts: bool(r.drafts),
-  prClearance: (r.pr_clearance ?? "standard") as Clearance, forkClearance: (r.fork_clearance ?? "none") as Clearance,
+  enabled: bool(r.enabled), disabledReason: r.disabled_reason, templateId: r.template_id, visibility: r.visibility as Visibility | null, ttl: r.ttl,
+  prClearance: r.pr_clearance as Clearance | null,
+  forks: r.forks as ForkPolicy, drafts: bool(r.drafts), forkClearance: r.fork_clearance as Clearance,
+  createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
+});
+
+export type TemplateRow = {
+  id: string; name: string; description: string; builtin: number; visibility: string; ttl: string | null;
+  idle_after: string; clearance: string; host_id: string | null; created_at: number; updated_at: number;
+};
+
+export const rowToTemplate = (r: TemplateRow): Template => ({
+  id: r.id, name: r.name, description: r.description, builtin: bool(r.builtin),
+  visibility: r.visibility as Visibility, ttl: r.ttl, idleAfter: r.idle_after, clearance: r.clearance as Clearance, hostId: r.host_id,
   createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
 });

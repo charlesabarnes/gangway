@@ -55,28 +55,28 @@ describe("/v1/settings", () => {
     expect(by("github.appId")).toMatchObject({ value: "pinned-1", source: "config", managedByConfig: true });
     expect(by("github.webhookSecret")).toMatchObject({ secret: true, value: null, set: false });
 
-    res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "github.webhookSecret": "hunter2", "defaults.ttl": "3d" } } });
+    res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "github.webhookSecret": "hunter2", "acme.email": "ops@example.com" } } });
     expect(res.status).toBe(200);
     view = ((await res.json()) as { settings: any[] }).settings;
     expect(view.find((v) => v.key === "github.webhookSecret")).toMatchObject({ secret: true, value: null, set: true, source: "database" });
-    expect(view.find((v) => v.key === "defaults.ttl")).toMatchObject({ value: "3d", source: "database" });
+    expect(view.find((v) => v.key === "acme.email")).toMatchObject({ value: "ops@example.com", source: "database" });
     expect(settings.get(SETTINGS.githubWebhookSecret)).toBe("hunter2");
 
     const entry = s.auditRepo.page({ limit: 1 }).entries[0]!;
-    expect(entry).toMatchObject({ action: "settings.changed", new: { "github.webhookSecret": "[set]", "defaults.ttl": "3d" }, old: { "github.webhookSecret": "[unset]", "defaults.ttl": "7d" } });
+    expect(entry).toMatchObject({ action: "settings.changed", new: { "github.webhookSecret": "[set]", "acme.email": "ops@example.com" }, old: { "github.webhookSecret": "[unset]", "acme.email": "" } });
     expect(JSON.stringify(entry)).not.toContain("hunter2");
   });
 
   test("a config-pinned key is 409, an unknown key 422, a bad value 422 -- and nothing else in the PUT is written", async () => {
     const { call, ada, settings } = await make();
-    let res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "defaults.ttl": "3d", "github.appId": "x" } } });
+    let res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "acme.email": "ops@example.com", "github.appId": "x" } } });
     expect(res.status).toBe(409);
-    expect(settings.get(SETTINGS.defaultTtl)).toBe("7d");
-    res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "defaults.ttl": "3d", "nope": 1 } } });
+    expect(settings.get(SETTINGS.acmeEmail)).toBe("");
+    res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "acme.email": "ops@example.com", "nope": 1 } } });
     expect(res.status).toBe(422);
-    res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "defaults.ttl": "3d", "defaults.visibility": "secret" } } });
+    res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: { "acme.email": "ops@example.com", "templates.default.pr": "Not A Slug" } } });
     expect(res.status).toBe(422);
-    expect(settings.get(SETTINGS.defaultTtl)).toBe("7d");
+    expect(settings.get(SETTINGS.acmeEmail)).toBe("");
     res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: {} } });
     expect(res.status).toBe(422);
   });
@@ -88,7 +88,7 @@ describe("/v1/settings", () => {
     s.roles.set("member", ["settings.read", "settings.write"], null);
     await s.accounts.createUser({ kind: "token", tokenId: "system:test", scopes: ["admin"], permissions: new Set(["users.manage"]) } as never, { email: "bob@example.com", password: PASSWORD, roleId: "member" });
     const bob = await login("bob@example.com");
-    expect((await call("/v1/settings", { method: "PUT", as: bob, json: { values: { "defaults.ttl": "1d" } } })).status).toBe(200);
+    expect((await call("/v1/settings", { method: "PUT", as: bob, json: { values: { "acme.email": "bob@example.com" } } })).status).toBe(200);
     const refused = await call("/v1/settings", { method: "PUT", as: bob, json: { values: { "surfaces.ui": false } } });
     expect(refused.status).toBe(403);
     expect((await call("/v1/settings", { as: bob })).status).toBe(200);

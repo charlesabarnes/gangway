@@ -3,6 +3,7 @@ import { SetSettingsSchema } from "../../../../shared/src/api.ts";
 import type { AuditSink } from "../../audit/audit.ts";
 import { can } from "../../auth/actor.ts";
 import { badRequest, conflict, forbidden, unprocessable } from "../../errors.ts";
+import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -16,7 +17,7 @@ import { requirePermission } from "../middleware/auth.ts";
  * `surfaces.*` need `surfaces.manage` on top of `settings.write` -- switching the UI off
  * is its own authority in the catalogue.
  */
-export function settingsRoutes(api: Hono<AppEnv>, settings: Settings, audit: AuditSink): void {
+export function settingsRoutes(api: Hono<AppEnv>, settings: Settings, audit: AuditSink, templates?: Pick<TemplatesRepo, "get">): void {
   api.get("/settings", requirePermission("settings.read"), (c) => c.json({ settings: settings.view() }));
 
   api.put("/settings", requirePermission("settings.write"), async (c) => {
@@ -33,6 +34,8 @@ export function settingsRoutes(api: Hono<AppEnv>, settings: Settings, audit: Aud
       if (settings.isManagedByConfig(key)) throw conflict(`"${key}" is managed by config and cannot be changed at runtime`, { key });
       const parsed = def.schema.safeParse(raw);
       if (!parsed.success) throw unprocessable(`"${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`, { key });
+      // ADR-0013: a trigger default must name a template that exists.
+      if (key.startsWith("templates.default.") && templates && !templates.get(parsed.data as string)) throw unprocessable(`"${key}": no such template: ${String(parsed.data)}`, { key });
       writes.push({ key, value: parsed.data, secret: def.secret, old: settings.effective(def).value });
     }
     for (const w of writes) settings.set(SETTINGS_BY_KEY.get(w.key)!, w.value);

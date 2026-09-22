@@ -15,6 +15,7 @@ import { roleRoutes } from "./app/routes/roles.ts";
 import { githubRoutes } from "./app/routes/github.ts";
 import { repoRoutes } from "./app/routes/repos.ts";
 import { settingsRoutes } from "./app/routes/settings.ts";
+import { templateRoutes } from "./app/routes/templates.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
 import { userRoutes } from "./app/routes/users.ts";
 import { eventRoutes } from "./app/routes/events.ts";
@@ -32,7 +33,7 @@ import { Tokens } from "./auth/tokens.ts";
 import type { Config } from "./config.ts";
 import { migrate } from "./db/migrate.ts";
 import {
-  AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, ReposRepo, RolesRepo, RoutesRepo,
+  AuditRepo, BuildsRepo, CertificatesRepo, EventsRepo, HostsRepo, IdempotencyRepo, PreviewsRepo, ReposRepo, RolesRepo, RoutesRepo, TemplatesRepo,
   SessionsRepo, SqliteSettingsStore, TokensRepo, UsersRepo,
 } from "./db/repos/index.ts";
 import { openDatabase } from "./db/sqlite.ts";
@@ -57,6 +58,8 @@ import { clientIpResolver } from "./net/trustedproxy.ts";
 import { wakingPage } from "./net/errorpages.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
 import { DEFAULT_TIMINGS, type PreviewContext } from "./previews/context.ts";
+import { PolicyResolver } from "./previews/policy.ts";
+import { TRIGGERS, type Trigger } from "../../shared/src/domain.ts";
 import { deploy, urlsFor } from "./previews/deploy.ts";
 import { destroy } from "./previews/destroy.ts";
 import { IdempotentDeploys } from "./previews/idempotent.ts";
@@ -70,7 +73,7 @@ import { Secrets } from "./secrets/secrets.ts";
 import { secretRoutes } from "./app/routes/secrets.ts";
 import { githubFullName } from "./forge/github/webhook.ts";
 import { RouteTable } from "./routing/table.ts";
-import { SETTINGS, Settings, idleMs } from "./settings.ts";
+import { SETTINGS, Settings } from "./settings.ts";
 import { drain, sleep } from "./util/async.ts";
 import { AcmeProvider, type AcmeConnect } from "./tls/acme.ts";
 import { CertStore } from "./tls/certstore.ts";
@@ -163,11 +166,25 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const dockerClients = new DockerClients();
   const compose = o.compose ?? createComposeRunner(dockerClients, (hostId, ok, err) => hosts.setState(hostId, ok ? "ready" : "unreachable", err));
 
+  /* ---- ADR-0013: which template a deploy follows. A PR's repository by full name, a git
+     deploy's by the name in its clone URL (as ADR-0012 matches secrets); the rest have none. */
+  const reposRepo = new ReposRepo(db);
+  const templates = new TemplatesRepo(db);
+  const triggerDefault = (t: Trigger) => settings.get(t === "pr" ? SETTINGS.templatePr : t === "api" ? SETTINGS.templateApi : SETTINGS.templateManual);
+  const policy = new PolicyResolver({
+    templates,
+    repoFor: (source) => {
+      const full = source.kind === "pr" ? source.repo : source.kind === "git" ? githubFullName(source.repo) : null;
+      return full ? reposRepo.getByFullName("github", full) : undefined;
+    },
+    defaultFor: triggerDefault,
+    logger: logger.child({ mod: "policy" }),
+  });
+
   const ctx: PreviewContext = {
     instance: config.instanceId, env: config.environment,
     origin: { scheme: config.publicScheme, port: config.publicPort },
-    baseDomain,
-    defaults: () => ({ ttl: settings.get(SETTINGS.defaultTtl), visibility: settings.get(SETTINGS.defaultVisibility), idleAfterMs: idleMs(settings.get(SETTINGS.defaultIdleAfter)) }),
+    baseDomain, policy,
     hosts, previews, table, states, bus, workdirs, compose,
     logs: new PreviewLogs(stateDir),
     probe: o.probe ?? httpProbe,
@@ -182,23 +199,16 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
 
   /* ---- pull requests (ADR-0011). Credentials are read from settings on every use. */
-  const reposRepo = new ReposRepo(db);
   const secrets = new Secrets(reposRepo, settingsStore, new SecretBox(loadOrCreateSecretsKey(stateDir)), audit);
-  // ADR-0012: a git deploy of a registered repository gets that repository's clearance and
-  // secrets; anything else (an image, a tarball) gets the global set at the server default.
-  ctx.secretsFor = (source, requested) => {
-    const full = source.kind === "git" ? githubFullName(source.repo) : null;
-    const repo = full ? reposRepo.getByFullName("github", full) : undefined;
-    const clearance = requested ?? repo?.prClearance ?? settings.get(SETTINGS.secretsDefaultClearance);
-    return { env: secrets.valuesFor(repo?.id ?? null, clearance), clearance };
-  };
+  // ADR-0012: the global map, plus the repository's when the deploy has one, at the clearance the pipeline resolved.
+  ctx.secretsFor = (repoId, clearance) => secrets.valuesFor(repoId, clearance);
   const githubApp = new GitHubApp({
     credentials: () => ({ appId: settings.get(SETTINGS.githubAppId), privateKey: settings.get(SETTINGS.githubPrivateKey) }),
     log: logger.child({ mod: "github" }),
   });
   const forge = new GitHubForge({ app: githubApp, webhookSecret: () => settings.get(SETTINGS.githubWebhookSecret) });
   const prPreviews = new PrPreviews({
-    forge, repos: reposRepo, instance: config.instanceId, logger: logger.child({ mod: "pr" }),
+    forge, repos: reposRepo, instance: config.instanceId, logger: logger.child({ mod: "pr" }), policy,
     secretsFor: (repo, clearance) => secrets.valuesFor(repo.id, clearance),
     previews: {
       deploy: (input) => deploy(ctx, input),
@@ -265,8 +275,9 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       tokenRoutes(api, tokens);
       userRoutes(api, accounts);
       roleRoutes(api, roles);
-      settingsRoutes(api, settings, audit);
-      repoRoutes(api, reposRepo, audit, secrets);
+      settingsRoutes(api, settings, audit, templates);
+      repoRoutes(api, reposRepo, audit, secrets, templates);
+      templateRoutes(api, { templates, hosts, audit, namedByTrigger: (id) => TRIGGERS.filter((t) => triggerDefault(t) === id) });
       secretRoutes(api, secrets);
       githubRoutes(api, { app: githubApp, settings, states: new ManifestStates(), audit, baseDomain, originFor: (label) => publicOriginFor(`${label}.${baseDomain()}`, ctx.origin) });
     },

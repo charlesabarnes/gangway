@@ -50,9 +50,9 @@ describe("writes", () => {
 
   test("an unpinned setting writes through and validates", () => {
     const { settings } = mk();
-    settings.set(SETTINGS.defaultVisibility, "private");
-    expect(settings.get(SETTINGS.defaultVisibility)).toBe("private");
-    expect(() => settings.set(SETTINGS.defaultVisibility, "nonsense" as never)).toThrow();
+    settings.set(SETTINGS.templatePr, "staging");
+    expect(settings.get(SETTINGS.templatePr)).toBe("staging");
+    expect(() => settings.set(SETTINGS.templatePr, "Not A Slug" as never)).toThrow();
   });
 });
 
@@ -65,9 +65,9 @@ describe("invalid values", () => {
 
   test("a corrupt database row falls back to the default instead of crashing", () => {
     const { settings, store } = mk();
-    store.set("defaults.visibility", "banana");
-    const e = settings.effective(SETTINGS.defaultVisibility);
-    expect(e.value).toBe("unlisted");
+    store.set("templates.default.pr", "not a slug");
+    const e = settings.effective(SETTINGS.templatePr);
+    expect(e.value).toBe("default");
     expect(e.source).toBe("default");
   });
 });
@@ -127,7 +127,7 @@ describe("secrets in the view", () => {
     expect(view["github.webhookSecret"]).toMatchObject({ secret: true, value: null, set: false, source: "default" });
     expect(view["acme.cloudflare.apiToken"]).toMatchObject({ secret: true, value: null });
     expect(view["github.appId"]).toMatchObject({ secret: false, value: "12345", set: true, source: "config", managedByConfig: true });
-    expect(view["defaults.ttl"]).toMatchObject({ secret: false, value: "7d", set: true });
+    expect(view["templates.default.pr"]).toMatchObject({ secret: false, value: "default", set: true });
     // The value itself is stored with real newlines: an env-var PEM with literal \n is usable.
     expect(settings.get(SETTINGS.githubPrivateKey)).toBe("-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----");
     expect(JSON.stringify(settings.view())).not.toContain("abc");

@@ -20,7 +20,7 @@ import { ToastService } from '../../ui/toast';
       @if (error(); as e) {
         <h1 class="text-lg font-semibold">The GitHub App was not connected</h1>
         <p class="mt-2 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="error">{{ e }}</p>
-        <a appBtn routerLink="/github" class="mt-6 inline-block">Back to GitHub</a>
+        <a appBtn routerLink="/settings" class="mt-6 inline-block">Back to Settings</a>
       } @else {
         <h1 class="text-lg font-semibold" data-testid="working">Connecting the GitHub App…</h1>
       }
@@ -43,13 +43,13 @@ export class GitHubCallback {
     const code = q.get('code');
     const state = q.get('state');
     if (!code || !state) {
-      this.error.set('GitHub did not send a code and state back. Start again from the GitHub page.');
+      this.error.set('GitHub did not send a code and state back. Start again from Settings.');
       return;
     }
     try {
       const status = await firstValueFrom(this.#http.post<GitHubStatus>('/v1/github/manifest/exchange', { code, state }));
       this.#toasts.info(`Connected as ${status.appSlug}`, 'Now install the App on your repositories.');
-      await this.#router.navigateByUrl('/github');
+      await this.#router.navigateByUrl('/settings');
     } catch (e) {
       this.error.set(toProblem(e).detail);
     }

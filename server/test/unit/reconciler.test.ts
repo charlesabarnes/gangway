@@ -17,6 +17,7 @@ import { seedHosts } from "../../src/hosts/seed.ts";
 import { Logger } from "../../src/logger.ts";
 import type { PreviewContext } from "../../src/previews/context.ts";
 import { deploy } from "../../src/previews/deploy.ts";
+import { fixedPolicy } from "../../src/previews/policy.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { PreviewLogs } from "../../src/previews/logs.ts";
 import { Workdirs } from "../../src/previews/source/workdir.ts";
@@ -80,7 +81,7 @@ function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
 
   const ctx: PreviewContext = {
     instance: "default", env: "test", origin: { scheme: "https", port: 8443 },
-    baseDomain: () => "preview.localhost", defaults: () => ({ ttl: "7d", visibility: "unlisted", idleAfterMs: 0 }),
+    baseDomain: () => "preview.localhost", policy: fixedPolicy(),
     hosts, previews, table, bus, compose, logs: new PreviewLogs(dir), workdirs: new Workdirs(dir),
     states: new PreviewStates(previews, table, bus), probe: async () => daemon.probe,
     logger: new Logger("error", {}, () => {}), timings: { startTimeoutMs: 200, probeTimeoutMs: 200, pollIntervalMs: 5 },

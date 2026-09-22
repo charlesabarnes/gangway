@@ -12,6 +12,7 @@ export type PreviewState = 'building' | 'starting' | 'awake' | 'asleep' | 'faile
 export const PREVIEW_STATES: readonly PreviewState[] = ['building', 'starting', 'awake', 'asleep', 'failed', 'destroying', 'destroyed'];
 
 export type Visibility = 'public' | 'unlisted' | 'private';
+export const VISIBILITIES: readonly Visibility[] = ['public', 'unlisted', 'private'];
 
 export type PreviewSource =
   | { kind: 'pr'; repo: string; number: number; sha: string }
@@ -33,10 +34,12 @@ export type Preview = {
   source: PreviewSource;
   visibility: Visibility;
   ttlExpiresAt: string | null;
-  /** Idle-sleep after this many ms without a request; null: the server default; 0: never. */
+  /** Idle-sleep after this many ms without a request, pinned at deploy; 0: never; null: before templates. */
   idleAfterMs: number | null;
-  /** The clearance this preview was deployed with; null when no repository was involved. */
+  /** The clearance this preview was deployed with. */
   secretLevel: Clearance | null;
+  /** The template it was deployed with (ADR-0013); null on previews from before templates. */
+  templateId: string | null;
   lastSeenAt: string | null;
   error: string | null;
   createdAt: string;
@@ -77,7 +80,7 @@ export const PERMISSIONS = [
   'previews.read', 'previews.deploy', 'previews.destroy', 'previews.view_private',
   'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
   'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
-  'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.secrets',
+  'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.manage', 'repos.secrets', 'templates.manage',
   'apps.read', 'apps.install', 'jobs.claim',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -132,9 +135,28 @@ export const CLEARANCES: readonly Clearance[] = ['none', 'low', 'standard', 'hig
 export const SECRET_LEVELS: readonly SecretLevel[] = ['low', 'standard', 'high'];
 export type SecretListing = { name: string; level: SecretLevel };
 
+/** `templateId` names the template its previews follow; `visibility`, `ttl` and `prClearance` override it (null: the template's). */
 export type Repo = {
   id: string; forge: 'github'; fullName: string; installationId: string; slug: string;
-  enabled: boolean; disabledReason: string | null; visibility: Visibility | null; ttl: string | null;
-  forks: ForkPolicy; drafts: boolean; prClearance: Clearance; forkClearance: Clearance; createdAt: string; updatedAt: string;
+  enabled: boolean; disabledReason: string | null; templateId: string | null; visibility: Visibility | null; ttl: string | null;
+  forks: ForkPolicy; drafts: boolean; prClearance: Clearance | null; forkClearance: Clearance; createdAt: string; updatedAt: string;
 };
-export type RepoPatch = Partial<Pick<Repo, 'slug' | 'enabled' | 'visibility' | 'ttl' | 'forks' | 'drafts' | 'prClearance' | 'forkClearance'>>;
+export type RepoPatch = Partial<Pick<Repo, 'slug' | 'enabled' | 'templateId' | 'visibility' | 'ttl' | 'forks' | 'drafts' | 'prClearance' | 'forkClearance'>>;
+
+/* ---- Templates (ADR-0013) */
+
+/** A named preview policy. `default` is built in. */
+export type Template = {
+  id: string; name: string; description: string; builtin: boolean;
+  visibility: Visibility; ttl: string | null; idleAfter: string; clearance: Clearance; hostId: string | null;
+  createdAt: string; updatedAt: string;
+};
+export type TemplatePatch = Partial<Pick<Template, 'name' | 'description' | 'visibility' | 'ttl' | 'idleAfter' | 'clearance' | 'hostId'>>;
+export type TemplateCreate = TemplatePatch & { id: string; name: string };
+
+/** The deploy triggers a default template is set for: `templates.default.<trigger>` in settings. */
+export type Trigger = 'pr' | 'api' | 'manual';
+export const TRIGGERS: readonly Trigger[] = ['pr', 'api', 'manual'];
+
+/** One row of `GET /v1/settings`. A secret's value is never sent, only whether one is set. */
+export type SettingView = { key: string; value: unknown; source: 'config' | 'database' | 'default'; managedByConfig: boolean; secret: boolean; set: boolean };

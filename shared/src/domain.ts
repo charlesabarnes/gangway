@@ -57,6 +57,33 @@ export const CLEARANCES: readonly Clearance[] = ["none", "low", "standard", "hig
 export const SECRET_LEVELS: readonly SecretLevel[] = ["low", "standard", "high"];
 export const clears = (clearance: Clearance, level: SecretLevel): boolean => CLEARANCES.indexOf(clearance) >= CLEARANCES.indexOf(level);
 
+/**
+ * A named preview policy (ADR-0013): what a deploy gets unless the request, the
+ * repository or the stack file says otherwise. `default` exists in every install.
+ */
+export type Template = {
+  /** A slug the operator chose, like a role id. */
+  id: string;
+  name: string;
+  description: string;
+  /** `default`: seeded by the migration, never deleted. */
+  builtin: boolean;
+  visibility: Visibility;
+  /** A duration; null never expires. */
+  ttl: string | null;
+  /** A duration, or `never`. */
+  idleAfter: string;
+  clearance: Clearance;
+  /** Placement; null lets the scheduler choose. */
+  hostId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/** The deploy triggers a template is the default for (ADR-0013). */
+export type Trigger = "pr" | "api" | "manual";
+export const TRIGGERS: readonly Trigger[] = ["pr", "api", "manual"];
+
 /** A repository a forge has sent a pull request from, and how its previews are shaped. */
 export type Repo = {
   id: string;
@@ -68,13 +95,15 @@ export type Repo = {
   slug: string;
   enabled: boolean;
   disabledReason: string | null;
-  /** null: the server default. */
+  /** The template its previews follow (ADR-0013); null: the PR trigger's default. */
+  templateId: string | null;
+  /** Overrides on top of the template; null takes the template's value. */
   visibility: Visibility | null;
   ttl: string | null;
+  prClearance: Clearance | null;
+  /** The trigger policy: forks, drafts, and what a fork's PR is cleared for (ADR-0012). */
   forks: ForkPolicy;
   drafts: boolean;
-  /** The clearance a same-repo PR is deployed with, and a fork's PR (ADR-0012). */
-  prClearance: Clearance;
   forkClearance: Clearance;
   createdAt: Date;
   updatedAt: Date;
@@ -102,6 +131,8 @@ export type Preview = {
   idleAfterMs: number | null;
   /** The clearance this preview was deployed with; null when no repository was involved. */
   secretLevel: Clearance | null;
+  /** The template it was deployed with (ADR-0013); null on rows from before templates. */
+  templateId: string | null;
   /** Written by the proxy on every request; the idle-sleep sweeper reads it. */
   lastSeenAt: Date | null;
   error: string | null;

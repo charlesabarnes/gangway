@@ -12,9 +12,13 @@ export const routes: Routes = [
   { path: 'previews', title: 'Previews · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-list').then((m) => m.PreviewList) },
   { path: 'previews/:id', title: 'Preview · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-detail').then((m) => m.PreviewDetail) },
   { path: 'account', title: 'Account · gangway', canActivate: [authGuard], loadComponent: () => import('./features/account/account').then((m) => m.Account) },
-  { path: 'github', title: 'GitHub · gangway', canActivate: [authGuard], loadComponent: () => import('./features/github/github').then((m) => m.GitHub) },
-  // GitHub's manifest flow sends the browser back here with ?code=&state= (ADR-0011).
-  { path: 'github/callback', title: 'GitHub · gangway', canActivate: [authGuard], loadComponent: () => import('./features/github/github-callback').then((m) => m.GitHubCallback) },
+  { path: 'repos', title: 'Repositories · gangway', canActivate: [authGuard], loadComponent: () => import('./features/repos/repos').then((m) => m.ReposPage) },
+  { path: 'templates', title: 'Templates · gangway', canActivate: [authGuard], loadComponent: () => import('./features/templates/templates').then((m) => m.TemplatesPage) },
+  { path: 'settings', title: 'Settings · gangway', canActivate: [authGuard], loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage) },
+  // GitHub's manifest flow sends the browser back here with ?code=&state= (ADR-0011). The
+  // path is registered with GitHub: it stays, whatever the page it lands on is called.
+  { path: 'github/callback', title: 'GitHub · gangway', canActivate: [authGuard], loadComponent: () => import('./features/settings/github-callback').then((m) => m.GitHubCallback) },
+  { path: 'github', redirectTo: 'settings' },
   // The server answers every unknown path on the `app` surface with index.html (SPA
   // fallback), so an unknown path is the router's to handle, not a 404 page's.
   { path: '**', redirectTo: '' },

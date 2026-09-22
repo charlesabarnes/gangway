@@ -13,13 +13,14 @@
  *   - the forge is told AFTER the preview exists and again when it settles; a forge
  *     call failing never fails the deploy
  */
-import type { Clearance, Repo, Visibility } from "../../../shared/src/domain.ts";
+import type { Clearance, Repo } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
 import type { ReposRepo } from "../db/repos/repos.ts";
 import type { Logger } from "../logger.ts";
-import type { DeployInput, DeployResult, PreviewUrl } from "../previews/deploy.ts";
+import type { DeployInput, DeployResult, DeploySource, PreviewUrl } from "../previews/deploy.ts";
+import type { Policy } from "../previews/policy.ts";
 import type { Preview } from "../../../shared/src/domain.ts";
 import { ulid } from "../util/ulid.ts";
 import type { Association, Forge, ForgeEvent, ForgeRepo, PullRequest } from "./forge.ts";
@@ -41,6 +42,8 @@ export type PrPreviewsDeps = {
   };
   /** The repository's secrets at or below a clearance (ADR-0012). */
   secretsFor?: ((repo: Repo, clearance: Clearance) => Record<string, string>) | undefined;
+  /** The template a pull request follows (ADR-0013): its clearance is the fallback when the repository has no override. */
+  policy: Policy;
   /** Where a human reads the build log: the UI's preview page, when the UI is on. */
   logUrlFor?: ((previewId: string) => string | undefined) | undefined;
   logger: Logger;
@@ -170,8 +173,11 @@ export class PrPreviews {
     const name = this.previewName(repo, pr.number);
     const existing = this.current(repo, pr.number);
     let refs = { commentId: null as number | null, deploymentId: null as number | null };
-    // The clearance: asked for now, else what this PR already had, else the repository's policy.
-    const clearance: Clearance = o.clearance ?? existing?.secretLevel ?? (pr.fromFork ? repo.forkClearance : repo.prClearance);
+    const source: DeploySource = { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential: undefined };
+    // The clearance: asked for now, else what this PR already had, else the repository's
+    // policy -- a fork's clearance, or the override on top of the template's.
+    const { template } = this.#d.policy.resolve({ source, actor });
+    const clearance: Clearance = o.clearance ?? existing?.secretLevel ?? (pr.fromFork ? repo.forkClearance : repo.prClearance ?? template.clearance);
     if (existing) {
       const sameHead = existing.source.kind === "pr" && existing.source.sha === pr.headSha;
       const live = existing.state === "building" || existing.state === "starting" || existing.state === "awake";
@@ -184,14 +190,15 @@ export class PrPreviews {
 
     // Minted for public repositories too: one code path, and authenticated fetches are not rate-limited like anonymous ones.
     const credential = await this.#d.forge.cloneCredential(pr.repo);
-    const visibility: Visibility = pr.fromFork ? "public" : (repo.visibility ?? undefined) as Visibility;
+    // §9: a fork is public, whatever the repository or template says. Everything else --
+    // the repository's overrides, the template -- the pipeline resolves from the source.
     let result: DeployResult;
     try {
       // Given explicitly, even as {}: the pipeline's by-source lookup must not fill it in.
       const env = clearance === "none" ? {} : (this.#d.secretsFor?.(repo, clearance) ?? {});
       result = await this.#d.previews.deploy({
-        actor, name, env, secretLevel: clearance, ...(visibility ? { visibility } : {}), ...(repo.ttl !== null ? { ttl: repo.ttl } : {}),
-        source: { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential },
+        actor, name, env, secretLevel: clearance, ...(pr.fromFork ? { visibility: "public" as const } : {}),
+        source: { ...source, credential },
       });
     } catch (e) {
       // Refused before a preview existed: no row, no deployment, and -- unless said here --

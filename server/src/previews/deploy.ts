@@ -29,6 +29,7 @@ import { redactString } from "../logger.ts";
 import { allocatePorts } from "../routing/ports.ts";
 import { place } from "../scheduler/placement.ts";
 import { sleep } from "../util/async.ts";
+import { idleMs } from "../settings.ts";
 import { parseDuration } from "../util/duration.ts";
 import { ulid } from "../util/ulid.ts";
 import { parse as parseYaml } from "yaml";
@@ -68,6 +69,8 @@ export type DeployInput = {
   /** A duration (`12h`, `7d`), or null for no expiry. */
   ttl?: string | null | undefined;
   hostId?: string | undefined;
+  /** A template by id (ADR-0013). Omitted: the repository's, else the trigger's default. */
+  template?: string | undefined;
 };
 
 export type PreviewUrl = { service: string; url: string; primary: boolean };
@@ -196,8 +199,18 @@ async function readModel(ctx: PreviewContext, host: Host, wd: Workdir, composeFi
 
 export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
   const id = ulid(ctx.now());
+  // ADR-0013: the template first -- it may place the preview, and it fills every gap below.
+  const { template, repo } = ctx.policy.resolve({ source: input.source, actor: input.actor, template: input.template });
+  const allHosts = ctx.hosts.list();
+  let wantedHost = input.hostId ?? template.hostId ?? undefined;
+  if (input.hostId === undefined && template.hostId !== null && !allHosts.some((h) => h.id === template.hostId)) {
+    // The template names a host that left the config. Placing it anyway beats failing
+    // every preview on that template for a stale row.
+    ctx.logger.warn("template names a host that does not exist; letting the scheduler place the preview", { template: template.id, hostId: template.hostId });
+    wantedHost = undefined;
+  }
   // §9: placement is decided here and nowhere else, even while there is one host.
-  const host = place({ capability: "preview", hostId: input.hostId }, ctx.hosts.list());
+  const host = place({ capability: "preview", hostId: wantedHost }, allHosts);
   const wd = await ctx.workdirs.create(id);
 
   let preview: Preview;
@@ -205,23 +218,23 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let routes: PlannedRoute[];
   let visibility: Visibility;
   try {
-    const looked = input.env === undefined ? ctx.secretsFor?.(input.source, input.secretLevel) : undefined;
-    const env = input.env !== undefined ? input.env : looked?.env;
-    const secretLevel: Clearance | null = input.secretLevel ?? looked?.clearance ?? null;
+    // The clearance: asked for, else the repository's override, else the template's (ADR-0012, ADR-0013).
+    const secretLevel: Clearance = input.secretLevel ?? repo?.prClearance ?? template.clearance;
+    const env = input.env !== undefined ? input.env : secretLevel === "none" ? {} : ctx.secretsFor?.(repo?.id ?? null, secretLevel);
     const { source, composeFile } = await writeSource(ctx, id, input.source, env, wd);
     planned = await readModel(ctx, host, wd, composeFile);
     const { model } = planned;
     const exposed = selectExposed(model);
 
-    const defaults = ctx.defaults();
-    visibility = input.visibility ?? model.x.visibility ?? defaults.visibility;
+    // Per field: the request, the repository's override, the stack's own word, the template.
+    visibility = input.visibility ?? repo?.visibility ?? model.x.visibility ?? template.visibility;
     // A private preview is opened by logging in to the UI (net/gate.ts). With the UI switched
     // off there is no login page to send anyone to: say so now, not with a dead link later.
     if (visibility === "private" && ctx.privateAvailable?.() === false) {
       throw unprocessable("private previews need the web UI, which is switched off (surfaces.ui); use unlisted instead");
     }
 
-    const ttlText = input.ttl === undefined ? (model.x.ttl ?? defaults.ttl) : input.ttl;
+    const ttlText = input.ttl !== undefined ? input.ttl : repo?.ttl ?? model.x.ttl ?? template.ttl;
     const ttlMs = ttlText === null ? null : parseDuration(ttlText);
     if (ttlText !== null && ttlMs === null) throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
 
@@ -246,12 +259,13 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
       ctx.previews.delete(existing.id);
       ctx.logs.remove(existing.id);
     }
-    // The stack's own idle choice is pinned on the row; the server default is read at sweep time.
-    const idleAfterMs = model.x.idle === undefined ? null : model.x.idle === "never" ? 0 : parseDuration(model.x.idle);
+    // The idle window is pinned on the row: the stack's own word, else the template's, so a
+    // later template edit changes new previews and not running ones.
+    const idleAfterMs = idleMs(model.x.idle ?? template.idleAfter);
     preview = ctx.previews.create({
       id, project, hostId: host.id, state: "building", source, visibility,
       ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
-      secretLevel,
+      secretLevel, templateId: template.id,
     });
     try {
       for (const route of routes) {

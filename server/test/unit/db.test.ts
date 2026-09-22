@@ -86,7 +86,7 @@ for (const [name, open] of DRIVERS) {
     test("the real 0001 schema applies and enforces its constraints", () => {
       const { db } = fresh();
       const res = migrate(db, MIGRATIONS);
-      expect(res.applied).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(res.applied).toEqual([1, 2, 3, 4, 5, 6, 7]);
 
       const now = Date.now();
       db.run(`INSERT INTO hosts (id, name, docker_host, created_at)
@@ -121,12 +121,12 @@ for (const [name, open] of DRIVERS) {
     test("migrate is idempotent across reopen", () => {
       const dir = tmp();
       const a = open({ path: join(dir, "g.db") });
-      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2, 3, 4, 5, 6, 7]);
       a.db.close();
       const b = open({ path: join(dir, "g.db") });
       const r = migrate(b.db, MIGRATIONS);
       expect(r.applied).toEqual([]);
-      expect(r.alreadyApplied).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(r.alreadyApplied).toEqual([1, 2, 3, 4, 5, 6, 7]);
       b.db.close();
     });
 
@@ -178,7 +178,7 @@ for (const [name, open] of DRIVERS) {
         a.db.close();
 
         const b = open({ path });
-        expect(migrate(b.db, MIGRATIONS).applied).toEqual([3, 4, 5, 6]);
+        expect(migrate(b.db, MIGRATIONS).applied).toEqual([3, 4, 5, 6, 7]);
         expect(b.db.get<Record<string, unknown>>("SELECT id, email, role_id, disabled, created_at FROM users")).toEqual(
           { id: "u1", email: "ada@example.com", role_id: "member", disabled: 1, created_at: 42 });
         expect(b.db.query("PRAGMA foreign_key_check")).toEqual([]);
@@ -188,6 +188,46 @@ for (const [name, open] of DRIVERS) {
         b.db.run("DELETE FROM users WHERE id = 'u1'");
         expect(b.db.query("SELECT id FROM sessions")).toEqual([]);
         expect(b.db.query("SELECT id FROM api_tokens")).toEqual([]);
+        b.db.close();
+      });
+    });
+
+    describe("0007 templates (ADR-0013)", () => {
+      test("a fresh database has the built-in template at the old defaults, and nothing deletes it", () => {
+        const { db } = fresh();
+        migrate(db, MIGRATIONS);
+        expect(db.get<Record<string, unknown>>("SELECT id, builtin, visibility, ttl, idle_after, clearance, host_id FROM templates")).toEqual(
+          { id: "default", builtin: 1, visibility: "unlisted", ttl: "7d", idle_after: "30m", clearance: "standard", host_id: null });
+        expect(() => db.run("INSERT INTO templates (id, name, visibility, created_at, updated_at) VALUES ('Bad Id', 'x', 'public', 1, 1)")).toThrow();
+        db.close();
+      });
+
+      test("upgrades a populated 0006 database: the defaults.* settings become the default template; a repo at the old column default follows its template, a chosen clearance is kept", () => {
+        const upTo6 = tmp();
+        for (const f of readdirSync(MIGRATIONS)) if (/^000[1-6]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo6, f));
+        const path = join(tmp(), "g.db");
+        const a = open({ path });
+        expect(migrate(a.db, upTo6).applied).toEqual([1, 2, 3, 4, 5, 6]);
+        a.db.run("INSERT INTO settings (key, value_json, updated_at) VALUES ('defaults.ttl', '\"3d\"', 1), ('defaults.visibility', '\"private\"', 1), ('secrets.defaultClearance', '\"low\"', 1), ('baseDomain', '\"x.test\"', 1)");
+        a.db.run("INSERT INTO repos (id, forge, full_name, slug, pr_clearance, fork_clearance, visibility, env_ciphertext, created_at, updated_at) VALUES ('r1', 'github', 'acme/a', 'a', 'standard', 'none', 'public', 'sealed', 1, 1), ('r2', 'github', 'acme/b', 'b', 'high', 'low', NULL, NULL, 1, 1)");
+        a.db.close();
+
+        const b = open({ path });
+        expect(migrate(b.db, MIGRATIONS).applied).toEqual([7]);
+        expect(b.db.get<Record<string, unknown>>("SELECT visibility, ttl, idle_after, clearance FROM templates WHERE id = 'default'")).toEqual(
+          { visibility: "private", ttl: "3d", idle_after: "30m", clearance: "low" });
+        expect(b.db.query<{ key: string }>("SELECT key FROM settings ORDER BY key").map((r) => r.key)).toEqual(["baseDomain"]);
+        expect(b.db.query<Record<string, unknown>>("SELECT id, template_id, pr_clearance, fork_clearance, visibility, env_ciphertext FROM repos ORDER BY id")).toEqual([
+          { id: "r1", template_id: null, pr_clearance: null, fork_clearance: "none", visibility: "public", env_ciphertext: "sealed" },
+          { id: "r2", template_id: null, pr_clearance: "high", fork_clearance: "low", visibility: null, env_ciphertext: null },
+        ]);
+        expect(b.db.query("PRAGMA foreign_key_check")).toEqual([]);
+        // A deleted template leaves its repositories on the trigger default.
+        b.db.run("INSERT INTO templates (id, name, visibility, created_at, updated_at) VALUES ('staging', 'Staging', 'public', 1, 1)");
+        b.db.run("UPDATE repos SET template_id = 'staging' WHERE id = 'r1'");
+        expect(() => b.db.run("UPDATE repos SET template_id = 'ghost' WHERE id = 'r2'")).toThrow();
+        b.db.run("DELETE FROM templates WHERE id = 'staging'");
+        expect(b.db.get<{ template_id: string | null }>("SELECT template_id FROM repos WHERE id = 'r1'")!.template_id).toBeNull();
         b.db.close();
       });
     });

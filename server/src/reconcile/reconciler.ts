@@ -264,9 +264,10 @@ export class Reconciler {
       if (!isUlid(a.previewId) || !project || ctx.previews.getByProject(project)) {
         return this.#stop(host, found.summary, "unadoptable");
       }
-      // The labels do not carry a TTL. An adopted preview gets the default from NOW,
-      // rather than living forever because nobody remembers when it was due to die.
-      const ttl = parseDuration(ctx.defaults().ttl);
+      // The labels do not carry a TTL. An adopted preview gets the default template's from
+      // NOW, rather than living forever because nobody remembers when it was due to die.
+      const ttlText = ctx.policy.default().ttl;
+      const ttl = ttlText === null ? null : parseDuration(ttlText);
       preview = ctx.previews.create({
         id: a.previewId, project, hostId: host.id, state: "awake",
         source: { kind: "image", image: found.summary.image }, visibility: a.visibility,

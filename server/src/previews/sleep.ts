@@ -13,6 +13,7 @@ import { psArgv, startArgv, stopArgv } from "../docker/compose.ts";
 import { AppError } from "../errors.ts";
 import type { Logger } from "../logger.ts";
 import { redactString } from "../logger.ts";
+import { idleMs } from "../settings.ts";
 import { SingleFlight } from "../util/async.ts";
 import type { PreviewContext } from "./context.ts";
 import { StepFailed, waitAnswering, waitHealthy, type WaitTarget } from "./deploy.ts";
@@ -40,14 +41,15 @@ export async function sleepPreview(ctx: PreviewContext, previewId: string, why: 
 
 /**
  * The `idle-sleep` job. Every awake preview whose last request is older than its idle
- * window -- the row's own (`x-gangway.idle`), else the server default -- is put to sleep.
+ * window -- the row's own (pinned from `x-gangway.idle` or its template), else the default
+ * template's for rows older than templates -- is put to sleep.
  * What the proxy noted in memory is flushed first, or a preview visited a second ago
  * would look idle since its last flush.
  */
 export async function sweepIdle(ctx: PreviewContext, logger: Logger, signal?: AbortSignal): Promise<IdleReport> {
   ctx.previews.touchMany(ctx.table.drainSeen());
   const now = ctx.now();
-  const defaultMs = ctx.defaults().idleAfterMs;
+  const defaultMs = idleMs(ctx.policy.default().idleAfter);
   const report: IdleReport = { candidates: 0, slept: [], skipped: [], failed: [] };
 
   for (const p of ctx.previews.list({ state: "awake", kind: "preview" })) {

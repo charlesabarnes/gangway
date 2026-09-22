@@ -12,8 +12,9 @@
     },
     "visibility": "public",
     "ttlExpiresAt": "2026-09-28T20:24:15.180Z",
-    "idleAfterMs": null,
-    "secretLevel": null,
+    "idleAfterMs": 0,
+    "secretLevel": "standard",
+    "templateId": "default",
     "lastSeenAt": null,
     "error": null,
     "createdAt": "2026-09-21T20:24:15.180Z",
@@ -144,7 +145,9 @@
     "settings.write",
     "surfaces.manage",
     "github.manage",
+    "repos.manage",
     "repos.secrets",
+    "templates.manage",
     "apps.read",
     "apps.install",
     "jobs.claim"
@@ -184,7 +187,9 @@
       "settings.write",
       "surfaces.manage",
       "github.manage",
+      "repos.manage",
       "repos.secrets",
+      "templates.manage",
       "apps.read",
       "apps.install",
       "jobs.claim"
@@ -208,11 +213,12 @@
     "slug": "web-app",
     "enabled": true,
     "disabledReason": null,
+    "templateId": null,
     "visibility": null,
     "ttl": null,
     "forks": "ask",
     "drafts": false,
-    "prClearance": "standard",
+    "prClearance": null,
     "forkClearance": "none",
     "createdAt": "2026-09-21T20:00:00.000Z",
     "updatedAt": "2026-09-21T20:00:00.000Z"
@@ -227,5 +233,23 @@
     "low",
     "standard",
     "high"
+  ],
+  "template": {
+    "id": "default",
+    "name": "Default",
+    "description": "Every install starts with this one.",
+    "builtin": true,
+    "visibility": "unlisted",
+    "ttl": "7d",
+    "idleAfter": "30m",
+    "clearance": "standard",
+    "hostId": null,
+    "createdAt": "2026-09-21T20:00:00.000Z",
+    "updatedAt": "2026-09-21T20:00:00.000Z"
+  },
+  "triggers": [
+    "pr",
+    "api",
+    "manual"
   ]
 }

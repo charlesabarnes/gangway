@@ -23,6 +23,7 @@ export type AuditAction =
   | "role.permissions.changed"
   | "settings.changed"
   | "github.connected" | "repo.updated" | "repo.deleted" | "repo.env.changed" | "secrets.changed"
+  | "template.created" | "template.updated" | "template.deleted"
   | "token.created" | "token.revoked";
 
 export type AuditChange = { old?: unknown; new?: unknown };

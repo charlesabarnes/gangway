@@ -38,6 +38,8 @@ export const DeploySourceSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const templateId = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/, "a template id is 1-32 lowercase letters, digits and hyphens");
+
 /**
  * A tarball deploy has no JSON body -- the body IS the archive -- so its options ride in
  * the query string:  curl --data-binary @src.tgz -H 'content-type: application/gzip' '.../v1/previews?name=x'
@@ -48,6 +50,7 @@ export const TarballDeployQuerySchema = z.object({
   /** `12h`, `7d`, or `none` for no expiry. */
   ttl: z.string().max(16).optional(),
   hostId: z.string().min(1).max(64).optional(),
+  template: templateId.optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
 });
 export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"] as const;
@@ -59,6 +62,8 @@ export const DeployRequestSchema = z.strictObject({
   /** `12h`, `7d`; null for no expiry. Omitted means the server default. */
   ttl: z.string().max(16).nullable().optional(),
   hostId: z.string().min(1).max(64).optional(),
+  /** A template by id (ADR-0013). Omitted: the repository's, else the trigger's default. */
+  template: templateId.optional(),
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
 
@@ -149,10 +154,38 @@ export const RepoPatchSchema = z.strictObject({
   ttl: z.string().max(16).nullable().optional(),
   forks: z.enum(["ask", "auto", "never"]).optional(),
   drafts: z.boolean().optional(),
-  prClearance: z.enum(["none", "low", "standard", "high"]).optional(),
+  templateId: templateId.nullable().optional(),
+  prClearance: z.enum(["none", "low", "standard", "high"]).nullable().optional(),
   forkClearance: z.enum(["none", "low", "standard", "high"]).optional(),
 });
 export type RepoPatchRequest = z.infer<typeof RepoPatchSchema>;
+
+/* ------------------------------------------------------------------ templates (ADR-0013) */
+
+const templateFields = {
+  name: z.string().trim().min(1).max(64),
+  description: z.string().max(500),
+  visibility: z.enum(VISIBILITY_VALUES),
+  /** A duration, or null for no expiry. */
+  ttl: z.string().max(16).nullable(),
+  /** A duration, or `never`. */
+  idleAfter: z.string().max(16),
+  clearance: z.enum(["none", "low", "standard", "high"]),
+  hostId: z.string().min(1).max(64).nullable(),
+};
+export const TemplateCreateSchema = z.strictObject({
+  id: templateId,
+  name: templateFields.name,
+  description: templateFields.description.optional(),
+  visibility: templateFields.visibility.optional(),
+  ttl: templateFields.ttl.optional(),
+  idleAfter: templateFields.idleAfter.optional(),
+  clearance: templateFields.clearance.optional(),
+  hostId: templateFields.hostId.optional(),
+});
+export type TemplateCreateRequest = z.infer<typeof TemplateCreateSchema>;
+export const TemplatePatchSchema = z.strictObject(Object.fromEntries(Object.entries(templateFields).map(([k, v]) => [k, v.optional()])) as { [K in keyof typeof templateFields]: z.ZodOptional<(typeof templateFields)[K]> });
+export type TemplatePatchRequest = z.infer<typeof TemplatePatchSchema>;
 
 /** `PATCH /v1/repos/:id/env`: merge secrets in, take names out. Values are never returned. */
 const secretLevel = z.enum(["low", "standard", "high"]);

@@ -14,6 +14,7 @@ import { ReposRepo } from "../../src/db/repos/repos.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import type { DeploymentState, Forge, ForgeEvent, ForgeRepo, PullRequest } from "../../src/forge/forge.ts";
 import { MAX_REPO_SLUG, PrPreviews, slugFor } from "../../src/forge/pr-previews.ts";
+import { fixedPolicy } from "../../src/previews/policy.ts";
 import { Logger } from "../../src/logger.ts";
 import type { DeployInput, DeployResult, PreviewUrl } from "../../src/previews/deploy.ts";
 
@@ -80,7 +81,7 @@ function fakePreviews(instance = "test") {
         id, project: `gw-${instance}-${slug}`, hostId: "local", kind: "preview", state: "building",
         source: s.kind === "pr" ? { kind: "pr", repo: s.repo, number: s.number, sha: s.sha } : { kind: "image", image: "x" },
         visibility: input.visibility ?? "unlisted", ttlExpiresAt: input.ttl ? new Date(Date.now() + 86_400_000) : null,
-        idleAfterMs: null, secretLevel: input.secretLevel ?? null, lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
+        idleAfterMs: null, secretLevel: input.secretLevel ?? null, templateId: input.template ?? "default", lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
       };
       rows.set(id, preview);
       const done = new Promise<Preview>((resolve) => pending.set(id, (final) => { rows.set(id, final); resolve(final); }));
@@ -113,7 +114,7 @@ function make(o: Parameters<typeof fakeForge>[0] = {}) {
   const f = fakeForge(o);
   const p = fakePreviews();
   const service = new PrPreviews({
-    forge: f.forge, repos, instance: "test", previews: p.previews, logger: new Logger("error", {}, () => {}),
+    forge: f.forge, repos, instance: "test", previews: p.previews, logger: new Logger("error", {}, () => {}), policy: fixedPolicy(),
     logUrlFor: (id) => `https://app.preview.example.com/previews/${id}`,
   });
   return { service, repos, ...f, ...p };
@@ -251,7 +252,7 @@ describe("forks and drafts (§9)", () => {
     const t = make();
     const asked: string[] = [];
     const withSecrets = new PrPreviews({
-      forge: t.forge, repos: t.repos, instance: "test", previews: t.previews, logger: new Logger("error", {}, () => {}),
+      forge: t.forge, repos: t.repos, instance: "test", previews: t.previews, logger: new Logger("error", {}, () => {}), policy: fixedPolicy(),
       secretsFor: (_repo, clearance) => { asked.push(clearance); return { LEVEL: clearance }; },
     });
     await withSecrets.handle(updated());
@@ -270,7 +271,7 @@ describe("forks and drafts (§9)", () => {
   test("`/preview secrets high` redeploys THIS pull request at that level, and the level sticks across pushes; a later policy change does not touch it", async () => {
     const t = make({ prs: { 123: pull() } });
     const svc = new PrPreviews({
-      forge: t.forge, repos: t.repos, instance: "test", previews: t.previews, logger: new Logger("error", {}, () => {}),
+      forge: t.forge, repos: t.repos, instance: "test", previews: t.previews, logger: new Logger("error", {}, () => {}), policy: fixedPolicy(),
       secretsFor: (_repo, clearance) => ({ LEVEL: clearance }),
     });
     const first = await svc.handle(updated());

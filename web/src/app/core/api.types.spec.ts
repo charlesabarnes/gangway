@@ -1,7 +1,7 @@
 import contract from '../../testing/fixtures/contract.json';
 import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
-  CLEARANCES, FORK_POLICIES,
+  CLEARANCES, FORK_POLICIES, TRIGGERS, type Template,
   type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Repo, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
@@ -24,13 +24,17 @@ describe('the /v1 wire contract', () => {
 
     // Every key the server sends is one the type knows, and the other way round.
     const keys = (o: object) => Object.keys(o).sort();
-    const PREVIEW_KEYS: (keyof Preview)[] = ['id', 'project', 'hostId', 'kind', 'state', 'source', 'visibility', 'ttlExpiresAt', 'idleAfterMs', 'secretLevel', 'lastSeenAt', 'error', 'createdAt', 'updatedAt', 'destroyedAt', 'urls'];
+    const PREVIEW_KEYS: (keyof Preview)[] = ['id', 'project', 'hostId', 'kind', 'state', 'source', 'visibility', 'ttlExpiresAt', 'idleAfterMs', 'secretLevel', 'templateId', 'lastSeenAt', 'error', 'createdAt', 'updatedAt', 'destroyedAt', 'urls'];
     const TOKEN_KEYS: (keyof ApiToken)[] = ['id', 'name', 'prefix', 'scopes', 'userId', 'appName', 'expiresAt', 'lastUsedAt', 'revokedAt', 'createdAt'];
     expect(keys(preview)).toEqual([...PREVIEW_KEYS].sort());
     expect(keys(token)).toEqual([...TOKEN_KEYS].sort());
-    const REPO_KEYS: (keyof Repo)[] = ['id', 'forge', 'fullName', 'installationId', 'slug', 'enabled', 'disabledReason', 'visibility', 'ttl', 'forks', 'drafts', 'prClearance', 'forkClearance', 'createdAt', 'updatedAt'];
+    const REPO_KEYS: (keyof Repo)[] = ['id', 'forge', 'fullName', 'installationId', 'slug', 'enabled', 'disabledReason', 'templateId', 'visibility', 'ttl', 'forks', 'drafts', 'prClearance', 'forkClearance', 'createdAt', 'updatedAt'];
     const GITHUB_KEYS: (keyof GitHubStatus)[] = ['configured', 'appId', 'appSlug', 'appUrl', 'installUrl', 'webhookUrl', 'missing', 'managedByConfig'];
     expect(keys(repo)).toEqual([...REPO_KEYS].sort());
+    const template: Template = contract.template as Template;
+    const TEMPLATE_KEYS: (keyof Template)[] = ['id', 'name', 'description', 'builtin', 'visibility', 'ttl', 'idleAfter', 'clearance', 'hostId', 'createdAt', 'updatedAt'];
+    expect(keys(template)).toEqual([...TEMPLATE_KEYS].sort());
+    expect(contract.triggers).toEqual([...TRIGGERS]);
     expect(keys(github)).toEqual([...GITHUB_KEYS].sort());
     expect(keys(list)).toEqual(['previews', 'seq']);
     expect(keys(login)).toEqual(['permissions', 'user']);

@@ -12,7 +12,7 @@
 import { z } from "zod";
 import { parseDuration } from "./util/duration.ts";
 
-/** `defaults.idleAfter` / `x-gangway.idle` as milliseconds; 0 means never. */
+/** A template's `idleAfter` / `x-gangway.idle` as milliseconds; 0 means never. */
 export function idleMs(text: string): number {
   if (text === "never" || text === "0") return 0;
   return parseDuration(text) ?? 0;
@@ -44,6 +44,8 @@ function def<T>(key: string, schema: z.ZodType<T>, fallback: T, o: { secret?: bo
   return { key, schema, fallback, secret: o.secret === true };
 }
 
+const templateRef = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/, "a template id is 1-32 lowercase letters, digits and hyphens");
+
 /** A PEM pasted into an env var arrives with literal `\n`; GitHub's download has real newlines. */
 const pem = z.string().transform((v) => v.replace(/\\n/g, "\n").trim());
 
@@ -53,12 +55,11 @@ export const SETTINGS = {
   // Defaults: UI on, MCP off. MCP is an additional public auth surface that matters only
   // once a token exists for an agent, so opt-in is the safer posture (§10.5).
   surfacesMcp: def("surfaces.mcp", z.boolean(), false),
-  defaultTtl: def("defaults.ttl", z.string(), "7d"),
-  defaultVisibility: def("defaults.visibility", z.enum(["public", "unlisted", "private"]), "unlisted"),
-  /** Idle-sleep after this long without a request (ADR-0012). `never` or `0` switches it off. */
-  /** The clearance a preview with NO repository (an image, a tarball) is deployed with (ADR-0012). */
-  secretsDefaultClearance: def("secrets.defaultClearance", z.enum(["none", "low", "standard", "high"]), "standard"),
-  defaultIdleAfter: def("defaults.idleAfter", z.string().refine((s) => s === "never" || s === "0" || parseDuration(s) !== null, "expected a duration like 30m, or never"), "30m"),
+  // ADR-0013: the template each trigger deploys with unless the request or the repository
+  // names one. The old `defaults.*` keys became the `default` template's fields.
+  templatePr: def("templates.default.pr", templateRef, "default"),
+  templateApi: def("templates.default.api", templateRef, "default"),
+  templateManual: def("templates.default.manual", templateRef, "default"),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),

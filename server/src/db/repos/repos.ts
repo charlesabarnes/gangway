@@ -10,13 +10,14 @@ export type CreateRepo = {
 /** Absent AND undefined both mean "leave it": zod's optional output is passed straight through. */
 export type RepoPatch = {
   slug?: string | undefined; enabled?: boolean | undefined; disabledReason?: string | null | undefined; installationId?: string | undefined;
+  templateId?: string | null | undefined;
   visibility?: Visibility | null | undefined; ttl?: string | null | undefined; forks?: ForkPolicy | undefined; drafts?: boolean | undefined;
-  prClearance?: Clearance | undefined; forkClearance?: Clearance | undefined;
+  prClearance?: Clearance | null | undefined; forkClearance?: Clearance | undefined;
 };
 
 const COLUMNS: Record<keyof RepoPatch, string> = {
   slug: "slug", enabled: "enabled", disabledReason: "disabled_reason", installationId: "installation_id",
-  visibility: "visibility", ttl: "ttl", forks: "forks", drafts: "drafts",
+  templateId: "template_id", visibility: "visibility", ttl: "ttl", forks: "forks", drafts: "drafts",
   prClearance: "pr_clearance", forkClearance: "fork_clearance",
 };
 

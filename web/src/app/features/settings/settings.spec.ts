@@ -1,0 +1,160 @@
+import { Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import contract from '../../../testing/fixtures/contract.json';
+import { render, type Rendered } from '../../../testing/render';
+import { PERMISSIONS, type GitHubStatus, type ManifestStart, type Permission, type SettingView, type Template } from '../../core/api.types';
+import { AuthService } from '../../core/auth.service';
+import { Toasts } from '../../ui/toast';
+import { GitHubCallback } from './github-callback';
+import { SettingsPage } from './settings';
+
+@Component({ imports: [SettingsPage, Toasts], template: '<app-settings /><app-toasts />' })
+class Host {}
+
+const status = (over: Partial<GitHubStatus> = {}): GitHubStatus => ({ ...(contract.githubStatus as GitHubStatus), ...over });
+const template = (over: Partial<Template> = {}): Template => ({ ...(contract.template as Template), ...over });
+const NOT_CONNECTED = status({ configured: false, appId: '', appSlug: '', appUrl: null, installUrl: null, missing: ['github.appId', 'github.privateKey', 'github.webhookSecret'] });
+const setting = (key: string, value: unknown, managedByConfig = false): SettingView => ({ key, value, source: managedByConfig ? 'config' : 'database', managedByConfig, secret: false, set: true });
+
+async function open(o: { permissions?: Permission[]; status?: GitHubStatus; templates?: Template[]; settings?: SettingView[]; globalNames?: string[] } = {}) {
+  const r = await render(Host);
+  const perms = o.permissions ?? [...PERMISSIONS];
+  const loading = TestBed.inject(AuthService).refresh();
+  r.http.expectOne('/v1/auth/session').flush({ authenticated: true, setupRequired: false, user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } }, permissions: perms });
+  await loading;
+  await r.settle();
+  if (perms.includes('github.manage')) r.http.expectOne('/v1/github').flush(o.status ?? status());
+  else r.http.expectNone('/v1/github');
+  if (perms.includes('settings.read')) {
+    r.http.expectOne('/v1/templates').flush({ templates: o.templates ?? [template()] });
+    r.http.expectOne('/v1/settings').flush({ settings: o.settings ?? [setting('templates.default.pr', 'default'), setting('templates.default.api', 'default'), setting('templates.default.manual', 'default')] });
+  } else { r.http.expectNone('/v1/templates'); r.http.expectNone('/v1/settings'); }
+  if (perms.includes('repos.secrets')) r.http.expectOne('/v1/secrets').flush({ secrets: (o.globalNames ?? []).map((name) => ({ name, level: 'standard' })) });
+  else r.http.expectNone('/v1/secrets');
+  await r.settle();
+  return r;
+}
+
+const choose = async (r: Rendered<unknown>, id: string, v: string) => { const s = r.byTestId(id) as HTMLSelectElement; s.value = v; s.dispatchEvent(new Event('change')); await r.settle(); };
+
+describe('Settings: GitHub', () => {
+  it('connected: names the App, links to install, shows the webhook URL', async () => {
+    const r = await open();
+    expect(r.text('status')).toContain('Connected as gangway-preview');
+    expect((r.byTestId('install') as HTMLAnchorElement).href).toBe('https://github.com/apps/gangway-preview/installations/new');
+    expect(r.text('status')).toContain('https://hooks.preview.localhost:8443/github');
+    expect(r.byTestId('connect')).toBeNull();
+  });
+
+  it('not connected: the manifest flow starts from a button and posts the manifest to GitHub as a form', async () => {
+    const r = await open({ status: NOT_CONNECTED });
+    expect(r.text('status')).toContain('Not connected');
+    let posted: ManifestStart | null = null;
+    const page = r.fixture.debugElement.query((d) => d.componentInstance instanceof SettingsPage).componentInstance as SettingsPage;
+    (page as unknown as { submitManifest: (s: ManifestStart) => void }).submitManifest = (s) => { posted = s; };
+
+    (r.byTestId('connect') as HTMLButtonElement).click(); await r.settle();
+    const start: ManifestStart = { action: 'https://github.com/settings/apps/new?state=abc', manifest: { name: 'gangway preview.localhost' }, state: 'abc' };
+    r.http.expectOne('/v1/github/manifest').flush(start);
+    await r.settle();
+    expect(posted).toEqual(start);
+  });
+
+  it('pinned by config but incomplete: says what is missing instead of offering the flow', async () => {
+    const r = await open({ status: status({ configured: false, managedByConfig: true, missing: ['github.webhookSecret'] }) });
+    expect(r.text('managed')).toContain('missing github.webhookSecret');
+    expect(r.byTestId('connect')).toBeNull();
+  });
+
+  it('without github.manage there is no status card and no request', async () => {
+    const r = await open({ permissions: ['settings.read'] });
+    expect(r.byTestId('status')).toBeNull();
+    expect(r.byTestId('defaults')).not.toBeNull();
+  });
+});
+
+describe('Settings: default templates (ADR-0013)', () => {
+  const two = [template(), template({ id: 'staging', name: 'Staging', builtin: false })];
+
+  it('one select per trigger, showing what settings say; a change is one PUT of that key', async () => {
+    const r = await open({ templates: two, settings: [setting('templates.default.pr', 'default'), setting('templates.default.api', 'staging'), setting('templates.default.manual', 'default')] });
+    expect((r.byTestId('default-pr') as HTMLSelectElement).value).toBe('default');
+    expect((r.byTestId('default-api') as HTMLSelectElement).value).toBe('staging');
+    await choose(r, 'default-pr', 'staging');
+    const req = r.http.expectOne({ method: 'PUT', url: '/v1/settings' });
+    expect(req.request.body).toEqual({ values: { 'templates.default.pr': 'staging' } });
+    req.flush({ settings: [] });
+    await r.settle();
+    expect((r.byTestId('default-pr') as HTMLSelectElement).value).toBe('staging');
+    expect(r.el.textContent).toContain('Pull requests now deploy with Staging');
+  });
+
+  it('a key pinned by config is disabled and says so', async () => {
+    const r = await open({ templates: two, settings: [setting('templates.default.pr', 'default'), setting('templates.default.api', 'staging', true), setting('templates.default.manual', 'default')] });
+    expect((r.byTestId('default-api') as HTMLSelectElement).disabled).toBe(true);
+    expect((r.byTestId('default-pr') as HTMLSelectElement).disabled).toBe(false);
+    expect(r.text('defaults')).toContain('managed by config');
+  });
+
+  it('without settings.write every select is disabled', async () => {
+    const ro = await open({ permissions: ['settings.read'], templates: two });
+    expect((ro.byTestId('default-pr') as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it('a refused PUT keeps the old value and toasts', async () => {
+    const r = await open({ templates: two });
+    await choose(r, 'default-api', 'staging');
+    r.http.expectOne({ method: 'PUT', url: '/v1/settings' }).flush({ type: 'about:blank', title: 'Unprocessable', status: 422, detail: 'no such template: staging' }, { status: 422, statusText: 'Unprocessable' });
+    await r.until(() => (r.el.textContent ?? '').includes('Could not change the default'), 'toast');
+    expect(r.el.textContent).toContain('no such template');
+  });
+});
+
+describe('Settings: global secrets', () => {
+  it('the editor talks to /v1/secrets', async () => {
+    const r = await open({ globalNames: ['SHARED'] });
+    const root = r.byTestId('global-secrets')!;
+    expect(Array.from(root.querySelectorAll('[data-testid="secret"]')).map((e) => e.firstChild?.textContent?.trim())).toEqual(['SHARED']);
+    const ta = root.querySelector('[data-testid="secret-paste"]') as HTMLTextAreaElement;
+    ta.value = 'CLOUDFLARE_API_TOKEN=cf-token\n'; ta.dispatchEvent(new Event('input')); await r.settle();
+    ta.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
+    const req = r.http.expectOne({ method: 'PATCH', url: '/v1/secrets' });
+    expect(req.request.body).toEqual({ set: { CLOUDFLARE_API_TOKEN: { value: 'cf-token', level: 'standard' } } });
+    req.flush({ secrets: [{ name: 'CLOUDFLARE_API_TOKEN', level: 'standard' }, { name: 'SHARED', level: 'standard' }] });
+    await r.settle();
+    expect(root.querySelectorAll('[data-testid="secret"]')).toHaveLength(2);
+    expect(r.el.textContent).not.toContain('cf-token');
+  });
+
+  it('without repos.secrets there is no editor and no request', async () => {
+    const ro = await open({ permissions: ['github.manage'] });
+    expect(ro.byTestId('global-secrets')).toBeNull();
+  });
+});
+
+describe('GitHubCallback', () => {
+  const route = (query: Record<string, string>) => ({ provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } });
+
+  it('exchanges code+state once and moves to /settings', async () => {
+    const r = await render(GitHubCallback, { providers: [route({ code: 'c0de', state: 'st4te' })], routes: [{ path: 'settings', children: [] }] });
+    expect(r.byTestId('working')).not.toBeNull();
+    const req = r.http.expectOne({ method: 'POST', url: '/v1/github/manifest/exchange' });
+    expect(req.request.body).toEqual({ code: 'c0de', state: 'st4te' });
+    req.flush(status(), { status: 201, statusText: 'Created' });
+    await r.until(() => TestBed.inject(Router).url === '/settings', 'navigation');
+  });
+
+  it('a refused exchange stays put and says why', async () => {
+    const r = await render(GitHubCallback, { providers: [route({ code: 'used', state: 'old' })] });
+    r.http.expectOne({ method: 'POST', url: '/v1/github/manifest/exchange' }).flush({ type: 'about:blank', title: 'Unprocessable', status: 422, detail: 'the manifest state is unknown or expired; start again' }, { status: 422, statusText: 'Unprocessable' });
+    await r.until(() => r.byTestId('error') !== null, 'error');
+    expect(r.text('error')).toContain('start again');
+  });
+
+  it('no code in the URL is an error without a request', async () => {
+    const r = await render(GitHubCallback, { providers: [route({})] });
+    await r.until(() => r.byTestId('error') !== null, 'error');
+    r.http.expectNone('/v1/github/manifest/exchange');
+  });
+});

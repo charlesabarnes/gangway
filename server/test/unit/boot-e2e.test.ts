@@ -373,12 +373,15 @@ test("T57/T58: idle-sleep stops the stack; the next request wakes it and is answ
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const upstreamPort = await freePort();
-  // A one-second idle window, swept every 100 ms, flushed every 50 ms; a wake gets 2 s before the 202 page.
+  // Swept every 100 ms, flushed every 50 ms; a wake gets 2 s before the 202 page.
   const running = await start(dir, upstreamPort, undefined, {
-    GANGWAY_DEFAULT_IDLE_AFTER: "1s", GANGWAY_IDLE_SWEEP_INTERVAL_MS: "100", GANGWAY_LAST_SEEN_FLUSH_INTERVAL_MS: "50", GANGWAY_WAKE_WAIT_MS: "2000",
+    GANGWAY_IDLE_SWEEP_INTERVAL_MS: "100", GANGWAY_LAST_SEEN_FLUSH_INTERVAL_MS: "50", GANGWAY_WAKE_WAIT_MS: "2000",
   });
   const call = client(running);
   const API = "api.preview.localhost";
+  // A one-second idle window comes from the template (ADR-0013), edited through the API.
+  const edited = await call(API, "/v1/templates/default", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ idleAfter: "1s" }) });
+  expect(edited.status).toBe(200);
 
   const res = await call(API, "/v1/previews?wait=true", {
     method: "POST", headers: { "content-type": "application/json" },

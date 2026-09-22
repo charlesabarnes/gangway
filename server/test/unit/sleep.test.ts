@@ -1,6 +1,7 @@
 /** Idle-sleep and wake (§7.4, ADR-0012) through the real pipeline with a fake compose. */
 import { describe, expect, test } from "bun:test";
 import { Logger } from "../../src/logger.ts";
+import { fixedPolicy } from "../../src/previews/policy.ts";
 import { Waker, sleepPreview, sweepIdle } from "../../src/previews/sleep.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
 
@@ -33,9 +34,9 @@ describe("sleepPreview", () => {
 });
 
 describe("sweepIdle", () => {
-  test("the server default: a preview unseen for longer than the window sleeps; a fresh one does not; a visit noted in memory counts", async () => {
+  test("the template's window: a preview unseen for longer than it sleeps; a fresh one does not; a visit noted in memory counts", async () => {
     const s = setupPreviewContext();
-    s.ctx.defaults = () => ({ ttl: "7d", visibility: "unlisted", idleAfterMs: 30 * MIN });
+    s.ctx.policy = fixedPolicy({ idleAfter: "30m" });
     const old = await s.deployed("old");
     const fresh = await s.deployed("fresh");
     const visited = await s.deployed("visited");
@@ -51,30 +52,35 @@ describe("sweepIdle", () => {
     expect(s.previews.get(visited.id)!.state).toBe("awake");
   });
 
-  test("never seen: created_at counts; the row's own window wins over the default; 0 means never", async () => {
+  test("never seen: created_at counts; the row's own window is what counts; 0 means never; a row from before templates (NULL) uses the default template's", async () => {
     const s = setupPreviewContext();
-    s.ctx.defaults = () => ({ ttl: "7d", visibility: "unlisted", idleAfterMs: 30 * MIN });
+    s.ctx.policy = fixedPolicy({ idleAfter: "30m" });
     const a = await s.deployed("a");
     const b = await s.deployed("b");
     const c = await s.deployed("c");
-    s.db.run("UPDATE previews SET created_at = $t WHERE id IN ($a, $b, $c)", { t: s.ctx.now() - 10 * MIN, a: a.id, b: b.id, c: c.id });
+    const d = await s.deployed("d");
+    expect(s.previews.get(a.id)!.idleAfterMs).toBe(30 * MIN); // pinned from the template at deploy
+    s.db.run("UPDATE previews SET created_at = $t WHERE id IN ($a, $b, $c, $d)", { t: s.ctx.now() - 10 * MIN, a: a.id, b: b.id, c: c.id, d: d.id });
     s.db.run("UPDATE previews SET idle_after_ms = 5 * 60000 WHERE id = $b", { b: b.id });
     s.db.run("UPDATE previews SET idle_after_ms = 0 WHERE id = $c", { c: c.id });
+    s.db.run("UPDATE previews SET idle_after_ms = NULL WHERE id = $d", { d: d.id });
     s.previews.touch(c.id, s.ctx.now() - 500 * MIN);
+    s.ctx.policy = fixedPolicy({ idleAfter: "8m" }); // the default template, edited after the deploys
     const r = await sweepIdle(s.ctx, quiet);
-    expect(r.slept).toEqual([b.id]); // a: 10 < 30 default; b: 10 > its own 5; c: never
+    expect(r.slept.sort()).toEqual([b.id, d.id].sort()); // a: 10 < its pinned 30; b: 10 > its own 5; c: never; d: 10 > the default's 8
   });
 
-  test("off by default (idleAfterMs 0): nothing ever sleeps", async () => {
+  test("a template that never sleeps (idleAfter never -> 0 pinned): nothing ever sleeps", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("p");
+    expect(s.previews.get(p.id)!.idleAfterMs).toBe(0);
     s.previews.touch(p.id, s.ctx.now() - 10_000 * MIN);
     expect((await sweepIdle(s.ctx, quiet)).candidates).toBe(0);
   });
 
   test("a preview on an unreachable host, or one being torn down, is skipped", async () => {
     const s = setupPreviewContext();
-    s.ctx.defaults = () => ({ ttl: "7d", visibility: "unlisted", idleAfterMs: MIN });
+    s.ctx.policy = fixedPolicy({ idleAfter: "1m" });
     const p = await s.deployed("far");
     s.previews.touch(p.id, s.ctx.now() - 5 * MIN);
     s.ctx.teardowns.add(p.id);
