@@ -10,6 +10,7 @@ import { Btn } from '../../ui/button';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { EmptyState } from '../../ui/empty-state';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
+import { PasswordBadge } from '../../ui/password-badge';
 import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { DbBrowser } from './db-browser';
@@ -21,7 +22,7 @@ import { displayName, sourceLabel } from './source-label';
 
 @Component({
   selector: 'app-preview-detail',
-  imports: [RouterLink, Btn, ConfirmDialog, DbBrowser, EmptyState, LogViewer, PasswordPanel, RelativeTimePipe, SourcePanel, StateBadge],
+  imports: [RouterLink, Btn, ConfirmDialog, DbBrowser, EmptyState, LogViewer, PasswordBadge, PasswordPanel, RelativeTimePipe, SourcePanel, StateBadge],
   template: `
     <section class="mx-auto max-w-5xl px-6 py-10">
       <a routerLink="/previews" class="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">← Previews</a>
@@ -31,6 +32,7 @@ import { displayName, sourceLabel } from './source-label';
           <h1 class="text-2xl font-semibold tracking-tight" data-testid="title">{{ name() }}</h1>
           <app-state-badge [state]="p.state" />
           <span class="rounded-full border border-neutral-300 px-2 py-0.5 text-xs text-neutral-500 dark:border-neutral-700" data-testid="visibility">{{ p.visibility }}</span>
+          @if (p.state !== 'destroyed') { <app-password-badge [active]="p.passwordActive" [skips]="p.signedInSkipsPassword" /> }
           @if (canDestroy() && p.state !== 'destroying' && p.state !== 'destroyed') {
             <button appBtn variant="danger" type="button" class="ml-auto" (click)="dialog().open()" data-testid="destroy">Destroy</button>
           }

@@ -233,3 +233,13 @@ describe('source labels', () => {
     expect(withIt.byTestId('empty-new')?.getAttribute('href')).toBe('/new');
   });
 });
+
+describe('PreviewList: passwords (ADR-0023)', () => {
+  it('a lock on the rows behind a password, saying when being signed in skips it', async () => {
+    const r = await open({ previews: [p('open'), p('locked', { password: 'set', passwordActive: true }), p('mine', { password: 'generated', passwordActive: true, signedInSkipsPassword: true })] });
+    const badge = (id: string) => r.fixture.nativeElement.querySelector(`[data-id="${id}"] [data-testid="password-badge"]`)?.textContent?.trim() ?? null;
+    expect(badge(p('open').id)).toBeNull();
+    expect(badge(p('locked').id)).toBe('Password');
+    expect(badge(p('mine').id)).toBe('Password · you skip it');
+  });
+});

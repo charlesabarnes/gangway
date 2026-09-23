@@ -65,8 +65,9 @@ export const SETTINGS = {
   // own, printed in its log. Written only through PUT /v1/settings/preview-password.
   previewPasswordMode: def("previews.password.mode", z.enum(["off", "shared", "generated"]), "off"),
   // Whether a signed-in gangway user (with `previews.skip_password`) gets past the password
-  // of a preview that follows this default. A preview can say on or off for itself.
-  previewPasswordLogin: def("previews.password.login", z.boolean(), true),
+  // of a preview that follows this default. A preview can say on or off for itself. OFF by
+  // default: a password means everyone is asked, until the owner says otherwise.
+  previewPasswordLogin: def("previews.password.login", z.boolean(), false),
   previewPasswordShared: def("previews.password.shared", z.object({ hash: z.string().min(1), salt: z.string().min(1) }).nullable(), null, { secret: true }),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",

@@ -38,7 +38,7 @@ import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor
 import { Bootstrap } from "./auth/bootstrap.ts";
 import { LoginLimiter } from "./auth/limiter.ts";
 import { Passwords } from "./auth/password.ts";
-import { entryPassword } from "./previews/password.ts";
+import { entryPassword, passwordState } from "./previews/password.ts";
 import { RolePermissions } from "./auth/roles.ts";
 import { Sessions } from "./auth/sessions.ts";
 import { Tokens } from "./auth/tokens.ts";
@@ -221,7 +221,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
     // ADR-0023: cheaper than a login's scrypt (these guard previews, not accounts) and its
     // own semaphore, so a burst of password forms never queues an operator's login.
-    passwords: { passwords: previewPasswords, defaultMode: () => settings.get(SETTINGS.previewPasswordMode) },
+    passwords: {
+      passwords: previewPasswords, defaultMode: () => settings.get(SETTINGS.previewPasswordMode),
+      sharedSet: () => settings.get(SETTINGS.previewPasswordShared) !== null,
+      loginDefault: () => settings.get(SETTINGS.previewPasswordLogin),
+    },
   };
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
@@ -367,7 +371,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       });
       projectRoutes(api, {
         projects, audit, secrets, templates, pulls, apiOrigin,
-        wire: (p) => ({ ...p, urls: urlsFor(ctx, p.id) }),
+        wire: (p) => ({ ...p, ...passwordState(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
       });
       templateRoutes(api, { templates, hosts, audit, namedByTrigger: (id) => TRIGGERS.filter((t) => triggerDefault(t) === id) });
       secretRoutes(api, secrets);

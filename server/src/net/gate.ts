@@ -99,7 +99,7 @@ export class PreviewGate {
 
   constructor(o: GateOptions) {
     if (o.key.length < 32) throw new Error("the gate key must be at least 32 bytes");
-    this.#o = { now: Date.now, ticketTtlMs: 60_000, cookieTtlMs: 8 * 3_600_000, passwordCookieTtlMs: 7 * 24 * 3_600_000, sharedPassword: () => null, loginDefault: () => true, ...o };
+    this.#o = { now: Date.now, ticketTtlMs: 60_000, cookieTtlMs: 8 * 3_600_000, passwordCookieTtlMs: 7 * 24 * 3_600_000, sharedPassword: () => null, loginDefault: () => false, ...o };
   }
 
   /** Domain-separated, so a cookie can never be replayed as a ticket or the reverse. */

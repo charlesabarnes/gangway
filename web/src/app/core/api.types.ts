@@ -57,6 +57,10 @@ export type Preview = {
   password: PasswordMode;
   /** ADR-0023: whether a signed-in gangway user skips that password. */
   passwordLogin: PasswordLogin;
+  /** Behind a password right now, with `inherit` resolved against Settings by the server. */
+  passwordActive: boolean;
+  /** ...and being signed in to gangway (with `previews.skip_password`) gets past it. */
+  signedInSkipsPassword: boolean;
   lastSeenAt: string | null;
   error: string | null;
   createdAt: string;

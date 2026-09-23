@@ -349,7 +349,7 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
   expect(((await refused.json()) as { detail: string }).detail).toContain("previews.view_private");
 }, 30_000);
 
-test("ADR-0023: a password preview lets a signed-in user through automatically, a stranger gets the form, and the preview can say no", async () => {
+test("ADR-0023: a password preview whose login rule is on lets a signed-in user through automatically, a stranger gets the form, and the preview can say no", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
@@ -359,11 +359,11 @@ test("ADR-0023: a password preview lets a signed-in user through automatically, 
   const APP = "app.preview.localhost", SHARED = "shared.preview.localhost";
   const setup = await raw(APP, "/v1/auth/setup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: new URL(running.setupUrl!).searchParams.get("token"), email: "ada@example.com", password: "correct horse battery staple" }) });
   const session = setup.headers.get("set-cookie")!.split(";")[0]!;
-  const deployed = await client(running)("api.preview.localhost", "/v1/previews?wait=true", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "shared", visibility: "public", password: { mode: "set", value: "pw" }, source: { kind: "image", image: "traefik/whoami:v1.10", port: 80 } }) });
+  const deployed = await client(running)("api.preview.localhost", "/v1/previews?wait=true", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "shared", visibility: "public", password: { mode: "set", value: "pw" }, passwordLogin: "on", source: { kind: "image", image: "traefik/whoami:v1.10", port: 80 } }) });
   expect(deployed.status).toBe(201);
   const id = ((await deployed.json()) as { preview: { id: string } }).preview.id;
 
-  // 1. No cookie: one bounce through app (the default lets a login through).
+  // 1. No cookie: one bounce through app (this preview lets a login through).
   const bounced = await raw(SHARED, "/cookie?x=1");
   expect(bounced.status).toBe(302);
   const toGate = new URL(bounced.headers.get("location")!);
@@ -408,11 +408,14 @@ test("ADR-0023: a password preview lets a signed-in user through automatically, 
   const vicBack = await raw(APP, `${toGate.pathname}${toGate.search}`, { headers: { cookie: vic } });
   expect(new URL(vicBack.headers.get("location")!).pathname).toBe("/__gangway/password");
 
-  // 6. The server-wide switch: off, and an `inherit` preview asks everyone.
-  await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: "inherit" }) });
-  expect((await raw(SHARED, "/cookie")).status).toBe(302);
-  await client(running)("api.preview.localhost", "/v1/settings/preview-password", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "off", login: false }) });
+  // 6. The server-wide switch starts OFF: an `inherit` preview asks everyone until it is turned on.
+  const inherited = await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: "inherit" }) });
+  expect(((await inherited.json()) as { preview: Record<string, unknown> }).preview).toMatchObject({ passwordActive: true, signedInSkipsPassword: false });
   expect((await raw(SHARED, "/cookie")).status).toBe(401);
+  await client(running)("api.preview.localhost", "/v1/settings/preview-password", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "off", login: true }) });
+  expect((await raw(SHARED, "/cookie")).status).toBe(302);
+  const now = await client(running)("api.preview.localhost", `/v1/previews/${id}`);
+  expect(((await now.json()) as { preview: Record<string, unknown> }).preview).toMatchObject({ passwordActive: true, signedInSkipsPassword: true });
 }, 30_000);
 
 test("T53: the hooks surface is dispatched -- a signed delivery is 202'd on hooks.<base>, an unsigned one 401'd, and nothing else answers there", async () => {

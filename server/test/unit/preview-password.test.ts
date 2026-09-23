@@ -16,7 +16,7 @@ import { Passwords } from "../../src/auth/password.ts";
 import { Logger } from "../../src/logger.ts";
 import { PASSWORD_COOKIE, PreviewGate, stripGangwayCookies } from "../../src/net/gate.ts";
 import { deploy } from "../../src/previews/deploy.ts";
-import { generatePassword } from "../../src/previews/password.ts";
+import { generatePassword, passwordState } from "../../src/previews/password.ts";
 import type { DefaultPasswordMode } from "../../../shared/src/domain.ts";
 import type { EntryPassword, RouteEntry } from "../../src/routing/table.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
@@ -221,6 +221,23 @@ describe("signed in instead of the password", () => {
     const req = () => new Request(`https://${HOST}/`, { headers: { cookie: old, "sec-fetch-mode": "navigate" } });
     expect(gate.check(entry({ mode: "none" }, { visibility: "private" }), req())).toBeNull();
     expect(gate.check(entry({ mode: "own", ...(await passwords.hash("pw")) }, { visibility: "private", passwordLogin: "on" }), req())!.status).toBe(401);
+  });
+});
+
+describe("what the UI is told: is a password in effect, and does a login skip it", () => {
+  const deps = (o: { mode?: DefaultPasswordMode; shared?: boolean; login?: boolean } = {}) =>
+    ({ passwords, defaultMode: () => o.mode ?? "off", sharedSet: () => o.shared ?? false, loginDefault: () => o.login ?? false });
+  test("its own password is always in effect; a login skips it only when told to", () => {
+    expect(passwordState(deps(), { password: "set", passwordLogin: "inherit" })).toEqual({ passwordActive: true, signedInSkipsPassword: false });
+    expect(passwordState(deps({ login: true }), { password: "generated", passwordLogin: "inherit" })).toEqual({ passwordActive: true, signedInSkipsPassword: true });
+    expect(passwordState(deps({ login: true }), { password: "set", passwordLogin: "off" })).toEqual({ passwordActive: true, signedInSkipsPassword: false });
+    expect(passwordState(deps(), { password: "set", passwordLogin: "on" })).toEqual({ passwordActive: true, signedInSkipsPassword: true });
+  });
+  test("inherit is in effect only while the default is shared AND a shared password exists; none never is", () => {
+    expect(passwordState(deps({ mode: "shared", shared: true }), { password: "inherit", passwordLogin: "inherit" }).passwordActive).toBe(true);
+    expect(passwordState(deps({ mode: "shared", shared: false }), { password: "inherit", passwordLogin: "inherit" }).passwordActive).toBe(false);
+    expect(passwordState(deps({ mode: "generated", shared: true }), { password: "inherit", passwordLogin: "inherit" }).passwordActive).toBe(false);
+    expect(passwordState(deps({ mode: "shared", shared: true, login: true }), { password: "none", passwordLogin: "on" })).toEqual({ passwordActive: false, signedInSkipsPassword: false });
   });
 });
 

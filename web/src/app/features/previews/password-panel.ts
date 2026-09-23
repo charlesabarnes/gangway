@@ -34,11 +34,9 @@ type Choice = PasswordChoice['mode'];
     <h2 class="mt-10 text-sm font-medium text-neutral-500">Password</h2>
     <div class="mt-2 rounded-lg border border-neutral-200 px-4 py-3 text-sm dark:border-neutral-800" data-testid="password-panel">
       <p data-testid="password-current">Now: <span class="font-medium">{{ label() }}</span></p>
-      @if (preview().password !== 'none') {
-        <p class="mt-1" data-testid="login-current">People signed in to gangway: <span class="font-medium">{{ loginLabel() }}</span></p>
-      }
+      <p class="mt-1 text-neutral-600 dark:text-neutral-400" data-testid="password-effect">{{ effect() }}</p>
       @if (canChange()) {
-        <label class="mt-3 block max-w-sm text-xs text-neutral-500">People signed in to gangway
+        <label class="mt-3 block max-w-sm text-xs text-neutral-500">Should people signed in to gangway skip it?
           <select [class]="field" [disabled]="busy()" (change)="saveLogin($any($event.target).value)" data-testid="login-choice">
             @for (l of logins; track l) { <option [value]="l" [selected]="l === preview().passwordLogin">{{ loginOptions[l] }}</option> }
           </select>
@@ -79,10 +77,19 @@ export class PasswordPanel {
   protected readonly busy = signal(false);
 
   protected readonly label = computed(() => PASSWORD_LABELS[this.preview().password ?? 'inherit']);
-  protected readonly loginLabel = computed(() => LOGIN_LABELS[this.preview().passwordLogin ?? 'inherit']);
+  /** What actually happens to a visitor, with `inherit` already resolved by the server. */
+  protected readonly effect = computed(() => {
+    const p = this.preview();
+    if (!p.passwordActive) {
+      return p.password === 'inherit' ? 'Open to anyone with the link: the server default has no password right now.' : 'Open to anyone with the link.';
+    }
+    return p.signedInSkipsPassword
+      ? 'Visitors are asked for the password. People signed in to gangway go straight in, so you will not see the form. Open it in a private window to see what visitors see.'
+      : 'Everyone is asked for the password, including people signed in to gangway.';
+  });
   protected readonly logins: PasswordLogin[] = ['inherit', 'on', 'off'];
   protected readonly loginOptions: Record<PasswordLogin, string> = {
-    inherit: 'the server default', on: 'skip the password (personal use)', off: 'need the password too (sharing)',
+    inherit: 'follow the server default', on: 'skip the password (personal use)', off: 'need the password too (sharing)',
   };
   /** The server decides whose preview is whose; either permission may be enough. */
   protected readonly canChange = computed(() => this.#auth.can('previews.update') || this.#auth.can('previews.update_own'));

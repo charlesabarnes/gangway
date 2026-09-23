@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { ConnectionDot } from '../../ui/connection-dot';
 import { EmptyState } from '../../ui/empty-state';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
+import { PasswordBadge } from '../../ui/password-badge';
 import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
@@ -25,7 +26,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
 
 @Component({
   selector: 'app-preview-list',
-  imports: [RouterLink, Btn, ConfirmDialog, ConnectionDot, EmptyState, RelativeTimePipe, StateBadge],
+  imports: [RouterLink, Btn, ConfirmDialog, ConnectionDot, EmptyState, RelativeTimePipe, StateBadge, PasswordBadge],
   template: `
     <section class="mx-auto max-w-5xl px-6 py-10">
       <div class="flex items-baseline gap-3">
@@ -79,6 +80,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
                   <tr [class.opacity-50]="p.state === 'destroyed'" data-testid="row" [attr.data-id]="p.id">
                     <td class="px-4 py-3">
                       <a [routerLink]="['/previews', p.id]" class="font-medium hover:text-accent" data-testid="name">{{ name(p) }}</a>
+                      @if (p.state !== 'destroyed') { <app-password-badge class="ml-2 align-middle" [active]="p.passwordActive" [skips]="p.signedInSkipsPassword" /> }
                       @if (url(p); as u) {
                         <a [href]="u" target="_blank" rel="noopener noreferrer" class="mt-0.5 block max-w-xs truncate font-mono text-xs text-neutral-500 hover:text-accent" data-testid="url">{{ host(u) }} ↗</a>
                       }

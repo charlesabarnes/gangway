@@ -129,12 +129,11 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
               </label>
             }
           </div>
-          @if (pwDraft() !== 'off') {
-            <label class="mt-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" [checked]="pwLoginDraft()" [disabled]="!canWriteSettings() || pwManaged()" (change)="pwLoginDraft.set($any($event.target).checked)" data-testid="password-login" />
-              People signed in to gangway skip the password
-            </label>
-          }
+          <label class="mt-3 flex items-center gap-2 text-sm">
+            <input type="checkbox" [checked]="pwLoginDraft()" [disabled]="!canWriteSettings() || pwManaged()" (change)="pwLoginDraft.set($any($event.target).checked)" data-testid="password-login" />
+            People signed in to gangway skip the password
+          </label>
+          <p class="mt-1 text-xs text-neutral-500">For every preview with a password, its own or the shared one, unless the preview says otherwise. Off: everyone is asked, you included.</p>
           <p class="mt-2 text-xs text-neutral-500" data-testid="password-help">
             @switch (pwDraft()) {
               @case ('shared') { Every preview that follows the default asks for this password. Changing it signs everyone out of those previews. }
@@ -190,8 +189,8 @@ export class SettingsPage {
   protected readonly pwSet = signal(false);
   protected readonly pwManaged = signal(false);
   protected readonly pwValue = signal('');
-  protected readonly pwLogin = signal(true);
-  protected readonly pwLoginDraft = signal(true);
+  protected readonly pwLogin = signal(false);
+  protected readonly pwLoginDraft = signal(false);
   protected readonly error = signal<string | null>(null);
 
   constructor() {
@@ -265,7 +264,7 @@ export class SettingsPage {
     this.pwDraft.set(this.pwMode());
     this.pwSet.set(shared?.set ?? false);
     const login = settings.find((s) => s.key === 'previews.password.login');
-    this.pwLogin.set(login?.value !== false);
+    this.pwLogin.set(login?.value === true);
     this.pwLoginDraft.set(this.pwLogin());
     this.pwManaged.set(!!(mode?.managedByConfig || shared?.managedByConfig || login?.managedByConfig));
   }

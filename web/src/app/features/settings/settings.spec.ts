@@ -235,7 +235,7 @@ describe('Settings: preview passwords (ADR-0023)', () => {
     (r.byTestId('password-save') as HTMLButtonElement).click();
     await r.settle();
     const req = r.http.expectOne({ method: 'PUT', url: '/v1/settings/preview-password' });
-    expect(req.request.body).toEqual({ mode: 'shared', login: true, value: 'p' });
+    expect(req.request.body).toEqual({ mode: 'shared', login: false, value: 'p' });
     req.flush({ settings: pwSettings('shared', true) });
     await r.settle();
     expect((r.byTestId('password-shared') as HTMLInputElement).value).toBe('');
@@ -249,9 +249,14 @@ describe('Settings: preview passwords (ADR-0023)', () => {
     (r.byTestId('password-save') as HTMLButtonElement).click();
     await r.settle();
     const req = r.http.expectOne({ method: 'PUT', url: '/v1/settings/preview-password' });
-    expect(req.request.body).toEqual({ mode: 'generated', login: true });
+    expect(req.request.body).toEqual({ mode: 'generated', login: false });
     req.flush({ settings: pwSettings('generated', true) });
     await r.settle();
+  });
+
+  it('the login switch shows even with no default password (it covers previews with their own), and starts off', async () => {
+    const r = await open({ settings: pwSettings('off', false) });
+    expect((r.byTestId('password-login') as HTMLInputElement).checked).toBe(false);
   });
 
   it('the login switch alone is a change worth saving: signed-in users need the password too', async () => {

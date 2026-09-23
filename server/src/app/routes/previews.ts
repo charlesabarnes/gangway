@@ -12,7 +12,7 @@ import { urlsFor, type DeployInput } from "../../previews/deploy.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
 import { redeploy, type RedeployInput } from "../../previews/redeploy.ts";
-import { setPreviewPassword } from "../../previews/password.ts";
+import { passwordState, setPreviewPassword } from "../../previews/password.ts";
 import { mayRebuild } from "../../auth/actor.ts";
 import { planFromDisk } from "../../previews/runtimes.ts";
 import { isUlid } from "../../util/ulid.ts";
@@ -23,7 +23,7 @@ import { resumeCursor, sse, SSE_MAX_QUEUE, type SseOptions } from "../sse.ts";
 const isTarball = (contentType: string) => (TARBALL_CONTENT_TYPES as readonly string[]).includes(contentType);
 
 export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: IdempotentDeploys, o: SseOptions = {}): void {
-  const wire = (p: Preview) => ({ ...p, urls: urlsFor(ctx, p.id) });
+  const wire = (p: Preview) => ({ ...p, ...passwordState(ctx.passwords, p), urls: urlsFor(ctx, p.id) });
 
   const find = (id: string): Preview => {
     // Checked before it goes anywhere: the id names a log file on disk.

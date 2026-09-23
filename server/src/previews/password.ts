@@ -26,7 +26,26 @@ import type { PreviewContext } from "./context.ts";
 export type PreviewPasswordDeps = {
   passwords: Pick<Passwords, "hash">;
   defaultMode: () => DefaultPasswordMode;
+  /** Is a shared password set? Only then does `shared` protect an inheriting preview. Absent: no. */
+  sharedSet?: () => boolean;
+  /** The server-wide "signed-in users skip the password" switch. Absent: off. */
+  loginDefault?: () => boolean;
 };
+
+/**
+ * What the UI shows (ADR-0023): is this preview behind a password RIGHT NOW, and does being
+ * signed in get past it -- after `inherit` is resolved against the current defaults, the
+ * same way the gate resolves it. The mode alone cannot say: `inherit` is open or shut
+ * depending on Settings.
+ */
+export type PasswordState = { passwordActive: boolean; signedInSkipsPassword: boolean };
+
+export function passwordState(deps: PreviewPasswordDeps | undefined, p: Pick<Preview, "password" | "passwordLogin">): PasswordState {
+  const active = p.password === "set" || p.password === "generated"
+    || (p.password === "inherit" && deps?.defaultMode() === "shared" && deps.sharedSet?.() === true);
+  const skips = active && (p.passwordLogin === "on" || (p.passwordLogin === "inherit" && deps?.loginDefault?.() === true));
+  return { passwordActive: active, signedInSkipsPassword: skips };
+}
 
 /** No 0/o, 1/l/i: read off a log and typed on a phone. 16 of 31 symbols is ~79 bits. */
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
