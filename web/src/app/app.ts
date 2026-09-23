@@ -4,10 +4,13 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 import { AuthService } from './core/auth.service';
 import { HealthService } from './health';
+import { ThemeService } from './core/theme';
+import { Mark } from './ui/mark';
+import { ThemeToggle } from './ui/theme-toggle';
 import { Toasts } from './ui/toast';
 
 @Component({
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, Toasts],
+  imports: [Mark, RouterLink, RouterLinkActive, RouterOutlet, ThemeToggle, Toasts],
   selector: 'app-root',
   templateUrl: './app.html',
 })
@@ -23,6 +26,11 @@ export class App {
     ),
     { initialValue: this.#router.url },
   );
+
+  constructor() {
+    // Created at boot so it follows the system theme on every page, header or not.
+    inject(ThemeService);
+  }
 
   protected readonly chrome = computed(
     () => this.auth.authenticated() && !/^\/(login|setup)(\?|\/|$)/.test(this.#url()),

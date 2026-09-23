@@ -1,19 +1,27 @@
 import { Component, input } from '@angular/core';
+import { Mark } from '../../ui/mark';
+import { ThemeToggle } from '../../ui/theme-toggle';
 
 @Component({
   selector: 'app-auth-card',
+  imports: [Mark, ThemeToggle],
   template: `
-    <main class="flex min-h-dvh items-center justify-center px-6 py-12">
-      <div class="w-full max-w-sm">
-        <div class="mb-8 flex items-center gap-2.5">
-          <span class="size-2.5 rounded-full bg-accent" aria-hidden="true"></span>
-          <span class="font-semibold tracking-tight">gangway</span>
+    <main
+      class="relative flex min-h-dvh items-center justify-center bg-paper bg-[linear-gradient(var(--gw-rule)_1px,transparent_1px),linear-gradient(90deg,var(--gw-rule)_1px,transparent_1px)] bg-[size:80px_80px] bg-[position:-1px_-1px] px-4 py-12"
+    >
+      <app-theme-toggle class="absolute top-4 right-4 bg-paper" />
+      <div class="gw-neatline-strong flex w-full max-w-[380px] flex-col gap-7 bg-paper p-10">
+        <div class="flex items-center gap-2.5">
+          <app-mark [size]="31" />
+          <span class="font-mono text-xl font-semibold tracking-[-.04em]">gangway</span>
         </div>
-        <h1 class="text-xl font-semibold tracking-tight">{{ heading() }}</h1>
-        <p class="mt-1.5 text-sm text-neutral-600 dark:text-neutral-400">
-          <ng-content select="[lede]" />
-        </p>
-        <div class="mt-8"><ng-content /></div>
+        <div class="flex flex-col gap-1.5">
+          <h1 class="m-0 font-serif text-4xl leading-tight font-normal italic">{{ heading() }}</h1>
+          <p class="m-0 text-[15px] leading-snug text-muted">
+            <ng-content select="[lede]" />
+          </p>
+        </div>
+        <div><ng-content /></div>
       </div>
     </main>
   `,
@@ -23,7 +31,6 @@ export class AuthCard {
 }
 
 export const FIELD =
-  'mt-1.5 block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-xs ' +
-  'placeholder:text-neutral-400 focus:border-accent focus:outline-2 focus:outline-accent/30 ' +
-  'dark:border-neutral-700 dark:bg-neutral-900';
-export const LABEL = 'block text-sm font-medium text-neutral-800 dark:text-neutral-200';
+  'mt-1 block w-full rounded-none border-0 border-b border-ink bg-transparent px-0 py-2 font-mono text-base text-ink ' +
+  'placeholder:text-muted focus:outline-none focus-visible:shadow-[0_2px_0_var(--gw-flag)]';
+export const LABEL = 'gw-label block';

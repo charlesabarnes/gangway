@@ -24,9 +24,9 @@ import { SOURCE_FIELD, SourceFiles } from './source-files';
 type Status = { text: string; tone: 'info' | 'good' | 'bad' };
 
 const TONE: Record<Status['tone'], string> = {
-  bad: 'text-red-700 dark:text-red-400',
-  good: 'text-green-700 dark:text-green-400',
-  info: 'text-neutral-600 dark:text-neutral-400',
+  bad: 'text-danger',
+  good: 'text-ok',
+  info: 'text-muted',
 };
 
 @Component({
@@ -34,17 +34,17 @@ const TONE: Record<Status['tone'], string> = {
   imports: [Btn, ErrorAlert, SourceFiles],
   template: `
     @if (draft.base(); as src) {
-      <div class="mt-10" data-testid="source">
-        <div class="flex flex-wrap items-center gap-3">
-          <h2 class="text-sm font-medium text-neutral-500">Source</h2>
-          <span class="text-xs text-neutral-500" data-testid="runtime">{{
+      <div class="flex flex-col gap-2.5" data-testid="source">
+        <div class="flex flex-wrap items-end gap-4">
+          <h2 class="gw-label">Source</h2>
+          <span class="font-mono text-xs text-muted" data-testid="runtime">{{
             runtimeName(src.runtime)
           }}</span>
           @if (canUpdate()) {
-            <label class="ml-auto text-xs text-neutral-500"
+            <label class="gw-label ml-auto flex items-baseline gap-3"
               >Rebuild as
               <select
-                [class]="field"
+                [class]="field + ' font-normal tracking-normal normal-case'"
                 (change)="runtimeChoice.set($any($event.target).value)"
                 data-testid="rebuild-runtime"
               >
@@ -72,17 +72,12 @@ const TONE: Record<Status['tone'], string> = {
         </div>
 
         @if (status(); as s) {
-          <p
-            class="mt-2 text-sm"
-            [class]="tone[s.tone]"
-            role="status"
-            data-testid="redeploy-status"
-          >
+          <p class="text-sm" [class]="tone[s.tone]" role="status" data-testid="redeploy-status">
             {{ s.text }}
           </p>
         }
         @if (error(); as e) {
-          <app-error-alert class="mt-3 px-4 py-3" [problem]="e" data-testid="source-error">
+          <app-error-alert class="px-4 py-3" [problem]="e" data-testid="source-error">
             @for (n of notes(); track $index) {
               <p class="mt-1 font-mono text-xs whitespace-pre-wrap">{{ n }}</p>
             }
@@ -102,19 +97,15 @@ const TONE: Record<Status['tone'], string> = {
             (dragover)="$event.preventDefault(); dragging.set(true)"
             (dragleave)="dragging.set(false)"
             (drop)="dropped($event)"
-            class="mt-4 rounded-lg border-2 border-dashed px-4 py-5 text-center text-sm text-neutral-500 transition"
-            [class]="
-              dragging()
-                ? 'border-accent bg-accent/5'
-                : 'border-neutral-300 dark:border-neutral-700'
-            "
+            class="mt-2 border border-dashed px-4 py-5 text-center text-sm text-muted transition"
+            [class]="dragging() ? 'border-ink bg-flag/20' : 'border-rule'"
             data-testid="replace"
           >
             <span class="font-medium">Replace files:</span> drop files, a folder or a .zip to swap
             the whole source and rebuild.
           </div>
         }
-        <p class="mt-2 text-xs text-neutral-500">
+        <p class="text-xs text-muted">
           The previous version keeps serving until the new one is built. Build output streams into
           the log.
         </p>

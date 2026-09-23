@@ -4,6 +4,8 @@ import { render } from '../../testing/render';
 import { ConnectionDot } from './connection-dot';
 import { relativeTime } from './relative-time.pipe';
 import { StateBadge } from './state-badge';
+import { ThemeToggle } from './theme-toggle';
+import { THEME_KEY } from '../core/theme';
 import { ToastService, Toasts } from './toast';
 
 describe('StateBadge', () => {
@@ -75,5 +77,35 @@ describe('toasts', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('ThemeToggle', () => {
+  afterEach(() => localStorage.removeItem(THEME_KEY));
+
+  it('overrides the system, remembers it, and goes back to following it', async () => {
+    const r = await render(ThemeToggle);
+    expect(r.byTestId('theme-system')!.getAttribute('aria-pressed')).toBe('true');
+
+    r.byTestId('theme-dark')!.click();
+    await r.settle();
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+    expect(localStorage.getItem(THEME_KEY)).toBe('dark');
+    expect(r.byTestId('theme-dark')!.getAttribute('aria-pressed')).toBe('true');
+
+    r.byTestId('theme-light')!.click();
+    await r.settle();
+    expect(document.documentElement.dataset['theme']).toBe('light');
+
+    r.byTestId('theme-system')!.click();
+    await r.settle();
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+  });
+
+  it('starts from the stored choice', async () => {
+    localStorage.setItem(THEME_KEY, 'dark');
+    const r = await render(ThemeToggle);
+    expect(r.byTestId('theme-dark')!.getAttribute('aria-pressed')).toBe('true');
+    expect(document.documentElement.dataset['theme']).toBe('dark');
   });
 });

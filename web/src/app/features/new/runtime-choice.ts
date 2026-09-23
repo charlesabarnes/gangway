@@ -3,20 +3,19 @@ import type { Detected, Runtime } from '../../core/api.types';
 import { BrandIcon } from '../../ui/brand-icon';
 import { RUNTIME_LOOKS } from './looks';
 
-const CHIP = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition';
-const CHIP_ON =
-  'border-[var(--brand)] bg-[color-mix(in_oklch,var(--brand)_10%,transparent)] font-medium text-neutral-900 dark:text-neutral-100';
-const CHIP_OFF =
-  'border-neutral-200 text-neutral-600 hover:border-neutral-400 dark:border-neutral-700 dark:text-neutral-400';
+const CHIP =
+  'inline-flex items-center gap-1.5 border px-[11px] py-[5px] text-[13px] font-medium text-ink transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flag';
+const CHIP_ON = 'border-ink bg-[color-mix(in_oklch,var(--brand)_12%,transparent)]';
+const CHIP_OFF = 'border-rule hover:border-ink';
 
 @Component({
   selector: 'app-runtime-choice',
   host: { class: 'block' },
   imports: [BrandIcon],
   template: `
-    <p class="mt-5 text-xs text-neutral-500">Build it as</p>
+    <p class="gw-label mt-5">Build it as</p>
     <div
-      class="mx-auto mt-1.5 flex max-w-2xl flex-wrap justify-center gap-1.5"
+      class="mx-auto mt-3 flex max-w-2xl flex-wrap justify-center gap-1.5"
       role="radiogroup"
       aria-label="Build it as"
       data-testid="runtime-choice"

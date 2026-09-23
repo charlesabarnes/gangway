@@ -51,16 +51,14 @@ import { problemNotes } from './upload';
     UploadSummary,
   ],
   template: `
-    <section class="mx-auto max-w-5xl px-6 py-10">
-      <a
-        routerLink="/previews"
-        class="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
-        >← Previews</a
-      >
-      <h1 class="mt-4 text-2xl font-semibold tracking-tight">New preview</h1>
+    <section class="gw-page">
+      <div class="gw-title-rule flex flex-col gap-3.5">
+        <a routerLink="/previews" class="gw-back">← Previews</a>
+        <h1 class="gw-h1">New preview</h1>
+      </div>
 
       @if (!canDeploy()) {
-        <p class="mt-6 text-sm text-neutral-600 dark:text-neutral-400" data-testid="no-permission">
+        <p class="text-sm text-muted" data-testid="no-permission">
           Your role cannot deploy previews. Ask an administrator for
           <code class="font-mono text-xs">previews.deploy</code>.
         </p>
@@ -78,10 +76,8 @@ import { problemNotes } from './upload';
           (dragleave)="dragging.set(false)"
           (drop)="dropped($event)"
           data-testid="dropzone"
-          class="mt-6 rounded-lg border-2 border-dashed px-6 py-10 text-center transition"
-          [class]="
-            dragging() ? 'border-accent bg-accent/5' : 'border-neutral-300 dark:border-neutral-700'
-          "
+          class="gw-neatline-strong flex flex-col items-center px-7 py-7 text-center transition"
+          [class]="dragging() ? 'bg-flag/15' : ''"
         >
           @if (upload(); as u) {
             <app-upload-summary
@@ -117,21 +113,16 @@ import { problemNotes } from './upload';
         />
 
         @if (progress() !== null) {
-          <div class="mt-6" data-testid="progress">
-            <div class="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-              <div class="h-full bg-accent transition-all" [style.width.%]="progress()"></div>
+          <div data-testid="progress">
+            <div class="h-1.5 overflow-hidden shadow-[inset_0_0_0_1px_var(--gw-rule)]">
+              <div class="h-full bg-ink transition-all" [style.width.%]="progress()"></div>
             </div>
-            <p class="mt-1 text-xs text-neutral-500">Uploading… {{ progress() }}%</p>
+            <p class="mt-1 font-mono text-xs text-muted">Uploading… {{ progress() }}%</p>
           </div>
         }
 
         @if (error(); as e) {
-          <app-error-alert
-            class="mt-6 px-4 py-3"
-            [problem]="e"
-            [heading]="e.title"
-            data-testid="error"
-          >
+          <app-error-alert class="px-4 py-3" [problem]="e" [heading]="e.title" data-testid="error">
             @if (notes().length > 0) {
               <ul
                 class="mt-2 list-disc space-y-1 pl-5 font-mono text-xs whitespace-pre-wrap"

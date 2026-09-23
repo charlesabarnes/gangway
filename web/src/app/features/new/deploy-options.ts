@@ -65,15 +65,18 @@ export function optionsQuery(
   selector: 'app-deploy-options',
   host: { class: 'block' },
   template: `
-    <details
-      class="mt-6 rounded-lg border border-neutral-200 px-4 py-3 dark:border-neutral-800"
-      data-testid="options"
-    >
-      <summary class="cursor-pointer text-sm font-medium text-neutral-600 dark:text-neutral-400">
-        Options
+    <details class="group border-y border-rule py-3" data-testid="options">
+      <summary
+        class="flex cursor-pointer list-none items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flag [&::-webkit-details-marker]:hidden"
+      >
+        <span class="text-[10px] transition group-open:rotate-90" aria-hidden="true">▸</span
+        ><span class="text-xs font-semibold tracking-[.14em] uppercase">Options</span
+        ><span class="text-[13px] text-muted"
+          >name, visibility, TTL, project, template, who can open it</span
+        >
       </summary>
-      <div class="mt-3 grid gap-3 sm:grid-cols-5">
-        <label class="text-xs text-neutral-500 sm:col-span-2"
+      <div class="mt-4 mb-2 grid gap-x-6 gap-y-5 sm:grid-cols-5">
+        <label class="gw-label flex flex-col gap-1 sm:col-span-2"
           >Name<input
             [class]="field"
             [placeholder]="namePlaceholder()"
@@ -81,7 +84,7 @@ export function optionsQuery(
             (input)="set('name', $any($event.target).value)"
             data-testid="name"
         /></label>
-        <label class="text-xs text-neutral-500"
+        <label class="gw-label flex flex-col gap-1"
           >Visibility<select
             [class]="field"
             (change)="set('visibility', $any($event.target).value)"
@@ -93,7 +96,7 @@ export function optionsQuery(
             }
           </select></label
         >
-        <label class="text-xs text-neutral-500"
+        <label class="gw-label flex flex-col gap-1"
           >TTL<input
             [class]="field"
             placeholder="the template's"
@@ -101,8 +104,8 @@ export function optionsQuery(
             (input)="set('ttl', $any($event.target).value)"
             data-testid="ttl"
         /></label>
-        <span class="self-end pb-2 text-xs text-neutral-500">12h, 7d, or none</span>
-        <label class="text-xs text-neutral-500 sm:col-span-2"
+        <span class="self-end pb-2 text-xs text-muted">12h, 7d, or none</span>
+        <label class="gw-label flex flex-col gap-1 sm:col-span-2"
           >Project<select
             [class]="field"
             (change)="set('project', $any($event.target).value)"
@@ -114,7 +117,7 @@ export function optionsQuery(
             }
           </select></label
         >
-        <label class="text-xs text-neutral-500 sm:col-span-2"
+        <label class="gw-label flex flex-col gap-1 sm:col-span-2"
           >Template<select
             [class]="field"
             (change)="set('template', $any($event.target).value)"
@@ -126,7 +129,7 @@ export function optionsQuery(
             }
           </select></label
         >
-        <label class="text-xs text-neutral-500 sm:col-span-3"
+        <label class="gw-label flex flex-col gap-1 sm:col-span-3"
           >Who can open it<select
             [class]="field"
             (change)="set('who', $any($event.target).value)"
@@ -140,7 +143,7 @@ export function optionsQuery(
           </select></label
         >
         @if (asksPassword(options().who)) {
-          <label class="text-xs text-neutral-500 sm:col-span-2"
+          <label class="gw-label flex flex-col gap-1 sm:col-span-2"
             >Password<select
               [class]="field"
               (change)="set('passwordSource', $any($event.target).value)"
@@ -152,7 +155,7 @@ export function optionsQuery(
             </select></label
           >
           @if (options().passwordSource === 'set') {
-            <label class="text-xs text-neutral-500 sm:col-span-3"
+            <label class="gw-label flex flex-col gap-1 sm:col-span-3"
               >Preview password<input
                 [class]="field"
                 type="password"
@@ -174,7 +177,8 @@ export class DeployOptionsForm {
   readonly templates = input.required<Template[]>();
   readonly namePlaceholder = input.required<string>();
 
-  protected readonly field = FIELD;
+  // The label is set in caps; the control inside it is not.
+  protected readonly field = `${FIELD} font-normal tracking-normal normal-case`;
   protected readonly visibilities = VISIBILITIES;
   protected readonly asksPassword = asksPassword;
 

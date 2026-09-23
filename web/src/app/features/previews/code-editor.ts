@@ -19,6 +19,7 @@ import { php } from '@codemirror/lang-php';
 import { python } from '@codemirror/lang-python';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { ThemeService } from '../../core/theme';
 import { EditorView, keymap } from '@codemirror/view';
 import { basicSetup } from 'codemirror';
 
@@ -57,14 +58,11 @@ export function languageFor(path: string): Extension {
   }
 }
 
-const dark = () =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
-
 @Component({
   selector: 'app-code-editor',
   template: `<div
     #host
-    class="min-h-80 overflow-hidden rounded-md border border-neutral-300 text-sm dark:border-neutral-700"
+    class="min-h-80 overflow-hidden border border-rule text-sm"
     data-testid="code-editor"
   ></div>`,
 })
@@ -79,6 +77,8 @@ export class CodeEditor {
   #view: EditorView | null = null;
   readonly #language = new Compartment();
   readonly #editable = new Compartment();
+  readonly #dark = new Compartment();
+  readonly #theme = inject(ThemeService);
   #shownPath: string | null = null;
 
   constructor() {
@@ -87,6 +87,13 @@ export class CodeEditor {
       this.#shownPath = this.path();
     });
     inject(DestroyRef).onDestroy(() => this.#view?.destroy());
+
+    effect(() => {
+      const dark = this.#theme.dark();
+      untracked(() =>
+        this.#view?.dispatch({ effects: this.#dark.reconfigure(dark ? oneDark : []) }),
+      );
+    });
 
     effect(() => {
       const path = this.path(),
@@ -125,10 +132,15 @@ export class CodeEditor {
         this.#language.of(languageFor(this.path())),
         this.#editable.of(EditorView.editable.of(!this.readonly())),
         EditorView.lineWrapping,
-        ...(dark() ? [oneDark] : []),
+        this.#dark.of(this.#theme.dark() ? oneDark : []),
         EditorView.theme({
-          '&': { height: '28rem' },
-          '.cm-scroller': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
+          '&': { height: '28rem', backgroundColor: 'var(--gw-surface)', color: 'var(--gw-ink)' },
+          '.cm-gutters': {
+            backgroundColor: 'var(--gw-paper)',
+            color: 'var(--gw-muted)',
+            borderRight: '1px solid var(--gw-rule)',
+          },
+          '.cm-scroller': { fontFamily: "'IBM Plex Mono', ui-monospace, Menlo, monospace" },
         }),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) this.changed.emit(u.state.doc.toString());

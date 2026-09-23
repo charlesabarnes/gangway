@@ -13,13 +13,13 @@ import { ToastService } from '../../ui/toast';
   template: `
     <section class="mx-auto max-w-lg px-6 py-16 text-center">
       @if (error(); as e) {
-        <h1 class="text-lg font-semibold">The GitHub App was not connected</h1>
-        <p class="mt-2 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="error">
+        <h1 class="font-serif text-3xl italic">The GitHub App was not connected</h1>
+        <p class="mt-2 text-sm text-danger" role="alert" data-testid="error">
           {{ e }}
         </p>
         <a appBtn routerLink="/settings" class="mt-6 inline-block">Back to Settings</a>
       } @else {
-        <h1 class="text-lg font-semibold" data-testid="working">Connecting the GitHub App…</h1>
+        <h1 class="font-serif text-3xl italic" data-testid="working">Connecting the GitHub App…</h1>
       }
     </section>
   `,

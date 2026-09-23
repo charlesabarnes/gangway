@@ -14,17 +14,17 @@ import { formatBytes } from './upload';
   imports: [BrandIcon, Btn, PlanSummary, RuntimeChoice],
   template: `
     @let u = upload();
-    <p class="font-medium" data-testid="summary">
+    <p class="font-serif text-2xl italic" data-testid="summary">
       {{ u.files.length }} file{{ u.files.length === 1 ? '' : 's' }},
       {{ size(u.totalBytes) }}
       @if (u.skipped) {
-        <span class="font-normal text-neutral-500">
+        <span class="font-sans text-sm text-muted not-italic">
           ({{ u.skipped }} skipped: .git, node_modules, OS files)</span
         >
       }
     </p>
     <p
-      class="mt-1 flex items-center justify-center gap-1.5 text-sm text-neutral-600 dark:text-neutral-400"
+      class="mt-3.5 flex items-center justify-center gap-2 text-[15px] text-muted"
       data-testid="detected"
     >
       Looks like:
@@ -32,11 +32,11 @@ import { formatBytes } from './upload';
         [path]="looks[detected()].path"
         [color]="looks[detected()].color"
         [size]="16"
-      /><span class="font-medium">{{ label(detected()) }}</span>
+      /><span class="font-medium text-ink">{{ label(detected()) }}</span>
     </p>
     <app-plan-summary [plan]="plan()" [planning]="planning()" />
     <app-runtime-choice [runtimes]="runtimes()" [detected]="detected()" [(choice)]="choice" />
-    <div class="mx-auto mt-4 flex max-w-md flex-wrap items-end justify-center gap-3">
+    <div class="mx-auto mt-5 flex max-w-md flex-wrap items-end justify-center gap-2.5">
       <button
         appBtn
         type="button"

@@ -10,82 +10,80 @@ import { Btn } from '../../ui/button';
   host: { class: 'block' },
   imports: [Btn],
   template: `
-    <h2 class="mt-8 text-base font-semibold">GitHub</h2>
-    <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-      Pull requests get URLs. A GitHub App of your own sends them here; nothing is copied by hand.
-    </p>
-    <div
-      class="mt-3 rounded-lg border border-neutral-200 p-5 dark:border-neutral-800"
-      data-testid="status"
-    >
-      @if (status(); as s) {
-        @if (s.configured) {
-          <p class="flex items-center gap-2 font-medium">
-            <span class="size-2 rounded-full bg-emerald-500" aria-hidden="true"></span>Connected as
-            <a
-              [href]="s.appUrl"
-              target="_blank"
-              rel="noopener"
-              class="underline decoration-neutral-400 underline-offset-2"
-              >{{ s.appSlug || 'app ' + s.appId }}</a
-            >
-          </p>
-          <p class="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
-            The App is optional: a project can take pull requests from a workflow in its repository
-            instead. Install it where a project should use it, then pick that repository when you
-            make the project.
-          </p>
-          <div class="mt-3 flex flex-wrap items-center gap-3">
-            <a appBtn [href]="s.installUrl" target="_blank" rel="noopener" data-testid="install"
-              >Install on repositories</a
-            >
-            @if (s.managedByConfig) {
-              <span class="text-xs text-neutral-500" data-testid="managed"
-                >Credentials are managed by config (GANGWAY_GITHUB_*).</span
+    <div class="gw-section">
+      <div class="flex flex-col gap-1">
+        <h2 class="gw-h2">GitHub</h2>
+        <p class="gw-section-note">
+          Pull requests get URLs. A GitHub App of your own sends them here; nothing is copied by
+          hand.
+        </p>
+      </div>
+      <div class="flex flex-col gap-2.5" data-testid="status">
+        @if (status(); as s) {
+          @if (s.configured) {
+            <p class="flex items-center gap-2 text-[17px] font-medium">
+              <span class="size-[11px] shrink-0 bg-ok" aria-hidden="true"></span>Connected as
+              <a
+                [href]="s.appUrl"
+                target="_blank"
+                rel="noopener"
+                class="underline underline-offset-2"
+                >{{ s.appSlug || 'app ' + s.appId }}</a
               >
-            }
-          </div>
-        } @else {
-          <p class="flex items-center gap-2 font-medium">
-            <span class="size-2 rounded-full bg-neutral-400" aria-hidden="true"></span>Not connected
-          </p>
-          <p class="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
-            Create the App from here. GitHub will ask you to name it and where it lives (your
-            account or an organization), then send you back.
-          </p>
-          @if (s.managedByConfig) {
-            <p class="mt-3 text-sm text-amber-700 dark:text-amber-400" data-testid="managed">
-              Some credentials are pinned by config (GANGWAY_GITHUB_*) but not all of them: missing
-              {{ s.missing.join(', ') }}. Finish the set in the environment.
             </p>
-          } @else {
-            <div class="mt-3 flex items-center gap-3">
-              <button
-                appBtn
-                type="button"
-                [disabled]="busy()"
-                (click)="connect()"
-                data-testid="connect"
+            <p class="text-sm leading-normal text-muted">
+              The App is optional: a project can take pull requests from a workflow in its
+              repository instead. Install it where a project should use it, then pick that
+              repository when you make the project.
+            </p>
+            <div class="flex flex-wrap items-center gap-4">
+              <a appBtn [href]="s.installUrl" target="_blank" rel="noopener" data-testid="install"
+                >Install on repositories</a
               >
-                Create the GitHub App
-              </button>
-              @if (error(); as e) {
-                <span
-                  class="text-sm text-red-700 dark:text-red-400"
-                  role="alert"
-                  data-testid="error"
-                  >{{ e }}</span
+              @if (s.managedByConfig) {
+                <span class="text-xs text-muted" data-testid="managed"
+                  >Credentials are managed by config (GANGWAY_GITHUB_*).</span
                 >
               }
             </div>
+          } @else {
+            <p class="flex items-center gap-2 text-[17px] font-medium">
+              <span class="size-[11px] shrink-0 bg-muted" aria-hidden="true"></span>Not connected
+            </p>
+            <p class="text-sm leading-normal text-muted">
+              Create the App from here. GitHub will ask you to name it and where it lives (your
+              account or an organization), then send you back.
+            </p>
+            @if (s.managedByConfig) {
+              <p class="text-sm text-warn" data-testid="managed">
+                Some credentials are pinned by config (GANGWAY_GITHUB_*) but not all of them:
+                missing
+                {{ s.missing.join(', ') }}. Finish the set in the environment.
+              </p>
+            } @else {
+              <div class="flex items-center gap-3">
+                <button
+                  appBtn
+                  type="button"
+                  [disabled]="busy()"
+                  (click)="connect()"
+                  data-testid="connect"
+                >
+                  Create the GitHub App
+                </button>
+                @if (error(); as e) {
+                  <span class="text-sm text-danger" role="alert" data-testid="error">{{ e }}</span>
+                }
+              </div>
+            }
           }
+          <p class="text-xs text-muted">
+            Webhook: <code class="font-mono">{{ s.webhookUrl }}</code>
+          </p>
+        } @else {
+          <p class="text-sm text-muted">Loading…</p>
         }
-        <p class="mt-4 text-xs text-neutral-500">
-          Webhook: <code class="font-mono">{{ s.webhookUrl }}</code>
-        </p>
-      } @else {
-        <p class="text-sm text-neutral-500">Loading…</p>
-      }
+      </div>
     </div>
   `,
 })

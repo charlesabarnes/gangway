@@ -53,28 +53,31 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
   imports: [Btn, ConfirmDialog],
   template: `
     @let d = view();
-    <form (submit)="save($event)" novalidate class="mt-6 space-y-8" data-testid="settings">
-      <section>
-        <h2 class="text-sm font-semibold">Project</h2>
-        <div class="mt-3 grid gap-3 sm:grid-cols-3">
-          <label class="text-xs text-neutral-500"
-            >Name<input
+    <form (submit)="save($event)" novalidate class="flex flex-col gap-7" data-testid="settings">
+      <section class="gw-section">
+        <h2 class="gw-h2">Project</h2>
+        <div class="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Name</span
+            ><input
               [class]="field"
               [value]="d.name"
               (input)="edit('name', $any($event.target).value)"
               data-testid="name"
           /></label>
-          <label class="text-xs text-neutral-500"
-            >Preview names<input
-              [class]="field + ' font-mono'"
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Preview names</span
+            ><input
+              [class]="field + ' font-mono !text-sm'"
               [value]="d.slug"
               (input)="edit('slug', $any($event.target).value)"
               data-testid="slug"
-            /><span class="mt-1 block font-mono">{{ d.slug }}-pr-&lt;n&gt;</span></label
+            /><span class="font-mono text-xs text-muted">{{ d.slug }}-pr-&lt;n&gt;</span></label
           >
-          <label class="flex items-center gap-2 self-center text-sm"
+          <label class="flex items-center gap-2 self-center text-[15px]"
             ><input
               type="checkbox"
+              class="gw-box"
               [checked]="d.enabled"
               (change)="edit('enabled', $any($event.target).checked)"
               data-testid="enabled"
@@ -82,85 +85,94 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
           >
         </div>
       </section>
-      <section>
-        <h2 class="text-sm font-semibold">Source</h2>
-        <div class="mt-3 grid gap-3 sm:grid-cols-3">
-          <label class="text-xs text-neutral-500"
-            >Repository<input
-              [class]="field"
-              [value]="d.repository ?? ''"
-              placeholder="owner/name — blank for none"
-              (input)="edit('repository', $any($event.target).value.trim() || null)"
-              data-testid="repository"
-          /></label>
-          @if (d.repository) {
-            <label class="text-xs text-neutral-500 sm:col-span-2"
-              >Pull requests arrive through<select
-                [class]="field"
-                (change)="edit('prTrigger', $any($event.target).value)"
-                data-testid="trigger"
-              >
-                @for (t of prTriggers; track t) {
-                  <option [value]="t" [selected]="t === d.prTrigger">
-                    {{ triggerHelp[t].name }}
-                  </option>
-                }
-              </select>
-              <span class="mt-1 block">{{ triggerHelp[d.prTrigger].help }}</span></label
-            >
+      <section class="gw-section">
+        <div class="flex flex-col gap-1">
+          <h2 class="gw-h2">Source</h2>
+          @if (d.repository && d.prTrigger !== 'webhook') {
+            <p class="gw-section-note m-0">
+              Pull requests from forks are skipped: GitHub gives their workflow runs no OIDC token.
+            </p>
           }
         </div>
-        @if (d.repository && d.prTrigger === 'webhook') {
-          <div class="mt-3 grid gap-3 sm:grid-cols-3">
-            <label class="text-xs text-neutral-500"
-              >From forks<select
-                [class]="field"
-                (change)="edit('forks', $any($event.target).value)"
-                data-testid="forks"
-              >
-                @for (f of forkPolicies; track f) {
-                  <option [value]="f" [selected]="f === d.forks">{{ f }}</option>
-                }</select
-              ><span class="mt-1 block">{{ forkHelp[d.forks] }}</span></label
-            >
-            <label class="text-xs text-neutral-500"
-              >Secrets for forks<select
-                [class]="field"
-                (change)="edit('forkClearance', $any($event.target).value)"
-                data-testid="fork-clearance"
-              >
-                @for (c of clearances; track c) {
-                  <option [value]="c" [selected]="c === d.forkClearance">
-                    {{ c }}
-                  </option>
-                }
-              </select></label
-            >
-            <label class="flex items-center gap-2 self-center text-sm"
+        <div class="flex flex-col gap-5">
+          <div class="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+            <label class="flex flex-col gap-1"
+              ><span class="gw-label">Repository</span
               ><input
-                type="checkbox"
-                [checked]="d.drafts"
-                (change)="edit('drafts', $any($event.target).checked)"
-                data-testid="drafts"
-              />Draft pull requests too</label
-            >
+                [class]="field + ' font-mono !text-sm'"
+                [value]="d.repository ?? ''"
+                placeholder="owner/name — blank for none"
+                (input)="edit('repository', $any($event.target).value.trim() || null)"
+                data-testid="repository"
+            /></label>
+            @if (d.repository) {
+              <label class="flex flex-col gap-1 sm:col-span-2"
+                ><span class="gw-label">Pull requests arrive through</span
+                ><select
+                  [class]="field"
+                  (change)="edit('prTrigger', $any($event.target).value)"
+                  data-testid="trigger"
+                >
+                  @for (t of prTriggers; track t) {
+                    <option [value]="t" [selected]="t === d.prTrigger">
+                      {{ triggerHelp[t].name }}
+                    </option>
+                  }
+                </select>
+                <span class="text-xs text-muted">{{ triggerHelp[d.prTrigger].help }}</span></label
+              >
+            }
           </div>
-        } @else if (d.repository) {
-          <p class="mt-2 text-xs text-neutral-500">
-            Pull requests from forks are skipped: GitHub gives their workflow runs no OIDC token.
-          </p>
-        }
+          @if (d.repository && d.prTrigger === 'webhook') {
+            <div class="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+              <label class="flex flex-col gap-1"
+                ><span class="gw-label">From forks</span
+                ><select
+                  [class]="field"
+                  (change)="edit('forks', $any($event.target).value)"
+                  data-testid="forks"
+                >
+                  @for (f of forkPolicies; track f) {
+                    <option [value]="f" [selected]="f === d.forks">{{ f }}</option>
+                  }</select
+                ><span class="text-xs text-muted">{{ forkHelp[d.forks] }}</span></label
+              >
+              <label class="flex flex-col gap-1"
+                ><span class="gw-label">Secrets for forks</span
+                ><select
+                  [class]="field"
+                  (change)="edit('forkClearance', $any($event.target).value)"
+                  data-testid="fork-clearance"
+                >
+                  @for (c of clearances; track c) {
+                    <option [value]="c" [selected]="c === d.forkClearance">
+                      {{ c }}
+                    </option>
+                  }
+                </select></label
+              >
+              <label class="flex items-center gap-2 self-center text-[15px]"
+                ><input
+                  type="checkbox"
+                  class="gw-box"
+                  [checked]="d.drafts"
+                  (change)="edit('drafts', $any($event.target).checked)"
+                  data-testid="drafts"
+                />Draft pull requests too</label
+              >
+            </div>
+          }
+        </div>
       </section>
-      <section>
-        <h2 class="text-sm font-semibold">
-          Previews
-          <span class="font-normal text-neutral-500"
-            >— anything left at "the template's" follows the template</span
-          >
-        </h2>
-        <div class="mt-3 grid gap-3 sm:grid-cols-4">
-          <label class="text-xs text-neutral-500"
-            >Template<select
+      <section class="gw-section">
+        <div class="flex flex-col gap-1">
+          <h2 class="gw-h2">Previews</h2>
+          <p class="gw-section-note m-0">Anything left at “the template’s” follows the template.</p>
+        </div>
+        <div class="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Template</span
+            ><select
               [class]="field"
               (change)="edit('templateId', $any($event.target).value || null)"
               data-testid="template"
@@ -175,8 +187,9 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
               }
             </select></label
           >
-          <label class="text-xs text-neutral-500"
-            >Visibility<select
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Visibility</span
+            ><select
               [class]="field"
               (change)="edit('visibility', $any($event.target).value || null)"
               data-testid="visibility"
@@ -188,16 +201,18 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
               }
             </select></label
           >
-          <label class="text-xs text-neutral-500"
-            >Expires after<input
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Expires after</span
+            ><input
               [class]="field"
               placeholder="the template's"
               [value]="d.ttl ?? ''"
               (input)="edit('ttl', $any($event.target).value || null)"
               data-testid="ttl"
           /></label>
-          <label class="text-xs text-neutral-500"
-            >Secrets<select
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Secrets</span
+            ><select
               [class]="field"
               (change)="edit('prClearance', $any($event.target).value || null)"
               data-testid="pr-clearance"
@@ -211,7 +226,7 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
           >
         </div>
       </section>
-      <div class="flex items-center gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+      <div class="flex flex-wrap items-center gap-2.5">
         <button appBtn type="submit" [disabled]="!dirty() || saving()" data-testid="save">
           Save
         </button>
@@ -227,12 +242,7 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
           </button>
         }
         @if (saveError(); as e) {
-          <span
-            class="text-sm text-red-700 dark:text-red-400"
-            role="alert"
-            data-testid="save-error"
-            >{{ e }}</span
-          >
+          <span class="text-sm text-danger" role="alert" data-testid="save-error">{{ e }}</span>
         }
         <button
           appBtn

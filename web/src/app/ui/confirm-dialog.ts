@@ -11,15 +11,15 @@ import { Btn } from './button';
       #dialog
       (close)="closed()"
       (click)="backdrop($event)"
-      class="m-auto w-full max-w-md rounded-xl border border-neutral-200 bg-white p-0 text-neutral-900 shadow-2xl backdrop:bg-neutral-950/50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100"
+      class="gw-neatline-strong m-auto w-full max-w-md border-0 bg-paper p-0 text-ink backdrop:bg-header/60"
       aria-labelledby="confirm-heading"
       data-testid="confirm"
     >
-      <div class="p-6">
-        <h2 id="confirm-heading" class="text-base font-semibold">{{ heading() }}</h2>
-        <div class="mt-2 text-sm text-neutral-600 dark:text-neutral-400"><ng-content /></div>
+      <div class="p-8">
+        <h2 id="confirm-heading" class="gw-h2">{{ heading() }}</h2>
+        <div class="mt-2 text-sm text-muted"><ng-content /></div>
         @if (phrase(); as p) {
-          <label class="mt-4 block text-sm"
+          <label class="mt-4 block text-sm text-muted"
             >Type <span class="font-mono font-semibold">{{ p }}</span> to confirm
             <input
               type="text"
@@ -28,7 +28,7 @@ import { Btn } from './button';
               [value]="typed()"
               (input)="typed.set($any($event.target).value)"
               (keydown.enter)="$event.preventDefault()"
-              class="mt-1 block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 font-mono text-sm dark:border-neutral-700 dark:bg-neutral-950"
+              class="mt-1 block w-full border-0 border-b border-ink bg-transparent px-0 py-[7px] font-mono text-sm text-ink focus:outline-none focus-visible:shadow-[0_2px_0_var(--gw-flag)]"
               data-testid="confirm-phrase"
             />
           </label>

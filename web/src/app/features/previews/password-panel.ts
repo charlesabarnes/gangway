@@ -9,6 +9,7 @@ import type {
 import { AuthService } from '../../core/auth.service';
 import type { ProblemError } from '../../core/problem';
 import { Btn } from '../../ui/button';
+import { FIELD } from '../../ui/field';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
 
@@ -40,19 +41,17 @@ export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
 @Component({
   selector: 'app-password-panel',
   imports: [Btn],
+  host: { class: 'flex flex-col gap-2.5' },
   template: `
-    <h2 class="mt-10 text-sm font-medium text-neutral-500">Who can open it</h2>
-    <div
-      class="mt-2 rounded-lg border border-neutral-200 px-4 py-3 text-sm dark:border-neutral-800"
-      data-testid="password-panel"
-    >
+    <h2 class="gw-label">Who can open it</h2>
+    <div class="gw-neatline px-5 py-4 text-[15px]" data-testid="password-panel">
       <p data-testid="password-effect">{{ effect() }}</p>
       @if (canChange()) {
         <form
-          class="mt-3 flex flex-wrap items-end gap-3"
+          class="mt-4 flex flex-wrap items-end gap-6"
           (submit)="$event.preventDefault(); save()"
         >
-          <label class="min-w-64 text-xs text-neutral-500"
+          <label class="gw-label min-w-64"
             >Who can open it
             <select [class]="field" (change)="who.set($any($event.target).value)" data-testid="who">
               @for (w of whos; track w) {
@@ -61,7 +60,7 @@ export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
             </select>
           </label>
           @if (needsPassword()) {
-            <label class="text-xs text-neutral-500"
+            <label class="gw-label"
               >Password
               <select
                 [class]="field"
@@ -83,7 +82,7 @@ export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
               </select>
             </label>
             @if (source() === 'set') {
-              <label class="min-w-48 flex-1 text-xs text-neutral-500"
+              <label class="gw-label min-w-48 flex-1"
                 >New password
                 <input
                   [class]="field"
@@ -109,7 +108,7 @@ export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
           </button>
         </form>
         @if (needsPassword() && source() === 'generate') {
-          <p class="mt-2 text-xs text-neutral-500">
+          <p class="mt-2 text-xs text-muted">
             The new password appears once, in the log below. Anyone who entered the old one has to
             enter the new one.
           </p>
@@ -125,8 +124,7 @@ export class PasswordPanel {
   readonly #auth = inject(AuthService);
   readonly #toasts = inject(ToastService);
 
-  protected readonly field =
-    'mt-1 block w-full rounded-md border border-neutral-300 bg-transparent px-2.5 py-1.5 text-sm dark:border-neutral-700';
+  protected readonly field = `${FIELD} mt-1 font-normal tracking-normal normal-case`;
   protected readonly whos: Who[] = ['open', 'password', 'signed-in', 'either'];
   protected readonly whoLabels = WHO_LABELS;
 

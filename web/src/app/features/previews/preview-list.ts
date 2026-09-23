@@ -38,44 +38,47 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
     PasswordBadge,
   ],
   template: `
-    <section class="mx-auto max-w-5xl px-6 py-10">
-      <div class="flex items-baseline gap-3">
-        <h1 class="text-2xl font-semibold tracking-tight">Previews</h1>
-        <span class="text-sm text-neutral-500" data-testid="count"
+    <section class="gw-page">
+      <div class="gw-title-rule flex flex-wrap items-end gap-3.5">
+        <h1 class="gw-h1">Previews</h1>
+        <span class="pb-1.5 font-mono text-[15px] text-muted" data-testid="count"
           >{{ shown().length }}
           @if (filtered()) {
             of {{ store.previews().length }}
           }
         </span>
-        <span class="ml-auto"><app-connection-dot [status]="store.status()" /></span>
+        <span class="ml-auto pb-2.5"><app-connection-dot [status]="store.status()" /></span>
         @if (canDeploy()) {
-          <a appBtn routerLink="/new" class="self-center" data-testid="new">New preview</a>
+          <a appBtn routerLink="/new" class="mb-1" data-testid="new">New preview</a>
         }
       </div>
 
-      <div class="mt-6 flex flex-wrap items-center gap-2">
-        @for (chip of chips; track chip.key) {
-          <button
-            type="button"
-            (click)="toggleState(chip.key)"
-            [attr.aria-pressed]="states().has(chip.key)"
-            class="rounded-full border px-3 py-1 text-sm transition"
-            [class]="
-              states().has(chip.key)
-                ? 'border-accent bg-accent/10 text-accent'
-                : 'border-neutral-300 text-neutral-600 hover:border-neutral-400 dark:border-neutral-700 dark:text-neutral-400'
-            "
-            [attr.data-testid]="'chip-' + chip.key"
-          >
-            {{ chip.label }}
-          </button>
-        }
+      <div class="flex flex-wrap items-center gap-5">
+        <div class="flex">
+          @for (chip of chips; track chip.key; let first = $first) {
+            <button
+              type="button"
+              (click)="toggleState(chip.key)"
+              [attr.aria-pressed]="states().has(chip.key)"
+              class="border px-3.5 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-flag"
+              [class.border-l-0]="!first"
+              [class]="
+                states().has(chip.key)
+                  ? 'border-ink bg-ink text-paper'
+                  : 'border-rule hover:bg-ink/5'
+              "
+              [attr.data-testid]="'chip-' + chip.key"
+            >
+              {{ chip.label }}
+            </button>
+          }
+        </div>
         <select
           aria-label="Source"
           [value]="source()"
           (change)="setSource($any($event.target).value)"
           data-testid="source"
-          class="rounded-full border border-neutral-300 bg-transparent px-3 py-1 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
+          class="border-0 border-b border-ink bg-transparent py-1.5 pr-6 text-sm focus:outline-none focus-visible:shadow-[0_2px_0_var(--gw-flag)] [&>option]:bg-paper"
         >
           <option value="">any source</option>
           @for (k of sourceKinds; track k) {
@@ -89,11 +92,12 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
           [value]="query()"
           (input)="setQuery($any($event.target).value)"
           data-testid="search"
-          class="min-w-48 flex-1 rounded-full border border-neutral-300 bg-transparent px-3.5 py-1 text-sm placeholder:text-neutral-400 dark:border-neutral-700"
+          class="min-w-48 flex-1 border-0 border-b border-ink bg-transparent py-1.5 text-sm placeholder:text-muted focus:outline-none focus-visible:shadow-[0_2px_0_var(--gw-flag)]"
         />
-        <label class="flex items-center gap-1.5 text-sm text-neutral-600 dark:text-neutral-400">
+        <label class="flex items-center gap-1.5 text-sm text-muted">
           <input
             type="checkbox"
+            class="gw-box"
             [checked]="store.includeDestroyed()"
             (change)="setDestroyed($any($event.target).checked)"
             data-testid="show-destroyed"
@@ -104,69 +108,67 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
 
       @if (store.error(); as e) {
         <app-error-alert
-          class="mt-6 px-3 py-2.5"
+          class="px-3 py-2.5"
           [problem]="e"
           lead="Could not load previews: "
           data-testid="list-error"
         />
       }
 
-      <div class="mt-6">
+      <div>
         @if (shown().length > 0) {
-          <div class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
+          <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
-              <thead
-                class="border-b border-neutral-200 bg-neutral-50 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/50"
-              >
+              <thead class="gw-label border-b border-ink">
                 <tr>
-                  <th scope="col" class="px-4 py-2.5 font-medium">Name</th>
-                  <th scope="col" class="px-4 py-2.5 font-medium">State</th>
-                  <th scope="col" class="px-4 py-2.5 font-medium">Source</th>
-                  <th scope="col" class="px-4 py-2.5 font-medium">Expires</th>
-                  <th scope="col" class="px-4 py-2.5 font-medium">Created</th>
-                  <th scope="col" class="px-4 py-2.5"><span class="sr-only">Actions</span></th>
+                  <th scope="col" class="py-2 pr-4 font-semibold">Name</th>
+                  <th scope="col" class="py-2 pr-4 font-semibold">State</th>
+                  <th scope="col" class="py-2 pr-4 font-semibold">Source</th>
+                  <th scope="col" class="py-2 pr-4 font-semibold">Expires</th>
+                  <th scope="col" class="py-2 pr-4 font-semibold">Created</th>
+                  <th scope="col" class="py-2"><span class="sr-only">Actions</span></th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
+              <tbody>
                 @for (p of shown(); track p.id) {
                   <tr
+                    class="border-b border-rule"
                     [class.opacity-50]="p.state === 'destroyed'"
                     data-testid="row"
                     [attr.data-id]="p.id"
                   >
-                    <td class="px-4 py-3">
-                      <a
-                        [routerLink]="['/previews', p.id]"
-                        class="font-medium hover:text-accent"
-                        data-testid="name"
-                        >{{ name(p) }}</a
-                      >
-                      @if (p.state !== 'destroyed') {
-                        <app-password-badge class="ml-2 align-middle" [access]="p.access" />
-                      }
+                    <td class="py-3 pr-4">
+                      <span class="flex items-center gap-2">
+                        <a
+                          [routerLink]="['/previews', p.id]"
+                          class="font-serif text-[19px] italic hover:underline"
+                          data-testid="name"
+                          >{{ name(p) }}</a
+                        >
+                        @if (p.state !== 'destroyed') {
+                          <app-password-badge [access]="p.access" />
+                        }
+                      </span>
                       @if (url(p); as u) {
                         <a
                           [href]="u"
                           target="_blank"
                           rel="noopener noreferrer"
-                          class="mt-0.5 block max-w-xs truncate font-mono text-xs text-neutral-500 hover:text-accent"
+                          class="mt-0.5 block max-w-xs truncate font-mono text-xs text-muted hover:text-ink hover:underline"
                           data-testid="url"
                           >{{ host(u) }} ↗</a
                         >
                       }
                     </td>
-                    <td class="px-4 py-3"><app-state-badge [state]="p.state" /></td>
-                    <td
-                      class="max-w-56 truncate px-4 py-3 text-neutral-600 dark:text-neutral-400"
-                      [title]="label(p)"
-                    >
-                      <span
-                        class="mr-1.5 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800"
-                        >{{ p.source.kind }}</span
+                    <td class="py-3 pr-4 whitespace-nowrap">
+                      <app-state-badge [state]="p.state" />
+                    </td>
+                    <td class="max-w-64 truncate py-3 pr-4" [title]="label(p)">
+                      <span class="gw-chip mr-2">{{ p.source.kind }}</span
                       >{{ label(p) }}
                     </td>
                     <td
-                      class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400"
+                      class="py-3 pr-4 whitespace-nowrap text-muted"
                       [title]="p.ttlExpiresAt ?? ''"
                       data-testid="expires"
                     >
@@ -178,18 +180,15 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
                             : 'never'
                       }}
                     </td>
-                    <td
-                      class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400"
-                      [title]="p.createdAt"
-                    >
+                    <td class="py-3 pr-4 whitespace-nowrap text-muted" [title]="p.createdAt">
                       {{ p.createdAt | relativeTime: clock.now() }}
                     </td>
-                    <td class="px-4 py-3 text-right">
+                    <td class="py-3 text-right">
                       @if (canDestroy() && destroyable(p)) {
                         <button
                           type="button"
                           (click)="ask(p)"
-                          class="text-sm text-neutral-500 hover:text-red-600 dark:hover:text-red-400"
+                          class="gw-action hover:!text-danger"
                           data-testid="destroy"
                         >
                           Destroy
@@ -202,7 +201,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
             </table>
           </div>
         } @else if (store.loading() && store.previews().length === 0) {
-          <p class="py-14 text-center text-sm text-neutral-500" data-testid="loading">Loading…</p>
+          <p class="py-14 text-center text-sm text-muted" data-testid="loading">Loading…</p>
         } @else if (filtered()) {
           <app-empty-state heading="Nothing matches these filters">
             <button
@@ -220,7 +219,10 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
           <app-empty-state heading="No previews yet">
             @if (canDeploy()) {
               <p>
-                <a routerLink="/new" class="text-accent hover:underline" data-testid="empty-new"
+                <a
+                  routerLink="/new"
+                  class="text-ink underline underline-offset-2"
+                  data-testid="empty-new"
                   >Create one</a
                 >
                 from a runtime's starter or by dropping in files — or deploy from the API. It will
@@ -232,7 +234,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
               </p>
             }
             <pre
-              class="mt-4 overflow-x-auto rounded-md bg-neutral-100 p-3 text-left font-mono text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+              class="mt-4 overflow-x-auto bg-log p-3 text-left font-mono text-xs text-log-fg"
               data-testid="curl"
               >{{ curl }}</pre>
           </app-empty-state>

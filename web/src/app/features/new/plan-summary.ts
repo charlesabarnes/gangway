@@ -2,9 +2,9 @@ import { Component, input } from '@angular/core';
 import type { AppPlan, Command, PlanReason } from '../../core/api.types';
 
 const REASON_LOOK: Record<PlanReason['level'], { tone: string; mark: string }> = {
-  error: { tone: 'text-red-700 dark:text-red-400', mark: '✕' },
-  warn: { tone: 'text-amber-700 dark:text-amber-400', mark: '!' },
-  info: { tone: 'text-neutral-600 dark:text-neutral-400', mark: '→' },
+  error: { tone: 'text-danger', mark: '✕' },
+  warn: { tone: 'text-warn', mark: '!' },
+  info: { tone: 'text-ink', mark: '→' },
 };
 
 const commandText = (c: Command | null) =>
@@ -31,10 +31,13 @@ function planLine(p: AppPlan): string {
   host: { class: 'block' },
   template: `
     @if (plan(); as p) {
-      <ul class="mx-auto mt-4 max-w-xl space-y-1 text-left text-xs" data-testid="plan">
+      <ul
+        class="mx-auto mt-3.5 flex max-w-xl flex-col gap-1 text-left text-[13px]"
+        data-testid="plan"
+      >
         @for (i of p.issues; track $index) {
-          <li class="flex gap-2 text-red-700 dark:text-red-400" data-testid="plan-issue">
-            <span aria-hidden="true">✕</span
+          <li class="flex gap-2.5 text-danger" data-testid="plan-issue">
+            <span class="font-mono" aria-hidden="true">✕</span
             ><span
               ><span class="font-mono">gangway.yml{{ i.path ? ' ' + i.path : '' }}</span
               >: {{ i.message }}</span
@@ -43,26 +46,28 @@ function planLine(p: AppPlan): string {
         }
         @for (r of p.reasons; track $index) {
           <li
-            class="flex gap-2"
+            class="flex gap-2.5"
             [class]="reasonLook[r.level].tone"
             data-testid="plan-reason"
             [attr.data-level]="r.level"
           >
-            <span aria-hidden="true">{{ reasonLook[r.level].mark }}</span>
+            <span class="font-mono" [class.text-muted]="r.level === 'info'" aria-hidden="true">{{
+              reasonLook[r.level].mark
+            }}</span>
             <span
-              ><span class="font-medium">{{ r.found }}</span
+              ><span class="font-semibold">{{ r.found }}</span
               >: {{ r.then }}</span
             >
           </li>
         }
       </ul>
       @if (p.kind === 'runtime') {
-        <p class="mt-2 font-mono text-[11px] text-neutral-500" data-testid="plan-summary">
+        <p class="mt-3.5 font-mono text-[11px] text-muted" data-testid="plan-summary">
           {{ line(p) }}
         </p>
       }
     } @else if (planning()) {
-      <p class="mt-3 text-xs text-neutral-500" data-testid="planning">
+      <p class="mt-3.5 text-[13px] text-muted" data-testid="planning">
         Working out how to build it…
       </p>
     }

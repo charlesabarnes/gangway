@@ -25,6 +25,8 @@ RUN bun install --frozen-lockfile --production
 COPY shared/ shared/
 COPY server/ server/
 COPY scripts/healthcheck.ts scripts/
+# The logo files, inlined into the preview password page (server/src/net/gate-pages.ts).
+COPY web/public/logo.svg web/public/logo-light.svg web/public/
 
 # The Angular app: boot.ts serves web/dist/browser on the `app` surface when it exists.
 COPY --from=web /web/dist/browser web/dist/browser

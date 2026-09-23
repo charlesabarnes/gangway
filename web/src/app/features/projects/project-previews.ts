@@ -12,30 +12,30 @@ import { PreviewsStore } from '../previews/previews.store';
   imports: [RelativeTimePipe, RouterLink, StateBadge],
   template: `
     @let p = project();
-    <div class="mt-6" data-testid="previews">
+    <div data-testid="previews">
       @for (pv of previews(); track pv.id) {
         <a
           [routerLink]="['/previews', pv.id]"
-          class="flex items-center gap-4 border-b border-neutral-200 py-3 text-sm last:border-0 hover:text-accent dark:border-neutral-800"
+          class="flex items-center gap-4 border-b border-rule py-3 text-sm hover:bg-ink/5"
           data-testid="preview"
         >
-          <app-state-badge [state]="pv.state" />
-          <span class="font-mono">{{ pv.project.replace(prefix(pv.project), '') }}</span>
-          <span class="text-neutral-500">{{
+          <app-state-badge class="w-[90px] shrink-0" [state]="pv.state" />
+          <span class="font-mono text-[13px]">{{
+            pv.project.replace(prefix(pv.project), '')
+          }}</span>
+          <span class="text-muted">{{
             pv.source.kind === 'pr' ? '#' + $any(pv.source).number : pv.source.kind
           }}</span>
-          <span class="ml-auto text-xs text-neutral-500">{{
-            pv.createdAt | relativeTime: clock.now()
-          }}</span>
+          <span class="ml-auto text-muted">{{ pv.createdAt | relativeTime: clock.now() }}</span>
         </a>
       } @empty {
-        <p class="py-10 text-center text-sm text-neutral-500" data-testid="no-previews">
+        <p class="py-10 text-center text-sm text-muted" data-testid="no-previews">
           @if (p.fullName && p.prTrigger === 'workflow') {
             No previews yet. Add
             <a
               [routerLink]="[]"
               [queryParams]="{ tab: 'workflow' }"
-              class="text-accent hover:underline"
+              class="text-ink underline underline-offset-2"
               >the workflow</a
             >
             and open a pull request.

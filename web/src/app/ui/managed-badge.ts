@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 
 @Component({
   selector: 'app-managed-badge',
-  host: { class: 'text-xs text-neutral-500' },
+  host: { class: 'font-mono text-xs text-muted' },
   template: `managed by config`,
 })
 export class ManagedBadge {}

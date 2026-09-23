@@ -17,99 +17,97 @@ const SCOPE_HELP: Record<OAuthScope, string> = {
   selector: 'app-connect',
   imports: [Btn],
   template: `
-    <section class="mx-auto max-w-lg px-6 py-12">
-      @if (request(); as r) {
-        <h1 class="text-xl font-semibold tracking-tight">
-          Connect {{ r.client.name }} to gangway?
-        </h1>
-        <div
-          class="mt-5 rounded-lg border border-neutral-200 p-5 dark:border-neutral-800"
-          data-testid="who"
-        >
-          <dl class="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
-            <dt class="text-neutral-500">App</dt>
-            <dd class="font-medium" data-testid="client-name">{{ r.client.name }}</dd>
-            <dt class="text-neutral-500">Published by</dt>
-            <dd>
-              <span class="font-mono font-semibold" data-testid="client-host">{{
-                r.client.host
-              }}</span>
-            </dd>
-            <dt class="text-neutral-500">Sends you to</dt>
-            <dd>
-              <span class="font-mono font-semibold" data-testid="redirect-host">{{
-                r.redirectHost
-              }}</span>
-            </dd>
-          </dl>
-          <p class="mt-4 text-xs text-neutral-500">
-            Only continue if you just asked {{ r.client.host }} to connect. It will act as you, on
-            the MCP surface only, until you disconnect it under Account.
-          </p>
-        </div>
-
-        <fieldset class="mt-6">
-          <legend class="text-sm font-medium">It may</legend>
-          <div class="mt-2 space-y-2">
-            @for (s of r.requested; track s) {
-              <label class="flex items-start gap-2.5 text-sm" [class.opacity-50]="!grantable(s)">
-                <input
-                  type="checkbox"
-                  class="mt-0.5"
-                  [checked]="chosen().has(s)"
-                  [disabled]="!grantable(s) || busy()"
-                  (change)="toggle(s)"
-                  [attr.data-testid]="'scope-' + s"
-                />
-                <span
-                  ><span class="font-mono text-xs font-medium">{{ s }}</span> — {{ help[s] }}
-                  @if (!grantable(s)) {
-                    <span class="text-neutral-500"> Your role does not cover this.</span>
-                  }
-                </span>
-              </label>
-            }
+    <section class="mx-auto max-w-lg px-4 py-12 sm:px-6">
+      <div class="gw-neatline-strong flex flex-col gap-7 bg-paper p-8 sm:p-10">
+        @if (request(); as r) {
+          <h1 class="m-0 font-serif text-4xl leading-tight font-normal italic">
+            Connect {{ r.client.name }} to gangway?
+          </h1>
+          <div class="border-t border-ink pt-4" data-testid="who">
+            <dl class="grid grid-cols-[7rem_1fr] gap-y-2 text-[15px]">
+              <dt class="text-muted">App</dt>
+              <dd class="font-medium" data-testid="client-name">{{ r.client.name }}</dd>
+              <dt class="text-muted">Published by</dt>
+              <dd>
+                <span class="font-mono font-semibold" data-testid="client-host">{{
+                  r.client.host
+                }}</span>
+              </dd>
+              <dt class="text-muted">Sends you to</dt>
+              <dd>
+                <span class="font-mono font-semibold" data-testid="redirect-host">{{
+                  r.redirectHost
+                }}</span>
+              </dd>
+            </dl>
+            <p class="mt-4 text-[13px] leading-snug text-muted">
+              Only continue if you just asked {{ r.client.host }} to connect. It will act as you, on
+              the MCP surface only, until you disconnect it under Account.
+            </p>
           </div>
-        </fieldset>
 
-        <div class="mt-8 flex items-center gap-3">
-          <button
-            appBtn
-            type="button"
-            [disabled]="busy() || chosen().size === 0"
-            (click)="answer(true)"
-            data-testid="approve"
-          >
-            Connect
-          </button>
-          <button
-            appBtn
-            variant="ghost"
-            type="button"
-            [disabled]="busy()"
-            (click)="answer(false)"
-            data-testid="deny"
-          >
-            Cancel
-          </button>
-        </div>
-        @if (error(); as e) {
-          <p class="mt-4 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="error">
+          <fieldset>
+            <legend class="gw-label">It may</legend>
+            <div class="mt-2 flex flex-col gap-2">
+              @for (s of r.requested; track s) {
+                <label
+                  class="flex items-start gap-2.5 text-sm leading-snug"
+                  [class.opacity-50]="!grantable(s)"
+                >
+                  <input
+                    type="checkbox"
+                    class="gw-box mt-[3px]"
+                    [checked]="chosen().has(s)"
+                    [disabled]="!grantable(s) || busy()"
+                    (change)="toggle(s)"
+                    [attr.data-testid]="'scope-' + s"
+                  />
+                  <span
+                    ><code class="font-mono text-xs font-medium">{{ s }}</code> — {{ help[s] }}
+                    @if (!grantable(s)) {
+                      <span class="text-muted"> Your role does not cover this.</span>
+                    }
+                  </span>
+                </label>
+              }
+            </div>
+          </fieldset>
+
+          <div class="flex items-center gap-3">
+            <button
+              appBtn
+              type="button"
+              [disabled]="busy() || chosen().size === 0"
+              (click)="answer(true)"
+              data-testid="approve"
+            >
+              Connect
+            </button>
+            <button
+              appBtn
+              variant="ghost"
+              type="button"
+              [disabled]="busy()"
+              (click)="answer(false)"
+              data-testid="deny"
+            >
+              Cancel
+            </button>
+          </div>
+          @if (error(); as e) {
+            <p class="text-sm text-danger" role="alert" data-testid="error">
+              {{ e }}
+            </p>
+          }
+        } @else if (error(); as e) {
+          <h1 class="m-0 font-serif text-4xl leading-tight font-normal italic">Cannot connect</h1>
+          <p class="text-sm text-muted" role="alert" data-testid="error">
             {{ e }}
           </p>
+        } @else {
+          <p class="text-sm text-muted" data-testid="loading">Loading…</p>
         }
-      } @else if (error(); as e) {
-        <h1 class="text-xl font-semibold tracking-tight">Cannot connect</h1>
-        <p
-          class="mt-3 text-sm text-neutral-600 dark:text-neutral-400"
-          role="alert"
-          data-testid="error"
-        >
-          {{ e }}
-        </p>
-      } @else {
-        <p class="text-sm text-neutral-500" data-testid="loading">Loading…</p>
-      }
+      </div>
     </section>
   `,
 })

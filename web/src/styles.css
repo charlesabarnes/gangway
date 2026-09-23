@@ -1,14 +1,171 @@
 @import 'tailwindcss';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-400.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-500.css';
+@import '@fontsource/ibm-plex-sans-condensed/latin-600.css';
+@import '@fontsource/ibm-plex-serif/latin-400.css';
+@import '@fontsource/ibm-plex-serif/latin-400-italic.css';
+@import '@fontsource/ibm-plex-serif/latin-500-italic.css';
+
+/* "Chart": ivory paper, navy ink, neatline double rules. Colors are tokens so dark mode is one swap. */
+:root {
+  --gw-paper: oklch(0.97 0.012 85);
+  --gw-surface: oklch(0.99 0.006 85);
+  --gw-ink: oklch(0.27 0.06 255);
+  --gw-muted: oklch(0.48 0.04 255);
+  --gw-rule: oklch(0.84 0.025 240);
+  --gw-primary: oklch(0.33 0.09 255);
+  --gw-primary-fg: oklch(0.97 0.012 85);
+  --gw-flag: oklch(0.84 0.15 88);
+  --gw-flag-fg: oklch(0.25 0.05 255);
+  --gw-ok: oklch(0.58 0.13 155);
+  --gw-warn: oklch(0.5 0.12 70);
+  --gw-danger: oklch(0.55 0.19 28);
+  --gw-header: oklch(0.27 0.07 255);
+  --gw-header-fg: oklch(0.97 0.012 85);
+  --gw-log: oklch(0.22 0.05 255);
+  --gw-log-fg: oklch(0.94 0.015 85);
+}
+
+/* <html data-theme> is set before the app boots (index.html) and kept by ThemeService. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --gw-paper: oklch(0.2 0.035 255);
+  --gw-surface: oklch(0.25 0.04 255);
+  --gw-ink: oklch(0.94 0.015 85);
+  --gw-muted: oklch(0.72 0.03 250);
+  --gw-rule: oklch(0.36 0.04 250);
+  --gw-primary: oklch(0.84 0.15 88);
+  --gw-primary-fg: oklch(0.22 0.05 255);
+  --gw-ok: oklch(0.75 0.14 155);
+  --gw-warn: oklch(0.8 0.12 75);
+  --gw-danger: oklch(0.62 0.18 28);
+  --gw-header: oklch(0.15 0.03 255);
+  --gw-header-fg: oklch(0.94 0.015 85);
+  --gw-log: oklch(0.14 0.03 255);
+}
+
+@theme inline {
+  --color-paper: var(--gw-paper);
+  --color-surface: var(--gw-surface);
+  --color-ink: var(--gw-ink);
+  --color-muted: var(--gw-muted);
+  --color-rule: var(--gw-rule);
+  --color-primary: var(--gw-primary);
+  --color-primary-fg: var(--gw-primary-fg);
+  --color-flag: var(--gw-flag);
+  --color-flag-fg: var(--gw-flag-fg);
+  --color-ok: var(--gw-ok);
+  --color-warn: var(--gw-warn);
+  --color-danger: var(--gw-danger);
+  --color-header: var(--gw-header);
+  --color-header-fg: var(--gw-header-fg);
+  --color-log: var(--gw-log);
+  --color-log-fg: var(--gw-log-fg);
+  --color-accent: var(--gw-primary);
+}
 
 @theme {
-  --color-accent: oklch(0.62 0.17 255);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: 'IBM Plex Sans Condensed', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'IBM Plex Serif', ui-serif, Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  @apply bg-paper font-sans text-ink antialiased;
+}
+
+@layer components {
+  /* Condensed caps: field labels, column heads, section eyebrows. */
+  .gw-label {
+    @apply text-[11px] font-semibold tracking-[.14em] text-muted uppercase;
+  }
+  /* A quiet caps action in a row: Destroy, Revoke, Copy. */
+  .gw-action {
+    @apply cursor-pointer text-[11px] font-semibold tracking-[.14em] text-muted uppercase hover:text-ink disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .gw-back {
+    @apply text-xs font-semibold tracking-[.14em] text-muted uppercase hover:text-ink;
+  }
+  .gw-h1 {
+    @apply m-0 font-serif text-5xl leading-none font-normal italic;
+  }
+  .gw-h2 {
+    @apply font-serif text-[22px] leading-tight font-normal italic;
+  }
+  .gw-page {
+    @apply mx-auto flex max-w-6xl flex-col gap-7 px-6 pt-9 pb-12 sm:px-12;
+  }
+  .gw-title-rule {
+    @apply border-b border-ink pb-[18px];
+  }
+  /* Neatline: a rule, a gap of paper, a second rule. */
+  .gw-neatline {
+    box-shadow:
+      inset 0 0 0 1px var(--gw-ink),
+      inset 0 0 0 4px var(--gw-paper),
+      inset 0 0 0 5px var(--gw-rule);
+  }
+  .gw-neatline-strong {
+    box-shadow:
+      inset 0 0 0 1px var(--gw-ink),
+      inset 0 0 0 4px var(--gw-paper),
+      inset 0 0 0 5px var(--gw-ink);
+  }
+  /* A settings section: title and note on the left, fields on the right. */
+  .gw-section {
+    @apply grid gap-4 border-b border-dotted border-rule pb-6 md:grid-cols-[200px_minmax(0,1fr)] md:gap-8;
+  }
+  .gw-section-note {
+    @apply text-[13px] leading-snug text-muted;
+  }
+  /* A fact with a dotted leader: <div class="gw-fact"><dt>Host</dt><dd>host-eu-1</dd></div>. */
+  .gw-fact {
+    @apply flex items-baseline gap-2;
+  }
+  .gw-fact > dt {
+    @apply flex flex-1 items-baseline gap-2 whitespace-nowrap text-muted;
+  }
+  .gw-fact > dt::after {
+    content: '';
+    @apply min-w-4 flex-1 -translate-y-1 border-b border-dotted border-rule;
+  }
+  .gw-fact > dd {
+    @apply m-0 min-w-0 truncate font-mono text-[13px];
+  }
+  .gw-chip {
+    @apply font-mono text-[11px] bg-surface px-1.5 py-0.5 shadow-[inset_0_0_0_1px_var(--gw-rule)];
+  }
+  .gw-tag {
+    @apply border border-ink px-[7px] py-0.5 text-[10px] font-semibold tracking-[.12em] whitespace-nowrap uppercase;
+  }
+  .gw-box {
+    @apply inline-block size-3.5 shrink-0 cursor-pointer appearance-none bg-transparent shadow-[inset_0_0_0_1px_var(--gw-ink)] checked:bg-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flag disabled:cursor-not-allowed disabled:opacity-50;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 10px;
+  }
+  .gw-box:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5.2 4 7.5 8.5 2.5' fill='none' stroke='white' stroke-width='1.6'/%3E%3C/svg%3E");
+  }
+  [data-theme='dark'] {
+    .gw-box:checked {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5.2 4 7.5 8.5 2.5' fill='none' stroke='%23232a3a' stroke-width='1.6'/%3E%3C/svg%3E");
+    }
+  }
+  .gw-box[type='radio'] {
+    @apply rounded-full;
+    background-image: none;
+  }
+  .gw-box[type='radio']:checked {
+    box-shadow:
+      inset 0 0 0 1px var(--gw-ink),
+      inset 0 0 0 3px var(--gw-paper);
+    background-image: none;
+  }
 }

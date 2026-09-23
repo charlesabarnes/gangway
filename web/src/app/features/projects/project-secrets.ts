@@ -12,8 +12,8 @@ import { SecretsEditor } from '../secrets/secrets-editor';
   imports: [SecretsEditor],
   template: `
     @let p = project();
-    <div class="mt-6" data-testid="secrets">
-      <p class="text-sm text-neutral-600 dark:text-neutral-400">
+    <div class="flex flex-col gap-3" data-testid="secrets">
+      <p class="m-0 max-w-3xl font-serif text-base leading-snug text-muted">
         Given to this project's previews at or below their clearance, on top of the global ones in
         Settings; a name here wins.
         @if (p.prTrigger === 'workflow' && p.fullName) {
@@ -24,7 +24,7 @@ import { SecretsEditor } from '../secrets/secrets-editor';
       @if (loaded()) {
         <app-secrets-editor [url]="'/v1/projects/' + p.id + '/env'" [initial]="secrets()" />
       } @else {
-        <p class="mt-3 text-sm text-neutral-500">Loading…</p>
+        <p class="text-sm text-muted">Loading…</p>
       }
     </div>
   `,

@@ -8,29 +8,24 @@ import { ADDON_LOOKS } from './looks';
   host: { class: 'block' },
   imports: [BrandIcon],
   template: `
-    <fieldset
-      class="mt-6 rounded-lg border border-neutral-200 px-4 py-3 dark:border-neutral-800"
-      data-testid="addons"
-    >
-      <legend class="px-1 text-sm font-medium text-neutral-600 dark:text-neutral-400">
-        Databases
-      </legend>
-      <p class="text-xs text-neutral-500">
+    <fieldset class="m-0 min-w-0 border-0 p-0" data-testid="addons">
+      <legend class="gw-label float-left mr-4">Databases</legend>
+      <p class="text-sm text-muted">
         Temporary databases for this preview. They keep their data between saves and are removed
         with the preview.
       </p>
-      <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+      <div class="clear-both flex flex-wrap gap-3 pt-2.5">
         @for (a of addons(); track a.id) {
           @let look = looks[a.id];
           @let on = checks().includes(a.id);
           <label
-            class="flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition"
+            class="flex min-w-56 flex-1 cursor-pointer items-center gap-3 bg-surface px-3.5 py-3 transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-flag"
             [title]="a.description"
             [style.--brand]="look.color"
             [class]="
               on
-                ? 'border-[var(--brand)] bg-[color-mix(in_oklch,var(--brand)_8%,transparent)]'
-                : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'
+                ? 'shadow-[inset_0_0_0_1px_var(--gw-ink)]'
+                : 'shadow-[inset_0_0_0_1px_var(--gw-rule)] hover:shadow-[inset_0_0_0_1px_var(--gw-muted)]'
             "
           >
             <input
@@ -41,25 +36,22 @@ import { ADDON_LOOKS } from './looks';
               [attr.data-testid]="'addon-' + a.id"
             />
             <app-brand-icon [path]="look.path" [color]="look.color" [size]="20" />
-            <span>
-              <span class="font-medium">{{ a.name }}</span
-              ><span class="ml-1 text-xs text-neutral-500">{{ a.defaultVersion }}</span>
-              @if (because(a.id); as why) {
-                <span
-                  class="ml-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent"
-                  [attr.data-testid]="'suggested-' + a.id"
-                  >uses {{ why }}</span
-                >
-              }
-              <span class="block font-mono text-[10px] text-neutral-400">{{ a.env[0] }}</span>
+            <span class="flex flex-col gap-0.5">
+              <span class="text-[15px] font-medium whitespace-nowrap"
+                >{{ a.name }}<span class="ml-1 text-[13px] text-muted">{{ a.defaultVersion }}</span>
+                @if (because(a.id); as why) {
+                  <span
+                    class="ml-1.5 bg-flag px-1.5 py-px text-[10px] font-semibold tracking-[.1em] text-flag-fg uppercase"
+                    [attr.data-testid]="'suggested-' + a.id"
+                    >uses {{ why }}</span
+                  >
+                }
+              </span>
+              <span class="block font-mono text-[11px] text-muted">{{ a.env[0] }}</span>
             </span>
             <span
-              class="ml-1 grid size-4 place-items-center rounded border text-[10px]"
-              [class]="
-                on
-                  ? 'border-[var(--brand)] bg-[var(--brand)] text-white'
-                  : 'border-neutral-300 dark:border-neutral-600'
-              "
+              class="ml-auto grid size-3.5 shrink-0 place-items-center text-[10px] shadow-[inset_0_0_0_1px_var(--gw-ink)]"
+              [class]="on ? 'bg-ink text-paper' : ''"
               aria-hidden="true"
             >
               @if (on) {

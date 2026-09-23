@@ -8,14 +8,20 @@ import { RUNTIME_LOOKS, tint } from './looks';
   host: { class: 'block' },
   imports: [BrandIcon],
   template: `
-    <h2 class="mt-8 text-sm font-medium text-neutral-500">Start from a runtime</h2>
-    <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-      Start with a small example, or drop in your own files below. You can edit them in the browser.
-    </p>
-    <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="runtimes">
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <h2 class="gw-label">Start from a runtime</h2>
+      <p class="text-sm text-muted">
+        Start with a small example, or drop in your own files below. You can edit them in the
+        browser.
+      </p>
+    </div>
+    <ul
+      class="mt-3 grid border-t border-l border-rule sm:grid-cols-2 lg:grid-cols-4"
+      data-testid="runtimes"
+    >
       @for (r of runtimes(); track r.id) {
         @let look = looks[r.id];
-        <li>
+        <li class="border-r border-b border-rule">
           <button
             type="button"
             (click)="start.emit(r)"
@@ -23,42 +29,40 @@ import { RUNTIME_LOOKS, tint } from './looks';
             [attr.data-testid]="'starter-' + r.id"
             [title]="r.name + ' — ' + r.description"
             [style.--brand]="look.color ?? 'currentColor'"
-            class="group flex h-full w-full items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--brand)] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none dark:border-neutral-800 dark:bg-neutral-900"
+            class="group flex h-full w-full items-start gap-3 bg-surface p-4 text-left transition hover:bg-paper hover:shadow-[inset_0_0_0_1px_var(--gw-ink)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-flag disabled:opacity-50 disabled:hover:bg-surface disabled:hover:shadow-none"
           >
             <span
-              class="grid size-11 shrink-0 place-items-center rounded-lg transition group-hover:scale-105"
+              class="grid size-11 shrink-0 place-items-center"
               [style.background-color]="tint(look.color)"
             >
               @if (starting() === r.id) {
                 <span
-                  class="block size-5 animate-spin rounded-full border-2 border-[var(--brand)] border-t-transparent"
+                  class="block size-5 animate-spin border-2 border-[var(--brand)] border-t-transparent"
                   data-testid="starting"
                 ></span>
               } @else {
                 <app-brand-icon [path]="look.path" [color]="look.color" [size]="24" />
               }
             </span>
-            <span class="min-w-0 flex-1">
+            <span class="flex min-w-0 flex-1 flex-col gap-0.5">
               <span class="flex items-center gap-2">
-                <span class="font-medium">{{ look.name }}</span>
+                <span class="text-base font-medium">{{ look.name }}</span>
                 @if (r.language !== look.name) {
-                  <span
-                    class="rounded-full bg-neutral-100 px-1.5 py-px text-[10px] text-neutral-500 dark:bg-neutral-800"
-                    >{{ r.language }}</span
-                  >
+                  <span class="gw-chip text-[10px] text-muted">{{ r.language }}</span>
                 }
               </span>
-              <span class="mt-0.5 block text-xs text-neutral-600 dark:text-neutral-400">{{
-                look.tagline
-              }}</span>
-              <span class="mt-2 block truncate font-mono text-[10px] text-neutral-400">{{
+              <span class="block text-[13px] leading-snug text-muted">{{ look.tagline }}</span>
+              <span class="mt-1.5 block truncate font-mono text-[11px] text-muted">{{
                 r.image
               }}</span>
             </span>
           </button>
         </li>
       } @empty {
-        <li class="text-sm text-neutral-500" data-testid="runtimes-loading">
+        <li
+          class="border-r border-b border-rule p-4 text-sm text-muted"
+          data-testid="runtimes-loading"
+        >
           {{ error() ?? 'Loading runtimes…' }}
         </li>
       }

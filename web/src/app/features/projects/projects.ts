@@ -34,17 +34,23 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
   selector: 'app-projects',
   imports: [Btn, EmptyState, RouterLink, StateBadge],
   template: `
-    <section class="mx-auto max-w-5xl px-6 py-10">
-      <div class="flex flex-wrap items-end gap-3">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-tight">Projects</h1>
-          <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+    <section class="gw-page">
+      <div class="gw-title-rule flex flex-wrap items-end gap-5">
+        <div class="flex flex-col gap-2.5">
+          <h1 class="gw-h1">Projects</h1>
+          <p class="m-0 font-serif text-base leading-snug text-muted">
             Each project is one thing you preview: where its code comes from, how its previews
             behave, and its secrets.
           </p>
         </div>
         @if (canManage() && !creating()) {
-          <button appBtn type="button" class="ml-auto" (click)="startCreate()" data-testid="new">
+          <button
+            appBtn
+            type="button"
+            class="mb-1 ml-auto"
+            (click)="startCreate()"
+            data-testid="new"
+          >
             New project
           </button>
         }
@@ -54,21 +60,23 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
         <form
           (submit)="create($event)"
           novalidate
-          class="mt-6 grid gap-4 rounded-lg border border-neutral-200 p-5 sm:grid-cols-2 dark:border-neutral-800"
+          class="gw-neatline grid gap-5 p-6 sm:grid-cols-2"
           data-testid="create"
         >
-          <label class="text-xs text-neutral-500"
-            >Name<input
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Name</span
+            ><input
               [class]="field"
               [value]="name()"
               (input)="name.set($any($event.target).value)"
               placeholder="Store admin"
               data-testid="create-name"
           /></label>
-          <label class="text-xs text-neutral-500"
-            >Repository
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Repository</span>
             <input
               [class]="field"
+              class="font-mono !text-sm"
               list="installed-repos"
               [value]="repository()"
               (input)="pickRepository($any($event.target).value)"
@@ -80,7 +88,7 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
                 <option [value]="r.fullName">{{ r.private ? 'private' : 'public' }}</option>
               }
             </datalist>
-            <span class="mt-1 block">
+            <span class="text-xs text-muted">
               @if (installed().length) {
                 Where the GitHub App is installed, or type any.
               } @else {
@@ -90,15 +98,15 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
           </label>
           @if (repository()) {
             <fieldset class="sm:col-span-2">
-              <legend class="text-xs text-neutral-500">Pull requests arrive through</legend>
+              <legend class="gw-label">Pull requests arrive through</legend>
               <div class="mt-1.5 grid gap-2 sm:grid-cols-2">
                 @for (t of triggers; track t) {
                   <label
-                    class="flex cursor-pointer gap-2.5 rounded-md border p-3 text-sm"
+                    class="flex cursor-pointer gap-2.5 bg-surface p-3 text-sm"
                     [class]="
                       trigger() === t
-                        ? 'border-accent bg-accent/5'
-                        : 'border-neutral-300 dark:border-neutral-700'
+                        ? 'shadow-[inset_0_0_0_1px_var(--gw-ink)]'
+                        : 'shadow-[inset_0_0_0_1px_var(--gw-rule)]'
                     "
                   >
                     <input
@@ -108,21 +116,20 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
                       [checked]="trigger() === t"
                       (change)="trigger.set(t)"
                       [attr.data-testid]="'create-trigger-' + t"
-                      class="mt-0.5"
+                      class="gw-box mt-0.5"
                     />
                     <span
                       ><span class="font-medium">{{ triggerHelp[t].name }}</span
-                      ><span class="block text-xs text-neutral-500">{{
-                        triggerHelp[t].help
-                      }}</span></span
+                      ><span class="block text-xs text-muted">{{ triggerHelp[t].help }}</span></span
                     >
                   </label>
                 }
               </div>
             </fieldset>
           }
-          <label class="text-xs text-neutral-500"
-            >Template<select
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">Template</span
+            ><select
               [class]="field"
               (change)="templateId.set($any($event.target).value || null)"
               data-testid="create-template"
@@ -133,14 +140,11 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
               }
             </select></label
           >
-          <div class="flex items-end justify-end gap-2 sm:col-span-2">
+          <div class="flex items-end justify-end gap-2.5 sm:col-span-2">
             @if (createError(); as e) {
-              <span
-                class="mr-auto text-sm text-red-700 dark:text-red-400"
-                role="alert"
-                data-testid="create-error"
-                >{{ e }}</span
-              >
+              <span class="mr-auto text-sm text-danger" role="alert" data-testid="create-error">{{
+                e
+              }}</span>
             }
             <button appBtn variant="ghost" type="button" (click)="creating.set(false)">
               Cancel
@@ -158,30 +162,25 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
       }
 
       @if (projects().length > 0) {
-        <ul class="mt-6 grid gap-4 sm:grid-cols-2" data-testid="projects">
+        <ul class="grid gap-5 sm:grid-cols-2" data-testid="projects">
           @for (p of projects(); track p.id) {
             <li>
               <a
                 [routerLink]="['/projects', p.slug]"
-                class="block h-full rounded-lg border border-neutral-200 p-5 transition hover:border-neutral-400 dark:border-neutral-800 dark:hover:border-neutral-600"
+                class="gw-neatline flex h-full flex-col gap-3 bg-paper p-[22px] transition hover:bg-surface"
                 [class.opacity-60]="!p.enabled"
                 data-testid="project"
               >
-                <div class="flex items-center gap-2">
-                  <span class="text-base font-semibold">{{ p.name }}</span>
+                <div class="flex items-center gap-2.5">
+                  <span class="font-serif text-[26px] leading-tight italic">{{ p.name }}</span>
                   @if (!p.enabled) {
-                    <span
-                      class="rounded-full border border-amber-400 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400"
-                      >disabled</span
-                    >
+                    <span class="gw-tag border-danger text-danger">disabled</span>
                   }
-                  <span
-                    class="ml-auto rounded-full border border-neutral-300 px-2 py-0.5 text-xs text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
-                    data-testid="template-chip"
-                    >{{ templateName(p.templateId) }}</span
-                  >
+                  <span class="gw-tag ml-auto" data-testid="template-chip">{{
+                    templateName(p.templateId)
+                  }}</span>
                 </div>
-                <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400" data-testid="source">
+                <p class="m-0 font-mono text-[13px] text-muted" data-testid="source">
                   {{
                     p.fullName
                       ? p.fullName +
@@ -190,15 +189,16 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
                       : 'no repository'
                   }}
                 </p>
-                <ul class="mt-3 space-y-1.5">
+                <ul class="flex flex-col gap-1.5 border-t border-dotted border-rule pt-3">
                   @for (pv of live(p.id); track pv.id) {
-                    <li class="flex items-center gap-2 text-xs">
-                      <app-state-badge [state]="pv.state" /><span class="truncate font-mono">{{
-                        pv.project.replace(prefix(pv.project), '')
-                      }}</span>
+                    <li class="flex items-center gap-3 text-sm">
+                      <app-state-badge class="w-[90px] shrink-0" [state]="pv.state" /><span
+                        class="truncate font-mono text-xs"
+                        >{{ pv.project.replace(prefix(pv.project), '') }}</span
+                      >
                     </li>
                   } @empty {
-                    <li class="text-xs text-neutral-500">No previews running.</li>
+                    <li class="text-sm text-muted">No previews running.</li>
                   }
                 </ul>
               </a>
@@ -206,32 +206,29 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
           }
         </ul>
       } @else if (loaded()) {
-        <div class="mt-6">
-          <app-empty-state heading="No projects yet">
-            <p>
-              Make one for each thing you want previews of. Pull requests from its repository get
-              URLs; nothing else does.
-            </p>
-          </app-empty-state>
-        </div>
+        <app-empty-state heading="No projects yet">
+          <p>
+            Make one for each thing you want previews of. Pull requests from its repository get
+            URLs; nothing else does.
+          </p>
+        </app-empty-state>
       }
 
       @if (loose().length > 0) {
-        <h2 class="mt-10 text-sm font-medium text-neutral-500">Not in a project</h2>
-        <ul
-          class="mt-2 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800"
-          data-testid="loose"
-        >
-          @for (pv of loose(); track pv.id) {
-            <li class="flex items-center gap-3 px-4 py-2.5 text-sm">
-              <app-state-badge [state]="pv.state" /><a
-                [routerLink]="['/previews', pv.id]"
-                class="font-mono text-xs hover:text-accent"
-                >{{ pv.project }}</a
-              ><span class="ml-auto text-xs text-neutral-500">{{ pv.source.kind }}</span>
-            </li>
-          }
-        </ul>
+        <div class="flex flex-col gap-2">
+          <h2 class="gw-label">Not in a project</h2>
+          <ul class="border-t border-rule" data-testid="loose">
+            @for (pv of loose(); track pv.id) {
+              <li class="flex items-center gap-3.5 border-b border-rule py-2.5 text-sm">
+                <app-state-badge class="w-[90px] shrink-0" [state]="pv.state" /><a
+                  [routerLink]="['/previews', pv.id]"
+                  class="font-mono text-xs hover:underline"
+                  >{{ pv.project }}</a
+                ><span class="ml-auto font-mono text-xs text-muted">{{ pv.source.kind }}</span>
+              </li>
+            }
+          </ul>
+        </div>
       }
     </section>
   `,

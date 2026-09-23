@@ -14,7 +14,7 @@ import { AuthCard, FIELD, LABEL } from './auth-card';
     <app-auth-card heading="Log in">
       <span lede>Use the account your gangway admin gave you.</span>
 
-      <form (submit)="submit($event)" novalidate class="space-y-5">
+      <form (submit)="submit($event)" novalidate class="space-y-[18px]">
         @if (auth.unreachable()) {
           <app-error-alert class="px-3 py-2.5" data-testid="unreachable">
             Cannot reach the server. It may be restarting — try again in a moment.
@@ -57,7 +57,7 @@ import { AuthCard, FIELD, LABEL } from './auth-card';
         <button
           appBtn
           type="submit"
-          class="w-full"
+          class="w-full !py-[13px] !text-sm !tracking-[.14em]"
           [disabled]="busy() || lockedFor() > 0"
           data-testid="submit"
         >

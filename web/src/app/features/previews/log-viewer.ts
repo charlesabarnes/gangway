@@ -27,65 +27,65 @@ export const FRAME = new InjectionToken<(cb: () => void) => void>('FRAME', {
 const TAIL = 2_000;
 
 const STREAM_CLASS: Record<LogStream, string> = {
-  system: 'text-sky-400',
-  build: 'text-neutral-400',
-  seed: 'text-violet-300',
-  stdout: 'text-neutral-100',
-  stderr: 'text-amber-300',
+  system: 'text-[oklch(0.8_0.09_220)]',
+  build: 'text-[oklch(0.7_0.02_250)]',
+  seed: 'text-[oklch(0.8_0.08_300)]',
+  stdout: 'text-log-fg',
+  stderr: 'text-flag',
 };
 
 @Component({
   selector: 'app-log-viewer',
   imports: [ConnectionDot],
   template: `
-    <div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950">
-      <div class="flex flex-wrap items-center gap-1.5 border-b border-neutral-800 px-3 py-2">
+    <div class="overflow-hidden bg-log text-log-fg">
+      <div
+        class="flex flex-wrap items-center gap-0.5 border-b border-white/12 px-3 py-2 text-xs font-medium tracking-[.12em] uppercase"
+      >
         @for (f of filters; track f) {
           <button
             type="button"
             (click)="filter.set(f)"
             [attr.aria-pressed]="filter() === f"
             [attr.data-testid]="'stream-' + f"
-            class="rounded px-2 py-0.5 text-xs"
-            [class]="
-              filter() === f
-                ? 'bg-neutral-800 text-neutral-100'
-                : 'text-neutral-500 hover:text-neutral-300'
-            "
+            class="px-2.5 py-[3px] uppercase focus-visible:outline-2 focus-visible:outline-flag"
+            [class]="filter() === f ? 'bg-flag text-flag-fg' : 'opacity-60 hover:opacity-100'"
           >
             {{ f }}
           </button>
         }
-        <span class="ml-auto"><app-connection-dot [status]="status()" /></span>
+        <span class="ml-auto tracking-normal normal-case opacity-80 [&_[role=status]]:!text-log-fg"
+          ><app-connection-dot [status]="status()"
+        /></span>
       </div>
 
       <div class="relative">
         <div
           #scroller
           (scroll)="onScroll()"
-          class="h-[28rem] overflow-auto px-3 py-2 font-mono text-xs leading-5"
+          class="h-[28rem] overflow-auto px-3 py-2.5 font-mono text-[12.5px] leading-[21px]"
           tabindex="0"
           role="log"
           aria-label="Preview log"
           data-testid="log"
         >
           @if (dropped() > 0) {
-            <p class="text-neutral-600" data-testid="dropped">
+            <p class="opacity-40" data-testid="dropped">
               … {{ dropped() }} older lines dropped from this tab
             </p>
           }
           @for (l of visible(); track l.n) {
             <div
-              class="flex gap-3 [contain-intrinsic-size:auto_1.25rem] [content-visibility:auto]"
+              class="flex gap-3.5 [contain-intrinsic-size:auto_1.25rem] [content-visibility:auto]"
               data-testid="line"
             >
-              <span class="w-12 shrink-0 text-right text-neutral-600 select-none">{{ l.n }}</span>
+              <span class="w-10 shrink-0 text-right opacity-40 select-none">{{ l.n }}</span>
               <span class="break-all whitespace-pre-wrap" [class]="cls[l.stream]">{{
                 l.line
               }}</span>
             </div>
           } @empty {
-            <p class="py-8 text-center text-neutral-600" data-testid="log-empty">
+            <p class="py-8 text-center opacity-50" data-testid="log-empty">
               {{ status() === 'live' ? 'Nothing logged yet.' : 'Connecting…' }}
             </p>
           }
@@ -95,7 +95,7 @@ const STREAM_CLASS: Record<LogStream, string> = {
             type="button"
             (click)="jump()"
             data-testid="jump"
-            class="absolute right-4 bottom-3 rounded-full bg-accent px-3 py-1 text-xs font-medium text-white shadow-lg"
+            class="absolute right-4 bottom-3 bg-flag px-3 py-1 text-[11px] font-semibold tracking-[.12em] text-flag-fg uppercase shadow-lg"
           >
             ↓ Jump to latest
           </button>

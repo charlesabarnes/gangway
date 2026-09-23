@@ -28,13 +28,13 @@ export const ACCESS_BADGE: Record<
   template: `
     @if (badge(); as b) {
       <span
-        class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300"
+        class="inline-flex items-center gap-1 bg-flag px-[7px] py-0.5 text-[10px] font-semibold tracking-[.12em] whitespace-nowrap text-flag-fg uppercase"
         [title]="b.title"
         data-testid="password-badge"
       >
         <svg
           viewBox="0 0 16 16"
-          class="size-3"
+          class="size-2.5"
           fill="none"
           stroke="currentColor"
           stroke-width="1.6"

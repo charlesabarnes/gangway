@@ -19,14 +19,14 @@ function refusal(p: ProblemError): string {
 
 @Component({
   selector: 'app-change-password',
-  host: { class: 'block' },
+  host: { class: 'gw-section' },
   imports: [Btn],
   template: `
-    <h2 class="mt-10 text-base font-semibold">Password</h2>
+    <h2 class="gw-h2">Password</h2>
     <form
       (submit)="submit($event)"
       novalidate
-      class="mt-3 grid gap-4 sm:grid-cols-3"
+      class="grid gap-x-6 gap-y-3.5 sm:grid-cols-3"
       data-testid="password-form"
     >
       <div>
@@ -65,26 +65,23 @@ function refusal(p: ProblemError): string {
           data-testid="again"
         />
       </div>
-      <div class="flex items-center gap-3 sm:col-span-3">
+      <div class="flex flex-wrap items-center gap-3.5 sm:col-span-3">
         <button
           appBtn
           variant="ghost"
+          size="sm"
           type="submit"
           [disabled]="busy() || !ready()"
           data-testid="change-password"
         >
           Change password
         </button>
-        <span class="text-xs text-neutral-500"
+        <span class="text-[13px] text-muted"
           >At least 12 characters. Your other sessions will be logged out.</span
         >
       </div>
       @if (error(); as e) {
-        <p
-          class="text-sm text-red-700 sm:col-span-3 dark:text-red-400"
-          role="alert"
-          data-testid="pw-error"
-        >
+        <p class="text-sm text-danger sm:col-span-3" role="alert" data-testid="pw-error">
           {{ e }}
         </p>
       }

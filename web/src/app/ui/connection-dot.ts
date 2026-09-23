@@ -3,11 +3,11 @@ import type { SseStatus } from '../core/sse.service';
 
 const LOOK: Record<SseStatus | 'idle', { label: string; dot: string; pulse: boolean }> = {
   idle: { label: '', dot: 'bg-transparent', pulse: false },
-  connecting: { label: 'connecting…', dot: 'bg-neutral-400', pulse: true },
-  live: { label: 'live', dot: 'bg-emerald-500', pulse: false },
-  reconnecting: { label: 'reconnecting…', dot: 'bg-amber-500', pulse: true },
-  paused: { label: 'paused', dot: 'bg-neutral-400', pulse: false },
-  closed: { label: 'not live', dot: 'bg-neutral-400', pulse: false },
+  connecting: { label: 'connecting…', dot: 'bg-muted', pulse: true },
+  live: { label: 'live', dot: 'bg-ok', pulse: false },
+  reconnecting: { label: 'reconnecting…', dot: 'bg-flag', pulse: true },
+  paused: { label: 'paused', dot: 'bg-muted', pulse: false },
+  closed: { label: 'not live', dot: 'bg-muted', pulse: false },
 };
 
 @Component({
@@ -15,7 +15,7 @@ const LOOK: Record<SseStatus | 'idle', { label: string; dot: string; pulse: bool
   template: `
     @if (status() !== 'idle') {
       <span
-        class="inline-flex items-center gap-1.5 text-xs text-neutral-500"
+        class="inline-flex items-center gap-1.5 font-mono text-xs text-muted"
         role="status"
         data-testid="connection"
       >

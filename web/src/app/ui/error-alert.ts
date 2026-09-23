@@ -5,8 +5,7 @@ import type { ProblemError } from '../core/problem';
   selector: 'app-error-alert',
   host: {
     role: 'alert',
-    class:
-      'block rounded-md border border-red-200 bg-red-50 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300',
+    class: 'block bg-danger/10 text-sm text-ink shadow-[inset_3px_0_0_var(--gw-danger)]',
   },
   template: `
     @if (problem(); as e) {

@@ -50,34 +50,31 @@ export class ToastService {
     >
       @for (t of svc.toasts(); track t.id) {
         <div
-          class="pointer-events-auto w-full max-w-sm rounded-lg border bg-white p-3.5 text-sm shadow-lg dark:bg-neutral-900"
+          class="pointer-events-auto w-full max-w-sm bg-paper p-3.5 text-sm shadow-lg"
           [class]="
             t.kind === 'error'
-              ? 'border-red-300 dark:border-red-900'
-              : 'border-neutral-200 dark:border-neutral-800'
+              ? 'shadow-[inset_0_0_0_1px_var(--gw-ink),inset_4px_0_0_var(--gw-danger)]'
+              : 'shadow-[inset_0_0_0_1px_var(--gw-ink),inset_4px_0_0_var(--gw-flag)]'
           "
           [attr.role]="t.kind === 'error' ? 'alert' : 'status'"
           data-testid="toast"
         >
           <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
-              <p
-                class="font-medium"
-                [class]="t.kind === 'error' ? 'text-red-700 dark:text-red-400' : ''"
-              >
+              <p class="font-medium" [class]="t.kind === 'error' ? 'text-danger' : ''">
                 {{ t.title }}
               </p>
               @if (t.detail) {
-                <p class="mt-0.5 text-neutral-600 dark:text-neutral-400">{{ t.detail }}</p>
+                <p class="mt-0.5 text-muted">{{ t.detail }}</p>
               }
               @if (t.requestId) {
-                <p class="mt-1.5 font-mono text-xs text-neutral-400">request {{ t.requestId }}</p>
+                <p class="mt-1.5 font-mono text-xs text-muted">request {{ t.requestId }}</p>
               }
             </div>
             <button
               type="button"
               (click)="svc.dismiss(t.id)"
-              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+              class="text-muted hover:text-ink"
               aria-label="Dismiss"
             >
               ✕

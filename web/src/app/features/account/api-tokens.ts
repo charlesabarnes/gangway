@@ -37,171 +37,179 @@ const EXPIRY = [
 
 @Component({
   selector: 'app-api-tokens',
-  host: { class: 'block' },
+  host: { class: 'contents' },
   imports: [Btn, ConfirmDialog, ConnectAgent, ConnectedAgents, RelativeTimePipe],
   template: `
-    <h2 class="mt-10 text-base font-semibold">API tokens</h2>
-    <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-      For scripts and CI. A token can never do more than you can: tighten your role and your tokens
-      tighten with it.
-    </p>
-
-    @if (minted(); as m) {
-      <div
-        class="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30"
-        role="status"
-        data-testid="minted"
-      >
-        <p class="text-sm font-medium text-emerald-900 dark:text-emerald-200">
-          Token “{{ m.name }}” created. Copy it now — it will not be shown again.
+    <div class="gw-section">
+      <div class="flex flex-col gap-1">
+        <h2 class="gw-h2">API tokens</h2>
+        <p class="gw-section-note">
+          For scripts and CI. A token can never do more than you can: tighten your role and your
+          tokens tighten with it.
         </p>
-        <div class="mt-2 flex items-center gap-2">
-          <code
-            class="min-w-0 flex-1 rounded bg-white px-2.5 py-1.5 font-mono text-xs break-all select-all dark:bg-neutral-900"
-            data-testid="secret"
-            >{{ m.secret }}</code
-          >
-          <button
-            appBtn
-            variant="ghost"
-            type="button"
-            (click)="copy(m.secret)"
-            data-testid="copy-secret"
-          >
-            Copy
-          </button>
-          <button
-            appBtn
-            variant="ghost"
-            type="button"
-            (click)="minted.set(null)"
-            data-testid="done"
-          >
-            Done
-          </button>
-        </div>
       </div>
-    }
+      <div class="flex min-w-0 flex-col gap-[18px]">
+        @if (minted(); as m) {
+          <div
+            class="flex flex-col gap-2.5 bg-flag/20 p-4 shadow-[inset_3px_0_0_var(--gw-flag)]"
+            role="status"
+            data-testid="minted"
+          >
+            <p class="text-[15px] font-medium">
+              Token “{{ m.name }}” created. Copy it now — it will not be shown again.
+            </p>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <code
+                class="min-w-0 flex-1 bg-surface px-2.5 py-2 font-mono text-xs break-all select-all"
+                data-testid="secret"
+                >{{ m.secret }}</code
+              >
+              <button
+                appBtn
+                variant="ghost"
+                size="sm"
+                type="button"
+                (click)="copy(m.secret)"
+                data-testid="copy-secret"
+              >
+                Copy
+              </button>
+              <button
+                appBtn
+                variant="ghost"
+                size="sm"
+                type="button"
+                (click)="minted.set(null)"
+                data-testid="done"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        }
 
-    <form
-      (submit)="create($event)"
-      novalidate
-      class="mt-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-      data-testid="token-form"
-    >
-      <div class="grid gap-4 sm:grid-cols-3">
-        <div class="sm:col-span-2">
-          <label for="tname" [class]="label">Name</label
-          ><input
-            id="tname"
-            [class]="field"
-            placeholder="github-actions"
-            [value]="name()"
-            (input)="name.set($any($event.target).value)"
-            data-testid="token-name"
-          />
-        </div>
-        <div>
-          <label for="texp" [class]="label">Expires</label>
-          <select
-            id="texp"
-            [class]="field"
-            [value]="expiresIn()"
-            (change)="expiresIn.set($any($event.target).value)"
-            data-testid="token-expiry"
-          >
-            @for (o of expiry; track o.value) {
-              <option [value]="o.value">{{ o.label }}</option>
-            }
-          </select>
-        </div>
-      </div>
-      <fieldset class="mt-4">
-        <legend [class]="label">Scopes</legend>
-        <div class="mt-2 space-y-2">
-          @for (s of scopes; track s) {
-            <label class="flex items-start gap-2.5 text-sm" [class.opacity-50]="!covers(s)">
-              <input
-                type="checkbox"
-                class="mt-0.5"
-                [checked]="chosen().has(s)"
-                [disabled]="!covers(s)"
-                (change)="toggle(s)"
-                [attr.data-testid]="'scope-' + s"
+        <form
+          (submit)="create($event)"
+          novalidate
+          class="flex flex-col gap-[18px]"
+          data-testid="token-form"
+        >
+          <div class="grid gap-6 sm:grid-cols-3">
+            <div class="sm:col-span-2">
+              <label for="tname" [class]="label">Name</label
+              ><input
+                id="tname"
+                [class]="field"
+                placeholder="github-actions"
+                [value]="name()"
+                (input)="name.set($any($event.target).value)"
+                data-testid="token-name"
               />
-              <span
-                ><span class="font-mono text-xs font-medium">{{ s }}</span> — {{ help[s] }}
-                @if (!covers(s)) {
-                  <span class="text-neutral-500"> Your role does not cover this.</span>
+            </div>
+            <div>
+              <label for="texp" [class]="label">Expires</label>
+              <select
+                id="texp"
+                [class]="field"
+                [value]="expiresIn()"
+                (change)="expiresIn.set($any($event.target).value)"
+                data-testid="token-expiry"
+              >
+                @for (o of expiry; track o.value) {
+                  <option [value]="o.value">{{ o.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <fieldset>
+            <legend [class]="label">Scopes</legend>
+            <div class="mt-2 flex flex-col gap-2">
+              @for (s of scopes; track s) {
+                <label
+                  class="flex items-start gap-2.5 text-sm leading-snug"
+                  [class.opacity-50]="!covers(s)"
+                >
+                  <input
+                    type="checkbox"
+                    class="gw-box mt-[3px]"
+                    [checked]="chosen().has(s)"
+                    [disabled]="!covers(s)"
+                    (change)="toggle(s)"
+                    [attr.data-testid]="'scope-' + s"
+                  />
+                  <span
+                    ><code class="font-mono text-xs font-medium">{{ s }}</code> — {{ help[s] }}
+                    @if (!covers(s)) {
+                      <span class="text-muted"> Your role does not cover this.</span>
+                    }
+                  </span>
+                </label>
+              }
+            </div>
+          </fieldset>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              appBtn
+              type="submit"
+              [disabled]="busy() || name().trim() === '' || chosen().size === 0"
+              data-testid="create-token"
+            >
+              Create token
+            </button>
+            @if (error(); as e) {
+              <span class="text-sm text-danger" role="alert" data-testid="token-error">{{
+                e
+              }}</span>
+            }
+          </div>
+        </form>
+
+        <ul class="border-t border-ink" data-testid="tokens">
+          @for (t of tokens(); track t.id) {
+            <li
+              class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-rule py-2.5 text-sm"
+              [class.opacity-50]="t.revokedAt"
+              data-testid="token"
+            >
+              <span class="text-[15px] font-medium">{{ t.name }}</span>
+              <code class="font-mono text-xs text-muted">{{ t.prefix }}…</code>
+              <span class="text-[13px] text-muted">{{ t.scopes.join(', ') }}</span>
+              <span class="ml-auto text-[13px] text-muted">
+                @if (t.revokedAt) {
+                  revoked {{ t.revokedAt | relativeTime: clock.now() }}
+                } @else {
+                  {{
+                    t.lastUsedAt
+                      ? 'used ' + (t.lastUsedAt | relativeTime: clock.now())
+                      : 'never used'
+                  }}
+                  ·
+                  {{
+                    t.expiresAt
+                      ? 'expires ' + (t.expiresAt | relativeTime: clock.now())
+                      : 'no expiry'
+                  }}
                 }
               </span>
-            </label>
+              @if (!t.revokedAt) {
+                <button
+                  type="button"
+                  (click)="askRevoke(t)"
+                  class="gw-action hover:!text-danger"
+                  data-testid="revoke"
+                >
+                  Revoke
+                </button>
+              }
+            </li>
+          } @empty {
+            <li class="border-b border-rule py-2.5 text-sm text-muted" data-testid="no-tokens">
+              No tokens yet.
+            </li>
           }
-        </div>
-      </fieldset>
-      <div class="mt-4 flex items-center gap-3">
-        <button
-          appBtn
-          type="submit"
-          [disabled]="busy() || name().trim() === '' || chosen().size === 0"
-          data-testid="create-token"
-        >
-          Create token
-        </button>
-        @if (error(); as e) {
-          <span
-            class="text-sm text-red-700 dark:text-red-400"
-            role="alert"
-            data-testid="token-error"
-            >{{ e }}</span
-          >
-        }
+        </ul>
       </div>
-    </form>
-
-    <ul
-      class="mt-4 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800"
-      data-testid="tokens"
-    >
-      @for (t of tokens(); track t.id) {
-        <li
-          class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm"
-          [class.opacity-50]="t.revokedAt"
-          data-testid="token"
-        >
-          <span class="font-medium">{{ t.name }}</span>
-          <code class="font-mono text-xs text-neutral-500">{{ t.prefix }}…</code>
-          <span class="text-xs text-neutral-500">{{ t.scopes.join(', ') }}</span>
-          <span class="ml-auto text-xs text-neutral-500">
-            @if (t.revokedAt) {
-              revoked {{ t.revokedAt | relativeTime: clock.now() }}
-            } @else {
-              {{
-                t.lastUsedAt ? 'used ' + (t.lastUsedAt | relativeTime: clock.now()) : 'never used'
-              }}
-              ·
-              {{
-                t.expiresAt ? 'expires ' + (t.expiresAt | relativeTime: clock.now()) : 'no expiry'
-              }}
-            }
-          </span>
-          @if (!t.revokedAt) {
-            <button
-              type="button"
-              (click)="askRevoke(t)"
-              class="text-neutral-500 hover:text-red-600 dark:hover:text-red-400"
-              data-testid="revoke"
-            >
-              Revoke
-            </button>
-          }
-        </li>
-      } @empty {
-        <li class="px-4 py-6 text-center text-sm text-neutral-500" data-testid="no-tokens">
-          No tokens yet.
-        </li>
-      }
-    </ul>
+    </div>
 
     <app-confirm-dialog
       [heading]="'Revoke ' + (pending()?.name ?? '') + '?'"

@@ -29,47 +29,39 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
   selector: 'app-templates',
   imports: [Btn, ConfirmDialog, RouterLink],
   template: `
-    <section class="mx-auto max-w-4xl px-6 py-10">
-      <h1 class="text-2xl font-semibold tracking-tight">Templates</h1>
-      <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-        A template is what a preview gets when nothing more specific is said: its visibility, how
-        long it lives, when it sleeps, which secrets it may read, and where it runs.
-        <a routerLink="/settings" class="underline decoration-neutral-400 underline-offset-2"
-          >Settings</a
-        >
-        picks one per trigger; a
-        <a routerLink="/projects" class="underline decoration-neutral-400 underline-offset-2"
-          >project</a
-        >
-        picks its own.
-      </p>
+    <section class="gw-page">
+      <div class="gw-title-rule flex flex-col gap-2.5">
+        <h1 class="gw-h1">Templates</h1>
+        <p class="m-0 max-w-[760px] font-serif text-base leading-normal text-muted">
+          A template is what a preview gets when nothing more specific is said: its visibility, how
+          long it lives, when it sleeps, which secrets it may read, and where it runs.
+          <a routerLink="/settings" class="text-ink underline underline-offset-2">Settings</a>
+          picks one per trigger; a
+          <a routerLink="/projects" class="text-ink underline underline-offset-2">project</a>
+          picks its own.
+        </p>
+      </div>
 
-      <ul
-        class="mt-6 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800"
-        data-testid="templates"
-      >
+      <ul class="flex flex-col gap-6" data-testid="templates">
         @for (t of templates(); track t.id) {
-          <li class="px-4 py-4" data-testid="template">
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span class="font-medium">{{ t.name }}</span>
-              <code class="font-mono text-xs text-neutral-500">{{ t.id }}</code>
+          <li
+            class="flex flex-col gap-4 border-b border-dotted border-rule pb-6"
+            data-testid="template"
+          >
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span class="font-serif text-[26px] italic">{{ t.name }}</span>
+              <code class="font-mono text-[13px] text-muted">{{ t.id }}</code>
               @if (t.builtin) {
-                <span
-                  class="rounded-full border border-neutral-300 px-2 py-0.5 text-xs text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
-                  data-testid="builtin"
-                  >built in</span
-                >
+                <span class="gw-tag self-center" data-testid="builtin">built in</span>
               }
               @if (!canManage()) {
-                <span class="ml-auto text-xs text-neutral-500" data-testid="summary">{{
+                <span class="ml-auto font-mono text-xs text-muted" data-testid="summary">{{
                   summary(t)
                 }}</span>
               } @else if (!t.builtin) {
                 <button
-                  appBtn
-                  variant="ghost"
                   type="button"
-                  class="ml-auto"
+                  class="gw-action ml-auto hover:!text-danger"
                   (click)="askDelete(t)"
                   data-testid="delete"
                 >
@@ -78,31 +70,34 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
               }
             </div>
             @if (t.description && !canManage()) {
-              <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{{ t.description }}</p>
+              <p class="text-sm text-muted">{{ t.description }}</p>
             }
             @if (canManage()) {
               <form
                 (submit)="save($event, t)"
                 novalidate
-                class="mt-3 grid gap-3 sm:grid-cols-6"
+                class="grid gap-x-[22px] gap-y-[18px] sm:grid-cols-6"
                 [attr.data-testid]="'form-' + t.id"
               >
-                <label class="text-xs text-neutral-500 sm:col-span-2"
-                  >Name<input
+                <label class="flex flex-col gap-1 sm:col-span-2"
+                  ><span class="gw-label">Name</span
+                  ><input
                     [class]="field"
                     [value]="draft(t).name"
                     (input)="edit(t, 'name', $any($event.target).value)"
                     data-testid="name"
                 /></label>
-                <label class="text-xs text-neutral-500 sm:col-span-4"
-                  >Description<input
+                <label class="flex flex-col gap-1 sm:col-span-4"
+                  ><span class="gw-label">Description</span
+                  ><input
                     [class]="field"
                     [value]="draft(t).description"
                     (input)="edit(t, 'description', $any($event.target).value)"
                     data-testid="description"
                 /></label>
-                <label class="text-xs text-neutral-500"
-                  >Visibility<select
+                <label class="flex flex-col gap-1"
+                  ><span class="gw-label">Visibility</span
+                  ><select
                     [class]="field"
                     (change)="edit(t, 'visibility', $any($event.target).value)"
                     data-testid="visibility"
@@ -112,24 +107,27 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
                     }
                   </select></label
                 >
-                <label class="text-xs text-neutral-500"
-                  >TTL<input
+                <label class="flex flex-col gap-1"
+                  ><span class="gw-label">TTL</span
+                  ><input
                     [class]="field"
                     placeholder="never expires"
                     [value]="draft(t).ttl ?? ''"
                     (input)="edit(t, 'ttl', $any($event.target).value || null)"
                     data-testid="ttl"
                 /></label>
-                <label class="text-xs text-neutral-500"
-                  >Sleep after<input
+                <label class="flex flex-col gap-1"
+                  ><span class="gw-label">Sleep after</span
+                  ><input
                     [class]="field"
                     placeholder="30m, or never"
                     [value]="draft(t).idleAfter"
                     (input)="edit(t, 'idleAfter', $any($event.target).value)"
                     data-testid="idle"
                 /></label>
-                <label class="text-xs text-neutral-500"
-                  >Secrets<select
+                <label class="flex flex-col gap-1"
+                  ><span class="gw-label">Secrets</span
+                  ><select
                     [class]="field"
                     (change)="edit(t, 'clearance', $any($event.target).value)"
                     data-testid="clearance"
@@ -139,89 +137,92 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
                     }
                   </select></label
                 >
-                <label class="text-xs text-neutral-500 sm:col-span-2"
-                  >Host<input
+                <label class="flex flex-col gap-1 sm:col-span-2"
+                  ><span class="gw-label">Host</span
+                  ><input
                     [class]="field"
                     placeholder="the scheduler's choice"
                     [value]="draft(t).hostId ?? ''"
                     (input)="edit(t, 'hostId', $any($event.target).value || null)"
                     data-testid="host"
                 /></label>
-                <div class="flex items-center gap-3 sm:col-span-6">
+                <div class="flex flex-wrap items-center gap-3.5 sm:col-span-6">
                   <button
                     appBtn
                     variant="ghost"
+                    size="sm"
                     type="submit"
                     [disabled]="!dirty(t) || saving() === t.id"
                     data-testid="save"
                   >
                     Save
                   </button>
-                  <span class="text-xs text-neutral-500"
+                  <span class="font-mono text-xs text-muted"
                     >{{ summary(draft(t)) }}. Secrets:
                     {{ clearanceHelp[draft(t).clearance] }}.</span
                   >
                   @if (rowError()?.id === t.id) {
-                    <span
-                      class="text-sm text-red-700 dark:text-red-400"
-                      role="alert"
-                      data-testid="row-error"
-                      >{{ rowError()?.message }}</span
-                    >
+                    <span class="text-sm text-danger" role="alert" data-testid="row-error">{{
+                      rowError()?.message
+                    }}</span>
                   }
                 </div>
               </form>
             }
           </li>
         } @empty {
-          <li class="px-4 py-8 text-center text-sm text-neutral-500">Loading…</li>
+          <li class="py-8 text-center text-sm text-muted">Loading…</li>
         }
       </ul>
 
       @if (canManage()) {
-        <h2 class="mt-10 text-base font-semibold">New template</h2>
-        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Starts as a copy of <span class="font-mono">default</span>; edit it above once it exists.
-        </p>
-        <form
-          (submit)="create($event)"
-          novalidate
-          class="mt-3 flex flex-wrap items-end gap-3"
-          data-testid="create"
-        >
-          <label class="text-xs text-neutral-500"
-            >Id<input
-              [class]="field"
-              placeholder="staging"
-              [value]="newId()"
-              (input)="newId.set($any($event.target).value)"
-              data-testid="new-id"
-          /></label>
-          <label class="text-xs text-neutral-500"
-            >Name<input
-              [class]="field"
-              placeholder="Staging"
-              [value]="newName()"
-              (input)="newName.set($any($event.target).value)"
-              data-testid="new-name"
-          /></label>
-          <button
-            appBtn
-            type="submit"
-            [disabled]="!canCreate() || creating()"
-            data-testid="new-save"
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-1">
+            <h2 class="gw-h2">New template</h2>
+            <p class="text-sm text-muted">
+              Starts as a copy of <span class="font-mono">default</span>; edit it above once it
+              exists.
+            </p>
+          </div>
+          <form
+            (submit)="create($event)"
+            novalidate
+            class="flex flex-wrap items-end gap-[22px]"
+            data-testid="create"
           >
-            Create
-          </button>
-          @if (createError(); as e) {
-            <span
-              class="text-sm text-red-700 dark:text-red-400"
-              role="alert"
-              data-testid="create-error"
-              >{{ e }}</span
+            <label class="flex w-[200px] flex-col gap-1"
+              ><span class="gw-label">Id</span
+              ><input
+                [class]="field"
+                placeholder="staging"
+                [value]="newId()"
+                (input)="newId.set($any($event.target).value)"
+                data-testid="new-id"
+            /></label>
+            <label class="flex w-[240px] flex-col gap-1"
+              ><span class="gw-label">Name</span
+              ><input
+                [class]="field"
+                placeholder="Staging"
+                [value]="newName()"
+                (input)="newName.set($any($event.target).value)"
+                data-testid="new-name"
+            /></label>
+            <button
+              appBtn
+              type="submit"
+              [disabled]="!canCreate() || creating()"
+              data-testid="new-save"
             >
-          }
-        </form>
+              Create
+            </button>
+            @if (createError(); as e) {
+              <span class="text-sm text-danger" role="alert" data-testid="create-error">{{
+                e
+              }}</span>
+            }
+          </form>
+        </div>
       }
 
       <app-confirm-dialog

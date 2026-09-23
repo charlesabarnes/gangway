@@ -13,12 +13,12 @@ import { ToastService } from '../../ui/toast';
   host: { class: 'block' },
   imports: [Btn],
   template: `
-    <div class="mt-6 space-y-4" data-testid="workflow">
-      <ol class="list-decimal space-y-1.5 pl-5 text-sm text-neutral-700 dark:text-neutral-300">
+    <div class="flex flex-col gap-4" data-testid="workflow">
+      <ol class="list-decimal space-y-2 pl-5 text-[15px] marker:font-mono marker:text-muted">
         <li>
           Say which port the image listens on:
           <input
-            [class]="field + ' inline-block w-24 font-mono'"
+            [class]="field + ' !inline-block !w-24 font-mono !text-sm'"
             type="number"
             min="1"
             max="65535"
@@ -43,15 +43,16 @@ import { ToastService } from '../../ui/toast';
         <button
           appBtn
           variant="ghost"
+          size="sm"
           type="button"
-          class="absolute top-2 right-2"
+          class="absolute top-2 right-2 !border-log-fg bg-log !text-log-fg hover:!bg-log-fg/10"
           (click)="copy()"
           data-testid="copy"
         >
           Copy
         </button>
         <pre
-          class="max-h-[32rem] overflow-auto rounded-lg bg-neutral-950 p-4 font-mono text-xs leading-relaxed text-neutral-200"
+          class="max-h-[32rem] overflow-auto bg-log p-4 font-mono text-xs leading-relaxed text-log-fg"
           data-testid="yaml"
           >{{ yaml() }}</pre>
       </div>

@@ -29,34 +29,35 @@ function defaultsFrom(settings: SettingView[]) {
   selector: 'app-default-templates',
   host: { class: 'block' },
   template: `
-    <h2 class="mt-10 text-base font-semibold">Default templates</h2>
-    <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-      What a deploy follows when neither the request nor its project names a template.
-    </p>
-    <div
-      class="mt-3 grid gap-3 rounded-lg border border-neutral-200 p-4 sm:grid-cols-3 dark:border-neutral-800"
-      data-testid="defaults"
-    >
-      @for (t of triggers; track t) {
-        <label class="text-xs text-neutral-500"
-          >{{ triggerLabel[t].name }}
-          <select
-            [class]="field"
-            [disabled]="!canWrite() || managed()[t] || saving() === t"
-            (change)="setDefault(t, $any($event.target).value)"
-            [attr.data-testid]="'default-' + t"
-          >
-            @for (tpl of templates(); track tpl.id) {
-              <option [value]="tpl.id" [selected]="tpl.id === defaults()[t]">
-                {{ tpl.name }}
-              </option>
-            }
-          </select>
-          <span class="mt-1 block font-normal">{{
-            managed()[t] ? 'managed by config' : triggerLabel[t].help
-          }}</span>
-        </label>
-      }
+    <div class="gw-section">
+      <div class="flex flex-col gap-1">
+        <h2 class="gw-h2">Default templates</h2>
+        <p class="gw-section-note">
+          What a deploy follows when neither the request nor its project names a template.
+        </p>
+      </div>
+      <div class="grid gap-6 sm:grid-cols-3" data-testid="defaults">
+        @for (t of triggers; track t) {
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">{{ triggerLabel[t].name }}</span>
+            <select
+              [class]="field"
+              [disabled]="!canWrite() || managed()[t] || saving() === t"
+              (change)="setDefault(t, $any($event.target).value)"
+              [attr.data-testid]="'default-' + t"
+            >
+              @for (tpl of templates(); track tpl.id) {
+                <option [value]="tpl.id" [selected]="tpl.id === defaults()[t]">
+                  {{ tpl.name }}
+                </option>
+              }
+            </select>
+            <span class="text-xs text-muted">{{
+              managed()[t] ? 'managed by config' : triggerLabel[t].help
+            }}</span>
+          </label>
+        }
+      </div>
     </div>
   `,
 })

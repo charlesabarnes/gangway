@@ -7,25 +7,25 @@ import { Btn } from '../../ui/button';
 import { FIELD } from '../../ui/field';
 
 const LEVEL_CLASS: Record<SecretLevel, string> = {
-  low: 'border-emerald-400 text-emerald-700 dark:text-emerald-300',
-  standard: 'border-neutral-300 dark:border-neutral-700',
-  high: 'border-red-400 text-red-700 dark:text-red-300',
+  low: 'shadow-[inset_0_0_0_1px_var(--gw-ok)]',
+  standard: 'shadow-[inset_0_0_0_1px_var(--gw-rule)]',
+  high: 'shadow-[inset_0_0_0_1px_var(--gw-danger)]',
 };
 
 @Component({
   selector: 'app-secrets-editor',
   imports: [Btn],
   template: `
-    <ul class="mt-2 flex flex-wrap gap-2">
+    <ul class="flex flex-wrap gap-2">
       @for (s of secrets(); track s.name) {
         <li
-          class="flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-xs"
+          class="flex items-center gap-1 bg-surface px-2 py-1 font-mono text-xs"
           [class]="levelClass[s.level]"
           data-testid="secret"
         >
-          {{ s.name }}<span class="text-neutral-400">=••••</span>
+          {{ s.name }}<span class="text-muted">=••••</span>
           <select
-            class="ml-1 bg-transparent text-[11px]"
+            class="ml-1 bg-transparent text-[11px] text-muted [&>option]:bg-paper"
             (change)="relevel(s.name, $any($event.target).value)"
             [attr.aria-label]="'Level of ' + s.name"
             data-testid="level"
@@ -37,7 +37,7 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           <button
             type="button"
             (click)="unset(s.name)"
-            class="ml-1 text-neutral-500 hover:text-red-600"
+            class="ml-1 text-muted hover:text-danger"
             [attr.aria-label]="'Remove ' + s.name"
             data-testid="unset"
           >
@@ -45,12 +45,13 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           </button>
         </li>
       } @empty {
-        <li class="text-xs text-neutral-500" data-testid="no-secrets">None yet.</li>
+        <li class="text-sm text-muted" data-testid="no-secrets">None yet.</li>
       }
     </ul>
-    <form (submit)="set($event)" novalidate class="mt-2 flex flex-wrap items-end gap-2">
-      <label class="text-xs text-neutral-500"
-        >Name<input
+    <form (submit)="set($event)" novalidate class="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3">
+      <label class="flex flex-col gap-1"
+        ><span class="gw-label">Name</span
+        ><input
           [class]="field"
           placeholder="FONTAWESOME_TOKEN"
           autocomplete="off"
@@ -58,8 +59,9 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           (input)="edit('name', $any($event.target).value)"
           data-testid="secret-name"
       /></label>
-      <label class="min-w-64 flex-1 text-xs text-neutral-500"
-        >Value<input
+      <label class="min-w-64 flex-1 flex flex-col gap-1"
+        ><span class="gw-label">Value</span
+        ><input
           [class]="field"
           type="password"
           autocomplete="new-password"
@@ -67,8 +69,9 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           (input)="edit('value', $any($event.target).value)"
           data-testid="secret-value"
       /></label>
-      <label class="text-xs text-neutral-500"
-        >Level<select
+      <label class="flex flex-col gap-1"
+        ><span class="gw-label">Level</span
+        ><select
           [class]="field"
           (change)="edit('level', $any($event.target).value)"
           data-testid="secret-level"
@@ -78,15 +81,22 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           }
         </select></label
       >
-      <button appBtn variant="ghost" type="submit" [disabled]="!ready()" data-testid="set-secret">
+      <button
+        appBtn
+        variant="ghost"
+        size="sm"
+        type="submit"
+        [disabled]="!ready()"
+        data-testid="set-secret"
+      >
         Set
       </button>
     </form>
-    <details class="mt-2">
-      <summary class="cursor-pointer text-xs text-neutral-500">Paste a .env instead</summary>
+    <details class="mt-3">
+      <summary class="gw-action inline-block">Paste a .env instead</summary>
       <form (submit)="paste($event)" novalidate class="mt-2">
         <textarea
-          [class]="field"
+          [class]="field + ' font-mono !text-[13px]'"
           rows="5"
           spellcheck="false"
           placeholder='KEY=value&#10;OTHER="quoted value"'
@@ -95,10 +105,10 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           data-testid="secret-paste"
         ></textarea>
         <div class="mt-2 flex flex-wrap items-center gap-3">
-          <label class="text-xs text-neutral-500"
+          <label class="text-sm text-muted"
             >all at level
             <select
-              [class]="field + ' inline w-auto'"
+              [class]="field + ' !inline !w-auto'"
               (change)="pastedLevel.set($any($event.target).value)"
               data-testid="pasted-level"
             >
@@ -110,6 +120,7 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           <button
             appBtn
             variant="ghost"
+            size="sm"
             type="submit"
             [disabled]="parseDotenv(pasted()).length === 0"
             data-testid="set-pasted"
@@ -118,7 +129,7 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
               parseDotenv(pasted()).length === 1 ? '' : 's'
             }}
           </button>
-          <span class="text-xs text-neutral-500"
+          <span class="text-xs text-muted"
             >Comments and blank lines are skipped; quotes are removed. Existing names are
             overwritten, others kept.</span
           >
@@ -126,11 +137,7 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
       </form>
     </details>
     @if (error(); as e) {
-      <p
-        class="mt-1 text-sm text-red-700 dark:text-red-400"
-        role="alert"
-        data-testid="secret-error"
-      >
+      <p class="mt-1 text-sm text-danger" role="alert" data-testid="secret-error">
         {{ e }}
       </p>
     }

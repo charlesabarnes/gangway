@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .ink { fill: #102743; }
+    @media (prefers-color-scheme: dark) { .ink { fill: #f9f5ec; } }
+  </style>
+  <rect x="9" y="4" width="14" height="8" fill="#f3c443"/>
+  <rect x="2" y="13" width="13" height="7" fill="#c93029"/>
+  <rect class="ink" x="17" y="13" width="13" height="7"/>
+  <polygon class="ink" points="1,22 31,22 26,30 6,30"/>
+</svg>

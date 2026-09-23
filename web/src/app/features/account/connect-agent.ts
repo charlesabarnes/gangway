@@ -96,74 +96,83 @@ const TABS: AgentClient[] = ['claude', 'codex', 'cursor', 'vscode', 'other'];
 
 @Component({
   selector: 'app-connect-agent',
+  host: { class: 'contents' },
   template: `
     @if (caps(); as c) {
-      <h2 class="mt-10 text-base font-semibold">Connect an agent</h2>
-      @if (!c.surfaces.mcp) {
-        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400" data-testid="mcp-off">
-          MCP is switched off on this server. An admin can turn it on in Settings → Surfaces.
-        </p>
-      } @else {
-        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Let an AI agent deploy here as you. It can do no more than your role allows, and you
-          approve it on this site.
-        </p>
-        <div
-          class="mt-3 flex flex-wrap gap-1 border-b border-neutral-200 text-sm dark:border-neutral-800"
-          role="tablist"
-        >
-          @for (t of tabs; track t) {
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="tab() === t"
-              (click)="tab.set(t)"
-              [attr.data-testid]="'agent-' + t"
-              class="-mb-px border-b-2 px-3 py-2"
-              [class]="
-                tab() === t
-                  ? 'border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
-              "
-            >
-              {{ all()![t].label }}
-            </button>
+      <div class="gw-section">
+        <div class="flex flex-col gap-1">
+          <h2 class="gw-h2">Connect an agent</h2>
+          @if (c.surfaces.mcp) {
+            <p class="gw-section-note">
+              Let an AI agent deploy here as you. It can do no more than your role allows, and you
+              approve it on this site.
+            </p>
           }
         </div>
-        @if (shown(); as r) {
-          <div class="mt-4 space-y-4 text-sm" data-testid="agent-recipe">
-            @if (r.link) {
-              <a
-                [href]="r.link.href"
-                class="inline-flex rounded-md bg-accent px-3.5 py-2 font-medium text-white hover:brightness-110"
-                data-testid="agent-link"
-                >{{ r.link.text }}</a
-              >
-            }
-            @for (s of r.steps; track $index) {
-              <div>
-                <p class="text-neutral-700 dark:text-neutral-300">{{ s.note }}</p>
-                @if (s.code) {
-                  <div class="relative mt-1.5">
-                    <pre
-                      class="whitespace-pre-wrap break-all rounded-md bg-neutral-100 p-3 pr-16 font-mono text-xs dark:bg-neutral-900"
-                      data-testid="agent-code"
-                      >{{ s.code }}</pre>
-                    <button
-                      type="button"
-                      (click)="copy(s.code, $index)"
-                      class="absolute right-2 top-2 rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-600 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-400"
-                      data-testid="agent-copy"
-                    >
-                      {{ copied() === $index ? 'Copied' : 'Copy' }}
-                    </button>
+        <div class="min-w-0">
+          @if (!c.surfaces.mcp) {
+            <p class="text-sm text-muted" data-testid="mcp-off">
+              MCP is switched off on this server. An admin can turn it on in Settings → Surfaces.
+            </p>
+          } @else {
+            <div
+              class="flex flex-wrap gap-7 border-b border-ink text-[13px] font-medium tracking-[.12em] uppercase"
+              role="tablist"
+            >
+              @for (t of tabs; track t) {
+                <button
+                  type="button"
+                  role="tab"
+                  [attr.aria-selected]="tab() === t"
+                  (click)="tab.set(t)"
+                  [attr.data-testid]="'agent-' + t"
+                  class="py-2.5 focus-visible:outline-2 focus-visible:outline-flag"
+                  [class]="
+                    tab() === t
+                      ? 'shadow-[inset_0_-3px_0_var(--gw-flag)]'
+                      : 'text-muted hover:text-ink'
+                  "
+                >
+                  {{ all()![t].label }}
+                </button>
+              }
+            </div>
+            @if (shown(); as r) {
+              <div class="mt-4 flex flex-col gap-4 text-sm" data-testid="agent-recipe">
+                @if (r.link) {
+                  <a
+                    [href]="r.link.href"
+                    class="self-start rounded-[2px] bg-primary px-4 py-2.5 text-[13px] font-semibold tracking-[.1em] text-primary-fg uppercase hover:brightness-110"
+                    data-testid="agent-link"
+                    >{{ r.link.text }}</a
+                  >
+                }
+                @for (s of r.steps; track $index) {
+                  <div>
+                    <p class="text-muted">{{ s.note }}</p>
+                    @if (s.code) {
+                      <div class="relative mt-1.5">
+                        <pre
+                          class="bg-log px-3 py-2.5 pr-16 font-mono text-xs leading-normal break-all whitespace-pre-wrap text-log-fg"
+                          data-testid="agent-code"
+                          >{{ s.code }}</pre>
+                        <button
+                          type="button"
+                          (click)="copy(s.code, $index)"
+                          class="absolute top-2 right-2 text-[11px] font-semibold tracking-[.14em] text-log-fg/70 uppercase hover:text-log-fg"
+                          data-testid="agent-copy"
+                        >
+                          {{ copied() === $index ? 'Copied' : 'Copy' }}
+                        </button>
+                      </div>
+                    }
                   </div>
                 }
               </div>
             }
-          </div>
-        }
-      }
+          }
+        </div>
+      </div>
     }
   `,
 })

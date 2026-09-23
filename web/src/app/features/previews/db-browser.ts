@@ -20,35 +20,34 @@ const PAGE = 50;
   imports: [Btn],
   template: `
     @if (!canData()) {
-      <p class="p-4 text-sm text-neutral-500" data-testid="db-no-permission">
+      <p class="p-4 text-sm text-muted" data-testid="db-no-permission">
         Looking inside a preview's databases needs
         <code class="font-mono text-xs">previews.data</code>.
       </p>
     } @else if (addons().length === 0) {
-      <p class="p-4 text-sm text-neutral-500" data-testid="db-none">
+      <p class="p-4 text-sm text-muted" data-testid="db-none">
         This preview has no databases. Add one with
         <code class="font-mono text-xs">addons: [postgres]</code> in gangway.yml, and save.
       </p>
     } @else {
       <div class="flex h-full min-h-0 flex-col text-sm">
-        <div
-          class="flex items-center gap-1 border-b border-neutral-200 px-2 py-1 dark:border-neutral-800"
-        >
+        <div class="flex items-center gap-1 border-b border-rule bg-surface px-2 py-1.5">
           @for (a of addons(); track a.id) {
             <button
               type="button"
               (click)="pick(a.id)"
               [attr.aria-pressed]="addon() === a.id"
               [attr.data-testid]="'db-' + a.id"
-              class="rounded px-2 py-0.5 text-xs"
-              [class]="addon() === a.id ? 'bg-neutral-200 dark:bg-neutral-800' : 'text-neutral-500'"
+              class="px-2.5 py-[3px] text-xs font-medium tracking-[.1em] uppercase"
+              [class]="addon() === a.id ? 'bg-ink text-paper' : 'text-muted hover:text-ink'"
             >
               {{ a.name }} {{ a.version }}
             </button>
           }
-          <label class="ml-auto flex items-center gap-1.5 text-xs text-neutral-500"
+          <label class="ml-auto flex items-center gap-1.5 text-xs text-muted"
             ><input
               type="checkbox"
+              class="gw-box"
               [checked]="write()"
               (change)="write.set($any($event.target).checked)"
               data-testid="db-write"
@@ -58,14 +57,11 @@ const PAGE = 50;
         </div>
 
         <div class="grid min-h-0 flex-1 grid-cols-[12rem_1fr]">
-          <div
-            class="min-h-0 overflow-auto border-r border-neutral-200 dark:border-neutral-800"
-            data-testid="db-list"
-          >
+          <div class="min-h-0 overflow-auto border-r border-rule" data-testid="db-list">
             @if (addon() === 'redis') {
               <form (submit)="$event.preventDefault(); loadKeys(true)" class="p-1.5">
                 <input
-                  class="w-full rounded border border-neutral-300 bg-white px-1.5 py-0.5 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                  class="w-full border-0 border-b border-ink bg-transparent px-0 py-1 font-mono text-xs placeholder:text-muted focus:outline-none focus-visible:shadow-[0_2px_0_var(--gw-flag)]"
                   placeholder="match *"
                   [value]="match()"
                   (input)="match.set($any($event.target).value)"
@@ -77,8 +73,8 @@ const PAGE = 50;
                 <button
                   type="button"
                   (click)="openKey(k)"
-                  class="block w-full truncate px-2 py-0.5 text-left font-mono text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                  [class.text-accent]="selected() === k"
+                  class="block w-full truncate px-2 py-0.5 text-left font-mono text-xs hover:bg-ink/5"
+                  [class.font-semibold]="selected() === k"
                   data-testid="db-key"
                 >
                   {{ k }}
@@ -88,7 +84,7 @@ const PAGE = 50;
                 <button
                   type="button"
                   (click)="loadKeys(false)"
-                  class="px-2 py-1 text-xs text-accent"
+                  class="gw-action px-2 py-1"
                   data-testid="db-more"
                 >
                   more…
@@ -99,8 +95,8 @@ const PAGE = 50;
                 <button
                   type="button"
                   (click)="openTable(t)"
-                  class="block w-full truncate px-2 py-0.5 text-left font-mono text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                  [class.text-accent]="selected() === t.schema + '.' + t.name"
+                  class="block w-full truncate px-2 py-0.5 text-left font-mono text-xs hover:bg-ink/5"
+                  [class.font-semibold]="selected() === t.schema + '.' + t.name"
                   data-testid="db-table"
                 >
                   {{
@@ -108,17 +104,15 @@ const PAGE = 50;
                   }}
                 </button>
               } @empty {
-                <p class="p-2 text-xs text-neutral-500">No tables yet.</p>
+                <p class="p-2 text-xs text-muted">No tables yet.</p>
               }
             }
           </div>
 
           <div class="flex min-h-0 flex-col">
-            <div
-              class="flex items-start gap-2 border-b border-neutral-200 p-1.5 dark:border-neutral-800"
-            >
+            <div class="flex items-start gap-2 border-b border-rule p-2">
               <textarea
-                class="h-14 min-w-0 flex-1 resize-y rounded border border-neutral-300 bg-white px-2 py-1 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                class="h-14 min-w-0 flex-1 resize-y border border-rule bg-surface px-2 py-1 font-mono text-xs text-ink placeholder:text-muted focus:border-ink focus:outline-none"
                 [placeholder]="
                   addon() === 'redis' ? 'GET key   (⌘↵ to run)' : 'select * from …   (⌘↵ to run)'
                 "
@@ -130,6 +124,7 @@ const PAGE = 50;
               ></textarea>
               <button
                 appBtn
+                size="sm"
                 type="button"
                 (click)="run()"
                 [disabled]="busy() || !text().trim()"
@@ -140,7 +135,7 @@ const PAGE = 50;
             </div>
             @if (error(); as e) {
               <p
-                class="px-2 py-1 font-mono text-xs whitespace-pre-wrap text-red-700 dark:text-red-400"
+                class="px-2 py-1 font-mono text-xs whitespace-pre-wrap text-danger"
                 role="alert"
                 data-testid="db-error"
               >
@@ -149,7 +144,7 @@ const PAGE = 50;
             }
             @if (result(); as r) {
               <div
-                class="flex items-center gap-3 px-2 py-1 text-xs text-neutral-500"
+                class="flex items-center gap-3 px-2 py-1 text-xs text-muted"
                 data-testid="db-meta"
               >
                 <span
@@ -185,12 +180,10 @@ const PAGE = 50;
               </div>
               <div class="min-h-0 flex-1 overflow-auto">
                 <table class="min-w-full border-collapse font-mono text-xs" data-testid="db-grid">
-                  <thead class="sticky top-0 bg-neutral-100 dark:bg-neutral-900">
+                  <thead class="sticky top-0 bg-paper">
                     <tr>
                       @for (c of r.columns; track $index) {
-                        <th
-                          class="border-b border-neutral-200 px-2 py-1 text-left font-medium dark:border-neutral-800"
-                        >
+                        <th class="border-b border-ink px-2 py-1 text-left font-medium">
                           {{ c }}
                         </th>
                       }
@@ -198,14 +191,14 @@ const PAGE = 50;
                   </thead>
                   <tbody>
                     @for (row of r.rows; track $index) {
-                      <tr class="odd:bg-neutral-50 dark:odd:bg-neutral-900/40">
+                      <tr class="odd:bg-surface">
                         @for (cell of row; track $index) {
                           <td
-                            class="max-w-80 truncate border-b border-neutral-100 px-2 py-0.5 dark:border-neutral-900"
+                            class="max-w-80 truncate border-b border-rule/60 px-2 py-0.5"
                             [title]="cell ?? 'NULL'"
                           >
                             @if (cell === null) {
-                              <span class="text-neutral-400 italic">NULL</span>
+                              <span class="text-muted italic">NULL</span>
                             } @else {
                               {{ cell }}
                             }
@@ -216,11 +209,11 @@ const PAGE = 50;
                   </tbody>
                 </table>
                 @if (r.message) {
-                  <p class="px-2 py-1 text-xs text-neutral-500">{{ r.message }}</p>
+                  <p class="px-2 py-1 text-xs text-muted">{{ r.message }}</p>
                 }
               </div>
             } @else if (busy()) {
-              <p class="p-2 text-xs text-neutral-500">Running…</p>
+              <p class="p-2 text-xs text-muted">Running…</p>
             }
           </div>
         </div>

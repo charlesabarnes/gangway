@@ -26,7 +26,7 @@ const MIN_PASSWORD = 12;
           </p>
         </app-error-alert>
       } @else {
-        <form (submit)="submit($event)" novalidate class="space-y-5">
+        <form (submit)="submit($event)" novalidate class="space-y-[18px]">
           @if (error(); as e) {
             <app-error-alert class="px-3 py-2.5" data-testid="error">
               <p>{{ e.message }}</p>
@@ -68,7 +68,7 @@ const MIN_PASSWORD = 12;
             <p
               id="pw-hint"
               class="mt-1.5 text-xs"
-              [class]="tooShort() ? 'text-amber-700 dark:text-amber-400' : 'text-neutral-500'"
+              [class]="tooShort() ? 'text-warn' : 'text-muted'"
             >
               At least {{ min }} characters. Length is the only rule — a few unrelated words works
               well.
@@ -88,16 +88,14 @@ const MIN_PASSWORD = 12;
               data-testid="confirm"
             />
             @if (mismatch()) {
-              <p class="mt-1.5 text-xs text-amber-700 dark:text-amber-400" data-testid="mismatch">
-                These do not match yet.
-              </p>
+              <p class="mt-1.5 text-xs text-warn" data-testid="mismatch">These do not match yet.</p>
             }
           </div>
 
           <button
             appBtn
             type="submit"
-            class="w-full"
+            class="w-full !py-[13px] !text-sm !tracking-[.14em]"
             [disabled]="busy() || !ready()"
             data-testid="submit"
           >

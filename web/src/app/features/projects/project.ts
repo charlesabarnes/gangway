@@ -28,52 +28,55 @@ type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
   selector: 'app-project',
   imports: [ProjectPreviews, ProjectSecrets, ProjectSettings, ProjectWorkflow, RouterLink],
   template: `
-    <section class="mx-auto max-w-5xl px-6 py-10">
-      <p class="text-sm text-neutral-500">
-        <a routerLink="/projects" class="hover:text-accent">Projects</a> <span class="px-1">/</span>
-        {{ project()?.slug ?? ref() }}
-      </p>
-      @if (project(); as p) {
-        <div class="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 class="text-2xl font-semibold tracking-tight">{{ p.name }}</h1>
-          @if (!p.enabled) {
-            <span
-              class="rounded-full border border-amber-400 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400"
-              >disabled</span
-            >
-          }
-          <span class="text-sm text-neutral-600 dark:text-neutral-400" data-testid="source"
-            >{{ p.fullName ? p.fullName : 'no repository' }}
-            @if (p.fullName) {
-              · pull requests from
-              {{ p.prTrigger === 'workflow' ? 'its workflow' : 'the GitHub App' }}
+    <section class="gw-page">
+      <div class="flex flex-col gap-3.5">
+        <p class="m-0 text-xs font-semibold tracking-[.14em] text-muted uppercase">
+          <a routerLink="/projects" class="hover:text-ink">Projects</a>
+          <span class="px-1">/</span>
+          {{ project()?.slug ?? ref() }}
+        </p>
+        @if (project(); as p) {
+          <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <h1 class="gw-h1">{{ p.name }}</h1>
+            @if (!p.enabled) {
+              <span class="gw-tag self-center border-danger text-danger">disabled</span>
             }
-          </span>
-        </div>
-        @if (p.disabledReason; as why) {
-          <p class="mt-1 text-sm text-amber-700 dark:text-amber-400">{{ why }}</p>
-        }
-
-        <nav
-          class="mt-6 flex gap-5 border-b border-neutral-200 text-sm dark:border-neutral-800"
-          aria-label="Project"
-        >
-          @for (t of tabs(); track t.id) {
-            <a
-              [routerLink]="[]"
-              [queryParams]="{ tab: t.id === 'previews' ? null : t.id }"
-              class="-mb-px border-b-2 px-0.5 pb-2.5 font-medium"
-              [class]="
-                tab() === t.id
-                  ? 'border-accent text-neutral-900 dark:text-neutral-100'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
-              "
-              [attr.data-testid]="'tab-' + t.id"
-              >{{ t.label }}</a
-            >
+            <span class="font-mono text-[13px] text-muted" data-testid="source"
+              >{{ p.fullName ? p.fullName : 'no repository' }}
+              @if (p.fullName) {
+                · pull requests from
+                {{ p.prTrigger === 'workflow' ? 'its workflow' : 'the GitHub App' }}
+              }
+            </span>
+          </div>
+          @if (p.disabledReason; as why) {
+            <p class="m-0 text-sm text-danger">{{ why }}</p>
           }
-        </nav>
 
+          <nav
+            class="flex gap-7 overflow-x-auto border-b border-ink text-[13px] font-medium tracking-[.12em] uppercase"
+            aria-label="Project"
+          >
+            @for (t of tabs(); track t.id) {
+              <a
+                [routerLink]="[]"
+                [queryParams]="{ tab: t.id === 'previews' ? null : t.id }"
+                class="py-2.5"
+                [class]="
+                  tab() === t.id
+                    ? 'shadow-[inset_0_-3px_0_var(--gw-flag)]'
+                    : 'text-muted hover:text-ink'
+                "
+                [attr.aria-current]="tab() === t.id ? 'page' : null"
+                [attr.data-testid]="'tab-' + t.id"
+                >{{ t.label }}</a
+              >
+            }
+          </nav>
+        }
+      </div>
+
+      @if (project(); as p) {
         @switch (tab()) {
           @case ('previews') {
             <app-project-previews [project]="p" />
@@ -94,9 +97,11 @@ type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
           }
         }
       } @else if (missing()) {
-        <p class="mt-6 text-sm text-neutral-500" data-testid="missing">
+        <p class="text-sm text-muted" data-testid="missing">
           No such project.
-          <a routerLink="/projects" class="text-accent hover:underline">Back to projects</a>.
+          <a routerLink="/projects" class="text-ink underline underline-offset-2"
+            >Back to projects</a
+          >.
         </p>
       }
     </section>

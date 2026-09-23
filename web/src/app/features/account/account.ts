@@ -7,30 +7,41 @@ import { ChangePassword } from './change-password';
   selector: 'app-account',
   imports: [ApiTokens, ChangePassword],
   template: `
-    <section class="mx-auto max-w-3xl px-6 py-10">
-      <h1 class="text-2xl font-semibold tracking-tight">Account</h1>
+    <section class="gw-page">
+      <div class="gw-title-rule"><h1 class="gw-h1">Account</h1></div>
 
       @if (auth.user(); as user) {
         <div
-          class="mt-6 rounded-lg border border-neutral-200 p-5 dark:border-neutral-800"
+          class="gw-neatline grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] md:gap-10"
           data-testid="identity"
         >
-          <p class="font-medium">{{ user.email }}</p>
-          <p class="mt-0.5 text-sm text-neutral-500">
-            Role: <span class="text-neutral-800 dark:text-neutral-200">{{ user.role.name }}</span>
-          </p>
-          <p class="mt-4 text-xs text-neutral-500">
-            What this role may do. An admin can change it, and changes apply at once — no need to
-            log in again.
-          </p>
-          <dl class="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2" data-testid="permissions">
+          <div class="flex flex-col gap-1.5">
+            <p class="font-mono text-xl font-medium tracking-[-.02em] break-all">
+              {{ user.email }}
+            </p>
+            <p class="text-[15px] text-muted">
+              Role: <span class="text-ink">{{ user.role.name }}</span>
+            </p>
+            <p class="mt-2.5 text-[13px] leading-snug text-muted">
+              What this role may do. An admin can change it, and changes apply at once — no need to
+              log in again.
+            </p>
+          </div>
+          <dl
+            class="grid content-start gap-x-7 gap-y-2 text-sm sm:grid-cols-2"
+            data-testid="permissions"
+          >
             @for (g of grouped(); track g.feature) {
-              <div class="flex gap-2">
-                <dt class="w-20 shrink-0 text-neutral-500">{{ g.feature }}</dt>
-                <dd>{{ g.verbs.join(', ') }}</dd>
+              <div class="flex items-baseline gap-1.5">
+                <dt class="whitespace-nowrap text-muted">{{ g.feature }}</dt>
+                <span
+                  class="flex-1 -translate-y-1 border-b border-dotted border-rule"
+                  aria-hidden="true"
+                ></span>
+                <dd class="text-right">{{ g.verbs.join(', ') }}</dd>
               </div>
             } @empty {
-              <p class="text-neutral-500">Nothing. Ask an admin.</p>
+              <p class="text-muted">Nothing. Ask an admin.</p>
             }
           </dl>
         </div>

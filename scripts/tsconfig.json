@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": { "erasableSyntaxOnly": true, "moduleDetection": "force", "types": ["bun"] },
-  "include": ["*.ts"]
+  "include": ["*.ts", "../server/src/svg.d.ts"]
 }
