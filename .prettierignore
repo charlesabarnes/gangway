@@ -1,0 +1,7 @@
+web/
+state/
+docs/
+spec.md
+bun.lock
+# Applied migrations are checksummed: never reformat them.
+server/migrations/
