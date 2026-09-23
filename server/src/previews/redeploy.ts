@@ -1,36 +1,33 @@
-import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import type { Host, Preview, PreviewSource } from "@gangway/shared/domain";
+import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
+import type { Host, Preview } from "@gangway/shared/domain";
 import { actorId, mayRebuild, type Actor } from "../auth/actor.ts";
-import { buildArgv, composeArgv, psArgv, runArgv, upArgv } from "../docker/compose.ts";
-import { AppError, conflict, forbidden, notFound, errorMessage, unprocessable } from "../errors.ts";
-import { redactString } from "../logger.ts";
+import { psArgv, upArgv } from "../docker/compose.ts";
+import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors.ts";
 import { ulid } from "../util/ulid.ts";
-import { addonServices } from "./addons.ts";
-import { buildStack, selectExposed, type PlannedRoute } from "./compose-model.ts";
+import type { PlannedRoute } from "./compose-routes.ts";
 import type { PreviewContext } from "./context.ts";
 import {
-  healthOf,
-  PLAN_PROJECT,
-  prepareUpload,
-  readModel,
-  releaseFor,
-  salvage,
-  STACK_FILE,
-  StepFailed,
-  stepper,
-  waitAnswering,
-  waitHealthy,
-  type WaitTarget,
-} from "./deploy.ts";
+  buildImages,
+  failStack,
+  failureMessage,
+  openPipeline,
+  runJob,
+  startStack,
+  waitTargetFor,
+  type Pipeline,
+  type RunPlan,
+} from "./pipeline.ts";
+import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
+import { imageIds, removeReplaced } from "./replaced-images.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
-import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
-import { GENERATED_DIR } from "./source/store.ts";
-import { extractTarball, type TarballSource } from "./source/tarball.ts";
-import { DIR_MODE, FILE_MODE, resolveWithin } from "./source/types.ts";
+import type { SourceEdits } from "./source-edits.ts";
+import type { SourceStore } from "./source/store.ts";
+import type { TarballSource } from "./source/tarball.ts";
+import { writeStack } from "./stack-file.ts";
+import { releaseFor } from "./steps.ts";
+import { waitAnswering, waitHealthy } from "./wait.ts";
 
-export type SourceEdits = Record<string, string | null>;
+export { checkEditPath, type SourceEdits } from "./source-edits.ts";
 
 export type RedeployInput = {
   actor: Actor;
@@ -56,50 +53,6 @@ export type RedeployResult = {
 const REBUILD_REFUSAL =
   'this preview was deployed by someone else: "previews.update_own" covers only your own, and rebuilding any preview needs "previews.update" (the `update` scope for a token or an agent)';
 
-export function checkEditPath(p: string): string {
-  const bad = (why: string) =>
-    unprocessable(`cannot write ${JSON.stringify(p.slice(0, 200))}: ${why}`);
-  if (p.length === 0 || p.length > 255) throw bad("a path is 1-255 characters");
-  if (p.includes("\0") || p.includes("\\")) throw bad("no NUL or backslash");
-  if (p.startsWith("/")) throw bad("paths are relative to the upload's root");
-  const parts = p.split("/");
-  if (parts.some((s) => s === "" || s === "." || s === ".."))
-    throw bad("no empty, `.` or `..` segments");
-  if (parts.includes(GENERATED_DIR)) throw bad(`${GENERATED_DIR}/ is written by gangway`);
-  return p;
-}
-
-async function applyEdits(srcDir: string, files: SourceEdits): Promise<number> {
-  let n = 0;
-  for (const [rel, text] of Object.entries(files)) {
-    checkEditPath(rel);
-    const abs = resolveWithin(srcDir, rel);
-    if (!abs) throw unprocessable(`cannot write ${JSON.stringify(rel)}: it leaves the upload`);
-    const parts = rel.split("/");
-    for (let i = 1; i <= parts.length; i++) {
-      const st = await lstat(join(srcDir, ...parts.slice(0, i))).catch(() => null);
-      if (st?.isSymbolicLink())
-        throw unprocessable(
-          `cannot write ${JSON.stringify(rel)}: ${parts.slice(0, i).join("/")} is a symlink`,
-        );
-      if (st && i < parts.length && !st.isDirectory())
-        throw unprocessable(
-          `cannot write ${JSON.stringify(rel)}: ${parts.slice(0, i).join("/")} is a file`,
-        );
-      if (st && i === parts.length && st.isDirectory())
-        throw unprocessable(`cannot write ${JSON.stringify(rel)}: it is a directory`);
-    }
-    if (text === null) {
-      await rm(abs, { force: true });
-    } else {
-      await mkdir(dirname(abs), { recursive: true, mode: DIR_MODE });
-      await writeFile(abs, text, { mode: FILE_MODE });
-    }
-    n++;
-  }
-  return n;
-}
-
 const routesOf = (ctx: PreviewContext, previewId: string): PlannedRoute[] =>
   ctx.table.forPreview(previewId).map((e) => ({
     hostname: e.hostname,
@@ -110,7 +63,10 @@ const routesOf = (ctx: PreviewContext, previewId: string): PlannedRoute[] =>
     primary: e.primary,
   }));
 
-export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promise<RedeployResult> {
+async function checkRebuildable(
+  ctx: PreviewContext,
+  input: RedeployInput,
+): Promise<{ host: Host; sources: SourceStore }> {
   const id = input.previewId;
   const current = ctx.previews.get(id);
   if (!current || current.state === "destroyed") throw notFound(`no such preview: ${id}`);
@@ -122,8 +78,18 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   }
   const host = ctx.hosts.get(current.hostId);
   if (!host) throw new AppError("internal", `preview ${id} is on unknown host ${current.hostId}`);
+  return { host, sources: ctx.sources };
+}
 
-  // No await from these checks until the inflight claim, so two saves can't both get past.
+type Claimed = {
+  preview: Preview;
+  abort: AbortController;
+  done: Promise<RedeployOutcome>;
+  settle: (o: RedeployOutcome) => void;
+};
+
+// No await from these checks until the inflight claim, so two saves can't both get past.
+function claimRebuild(ctx: PreviewContext, id: string): Claimed {
   const preview = ctx.previews.get(id)!;
   if (!["awake", "asleep", "failed"].includes(preview.state)) {
     throw conflict(`the preview is ${preview.state}; wait for it to settle`, {
@@ -138,74 +104,40 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     settle = r;
   });
   ctx.inflight.set(id, { abort, done: done.then((o) => o.preview) });
+  return { preview, abort, done, settle };
+}
+
+function announce(ctx: PreviewContext, b: Rebuild, plan: RebuildPlan, buildId: string): void {
+  const id = b.preview.id;
+  ctx.bus.publish(
+    "preview.redeploy",
+    { phase: "started", buildId, by: actorId(b.input.actor) },
+    id,
+  );
+  ctx.audit.record(b.input.actor, "preview.redeploy", id, {
+    new: {
+      project: b.preview.project,
+      change: b.input.change.kind,
+      runtime: plan.next.kind === "tarball" ? (plan.next.runtime ?? "own") : null,
+      buildId,
+    },
+  });
+}
+
+export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promise<RedeployResult> {
+  const id = input.previewId;
+  const { host, sources } = await checkRebuildable(ctx, input);
+  const { preview, abort, done, settle } = claimRebuild(ctx, id);
 
   const buildId = ulid(ctx.now());
   const wd = await ctx.workdirs.create(buildId).catch((e) => {
     ctx.inflight.delete(id);
     throw e;
   });
-  const source = preview.source as Extract<PreviewSource, { kind: "tarball" }>;
-  const routes = routesOf(ctx, id);
-  let appPlan: AppPlan | undefined;
-  let plan: {
-    resolved: unknown;
-    model: Awaited<ReturnType<typeof readModel>>["model"];
-    runtime: PreviewSource;
-    addonServices: string[];
-  };
+  const b: Rebuild = { input, sources, preview, host, wd, routes: routesOf(ctx, id) };
+  let plan: RebuildPlan;
   try {
-    if (routes.length === 0) throw conflict("the preview has no routes to rebuild behind");
-    if (input.change.kind === "replace") {
-      const r = await extractTarball(input.change.archive, wd.srcDir);
-      ctx.logs.append(
-        id,
-        "system",
-        `rebuilding from a new upload (requested by ${actorId(input.actor)}): ${r.files} files, ${r.totalBytes} bytes`,
-      );
-    } else {
-      await ctx.sources.copyTo(id, wd.srcDir);
-      const n = await applyEdits(wd.srcDir, input.change.files);
-      ctx.logs.append(
-        id,
-        "system",
-        `rebuilding with ${n} edited file${n === 1 ? "" : "s"} (requested by ${actorId(input.actor)})`,
-      );
-    }
-    const choice: RuntimeChoice = input.runtime ?? "auto";
-    const env =
-      preview.secretLevel === null || preview.secretLevel === "none"
-        ? {}
-        : ctx.secretsFor?.(preview.projectId, preview.secretLevel);
-    const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
-    const up = await prepareUpload(ctx, id, wd, choice, env, port, {
-      previous: source.runtime ?? "own",
-      addons: input.addons,
-      previousAddons: source.addons,
-    });
-    const { model, resolved } = await readModel(ctx, host, wd, up.composeFile);
-
-    const want = new Set(routes.map((r) => `${r.service}:${r.containerPort}`));
-    const got = new Set(selectExposed(model).map((e) => `${e.service}:${e.containerPort}`));
-    if (want.size !== got.size || [...want].some((k) => !got.has(k))) {
-      throw unprocessable(
-        "the new source exposes different services or ports than this preview; deploy it as a new preview instead",
-        {
-          expected: [...want].sort(),
-          got: [...got].sort(),
-        },
-      );
-    }
-
-    if (up.pristine) await ctx.sources.adopt(id, up.pristine);
-    const next: PreviewSource = {
-      kind: "tarball",
-      uploadId: source.uploadId,
-      ...(up.runtime ? { runtime: up.runtime } : {}),
-      ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
-    };
-    if (JSON.stringify(next) !== JSON.stringify(source)) ctx.previews.setSource(id, next);
-    plan = { resolved, model, runtime: next, addonServices: addonServices(up.plan.addons) };
-    appPlan = up.plan;
+    plan = await planRebuild(ctx, b);
   } catch (e) {
     await wd.cleanup();
     ctx.inflight.delete(id);
@@ -218,17 +150,19 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     throw e;
   }
 
-  ctx.bus.publish("preview.redeploy", { phase: "started", buildId, by: actorId(input.actor) }, id);
-  ctx.audit.record(input.actor, "preview.redeploy", id, {
-    new: {
-      project: preview.project,
-      change: input.change.kind,
-      runtime: plan.runtime.kind === "tarball" ? (plan.runtime.runtime ?? "own") : null,
-      buildId,
-    },
-  });
-
-  void run(ctx, { preview, host, wd, routes, buildId, signal: abort.signal, ...plan })
+  announce(ctx, b, plan, buildId);
+  const r: RebuildRun = {
+    preview,
+    host,
+    wd,
+    routes: b.routes,
+    visibility: preview.visibility,
+    buildId,
+    signal: abort.signal,
+    ...plan.planned,
+    addonServices: plan.addonServices,
+  };
+  void run(ctx, r)
     .then(
       (o) => settle(o),
       (e: unknown) =>
@@ -243,220 +177,99 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
       ctx.inflight.delete(id);
     });
 
-  return { preview: ctx.previews.get(id)!, buildId, done, plan: appPlan };
+  return { preview: ctx.previews.get(id)!, buildId, done, plan: plan.app };
 }
 
-type RunInput = {
-  preview: Preview;
-  host: Host;
-  wd: Awaited<ReturnType<PreviewContext["workdirs"]["create"]>>;
-  routes: PlannedRoute[];
-  buildId: string;
-  signal: AbortSignal;
-  resolved: unknown;
-  model: Awaited<ReturnType<typeof readModel>>["model"];
-  addonServices: string[];
-};
+type RebuildRun = RunPlan & { buildId: string; addonServices: string[] };
 
-async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
-  const { preview, host, wd, buildId } = r;
-  const id = preview.id;
-  const log = (line: string) => ctx.logs.append(id, "system", line);
-  const stackPath = join(wd.dir, STACK_FILE);
-  const base = {
-    project: preview.project,
-    files: [stackPath],
-    projectDirectory: wd.srcDir,
-    docker: ctx.docker,
+function outcomeOf(
+  ctx: PreviewContext,
+  r: RebuildRun,
+  o: "succeeded" | "failed",
+  error?: string,
+): RedeployOutcome {
+  const id = r.preview.id;
+  ctx.bus.publish(
+    "preview.redeploy",
+    { phase: o, buildId: r.buildId, ...(error ? { error } : {}) },
+    id,
+  );
+  return {
+    preview: ctx.previews.get(id) ?? r.preview,
+    buildId: r.buildId,
+    outcome: o,
+    ...(error ? { error } : {}),
   };
-  const step = stepper(ctx, { previewId: id, host, cwd: wd.srcDir, signal: r.signal });
-  const outcome = (o: "succeeded" | "failed", error?: string): RedeployOutcome => {
-    ctx.bus.publish("preview.redeploy", { phase: o, buildId, ...(error ? { error } : {}) }, id);
+}
+
+async function startAddons(ctx: PreviewContext, p: Pipeline, r: RebuildRun): Promise<void> {
+  if (r.addonServices.length === 0) return;
+  await p.step(
+    "up (add-ons)",
+    upArgv(p.base, ["--no-build", "--no-deps", ...r.addonServices]),
+    "stdout",
+  );
+  await waitHealthy(ctx, {
+    previewId: p.id,
+    host: r.host,
+    routes: [],
+    signal: r.signal,
+    ps: psArgv(p.base, ["--all", ...r.addonServices]),
+    cwd: r.wd.srcDir,
+  });
+}
+
+async function rebuildFailed(
+  ctx: PreviewContext,
+  p: Pipeline,
+  r: RebuildRun,
+  e: unknown,
+  upAttempted: boolean,
+): Promise<RedeployOutcome> {
+  // destroy() aborted the run and owns the preview from here.
+  if (r.signal.aborted)
     return {
-      preview: ctx.previews.get(id) ?? preview,
-      buildId,
-      outcome: o,
-      ...(error ? { error } : {}),
+      preview: ctx.previews.get(p.id) ?? r.preview,
+      buildId: r.buildId,
+      outcome: "failed",
+      error: "cancelled",
     };
-  };
+  const message = failureMessage(ctx, p.id, e, "redeploy pipeline error");
+  const state = ctx.previews.get(p.id)?.state;
+  if (!upAttempted && state !== "building") {
+    p.log(`rebuild FAILED: ${message} -- the previous version is still serving`);
+    return outcomeOf(ctx, r, "failed", message);
+  }
+  await failStack(ctx, r, message, upAttempted);
+  return outcomeOf(ctx, r, "failed", message);
+}
 
-  if (ctx.previews.get(id)?.state === "failed") ctx.states.transition(id, "building");
+async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome> {
+  const p = openPipeline(ctx, r);
+  if (ctx.previews.get(p.id)?.state === "failed") ctx.states.transition(p.id, "building");
 
   let upAttempted = false;
   try {
-    await writeFile(
-      stackPath,
-      buildStack({
-        resolved: r.resolved,
-        planProject: PLAN_PROJECT,
-        model: r.model,
-        routes: r.routes,
-        createdAt: preview.createdAt,
-        ctx: {
-          instance: ctx.instance,
-          env: ctx.env,
-          project: preview.project,
-          hostId: host.id,
-          visibility: preview.visibility,
-        },
-        publishBind: host.publishBind,
-        origin: ctx.origin,
-      }),
-      { mode: 0o600 },
-    );
-
-    const before = await imageIds(ctx, host, base, wd.srcDir);
-    const toBuild = r.model.services.filter((s) => s.hasBuild).map((s) => s.name);
-    if (toBuild.length > 0) {
-      ctx.builds.start({ id: buildId, previewId: id, services: toBuild });
-      try {
-        await step("build", buildArgv(base, toBuild), "build");
-        ctx.builds.finish(buildId, "succeeded", 0);
-      } catch (e) {
-        ctx.builds.finish(
-          buildId,
-          r.signal.aborted ? "cancelled" : "failed",
-          e instanceof StepFailed ? e.exitCode : null,
-        );
-        throw e;
-      }
-    }
-
-    if (r.addonServices.length > 0) {
-      await step(
-        "up (add-ons)",
-        upArgv(base, ["--no-build", "--no-deps", ...r.addonServices]),
-        "stdout",
-      );
-      await waitHealthy(ctx, {
-        previewId: id,
-        host,
-        routes: [],
-        signal: r.signal,
-        ps: psArgv(base, ["--all", ...r.addonServices]),
-        cwd: wd.srcDir,
-      });
-    }
-
-    const release = releaseFor(r.model, r.routes);
-    if (release) {
-      log(`release: ${release.command} (in ${release.service})`);
-      await step(
-        "run (release)",
-        runArgv(base, release.service, ["sh", "-c", release.command], ["--no-deps", "-T"]),
-        "seed",
-      );
-    }
+    await writeStack(ctx, p.stackPath, r);
+    const before = await imageIds(ctx, r.host, p.base, r.wd.srcDir);
+    await buildImages(ctx, p, r, r.buildId);
+    await startAddons(ctx, p, r);
+    await runJob(p, "release", releaseFor(r.model, r.routes));
 
     r.signal.throwIfAborted();
-    ctx.states.transition(id, "starting");
+    ctx.states.transition(p.id, "starting");
     upAttempted = true;
-    await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout");
-    const target: WaitTarget = {
-      previewId: id,
-      host,
-      routes: r.routes,
-      signal: r.signal,
-      ps: psArgv(base, ["--all"]),
-      cwd: wd.srcDir,
-      health: healthOf(r.model),
-    };
+    await startStack(p);
+    const target = waitTargetFor(p, r);
     await waitHealthy(ctx, target);
     await waitAnswering(ctx, target);
-    log("rebuilt: awake");
-    ctx.states.transition(id, "awake");
-    await removeReplaced(ctx, host, base, wd.srcDir, before, id);
-    return outcome("succeeded");
+    p.log("rebuilt: awake");
+    ctx.states.transition(p.id, "awake");
+    await removeReplaced(ctx, r.host, p.base, r.wd.srcDir, before, p.id);
+    return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
-    // destroy() aborted the run and owns the preview from here.
-    if (r.signal.aborted)
-      return {
-        preview: ctx.previews.get(id) ?? preview,
-        buildId,
-        outcome: "failed",
-        error: "cancelled",
-      };
-    const message = redactString(errorMessage(e));
-    if (!(e instanceof StepFailed))
-      ctx.logger.error("redeploy pipeline error", { previewId: id, err: e });
-    const state = ctx.previews.get(id)?.state;
-    if (!upAttempted && state !== "building") {
-      log(`rebuild FAILED: ${message} -- the previous version is still serving`);
-      return outcome("failed", message);
-    }
-    log(`FAILED: ${message}`);
-    if (upAttempted) await salvage(ctx, { preview, host });
-    ctx.states.transition(id, "failed", message);
-    return outcome("failed", message);
+    return await rebuildFailed(ctx, p, r, e, upAttempted);
   } finally {
-    await wd.cleanup();
-  }
-}
-
-type Base = {
-  project: string;
-  files: string[];
-  projectDirectory: string;
-  docker: string | undefined;
-};
-
-async function imageIds(
-  ctx: PreviewContext,
-  host: Host,
-  base: Base,
-  cwd: string,
-): Promise<Set<string>> {
-  try {
-    const res = await ctx.compose.capture(
-      composeArgv({ ...base, command: "images", args: ["--quiet"] }),
-      host,
-      { cwd },
-    );
-    return new Set(
-      res.code === 0
-        ? res.stdout
-            .split("\n")
-            .map((l) => l.trim())
-            .filter((l) => /^(sha256:)?[0-9a-f]{12,64}$/.test(l))
-        : [],
-    );
-  } catch {
-    return new Set();
-  }
-}
-
-async function removeReplaced(
-  ctx: PreviewContext,
-  host: Host,
-  base: Base,
-  cwd: string,
-  before: Set<string>,
-  previewId: string,
-): Promise<void> {
-  if (before.size === 0) return;
-  const after = await imageIds(ctx, host, base, cwd);
-  const docker = ctx.docker ?? "docker";
-  const empty = await mkdtemp(join(tmpdir(), "gangway-rmi-"));
-  try {
-    for (const img of before) {
-      if (after.has(img)) continue;
-      const res = await ctx.compose.capture(
-        [docker, "image", "inspect", "--format", "{{len .RepoTags}} {{len .RepoDigests}}", img],
-        host,
-        { cwd: empty },
-      );
-      if (res.code !== 0 || res.stdout.trim() !== "0 0") continue;
-      const removed = await ctx.compose.capture([docker, "image", "rm", img], host, { cwd: empty });
-      if (removed.code === 0)
-        ctx.logs.append(
-          previewId,
-          "system",
-          `removed the replaced image ${img.replace(/^sha256:/, "").slice(0, 12)}`,
-        );
-    }
-  } catch (e) {
-    ctx.logger.warn("could not remove a replaced image", { previewId, err: e });
-  } finally {
-    await rm(empty, { recursive: true, force: true });
+    await r.wd.cleanup();
   }
 }

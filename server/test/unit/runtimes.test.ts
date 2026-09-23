@@ -19,10 +19,10 @@ import { checkEditPath, redeploy } from "../../src/previews/redeploy.ts";
 import {
   assertRunnable,
   planFromDisk,
-  renderRuntime,
   writeRuntime,
   type RuntimeChoice,
 } from "../../src/previews/runtimes.ts";
+import { renderRuntime } from "../../src/previews/runtime-dockerfile.ts";
 import { asText, SourceStore } from "../../src/previews/source/store.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 

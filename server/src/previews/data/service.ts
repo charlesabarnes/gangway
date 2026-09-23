@@ -2,28 +2,24 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addonById, type AddonChoice, type AddonId } from "@gangway/shared/addons";
-import type { Preview } from "@gangway/shared/domain";
+import type { Host, Preview } from "@gangway/shared/domain";
 import type { Actor } from "../../auth/actor.ts";
 import { AppError, conflict, notFound, unprocessable } from "../../errors.ts";
 import type { PreviewContext } from "../context.ts";
+import { redisRefusal, rowsQuery, tablesQuery, type Table } from "./drivers.ts";
 import {
-  MAX_ROWS,
-  parse,
-  queryArgv,
-  redisRefusal,
-  rowsQuery,
-  tablesQuery,
-  type QueryResult,
-  type Table,
-} from "./drivers.ts";
+  execQuery,
+  findContainer,
+  toResult,
+  WALL_CLOCK_MS,
+  type Exec,
+  type TimedResult,
+} from "./exec.ts";
 
-const WALL_CLOCK_MS = 20_000;
-const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 export const MAX_GLOBAL = 4;
 const MAX_QUERY_CHARS = 64 * 1024;
 
 export type AddonView = AddonChoice & { name: string; service: string; env: readonly string[] };
-export type TimedResult = QueryResult & { ms: number };
 
 export class DataBrowser {
   readonly #ctx: PreviewContext;
@@ -137,6 +133,30 @@ export class DataBrowser {
     return p;
   }
 
+  #target(previewId: string, addon: AddonId): { preview: Preview; host: Host } {
+    const p = this.#preview(previewId);
+    if (!this.list(previewId).some((a) => a.id === addon))
+      throw notFound(`this preview has no ${addon} add-on`);
+    if (p.state !== "awake")
+      throw conflict(`the preview is ${p.state}; open it to wake it first`, { state: p.state });
+    const host = this.#ctx.hosts.get(p.hostId);
+    if (!host)
+      throw new AppError("internal", `preview ${previewId} is on unknown host ${p.hostId}`);
+    return { preview: p, host };
+  }
+
+  #claim(previewId: string): void {
+    if (this.#busy.has(previewId)) throw conflict("a query on this preview is still running");
+    if (this.#busy.size >= MAX_GLOBAL)
+      throw new AppError(
+        "unavailable",
+        "too many queries are running; try again in a moment",
+        undefined,
+        { "retry-after": "2" },
+      );
+    this.#busy.add(previewId);
+  }
+
   async #run(
     actor: Actor,
     previewId: string,
@@ -146,108 +166,26 @@ export class DataBrowser {
     kind: string,
   ): Promise<TimedResult> {
     const ctx = this.#ctx;
-    const p = this.#preview(previewId);
-    if (!this.list(previewId).some((a) => a.id === addon))
-      throw notFound(`this preview has no ${addon} add-on`);
-    if (p.state !== "awake")
-      throw conflict(`the preview is ${p.state}; open it to wake it first`, { state: p.state });
-    const host = ctx.hosts.get(p.hostId);
-    if (!host)
-      throw new AppError("internal", `preview ${previewId} is on unknown host ${p.hostId}`);
-    if (this.#busy.has(previewId)) throw conflict("a query on this preview is still running");
-    if (this.#busy.size >= MAX_GLOBAL)
-      throw new AppError(
-        "unavailable",
-        "too many queries are running; try again in a moment",
-        undefined,
-        { "retry-after": "2" },
-      );
-
-    this.#busy.add(previewId);
+    const { preview, host } = this.#target(previewId, addon);
+    this.#claim(previewId);
     const started = Date.now();
-    const empty = await mkdtemp(join(tmpdir(), "gangway-data-"));
+    const cwd = await mkdtemp(join(tmpdir(), "gangway-data-"));
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), WALL_CLOCK_MS);
-    let outcome = "ok";
+    const x: Exec = { ctx, preview, host, addon, cwd, abort, outcome: "ok" };
     let result: TimedResult | null = null;
     try {
-      const docker = ctx.docker ?? "docker";
-      const service = addonById(addon).service;
-      const ps = await ctx.compose.capture(
-        [
-          docker,
-          "ps",
-          "--quiet",
-          "--filter",
-          `label=com.docker.compose.project=${p.project}`,
-          "--filter",
-          `label=com.docker.compose.service=${service}`,
-        ],
-        host,
-        { cwd: empty },
-      );
-      const container = ps.stdout
-        .split("\n")
-        .map((l) => l.trim())
-        .find((l) => /^[0-9a-f]{12,64}$/.test(l));
-      if (ps.code !== 0 || !container) {
-        outcome = "not running";
-        throw conflict(`the ${addonById(addon).name} container is not running`);
-      }
-
-      const out: string[] = [];
-      const err: string[] = [];
-      let bytes = 0,
-        truncated = false,
-        code = -1;
-      for await (const ev of ctx.compose.stream(
-        [docker, "exec", container, ...queryArgv(addon, text, write)],
-        host,
-        { cwd: empty, signal: abort.signal },
-      )) {
-        if (ev.type === "exit") {
-          code = ev.code;
-          break;
-        }
-        bytes += ev.line.length + 1;
-        if (bytes > MAX_OUTPUT_BYTES) {
-          truncated = true;
-          abort.abort();
-          break;
-        }
-        (ev.stream === "stdout" ? out : err).push(ev.line);
-      }
-      const ms = Date.now() - started;
-      if (!truncated && abort.signal.aborted) {
-        outcome = "timeout";
-        throw new AppError(
-          "unavailable",
-          `the query ran longer than ${WALL_CLOCK_MS / 1000}s and was stopped`,
-        );
-      }
-      if (!truncated && code !== 0) {
-        outcome = "error";
-        throw unprocessable(
-          err.join("\n").trim().slice(-2_000) || `${addonById(addon).name} exited ${code}`,
-        );
-      }
-      const parsed = parse(addon, out.join("\n"));
-      const rows = parsed.rows.slice(0, MAX_ROWS);
-      result = {
-        columns: parsed.columns,
-        rows,
-        ms,
-        truncated: truncated || parsed.rows.length > MAX_ROWS,
-        message: err.join("\n").trim().slice(-500) || null,
-      };
+      const container = await findContainer(x);
+      const output = await execQuery(x, container, text, write);
+      result = toResult(x, output, Date.now() - started);
       return result;
     } catch (e) {
-      if (outcome === "ok") outcome = "error";
+      if (x.outcome === "ok") x.outcome = "error";
       throw e;
     } finally {
       clearTimeout(timer);
       this.#busy.delete(previewId);
-      await rm(empty, { recursive: true, force: true });
+      await rm(cwd, { recursive: true, force: true });
       // Not named key: redact() hides a field of that name.
       if (kind === "query" || kind === "rows") {
         ctx.audit.record(actor, "preview.data.query", previewId, {
@@ -256,7 +194,7 @@ export class DataBrowser {
             kind,
             text: text.slice(0, 2_048),
             write,
-            outcome,
+            outcome: x.outcome,
             rows: result?.rows.length ?? 0,
             ms: Date.now() - started,
           },
