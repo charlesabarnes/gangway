@@ -13,7 +13,8 @@ const PAGE = 50;
  * rows, and a console. Read-only unless writes are switched on -- a read-only transaction
  * for SQL, a read allowlist for Redis. Every query is audited on the server.
  *
- * Needs `previews.data` (admin until granted). Without it the tab says so and asks for nothing.
+ * Shown on the preview page when the preview has add-ons. Needs `previews.data` (admin
+ * until granted); without it the section says so and asks for nothing.
  */
 @Component({
   selector: 'app-db-browser',

@@ -33,6 +33,13 @@ describe('the app shell', () => {
     expect(r.byTestId('who')!.getAttribute('href')).toBe('/account');
   });
 
+  it('Previews is the first link in the nav: it is the home page', async () => {
+    const r = await shell(ADA);
+    const first = r.el.querySelector('nav[aria-label="Main"] a')!;
+    expect(first.getAttribute('data-testid')).toBe('nav-previews');
+    expect(first.getAttribute('href')).toBe('/previews');
+  });
+
   it('has no header for someone who is not in: login and setup bring their own frame', async () => {
     const r = await shell({ authenticated: false, setupRequired: false });
     expect(r.el.querySelector('header')).toBeNull();

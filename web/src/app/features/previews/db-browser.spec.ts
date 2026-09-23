@@ -2,59 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { render } from '../../../testing/render';
 import type { DataResult, Permission, PreviewAddon } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
-import type { RedeployEvent } from '../previews/previews.store';
 import { DbBrowser } from './db-browser';
-import { PreviewFrame } from './preview-frame';
 
 const ID = '01WORKSPACE000000000000000';
-
-describe('PreviewFrame', () => {
-  const redeploy = (phase: 'started' | 'succeeded' | 'failed', buildId: string) =>
-    ({ type: 'preview.redeploy', previewId: ID, seq: 1, at: '', phase, buildId, by: 'x' }) as unknown as RedeployEvent;
-
-  it('frames the real URL in a sandbox without top navigation, and reloads once when a rebuild goes live', async () => {
-    const r = await render(PreviewFrame, { inputs: { url: 'https://site.preview.localhost:8443/', state: 'awake' } });
-    const frame = r.byTestId('frame') as HTMLIFrameElement;
-    expect(frame.getAttribute('sandbox')).not.toContain('allow-top-navigation');
-    expect(frame.getAttribute('sandbox')).toContain('allow-scripts');
-    expect(frame.src).toBe('https://site.preview.localhost:8443/');
-
-    r.fixture.componentRef.setInput('redeploy', redeploy('started', 'b1'));
-    await r.settle();
-    expect(r.text('frame-overlay')).toContain('Rebuilding');
-    expect((r.byTestId('frame') as HTMLIFrameElement).src).toBe('https://site.preview.localhost:8443/');
-
-    r.fixture.componentRef.setInput('redeploy', redeploy('succeeded', 'b1'));
-    await r.settle();
-    expect(r.byTestId('frame-overlay')).toBeNull();
-    const reloaded = (r.byTestId('frame') as HTMLIFrameElement).src;
-    expect(reloaded).toBe('https://site.preview.localhost:8443/?_gw=1');
-    // The same event again is not a new rebuild.
-    r.fixture.componentRef.setInput('state', 'awake');
-    await r.settle();
-    expect((r.byTestId('frame') as HTMLIFrameElement).src).toBe(reloaded);
-  });
-
-  it('the path box navigates within the preview, and cannot leave its origin', async () => {
-    const r = await render(PreviewFrame, { inputs: { url: 'https://site.preview.localhost:8443/', state: 'awake' } });
-    const box = r.byTestId('frame-path') as HTMLInputElement;
-    const go = async (v: string) => { box.value = v; box.dispatchEvent(new Event('input')); box.form!.dispatchEvent(new Event('submit')); await r.settle(); };
-    await go('/api/time');
-    expect((r.byTestId('frame') as HTMLIFrameElement).src).toBe('https://site.preview.localhost:8443/api/time?_gw=1');
-    await go('//evil.example/x');
-    expect((r.byTestId('frame') as HTMLIFrameElement).src).toMatch(/^https:\/\/site\.preview\.localhost:8443\/\?_gw=/);
-    await go('javascript:alert(1)');
-    expect((r.byTestId('frame') as HTMLIFrameElement).src).toMatch(/^https:\/\/site\.preview\.localhost:8443\//);
-  });
-
-  it('coming back up (asleep -> awake) reloads too', async () => {
-    const r = await render(PreviewFrame, { inputs: { url: 'https://site.preview.localhost:8443/', state: 'starting' } });
-    expect(r.text('frame-overlay')).toContain('Starting');
-    r.fixture.componentRef.setInput('state', 'awake');
-    await r.settle();
-    expect((r.byTestId('frame') as HTMLIFrameElement).src).toContain('_gw=1');
-  });
-});
 
 describe('DbBrowser', () => {
   const ADDONS: PreviewAddon[] = [{ id: 'postgres', version: '18', name: 'PostgreSQL', service: 'postgres', env: ['DATABASE_URL'] }];

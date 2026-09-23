@@ -87,6 +87,17 @@ describe('PreviewDetail', () => {
     expect(r.text('title')).toBe('shop-pr-42');
   });
 
+  it('an uploaded preview with add-ons shows its databases', async () => {
+    const withDb: Preview = { ...base, source: { kind: 'tarball', uploadId: ID, runtime: 'node', addons: [{ id: 'postgres', version: '18' }] } };
+    const r = await open({ preview: withDb, permissions: ['previews.read', 'previews.data'] });
+    expect(r.byTestId('databases')).not.toBeNull();
+  });
+
+  it('a preview without add-ons has no Databases section', async () => {
+    const r = await open();
+    expect(r.byTestId('databases')).toBeNull();
+  });
+
   it('a preview that does not exist says so, and offers the way back -- it does not spin forever', async () => {
     const r = await open({ preview: null });
     await r.until(() => r.byTestId('empty') !== null, 'the not-found state');

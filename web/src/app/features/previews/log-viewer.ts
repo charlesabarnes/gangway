@@ -41,7 +41,7 @@ const STREAM_CLASS: Record<LogStream, string> = {
       </div>
 
       <div class="relative">
-        <div #scroller (scroll)="onScroll()" [class]="compact() ? 'h-64' : 'h-[28rem]'" class="overflow-auto px-3 py-2 font-mono text-xs leading-5" tabindex="0" role="log" aria-label="Preview log" data-testid="log">
+        <div #scroller (scroll)="onScroll()" class="h-[28rem] overflow-auto px-3 py-2 font-mono text-xs leading-5" tabindex="0" role="log" aria-label="Preview log" data-testid="log">
           @if (dropped() > 0) { <p class="text-neutral-600" data-testid="dropped">… {{ dropped() }} older lines dropped from this tab</p> }
           @for (l of visible(); track l.n) {
             <div class="flex gap-3 [contain-intrinsic-size:auto_1.25rem] [content-visibility:auto]" data-testid="line">
@@ -62,8 +62,6 @@ const STREAM_CLASS: Record<LogStream, string> = {
 })
 export class LogViewer {
   readonly previewId = input.required<string>();
-  /** Shorter, for the workspace drawer. */
-  readonly compact = input(false);
   /** False once the preview is destroyed: its log is deleted server-side, so there is nothing to follow. */
   readonly follow = input(true);
 

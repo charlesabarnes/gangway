@@ -12,6 +12,7 @@ import { EmptyState } from '../../ui/empty-state';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
+import { DbBrowser } from './db-browser';
 import { LogViewer } from './log-viewer';
 import { PreviewsStore } from './previews.store';
 import { SourcePanel } from './source-panel';
@@ -19,7 +20,7 @@ import { displayName, sourceLabel } from './source-label';
 
 @Component({
   selector: 'app-preview-detail',
-  imports: [RouterLink, Btn, ConfirmDialog, EmptyState, LogViewer, RelativeTimePipe, SourcePanel, StateBadge],
+  imports: [RouterLink, Btn, ConfirmDialog, DbBrowser, EmptyState, LogViewer, RelativeTimePipe, SourcePanel, StateBadge],
   template: `
     <section class="mx-auto max-w-5xl px-6 py-10">
       <a routerLink="/previews" class="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">← Previews</a>
@@ -29,11 +30,8 @@ import { displayName, sourceLabel } from './source-label';
           <h1 class="text-2xl font-semibold tracking-tight" data-testid="title">{{ name() }}</h1>
           <app-state-badge [state]="p.state" />
           <span class="rounded-full border border-neutral-300 px-2 py-0.5 text-xs text-neutral-500 dark:border-neutral-700" data-testid="visibility">{{ p.visibility }}</span>
-          @if (p.source.kind === 'tarball' && p.state !== 'destroying' && p.state !== 'destroyed') {
-            <a [routerLink]="['/previews', p.id, 'edit']" class="ml-auto rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800" data-testid="open-workspace">Open workspace</a>
-          }
           @if (canDestroy() && p.state !== 'destroying' && p.state !== 'destroyed') {
-            <button appBtn variant="danger" type="button" [class.ml-auto]="p.source.kind !== 'tarball'" (click)="dialog().open()" data-testid="destroy">Destroy</button>
+            <button appBtn variant="danger" type="button" class="ml-auto" (click)="dialog().open()" data-testid="destroy">Destroy</button>
           }
         </div>
 
@@ -76,6 +74,13 @@ import { displayName, sourceLabel } from './source-label';
 
         @if (p.state !== 'destroyed' && p.state !== 'destroying') {
           <app-source-panel [previewId]="p.id" [uploaded]="p.source.kind === 'tarball'" />
+        }
+
+        @if (p.source.kind === 'tarball' && p.source.addons?.length && p.state !== 'destroyed' && p.state !== 'destroying') {
+          <h2 class="mt-10 text-sm font-medium text-neutral-500">Databases</h2>
+          <div class="mt-2 h-[28rem] overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800" data-testid="databases">
+            <app-db-browser [previewId]="p.id" />
+          </div>
         }
 
         @if (canReadLogs()) {
