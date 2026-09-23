@@ -35,6 +35,32 @@ const REFETCH_FLOOR_MS = 60_000;
 const b64url = (s: string) => Buffer.from(s, "base64url");
 const looksLikeJwt = (s: string) => /^eyJ[\w-]*\.[\w-]+\.[\w-]+$/.test(s);
 
+type Claims = Record<string, unknown>;
+
+function claimsAcceptable(claims: Claims, issuer: string, audience: string, now: number): boolean {
+  if (claims["iss"] !== issuer) return false;
+  const aud = claims["aud"];
+  if (!(aud === audience || (Array.isArray(aud) && aud.includes(audience)))) return false;
+  if (typeof claims["exp"] !== "number" || claims["exp"] + SKEW_S < now) return false;
+  if (typeof claims["nbf"] === "number" && claims["nbf"] - SKEW_S > now) return false;
+  return !(typeof claims["iat"] === "number" && claims["iat"] - SKEW_S > now);
+}
+
+function workflowClaims(claims: Claims): WorkflowClaims | null {
+  const repository = claims["repository"];
+  if (typeof repository !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(repository)) return null;
+  const str = (k: string) => (typeof claims[k] === "string" ? claims[k] : "");
+  return {
+    repository,
+    repositoryId: str("repository_id"),
+    eventName: str("event_name"),
+    ref: str("ref"),
+    sha: str("sha"),
+    runId: str("run_id"),
+    actor: str("actor"),
+  };
+}
+
 export class GitHubOidc {
   readonly #o: Required<Omit<OidcOptions, "logger">> & { logger?: Logger | undefined };
   #keys = new Map<string, KeyObject>();
@@ -51,34 +77,17 @@ export class GitHubOidc {
       const [h, p, sig] = token.split(".") as [string, string, string];
       const header = JSON.parse(b64url(h).toString("utf8")) as { alg?: string; kid?: string };
       if (header.alg !== "RS256" || typeof header.kid !== "string") return null;
-      const claims = JSON.parse(b64url(p).toString("utf8")) as Record<string, unknown>;
+      const claims = JSON.parse(b64url(p).toString("utf8")) as Claims;
       // Cheap checks first, so a stranger's JWT cannot make us fetch keys.
-      if (claims["iss"] !== this.#o.issuer) return null;
-      const aud = claims["aud"];
-      const audience = this.#o.audience();
-      if (!(aud === audience || (Array.isArray(aud) && aud.includes(audience)))) return null;
       const now = Math.floor(this.#o.now() / 1000);
-      if (typeof claims["exp"] !== "number" || claims["exp"] + SKEW_S < now) return null;
-      if (typeof claims["nbf"] === "number" && claims["nbf"] - SKEW_S > now) return null;
-      if (typeof claims["iat"] === "number" && claims["iat"] - SKEW_S > now) return null;
+      if (!claimsAcceptable(claims, this.#o.issuer, this.#o.audience(), now)) return null;
 
       const key = await this.#key(header.kid);
       if (!key) return null;
       const ok = verifySignature("RSA-SHA256", Buffer.from(`${h}.${p}`), key, b64url(sig));
       if (!ok) return null;
 
-      const repository = claims["repository"];
-      if (typeof repository !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(repository)) return null;
-      const str = (k: string) => (typeof claims[k] === "string" ? claims[k] : "");
-      return {
-        repository,
-        repositoryId: str("repository_id"),
-        eventName: str("event_name"),
-        ref: str("ref"),
-        sha: str("sha"),
-        runId: str("run_id"),
-        actor: str("actor"),
-      };
+      return workflowClaims(claims);
     } catch (e) {
       this.#o.logger?.warn("an OIDC token could not be checked", { err: e });
       return null;

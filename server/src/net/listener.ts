@@ -1,4 +1,5 @@
 import type { Server } from "bun";
+import type { RouteEntry } from "../routing/table.ts";
 import type { CertStore } from "../tls/certstore.ts";
 import { dispatch, type DispatchDeps } from "./dispatch.ts";
 import { stripGangwayCookies } from "./gate.ts";
@@ -27,6 +28,31 @@ export type RunningListener = {
   swapCerts(): void;
 };
 
+function socketEntry(req: Request, deps: DispatchDeps): RouteEntry | null {
+  const host = normalizeHost(req.headers.get("host"));
+  const label = host === null ? null : labelUnder(host, deps.baseDomain());
+  if (!host || label === null || label === "" || RESERVED_LABELS.has(label)) return null;
+  const entry = deps.table.lookup(host);
+  if (!entry || entry.state !== "awake") return null;
+  return deps.visibilityGate?.(entry, req) ? null : entry;
+}
+
+function upgradeToPreview(req: Request, server: Server<WsData>, deps: DispatchDeps): boolean {
+  const entry = socketEntry(req, deps);
+  if (!entry) return false;
+  const url = new URL(req.url);
+  const protocol = req.headers.get("sec-websocket-protocol")?.split(",")[0]?.trim();
+  const data: WsData = {
+    entry,
+    path: url.pathname + url.search,
+    protocol,
+    cookie: stripGangwayCookies(req.headers.get("cookie")) ?? undefined,
+  };
+  return protocol
+    ? server.upgrade(req, { data, headers: { "Sec-WebSocket-Protocol": protocol } })
+    : server.upgrade(req, { data });
+}
+
 export function startListener(o: ListenerOptions): RunningListener {
   const serveOptions = () => ({
     hostname: o.hostname,
@@ -40,30 +66,7 @@ export function startListener(o: ListenerOptions): RunningListener {
 
     fetch(req: Request, server: Server<WsData>): Response | Promise<Response> | undefined {
       peers.set(req, server.requestIP(req)?.address ?? "");
-      if (isWebSocketUpgrade(req)) {
-        const host = normalizeHost(req.headers.get("host"));
-        const label = host === null ? null : labelUnder(host, o.deps.baseDomain());
-        if (host && label !== null && label !== "" && !RESERVED_LABELS.has(label)) {
-          const entry = o.deps.table.lookup(host);
-          if (entry && entry.state === "awake") {
-            const gated = o.deps.visibilityGate?.(entry, req);
-            if (!gated) {
-              const url = new URL(req.url);
-              const protocol = req.headers.get("sec-websocket-protocol")?.split(",")[0]?.trim();
-              const data: WsData = {
-                entry,
-                path: url.pathname + url.search,
-                protocol,
-                cookie: stripGangwayCookies(req.headers.get("cookie")) ?? undefined,
-              };
-              const ok = protocol
-                ? server.upgrade(req, { data, headers: { "Sec-WebSocket-Protocol": protocol } })
-                : server.upgrade(req, { data });
-              if (ok) return undefined;
-            }
-          }
-        }
-      }
+      if (isWebSocketUpgrade(req) && upgradeToPreview(req, server, o.deps)) return undefined;
 
       // SSE and slow uploads must outlive the idle timeout.
       server.timeout(req, 0);

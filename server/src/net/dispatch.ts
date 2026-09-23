@@ -45,33 +45,29 @@ function surfaceFor(label: string): Surface {
   return (label === "www" ? "app" : label) as Surface;
 }
 
-export async function dispatch(req: Request, d: DispatchDeps): Promise<Response> {
-  const host = normalizeHost(req.headers.get("host"));
-  if (!host) return new Response("bad request", { status: 400 });
+function toSurface(
+  req: Request,
+  d: DispatchDeps,
+  host: string,
+  label: string,
+  clientIp: string,
+): Response | Promise<Response> {
+  const surface = label === "" ? "app" : surfaceFor(label);
+  if (!d.surfaceEnabled(surface)) return unknownPage(host);
+  const handler = d.handlers[surface];
+  if (!handler) return unknownPage(host);
+  return handler(req, { clientIp });
+}
 
-  const clientIp = d.clientIpFor(req);
-
-  const label = labelUnder(host, d.baseDomain());
-  if (label === null) return misdirectedPage();
-
-  // Reserved regardless of which surfaces are on, or re-enabling one could collide with a live preview.
-  if (label === "" || RESERVED_LABELS.has(label)) {
-    const surface = label === "" ? "app" : surfaceFor(label);
-    if (!d.surfaceEnabled(surface)) return unknownPage(host);
-    const handler = d.handlers[surface];
-    if (!handler) return unknownPage(host);
-    return handler(req, { clientIp });
-  }
-
-  const entry = d.table.lookup(host);
-  if (!entry) return unknownPage(host);
-
-  const gated = d.visibilityGate?.(entry, req, clientIp);
-  if (gated) return gated;
-
+async function notAwake(
+  req: Request,
+  d: DispatchDeps,
+  host: string,
+  entry: RouteEntry,
+): Promise<Response | null> {
   switch (entry.state) {
     case "awake":
-      break;
+      return null;
     case "building":
     case "starting":
       return buildingPage(host, d.logUrlFor?.(entry.previewId));
@@ -81,21 +77,22 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
         d.logTailFor?.(entry.previewId) ?? [],
         d.logUrlFor?.(entry.previewId),
       );
-    case "asleep": {
+    case "asleep":
       if (!d.wake) return wakingPage(host);
-      const instead = await d.wake(entry, req);
-      if (instead) return instead;
-      break;
-    }
+      return d.wake(entry, req);
     case "destroying":
     case "destroyed":
       return unknownPage(host);
   }
+}
 
-  if (isWebSocketUpgrade(req)) {
-    return new Response("websocket upgrade failed", { status: 400 });
-  }
-
+async function proxy(
+  req: Request,
+  d: DispatchDeps,
+  host: string,
+  entry: RouteEntry,
+  clientIp: string,
+): Promise<Response> {
   if (!tryAcquire(entry, d.limits)) return busyPage(host);
   try {
     const res = await d.upstream.fetch(req, entry, { clientIp });
@@ -108,4 +105,32 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
   } finally {
     release(entry);
   }
+}
+
+export async function dispatch(req: Request, d: DispatchDeps): Promise<Response> {
+  const host = normalizeHost(req.headers.get("host"));
+  if (!host) return new Response("bad request", { status: 400 });
+
+  const clientIp = d.clientIpFor(req);
+
+  const label = labelUnder(host, d.baseDomain());
+  if (label === null) return misdirectedPage();
+
+  // Reserved regardless of which surfaces are on, or re-enabling one could collide with a live preview.
+  if (label === "" || RESERVED_LABELS.has(label)) return toSurface(req, d, host, label, clientIp);
+
+  const entry = d.table.lookup(host);
+  if (!entry) return unknownPage(host);
+
+  const gated = d.visibilityGate?.(entry, req, clientIp);
+  if (gated) return gated;
+
+  const instead = await notAwake(req, d, host, entry);
+  if (instead) return instead;
+
+  if (isWebSocketUpgrade(req)) {
+    return new Response("websocket upgrade failed", { status: 400 });
+  }
+
+  return proxy(req, d, host, entry, clientIp);
 }
