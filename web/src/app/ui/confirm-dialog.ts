@@ -13,6 +13,8 @@ import { Btn } from './button';
   selector: 'app-confirm-dialog',
   imports: [Btn],
   template: `
+    <!-- A native <dialog> closes on Escape; the click only handles the backdrop. -->
+    <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
     <dialog #dialog (close)="closed()" (click)="backdrop($event)"
             class="m-auto w-full max-w-md rounded-xl border border-neutral-200 bg-white p-0 text-neutral-900 shadow-2xl backdrop:bg-neutral-950/50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100"
             aria-labelledby="confirm-heading" data-testid="confirm">

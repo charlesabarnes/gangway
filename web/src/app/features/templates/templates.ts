@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { CLEARANCES, VISIBILITIES, type Clearance, type Template, type TemplateCreate, type TemplatePatch, type Visibility } from '../../core/api.types';
+import { CLEARANCES, VISIBILITIES, type Clearance, type Template, type TemplateCreate, type TemplatePatch } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';

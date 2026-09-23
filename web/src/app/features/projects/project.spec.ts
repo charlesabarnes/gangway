@@ -40,7 +40,6 @@ async function open(o: { permissions?: Permission[]; project?: Project; previews
   return r;
 }
 
-const tab = async (r: Rendered<unknown>, id: string) => { await TestBed.inject(Router).navigate([], { queryParams: { tab: id } }); await r.settle(); };
 const choose = async (r: Rendered<unknown>, id: string, v: string) => { const s = r.byTestId(id) as HTMLSelectElement; s.value = v; s.dispatchEvent(new Event('change')); await r.settle(); };
 
 describe('Project', () => {
