@@ -36,95 +36,84 @@ export type AuthRouteDeps = {
   sessionMaxAgeSec: number;
 };
 
-export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
-  const meta = (c: Context<AppEnv>): RequestMeta => ({
-    ip: c.env.clientIp,
-    userAgent: c.req.header("user-agent") ?? null,
-  });
+type GateEntry = NonNullable<ReturnType<GateDeps["lookup"]>>;
 
-  const appOnly = (c: Context<AppEnv>) => {
-    if (c.env.surface !== "app") throw notFound(`no such resource: ${new URL(c.req.url).pathname}`);
-  };
+const meta = (c: Context<AppEnv>): RequestMeta => ({
+  ip: c.env.clientIp,
+  userAgent: c.req.header("user-agent") ?? null,
+});
 
-  // Login CSRF: checked only when a browser sends Origin, so curl and scripts keep working.
-  const refuseForeignOrigin = (c: Context<AppEnv>) => {
-    if (
-      c.req.header("origin") !== undefined &&
-      !(d.auth.originFor && isSameOrigin(c, d.auth.originFor))
-    )
-      throw forbidden("cross-origin request refused");
-  };
+const appOnly = (c: Context<AppEnv>) => {
+  if (c.env.surface !== "app") throw notFound(`no such resource: ${new URL(c.req.url).pathname}`);
+};
 
-  const wireUser = (u: User) => {
-    const role = d.roles.roles().find((r) => r.id === u.roleId);
-    return { id: u.id, email: u.email, role: { id: u.roleId, name: role?.name ?? u.roleId } };
-  };
+// Login CSRF: checked only when a browser sends Origin, so curl and scripts keep working.
+const refuseForeignOrigin = (c: Context<AppEnv>, d: AuthRouteDeps) => {
+  if (
+    c.req.header("origin") !== undefined &&
+    !(d.auth.originFor && isSameOrigin(c, d.auth.originFor))
+  )
+    throw forbidden("cross-origin request refused");
+};
 
-  const describe = (actor: Actor) => {
-    const permissions = [...actor.permissions].sort();
-    if (actor.kind === "token")
-      return {
-        authenticated: true,
-        setupRequired: false,
-        token: { id: actor.tokenId, scopes: actor.scopes },
-        permissions,
-      };
-    if (actor.kind === "forge" || actor.kind === "workflow")
-      return { authenticated: true, setupRequired: false, permissions };
-    const user = d.accounts.getUser(actor.userId);
+function wireUser(d: AuthRouteDeps, u: User) {
+  const role = d.roles.roles().find((r) => r.id === u.roleId);
+  return { id: u.id, email: u.email, role: { id: u.roleId, name: role?.name ?? u.roleId } };
+}
+
+function describe(d: AuthRouteDeps, actor: Actor) {
+  const permissions = [...actor.permissions].sort();
+  if (actor.kind === "token")
     return {
       authenticated: true,
       setupRequired: false,
-      ...(user ? { user: wireUser(user) } : {}),
+      token: { id: actor.tokenId, scopes: actor.scopes },
       permissions,
     };
+  if (actor.kind === "forge" || actor.kind === "workflow")
+    return { authenticated: true, setupRequired: false, permissions };
+  const user = d.accounts.getUser(actor.userId);
+  return {
+    authenticated: true,
+    setupRequired: false,
+    ...(user ? { user: wireUser(d, user) } : {}),
+    permissions,
   };
+}
 
-  pub.get("/auth/session", async (c) => {
-    c.header("cache-control", "no-store");
-    const actor = await resolveActor(c, d.auth).catch(() => null);
-    return c.json(
-      actor ? describe(actor) : { authenticated: false, setupRequired: d.bootstrap.pending },
-    );
-  });
+function gateTarget(gate: GateDeps | undefined, host: string) {
+  const entry = gate?.lookup(host);
+  const kind = entry
+    ? (gate?.gateable?.(host) ?? {
+        private: entry.visibility === "private",
+        passwordSkippable: false,
+      })
+    : undefined;
+  if (!gate || !entry || !kind || (!kind.private && !kind.passwordSkippable))
+    throw notFound("no such private preview");
+  return { gate, entry, kind };
+}
 
-  pub.post("/auth/login", async (c) => {
-    appOnly(c);
-    refuseForeignOrigin(c);
-    const { email, password } = LoginRequestSchema.parse(await readJson(c));
-    const { user, secret } = await d.accounts.login(email, password, meta(c));
-    setSessionCookie(c, secret, d.sessionMaxAgeSec);
-    c.header("cache-control", "no-store");
-    return c.json({ user: wireUser(user), permissions: [...d.roles.for(user.roleId)].sort() });
-  });
+function toPreview(
+  c: Context<AppEnv>,
+  gate: GateDeps,
+  entry: GateEntry,
+  path: string,
+  to: string,
+  ticket: string | null,
+) {
+  const target = new URL(path, gate.originFor(entry.hostname));
+  if (ticket !== null) target.searchParams.set("ticket", ticket);
+  target.searchParams.set("to", to);
+  c.header("referrer-policy", "no-referrer");
+  return c.redirect(target.toString(), 302);
+}
 
-  pub.post("/auth/setup", async (c) => {
-    appOnly(c);
-    if (!d.bootstrap.pending) throw notFound("no such resource: /v1/auth/setup");
-    refuseForeignOrigin(c);
-    const { token, email, password } = SetupRequestSchema.parse(await readJson(c));
-    if (!d.bootstrap.check(token))
-      throw forbidden("that setup link is not valid; the current one is in the server's output");
-    const { user, secret } = await d.accounts.setupFirstAdmin(email, password, meta(c));
-    setSessionCookie(c, secret, d.sessionMaxAgeSec);
-    c.header("cache-control", "no-store");
-    return c.json({ user: wireUser(user), permissions: [...d.roles.for(user.roleId)].sort() }, 201);
-  });
-
-  // Only a live gateable preview host is accepted, or this GET would be an open redirect.
+// Only a live gateable preview host is accepted, or this GET would be an open redirect.
+function gateRoute(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   pub.get("/auth/gate", async (c) => {
     appOnly(c);
-    const gate = d.gate;
-    const host = (c.req.query("host") ?? "").toLowerCase();
-    const entry = gate?.lookup(host);
-    const kind = entry
-      ? (gate?.gateable?.(host) ?? {
-          private: entry.visibility === "private",
-          passwordSkippable: false,
-        })
-      : undefined;
-    if (!gate || !entry || !kind || (!kind.private && !kind.passwordSkippable))
-      throw notFound("no such private preview");
+    const { gate, entry, kind } = gateTarget(d.gate, (c.req.query("host") ?? "").toLowerCase());
     const to = gate.safePath(c.req.query("to"));
     c.header("cache-control", "no-store");
 
@@ -132,15 +121,9 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     const skipPassword =
       kind.passwordSkippable && actor !== null && actor.permissions.has("previews.skip_password");
     if (!kind.private) {
-      const target = new URL(
-        skipPassword ? "/__gangway/auth" : "/__gangway/password",
-        gate.originFor(entry.hostname),
-      );
-      if (skipPassword)
-        target.searchParams.set("ticket", gate.issueTicket(entry, { skipPassword }));
-      target.searchParams.set("to", to);
-      c.header("referrer-policy", "no-referrer");
-      return c.redirect(target.toString(), 302);
+      if (!skipPassword) return toPreview(c, gate, entry, "/__gangway/password", to, null);
+      const ticket = gate.issueTicket(entry, { skipPassword });
+      return toPreview(c, gate, entry, "/__gangway/auth", to, ticket);
     }
     if (!actor) {
       const back = `/v1/auth/gate?host=${encodeURIComponent(entry.hostname)}&to=${encodeURIComponent(to)}`;
@@ -149,12 +132,47 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     if (!actor.permissions.has("previews.view_private"))
       throw forbidden('requires the "previews.view_private" permission');
 
-    const target = new URL("/__gangway/auth", gate.originFor(entry.hostname));
-    target.searchParams.set("ticket", gate.issueTicket(entry, { skipPassword }));
-    target.searchParams.set("to", to);
-    c.header("referrer-policy", "no-referrer");
-    return c.redirect(target.toString(), 302);
+    const ticket = gate.issueTicket(entry, { skipPassword });
+    return toPreview(c, gate, entry, "/__gangway/auth", to, ticket);
   });
+}
+
+export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
+  pub.get("/auth/session", async (c) => {
+    c.header("cache-control", "no-store");
+    const actor = await resolveActor(c, d.auth).catch(() => null);
+    return c.json(
+      actor ? describe(d, actor) : { authenticated: false, setupRequired: d.bootstrap.pending },
+    );
+  });
+
+  pub.post("/auth/login", async (c) => {
+    appOnly(c);
+    refuseForeignOrigin(c, d);
+    const { email, password } = LoginRequestSchema.parse(await readJson(c));
+    const { user, secret } = await d.accounts.login(email, password, meta(c));
+    setSessionCookie(c, secret, d.sessionMaxAgeSec);
+    c.header("cache-control", "no-store");
+    return c.json({ user: wireUser(d, user), permissions: [...d.roles.for(user.roleId)].sort() });
+  });
+
+  pub.post("/auth/setup", async (c) => {
+    appOnly(c);
+    if (!d.bootstrap.pending) throw notFound("no such resource: /v1/auth/setup");
+    refuseForeignOrigin(c, d);
+    const { token, email, password } = SetupRequestSchema.parse(await readJson(c));
+    if (!d.bootstrap.check(token))
+      throw forbidden("that setup link is not valid; the current one is in the server's output");
+    const { user, secret } = await d.accounts.setupFirstAdmin(email, password, meta(c));
+    setSessionCookie(c, secret, d.sessionMaxAgeSec);
+    c.header("cache-control", "no-store");
+    return c.json(
+      { user: wireUser(d, user), permissions: [...d.roles.for(user.roleId)].sort() },
+      201,
+    );
+  });
+
+  gateRoute(pub, d);
 
   const required = async (c: Context<AppEnv>): Promise<Actor> => {
     const actor = await resolveActor(c, d.auth);

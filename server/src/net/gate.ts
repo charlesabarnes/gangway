@@ -1,13 +1,12 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { sourceKey, type LoginLimiter } from "../auth/limiter.ts";
 import type { Passwords } from "../auth/password.ts";
 import type { EntryPassword, RouteEntry } from "../routing/table.ts";
 import { sha256 } from "../util/hash.ts";
+import { PASSWORD_PATH, passwordPage, plain, readForm, redirect } from "./gate-pages.ts";
+import { GateTokens, type GateCookie } from "./gate-tokens.ts";
 
-export const GATE_COOKIE = "__Host-gw_pv";
-export const PASSWORD_COOKIE = "__Host-gw_pw";
-const PASSWORD_PATH = "/__gangway/password";
-const MAX_FORM_BYTES = 8 * 1024;
+export { GATE_COOKIE, PASSWORD_COOKIE } from "./gate-tokens.ts";
 const GATE_PREFIX = "/__gangway/";
 const AUTH_PATH = "/__gangway/auth";
 
@@ -28,10 +27,15 @@ export type GateOptions = {
 type ResolvedOptions = Required<Omit<GateOptions, "passwords" | "limiter" | "onPasswordFailure">> &
   Pick<GateOptions, "passwords" | "limiter" | "onPasswordFailure">;
 type Secret = { hash: string; salt: string; fp: string };
-
-type TicketBody = { h: string; p: string; exp: number; n: string; s?: 1 };
-
-const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
+type Visit = {
+  entry: RouteEntry;
+  req: Request;
+  url: URL;
+  secret: Secret | null;
+  priv: boolean;
+  gate: GateCookie;
+  loginSkips: boolean;
+};
 
 export function safePath(raw: string | null | undefined): string {
   if (
@@ -45,10 +49,31 @@ export function safePath(raw: string | null | undefined): string {
   return /[\x00-\x1f]/.test(raw) ? "/" : raw;
 }
 
+function isNavigation(req: Request): boolean {
+  const mode = req.headers.get("sec-fetch-mode");
+  return (
+    (req.method === "GET" || req.method === "HEAD") &&
+    !req.headers.has("upgrade") &&
+    (mode === null || mode === "navigate")
+  );
+}
+
+function foreignOrigin(req: Request, hostname: string): boolean {
+  const origin = req.headers.get("origin");
+  if (origin === null || origin === "null") return false;
+  let host = "";
+  try {
+    host = new URL(origin).hostname;
+  } catch {
+    // unparseable: refused below
+  }
+  return host !== hostname;
+}
+
 export class PreviewGate {
   readonly #o: ResolvedOptions;
+  readonly #tokens: GateTokens;
   readonly #fps = new Map<string, string>();
-  readonly #used = new Map<string, number>();
 
   constructor(o: GateOptions) {
     if (o.key.length < 32) throw new Error("the gate key must be at least 32 bytes");
@@ -61,77 +86,14 @@ export class PreviewGate {
       loginDefault: () => false,
       ...o,
     };
-  }
-
-  #mac(kind: "ticket" | "cookie" | "password", payload: string): Buffer {
-    return createHmac("sha256", this.#o.key).update(`${kind}|${payload}`).digest();
-  }
-
-  #verify(kind: "ticket" | "cookie" | "password", payload: string, sig: string): boolean {
-    const given = Buffer.from(sig, "base64url");
-    const want = this.#mac(kind, payload);
-    return given.length === want.length && timingSafeEqual(given, want);
+    this.#tokens = new GateTokens(this.#o);
   }
 
   issueTicket(
     entry: Pick<RouteEntry, "hostname" | "previewId">,
     o: { skipPassword?: boolean } = {},
   ): string {
-    const body: TicketBody = {
-      h: entry.hostname,
-      p: entry.previewId,
-      exp: this.#o.now() + this.#o.ticketTtlMs,
-      n: randomBytes(12).toString("base64url"),
-      ...(o.skipPassword ? { s: 1 as const } : {}),
-    };
-    const payload = b64(JSON.stringify(body));
-    return `${payload}.${b64(this.#mac("ticket", payload))}`;
-  }
-
-  #redeem(ticket: string, entry: RouteEntry): TicketBody | null {
-    const [payload, sig, extra] = ticket.split(".");
-    if (!payload || !sig || extra !== undefined || !this.#verify("ticket", payload, sig))
-      return null;
-    let body: TicketBody;
-    try {
-      body = JSON.parse(Buffer.from(payload, "base64url").toString()) as TicketBody;
-    } catch {
-      return null;
-    }
-    const now = this.#o.now();
-    if (body.exp <= now || body.h !== entry.hostname || body.p !== entry.previewId) return null;
-    if (this.#used.has(body.n)) return null;
-    for (const [n, exp] of this.#used) if (exp <= now) this.#used.delete(n);
-    this.#used.set(body.n, body.exp);
-    return body;
-  }
-
-  #cookieFor(entry: RouteEntry, skip: boolean): string {
-    const payload = `${entry.previewId}.${this.#o.now() + this.#o.cookieTtlMs}.${skip ? 1 : 0}`;
-    return `${payload}.${b64(this.#mac("cookie", payload))}`;
-  }
-
-  #gateCookie(req: Request, entry: RouteEntry): { valid: boolean; skip: boolean } {
-    const header = req.headers.get("cookie");
-    const out = { valid: false, skip: false };
-    if (!header) return out;
-    for (const part of header.split(";")) {
-      const eq = part.indexOf("=");
-      if (eq < 0 || part.slice(0, eq).trim() !== GATE_COOKIE) continue;
-      const fields = part
-        .slice(eq + 1)
-        .trim()
-        .split(".");
-      if (fields.length !== 3 && fields.length !== 4) continue;
-      const sig = fields.pop()!;
-      const [previewId, exp, skip] = fields;
-      if (!previewId || !exp || previewId !== entry.previewId || !(Number(exp) > this.#o.now()))
-        continue;
-      if (!this.#verify("cookie", fields.join("."), sig)) continue;
-      out.valid = true;
-      if (skip === "1") out.skip = true;
-    }
-    return out;
+    return this.#tokens.issueTicket(entry, o);
   }
 
   #loginSkips(entry: RouteEntry): boolean {
@@ -158,33 +120,6 @@ export class PreviewGate {
       this.#fps.set(raw.hash, fp);
     }
     return { hash: raw.hash, salt: raw.salt, fp };
-  }
-
-  #passwordCookieFor(entry: RouteEntry, fp: string): string {
-    const payload = `${entry.previewId}.${this.#o.now() + this.#o.passwordCookieTtlMs}.${fp}`;
-    return `${payload}.${b64(this.#mac("password", payload))}`;
-  }
-
-  #hasPasswordCookie(req: Request, entry: RouteEntry, fp: string): boolean {
-    const header = req.headers.get("cookie");
-    if (!header) return false;
-    for (const part of header.split(";")) {
-      const eq = part.indexOf("=");
-      if (eq < 0 || part.slice(0, eq).trim() !== PASSWORD_COOKIE) continue;
-      const [previewId, exp, cfp, sig, extra] = part
-        .slice(eq + 1)
-        .trim()
-        .split(".");
-      if (!previewId || !exp || !cfp || !sig || extra !== undefined) continue;
-      if (
-        previewId === entry.previewId &&
-        cfp === fp &&
-        Number(exp) > this.#o.now() &&
-        this.#verify("password", `${previewId}.${exp}.${cfp}`, sig)
-      )
-        return true;
-    }
-    return false;
   }
 
   isProtected(entry: RouteEntry): boolean {
@@ -214,17 +149,8 @@ export class PreviewGate {
     clientIp: string,
     secret: Secret,
   ): Promise<Response> {
-    const origin = req.headers.get("origin");
-    if (origin !== null && origin !== "null") {
-      let host = "";
-      try {
-        host = new URL(origin).hostname;
-      } catch {
-        // unparseable: refused below
-      }
-      if (host !== entry.hostname)
-        return plain(403, "This form must be sent from the preview's own page.");
-    }
+    if (foreignOrigin(req, entry.hostname))
+      return plain(403, "This form must be sent from the preview's own page.");
     if (!this.#o.passwords)
       return plain(503, "Password-protected previews are not available on this server.");
     const form = await readForm(req);
@@ -233,17 +159,8 @@ export class PreviewGate {
     const given = form.get("password") ?? "";
 
     const source = sourceKey(clientIp || "unknown");
-    const verdict = this.#o.limiter?.check(source, entry.previewId) ?? { ok: true };
-    if (!verdict.ok) {
-      this.#o.onPasswordFailure?.(entry, clientIp, "throttled");
-      return passwordPage(
-        entry.hostname,
-        to,
-        `Too many attempts. Try again in ${Math.ceil(verdict.retryAfterSec / 60)} minute(s).`,
-        429,
-        verdict.retryAfterSec,
-      );
-    }
+    const throttled = this.#throttled(entry, clientIp, source, to);
+    if (throttled) return throttled;
     let ok: boolean;
     try {
       ok = given !== "" && given.length <= 1024 && (await this.#o.passwords.verify(given, secret));
@@ -260,10 +177,23 @@ export class PreviewGate {
       status: 303,
       headers: {
         location: to,
-        "set-cookie": `${PASSWORD_COOKIE}=${this.#passwordCookieFor(entry, secret.fp)}; Max-Age=${Math.floor(this.#o.passwordCookieTtlMs / 1000)}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+        "set-cookie": this.#tokens.passwordSetCookie(entry, secret.fp),
         "cache-control": "no-store",
       },
     });
+  }
+
+  #throttled(entry: RouteEntry, clientIp: string, source: string, to: string): Response | null {
+    const verdict = this.#o.limiter?.check(source, entry.previewId) ?? { ok: true };
+    if (verdict.ok) return null;
+    this.#o.onPasswordFailure?.(entry, clientIp, "throttled");
+    return passwordPage(
+      entry.hostname,
+      to,
+      `Too many attempts. Try again in ${Math.ceil(verdict.retryAfterSec / 60)} minute(s).`,
+      429,
+      verdict.retryAfterSec,
+    );
   }
 
   // /__gangway/* is answered here for every preview so it never reaches an upstream.
@@ -274,59 +204,65 @@ export class PreviewGate {
     const url = new URL(req.url);
 
     const gate =
-      priv || secret !== null ? this.#gateCookie(req, entry) : { valid: false, skip: false };
+      priv || secret !== null ? this.#tokens.gateCookie(req, entry) : { valid: false, skip: false };
     const loginSkips = secret !== null && this.#loginSkips(entry);
+    const visit: Visit = { entry, req, url, secret, priv, gate, loginSkips };
 
-    if (url.pathname.startsWith(GATE_PREFIX) || url.pathname === GATE_PREFIX.slice(0, -1)) {
-      if (url.pathname === PASSWORD_PATH && req.method === "GET" && secret !== null) {
-        if (this.#hasPasswordCookie(req, entry, secret.fp))
-          return redirect(safePath(url.searchParams.get("to")));
-        return passwordPage(entry.hostname, safePath(url.searchParams.get("to")), null, 401);
-      }
-      if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET")
-        return plain(404, "not found");
-      const ticket = this.#redeem(url.searchParams.get("ticket") ?? "", entry);
-      if (!ticket) {
-        return plain(
-          403,
-          "This sign-in link has expired or was already used. Open the preview again to get a new one.",
-        );
-      }
-      return new Response(null, {
-        status: 302,
-        headers: {
-          location: safePath(url.searchParams.get("to")),
-          "set-cookie": `${GATE_COOKIE}=${this.#cookieFor(entry, ticket.s === 1)}; Max-Age=${Math.floor(this.#o.cookieTtlMs / 1000)}; Path=/; HttpOnly; Secure; SameSite=Lax`,
-          "cache-control": "no-store",
-          "referrer-policy": "no-referrer",
-        },
-      });
-    }
+    if (url.pathname.startsWith(GATE_PREFIX) || url.pathname === GATE_PREFIX.slice(0, -1))
+      return this.#gatePath(visit);
 
     // Only a top-level navigation can follow a cross-origin redirect to the login page and come back.
-    const mode = req.headers.get("sec-fetch-mode");
-    const navigation =
-      (req.method === "GET" || req.method === "HEAD") &&
-      !req.headers.has("upgrade") &&
-      (mode === null || mode === "navigate");
+    const navigation = isNavigation(req);
     const back = safePath(`${url.pathname}${url.search}`);
 
-    if (!priv || gate.valid) {
-      if (secret === null || this.#hasPasswordCookie(req, entry, secret.fp)) return null;
-      if (loginSkips && gate.skip) return null;
-      if (!navigation)
-        return plain(
-          401,
-          "This preview is password-protected. Open it in a browser tab and enter the password first.",
-        );
-      if (loginSkips && !gate.valid) return redirect(this.#appGate(entry, back));
-      return passwordPage(entry.hostname, back, null, 401);
-    }
+    if (!priv || gate.valid) return this.#passwordStep(visit, navigation, back);
 
     if (!navigation)
       return plain(401, "This preview is private. Open it in a browser tab and log in first.");
     return redirect(this.#appGate(entry, back));
   };
+
+  #gatePath({ entry, req, url, secret, priv, loginSkips }: Visit): Response {
+    if (url.pathname === PASSWORD_PATH && req.method === "GET" && secret !== null) {
+      if (this.#tokens.hasPasswordCookie(req, entry, secret.fp))
+        return redirect(safePath(url.searchParams.get("to")));
+      return passwordPage(entry.hostname, safePath(url.searchParams.get("to")), null, 401);
+    }
+    if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET")
+      return plain(404, "not found");
+    const ticket = this.#tokens.redeem(url.searchParams.get("ticket") ?? "", entry);
+    if (!ticket) {
+      return plain(
+        403,
+        "This sign-in link has expired or was already used. Open the preview again to get a new one.",
+      );
+    }
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location: safePath(url.searchParams.get("to")),
+        "set-cookie": this.#tokens.gateSetCookie(entry, ticket.s === 1),
+        "cache-control": "no-store",
+        "referrer-policy": "no-referrer",
+      },
+    });
+  }
+
+  #passwordStep(
+    { entry, req, secret, gate, loginSkips }: Visit,
+    navigation: boolean,
+    back: string,
+  ): Response | null {
+    if (secret === null || this.#tokens.hasPasswordCookie(req, entry, secret.fp)) return null;
+    if (loginSkips && gate.skip) return null;
+    if (!navigation)
+      return plain(
+        401,
+        "This preview is password-protected. Open it in a browser tab and enter the password first.",
+      );
+    if (loginSkips && !gate.valid) return redirect(this.#appGate(entry, back));
+    return passwordPage(entry.hostname, back, null, 401);
+  }
 
   #appGate(entry: RouteEntry, to: string): string {
     const target = new URL("/v1/auth/gate", this.#o.appOrigin());
@@ -338,85 +274,6 @@ export class PreviewGate {
 
 function isPrivate(entry: RouteEntry): boolean {
   return entry.visibility === "private" || entry.passwordLogin === "only";
-}
-
-function redirect(location: string): Response {
-  return new Response(null, { status: 302, headers: { location, "cache-control": "no-store" } });
-}
-
-async function readForm(req: Request): Promise<URLSearchParams | null> {
-  const declared = Number(req.headers.get("content-length") ?? "0");
-  if (declared > MAX_FORM_BYTES) return null;
-  if (!req.body) return new URLSearchParams();
-  const reader = (req.body as ReadableStream<Uint8Array>).getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_FORM_BYTES) {
-      await reader.cancel().catch(() => {});
-      return null;
-    }
-    chunks.push(value);
-  }
-  return new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
-}
-
-const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-
-function passwordPage(
-  host: string,
-  to: string,
-  error: string | null,
-  status: number,
-  retryAfterSec?: number,
-): Response {
-  const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Password required</title>
-<style>
-:root{color-scheme:light dark;--bg:#fafafa;--fg:#171717;--muted:#737373;--card:#fff;--line:#e5e5e5;--err:#b91c1c}
-@media (prefers-color-scheme:dark){:root{--bg:#0a0a0a;--fg:#f5f5f5;--muted:#a3a3a3;--card:#171717;--line:#262626;--err:#f87171}}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;padding:16px}
-form{width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px}
-h1{font-size:17px;margin:0 0 4px}p{margin:0 0 16px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
-input[type=password]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;font:inherit}
-button{margin-top:12px;width:100%;padding:9px;border:0;border-radius:8px;background:var(--fg);color:var(--bg);font:inherit;font-weight:600;cursor:pointer}
-.err{color:var(--err);margin:10px 0 0;font-size:13px}
-</style></head><body>
-<form method="post" action="${PASSWORD_PATH}">
-<h1>This preview is password-protected</h1>
-<p>${escapeHtml(host)}</p>
-<input type="hidden" name="to" value="${escapeHtml(to)}">
-<input type="password" name="password" autocomplete="current-password" aria-label="Password" placeholder="Password" required autofocus>
-<button type="submit">Open preview</button>
-${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
-</form></body></html>
-`;
-  const headers: Record<string, string> = {
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store",
-    "x-robots-tag": "noindex, nofollow",
-    "content-security-policy":
-      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-    "x-frame-options": "DENY",
-    "referrer-policy": "no-referrer",
-  };
-  if (retryAfterSec !== undefined) headers["retry-after"] = String(retryAfterSec);
-  return new Response(html, { status, headers });
-}
-
-function plain(status: number, message: string): Response {
-  return new Response(`${message}\n`, {
-    status,
-    headers: {
-      "content-type": "text/plain; charset=utf-8",
-      "cache-control": "no-store",
-      "x-robots-tag": "noindex, nofollow",
-    },
-  });
 }
 
 export function stripGangwayCookies(header: string | null | undefined): string | null {

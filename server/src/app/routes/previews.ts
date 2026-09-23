@@ -30,74 +30,78 @@ import { resumeCursor, sse, SSE_MAX_QUEUE, type SseOptions } from "../sse.ts";
 const isTarball = (contentType: string) =>
   (TARBALL_CONTENT_TYPES as readonly string[]).includes(contentType);
 
-export function previewRoutes(
-  api: Hono<AppEnv>,
-  ctx: PreviewContext,
-  deploys: IdempotentDeploys,
-  o: SseOptions = {},
-): void {
-  const wire = (p: Preview) => ({
-    ...p,
-    access: previewAccess(ctx.passwords, p),
-    urls: urlsFor(ctx, p.id),
-  });
+type TarballQuery = ReturnType<typeof TarballDeployQuerySchema.parse>;
 
-  const find = (id: string): Preview => {
-    // The id names a log file on disk.
-    const p = isUlid(id) ? ctx.previews.get(id) : undefined;
-    if (!p) throw notFound(`no such preview: ${id}`);
-    return p;
+const contentTypeOf = (c: Context<AppEnv>) =>
+  (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+
+function previewHelpers(ctx: PreviewContext) {
+  return {
+    ctx,
+    wire: (p: Preview) => ({
+      ...p,
+      access: previewAccess(ctx.passwords, p),
+      urls: urlsFor(ctx, p.id),
+    }),
+    find: (id: string): Preview => {
+      // The id names a log file on disk.
+      const p = isUlid(id) ? ctx.previews.get(id) : undefined;
+      if (!p) throw notFound(`no such preview: ${id}`);
+      return p;
+    },
   };
+}
+type Previews = ReturnType<typeof previewHelpers>;
 
+function chosenPassword(chosen: string | undefined, passwordMode: TarballQuery["password"]) {
+  if (chosen !== undefined && passwordMode !== undefined)
+    throw badRequest(`send either ?password= or the ${PREVIEW_PASSWORD_HEADER} header, not both`);
+  if (chosen !== undefined && (chosen.length === 0 || chosen.length > PREVIEW_PASSWORD_MAX))
+    throw unprocessable(`a password is 1 to ${PREVIEW_PASSWORD_MAX} characters`);
+  if (chosen !== undefined) return { mode: "set" as const, value: chosen };
+  return passwordMode ? { mode: passwordMode } : undefined;
+}
+
+function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
+  const {
+    ttl,
+    project,
+    runtime,
+    port,
+    addons,
+    password: passwordMode,
+    passwordLogin,
+    ...q
+  } = TarballDeployQuerySchema.parse(c.req.query());
+  const archive = c.req.raw.body;
+  if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
+  const password = chosenPassword(c.req.header(PREVIEW_PASSWORD_HEADER), passwordMode);
+  return {
+    ...q,
+    ...(password ? { password } : {}),
+    ...(passwordLogin ? { passwordLogin } : {}),
+    ...(project ? { projectId: project } : {}),
+    ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }),
+    source: {
+      kind: "tarball",
+      archive,
+      port,
+      runtime,
+      addons,
+      digest: `len:${c.req.header("content-length") ?? "?"}`,
+    },
+  };
+}
+
+async function jsonRequest(c: Context<AppEnv>): Promise<Omit<DeployInput, "actor">> {
+  const body = await readJson(c);
+  const { project, ...parsed } = DeployRequestSchema.parse(body);
+  return { ...parsed, ...(project ? { projectId: project } : {}) };
+}
+
+function deployRoutes(api: Hono<AppEnv>, { wire }: Previews, deploys: IdempotentDeploys): void {
   api.post("/previews", requirePermission("previews.deploy"), async (c) => {
-    const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
-    let req: Omit<DeployInput, "actor">;
-    if (isTarball(contentType)) {
-      const {
-        ttl,
-        project,
-        runtime,
-        port,
-        addons,
-        password: passwordMode,
-        passwordLogin,
-        ...q
-      } = TarballDeployQuerySchema.parse(c.req.query());
-      const archive = c.req.raw.body;
-      if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      const chosen = c.req.header(PREVIEW_PASSWORD_HEADER);
-      if (chosen !== undefined && passwordMode !== undefined)
-        throw badRequest(
-          `send either ?password= or the ${PREVIEW_PASSWORD_HEADER} header, not both`,
-        );
-      if (chosen !== undefined && (chosen.length === 0 || chosen.length > PREVIEW_PASSWORD_MAX))
-        throw unprocessable(`a password is 1 to ${PREVIEW_PASSWORD_MAX} characters`);
-      const password =
-        chosen !== undefined
-          ? { mode: "set" as const, value: chosen }
-          : passwordMode
-            ? { mode: passwordMode }
-            : undefined;
-      req = {
-        ...q,
-        ...(password ? { password } : {}),
-        ...(passwordLogin ? { passwordLogin } : {}),
-        ...(project ? { projectId: project } : {}),
-        ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }),
-        source: {
-          kind: "tarball",
-          archive,
-          port,
-          runtime,
-          addons,
-          digest: `len:${c.req.header("content-length") ?? "?"}`,
-        },
-      };
-    } else {
-      const body = await readJson(c);
-      const { project, ...parsed } = DeployRequestSchema.parse(body);
-      req = { ...parsed, ...(project ? { projectId: project } : {}) };
-    }
+    const req = isTarball(contentTypeOf(c)) ? tarballRequest(c) : await jsonRequest(c);
     const res = await deploys.deploy(
       { ...req, actor: c.get("actor") },
       c.req.header("idempotency-key"),
@@ -111,7 +115,9 @@ export function previewRoutes(
     c.header("location", `/v1/previews/${res.preview.id}`);
     return c.json({ preview: wire(res.preview) }, 202);
   });
+}
 
+function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   api.get("/previews", requirePermission("previews.read"), (c) => {
     const states = c.req
       .queries("state")
@@ -173,7 +179,9 @@ export function previewRoutes(
       }),
     );
   });
+}
 
+function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   const rebuild = async (
     c: Context<AppEnv, "/previews/:id">,
     change: RedeployInput["change"],
@@ -217,7 +225,7 @@ export function previewRoutes(
     "/previews/:id/source",
     requirePermission("previews.update_own", "previews.update"),
     async (c) => {
-      const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+      const contentType = contentTypeOf(c);
       if (!isTarball(contentType))
         throw badRequest(
           `send the new source as a tar or tar.gz body (${TARBALL_CONTENT_TYPES.join(", ")})`,
@@ -228,7 +236,9 @@ export function previewRoutes(
       return rebuild(c, { kind: "replace", archive }, runtime, addons);
     },
   );
+}
 
+function passwordRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   api.put(
     "/previews/:id/password",
     requirePermission("previews.update_own", "previews.update"),
@@ -248,7 +258,9 @@ export function previewRoutes(
       });
     },
   );
+}
 
+function logRoutes(api: Hono<AppEnv>, { ctx, find }: Previews, o: SseOptions): void {
   api.get("/previews/:id/logs", requirePermission("logs.read"), (c) => {
     const p = find(c.req.param("id"));
     const after = resumeCursor(c);
@@ -275,4 +287,18 @@ export function previewRoutes(
       o,
     );
   });
+}
+
+export function previewRoutes(
+  api: Hono<AppEnv>,
+  ctx: PreviewContext,
+  deploys: IdempotentDeploys,
+  o: SseOptions = {},
+): void {
+  const previews = previewHelpers(ctx);
+  deployRoutes(api, previews, deploys);
+  readRoutes(api, previews);
+  sourceRoutes(api, previews);
+  passwordRoutes(api, previews);
+  logRoutes(api, previews, o);
 }
