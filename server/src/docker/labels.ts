@@ -16,9 +16,7 @@
  * set any label it likes) and the reconciler must be able to say "this is not mine" or
  * "this is newer than me" rather than crash a boot-time sweep.
  */
-import type { Route, Visibility } from "../../../shared/src/domain.ts";
-
-export const LABEL_PREFIX = "gangway.";
+import type { Route, Visibility } from "@gangway/shared/domain";
 
 /**
  * Bump when the MEANING of a key changes, not when one is added. A newer gangway's
@@ -52,9 +50,6 @@ export const LABEL = {
   containerPort: "gangway.container_port",
   upstreamHost: "gangway.upstream_host",
 } as const;
-
-/** Every key we write. Useful for asserting nothing was dropped. */
-export const LABEL_KEYS: readonly string[] = Object.values(LABEL);
 
 /** The daemon-side filter for a managed-container scan (§11 step 2). */
 export const MANAGED_FILTER = "gangway.managed=true";

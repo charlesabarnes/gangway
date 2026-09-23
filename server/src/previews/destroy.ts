@@ -16,10 +16,10 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Host, Preview } from "../../../shared/src/domain.ts";
+import type { Host, Preview } from "@gangway/shared/domain";
 import { actorId, type Actor } from "../auth/actor.ts";
 import { downArgv } from "../docker/compose.ts";
-import { AppError, notFound } from "../errors.ts";
+import { AppError, notFound, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import type { PreviewContext } from "./context.ts";
 
@@ -88,7 +88,7 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
       throw new Error(`compose down exited ${res.code}: ${res.stderr.slice(-500)}`);
     await removeLeftovers(ctx, preview, host, empty);
   } catch (e) {
-    const message = redactString(e instanceof Error ? e.message : String(e));
+    const message = redactString(errorMessage(e));
     ctx.logs.append(previewId, "system", `destroy FAILED: ${message}`);
     ctx.states.transition(previewId, "failed", `destroy failed: ${message}`);
     throw e instanceof AppError

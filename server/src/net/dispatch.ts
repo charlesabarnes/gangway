@@ -2,7 +2,7 @@
  * Host-header dispatch (§3.1, §6.1). Deliberately boring, fixed order, exhaustively
  * tested -- every branch here is a security or usability decision.
  */
-import { labelUnder, normalizeHost, RESERVED_LABELS } from "../../../shared/src/hostname.ts";
+import { labelUnder, normalizeHost, RESERVED_LABELS } from "@gangway/shared/hostname";
 import type { RouteEntry, RouteTable } from "../routing/table.ts";
 import {
   badGatewayPage,
@@ -14,7 +14,7 @@ import {
   unknownPage,
   upstreamTimeoutPage,
   wakingPage,
-} from "./errorpages.ts";
+} from "./error-pages.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
 import { release, tryAcquire, type Limits } from "./limits.ts";
 import { isBodyTooLarge, isTimeout, type Upstream } from "./upstream.ts";

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Route } from "../../../shared/src/domain.ts";
+import type { Route } from "@gangway/shared/domain";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
 import { HostConfigSchema } from "../../src/config.ts";
 import { migrate } from "../../src/db/migrate.ts";

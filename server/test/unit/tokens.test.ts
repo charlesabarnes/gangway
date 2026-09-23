@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
-import { SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
+import { SCOPE_PERMISSIONS } from "@gangway/shared/permissions";
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";

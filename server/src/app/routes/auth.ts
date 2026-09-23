@@ -8,12 +8,8 @@
  * names a permission stays without an exception.
  */
 import type { Context, Hono } from "hono";
-import {
-  ChangePasswordSchema,
-  LoginRequestSchema,
-  SetupRequestSchema,
-} from "../../../../shared/src/api.ts";
-import type { User } from "../../../../shared/src/domain.ts";
+import { ChangePasswordSchema, LoginRequestSchema, SetupRequestSchema } from "@gangway/shared/api";
+import type { User } from "@gangway/shared/domain";
 import type { Accounts, RequestMeta } from "../../auth/accounts.ts";
 import type { Actor } from "../../auth/actor.ts";
 import type { Bootstrap } from "../../auth/bootstrap.ts";

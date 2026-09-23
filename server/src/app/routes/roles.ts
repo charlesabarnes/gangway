@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
-import { SetRolePermissionsSchema } from "../../../../shared/src/api.ts";
-import { PERMISSIONS } from "../../../../shared/src/permissions.ts";
+import { SetRolePermissionsSchema } from "@gangway/shared/api";
+import { PERMISSIONS } from "@gangway/shared/permissions";
 import type { RolePermissions } from "../../auth/roles.ts";
 import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";

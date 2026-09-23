@@ -17,10 +17,10 @@
 import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Host, Preview, PreviewSource } from "../../../shared/src/domain.ts";
+import type { Host, Preview, PreviewSource } from "@gangway/shared/domain";
 import { actorId, mayRebuild, type Actor } from "../auth/actor.ts";
 import { buildArgv, composeArgv, psArgv, runArgv, upArgv } from "../docker/compose.ts";
-import { AppError, conflict, forbidden, notFound } from "../errors.ts";
+import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { ulid } from "../util/ulid.ts";
 import { addonServices } from "./addons.ts";
@@ -41,7 +41,7 @@ import {
   type WaitTarget,
 } from "./deploy.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
-import type { AddonRequest, AppPlan } from "../../../shared/src/app-plan.ts";
+import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
 import { GENERATED_DIR } from "./source/store.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import { DIR_MODE, FILE_MODE, resolveWithin } from "./source/types.ts";
@@ -248,7 +248,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
       preview: ctx.previews.get(id) ?? preview,
       buildId,
       outcome: "failed",
-      error: e instanceof Error ? e.message : String(e),
+      error: errorMessage(e),
     });
     throw e;
   }
@@ -417,7 +417,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
         outcome: "failed",
         error: "cancelled",
       };
-    const message = redactString(e instanceof Error ? e.message : String(e));
+    const message = redactString(errorMessage(e));
     if (!(e instanceof StepFailed))
       ctx.logger.error("redeploy pipeline error", { previewId: id, err: e });
     const state = ctx.previews.get(id)?.state;

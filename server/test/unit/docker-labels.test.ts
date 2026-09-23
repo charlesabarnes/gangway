@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Route, Visibility } from "../../../shared/src/domain.ts";
+import type { Route, Visibility } from "@gangway/shared/domain";
 import {
   CURRENT_LABEL_VERSION,
   LABEL,

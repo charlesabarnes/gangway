@@ -7,11 +7,12 @@
  * matrix. Disabling a user, changing their role, or editing what a role may do all take
  * effect on the next request. Nothing about authority is cached in the session.
  */
-import { createHash, randomBytes } from "node:crypto";
-import type { Session, User } from "../../../shared/src/domain.ts";
+import { randomBytes } from "node:crypto";
+import type { Session, User } from "@gangway/shared/domain";
 import type { SessionsRepo } from "../db/repos/sessions.ts";
 import type { Actor } from "./actor.ts";
 import type { RolePermissions } from "./roles.ts";
+import { sha256 } from "../util/hash.ts";
 
 const MIN = 60_000,
   DAY = 86_400_000;
@@ -32,7 +33,7 @@ export const DEFAULT_SESSION_TIMINGS: SessionTimings = {
 };
 
 const SECRET_RE = /^[A-Za-z0-9_-]{43}$/;
-const idFor = (secret: string) => createHash("sha256").update(secret).digest("hex");
+const idFor = (secret: string) => sha256(secret, "hex");
 
 export class Sessions {
   readonly #repo: SessionsRepo;

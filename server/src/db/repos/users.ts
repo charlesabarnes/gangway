@@ -1,5 +1,5 @@
-import type { User } from "../../../../shared/src/domain.ts";
-import { ADMIN_ROLE_ID } from "../../../../shared/src/permissions.ts";
+import type { User } from "@gangway/shared/domain";
+import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { USER_COLUMNS, num, rowToUser, type UserRow } from "./mappers.ts";
 

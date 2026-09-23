@@ -20,16 +20,11 @@ import {
   type AddonRequest,
   type AppPlan,
   type PlanChoice,
-} from "../../../shared/src/app-plan.ts";
-import type { AddonChoice } from "../../../shared/src/addons.ts";
-import type { Command } from "../../../shared/src/gangway-file.ts";
-import {
-  isRuntimeId,
-  runtimeById,
-  type Detected,
-  type RuntimeId,
-} from "../../../shared/src/runtimes.ts";
-import { AppError } from "../errors.ts";
+} from "@gangway/shared/app-plan";
+import type { AddonChoice } from "@gangway/shared/addons";
+import type { Command } from "@gangway/shared/gangway-file";
+import { runtimeById, type Detected, type RuntimeId } from "@gangway/shared/runtimes";
+import { AppError, unprocessable } from "../errors.ts";
 import type { RenderedAddons } from "./addons.ts";
 import { composeForRuntime } from "./compose-model.ts";
 import { GENERATED_DIR } from "./source/store.ts";
@@ -37,11 +32,6 @@ import { containedIn, DIR_MODE, FILE_MODE } from "./source/types.ts";
 
 /** What a request may ask for: a runtime, `auto` (detect), or `own` (the upload's own stack). */
 export type RuntimeChoice = PlanChoice;
-export const isRuntimeChoice = (s: string): s is RuntimeChoice =>
-  s === "auto" || s === "own" || isRuntimeId(s);
-
-const unprocessable = (m: string, d?: Record<string, unknown>) =>
-  new AppError("unprocessable", m, d);
 
 /** Pinned alongside the images in the catalogue: a bump is a deliberate, tested change. */
 export const WORKERD_VERSION = "1.20260922.1";

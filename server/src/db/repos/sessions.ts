@@ -1,4 +1,4 @@
-import type { Session, User } from "../../../../shared/src/domain.ts";
+import type { Session, User } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToSession, rowToUser, type SessionRow, type UserRow } from "./mappers.ts";
 

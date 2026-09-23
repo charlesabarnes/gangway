@@ -13,7 +13,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Preview } from "../../../shared/src/domain.ts";
+import type { Preview } from "@gangway/shared/domain";
 import { composeArgv } from "../docker/compose.ts";
 import { redactString } from "../logger.ts";
 import type { PreviewContext } from "./context.ts";

@@ -1,4 +1,4 @@
-import type { Certificate } from "../../../../shared/src/domain.ts";
+import type { Certificate } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { fromDate, rowToCert, type CertRow } from "./mappers.ts";
 

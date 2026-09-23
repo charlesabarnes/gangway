@@ -1,4 +1,4 @@
-import type { Clearance, Template, Visibility } from "../../../../shared/src/domain.ts";
+import type { Clearance, Template, Visibility } from "@gangway/shared/domain";
 import type { Db, Params } from "../types.ts";
 import { rowToTemplate, type TemplateRow } from "./mappers.ts";
 

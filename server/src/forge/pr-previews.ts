@@ -13,8 +13,8 @@
  *   - the forge is told AFTER the preview exists and again when it settles; a forge
  *     call failing never fails the deploy
  */
-import type { Clearance, RepoProject, Preview } from "../../../shared/src/domain.ts";
-import { slugify } from "../../../shared/src/hostname.ts";
+import type { Clearance, RepoProject, Preview } from "@gangway/shared/domain";
+import { slugify } from "@gangway/shared/hostname";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
 import type { ProjectsRepo } from "../db/repos/projects.ts";

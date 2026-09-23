@@ -12,6 +12,7 @@ import type { Logger } from "../logger.ts";
 import type { SurfaceHandler } from "../net/dispatch.ts";
 import type { Forge } from "./forge.ts";
 import type { Outcome, PrPreviews } from "./pr-previews.ts";
+import { errorMessage } from "../errors.ts";
 
 /** A pull_request delivery is tens of KB; this is headroom, not a ceiling to design for. */
 export const MAX_WEBHOOK_BYTES = 2 * 1024 * 1024;
@@ -102,7 +103,7 @@ export class Hooks {
             this.#d.logger.error("webhook failed", { deliveryId, event: event.type, err: e });
             this.#d.onOutcome?.(deliveryId, {
               action: "ignored",
-              reason: `failed: ${e instanceof Error ? e.message : String(e)}`,
+              reason: `failed: ${errorMessage(e)}`,
             });
           },
         )

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Preview } from "../../../shared/src/domain.ts";
+import type { Preview } from "@gangway/shared/domain";
 import type { Actor } from "../../src/auth/actor.ts";
 import { AppError } from "../../src/errors.ts";
 import { migrate } from "../../src/db/migrate.ts";

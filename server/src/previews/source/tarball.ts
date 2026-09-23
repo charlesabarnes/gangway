@@ -12,10 +12,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { createGunzip } from "node:zlib";
 import { extract, type Extract, type ExtractEvents } from "tar-stream";
-
-/** tar-stream exports the entry stream only through its event map. */
-type TarEntry = ExtractEvents["entry"][1];
-import { AppError } from "../../errors.ts";
+import { AppError, errorMessage } from "../../errors.ts";
 import {
   DIR_MODE,
   FILE_MODE,
@@ -27,6 +24,9 @@ import {
   type ExtractResult,
   type ResolvedLimits,
 } from "./types.ts";
+
+/** tar-stream exports the entry stream only through its event map. */
+type TarEntry = ExtractEvents["entry"][1];
 
 export type TarballSource = Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>;
 
@@ -332,6 +332,6 @@ function isErrno(err: unknown, code: string): boolean {
  */
 function asTarballError(err: unknown): unknown {
   if (err instanceof AppError) return err;
-  const message = err instanceof Error ? err.message : String(err);
+  const message = errorMessage(err);
   return rejectTarball("malformed_archive", `could not read the archive: ${message}`);
 }

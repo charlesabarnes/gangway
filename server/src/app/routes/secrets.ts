@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { EnvPatchSchema } from "../../../../shared/src/api.ts";
+import { EnvPatchSchema } from "@gangway/shared/api";
 import { readJson } from "../problem.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
 import type { AppEnv } from "../env.ts";

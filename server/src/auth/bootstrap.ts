@@ -14,9 +14,8 @@
  * The `gw_` prefix is deliberate: the logger redacts anything shaped like that, so the
  * URL cannot reach a log line by accident. It is printed through `announce` instead.
  */
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-
-const sha256 = (s: string) => createHash("sha256").update(s).digest();
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { sha256 } from "../util/hash.ts";
 
 export class Bootstrap {
   readonly #userCount: () => number;

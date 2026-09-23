@@ -41,10 +41,11 @@
  * the browser straight back to `/__gangway/password`, which shows the form. One bounce per
  * browser, never a login page for a stranger.
  */
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { sourceKey, type LoginLimiter } from "../auth/limiter.ts";
 import type { Passwords } from "../auth/password.ts";
 import type { EntryPassword, RouteEntry } from "../routing/table.ts";
+import { sha256 } from "../util/hash.ts";
 
 export const GATE_COOKIE = "__Host-gw_pv";
 export const PASSWORD_COOKIE = "__Host-gw_pw";
@@ -220,7 +221,7 @@ export class PreviewGate {
     if (!raw) return null;
     let fp = this.#fps.get(raw.hash);
     if (!fp) {
-      fp = createHash("sha256").update(raw.hash).digest("base64url").slice(0, 16);
+      fp = sha256(raw.hash, "base64url").slice(0, 16);
       if (this.#fps.size > 10_000) this.#fps.clear();
       this.#fps.set(raw.hash, fp);
     }

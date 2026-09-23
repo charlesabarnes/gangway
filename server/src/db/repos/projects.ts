@@ -6,7 +6,7 @@ import type {
   Project,
   RepoProject,
   Visibility,
-} from "../../../../shared/src/domain.ts";
+} from "@gangway/shared/domain";
 import type { Db, Params } from "../types.ts";
 import { num, rowToProject, type ProjectRow } from "./mappers.ts";
 

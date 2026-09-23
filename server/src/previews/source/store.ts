@@ -7,11 +7,11 @@
  * gangway put there. A replacement is swapped in with renames: a crash leaves the old tree
  * or the new one (possibly as `<id>.old`), never half of each.
  */
-import { createHash } from "node:crypto";
 import { cp, lstat, mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { badRequest } from "../../errors.ts";
 import { isUlid } from "../../util/ulid.ts";
+import { sha256 } from "../../util/hash.ts";
 
 const MODE = 0o700;
 /** Larger files are listed, not inlined: the editor is for source, not assets. */
@@ -138,7 +138,7 @@ export class SourceStore {
         out.push({
           path: path.relative(root, abs).split(path.sep).join("/"),
           bytes: bytes.length,
-          sha256: createHash("sha256").update(bytes).digest("hex"),
+          sha256: sha256(bytes, "hex"),
         });
       }
     };

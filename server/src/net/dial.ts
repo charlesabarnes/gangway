@@ -12,7 +12,7 @@
  * addon-free.
  */
 import net from "node:net";
-import type { UpstreamDial } from "../../../shared/src/domain.ts";
+import type { UpstreamDial } from "@gangway/shared/domain";
 
 export type DialTarget = { host: string; port: number };
 

@@ -5,7 +5,7 @@
  * without the others would show up as a preview the UI calls awake and the proxy calls
  * building.
  */
-import type { Preview, PreviewState } from "../../../shared/src/domain.ts";
+import type { Preview, PreviewState } from "@gangway/shared/domain";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
 import { AppError, notFound } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";

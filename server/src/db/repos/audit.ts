@@ -1,4 +1,4 @@
-import type { AuditActorType, AuditEntry } from "../../../../shared/src/domain.ts";
+import type { AuditActorType, AuditEntry } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToAuditEntry, type AuditRow } from "./mappers.ts";
 

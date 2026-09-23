@@ -1,5 +1,5 @@
-import type { ApiToken, User } from "../../../../shared/src/domain.ts";
-import type { Scope } from "../../../../shared/src/permissions.ts";
+import type { ApiToken, User } from "@gangway/shared/domain";
+import type { Scope } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { TOKEN_COLUMNS, rowToToken, rowToUser, type TokenRow, type UserRow } from "./mappers.ts";
 

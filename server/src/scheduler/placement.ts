@@ -5,7 +5,7 @@
  * the point. As long as no other code assumes where work runs, collapsing to one host
  * and splitting later are both config changes with no migration.
  */
-import type { Host, HostCapability } from "../../../shared/src/domain.ts";
+import type { Host, HostCapability } from "@gangway/shared/domain";
 import { AppError } from "../errors.ts";
 
 export type PlacementRequest = {

@@ -4,7 +4,7 @@
  * the hostname (`shop` for `shop-k3v9x…`). Ambiguity is an error that lists the candidates;
  * guessing which preview to destroy is not a feature.
  */
-import { type Preview, projectNameFor } from "../../../shared/src/domain.ts";
+import { type Preview, projectNameFor } from "@gangway/shared/domain";
 import { notFound, unprocessable } from "../errors.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { isUlid } from "../util/ulid.ts";

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Preview, PreviewState, Route, Visibility } from "../../../shared/src/domain.ts";
+import type { Preview, PreviewState, Route, Visibility } from "@gangway/shared/domain";
 import {
   GANGWAY_LABEL_VERSION,
   diff,

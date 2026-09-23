@@ -1,4 +1,4 @@
-import type { Route } from "../../../../shared/src/domain.ts";
+import type { Route } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { num, rowToRoute, type RouteRow } from "./mappers.ts";
 

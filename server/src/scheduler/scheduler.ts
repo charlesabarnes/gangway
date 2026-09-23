@@ -16,6 +16,7 @@
  * Timers are unref'd: the scheduler never keeps the process alive on its own.
  */
 import type { Logger } from "../logger.ts";
+import { errorMessage } from "../errors.ts";
 
 export type Job = {
   name: string;
@@ -191,7 +192,7 @@ export class Scheduler {
         s.lastError = null;
       } catch (err) {
         s.failures++;
-        s.lastError = err instanceof Error ? err.message : String(err);
+        s.lastError = errorMessage(err);
         // An abort during stop() is the job doing what it was told.
         if (!this.#abort.signal.aborted)
           this.#o.logger.error("scheduled job failed", { job: e.job.name, err });

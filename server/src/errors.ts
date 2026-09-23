@@ -80,3 +80,6 @@ export const rateLimited = (retryAfterSec: number, m = "too many attempts; try a
     { retryAfter: retryAfterSec },
     { "retry-after": String(Math.max(1, Math.ceil(retryAfterSec))) },
   );
+
+/** The message of anything thrown, Error or not. */
+export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));

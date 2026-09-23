@@ -1,9 +1,5 @@
-import type { Role } from "../../../../shared/src/domain.ts";
-import {
-  ADMIN_ROLE_ID,
-  isPermission,
-  type Permission,
-} from "../../../../shared/src/permissions.ts";
+import type { Role } from "@gangway/shared/domain";
+import { ADMIN_ROLE_ID, isPermission, type Permission } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { rowToRole, type RoleRow } from "./mappers.ts";
 

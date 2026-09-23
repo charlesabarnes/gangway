@@ -11,7 +11,7 @@
  * channel, so `dockerHost` from the host record is the whole configuration.
  */
 import Dockerode from "dockerode";
-import type { Host } from "../../../shared/src/domain.ts";
+import type { Host } from "@gangway/shared/domain";
 import { badRequest } from "../errors.ts";
 import { assertHostDaemon, type DockerInfo, type GuardOk } from "./guard.ts";
 import type { InspectJson } from "./inspect.ts";

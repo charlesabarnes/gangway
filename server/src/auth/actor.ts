@@ -9,9 +9,10 @@
  * `permissions` is RESOLVED when the actor is built, per request: a role edit, a demotion
  * or a disabled account takes effect on the next request, not the next login.
  */
-import { createHash, timingSafeEqual } from "node:crypto";
-import type { ForgeId } from "../../../shared/src/domain.ts";
-import { SCOPE_PERMISSIONS, type Permission, type Scope } from "../../../shared/src/permissions.ts";
+import { timingSafeEqual } from "node:crypto";
+import type { ForgeId } from "@gangway/shared/domain";
+import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
+import { sha256 } from "../util/hash.ts";
 
 export type { Permission, Scope };
 
@@ -172,8 +173,6 @@ export function chainVerifiers(...verifiers: TokenVerifier[]): TokenVerifier {
 
 /** The env admin token's id. It is the one token that may mint others: it is the operator. */
 export const ENV_ADMIN_TOKEN_ID = "env:admin";
-
-const sha256 = (s: string) => createHash("sha256").update(s).digest();
 
 /**
  * The headless-bootstrap verifier (§8.1): one static token from `GANGWAY_ADMIN_TOKEN`.

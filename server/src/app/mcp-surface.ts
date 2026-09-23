@@ -14,7 +14,7 @@
  */
 import { createMcpHandler, type McpHttpHandler } from "@modelcontextprotocol/server";
 import { Hono, type Context } from "hono";
-import { SCOPE_PERMISSIONS, type Permission, type Scope } from "../../../shared/src/permissions.ts";
+import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
 import type { Actor, TokenVerifier } from "../auth/actor.ts";
 import { isOAuthActor } from "../oauth/server.ts";
 import type { AppEnv } from "./env.ts";

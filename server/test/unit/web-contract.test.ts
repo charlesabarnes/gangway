@@ -9,13 +9,9 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
-import {
-  DISABLE_UI_PHRASE,
-  PREVIEW_STATE_VALUES,
-  VISIBILITY_VALUES,
-} from "../../../shared/src/api.ts";
-import { CLEARANCES, TRIGGERS } from "../../../shared/src/domain.ts";
-import { ALL_PERMISSIONS, SCOPES, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
+import { DISABLE_UI_PHRASE, PREVIEW_STATE_VALUES, VISIBILITY_VALUES } from "@gangway/shared/api";
+import { CLEARANCES, TRIGGERS } from "@gangway/shared/domain";
+import { ALL_PERMISSIONS, SCOPES, SCOPE_PERMISSIONS } from "@gangway/shared/permissions";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
@@ -362,7 +358,7 @@ describe("runtime wire shapes (ADR-0015)", () => {
     const { runtimeRoutes } = await import("../../src/app/routes/runtimes.ts");
     const { deploy } = await import("../../src/previews/deploy.ts");
     const { redeploy } = await import("../../src/previews/redeploy.ts");
-    const { RUNTIME_IDS } = await import("../../../shared/src/runtimes.ts");
+    const { RUNTIME_IDS } = await import("@gangway/shared/runtimes");
     const { pack } = await import("tar-stream");
     const { gzipSync } = await import("node:zlib");
     const { dirname } = await import("node:path");
@@ -413,7 +409,7 @@ describe("runtime wire shapes (ADR-0015)", () => {
     expect(shapeOf(addons[0])).toEqual(
       shapeOf((want as unknown as { addons: unknown[] }).addons[0]),
     );
-    const { ADDON_IDS } = await import("../../../shared/src/addons.ts");
+    const { ADDON_IDS } = await import("@gangway/shared/addons");
     expect(contract["addonIds"]).toEqual([...ADDON_IDS]);
 
     const p = pack();

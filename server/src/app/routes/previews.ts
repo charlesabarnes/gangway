@@ -4,7 +4,7 @@
  * and the MCP tool will need it too, and they do not come through here.
  */
 import type { Context, Hono } from "hono";
-import type { Preview } from "../../../../shared/src/domain.ts";
+import type { Preview } from "@gangway/shared/domain";
 import {
   DeployRequestSchema,
   PreviewPasswordChangeSchema,
@@ -16,7 +16,7 @@ import {
   SourceReplaceQuerySchema,
   TARBALL_CONTENT_TYPES,
   TarballDeployQuerySchema,
-} from "../../../../shared/src/api.ts";
+} from "@gangway/shared/api";
 import { badRequest, forbidden, notFound, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { PreviewContext } from "../../previews/context.ts";

@@ -16,7 +16,7 @@ import { Logger } from "../../src/logger.ts";
 import { PreviewLogs } from "../../src/previews/logs.ts";
 import { place } from "../../src/scheduler/placement.ts";
 import { ulid } from "../../src/util/ulid.ts";
-import type { GangwayEvent, Host } from "../../../shared/src/domain.ts";
+import type { GangwayEvent, Host } from "@gangway/shared/domain";
 
 const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const TOKEN = "gw_test_admin_token_0123456789";

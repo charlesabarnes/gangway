@@ -6,7 +6,7 @@ import {
   ALL_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
   PERMISSIONS,
-} from "../../../shared/src/permissions.ts";
+} from "@gangway/shared/permissions";
 import { RolePermissions } from "../../src/auth/roles.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import {

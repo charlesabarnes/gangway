@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { DISABLE_UI_PHRASE, SetSurfacesSchema } from "../../../../shared/src/api.ts";
+import { DISABLE_UI_PHRASE, SetSurfacesSchema } from "@gangway/shared/api";
 import type { AuditSink } from "../../audit/audit.ts";
 import { conflict, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";

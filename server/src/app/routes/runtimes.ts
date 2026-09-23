@@ -4,11 +4,11 @@
  * screen shows the server's own answer, never a guess of its own.
  */
 import type { Hono } from "hono";
-import { planApp, PLAN_FILES } from "../../../../shared/src/app-plan.ts";
-import { PlanRequestSchema } from "../../../../shared/src/api.ts";
-import { gangwayJsonSchema } from "../../../../shared/src/gangway-file.ts";
-import { DETECTION, RUNTIMES } from "../../../../shared/src/runtimes.ts";
-import { ADDONS } from "../../../../shared/src/addons.ts";
+import { planApp, PLAN_FILES } from "@gangway/shared/app-plan";
+import { PlanRequestSchema } from "@gangway/shared/api";
+import { gangwayJsonSchema } from "@gangway/shared/gangway-file";
+import { DETECTION, RUNTIMES } from "@gangway/shared/runtimes";
+import { ADDONS } from "@gangway/shared/addons";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 import { readJson } from "../problem.ts";

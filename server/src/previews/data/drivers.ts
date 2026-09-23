@@ -8,7 +8,7 @@
  * spliced into the script, so no shell or SQL quoting of ours is involved in carrying it.
  * Table names come from the add-on's own listing and are quoted by doubling.
  */
-import type { AddonId } from "../../../../shared/src/addons.ts";
+import type { AddonId } from "@gangway/shared/addons";
 import { ADDON_USER } from "../addons.ts";
 
 export type Cell = string | null;

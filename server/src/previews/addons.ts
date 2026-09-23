@@ -9,7 +9,7 @@
  * of the preview and the add-on under the state directory's key), never random, and
  * nothing here depends on time or map order.
  */
-import { addonById, isSql, type AddonChoice, type AddonId } from "../../../shared/src/addons.ts";
+import { addonById, isSql, type AddonChoice, type AddonId } from "@gangway/shared/addons";
 
 /** The user and database name inside every SQL add-on. */
 export const ADDON_USER = "app";

@@ -20,8 +20,8 @@ import type {
   Template,
   User,
   Visibility,
-} from "../../../../shared/src/domain.ts";
-import type { Scope } from "../../../../shared/src/permissions.ts";
+} from "@gangway/shared/domain";
+import type { Scope } from "@gangway/shared/permissions";
 
 export const toDate = (n: number | null | undefined): Date | null =>
   n === null || n === undefined ? null : new Date(n);

@@ -6,7 +6,7 @@
  * The Global API Key is deliberately not supported: it is account-wide, cannot be scoped
  * to a zone, and would sit in the settings table next to everything else.
  */
-import { AppError, internal, notFound } from "../../errors.ts";
+import { AppError, internal, notFound, errorMessage } from "../../errors.ts";
 import { Logger } from "../../logger.ts";
 import { SingleFlight, retry, sleep, type BackoffOptions } from "../../util/async.ts";
 import {
@@ -229,7 +229,7 @@ export class CloudflareDnsProvider implements DnsProvider {
             path,
             attempt,
             delayMs,
-            reason: err instanceof Error ? err.message : String(err),
+            reason: errorMessage(err),
           }),
       },
     );

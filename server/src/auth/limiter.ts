@@ -36,7 +36,7 @@ const MIN = 60_000;
 /**
  * One IPv6 customer is a /64, not an address: keying on the full address hands an
  * attacker 2^64 fresh counters. IPv4 is keyed whole. The input is already trusted-proxy
- * resolved and `::ffff:`-unmapped (net/trustedproxy.ts).
+ * resolved and `::ffff:`-unmapped (net/trusted-proxy.ts).
  */
 export function sourceKey(ip: string): string {
   if (!ip.includes(":")) return ip;

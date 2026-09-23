@@ -13,13 +13,13 @@
  * The plain text never reaches the database, the audit log, an event or an API response.
  */
 import { randomInt } from "node:crypto";
-import type { PasswordChoice } from "../../../shared/src/api.ts";
+import type { PasswordChoice } from "@gangway/shared/api";
 import type {
   DefaultPasswordMode,
   PasswordLogin,
   Preview,
   PreviewAccess,
-} from "../../../shared/src/domain.ts";
+} from "@gangway/shared/domain";
 import { actorId, type Actor } from "../auth/actor.ts";
 import type { Passwords } from "../auth/password.ts";
 import type { StoredPreviewPassword } from "../db/repos/previews.ts";

@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { CreateTokenSchema } from "../../../../shared/src/api.ts";
+import { CreateTokenSchema } from "@gangway/shared/api";
 import type { Tokens } from "../../auth/tokens.ts";
 import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";

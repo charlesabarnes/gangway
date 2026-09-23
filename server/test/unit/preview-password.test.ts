@@ -17,7 +17,7 @@ import { Logger } from "../../src/logger.ts";
 import { PASSWORD_COOKIE, PreviewGate, stripGangwayCookies } from "../../src/net/gate.ts";
 import { deploy } from "../../src/previews/deploy.ts";
 import { generatePassword, previewAccess } from "../../src/previews/password.ts";
-import type { DefaultPasswordMode } from "../../../shared/src/domain.ts";
+import type { DefaultPasswordMode } from "@gangway/shared/domain";
 import type { EntryPassword, RouteEntry } from "../../src/routing/table.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";

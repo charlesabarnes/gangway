@@ -6,7 +6,7 @@ import { openDatabase as openBun } from "../../src/db/sqlite.ts";
 import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import { compareVersion, type Db, type OpenOptions } from "../../src/db/types.ts";
 import { checksum, loadMigrations, migrate } from "../../src/db/migrate.ts";
-import { DEFAULT_ROLE_PERMISSIONS, isPermission } from "../../../shared/src/permissions.ts";
+import { DEFAULT_ROLE_PERMISSIONS, isPermission } from "@gangway/shared/permissions";
 
 const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const tmps: string[] = [];

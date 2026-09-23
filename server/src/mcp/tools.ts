@@ -10,9 +10,9 @@
  */
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { addonQuery, VISIBILITY_VALUES } from "../../../shared/src/api.ts";
-import type { Preview } from "../../../shared/src/domain.ts";
-import type { Permission } from "../../../shared/src/permissions.ts";
+import { addonQuery, VISIBILITY_VALUES } from "@gangway/shared/api";
+import type { Preview } from "@gangway/shared/domain";
+import type { Permission } from "@gangway/shared/permissions";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { AppError, unprocessable } from "../errors.ts";
 import type { Logger } from "../logger.ts";
@@ -24,7 +24,7 @@ import { redeploy, type RedeployInput } from "../previews/redeploy.ts";
 import type { Taken, Uploads } from "./uploads.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
-import { cmdText, type AppPlan } from "../../../shared/src/app-plan.ts";
+import { cmdText, type AppPlan } from "@gangway/shared/app-plan";
 import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
 import { nameOf, resolvePreview } from "./resolve.ts";
 import { packFiles } from "./pack.ts";

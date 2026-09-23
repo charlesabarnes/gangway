@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { DefaultPasswordSchema, SetSettingsSchema } from "../../../../shared/src/api.ts";
+import { DefaultPasswordSchema, SetSettingsSchema } from "@gangway/shared/api";
 import type { AuditSink } from "../../audit/audit.ts";
 import { conflict, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";

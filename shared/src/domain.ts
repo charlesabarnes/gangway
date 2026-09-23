@@ -47,7 +47,6 @@ export type Visibility = "public" | "unlisted" | "private";
  * the mode is ever reported: the hash stays in the database, the plain text nowhere.
  */
 export type PasswordMode = "inherit" | "none" | "set" | "generated";
-export const PASSWORD_MODES: readonly PasswordMode[] = ["inherit", "none", "set", "generated"];
 
 /**
  * ADR-0023: what a gangway login does for a preview with a password. `off`: nothing, the
@@ -56,7 +55,6 @@ export const PASSWORD_MODES: readonly PasswordMode[] = ["inherit", "none", "set"
  * follows the server-wide switch (on or off).
  */
 export type PasswordLogin = "inherit" | "on" | "off" | "only";
-export const PASSWORD_LOGINS: readonly PasswordLogin[] = ["inherit", "on", "off", "only"];
 
 /**
  * Who can open a preview right now, every default resolved (ADR-0023). What the UI shows.
@@ -310,15 +308,6 @@ export type AuditEntry = {
   new: unknown;
   createdAt: Date;
 };
-
-export const PREVIEW_ACTIVE_STATES: readonly PreviewState[] = [
-  "building",
-  "starting",
-  "awake",
-  "asleep",
-];
-
-export const isActive = (s: PreviewState): boolean => PREVIEW_ACTIVE_STATES.includes(s);
 
 /**
  * The compose project name for a preview: `gw-<instance>-<slug>`, e.g. `gw-main-acme-pr-123`.

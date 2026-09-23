@@ -8,9 +8,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Preview } from "../../../shared/src/domain.ts";
+import type { Preview } from "@gangway/shared/domain";
 import { psArgv, startArgv, stopArgv } from "../docker/compose.ts";
-import { AppError } from "../errors.ts";
+import { AppError, errorMessage } from "../errors.ts";
 import { type Logger, redactString } from "../logger.ts";
 import { idleMs } from "../settings.ts";
 import { SingleFlight } from "../util/async.ts";
@@ -187,7 +187,7 @@ export class Waker {
       ctx.logs.append(previewId, "system", "awake");
       return ctx.states.transition(previewId, "awake");
     } catch (e) {
-      const message = redactString(e instanceof Error ? e.message : String(e));
+      const message = redactString(errorMessage(e));
       ctx.logs.append(previewId, "system", `wake failed: ${message}`);
       this.#log.warn("wake failed", { previewId, project: preview.project, err: e });
       // Still asleep -- unless destroy took it while we were trying.

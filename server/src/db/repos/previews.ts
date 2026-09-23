@@ -7,7 +7,7 @@ import type {
   PreviewSource,
   PreviewState,
   Visibility,
-} from "../../../../shared/src/domain.ts";
+} from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 

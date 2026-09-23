@@ -3,8 +3,8 @@
  * depends on this type, so every branch of it -- including the frightening ones -- runs
  * in unit tests against a fake with no daemon anywhere.
  */
-import type { Host } from "../../../shared/src/domain.ts";
-import { AppError } from "../errors.ts";
+import type { Host } from "@gangway/shared/domain";
+import { AppError, errorMessage } from "../errors.ts";
 import { verifyDaemon, type DockerClients } from "./client.ts";
 import {
   composeCapture,
@@ -42,7 +42,7 @@ export function createComposeRunner(
       onHostState?.(host.id, true, null);
     } catch (e) {
       if (e instanceof DockerGuardError) throw e;
-      const message = e instanceof Error ? e.message : String(e);
+      const message = errorMessage(e);
       onHostState?.(host.id, false, message);
       throw new AppError("unavailable", `host "${host.id}" is unreachable: ${message}`, {
         hostId: host.id,

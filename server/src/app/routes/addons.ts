@@ -5,7 +5,7 @@
  */
 import type { Hono } from "hono";
 import { z } from "zod";
-import { ADDON_IDS, type AddonId } from "../../../../shared/src/addons.ts";
+import { ADDON_IDS, type AddonId } from "@gangway/shared/addons";
 import { badRequest, notFound } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { DataBrowser } from "../../previews/data/service.ts";

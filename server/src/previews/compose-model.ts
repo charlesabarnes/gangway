@@ -23,9 +23,9 @@
  */
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
-import type { Host, Route } from "../../../shared/src/domain.ts";
-import { buildLabel, fqdn } from "../../../shared/src/hostname.ts";
-import { publicOriginFor, type PublicOrigin } from "../../../shared/src/url.ts";
+import type { Host, Route } from "@gangway/shared/domain";
+import { buildLabel, fqdn } from "@gangway/shared/hostname";
+import { publicOriginFor, type PublicOrigin } from "@gangway/shared/url";
 import { containedIn } from "./source/types.ts";
 import type { RenderedAddons } from "./addons.ts";
 import { buildLabels, LABEL, labelsFromRoute, type LabelContext } from "../docker/labels.ts";

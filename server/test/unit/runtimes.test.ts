@@ -7,12 +7,7 @@ import { dirname, join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { Hono } from "hono";
 import { pack } from "tar-stream";
-import {
-  DETECTION,
-  RUNTIMES,
-  detectRuntime,
-  type RuntimeId,
-} from "../../../shared/src/runtimes.ts";
+import { DETECTION, RUNTIMES, detectRuntime, type RuntimeId } from "@gangway/shared/runtimes";
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";

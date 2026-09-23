@@ -4,7 +4,7 @@
  * people's already-open sessions.
  */
 import { describe, expect, test } from "bun:test";
-import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "../../../shared/src/permissions.ts";
+import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "@gangway/shared/permissions";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { requirePermission } from "../../src/app/middleware/auth.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";

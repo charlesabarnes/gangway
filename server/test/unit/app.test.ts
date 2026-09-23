@@ -16,7 +16,7 @@ import {
   tokenActor,
   type Actor,
 } from "../../src/auth/actor.ts";
-import { ALL_PERMISSIONS, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
+import { ALL_PERMISSIONS, SCOPE_PERMISSIONS } from "@gangway/shared/permissions";
 import { conflict, rateLimited } from "../../src/errors.ts";
 import { Logger } from "../../src/logger.ts";
 import { ULID_RE } from "../../src/util/ulid.ts";

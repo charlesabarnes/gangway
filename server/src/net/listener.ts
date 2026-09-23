@@ -10,8 +10,8 @@ import type { CertStore } from "../tls/certstore.ts";
 import { dispatch, type DispatchDeps } from "./dispatch.ts";
 import { stripGangwayCookies } from "./gate.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
-import { labelUnder, normalizeHost, RESERVED_LABELS } from "../../../shared/src/hostname.ts";
-import { wsRelay, type WsData } from "./wsrelay.ts";
+import { labelUnder, normalizeHost, RESERVED_LABELS } from "@gangway/shared/hostname";
+import { wsRelay, type WsData } from "./ws-relay.ts";
 
 /**
  * The peer address, stashed per request. Only the listener can see the socket, and the

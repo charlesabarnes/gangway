@@ -10,12 +10,7 @@
  * twice: into `<checkout>/.env`, and from there into the containers. `set`/`unset`/`levels`
  * merge, because the API never returns a value for the browser to send back.
  */
-import {
-  SECRET_LEVELS,
-  clears,
-  type Clearance,
-  type SecretLevel,
-} from "../../../shared/src/domain.ts";
+import { SECRET_LEVELS, clears, type Clearance, type SecretLevel } from "@gangway/shared/domain";
 import type { AuditAction, AuditSink } from "../audit/audit.ts";
 import type { Actor } from "../auth/actor.ts";
 import type { ProjectsRepo } from "../db/repos/projects.ts";

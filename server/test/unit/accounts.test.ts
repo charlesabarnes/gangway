@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ALL_PERMISSIONS } from "../../../shared/src/permissions.ts";
+import { ALL_PERMISSIONS } from "@gangway/shared/permissions";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Logger } from "../../src/logger.ts";
 import { META, PASSWORD, setupAccounts as setup } from "../helpers/accounts.ts";

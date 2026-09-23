@@ -1,14 +1,7 @@
 /**
- * The proxy's upstream leg.
- *
- * ADR-0002: node:http is the DEFAULT, not the escape hatch. Spike S0 measured two
- * problems with Bun's fetch as a proxy client:
- *   - it transparently decompresses while leaving Content-Encoding: gzip on the response,
- *     so a proxy forwarding both serves garbage. The only fix is to strip the header and
- *     forward identity bytes, losing compression end to end.
- *   - on a 50 MiB streamed upload it grew RSS by 37-47 MB against node:http's 3-4 MB.
- * Both implementations stay behind this interface, selected at boot rather than import
- * time, so either can be switched in production if a Bun upgrade changes the picture.
+ * The proxy's upstream leg, over node:http. Bun's fetch does not work as a proxy client:
+ * it decompresses bodies but leaves Content-Encoding on the response, and it buffers
+ * streamed uploads (tens of MB of RSS for a 50 MiB upload, against 3-4 MB here).
  */
 import http from "node:http";
 import type net from "node:net";
@@ -144,42 +137,6 @@ export class NodeHttpUpstream implements Upstream {
         creq.end();
       }
     });
-  }
-}
-
-/** Kept as the alternate implementation; see the note at the top of this file. */
-export class FetchUpstream implements Upstream {
-  readonly name = "fetch";
-  readonly #o: UpstreamOptions;
-
-  constructor(o: UpstreamOptions) {
-    this.#o = o;
-  }
-
-  async fetch(req: Request, entry: RouteEntry, ctx: { clientIp: string }): Promise<Response> {
-    const url = new URL(req.url);
-    const target = `http://${entry.upstreamHost}:${entry.upstreamPort}${url.pathname}${url.search}`;
-    const headers = buildUpstreamHeaders(req, forwardContext(entry, this.#o, ctx.clientIp));
-
-    const init: RequestInit & { duplex?: string } = {
-      method: req.method,
-      headers,
-      // A preview's 302 to /login must reach the browser, not be followed by us.
-      redirect: "manual",
-      signal: AbortSignal.any([AbortSignal.timeout(this.#o.timeoutMs), req.signal]),
-    };
-    if (req.method !== "GET" && req.method !== "HEAD" && req.body) {
-      init.body = capBody(req.body, this.#o.limits.maxBodyBytes, entry);
-      init.duplex = "half";
-    }
-
-    const res = await fetch(target, init);
-    const out = buildResponseHeaders(res.headers, { unlisted: entry.visibility === "unlisted" });
-    // Bun's fetch already inflated the body; leaving these would describe bytes we are
-    // not sending.
-    out.delete("content-encoding");
-    out.delete("content-length");
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
   }
 }
 

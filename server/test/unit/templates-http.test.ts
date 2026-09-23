@@ -11,7 +11,7 @@ import { Tokens } from "../../src/auth/tokens.ts";
 import { HostsRepo, ProjectsRepo, TemplatesRepo } from "../../src/db/repos/index.ts";
 import { Logger } from "../../src/logger.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
-import { TRIGGERS } from "../../../shared/src/domain.ts";
+import { TRIGGERS } from "@gangway/shared/domain";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 
 const ENV_TOKEN = "gw_templates_env_token_0123456789abcd";

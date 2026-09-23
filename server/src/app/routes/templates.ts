@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
-import { TemplateCreateSchema, TemplatePatchSchema } from "../../../../shared/src/api.ts";
-import type { Template } from "../../../../shared/src/domain.ts";
+import { TemplateCreateSchema, TemplatePatchSchema } from "@gangway/shared/api";
+import type { Template } from "@gangway/shared/domain";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { HostsRepo } from "../../db/repos/hosts.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";

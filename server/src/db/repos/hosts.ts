@@ -1,4 +1,4 @@
-import type { Host, HostState } from "../../../../shared/src/domain.ts";
+import type { Host, HostState } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToHost, type HostRow } from "./mappers.ts";
 

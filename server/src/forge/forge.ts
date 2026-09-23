@@ -10,7 +10,7 @@
  * not get to answer them differently.
  */
 
-import { type ForgeId, CLEARANCES, type Clearance } from "../../../shared/src/domain.ts";
+import { type ForgeId, CLEARANCES, type Clearance } from "@gangway/shared/domain";
 
 export type { ForgeId };
 

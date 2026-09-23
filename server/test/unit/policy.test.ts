@@ -6,7 +6,7 @@ import { deploy } from "../../src/previews/deploy.ts";
 import { fixedPolicy, PolicyResolver, triggerOf, type Policy } from "../../src/previews/policy.ts";
 import { TemplatesRepo } from "../../src/db/repos/templates.ts";
 import { ProjectsRepo } from "../../src/db/repos/projects.ts";
-import type { Project, Template } from "../../../shared/src/domain.ts";
+import type { Project, Template } from "@gangway/shared/domain";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
 const USER = {

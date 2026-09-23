@@ -3,7 +3,7 @@
  * subscribers second. The table is the SSE backlog, so a client that reconnects with
  * Last-Event-ID replays exactly what it missed (see db/repos/events.ts).
  */
-import type { GangwayEvent } from "../../../shared/src/domain.ts";
+import type { GangwayEvent } from "@gangway/shared/domain";
 import type { EventsRepo } from "../db/repos/events.ts";
 
 export type EventListener = (e: GangwayEvent) => void;

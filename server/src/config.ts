@@ -78,7 +78,7 @@ export const ConfigSchema = z.object({
   /**
    * Reverse proxies in FRONT of gangway (Nginx Proxy Manager, a load balancer), as IPs or
    * CIDRs. X-Forwarded-For is believed only from these. Empty -- the default -- means
-   * gangway faces the internet itself and believes no one. See net/trustedproxy.ts.
+   * gangway faces the internet itself and believes no one. See net/trusted-proxy.ts.
    */
   trustedProxies: z.preprocess(
     (v) =>

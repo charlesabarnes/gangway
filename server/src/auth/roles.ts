@@ -8,13 +8,13 @@
  * added in a later phase belongs to it the moment the code knows about it. That is the
  * whole lockout guarantee, so it lives in one `if`.
  */
-import type { Role } from "../../../shared/src/domain.ts";
+import type { Role } from "@gangway/shared/domain";
 import {
   ADMIN_ROLE_ID,
   ALL_PERMISSIONS,
   PERMISSIONS,
   type Permission,
-} from "../../../shared/src/permissions.ts";
+} from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
 import { conflict, notFound } from "../errors.ts";

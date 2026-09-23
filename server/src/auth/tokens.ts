@@ -14,9 +14,9 @@
  * Only a person, or the env admin token, can mint. A database token cannot: a leaked CI
  * token must not be able to issue itself a successor.
  */
-import { createHash, randomBytes } from "node:crypto";
-import type { ApiToken } from "../../../shared/src/domain.ts";
-import { SCOPE_PERMISSIONS, type Permission, type Scope } from "../../../shared/src/permissions.ts";
+import { randomBytes } from "node:crypto";
+import type { ApiToken } from "@gangway/shared/domain";
+import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { TokensRepo } from "../db/repos/tokens.ts";
 import { forbidden, notFound, unprocessable } from "../errors.ts";
@@ -30,13 +30,14 @@ import {
   type TokenVerifier,
 } from "./actor.ts";
 import type { RolePermissions } from "./roles.ts";
+import { sha256 } from "../util/hash.ts";
 
 const SHAPE = /^gw_[A-Za-z0-9_-]{43}$/;
 /** `gw_` + 8: enough to tell two tokens apart in a list, far too little to guess the rest. */
 const PREFIX_LEN = 11;
 const TOUCH_EVERY_MS = 60_000;
 
-const hashOf = (secret: string) => createHash("sha256").update(secret).digest("hex");
+const hashOf = (secret: string) => sha256(secret, "hex");
 
 export class Tokens {
   readonly #repo: TokensRepo;

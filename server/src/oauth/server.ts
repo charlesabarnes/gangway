@@ -11,9 +11,9 @@
  *
  * Nothing here knows HTTP. The routes (`app/routes/oauth.ts`) and the MCP surface adapt it.
  */
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import type { OAuthGrant } from "../../../shared/src/domain.ts";
-import { SCOPE_PERMISSIONS, type Permission, type Scope } from "../../../shared/src/permissions.ts";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import type { OAuthGrant } from "@gangway/shared/domain";
+import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import { can, permissionsForScopes, type Actor, type TokenVerifier } from "../auth/actor.ts";
 import type { RolePermissions } from "../auth/roles.ts";
@@ -25,6 +25,7 @@ import {
   redirectAllowed,
   type ClientMetadataStore,
 } from "./client-metadata.ts";
+import { sha256 } from "../util/hash.ts";
 
 /** What OAuth may grant. Never `admin`: an agent holding the keys to the server is not a feature. */
 export const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
@@ -49,9 +50,8 @@ const TOUCH_EVERY_MS = 60_000;
 
 const ACCESS_SHAPE = /^gwa_[A-Za-z0-9_-]{43}$/;
 const REFRESH_SHAPE = /^gwr_[A-Za-z0-9_-]{43}$/;
-const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const secret = (prefix: string) => `${prefix}_${randomBytes(32).toString("base64url")}`;
-const pkce = (verifier: string) => createHash("sha256").update(verifier).digest("base64url");
+const pkce = (verifier: string) => sha256(verifier, "base64url");
 
 /** RFC 6749 §5.2 / §4.1.2.1 error codes, plus RFC 8707's `invalid_target`. */
 export type OAuthErrorCode =
@@ -428,9 +428,9 @@ export class OAuthServer {
       redirectUri: c.redirectUri,
       scopes: c.scopes,
       resource: c.resource,
-      accessHash: sha256(t.access),
+      accessHash: sha256(t.access, "hex"),
       accessExpiresAt: t.accessExpiresAt,
-      refreshHash: sha256(t.refresh),
+      refreshHash: sha256(t.refresh, "hex"),
       refreshExpiresAt: t.refreshExpiresAt,
       absoluteExpiresAt: now + GRANT_ABSOLUTE_MS,
     });
@@ -456,7 +456,7 @@ export class OAuthServer {
     const presented = form.get("refresh_token") ?? "";
     if (!REFRESH_SHAPE.test(presented))
       throw new OAuthError("invalid_grant", "the refresh token is not valid");
-    const hash = sha256(presented);
+    const hash = sha256(presented, "hex");
     const rec = this.#d.grants.findByRefresh(hash);
     if (!rec) {
       const replayed = this.#d.grants.findByPreviousRefresh(hash);
@@ -500,9 +500,9 @@ export class OAuthServer {
     const refreshExpiresAt = Math.min(t.refreshExpiresAt, grant.expiresAt.getTime());
     if (
       !this.#d.grants.rotate(grant.id, hash, {
-        accessHash: sha256(t.access),
+        accessHash: sha256(t.access, "hex"),
         accessExpiresAt: Math.min(t.accessExpiresAt, refreshExpiresAt),
-        refreshHash: sha256(t.refresh),
+        refreshHash: sha256(t.refresh, "hex"),
         refreshExpiresAt,
       })
     ) {
@@ -524,7 +524,7 @@ export class OAuthServer {
   readonly verify: TokenVerifier = (presented) => {
     if (!ACCESS_SHAPE.test(presented)) return null;
     const now = this.#now();
-    const rec = this.#d.grants.findByAccess(sha256(presented), now);
+    const rec = this.#d.grants.findByAccess(sha256(presented, "hex"), now);
     if (!rec || !sameResource(rec.resource, this.#d.resource())) return null;
     this.#d.grants.touch(rec.grant.id, now - TOUCH_EVERY_MS, now);
     const role = this.#d.roles.for(rec.owner.roleId);

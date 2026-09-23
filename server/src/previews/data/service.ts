@@ -7,8 +7,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addonById, type AddonChoice, type AddonId } from "../../../../shared/src/addons.ts";
-import type { Preview } from "../../../../shared/src/domain.ts";
+import { addonById, type AddonChoice, type AddonId } from "@gangway/shared/addons";
+import type { Preview } from "@gangway/shared/domain";
 import type { Actor } from "../../auth/actor.ts";
 import { AppError, conflict, notFound } from "../../errors.ts";
 import type { PreviewContext } from "../context.ts";

@@ -4,9 +4,9 @@ import {
   ProjectCreateSchema,
   ProjectPatchSchema,
   PullDeploySchema,
-} from "../../../../shared/src/api.ts";
-import { slugify } from "../../../../shared/src/hostname.ts";
-import type { Preview, Project } from "../../../../shared/src/domain.ts";
+} from "@gangway/shared/api";
+import { slugify } from "@gangway/shared/hostname";
+import type { Preview, Project } from "@gangway/shared/domain";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { ProjectsRepo } from "../../db/repos/projects.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";

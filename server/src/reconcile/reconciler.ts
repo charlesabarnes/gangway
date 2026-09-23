@@ -18,7 +18,7 @@
  *     because the scan that justified it is already stale.
  *  4. NEVER BULK-START (§11). Nothing here starts a container.
  */
-import type { Host, Visibility } from "../../../shared/src/domain.ts";
+import type { Host, Visibility } from "@gangway/shared/domain";
 import type { RoutesRepo } from "../db/repos/routes.ts";
 import { verifyDaemon, type ContainerSummary, type DockerClient } from "../docker/client.ts";
 import { DockerGuardError } from "../docker/guard.ts";
@@ -38,6 +38,7 @@ import {
   type ScannedContainer,
   type ScannedLabels,
 } from "./diff.ts";
+import { errorMessage } from "../errors.ts";
 
 export type ClientSource = {
   for(
@@ -155,7 +156,7 @@ export class Reconciler {
         summaries: ours,
       };
     } catch (e) {
-      const message = redactString(e instanceof Error ? e.message : String(e));
+      const message = redactString(errorMessage(e));
       // The wrong daemon is not a network blip and must not look like one.
       ctx.hosts.setState(host.id, e instanceof DockerGuardError ? "error" : "unreachable", message);
       return {

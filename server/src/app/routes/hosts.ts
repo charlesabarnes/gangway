@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import type { Host } from "../../../../shared/src/domain.ts";
+import type { Host } from "@gangway/shared/domain";
 import type { HostsRepo } from "../../db/repos/hosts.ts";
 import { redactString } from "../../logger.ts";
 import type { AppEnv } from "../env.ts";

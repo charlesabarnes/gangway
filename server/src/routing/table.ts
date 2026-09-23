@@ -9,7 +9,7 @@
  * there is no await between the two writes, so no in-flight request can ever observe a
  * half-applied state. A promise-based driver would need a lock here.
  */
-import type { PasswordLogin, PreviewState, Route, Visibility } from "../../../shared/src/domain.ts";
+import type { PasswordLogin, PreviewState, Route, Visibility } from "@gangway/shared/domain";
 import type { RoutesRepo } from "../db/repos/routes.ts";
 
 /**

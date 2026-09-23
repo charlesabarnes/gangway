@@ -6,9 +6,9 @@
 import type { AuditSink } from "../audit/audit.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
 import type { CloneOptions } from "./source/git.ts";
-import type { Clearance, Preview } from "../../../shared/src/domain.ts";
-import type { AddonId } from "../../../shared/src/addons.ts";
-import type { PublicOrigin } from "../../../shared/src/url.ts";
+import type { Clearance, Preview } from "@gangway/shared/domain";
+import type { AddonId } from "@gangway/shared/addons";
+import type { PublicOrigin } from "@gangway/shared/url";
 import type { HostsRepo } from "../db/repos/hosts.ts";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
 import type { ComposeRunner } from "../docker/runner.ts";

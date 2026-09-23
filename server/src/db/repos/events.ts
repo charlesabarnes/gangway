@@ -1,4 +1,4 @@
-import type { GangwayEvent } from "../../../../shared/src/domain.ts";
+import type { GangwayEvent } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToEvent, type EventRow } from "./mappers.ts";
 

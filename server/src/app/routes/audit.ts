@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { AuditQuerySchema } from "../../../../shared/src/api.ts";
+import { AuditQuerySchema } from "@gangway/shared/api";
 import type { AuditRepo } from "../../db/repos/audit.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";

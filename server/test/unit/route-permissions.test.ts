@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
-import { isPermission } from "../../../shared/src/permissions.ts";
+import { isPermission } from "@gangway/shared/permissions";
 import type { AppEnv } from "../../src/app/env.ts";
 import { PERMISSION_GUARD } from "../../src/app/middleware/auth.ts";
 import { auditRoutes } from "../../src/app/routes/audit.ts";

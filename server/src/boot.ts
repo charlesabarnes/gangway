@@ -79,14 +79,14 @@ import type { DispatchDeps, Surface } from "./net/dispatch.ts";
 import { DEFAULT_LIMITS } from "./net/limits.ts";
 import { PreviewGate, loadOrCreateGateKey, safePath } from "./net/gate.ts";
 import { clientIpOf, startListener, type RunningListener } from "./net/listener.ts";
-import { clientIpResolver } from "./net/trustedproxy.ts";
-import { wakingPage } from "./net/errorpages.ts";
+import { clientIpResolver } from "./net/trusted-proxy.ts";
+import { wakingPage } from "./net/error-pages.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
 import { DEFAULT_TIMINGS, type PreviewContext } from "./previews/context.ts";
 import { PolicyResolver } from "./previews/policy.ts";
 import { Pulls } from "./projects/pulls.ts";
 import { GitHubOidc } from "./auth/oidc.ts";
-import { TRIGGERS, type Trigger } from "../../shared/src/domain.ts";
+import { TRIGGERS, type Trigger } from "@gangway/shared/domain";
 import { deploy, urlsFor } from "./previews/deploy.ts";
 import { destroy } from "./previews/destroy.ts";
 import { IdempotentDeploys } from "./previews/idempotent.ts";
@@ -109,8 +109,8 @@ import { CloudflareDnsProvider } from "./tls/dns/cloudflare.ts";
 import { ManualDnsProvider } from "./tls/dns/manual.ts";
 import type { DnsProvider } from "./tls/dns/provider.ts";
 import { FileProvider, SelfSignedProvider } from "./tls/provider.ts";
-import { normalizeHost } from "../../shared/src/hostname.ts";
-import { publicOriginFor } from "../../shared/src/url.ts";
+import { normalizeHost } from "@gangway/shared/hostname";
+import { publicOriginFor } from "@gangway/shared/url";
 
 export type BootOverrides = {
   logger?: Logger;

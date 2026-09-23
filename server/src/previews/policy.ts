@@ -8,7 +8,7 @@
  * setting that names a template which no longer exists resolves to `default` and says so
  * once in the log.
  */
-import type { Project, Template, Trigger } from "../../../shared/src/domain.ts";
+import type { Project, Template, Trigger } from "@gangway/shared/domain";
 import type { Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
 import type { Logger } from "../logger.ts";

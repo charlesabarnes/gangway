@@ -2,7 +2,7 @@
   "name": "@gangway/server",
   "private": true,
   "type": "module",
-  "imports": {
-    "#*": "./src/*"
+  "dependencies": {
+    "@gangway/shared": "workspace:*"
   }
 }

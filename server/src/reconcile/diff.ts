@@ -11,7 +11,7 @@
  * the second one, treated as the first, deletes every route on the box.
  */
 
-import type { Host, Preview, Route, Visibility } from "../../../shared/src/domain.ts";
+import type { Host, Preview, Route, Visibility } from "@gangway/shared/domain";
 
 /**
  * The `gangway.*` label schema version we write (§4.1). A container claiming a *higher* one was

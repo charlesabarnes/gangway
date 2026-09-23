@@ -10,7 +10,7 @@
  * Goes through dial.ts like the proxy does, so it tests the path real requests will take
  * (SOCKS5 in dev, direct in production).
  */
-import type { Host, Route } from "../../../shared/src/domain.ts";
+import type { Host, Route } from "@gangway/shared/domain";
 import { dialUpstream } from "../net/dial.ts";
 
 export type RouteProbe = (

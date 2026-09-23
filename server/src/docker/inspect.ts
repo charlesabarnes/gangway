@@ -12,7 +12,7 @@
  * exists because a human can recreate a container by hand and move it, so we read the
  * real value rather than assuming ours.
  */
-import type { Route } from "../../../shared/src/domain.ts";
+import type { Route } from "@gangway/shared/domain";
 import type { ContainerSummary, DockerClient } from "./client.ts";
 import {
   MANAGED_FILTER,

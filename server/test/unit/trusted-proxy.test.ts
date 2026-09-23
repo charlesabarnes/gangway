@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig } from "../../src/config.ts";
-import { clientIpResolver, parseTrustedProxies } from "../../src/net/trustedproxy.ts";
+import { clientIpResolver, parseTrustedProxies } from "../../src/net/trusted-proxy.ts";
 
 const NPM = ["172.17.0.0/16"];
 

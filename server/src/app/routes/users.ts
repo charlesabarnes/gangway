@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { CreateUserSchema, UpdateUserSchema } from "../../../../shared/src/api.ts";
+import { CreateUserSchema, UpdateUserSchema } from "@gangway/shared/api";
 import type { Accounts } from "../../auth/accounts.ts";
 import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";

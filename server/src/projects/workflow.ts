@@ -5,7 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Project } from "../../../shared/src/domain.ts";
+import type { Project } from "@gangway/shared/domain";
 
 const TEMPLATE = readFileSync(join(import.meta.dir, "workflow.template.yaml"), "utf8");
 

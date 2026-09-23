@@ -28,9 +28,9 @@ import {
   type Route,
   type Visibility,
   type PasswordLogin,
-} from "../../../shared/src/domain.ts";
-import { slugify } from "../../../shared/src/hostname.ts";
-import { publicOriginFor } from "../../../shared/src/url.ts";
+} from "@gangway/shared/domain";
+import { slugify } from "@gangway/shared/hostname";
+import { publicOriginFor } from "@gangway/shared/url";
 import { actorId, principalOf, type Actor } from "../auth/actor.ts";
 import {
   buildArgv,
@@ -41,7 +41,7 @@ import {
   runArgv,
   upArgv,
 } from "../docker/compose.ts";
-import { AppError, conflict } from "../errors.ts";
+import { AppError, conflict, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { allocatePorts } from "../routing/ports.ts";
 import { place } from "../scheduler/placement.ts";
@@ -75,12 +75,12 @@ import {
   writeRuntime,
   type RuntimeChoice,
 } from "./runtimes.ts";
-import type { AddonRequest, AppPlan } from "../../../shared/src/app-plan.ts";
-import type { AddonChoice } from "../../../shared/src/addons.ts";
+import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
+import type { AddonChoice } from "@gangway/shared/addons";
 import { renderAddons, type RenderedAddons } from "./addons.ts";
 import { DIR_MODE, FILE_MODE } from "./source/types.ts";
-import type { RuntimeId } from "../../../shared/src/runtimes.ts";
-import type { PasswordChoice } from "../../../shared/src/api.ts";
+import type { RuntimeId } from "@gangway/shared/runtimes";
+import type { PasswordChoice } from "@gangway/shared/api";
 import { entryPassword, logGenerated, resolvePassword } from "./password.ts";
 
 export type DeploySource =
@@ -895,7 +895,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     // destroy() aborted us and owns the preview from here; do not fight it for the state.
     if (r.signal.aborted) return ctx.previews.get(id) ?? preview;
 
-    const message = redactString(e instanceof Error ? e.message : String(e));
+    const message = redactString(errorMessage(e));
     if (!(e instanceof StepFailed))
       ctx.logger.error("deploy pipeline error", { previewId: id, err: e });
     log(`FAILED: ${message}`);
