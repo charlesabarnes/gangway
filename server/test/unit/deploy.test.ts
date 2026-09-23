@@ -1,26 +1,19 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
-import { HostConfigSchema } from "../../src/config.ts";
-import { migrate } from "../../src/db/migrate.ts";
 import { Audit } from "../../src/audit/audit.ts";
 import {
   AuditRepo,
   BuildsRepo,
   EventsRepo,
-  HostsRepo,
   PreviewsRepo,
   RoutesRepo,
 } from "../../src/db/repos/index.ts";
-import { openDatabase } from "../../src/db/sqlite.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
 import { parseLabels } from "../../src/docker/labels.ts";
 import type { ComposeRunner } from "../../src/docker/runner.ts";
 import { EventBus } from "../../src/events/bus.ts";
-import { seedHosts } from "../../src/hosts/seed.ts";
-import { Logger } from "../../src/logger.ts";
 import type { PreviewContext } from "../../src/previews/context.ts";
 import { deploy, type DeployInput } from "../../src/previews/deploy.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
@@ -29,12 +22,9 @@ import { PreviewLogs } from "../../src/previews/logs.ts";
 import { Workdirs } from "../../src/previews/source/workdir.ts";
 import { canTransition, PreviewStates } from "../../src/previews/state.ts";
 import { RouteTable } from "../../src/routing/table.ts";
-
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
+import { silentLogger } from "../helpers/logger.ts";
+import { tempDb } from "../helpers/db.ts";
+import { seededHosts } from "../helpers/hosts.ts";
 
 const ACTOR = staticTokenVerifier("x")("x") as Actor;
 const cmdOf = (argv: string[]) =>
@@ -50,12 +40,8 @@ type Script = {
 };
 
 function setup(script: Script = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-deploy-"));
-  tmps.push(dir);
-  const { db } = openDatabase({ path: join(dir, "g.db") });
-  migrate(db, MIGRATIONS);
-  const hosts = new HostsRepo(db);
-  seedHosts([HostConfigSchema.parse({ portRangeStart: 31000, portRangeEnd: 31002 })], hosts);
+  const { db, dir } = tempDb();
+  const hosts = seededHosts(db, { portRangeStart: 31000, portRangeEnd: 31002 });
   const previews = new PreviewsRepo(db);
   const table = new RouteTable(new RoutesRepo(db));
   const bus = new EventBus(new EventsRepo(db));
@@ -146,13 +132,13 @@ function setup(script: Script = {}) {
     states: new PreviewStates(previews, table, bus),
     workdirs: new Workdirs(dir),
     probe: async () => (probeQueue.length > 1 ? probeQueue.shift()! : probeQueue[0]!),
-    logger: new Logger("error", {}, () => {}),
+    logger: silentLogger(),
     timings: { startTimeoutMs: 150, probeTimeoutMs: 150, pollIntervalMs: 5 },
     now: Date.now,
     inflight: new Map(),
     teardowns: new Set(),
     builds: new BuildsRepo(db),
-    audit: new Audit(new AuditRepo(db), new Logger("error", {}, () => {})),
+    audit: new Audit(new AuditRepo(db), silentLogger()),
   };
   const input = (o: Partial<DeployInput> = {}): DeployInput => ({
     actor: ACTOR,

@@ -3,32 +3,21 @@
  * This proves the sequencing; scripts/acme-pebble-check.ts proves it against a real
  * ACME server. A passing fake alone proves nothing about the real protocol.
  */
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { migrate } from "../../src/db/migrate.ts";
+import { describe, expect, test } from "bun:test";
 import { CertificatesRepo } from "../../src/db/repos/index.ts";
-import { openDatabase } from "../../src/db/sqlite.ts";
-import { Logger } from "../../src/logger.ts";
 import { MemorySettingsStore } from "../../src/settings.ts";
 import { AcmeProvider, type AcmeApi } from "../../src/tls/acme.ts";
 import type { DnsProvider } from "../../src/tls/dns/provider.ts";
 import { createCa, issueLeaf } from "../../src/tls/selfsigned.ts";
+import { silentLogger } from "../helpers/logger.ts";
+import { tempDb } from "../helpers/db.ts";
 
 const DOMAINS = ["*.preview.test", "preview.test"];
 const DIRECTORY = "https://ca.test/directory";
 const DAY = 86_400_000;
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
 
 async function setup(o: { propagates?: boolean; failAt?: string; days?: number } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-acme-"));
-  tmps.push(dir);
-  const { db } = openDatabase({ path: join(dir, "g.db") });
-  migrate(db, join(import.meta.dir, "../../migrations"));
+  const { db } = tempDb();
   const certs = new CertificatesRepo(db);
   const store = new MemorySettingsStore();
   const ca = await createCa("Fake ACME CA");
@@ -109,7 +98,7 @@ async function setup(o: { propagates?: boolean; failAt?: string; days?: number }
       certs,
       store,
       connect,
-      logger: new Logger("error", {}, () => {}),
+      logger: silentLogger(),
       now: () => clock.now,
     });
   return { provider: make(), make, certs, store, log, connects, clock };

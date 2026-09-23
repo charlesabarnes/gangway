@@ -10,8 +10,9 @@ import { Logger } from "../../src/logger.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { sweepExpired } from "../../src/scheduler/jobs.ts";
 import { ACTOR, setupPreviewContext as setup } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
-const quiet = new Logger("error", {}, () => {});
+const quiet = silentLogger();
 const all = (repo: AuditRepo) => repo.page({ limit: 200 }).entries;
 
 describe("the audit log is written by the service layer", () => {

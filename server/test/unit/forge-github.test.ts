@@ -4,9 +4,9 @@ import { parsePreviewCommand } from "../../src/forge/forge.ts";
 import { GitHubApp, type FetchLike } from "../../src/forge/github/app.ts";
 import { COMMENT_MARKER, GitHubForge } from "../../src/forge/github/forge.ts";
 import { parseGitHubEvent, signPayload, verifySignature } from "../../src/forge/github/webhook.ts";
-import { Logger } from "../../src/logger.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
-const silent = () => new Logger("error", {}, () => {});
+const silent = () => silentLogger();
 const enc = (s: string) => new TextEncoder().encode(s);
 
 /* ------------------------------------------------------------------ fixtures: trimmed real deliveries */
@@ -485,7 +485,7 @@ describe("GitHubApp.installedRepositories", () => {
         privateKey: privateKey.export({ type: "pkcs1", format: "pem" }).toString(),
       }),
       baseUrl: "https://api.github.test",
-      log: new Logger("error", {}, () => {}),
+      log: silentLogger(),
       fetch: async (url, init) => {
         calls.push(`${init?.method ?? "GET"} ${url.replace("https://api.github.test", "")}`);
         if (url.endsWith("/app/installations?per_page=100"))

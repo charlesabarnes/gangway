@@ -1,23 +1,12 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { copyFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { copyFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { openDatabase as openBun } from "../../src/db/sqlite.ts";
 import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import { compareVersion, type Db, type OpenOptions } from "../../src/db/types.ts";
 import { checksum, loadMigrations, migrate } from "../../src/db/migrate.ts";
 import { DEFAULT_ROLE_PERMISSIONS, isPermission } from "@gangway/shared/permissions";
-
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
-const tmps: string[] = [];
-const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), "gangway-db-"));
-  tmps.push(d);
-  return d;
-};
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
+import { MIGRATIONS, tempDir } from "../helpers/db.ts";
 
 const DRIVERS: [string, (o: OpenOptions) => { db: Db; journalMode: string }][] = [
   ["bun:sqlite", openBun],
@@ -40,7 +29,7 @@ describe("compareVersion", () => {
 for (const [name, open] of DRIVERS) {
   describe(`driver ${name}`, () => {
     const fresh = () => {
-      const { db, journalMode } = open({ path: join(tmp(), "g.db") });
+      const { db, journalMode } = open({ path: join(tempDir(), "g.db") });
       return { db, journalMode };
     };
 
@@ -53,7 +42,7 @@ for (const [name, open] of DRIVERS) {
     });
 
     test("TRUNCATE is available as the FUSE fallback", () => {
-      const { db, journalMode } = open({ path: join(tmp(), "g.db"), journalMode: "TRUNCATE" });
+      const { db, journalMode } = open({ path: join(tempDir(), "g.db"), journalMode: "TRUNCATE" });
       expect(journalMode).toBe("truncate");
       db.close();
     });
@@ -165,7 +154,7 @@ for (const [name, open] of DRIVERS) {
     });
 
     test("migrate is idempotent across reopen", () => {
-      const dir = tmp();
+      const dir = tempDir();
       const a = open({ path: join(dir, "g.db") });
       expect(migrate(a.db, MIGRATIONS).applied).toEqual([
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
@@ -238,10 +227,10 @@ for (const [name, open] of DRIVERS) {
       });
 
       test("upgrades a populated 0002 database: users keep their role, sessions and tokens keep their owner", () => {
-        const upTo2 = tmp();
+        const upTo2 = tempDir();
         for (const f of readdirSync(MIGRATIONS))
           if (/^000[12]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo2, f));
-        const path = join(tmp(), "g.db");
+        const path = join(tempDir(), "g.db");
         const a = open({ path });
         expect(migrate(a.db, upTo2).applied).toEqual([1, 2]);
         a.db.run(
@@ -305,10 +294,10 @@ for (const [name, open] of DRIVERS) {
       });
 
       test("upgrades a populated 0006 database: the defaults.* settings become the default template; a repo at the old column default follows its template, a chosen clearance is kept", () => {
-        const upTo6 = tmp();
+        const upTo6 = tempDir();
         for (const f of readdirSync(MIGRATIONS))
           if (/^000[1-6]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo6, f));
-        const path = join(tmp(), "g.db");
+        const path = join(tempDir(), "g.db");
         const a = open({ path });
         expect(migrate(a.db, upTo6).applied).toEqual([1, 2, 3, 4, 5, 6]);
         a.db.run(
@@ -319,7 +308,7 @@ for (const [name, open] of DRIVERS) {
         );
         a.db.close();
 
-        const upTo7 = tmp();
+        const upTo7 = tempDir();
         for (const f of readdirSync(MIGRATIONS))
           if (/^000[1-7]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo7, f));
         const b = open({ path });
@@ -372,10 +361,10 @@ for (const [name, open] of DRIVERS) {
 
     describe("0010 preview owner", () => {
       test("every role that could deploy -- a custom one too -- can still mint a deploy token: it gets previews.update_own; old previews own nothing", () => {
-        const upTo9 = tmp();
+        const upTo9 = tempDir();
         for (const f of readdirSync(MIGRATIONS))
           if (/^000[1-9]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo9, f));
-        const path = join(tmp(), "g.db");
+        const path = join(tempDir(), "g.db");
         const a = open({ path });
         migrate(a.db, upTo9);
         a.db.run(
@@ -410,10 +399,10 @@ for (const [name, open] of DRIVERS) {
 
     describe("0008 projects", () => {
       test("upgrades a populated 0007 database: each repository becomes a project named after it, still on the webhook; its PR previews are filed under it; its secrets come along", () => {
-        const upTo7 = tmp();
+        const upTo7 = tempDir();
         for (const f of readdirSync(MIGRATIONS))
           if (/^000[1-7]_/.test(f)) copyFileSync(join(MIGRATIONS, f), join(upTo7, f));
-        const path = join(tmp(), "g.db");
+        const path = join(tempDir(), "g.db");
         const a = open({ path });
         migrate(a.db, upTo7);
         a.db.run(
@@ -471,7 +460,7 @@ for (const [name, open] of DRIVERS) {
 
 describe("migration loader", () => {
   const withFiles = (files: Record<string, string>) => {
-    const d = join(tmp(), "m");
+    const d = join(tempDir(), "m");
     mkdirSync(d, { recursive: true });
     for (const [n, c] of Object.entries(files)) writeFileSync(join(d, n), c);
     return d;
@@ -506,14 +495,14 @@ describe("migration loader", () => {
 describe("migration safety", () => {
   const open2 = (p: string) => openBun({ path: p }).db;
   const withFiles = (files: Record<string, string>) => {
-    const d = join(tmp(), "m");
+    const d = join(tempDir(), "m");
     mkdirSync(d, { recursive: true });
     for (const [n, c] of Object.entries(files)) writeFileSync(join(d, n), c);
     return d;
   };
 
   test("detects checksum drift on an already-applied migration", () => {
-    const dir = tmp();
+    const dir = tempDir();
     const dbPath = join(dir, "g.db");
     const m1 = withFiles({ "0001_a.sql": "CREATE TABLE t (a);" });
     const db1 = open2(dbPath);
@@ -527,7 +516,7 @@ describe("migration safety", () => {
   });
 
   test("refuses to run when the database is ahead of the build", () => {
-    const dir = tmp();
+    const dir = tempDir();
     const dbPath = join(dir, "g.db");
     const full = withFiles({
       "0001_a.sql": "CREATE TABLE t (a);",
@@ -544,7 +533,7 @@ describe("migration safety", () => {
   });
 
   test("a failing migration leaves no partial schema and is retried next boot", () => {
-    const dir = tmp();
+    const dir = tempDir();
     const dbPath = join(dir, "g.db");
     const broken = withFiles({ "0001_a.sql": "CREATE TABLE ok (a); CREATE TABLE ok (a);" }); // duplicate table
     const db1 = open2(dbPath);
@@ -555,7 +544,7 @@ describe("migration safety", () => {
   });
 
   test("applies pending migrations in order and records them", () => {
-    const dir = tmp();
+    const dir = tempDir();
     const db = open2(join(dir, "g.db"));
     const m = withFiles({
       "0001_a.sql": "CREATE TABLE a (x);",

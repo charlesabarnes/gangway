@@ -1,8 +1,7 @@
 /** Runtimes, the kept source, and rebuilding a preview in place (fake compose, real files). */
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { Hono } from "hono";
@@ -12,7 +11,6 @@ import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { runtimeRoutes, schemaRoutes } from "../../src/app/routes/runtimes.ts";
-import { Logger } from "../../src/logger.ts";
 import { deploy } from "../../src/previews/deploy.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { checkEditPath, redeploy } from "../../src/previews/redeploy.ts";
@@ -25,6 +23,8 @@ import {
 import { renderRuntime } from "../../src/previews/runtime-dockerfile.ts";
 import { asText, SourceStore } from "../../src/previews/source/store.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
+import { tempDir } from "../helpers/db.ts";
 
 /** Plan an upload on disk as a runtime and render its build files: what a deploy does. */
 async function planRuntime(dir: string, id: RuntimeId, bindings: string[] = [], port?: number) {
@@ -48,7 +48,7 @@ async function tarball(files: Record<string, string>): Promise<Uint8Array> {
 }
 
 async function folder(files: Record<string, string>): Promise<string> {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-rt-"));
+  const dir = tempDir();
   for (const [name, content] of Object.entries(files)) {
     await mkdir(dirname(join(dir, name)), { recursive: true });
     await writeFile(join(dir, name), content);
@@ -83,7 +83,6 @@ describe("detection", () => {
     const dir = await folder({ "deno.json": "{}", "main.ts": "" });
     expect((await planFromDisk(dir, "auto")).runtime).toBe("deno");
     expect((await planFromDisk(dir, "static")).runtime).toBe("static");
-    rmSync(dir, { recursive: true });
   });
 
   test("every starter is detected as its own runtime (deno's main.ts alone reads as Bun's; the UI posts starters with ?runtime=)", () => {
@@ -104,7 +103,6 @@ describe("generated build files", () => {
     expect((await planRuntime(dir, "php", [], 3000)).dockerfile).toContain("Listen 3000");
     expect((await planRuntime(dir, "workerd", [], 3000)).files["bundle.cjs"]).toContain("*:3000");
     expect((await planRuntime(dir, "php")).dockerfile).not.toContain("sed");
-    rmSync(dir, { recursive: true });
   });
 
   test("every runtime plans a Dockerfile from its starter, FROM its pinned image", async () => {
@@ -115,7 +113,6 @@ describe("generated build files", () => {
         rt.id === "workerd" ? "FROM node:24-bookworm-slim" : `FROM ${rt.image}`,
       );
       expect(plan.dockerfile).toContain(`ENV PORT=${rt.port}`);
-      rmSync(dir, { recursive: true });
     }
   });
 
@@ -128,7 +125,6 @@ describe("generated build files", () => {
         if (name.endsWith(".cjs")) expect(() => new Function("require", code)).not.toThrow();
         if (name.endsWith(".ts")) expect(() => ts.transformSync(code)).not.toThrow();
       }
-      rmSync(dir, { recursive: true });
     }
   });
 
@@ -141,7 +137,6 @@ describe("generated build files", () => {
     await expect(planRuntime(dir, "node")).rejects.toMatchObject({
       message: expect.stringContaining("`start` script"),
     });
-    rmSync(dir, { recursive: true });
   });
 
   test("node: a start script wins; else package.json main; a main that escapes is ignored", async () => {
@@ -156,7 +151,6 @@ describe("generated build files", () => {
     expect((await planRuntime(b, "node")).files["start.sh"]).toContain("exec 'node' 'srv/app.js'");
     const c = await folder({ "package.json": JSON.stringify({ main: "../../etc/passwd" }) });
     await expect(planRuntime(c, "node")).rejects.toMatchObject({ code: "unprocessable" });
-    for (const d of [a, b, c]) rmSync(d, { recursive: true });
   });
 
   test("static: SPA fallback with index.html, 404.html beats it, a listing with neither", async () => {
@@ -170,7 +164,6 @@ describe("generated build files", () => {
     );
     const bare = await folder({ "a.txt": "" });
     expect((await planRuntime(bare, "static")).files["nginx.conf"]).toContain("autoindex on;");
-    for (const d of [spa, nf, bare]) rmSync(d, { recursive: true });
   });
 
   test("workerd: wrangler's main is the entry; secrets are bound by NAME, never value", async () => {
@@ -178,12 +171,11 @@ describe("generated build files", () => {
     const plan = await planRuntime(dir, "workerd", ["API_KEY"]);
     expect(plan.files["bundle.cjs"]).toContain('const ENTRY = "src/w.ts"');
     expect(plan.files["bundle.cjs"]).toContain('["API_KEY"]');
-    rmSync(dir, { recursive: true });
   });
 
   test("writeRuntime: .gangway/ in the context, the compose file (with secret VALUES) outside it", async () => {
     const dir = await folder({ "index.ts": "" });
-    const out = mkdtempSync(join(tmpdir(), "gangway-rt-out-"));
+    const out = tempDir();
     const { composeFile } = await writeRuntime(
       dir,
       await planned(dir, "bun"),
@@ -203,7 +195,6 @@ describe("generated build files", () => {
     await expect(
       writeRuntime(dir, await planned(dir, "bun"), {}, join(dir, "inside.yaml")),
     ).rejects.toMatchObject({ code: "internal" });
-    for (const d of [dir, out]) rmSync(d, { recursive: true });
   });
 
   test("asText: UTF-8 yes, NUL or invalid bytes no", () => {
@@ -456,7 +447,7 @@ describe("rebuilding in place", () => {
 });
 
 describe("HTTP", () => {
-  const quiet = new Logger("error", {}, () => {});
+  const quiet = silentLogger();
   const api = (s: ReturnType<typeof setup>) => {
     const app = new Hono<AppEnv>();
     app.onError(errorHandler(quiet));
@@ -560,7 +551,6 @@ describe("conventions, gangway.yml, scripts", () => {
       const res = Bun.spawnSync(["sh", "-n"], { stdin: new TextEncoder().encode(body) });
       expect(res.exitCode).toBe(0);
     }
-    rmSync(dir, { recursive: true });
   });
 
   test("a compound start command runs as written (no exec that would drop the rest)", async () => {
@@ -570,7 +560,6 @@ describe("conventions, gangway.yml, scripts", () => {
     expect((await planRuntime(dir, "python")).files["start.sh"]).toContain(
       "\npython migrate.py && exec python app.py\n",
     );
-    rmSync(dir, { recursive: true });
   });
 
   test("a Vite app: node builds, nginx serves the output, on the runtime's port", async () => {
@@ -592,7 +581,6 @@ describe("conventions, gangway.yml, scripts", () => {
         stdin: new TextEncoder().encode(r.files["collect-static.sh"]),
       }).exitCode,
     ).toBe(0);
-    rmSync(dir, { recursive: true });
   });
 
   test("collect-static.sh finds the build output, and says so when there is none", async () => {
@@ -608,7 +596,6 @@ describe("conventions, gangway.yml, scripts", () => {
     const ok = Bun.spawnSync(["sh", "collect.sh"], { cwd: dir });
     expect(ok.exitCode).toBe(0);
     expect(readFileSync(join(dir, "out-copy/index.html"), "utf8")).toBe("<h1>ng</h1>");
-    rmSync(dir, { recursive: true });
   });
 
   test("php: composer and a public/ docroot", async () => {
@@ -620,13 +607,11 @@ describe("conventions, gangway.yml, scripts", () => {
     expect(r.dockerfile).toContain(`ENV APACHE_DOCUMENT_ROOT="/var/www/html/public"`);
     expect(r.dockerfile).toContain("a2enmod rewrite");
     expect(r.files["install.sh"]).toContain("composer install --no-dev");
-    rmSync(dir, { recursive: true });
   });
 
   test("a version from gangway.yml picks the pinned image", async () => {
     const dir = await folder({ "gangway.yml": 'version: "3.12"\n', "main.py": "" });
     expect((await planRuntime(dir, "python")).dockerfile).toContain("FROM python:3.12-slim");
-    rmSync(dir, { recursive: true });
   });
 
   test("writeRuntime: a nested app builds from its own directory; policy and health reach the compose file", async () => {
@@ -635,7 +620,7 @@ describe("conventions, gangway.yml, scripts", () => {
       "site/gangway.yml": "healthcheck: /up\nttl: 3d\nrelease: echo migrate\nenv: { MODE: demo }\n",
       "site/index.ts": "",
     });
-    const out = mkdtempSync(join(tmpdir(), "gangway-rt-out-"));
+    const out = tempDir();
     const plan = await planned(dir);
     expect(plan.root).toBe("site");
     const { composeFile } = await writeRuntime(
@@ -651,7 +636,6 @@ describe("conventions, gangway.yml, scripts", () => {
     expect(doc.services.web.build).toEqual({ context: "site", dockerfile: ".gangway/Dockerfile" });
     expect(doc.services.web["x-gangway"]).toEqual({ expose: true, port: 3000, health: "/up" });
     expect(doc.services.web.environment.MODE).toBe("secret-wins");
-    for (const d of [dir, out]) rmSync(d, { recursive: true });
   });
 
   test("deploy: gangway.yml's release runs before the seed, the health path is probed, the plan is logged", async () => {
@@ -771,7 +755,7 @@ describe("conventions, gangway.yml, scripts", () => {
 });
 
 describe("plans and schema over HTTP", () => {
-  const quiet = new Logger("error", {}, () => {});
+  const quiet = silentLogger();
   const api = (s: ReturnType<typeof setup>) => {
     const app = new Hono<AppEnv>();
     app.onError(errorHandler(quiet));

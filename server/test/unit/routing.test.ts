@@ -1,9 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { openDatabase } from "../../src/db/sqlite.ts";
-import { migrate } from "../../src/db/migrate.ts";
+import { describe, expect, test } from "bun:test";
 import { HostsRepo, PreviewsRepo, RoutesRepo } from "../../src/db/repos/index.ts";
 import { RouteTable } from "../../src/routing/table.ts";
 import {
@@ -13,12 +8,7 @@ import {
   isInRange,
   PortExhausted,
 } from "../../src/routing/ports.ts";
-
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
+import { tempDb } from "../helpers/db.ts";
 
 const RANGE = { rangeStart: 31000, rangeEnd: 31004 };
 
@@ -63,10 +53,7 @@ describe("port allocator", () => {
 
 describe("RouteTable", () => {
   const setup = () => {
-    const d = mkdtempSync(join(tmpdir(), "gangway-rt-"));
-    tmps.push(d);
-    const { db } = openDatabase({ path: join(d, "g.db") });
-    migrate(db, MIGRATIONS);
+    const { db } = tempDb();
     const now = () => 1_700_000_000_000;
     new HostsRepo(db, now).upsert({
       id: "local",

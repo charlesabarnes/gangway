@@ -1,12 +1,7 @@
 /** /v1/github (the manifest flow) and /v1/repos through the real app. */
 import { describe, expect, test } from "bun:test";
-import { createApp, surfaceHandler } from "../../src/app/app.ts";
-import { authRoutes } from "../../src/app/routes/auth.ts";
 import { githubRoutes } from "../../src/app/routes/github.ts";
 import { projectRoutes } from "../../src/app/routes/projects.ts";
-import { chainVerifiers, staticTokenVerifier } from "../../src/auth/actor.ts";
-import { Bootstrap } from "../../src/auth/bootstrap.ts";
-import { Tokens } from "../../src/auth/tokens.ts";
 import { randomBytes } from "node:crypto";
 import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import { SecretBox } from "../../src/secrets/box.ts";
@@ -14,12 +9,12 @@ import { Secrets } from "../../src/secrets/secrets.ts";
 import { secretRoutes } from "../../src/app/routes/secrets.ts";
 import { GitHubApp } from "../../src/forge/github/app.ts";
 import { ManifestStates } from "../../src/forge/github/manifest.ts";
-import { Logger } from "../../src/logger.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
-import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
+import { setupAccounts } from "../helpers/accounts.ts";
+import { silentLogger } from "../helpers/logger.ts";
+import { signedInApp } from "../helpers/http.ts";
 
 const ENV_TOKEN = "gw_github_env_token_0123456789abcdef";
-const HOST = "app.preview.localhost:8443";
 
 async function make(o: { overrides?: Record<string, unknown>; conversion?: number } = {}) {
   const s = setupAccounts();
@@ -29,7 +24,7 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
   const app = new GitHubApp({
     credentials: () => ({ appId: "", privateKey: "" }),
     baseUrl: "https://api.github.test",
-    log: new Logger("error", {}, () => {}),
+    log: silentLogger(),
     fetch: async (url, init) => {
       const m = /\/app-manifests\/([^/]+)\/conversions$/.exec(url);
       if (m && init?.method === "POST") {
@@ -54,15 +49,8 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
   });
   let clock = 1_700_000_000_000;
   const states = new ManifestStates(() => clock);
-  const tokens = new Tokens(s.tokensRepo, s.roles, s.audit, s.now);
-  const auth = {
-    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(ENV_TOKEN)),
-    resolveSession: (secret: string) => s.sessions.resolve(secret)?.actor ?? null,
-    originFor: (host: string) => `https://${host}`,
-  };
-  const hono = createApp({
-    ...auth,
-    logger: new Logger("error", {}, () => {}),
+  const { call, ada } = await signedInApp(s, {
+    envToken: ENV_TOKEN,
     v1: (api) => {
       const secrets = new Secrets(
         repos,
@@ -81,43 +69,7 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
         originFor: (l) => `https://${l}.preview.localhost:8443`,
       });
     },
-    publicV1: (pub) =>
-      authRoutes(pub, {
-        auth,
-        accounts: s.accounts,
-        bootstrap: new Bootstrap(() => s.users.count()),
-        roles: s.roles,
-        sessionMaxAgeSec: 60,
-      }),
   });
-  const handle = surfaceHandler(hono, "app");
-  const call = (path: string, init: RequestInit & { json?: unknown; as?: string } = {}) => {
-    const headers = new Headers(init.headers);
-    headers.set("host", HOST);
-    headers.set("origin", `https://${HOST}`);
-    if (init.as?.startsWith("gw_")) headers.set("authorization", `Bearer ${init.as}`);
-    else if (init.as) headers.set("cookie", init.as);
-    if (init.json !== undefined) headers.set("content-type", "application/json");
-    return Promise.resolve(
-      handle(
-        new Request(`https://${HOST}${path}`, {
-          ...init,
-          headers,
-          ...(init.json === undefined ? {} : { body: JSON.stringify(init.json) }),
-        }),
-        { clientIp: "203.0.113.7" },
-      ),
-    );
-  };
-  await s.admin();
-  const ada = (
-    await call("/v1/auth/login", {
-      method: "POST",
-      json: { email: "ada@example.com", password: PASSWORD },
-    })
-  ).headers
-    .get("set-cookie")!
-    .split(";")[0]!;
   return {
     s,
     settings,

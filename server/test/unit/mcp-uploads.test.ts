@@ -3,13 +3,11 @@
  * agent's shell PUTs a tar.gz there, and `deploy` with `upload: <id>` builds those bytes.
  */
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { readdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { McpSurface } from "../../src/app/mcp-surface.ts";
 import { staticTokenVerifier, tokenActor, type Actor } from "../../src/auth/actor.ts";
 import { IdempotencyRepo } from "../../src/db/repos/index.ts";
-import { Logger } from "../../src/logger.ts";
 import { packFiles } from "../../src/mcp/pack.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { Tools, type CallScope } from "../../src/mcp/tools.ts";
@@ -17,14 +15,16 @@ import { Uploads } from "../../src/mcp/uploads.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
+import { tempDir } from "../helpers/db.ts";
 
-const quiet = new Logger("error", {}, () => {});
+const quiet = silentLogger();
 const TOKEN = "gw_uploads_test_token_0123456789abcdef";
 
 function setup(o: { maxBytes?: number } = {}) {
   const s = setupPreviewContext();
   s.ctx.sources = new SourceStore(dirname(s.ctx.workdirs.root));
-  const dir = mkdtempSync(join(tmpdir(), "gangway-uploads-"));
+  const dir = tempDir();
   const uploads = new Uploads({
     dir,
     url: (id) => `https://mcp.preview.localhost:8443/uploads/${id}`,

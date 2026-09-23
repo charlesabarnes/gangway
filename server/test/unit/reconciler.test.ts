@@ -1,27 +1,19 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import type { Route } from "@gangway/shared/domain";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
-import { HostConfigSchema } from "../../src/config.ts";
-import { migrate } from "../../src/db/migrate.ts";
 import { Audit } from "../../src/audit/audit.ts";
 import {
   AuditRepo,
   BuildsRepo,
   EventsRepo,
-  HostsRepo,
   PreviewsRepo,
   RoutesRepo,
 } from "../../src/db/repos/index.ts";
-import { openDatabase } from "../../src/db/sqlite.ts";
 import type { ContainerSummary, DockerInfo, ListOptions } from "../../src/docker/client.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
 import { containerLabels } from "../../src/docker/labels.ts";
 import type { ComposeRunner } from "../../src/docker/runner.ts";
 import { EventBus } from "../../src/events/bus.ts";
-import { seedHosts } from "../../src/hosts/seed.ts";
 import { Logger } from "../../src/logger.ts";
 import type { PreviewContext } from "../../src/previews/context.ts";
 import { deploy } from "../../src/previews/deploy.ts";
@@ -33,13 +25,11 @@ import { PreviewStates } from "../../src/previews/state.ts";
 import { Reconciler } from "../../src/reconcile/reconciler.ts";
 import { scanLabels, toScanned } from "../../src/reconcile/scan.ts";
 import { RouteTable } from "../../src/routing/table.ts";
+import { silentLogger } from "../helpers/logger.ts";
+import { tempDb } from "../helpers/db.ts";
+import { seededHosts } from "../helpers/hosts.ts";
 
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const ACTOR = staticTokenVerifier("x")("x") as Actor;
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
 
 const REMOTE_HOST: DockerInfo = {
   Name: "Docker-Host",
@@ -47,12 +37,8 @@ const REMOTE_HOST: DockerInfo = {
 };
 
 function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-reconcile-"));
-  tmps.push(dir);
-  const { db } = openDatabase({ path: join(dir, "g.db") });
-  migrate(db, MIGRATIONS);
-  const hosts = new HostsRepo(db);
-  seedHosts([HostConfigSchema.parse({ expectName: "Docker-Host" })], hosts);
+  const { db, dir } = tempDb();
+  const hosts = seededHosts(db, { expectName: "Docker-Host" });
   const previews = new PreviewsRepo(db);
   const routes = new RoutesRepo(db);
   const table = new RouteTable(routes);
@@ -122,13 +108,13 @@ function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
     workdirs: new Workdirs(dir),
     states: new PreviewStates(previews, table, bus),
     probe: async () => daemon.probe,
-    logger: new Logger("error", {}, () => {}),
+    logger: silentLogger(),
     timings: { startTimeoutMs: 200, probeTimeoutMs: 200, pollIntervalMs: 5 },
     now: Date.now,
     inflight: new Map(),
     teardowns: new Set(),
     builds: new BuildsRepo(db),
-    audit: new Audit(new AuditRepo(db), new Logger("error", {}, () => {})),
+    audit: new Audit(new AuditRepo(db), silentLogger()),
   };
   const lines: string[] = [];
   const reconciler = new Reconciler({

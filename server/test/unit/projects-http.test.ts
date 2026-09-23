@@ -17,7 +17,6 @@ import {
 } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { ProjectsRepo, TemplatesRepo } from "../../src/db/repos/index.ts";
-import { Logger } from "../../src/logger.ts";
 import { deploy, urlsFor } from "../../src/previews/deploy.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
@@ -29,6 +28,7 @@ import { Secrets } from "../../src/secrets/secrets.ts";
 import { MemorySettingsStore } from "../../src/settings.ts";
 import { IdempotencyRepo } from "../../src/db/repos/idempotency.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 const ADMIN = "gw_projects_env_token_0123456789abcd";
 const HOST = "api.preview.localhost:8443";
@@ -87,7 +87,7 @@ function make() {
   };
   const hono = createApp({
     ...auth,
-    logger: new Logger("error", {}, () => {}),
+    logger: silentLogger(),
     v1: (api) => {
       previewRoutes(api, s.ctx, new IdempotentDeploys(s.ctx, new IdempotencyRepo(s.db)));
       projectRoutes(api, {

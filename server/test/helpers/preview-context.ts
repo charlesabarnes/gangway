@@ -2,27 +2,20 @@
  * A real PreviewContext over a real (temp) SQLite, with only the compose runner faked.
  * For service-layer tests that need deploys to exist but not a daemon.
  */
-import { afterEach } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join, resolve as resolvePath } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { HostConfigSchema } from "../../src/config.ts";
-import { migrate } from "../../src/db/migrate.ts";
 import { Audit } from "../../src/audit/audit.ts";
 import {
   AuditRepo,
   BuildsRepo,
   EventsRepo,
-  HostsRepo,
   PreviewsRepo,
   RoutesRepo,
 } from "../../src/db/repos/index.ts";
-import { openDatabase } from "../../src/db/sqlite.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
 import type { ComposeRunner } from "../../src/docker/runner.ts";
 import { EventBus } from "../../src/events/bus.ts";
-import { seedHosts } from "../../src/hosts/seed.ts";
 import { Logger } from "../../src/logger.ts";
 import type { PreviewContext } from "../../src/previews/context.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
@@ -32,22 +25,16 @@ import { Workdirs } from "../../src/previews/source/workdir.ts";
 import { PreviewStates } from "../../src/previews/state.ts";
 import { RouteTable } from "../../src/routing/table.ts";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
+import { tempDb } from "./db.ts";
+import { seededHosts } from "./hosts.ts";
+import { silentLogger } from "./logger.ts";
 
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
 export const ACTOR = staticTokenVerifier("x")("x") as Actor;
 export const DAY = 86_400_000;
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
 
 export function setupPreviewContext() {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-jobs-"));
-  tmps.push(dir);
-  const { db } = openDatabase({ path: join(dir, "g.db") });
-  migrate(db, MIGRATIONS);
-  const hosts = new HostsRepo(db);
-  seedHosts([HostConfigSchema.parse({})], hosts);
+  const { db, dir } = tempDb();
+  const hosts = seededHosts(db);
   const previews = new PreviewsRepo(db);
   const routes = new RoutesRepo(db);
   const table = new RouteTable(routes);
@@ -185,14 +172,14 @@ export function setupPreviewContext() {
     workdirs: new Workdirs(dir),
     states: new PreviewStates(previews, table, bus),
     probe: async () => fake.answering,
-    logger: new Logger("error", {}, () => {}),
+    logger: silentLogger(),
     timings: { startTimeoutMs: 200, probeTimeoutMs: 200, pollIntervalMs: 5 },
     now: () => Date.now() + clock.offset,
     inflight: new Map(),
     teardowns: new Set(),
     builds: new BuildsRepo(db),
     addonSecret: (previewId, addon) => `pw${previewId.slice(-10)}${addon}`.toLowerCase(),
-    audit: new Audit(auditRepo, new Logger("error", {}, () => {})),
+    audit: new Audit(auditRepo, silentLogger()),
   };
   const lines: string[] = [];
   const logger = new Logger("info", {}, (l) => lines.push(l));

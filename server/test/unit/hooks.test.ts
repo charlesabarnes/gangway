@@ -5,7 +5,7 @@ import { GitHubForge } from "../../src/forge/github/forge.ts";
 import { signPayload } from "../../src/forge/github/webhook.ts";
 import { Hooks } from "../../src/forge/hooks.ts";
 import type { Outcome, PrPreviews } from "../../src/forge/pr-previews.ts";
-import { Logger } from "../../src/logger.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 const SECRET = "s3cret";
 const repository = {
@@ -47,7 +47,7 @@ function make(o: { secret?: string; slow?: boolean; fail?: boolean } = {}) {
   const hooks = new Hooks({
     forge: forge,
     service,
-    logger: new Logger("error", {}, () => {}),
+    logger: silentLogger(),
     onOutcome: (id, out) => outcomes.push([id, out]),
   });
   const handler = hooks.handler();

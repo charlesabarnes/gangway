@@ -1,7 +1,6 @@
 /** Secrets at rest and the repository env. */
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { statSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { migrate } from "../../src/db/migrate.ts";
@@ -11,16 +10,7 @@ import { githubFullName } from "../../src/forge/github/webhook.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "../../src/secrets/box.ts";
 import { Secrets, dotenvLine } from "../../src/secrets/secrets.ts";
 import { MemorySettingsStore } from "../../src/settings.ts";
-
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
-const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), "gangway-secrets-"));
-  tmps.push(d);
-  return d;
-};
+import { tempDir } from "../helpers/db.ts";
 
 describe("SecretBox", () => {
   test("seals and opens; a different key or a flipped byte fails closed", () => {
@@ -41,7 +31,7 @@ describe("SecretBox", () => {
   });
 
   test("the key file is made once, owner-only, and reused", () => {
-    const dir = tmp();
+    const dir = tempDir();
     const a = loadOrCreateSecretsKey(dir);
     expect(a).toHaveLength(32);
     expect(statSync(join(dir, "secrets.key")).mode & 0o777).toBe(0o600);
@@ -51,7 +41,7 @@ describe("SecretBox", () => {
 
 describe("Secrets: two scopes, one shape", () => {
   const setup = () => {
-    const dir = tmp();
+    const dir = tempDir();
     const { db } = openDatabase({ path: join(dir, "g.db") });
     migrate(db, join(import.meta.dir, "../../migrations"));
     const repos = new ProjectsRepo(db);

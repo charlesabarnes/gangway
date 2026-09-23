@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Logger } from "../../src/logger.ts";
 import { jittered, Scheduler } from "../../src/scheduler/scheduler.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 /** Time by hand: timers fire only when the test says so. */
 function harness(random = () => 0.5) {
@@ -255,7 +256,7 @@ describe("Scheduler", () => {
 
   test("with real timers: runs repeatedly and stops cleanly", async () => {
     let runs = 0;
-    const s = new Scheduler({ logger: new Logger("error", {}, () => {}) });
+    const s = new Scheduler({ logger: silentLogger() });
     s.register({
       name: "fast",
       intervalMs: 5,

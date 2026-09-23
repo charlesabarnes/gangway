@@ -32,16 +32,16 @@ import { Tokens } from "../../src/auth/tokens.ts";
 import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import { TemplatesRepo } from "../../src/db/repos/templates.ts";
 import { ManifestStates } from "../../src/forge/github/manifest.ts";
-import { Logger } from "../../src/logger.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { LOG_STREAMS } from "../../src/previews/logs.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 const contract = JSON.parse(
   readFileSync(join(import.meta.dir, "../../../web/src/testing/fixtures/contract.json"), "utf8"),
 ) as Record<string, unknown>;
-const quiet = new Logger("error", {}, () => {});
+const quiet = silentLogger();
 
 /** Keys and value types, recursively; an array is the shape of its first element. Values do not matter. */
 function shapeOf(v: unknown): unknown {

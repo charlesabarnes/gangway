@@ -2,28 +2,14 @@
  * First run, through everything real: boot(), the TLS listener, Host-header dispatch,
  * the Hono app, SQLite. Docker is never reached -- nothing here deploys.
  */
-import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { expect, test } from "bun:test";
 import { boot } from "../../src/boot.ts";
 import { loadConfig } from "../../src/config.ts";
 import type { ComposeRunner } from "../../src/docker/runner.ts";
 import { Logger } from "../../src/logger.ts";
-
-const cleanups: (() => void | Promise<void>)[] = [];
-afterEach(async () => {
-  for (const c of cleanups.splice(0).reverse()) await c();
-});
-
-const freePort = () =>
-  new Promise<number>((resolve) => {
-    const s = createServer().listen(0, "127.0.0.1", () => {
-      const { port } = s.address() as { port: number };
-      s.close(() => resolve(port));
-    });
-  });
+import { tempDir } from "../helpers/db.ts";
+import { onCleanup } from "../helpers/cleanup.ts";
+import { freePort } from "../helpers/free-port.ts";
 
 const PASSWORD = "correct horse battery staple";
 const ADMIN_TOKEN = "gw_boot_accounts_token_0123456789ab";
@@ -69,7 +55,7 @@ async function start(stateDir: string, env: Record<string, string> = {}) {
       await running.stop();
     }
   };
-  cleanups.push(stop);
+  onCleanup(stop);
 
   const origin = (label: string) => `https://${label}.preview.localhost:${running.listener.port}`;
   const call = (label: string, path: string, init: RequestInit & { json?: unknown } = {}) =>
@@ -88,8 +74,7 @@ async function start(stateDir: string, env: Record<string, string> = {}) {
 }
 
 test("first run: the setup URL is announced, never logged; it makes the admin; the next boot offers nothing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-boot-acct-"));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const dir = tempDir();
 
   const first = await start(dir);
   const url = first.running.setupUrl!;
@@ -172,8 +157,7 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
 }, 30_000);
 
 test("a restart before setup mints a NEW link: the old one in `docker logs` is dead", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-boot-acct-"));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const dir = tempDir();
   const first = await start(dir);
   const oldToken = new URL(first.running.setupUrl!).searchParams.get("token")!;
   await first.stop();
@@ -192,8 +176,7 @@ test("a restart before setup mints a NEW link: the old one in `docker logs` is d
 }, 30_000);
 
 test("with the UI switched off there is no page to open, so no link is printed; the env token is the way in", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-boot-acct-"));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const dir = tempDir();
   const r = await start(dir, { GANGWAY_SURFACE_UI: "false" });
   expect(r.running.setupUrl).toBeNull();
   expect(r.announced.join("\n")).not.toContain("gw_setup_");

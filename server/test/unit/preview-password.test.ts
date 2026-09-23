@@ -13,7 +13,6 @@ import { settingsRoutes } from "../../src/app/routes/settings.ts";
 import type { Actor } from "../../src/auth/actor.ts";
 import { LoginLimiter } from "../../src/auth/limiter.ts";
 import { Passwords } from "../../src/auth/password.ts";
-import { Logger } from "../../src/logger.ts";
 import { PASSWORD_COOKIE, PreviewGate, stripGangwayCookies } from "../../src/net/gate.ts";
 import { deploy } from "../../src/previews/deploy.ts";
 import { generatePassword, previewAccess } from "../../src/previews/password.ts";
@@ -21,6 +20,7 @@ import type { DefaultPasswordMode } from "@gangway/shared/domain";
 import type { EntryPassword, RouteEntry } from "../../src/routing/table.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 const passwords = new Passwords({ ln: 10 });
 const HOST = "shop.preview.example.dev";
@@ -597,7 +597,7 @@ describe("PUT /v1/previews/:id/password", () => {
   function make(actor: Actor = ACTOR) {
     const t = withPasswords();
     const api = new Hono<AppEnv>();
-    api.onError(errorHandler(new Logger("error", {}, () => {})));
+    api.onError(errorHandler(silentLogger()));
     api.use(async (c, next) => {
       c.set("requestId", "r");
       c.set("actor", actor);
@@ -665,7 +665,7 @@ describe("PUT /v1/settings/preview-password", () => {
     const settings = new Settings({}, new MemorySettingsStore());
     const records: unknown[] = [];
     const api = new Hono<AppEnv>();
-    api.onError(errorHandler(new Logger("error", {}, () => {})));
+    api.onError(errorHandler(silentLogger()));
     api.use(async (c, next) => {
       c.set("requestId", "r");
       c.set("actor", ACTOR);

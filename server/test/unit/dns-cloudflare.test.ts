@@ -11,10 +11,11 @@ import {
   type DnsQueries,
 } from "../../src/tls/dns/provider.ts";
 import { Logger } from "../../src/logger.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 const BASE = "https://api.cloudflare.test/client/v4";
 const CHALLENGE = "_acme-challenge.preview.example.com";
-const silent = () => new Logger("error", {}, () => {});
+const silent = () => silentLogger();
 
 type Call = {
   method: string;

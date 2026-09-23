@@ -7,15 +7,15 @@ import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenActor, type Actor } from "../../src/auth/actor.ts";
-import { Logger } from "../../src/logger.ts";
 import { type PreviewLogs } from "../../src/previews/logs.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 function make(actor: Actor = ACTOR, maxQueue?: number) {
   const s = setupPreviewContext();
   const api = new Hono<AppEnv>();
-  api.onError(errorHandler(new Logger("error", {}, () => {})));
+  api.onError(errorHandler(silentLogger()));
   api.use(async (c, next) => {
     c.set("requestId", "r");
     c.set("actor", actor);
