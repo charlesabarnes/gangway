@@ -274,7 +274,7 @@ describe("cloneRepo timeout", () => {
     const marker = path.join(dir, "marker");
     const hangingGit = path.join(dir, "slow-git.sh");
     // The marker appears only if the script outlives its deadline.
-    await writeFile(hangingGit, `#!/bin/sh\nexec >/dev/null 2>&1\nsleep 5\ntouch "${marker}"\n`, {
+    await writeFile(hangingGit, `#!/bin/sh\nexec >/dev/null 2>&1\nsleep 1\ntouch "${marker}"\n`, {
       mode: 0o755,
     });
     await chmod(hangingGit, 0o755);
@@ -295,12 +295,12 @@ describe("cloneRepo timeout", () => {
     );
 
     const elapsed = Date.now() - startedAt;
-    expect(elapsed).toBeLessThan(3_000);
+    expect(elapsed).toBeLessThan(900);
     expect(err.status).toBe(504);
 
-    await Bun.sleep(5_200 - elapsed);
+    await Bun.sleep(1_200 - elapsed);
     expect(await stat(marker).catch(() => null)).toBeNull();
-  }, 20_000);
+  });
 });
 
 describe("cloneRepo by commit sha", () => {

@@ -137,6 +137,20 @@ beforeAll(async () => {
           { headers: { "content-type": "text/event-stream" } },
         );
       }
+      if (url.pathname === "/quiet") {
+        server.timeout(req, 0);
+        return new Response(
+          new ReadableStream({
+            async start(c) {
+              c.enqueue(new TextEncoder().encode("data: first\n\n"));
+              await Bun.sleep(1_200);
+              c.enqueue(new TextEncoder().encode("data: after the pause\n\n"));
+              c.close();
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        );
+      }
       if (url.pathname === "/slow") {
         server.timeout(req, 0);
         return Bun.sleep(30_000).then(() => new Response("late"));
@@ -200,7 +214,7 @@ beforeAll(async () => {
     hostname: "127.0.0.1",
     port: 0,
     maxRequestBodySize: 64 * 1024 * 1024,
-    idleTimeout: 10,
+    idleTimeout: 1,
     certStore: store,
     deps,
   });
@@ -330,7 +344,7 @@ describe("TLS", () => {
 });
 
 describe("streaming and limits", () => {
-  test("SSE is not buffered and outlives the idle timeout", async () => {
+  test.concurrent("SSE is not buffered", async () => {
     const res = await fetch(`https://127.0.0.1:${listener.port}/sse`, {
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },
@@ -338,16 +352,22 @@ describe("streaming and limits", () => {
     const reader = res.body!.getReader();
     const t0 = Date.now();
     let ticks = 0;
-    while (Date.now() - t0 < 11_000) {
+    while (Date.now() - t0 < 1_000) {
       const { done, value } = await reader.read();
       if (done) break;
       ticks += (new TextDecoder().decode(value).match(/data: /g) ?? []).length;
     }
     void reader.cancel();
-    expect(ticks).toBeGreaterThan(20);
-    // The listener's idleTimeout is 10 s.
-    expect(Date.now() - t0).toBeGreaterThan(10_000);
-  }, 20_000);
+    expect(ticks).toBeGreaterThan(5);
+  });
+
+  test.concurrent("a stream quiet for longer than the idle timeout stays open", async () => {
+    const res = await fetch(`https://127.0.0.1:${listener.port}/quiet`, {
+      headers: { host: PREVIEW },
+      tls: { rejectUnauthorized: false },
+    } as RequestInit);
+    expect(await res.text()).toContain("after the pause");
+  });
 
   test("a body over the cap is 413, and one under it streams through", async () => {
     const ok = await raw({
@@ -367,10 +387,14 @@ describe("streaming and limits", () => {
     expect(big.status).toBe(413);
   }, 20_000);
 
-  test("a slow upstream becomes 504, not a hang", async () => {
-    const r = await raw({ host: PREVIEW, path: "/slow" });
-    expect(r.status).toBe(504);
-  }, 10_000);
+  test.concurrent(
+    "a slow upstream becomes 504, not a hang",
+    async () => {
+      const r = await raw({ host: PREVIEW, path: "/slow" });
+      expect(r.status).toBe(504);
+    },
+    10_000,
+  );
 
   test("a dead upstream becomes 502 with no stack trace", async () => {
     const saved = entry.upstreamPort;
