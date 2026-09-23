@@ -1,7 +1,3 @@
-/**
- * First run, through everything real: boot(), the TLS listener, Host-header dispatch,
- * the Hono app, SQLite. Docker is never reached -- nothing here deploys.
- */
 import { expect, test } from "bun:test";
 import { boot } from "../../src/boot.ts";
 import { loadConfig } from "../../src/config.ts";
@@ -73,7 +69,7 @@ async function start(stateDir: string, env: Record<string, string> = {}) {
   return { running, announced, logged, call, origin, stop };
 }
 
-test("first run: the setup URL is announced, never logged; it makes the admin; the next boot offers nothing", async () => {
+test("first run announces an unlogged setup URL that makes the admin, once", async () => {
   const dir = tempDir();
 
   const first = await start(dir);
@@ -83,7 +79,6 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
   const token = new URL(url).searchParams.get("token")!;
   expect(first.logged.join("\n")).not.toContain(token);
 
-  // The UI's first question.
   expect(await (await first.call("app", "/v1/auth/session")).json()).toEqual({
     authenticated: false,
     setupRequired: true,
@@ -97,8 +92,7 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
   expect(made.status).toBe(201);
   const cookie = made.headers.get("set-cookie")!.split(";")[0]!;
 
-  // The cookie is a real credential through the real dispatcher: reads work, and a
-  // mutation needs the public origin -- built from the public port, not a guess.
+  // A mutation needs the public origin, which is built from the public port.
   expect((await first.call("app", "/v1/previews", { headers: { cookie } })).status).toBe(200);
   expect((await first.call("app", "/v1/audit", { headers: { cookie } })).status).toBe(200);
   expect(
@@ -106,7 +100,6 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
   ).toBe(403);
   expect((await first.call("api", "/v1/previews", { headers: { cookie } })).status).toBe(401);
 
-  // The env token (headless bootstrap) is untouched by any of this.
   expect(
     (
       await first.call("api", "/v1/previews", {
@@ -128,8 +121,7 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
 
   await first.stop();
 
-  // Second boot, same state: there is an admin, so there is nothing to announce --
-  // and the session survived the restart, because it lives in SQLite.
+  // The session lives in SQLite, so it survives the restart.
   const second = await start(dir);
   expect(second.running.setupUrl).toBeNull();
   expect(second.announced.join("\n")).not.toContain("setup");
@@ -156,7 +148,7 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
   ).toBe(200);
 }, 30_000);
 
-test("a restart before setup mints a NEW link: the old one in `docker logs` is dead", async () => {
+test("a restart before setup mints a new link and kills the old one", async () => {
   const dir = tempDir();
   const first = await start(dir);
   const oldToken = new URL(first.running.setupUrl!).searchParams.get("token")!;
@@ -175,7 +167,7 @@ test("a restart before setup mints a NEW link: the old one in `docker logs` is d
   ).toBe(403);
 }, 30_000);
 
-test("with the UI switched off there is no page to open, so no link is printed; the env token is the way in", async () => {
+test("with the UI off no setup link is printed and the env token is the way in", async () => {
   const dir = tempDir();
   const r = await start(dir, { GANGWAY_SURFACE_UI: "false" });
   expect(r.running.setupUrl).toBeNull();

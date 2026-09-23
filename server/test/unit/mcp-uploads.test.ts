@@ -1,53 +1,23 @@
-/**
- * Upload by reference: `deploy` with `upload: "new"` hands out a one-use URL, the
- * agent's shell PUTs a tar.gz there, and `deploy` with `upload: <id>` builds those bytes.
- */
 import { describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
-import { dirname } from "node:path";
 import { McpSurface } from "../../src/app/mcp-surface.ts";
-import { staticTokenVerifier, tokenActor, type Actor } from "../../src/auth/actor.ts";
-import { IdempotencyRepo } from "../../src/db/repos/index.ts";
+import { staticTokenVerifier, tokenActor } from "../../src/auth/actor.ts";
 import { packFiles } from "../../src/mcp/pack.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
-import type { CallScope } from "../../src/mcp/tool-deps.ts";
-import { Tools } from "../../src/mcp/tools.ts";
-import { Uploads } from "../../src/mcp/uploads.ts";
-import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
-import { SourceStore } from "../../src/previews/source/store.ts";
-import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { silentLogger } from "../helpers/logger.ts";
-import { tempDir } from "../helpers/db.ts";
+import { setupTools } from "../helpers/mcp-tools.ts";
 
-const quiet = silentLogger();
 const TOKEN = "gw_uploads_test_token_0123456789abcdef";
 
+/** `upload: "new"` hands out a one-use URL, a PUT of a tar.gz fills it, `upload: <id>` builds it. */
 function setup(o: { maxBytes?: number } = {}) {
-  const s = setupPreviewContext();
-  s.ctx.sources = new SourceStore(dirname(s.ctx.workdirs.root));
-  const dir = tempDir();
-  const uploads = new Uploads({
-    dir,
-    url: (id) => `https://mcp.preview.localhost:8443/uploads/${id}`,
-    now: s.ctx.now,
-    ...o,
-  });
-  const tools = new Tools({
-    ctx: s.ctx,
-    deploys: new IdempotentDeploys(s.ctx, new IdempotencyRepo(s.db, s.ctx.now)),
-    uploads,
-    logger: quiet,
-  });
+  const s = setupTools({ uploads: o });
   const mcp = new McpSurface({
-    tools,
-    uploads,
+    tools: s.tools,
+    uploads: s.uploads!,
     verifyToken: staticTokenVerifier(TOKEN),
-    logger: quiet,
+    logger: silentLogger(),
   }).handler();
-  const scope = (actor: Actor = ACTOR): CallScope => ({
-    actor,
-    signal: new AbortController().signal,
-  });
   const put = (url: string, body: Uint8Array | null, headers: Record<string, string> = {}) =>
     Promise.resolve(
       mcp(
@@ -61,11 +31,11 @@ function setup(o: { maxBytes?: number } = {}) {
     );
   const idOf = (text: string) => /upload: "([A-Za-z0-9_-]{43})"/.exec(text)![1]!;
   const urlOf = (text: string) => /'(https:\/\/mcp\.[^']+)'/.exec(text)![1]!;
-  return { ...s, dir, uploads, tools, scope, put, idOf, urlOf };
+  return { ...s, dir: s.uploadDir, put, idOf, urlOf };
 }
 
 describe("upload by reference", () => {
-  test("new -> PUT -> deploy: the preview is exactly the uploaded bytes, and nothing is left on disk", async () => {
+  test("new, PUT, deploy: the preview is the uploaded bytes and the slot is used up", async () => {
     const s = setup();
     const offer = await s.tools.deploy(s.scope(), { upload: "new" });
     expect(offer).toContain("tar --exclude=.git --exclude=node_modules -czf - . | curl");
@@ -88,7 +58,6 @@ describe("upload by reference", () => {
       "index.html",
     ]);
     expect(readdirSync(s.dir)).toEqual([]);
-    // One use.
     await expect(
       s.tools.deploy(s.scope(), { upload: s.idOf(offer), name: "again", visibility: "public" }),
     ).rejects.toMatchObject({ code: "not_found" });
@@ -134,7 +103,7 @@ describe("upload by reference", () => {
     ).toStartWith("ready:");
   });
 
-  test("the PUT: a cap on bytes, no browsers, no second PUT, unknown ids 404, and a read credential cannot ask", async () => {
+  test("the PUT is capped and refuses browsers, a second PUT, and unknown ids", async () => {
     const s = setup({ maxBytes: 1024 });
     const offer = await s.tools.deploy(s.scope(), { upload: "new" });
     const url = s.urlOf(offer);
@@ -150,6 +119,10 @@ describe("upload by reference", () => {
     expect((await s.put(url.replace(/[^/]+$/, "..%2F..%2Fetc"), new Uint8Array(10))).status).toBe(
       404,
     );
+  });
+
+  test("a read credential cannot ask for an upload", async () => {
+    const s = setup();
     await expect(
       s.tools.deploy(s.scope(tokenActor("t-r", ["read"])), { upload: "new" }),
     ).rejects.toThrow('"previews.deploy"');
@@ -159,7 +132,7 @@ describe("upload by reference", () => {
     const s = setup();
     const offer = await s.tools.deploy(s.scope(), { upload: "new" });
     await s.put(s.urlOf(offer), (await packFiles({ "index.html": "x" })).archive);
-    expect(readdirSync(s.dir).length).toBe(1);
+    expect(readdirSync(s.dir)).toHaveLength(1);
     s.clock.offset += 16 * 60_000;
     await expect(
       s.tools.deploy(s.scope(), { upload: s.idOf(offer), name: "late" }),
@@ -167,15 +140,10 @@ describe("upload by reference", () => {
     expect(readdirSync(s.dir)).toEqual([]);
   });
 
-  test("without an upload store, upload is refused and files still work", async () => {
-    const s = setupPreviewContext();
-    const tools = new Tools({
-      ctx: s.ctx,
-      deploys: new IdempotentDeploys(s.ctx, new IdempotencyRepo(s.db, s.ctx.now)),
-      logger: quiet,
-    });
-    await expect(
-      tools.deploy({ actor: ACTOR, signal: new AbortController().signal }, { upload: "new" }),
-    ).rejects.toThrow("send files instead");
+  test("without an upload store, upload is refused", async () => {
+    const s = setupTools();
+    await expect(s.tools.deploy(s.scope(), { upload: "new" })).rejects.toThrow(
+      "send files instead",
+    );
   });
 });
