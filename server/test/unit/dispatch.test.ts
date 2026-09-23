@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { dispatch, type DispatchDeps, type Surface } from "../../src/net/dispatch.ts";
-import { DEFAULT_LIMITS } from "../../src/net/limits.ts";
+import { BodyTooLarge, DEFAULT_LIMITS } from "../../src/net/limits.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
 import type { PreviewState } from "@gangway/shared/domain";
 
@@ -49,6 +49,13 @@ function deps(over: Partial<DispatchDeps> = {}, e: RouteEntry | null = entry()):
   };
 }
 
+const throwing = (err: Error) => ({
+  name: "s",
+  fetch: async (): Promise<Response> => {
+    throw err;
+  },
+});
+
 const get = (host: string, init: RequestInit = {}) =>
   new Request("https://ignored.example/path?q=1", {
     ...init,
@@ -67,7 +74,7 @@ describe("host normalization and scoping", () => {
     expect((await dispatch(get(`${BASE}.evil.com`), deps())).status).toBe(421);
   });
 
-  test("a multi-label subdomain is refused -- no wildcard covers it", async () => {
+  test("a multi-label subdomain is refused, since no wildcard covers it", async () => {
     expect((await dispatch(get(`api.acme-pr-1.${BASE}`), deps())).status).toBe(421);
   });
 
@@ -116,7 +123,6 @@ describe("reserved labels", () => {
       deps({ surfaceEnabled: (s: Surface) => s !== "mcp" }),
     );
     expect(res.status).toBe(404);
-    expect(res.status).not.toBe(503);
   });
 
   test("the toggle is read per request, so no restart is needed", async () => {
@@ -163,9 +169,8 @@ describe("preview state machine", () => {
     expect(body).not.toContain("line 29"); // only the last 50
   });
 
-  test("asleep: wake answering null means awake now -- THIS request is proxied; a Response is sent instead; unwired shows the waking page", async () => {
-    // The wake flips the entry to awake (as the state machine does through the table) and says "proxy it".
-    const e = entry({ state: "asleep" });
+  test("asleep: a wake that returns null proxies this same request", async () => {
+    // The wake flips the entry to awake, as the state machine does through the table.
     const proxied = await dispatch(
       get(`acme-pr-1.${BASE}`),
       deps(
@@ -175,11 +180,13 @@ describe("preview state machine", () => {
             return null;
           },
         },
-        e,
+        entry({ state: "asleep" }),
       ),
     );
     expect(await proxied.text()).toBe("upstream-ok");
+  });
 
+  test("asleep: a wake that returns a Response sends it instead", async () => {
     const slow = await dispatch(
       get(`acme-pr-1.${BASE}`),
       deps(
@@ -189,7 +196,9 @@ describe("preview state machine", () => {
     );
     expect(slow.status).toBe(202);
     expect(await slow.text()).toBe("still waking");
+  });
 
+  test("asleep with no wake wired shows the waking page", async () => {
     const res = await dispatch(get(`acme-pr-1.${BASE}`), deps({}, entry({ state: "asleep" })));
     expect(res.status).toBe(202);
   });
@@ -202,12 +211,7 @@ describe("preview state machine", () => {
     const res = await dispatch(
       get(`acme-pr-1.${BASE}`),
       deps({
-        upstream: {
-          name: "boom",
-          fetch: async () => {
-            throw new Error("SECRET internal detail at /src/x.ts:42");
-          },
-        },
+        upstream: throwing(new Error("SECRET internal detail at /src/x.ts:42")),
       }),
     );
     expect(res.status).toBe(502);
@@ -261,62 +265,23 @@ describe("limits", () => {
 
   test("the in-flight counter is released even when the upstream throws", async () => {
     const e = entry();
-    await dispatch(
-      get(e.hostname),
-      deps(
-        {
-          upstream: {
-            name: "s",
-            fetch: async () => {
-              throw new Error("boom");
-            },
-          },
-        },
-        e,
-      ),
-    );
+    await dispatch(get(e.hostname), deps({ upstream: throwing(new Error("boom")) }, e));
     expect(e.inflight).toBe(0);
   });
 
-  test("an oversized body maps to 413 and a timeout to 504", async () => {
-    const { BodyTooLarge } = await import("../../src/net/limits.ts");
+  test.each([
+    ["an oversized body", new BodyTooLarge(10), 413],
+    ["an upstream timeout", new Error("UPSTREAM_TIMEOUT"), 504],
+  ])("%s maps to %i", async (_what, err, status) => {
     const e = entry();
-    const big = await dispatch(
-      get(e.hostname),
-      deps(
-        {
-          upstream: {
-            name: "s",
-            fetch: async () => {
-              throw new BodyTooLarge(10);
-            },
-          },
-        },
-        e,
-      ),
+    expect((await dispatch(get(e.hostname), deps({ upstream: throwing(err) }, e))).status).toBe(
+      status,
     );
-    expect(big.status).toBe(413);
-
-    const slow = await dispatch(
-      get(e.hostname),
-      deps(
-        {
-          upstream: {
-            name: "s",
-            fetch: async () => {
-              throw new Error("UPSTREAM_TIMEOUT");
-            },
-          },
-        },
-        e,
-      ),
-    );
-    expect(slow.status).toBe(504);
   });
 });
 
 describe("PerHostUpstream", () => {
-  test("each host gets its OWN upstream, built once; a route on a vanished host is an error, not the first host's traffic", async () => {
+  test("each host gets its own upstream, built once; a vanished host is an error", async () => {
     const { PerHostUpstream } = await import("../../src/net/upstream.ts");
     const made: string[] = [];
     const per = new PerHostUpstream((hostId) => {

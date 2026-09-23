@@ -137,7 +137,7 @@ x-gangway:
       },
     );
     const v = m.violations.join("\n");
-    for (const needle of [
+    const needles = [
       "privileged",
       "network_mode: host",
       "pid: host",
@@ -151,10 +151,9 @@ x-gangway:
       'network "mac": only the bridge',
       'volume "host": driver_opts',
       'volume "shared": a custom name',
-    ]) {
-      expect(v).toContain(needle);
-    }
-    expect(m.violations.length).toBe(13);
+    ];
+    for (const needle of needles) expect(v).toContain(needle);
+    expect(m.violations).toHaveLength(needles.length);
   });
 });
 
@@ -329,7 +328,7 @@ describe("buildStack", () => {
     expect(doc.services.web.labels["traefik.enable"]).toBe("true");
   });
 
-  test("an unrouted service is OWNED but not MANAGED, so the reconciler never mistakes it for an orphan", () => {
+  test("an unrouted service is owned but unmanaged, so it never looks orphaned", () => {
     expect(doc.services.db.labels).toEqual({
       "gangway.instance": "default",
       "gangway.env": "dev",
@@ -339,7 +338,7 @@ describe("buildStack", () => {
     expect(parseLabels(doc.services.db.labels)).toEqual({ ok: false, reason: "not-managed" });
   });
 
-  test("EVERY service's ports are replaced: ours moved into the pool, the rest removed", () => {
+  test("every service's ports are replaced: ours moved into the pool, the rest removed", () => {
     expect(doc.services.web.ports).toEqual([
       { mode: "ingress", host_ip: "127.0.0.1", target: 3000, published: "31000", protocol: "tcp" },
     ]);
@@ -357,7 +356,7 @@ describe("buildStack", () => {
     expect(doc.services.db.environment.PUBLIC_URL).toBe("https://acme.preview.example.com:8443");
   });
 
-  test("names derived from the PLACEHOLDER project are dropped, or every preview shares one network", () => {
+  test("names derived from the placeholder project are dropped", () => {
     expect(doc.name).toBe("gw-acme");
     expect("name" in doc.networks.default).toBe(false);
     expect("name" in doc.volumes.pgdata).toBe(false);
@@ -385,7 +384,7 @@ test("parseDuration", () => {
     expect(parseDuration(bad)).toBeNull();
 });
 
-describe("policy: nothing a build or a secret reads may come from outside the upload", () => {
+describe("policy: builds and secrets read nothing from outside the upload", () => {
   const violations = (services: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
     model(services, extra).violations;
 
@@ -403,7 +402,7 @@ describe("policy: nothing a build or a secret reads may come from outside the up
 
   test.each([
     ["the filesystem root", { context: "/" }],
-    ["a sibling whose name merely STARTS the same", { context: "/xy" }],
+    ["a sibling whose name merely starts the same", { context: "/xy" }],
     ["a parent", { context: "/x/../etc" }],
     ["a git URL the daemon would fetch", { context: "https://github.com/evil/repo.git" }],
     ["nothing at all", {}],
@@ -413,7 +412,7 @@ describe("policy: nothing a build or a secret reads may come from outside the up
     );
   });
 
-  test("a dockerfile outside the context's tree is refused -- it is read from THIS machine", () => {
+  test("a dockerfile outside the context's tree is refused", () => {
     expect(
       violations({ web: { build: { context: "/x", dockerfile: "../etc/passwd" } } })[0],
     ).toContain("build.dockerfile");
@@ -441,13 +440,13 @@ describe("policy: nothing a build or a secret reads may come from outside the up
     ]);
   });
 
-  test("with no source directory declared, NO build is allowed", () => {
+  test("with no source directory declared, no build is allowed", () => {
     expect(
-      parseComposeModel("gw-x", resolved({ web: { build: { context: "/x" } } })).violations.length,
-    ).toBe(1);
+      parseComposeModel("gw-x", resolved({ web: { build: { context: "/x" } } })).violations,
+    ).toEqual([expect.stringContaining("build.context must be a directory inside")]);
   });
 
-  test("secrets and configs: inline content only -- `file` reads the server's disk, `environment` reads gangway's own env", () => {
+  test("secrets and configs allow inline content only, not file, environment or external", () => {
     expect(
       violations(
         { web: { image: "nginx" } },
@@ -465,7 +464,10 @@ describe("policy: nothing a build or a secret reads may come from outside the up
         configs: { f: { file: "/etc/shadow" } },
       },
     );
-    expect(bad.length).toBe(4);
-    expect(bad[0]).toContain('secret "f": only inline `content:` is allowed');
+    expect(bad).toEqual(
+      ['secret "f"', 'secret "e"', 'secret "x"', 'config "f"'].map((what) =>
+        expect.stringContaining(`${what}: only inline \`content:\` is allowed`),
+      ),
+    );
   });
 });

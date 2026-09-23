@@ -85,7 +85,7 @@ describe("app root", () => {
     expect(res.headers.get("x-request-id")).toMatch(ULID_RE);
   });
 
-  test("draining: the control plane answers 503 with Retry-After, /healthz goes unready, and it is a live switch", async () => {
+  test("while draining, the control plane answers 503 and /healthz reports unready", async () => {
     let draining = false;
     const { api, ui } = make({ draining: () => draining });
     expect((await api("/v1/whoami", auth)).status).toBe(200);
@@ -100,7 +100,7 @@ describe("app root", () => {
     expect(await health.json()).toEqual({ ok: false, draining: true });
   });
 
-  test("nothing frames gangway (the workspace frames previews, never the reverse); the gate is the one exception", async () => {
+  test("no page of gangway may be framed except the gate", async () => {
     const { ui, api } = make({
       publicV1: (pub) => {
         pub.get("/auth/gate", (c) => c.redirect("https://x.preview.localhost/"));
@@ -195,7 +195,7 @@ describe("auth", () => {
     );
   });
 
-  test("scopes are bundles of permissions: admin is everything, deploy contains read, read cannot mutate", () => {
+  test("scopes bundle permissions: admin is all, deploy has read, read cannot mutate", () => {
     const p = (...scopes: Parameters<typeof permissionsForScopes>[0]) =>
       permissionsForScopes(scopes);
     expect([...p("admin")].sort()).toEqual([...ALL_PERMISSIONS].sort());
@@ -300,7 +300,7 @@ describe("static + SPA fallback", () => {
     expect((await ui("/favicon.ico")).headers.get("cache-control")).toBe("no-cache");
   });
 
-  test("a missing ASSET is a 404, never the shell", async () => {
+  test("a missing asset is a 404, never the shell", async () => {
     const res = await make().ui("/assets/gone-ABCDEF123456.js");
     expect(res.status).toBe(404);
   });

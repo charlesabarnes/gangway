@@ -1,8 +1,3 @@
-/**
- * Import layering:
- *   - nothing below app/ may import app/  (the service layer has no HTTP types)
- *   - only db/sqlite.ts may import bun:sqlite
- */
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";

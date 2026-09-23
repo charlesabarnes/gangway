@@ -57,7 +57,6 @@ function make() {
     };
   };
   const setupToken = () => new URL(bootstrap.url(APP)!).searchParams.get("token")!;
-  /** `name=value` from a Set-Cookie, ready to send back. */
   const cookieOf = (res: Response) => res.headers.get("set-cookie")!.split(";")[0]!;
   return { s, bootstrap, app: on("app"), api: on("api"), setupToken, cookieOf };
 }
@@ -99,42 +98,28 @@ describe("first-run setup over HTTP", () => {
     expect(me.permissions).toContain("users.manage");
   });
 
-  test("the cookie is __Host-, HttpOnly, Secure, SameSite=Lax, Path=/ and has NO Domain", async () => {
+  test("the cookie is __Host-, HttpOnly, Secure, SameSite=Lax, Path=/, with no Domain", async () => {
     const { setupRes } = await loggedIn();
     expect(setupRes.headers.get("set-cookie")).toMatch(
       /^__Host-gw_session=[A-Za-z0-9_-]{43}; Max-Age=2592000; Path=\/; HttpOnly; Secure; SameSite=Lax$/,
     );
   });
 
-  test("a wrong link is 403 and does not burn the right one; a weak password is 422 and does not either", async () => {
+  test("neither a wrong link (403) nor a weak password (422) burns the link", async () => {
     const t = make();
-    expect(
+    const setup = async (token: string, password: string) =>
       (
         await t.app("/v1/auth/setup", {
           method: "POST",
-          json: { token: "gw_setup_nope", email: "a@example.com", password: PASSWORD },
+          json: { token, email: "a@example.com", password },
         })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await t.app("/v1/auth/setup", {
-          method: "POST",
-          json: { token: t.setupToken(), email: "a@example.com", password: "short" },
-        })
-      ).status,
-    ).toBe(422);
-    expect(
-      (
-        await t.app("/v1/auth/setup", {
-          method: "POST",
-          json: { token: t.setupToken(), email: "a@example.com", password: PASSWORD },
-        })
-      ).status,
-    ).toBe(201);
+      ).status;
+    expect(await setup("gw_setup_nope", PASSWORD)).toBe(403);
+    expect(await setup(t.setupToken(), "short")).toBe(422);
+    expect(await setup(t.setupToken(), PASSWORD)).toBe(201);
   });
 
-  test("once an admin exists, setup is a 404 -- even with the right link", async () => {
+  test("once an admin exists, setup is a 404, even with the right link", async () => {
     const t = make();
     const token = t.setupToken();
     await t.app("/v1/auth/setup", {
@@ -152,7 +137,7 @@ describe("first-run setup over HTTP", () => {
     expect(t.s.users.count()).toBe(1);
   });
 
-  test("setup and login exist on the app hostname only: that is where the cookie lives", async () => {
+  test("setup and login exist only on the app hostname, where the cookie lives", async () => {
     const t = make();
     expect(
       (
@@ -174,7 +159,7 @@ describe("first-run setup over HTTP", () => {
 });
 
 describe("login over HTTP", () => {
-  test("right password: a cookie. Wrong: 401 with no cookie, and the same body as an unknown email", async () => {
+  test("the right password sets a cookie; a wrong one gets the unknown-email 401", async () => {
     const t = await loggedIn();
     const ok = await t.app("/v1/auth/login", {
       method: "POST",
@@ -216,7 +201,7 @@ describe("login over HTTP", () => {
     expect(res.headers.get("content-type")).toBe("application/problem+json");
   });
 
-  test("login CSRF: a page on a sibling preview cannot log your browser into ITS account", async () => {
+  test("login CSRF: a sibling preview cannot log your browser into its account", async () => {
     const t = await loggedIn();
     const body = { email: "ada@example.com", password: PASSWORD };
     expect(
@@ -245,7 +230,7 @@ describe("login over HTTP", () => {
 });
 
 describe("the session cookie as a credential", () => {
-  test("works for reads on app with no Origin at all -- which is what EventSource sends", async () => {
+  test("works for reads on app with no Origin, as EventSource sends them", async () => {
     const t = await loggedIn();
     const res = await t.app("/v1/whoami", { headers: { cookie: t.cookie } });
     expect(res.status).toBe(200);
@@ -257,7 +242,7 @@ describe("the session cookie as a credential", () => {
     expect((await t.api("/v1/whoami", { headers: { cookie: t.cookie } })).status).toBe(401);
   });
 
-  test("a mutation needs our own Origin: missing, a sibling preview, and same-SITE are all refused", async () => {
+  test("a mutation needs our own Origin; missing, sibling and same-site are refused", async () => {
     const t = await loggedIn();
     const post = (headers: Record<string, string>) =>
       t.app("/v1/mutate", { method: "POST", headers: { cookie: t.cookie, ...headers } });
@@ -290,7 +275,7 @@ describe("the session cookie as a credential", () => {
     expect(await both.json()).toEqual({ id: "env:admin" });
   });
 
-  test("a WRONG bearer never falls through to a valid cookie", async () => {
+  test("a wrong bearer never falls through to a valid cookie", async () => {
     const t = await loggedIn();
     expect(
       (
@@ -313,7 +298,7 @@ describe("the session cookie as a credential", () => {
     }
   });
 
-  test("an unknown /v1 path is still 401 before it is 404: the public mount did not open a hole", async () => {
+  test("an unknown /v1 path is 401 before 404, even under the public auth mount", async () => {
     const t = await loggedIn();
     expect((await t.app("/v1/does-not-exist")).status).toBe(401);
     expect((await t.app("/v1/auth/does-not-exist")).status).toBe(401);
@@ -359,43 +344,14 @@ describe("logout and changing a password", () => {
   test("change password: needs a session, the current password, and our Origin", async () => {
     const t = await loggedIn();
     const body = { current: PASSWORD, next: "a brand new password" };
-    expect((await t.app("/v1/auth/password", { method: "POST", json: body })).status).toBe(401);
-    expect(
-      (
-        await t.app("/v1/auth/password", {
-          method: "POST",
-          json: body,
-          headers: { cookie: t.cookie, origin: SIBLING },
-        })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await t.app("/v1/auth/password", {
-          method: "POST",
-          json: { ...body, current: "not my password!" },
-          headers: { cookie: t.cookie, origin: APP },
-        })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await t.app("/v1/auth/password", {
-          method: "POST",
-          json: { ...body, next: "short" },
-          headers: { cookie: t.cookie, origin: APP },
-        })
-      ).status,
-    ).toBe(422);
-    expect(
-      (
-        await t.app("/v1/auth/password", {
-          method: "POST",
-          json: body,
-          headers: { cookie: t.cookie, origin: APP },
-        })
-      ).status,
-    ).toBe(204);
+    const change = async (json: typeof body, headers: Record<string, string>) =>
+      (await t.app("/v1/auth/password", { method: "POST", json, headers })).status;
+    const mine = { cookie: t.cookie, origin: APP };
+    expect(await change(body, {})).toBe(401);
+    expect(await change(body, { cookie: t.cookie, origin: SIBLING })).toBe(403);
+    expect(await change({ ...body, current: "not my password!" }, mine)).toBe(403);
+    expect(await change({ ...body, next: "short" }, mine)).toBe(422);
+    expect(await change(body, mine)).toBe(204);
     expect(
       (
         await t.app("/v1/auth/login", {

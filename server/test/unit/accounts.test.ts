@@ -20,7 +20,7 @@ describe("login", () => {
     expect(resolved.session).toMatchObject({ ip: "203.0.113.7", userAgent: "test-agent" });
   });
 
-  test("unknown email, wrong password and disabled account are ONE error, and each costs a real verify", async () => {
+  test("unknown, wrong-password and disabled logins fail alike, each with a real verify", async () => {
     const s = setup();
     await s.admin();
     const bob = await s.accounts.createUser(
@@ -62,11 +62,11 @@ describe("login", () => {
       status: 401,
       message: "wrong email or password",
     });
-    // dummy -> verify: real -> verify, disabled -> dummy -> verify. Nobody got a free "no".
+    // Each of the three paths must run a real verify, or timing reveals which one failed.
     expect(calls.filter((c) => c === "verify")).toHaveLength(3);
   });
 
-  test("5 failures lock the account: 429 with Retry-After, the RIGHT password is refused too, and scrypt is not run", async () => {
+  test("5 failures lock the account: 429 without scrypt, even for the right password", async () => {
     const s = setup();
     await s.admin();
     for (let i = 0; i < 5; i++)
@@ -92,7 +92,7 @@ describe("login", () => {
     );
   });
 
-  test("a spray of blocked attempts writes ONE audit row, not one per attempt", async () => {
+  test("a spray of blocked attempts writes one audit row, not one per attempt", async () => {
     const s = setup();
     await s.admin();
     for (let i = 0; i < 5; i++)
@@ -126,7 +126,7 @@ describe("login", () => {
 });
 
 describe("first-run setup", () => {
-  test("racing requests make exactly one admin; the loser sees a 404, as if setup were never there", async () => {
+  test("racing requests make exactly one admin and the losers see a 404", async () => {
     const s = setup();
     const results = await Promise.allSettled(
       [1, 2, 3].map((i) => s.accounts.setupFirstAdmin(`admin${i}@example.com`, PASSWORD, META)),
@@ -204,7 +204,7 @@ describe("administering users", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
-  test("the last enabled admin cannot be demoted or disabled -- not even by themselves", async () => {
+  test("the last enabled admin cannot be demoted or disabled, even by themselves", async () => {
     const s = await withAdmin();
     await expect(
       s.accounts.updateUser(s.actor, s.ada.id, { roleId: "member" }),
@@ -230,7 +230,7 @@ describe("administering users", () => {
     );
   });
 
-  test("a role change applies to a session that is ALREADY open, on its next request", async () => {
+  test("a role change applies to an open session on its next request", async () => {
     const s = await withAdmin();
     const bob = await s.accounts.createUser(s.actor, {
       email: "bob@example.com",
@@ -247,7 +247,7 @@ describe("administering users", () => {
     expect(s.sessions.resolve(secret)!.actor.permissions.has("previews.destroy")).toBe(true);
   });
 
-  test("disabling ends every session at once; so does a password reset, and the new password works", async () => {
+  test("disabling or resetting the password ends every session; the new password works", async () => {
     const s = await withAdmin();
     const bob = await s.accounts.createUser(s.actor, {
       email: "bob@example.com",
@@ -292,7 +292,7 @@ describe("administering users", () => {
 });
 
 describe("changing your own password", () => {
-  test("needs the current one; ends every OTHER session; keeps the one in hand", async () => {
+  test("needs the current password, ends other sessions and keeps this one", async () => {
     const s = setup();
     await s.admin();
     const here = (await s.accounts.login("ada@example.com", PASSWORD, META)).secret;
@@ -310,7 +310,7 @@ describe("changing your own password", () => {
     ).toBe("ada@example.com");
   });
 
-  test("it is a password oracle for whoever holds a session, so it shares login's lockout", async () => {
+  test("shares login's lockout, since it is a password oracle for any session holder", async () => {
     const s = setup();
     await s.admin();
     const actor = s.sessions.resolve(
@@ -381,7 +381,7 @@ describe("session lifetime", () => {
     expect(s.sessions.resolve(again)).toBeNull(); // idle
   });
 
-  test("the sliding write is throttled: a busy session writes once per window, not once per request", async () => {
+  test("a busy session writes its sliding expiry once per window, not per request", async () => {
     const s = setup();
     const { secret } = await s.admin();
     let writes = 0;

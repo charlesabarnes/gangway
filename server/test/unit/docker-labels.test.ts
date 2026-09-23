@@ -12,8 +12,7 @@ import {
   type GangwayLabels,
 } from "../../src/docker/labels.ts";
 
-/* A tiny deterministic generator: property tests that change every run are tests that
-   fail on someone else's branch for reasons nobody can reproduce. */
+// Seeded, so a failing property test fails the same way on every branch.
 function lcg(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
@@ -109,8 +108,6 @@ describe("round trip", () => {
   });
 });
 
-/* If a route cannot be rebuilt from labels alone, the daemon is not an independent second
-   copy of state, and the reconciler has no answer for "no route, container running". */
 describe("the label set alone reconstructs a Route", () => {
   test("a Route survives a trip through labels with nothing else in hand", () => {
     const route: Route = {
@@ -236,9 +233,7 @@ describe("failures are values, never throws", () => {
   });
 });
 
-/* An orphan holding a port is worse than a missing preview, so the reconciler
-   stops malformed containers. A container written by a newer gangway is not an orphan,
-   it is a stranger, and stopping it would be the destructive version of this bug. */
+// Malformed containers are stopped as orphans; a newer gangway's must be left alone.
 describe("version skew", () => {
   test("a higher version is reported distinctly, not as malformed", () => {
     const r = parseLabels({ ...buildLabels(sample), [LABEL.version]: "2" });

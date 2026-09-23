@@ -60,7 +60,7 @@ describe("LoginLimiter", () => {
     expect(limiter.check("203.0.113.99", "bob@example.com").ok).toBe(true);
   });
 
-  test("one source spraying many accounts is stopped at 10 failures, until the oldest ages out", () => {
+  test("a source spraying many accounts stops at 10 failures until the oldest ages out", () => {
     const { limiter, tick } = make();
     for (let i = 0; i < 10; i++) {
       expect(limiter.check("203.0.113.7", `user${i}@example.com`).ok).toBe(true);
@@ -81,14 +81,13 @@ describe("LoginLimiter", () => {
     expect(limiter.check("2001:db8:1:3::1", "x@example.com").ok).toBe(true);
   });
 
-  test("success clears the account's streak but NOT the source's", () => {
+  test("success clears the account's streak but not the source's", () => {
     const { limiter } = make();
     for (let i = 0; i < 4; i++) limiter.fail("203.0.113.7", "ada@example.com");
     limiter.succeed("ada@example.com");
     for (let i = 0; i < 4; i++) limiter.fail("203.0.113.7", "ada@example.com");
     expect(limiter.check("203.0.113.7", "ada@example.com").ok).toBe(true); // streak restarted at 0
-    // ...but those 8 failures still count against the address: logging in to your own
-    // account must not buy fresh guesses at someone else's.
+    // Logging in to your own account must not buy fresh guesses at someone else's.
     limiter.fail("203.0.113.7", "bob@example.com");
     limiter.fail("203.0.113.7", "bob@example.com");
     expect(limiter.check("203.0.113.7", "carol@example.com")).toMatchObject({

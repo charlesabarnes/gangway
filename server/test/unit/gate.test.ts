@@ -61,7 +61,7 @@ describe("public and unlisted previews", () => {
     expect(t.get(entry({ visibility: "unlisted" }), "/api/things?x=1", {}, "POST")).toBeNull();
   });
 
-  test("/__gangway/* is never forwarded, for ANY preview: a preview must not be able to serve a fake of it", () => {
+  test("/__gangway/* is never forwarded for any preview, so none can serve a fake of it", () => {
     const t = make();
     for (const visibility of ["public", "unlisted", "private"] as const) {
       for (const path of [
@@ -94,7 +94,7 @@ describe("a private preview, with no gate cookie", () => {
     expect(make().get(entry(), "/")?.status).toBe(302);
   });
 
-  test("anything that cannot follow a login redirect is told plainly: fetch, a POST, a WebSocket", () => {
+  test("fetch, POST and WebSocket requests cannot follow a redirect, so they get a 401", () => {
     const t = make();
     expect(t.get(entry(), "/api", { "sec-fetch-mode": "cors" })?.status).toBe(401);
     expect(t.get(entry(), "/img.png", { "sec-fetch-mode": "no-cors" })?.status).toBe(401);
@@ -104,7 +104,7 @@ describe("a private preview, with no gate cookie", () => {
     );
   });
 
-  test("the container never sees an unauthenticated request: the gate answers every one of them", () => {
+  test("the gate answers every unauthenticated request before the container sees it", () => {
     const t = make();
     for (const path of ["/", "/admin", "/.env", "/api/secret"])
       expect(t.get(entry(), path)).not.toBeNull();
@@ -112,7 +112,7 @@ describe("a private preview, with no gate cookie", () => {
 });
 
 describe("the handshake", () => {
-  test("a good ticket sets a host-only, HttpOnly, signed cookie and goes back to where the visitor was", () => {
+  test("a good ticket sets a host-only signed cookie and returns to the original path", () => {
     const t = make();
     const { res } = t.signIn(entry(), "/orders/42?tab=items");
     expect(res.status).toBe(302);
@@ -123,7 +123,7 @@ describe("the handshake", () => {
     expect(res.headers.get("referrer-policy")).toBe("no-referrer"); // the ticket is in this url
   });
 
-  test("with the cookie, requests pass -- page loads, fetches, POSTs and WebSocket upgrades alike", () => {
+  test("with the cookie, page loads, fetches, POSTs and WebSocket upgrades all pass", () => {
     const t = make();
     const { cookie } = t.signIn(entry());
     expect(t.get(entry(), "/", { cookie })).toBeNull();
@@ -133,7 +133,7 @@ describe("the handshake", () => {
     expect(t.get(entry(), "/", { cookie: `theme=dark; ${cookie}; other=1` })).toBeNull();
   });
 
-  test("a ticket works ONCE: by the time it is in a log or a Referer, it is dead", () => {
+  test("a ticket works once, so by the time it reaches a log or a Referer it is dead", () => {
     const t = make();
     const ticket = t.gate.issueTicket(entry());
     expect(t.get(entry(), `/__gangway/auth?ticket=${ticket}`)?.status).toBe(302);
@@ -147,7 +147,7 @@ describe("the handshake", () => {
     expect(t.get(entry(), `/__gangway/auth?ticket=${ticket}`)?.status).toBe(403);
   });
 
-  test("a ticket for one preview does not open another -- not by hostname, and not by id", () => {
+  test("a ticket for one preview opens no other, by hostname or by id", () => {
     const t = make();
     const shop = entry();
     const blog = entry({
@@ -164,7 +164,7 @@ describe("the handshake", () => {
     ).toBe(403);
   });
 
-  test("forged, truncated, re-signed-with-another-key and garbage tickets are all refused", () => {
+  test("forged, truncated, foreign-key and garbage tickets are all refused", () => {
     const t = make();
     const good = t.gate.issueTicket(entry());
     const [payload, sig] = good.split(".") as [string, string];
@@ -194,11 +194,11 @@ describe("the handshake", () => {
       expect(t.get(entry(), `/__gangway/auth?ticket=${encodeURIComponent(bad)}`)?.status).toBe(403);
     }
     expect(t.get(entry(), "/__gangway/auth")?.status).toBe(403);
-    // ...and none of that spent the real one.
+    // None of those spent the real ticket.
     expect(t.get(entry(), `/__gangway/auth?ticket=${good}`)?.status).toBe(302);
   });
 
-  test("`to` can only ever be a path on THIS preview: no open redirect", () => {
+  test("`to` can only be a path on this preview, so there is no open redirect", () => {
     const t = make();
     for (const evil of [
       "https://evil.example/",
@@ -233,7 +233,7 @@ describe("the gate cookie", () => {
     expect(t.get(entry(), "/", { cookie })?.status).toBe(302);
   });
 
-  test("is bound to the PREVIEW ID: destroy `shop`, deploy a new `shop`, and the old cookie does not open it", () => {
+  test("is bound to the preview id, so a redeployed `shop` refuses the old cookie", () => {
     const t = make();
     const { cookie } = t.signIn(entry());
     expect(t.get(entry({ previewId: "01SHOP0000000000000000NEW2" }), "/", { cookie })?.status).toBe(
@@ -266,7 +266,7 @@ describe("the gate cookie", () => {
     ).toBe(403);
   });
 
-  test("a key from another install opens nothing; the same key across a restart keeps visitors in", () => {
+  test("a key from another install opens nothing; the same key survives a restart", () => {
     const key = randomBytes(32);
     const { cookie } = make(key).signIn(entry());
     expect(make(key).get(entry(), "/", { cookie })).toBeNull();
@@ -281,7 +281,7 @@ describe("the gate cookie", () => {
 });
 
 describe("what the preview's own code is allowed to see", () => {
-  test("gangway's cookies are stripped from the request before it is forwarded; the app's own survive", () => {
+  test("gangway's cookies are stripped before forwarding; the app's own survive", () => {
     const t = make();
     const { cookie } = t.signIn(entry());
     const req = new Request("https://shop.preview.example.dev/", {

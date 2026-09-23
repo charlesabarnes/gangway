@@ -6,10 +6,7 @@ import { COMMENT_MARKER, GitHubForge } from "../../src/forge/github/forge.ts";
 import { parseGitHubEvent, signPayload, verifySignature } from "../../src/forge/github/webhook.ts";
 import { silentLogger } from "../helpers/logger.ts";
 
-const silent = () => silentLogger();
 const enc = (s: string) => new TextEncoder().encode(s);
-
-/* ------------------------------------------------------------------ fixtures: trimmed real deliveries */
 
 const repository = {
   name: "web-app",
@@ -94,7 +91,7 @@ describe("parsing GitHub's webhook", () => {
     });
   });
 
-  test("a head in another repository is a fork; a DELETED head repository counts as one too", () => {
+  test("a head in another repository is a fork, and so is a deleted head repository", () => {
     const fork = parseGitHubEvent(
       "pull_request",
       prEvent("opened", {
@@ -109,7 +106,7 @@ describe("parsing GitHub's webhook", () => {
     expect(gone).toMatchObject({ type: "pr.updated", pr: { fromFork: true } });
   });
 
-  test("actions we do not act on, other events, and pings are `ignored` with a reason -- never a throw", () => {
+  test("unhandled actions, other events and pings are ignored with a reason, not thrown", () => {
     expect(parseGitHubEvent("pull_request", prEvent("labeled"))).toEqual({
       type: "ignored",
       reason: "pull_request.labeled",
@@ -128,7 +125,7 @@ describe("parsing GitHub's webhook", () => {
     ).toEqual({ type: "ignored", reason: "pull_request without an installation" });
   });
 
-  test("/preview <verb> as the first line of a PR comment is a command, with who said it", () => {
+  test("/preview <verb> on a PR comment's first line is a command, with its author", () => {
     const ev = parseGitHubEvent("issue_comment", commentEvent("/preview deploy\n\nplease"));
     expect(ev).toEqual({
       type: "pr.command",
@@ -162,7 +159,7 @@ describe("parsing GitHub's webhook", () => {
     ).toMatchObject({ association: "other" });
   });
 
-  test("a comment on an issue, an edited comment, or prose mentioning /preview is not a command", () => {
+  test("issue comments, edited comments and prose mentioning /preview are not commands", () => {
     expect(
       parseGitHubEvent(
         "issue_comment",
@@ -202,7 +199,7 @@ describe("the signature", () => {
   const secret = "s3cret";
   const body = enc(JSON.stringify({ action: "opened" }));
 
-  test("round-trips, and the verify is over the RAW bytes", () => {
+  test("round-trips, and verification is over the raw bytes", () => {
     const sig = signPayload(secret, body);
     expect(sig).toMatch(/^sha256=[0-9a-f]{64}$/);
     expect(verifySignature(secret, body, sig)).toBe(true);
@@ -220,8 +217,6 @@ describe("the signature", () => {
     expect(verifySignature("", body, signPayload("", body))).toBe(false);
   });
 });
-
-/* ------------------------------------------------------------------ the App, against a fake GitHub */
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const PEM = privateKey.export({ type: "pkcs1", format: "pem" });
@@ -300,7 +295,7 @@ function appAndForge(o: Parameters<typeof fakeGitHub>[0] = {}) {
     credentials: () => ({ appId: "12345", privateKey: PEM }),
     fetch: gh.fetchImpl,
     baseUrl: BASE,
-    log: silent(),
+    log: silentLogger(),
     now: gh.clock.now,
   });
   const forge = new GitHubForge({ app, webhookSecret: () => "s3cret" });
@@ -338,12 +333,12 @@ describe("GitHubApp", () => {
     const app = new GitHubApp({
       credentials: () => ({ appId: "", privateKey: "" }),
       fetch: async () => new Response(""),
-      log: silent(),
+      log: silentLogger(),
     });
     expect(() => app.jwt()).toThrow(/not configured/);
   });
 
-  test("installation tokens are minted with the JWT, cached, and re-minted a minute before expiry", async () => {
+  test("installation tokens are minted with the JWT, cached, and renewed near expiry", async () => {
     const { app, gh } = appAndForge({ tokenTtlMs: 3_600_000 });
     expect(await app.installationToken("4242")).toBe("ghs_1");
     expect(await app.installationToken("4242")).toBe("ghs_1");
@@ -353,11 +348,10 @@ describe("GitHubApp", () => {
     expect(await app.installationToken("4242")).toBe("ghs_1");
     gh.clock.advance(2_000);
     expect(await app.installationToken("4242")).toBe("ghs_2");
-    // Another installation is another token.
     expect(await app.installationToken("9")).toBe("ghs_3");
   });
 
-  test("concurrent first calls mint ONCE", async () => {
+  test("concurrent first calls mint once", async () => {
     const { app, gh } = appAndForge();
     const tokens = await Promise.all([
       app.installationToken("4242"),
@@ -368,7 +362,7 @@ describe("GitHubApp", () => {
     expect(gh.calls).toHaveLength(1);
   });
 
-  test("a 401 on an installation call forgets the cached token, so the next call mints a fresh one", async () => {
+  test("a 401 on an installation call drops the cached token, so the next call re-mints", async () => {
     const { app, gh } = appAndForge();
     expect((await app.asInstallation("4242", "GET", "/repos/acme/web-app/pulls/123")).status).toBe(
       200,
@@ -433,7 +427,7 @@ describe("GitHubForge", () => {
     expect(await forge.cloneCredential(repo)).toBe("ghs_1");
   });
 
-  test("upsertComment: creates with the marker, edits in place, and re-creates when the comment was deleted", async () => {
+  test("upsertComment creates with the marker, edits in place, and re-creates if deleted", async () => {
     const { forge, repo, gh } = appAndForge();
     const pr = { repo, number: 123 };
     const id = await forge.upsertComment(pr, null, "building…");
@@ -441,14 +435,13 @@ describe("GitHubForge", () => {
     expect(await forge.upsertComment(pr, id, "ready: https://x")).toBe(id);
     expect(gh.comments.get(id)).toBe(`${COMMENT_MARKER}\nready: https://x`);
     expect(gh.comments.size).toBe(1);
-    // Someone deleted it on GitHub.
     gh.comments.delete(id);
     const again = await forge.upsertComment(pr, id, "still here");
     expect(again).not.toBe(id);
     expect(gh.comments.get(again)).toContain("still here");
   });
 
-  test("deployments: created against the head sha as a transient environment, then given a status", async () => {
+  test("deployments target the head sha as a transient environment, then get a status", async () => {
     const { forge, repo, gh } = appAndForge();
     const id = await forge.createDeployment({ repo, headSha: "abc" }, "preview/web-app-pr-123");
     expect(id).toBe(555);
@@ -477,17 +470,13 @@ describe("GitHubForge", () => {
 
 describe("GitHubApp.installedRepositories", () => {
   test("every repository across installations, sorted, each with its installation", async () => {
-    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const calls: string[] = [];
     const app = new GitHubApp({
-      credentials: () => ({
-        appId: "1",
-        privateKey: privateKey.export({ type: "pkcs1", format: "pem" }).toString(),
-      }),
-      baseUrl: "https://api.github.test",
+      credentials: () => ({ appId: "1", privateKey: PEM.toString() }),
+      baseUrl: BASE,
       log: silentLogger(),
       fetch: async (url, init) => {
-        calls.push(`${init?.method ?? "GET"} ${url.replace("https://api.github.test", "")}`);
+        calls.push(`${init?.method ?? "GET"} ${url.replace(BASE, "")}`);
         if (url.endsWith("/app/installations?per_page=100"))
           return Response.json([{ id: 11 }, { id: 22 }]);
         const tok = /\/app\/installations\/(\d+)\/access_tokens$/.exec(url);

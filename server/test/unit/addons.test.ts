@@ -1,4 +1,3 @@
-/** Add-ons: throwaway databases as sidecars that survive rebuilds and die with the preview. */
 import { describe, expect, test } from "bun:test";
 import { gzipSync } from "node:zlib";
 import { dirname } from "node:path";
@@ -63,7 +62,7 @@ describe("the plan", () => {
     expect(plan({ "package.json": pkg({ "@prisma/client": "6" }) }).suggested).toEqual([]);
   });
 
-  test("the request beats gangway.yml; gangway.yml beats the previous build; versions from the allowlist", () => {
+  test("the request beats gangway.yml, which beats the last build; versions allowlisted", () => {
     const files = {
       "package.json": pkg({}),
       "gangway.yml": "addons: [postgres, { id: redis, version: 8 }]\n",
@@ -147,7 +146,7 @@ describe("rendering", () => {
     expect(r.secrets).toEqual(["secret-postgres-0123456789"]);
   });
 
-  test("a seed is baked into a derived image built from the app's root, its context cut down to the file", () => {
+  test("a seed is baked into a derived image whose build context is only the seed file", () => {
     const r = renderAddons([{ id: "mysql", version: "8.4" }], pw, "db/seed.sql", "site");
     expect(r.services["mysql"]!["build"]).toEqual({
       context: "site",
@@ -167,29 +166,22 @@ describe("rendering", () => {
     expect(r.appEnv["REDIS_URL"]).toBe("redis://:secret-redis-0123456789@redis:6379/0");
   });
 
-  test("byte-stable: the same inputs render the same sidecar (anything else recreates the database on every save)", () => {
-    const a = renderAddons(
-      [
-        { id: "postgres", version: "18" },
-        { id: "redis", version: "8" },
-      ],
-      pw,
-      "seed.sql",
-    );
-    const b = renderAddons(
-      [
-        { id: "postgres", version: "18" },
-        { id: "redis", version: "8" },
-      ],
-      pw,
-      "seed.sql",
-    );
-    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  test("the same inputs render byte-identical sidecars", () => {
+    const render = () =>
+      renderAddons(
+        [
+          { id: "postgres", version: "18" },
+          { id: "redis", version: "8" },
+        ],
+        pw,
+        "seed.sql",
+      );
+    expect(JSON.stringify(render())).toBe(JSON.stringify(render()));
   });
 });
 
 describe("deploying with add-ons", () => {
-  test("the stack runs a postgres sidecar: ownership labels only, NO ports, the app waits for it and is told where it is", async () => {
+  test("a postgres sidecar gets labels, no ports; the app waits on it and gets its URL", async () => {
     const s = setup();
     const archive = await tarball({
       "package.json": pkg({ pg: "8" }),
@@ -222,7 +214,6 @@ describe("deploying with add-ons", () => {
     expect(
       (s.fake.stacks[0]!["volumes"] as Record<string, unknown>)["postgres-data"],
     ).toBeDefined();
-    // The password never reaches the log.
     s.ctx.logs.append(res.preview.id, "stdout", `connecting with ${pw}`);
     expect(
       s.ctx.logs
@@ -232,7 +223,7 @@ describe("deploying with add-ons", () => {
     ).not.toContain(pw);
   });
 
-  test("two plans of the same preview give byte-identical sidecars (compose would otherwise recreate the database)", async () => {
+  test("two plans of the same preview give byte-identical sidecars", async () => {
     const s = setup();
     const res = await deploy(s.ctx, {
       actor: ACTOR,
@@ -300,7 +291,7 @@ describe("deploying with add-ons", () => {
     expect(steps).toEqual(["build", "up postgres", "run", "up"]);
   });
 
-  test("a failed rebuild keeps volumes; destroy removes them, including any the containers no longer point at", async () => {
+  test("a failed rebuild keeps volumes; destroy removes them, orphans included", async () => {
     const s = setup();
     const res = await deploy(s.ctx, {
       actor: ACTOR,
@@ -337,7 +328,7 @@ describe("deploying with add-ons", () => {
     ).toBe(true);
   });
 
-  test("changing a major in place is refused and changes nothing; removing an add-on is recorded", async () => {
+  test("changing a major in place is refused; removing an add-on is recorded", async () => {
     const s = setup();
     const res = await deploy(s.ctx, {
       actor: ACTOR,

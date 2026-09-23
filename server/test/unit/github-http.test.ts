@@ -1,4 +1,3 @@
-/** /v1/github (the manifest flow) and /v1/repos through the real app. */
 import { describe, expect, test } from "bun:test";
 import { githubRoutes } from "../../src/app/routes/github.ts";
 import { projectRoutes } from "../../src/app/routes/projects.ts";
@@ -70,6 +69,16 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
       });
     },
   });
+  const exchange = async (code: string, state: string) =>
+    (
+      await call("/v1/github/manifest/exchange", {
+        method: "POST",
+        as: ada,
+        json: { code, state },
+      })
+    ).status;
+  const newState = async () =>
+    ((await (await call("/v1/github/manifest", { as: ada })).json()) as { state: string }).state;
   return {
     s,
     settings,
@@ -77,6 +86,8 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
     call,
     ada,
     conversions,
+    exchange,
+    newState,
     advance: (ms: number) => {
       clock += ms;
     },
@@ -100,7 +111,7 @@ describe("/v1/github", () => {
     });
   });
 
-  test("the manifest flow: manifest + state, then the code becomes the credentials -- stored, audited as [set], never returned", async () => {
+  test("the manifest flow turns a code into credentials that are stored, never returned", async () => {
     const t = await make();
     const m = await t.call("/v1/github/manifest", { as: t.ada });
     expect(m.status).toBe(200);
@@ -147,58 +158,22 @@ describe("/v1/github", () => {
     });
     expect(JSON.stringify(entry)).not.toMatch(/cs_secret|wh_secret/);
 
-    // The state was consumed.
-    expect(
-      (
-        await t.call("/v1/github/manifest/exchange", {
-          method: "POST",
-          as: t.ada,
-          json: { code: "again", state },
-        })
-      ).status,
-    ).toBe(422);
+    expect(await t.exchange("again", state)).toBe(422);
   });
 
-  test("an unknown or expired state is 422 and GitHub is never called; a used code is 422 too", async () => {
+  test("an unknown or expired state is 422 without calling GitHub; a used code is 422", async () => {
     const t = await make({ conversion: 404 });
-    expect(
-      (
-        await t.call("/v1/github/manifest/exchange", {
-          method: "POST",
-          as: t.ada,
-          json: { code: "c", state: "made-up" },
-        })
-      ).status,
-    ).toBe(422);
+    expect(await t.exchange("c", "made-up")).toBe(422);
     expect(t.conversions).toEqual([]);
-    const { state } = (await (await t.call("/v1/github/manifest", { as: t.ada })).json()) as any;
+    const expired = await t.newState();
     t.advance(11 * 60_000);
-    expect(
-      (
-        await t.call("/v1/github/manifest/exchange", {
-          method: "POST",
-          as: t.ada,
-          json: { code: "c", state },
-        })
-      ).status,
-    ).toBe(422);
+    expect(await t.exchange("c", expired)).toBe(422);
     expect(t.conversions).toEqual([]);
-    const { state: fresh } = (await (
-      await t.call("/v1/github/manifest", { as: t.ada })
-    ).json()) as any;
-    expect(
-      (
-        await t.call("/v1/github/manifest/exchange", {
-          method: "POST",
-          as: t.ada,
-          json: { code: "used", state: fresh },
-        })
-      ).status,
-    ).toBe(422);
+    expect(await t.exchange("used", await t.newState())).toBe(422);
     expect(t.conversions).toEqual(["used"]);
   });
 
-  test("with the App pinned from the environment the manifest flow is a 409 and status says managedByConfig", async () => {
+  test("with the App pinned by config, the manifest flow is 409 and status says so", async () => {
     const t = await make({
       overrides: { "github.appId": "1", "github.privateKey": "k", "github.webhookSecret": "s" },
     });

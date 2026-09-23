@@ -1,4 +1,3 @@
-/** The hooks surface: the signature is the authentication, and 202 comes before the work. */
 import { describe, expect, test } from "bun:test";
 import type { ForgeEvent } from "../../src/forge/forge.ts";
 import { GitHubForge } from "../../src/forge/github/forge.ts";
@@ -77,7 +76,7 @@ function make(o: { secret?: string; slow?: boolean; fail?: boolean } = {}) {
 }
 
 describe("POST /github", () => {
-  test("a signed pull_request delivery is 202 with the event named, and the service is handed the parsed event", async () => {
+  test("a signed pull_request delivery is 202 and the service gets the parsed event", async () => {
     const t = make();
     const res = await t.post(opened);
     expect(res.status).toBe(202);
@@ -91,7 +90,7 @@ describe("POST /github", () => {
     expect(t.outcomes).toEqual([["d-1", { action: "ignored", reason: "fake" }]]);
   });
 
-  test("202 is answered BEFORE the service finishes", async () => {
+  test("202 is answered before the service finishes", async () => {
     const t = make({ slow: true });
     const res = await t.post(opened);
     expect(res.status).toBe(202);
@@ -103,7 +102,7 @@ describe("POST /github", () => {
     expect(t.outcomes).toHaveLength(1);
   });
 
-  test("a bad signature is 401 and the body is never parsed or handled; no secret configured refuses everything", async () => {
+  test("a bad signature is 401 and never handled; with no secret, everything is refused", async () => {
     const t = make();
     expect((await t.post(opened, {}, { secret: "wrong" })).status).toBe(401);
     expect((await t.post(opened, { "x-hub-signature-256": "" })).status).toBe(401);
