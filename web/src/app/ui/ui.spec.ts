@@ -7,11 +7,11 @@ import { StateBadge } from './state-badge';
 import { ToastService, Toasts } from './toast';
 
 describe('StateBadge', () => {
-  it('says every state in WORDS: colour alone must never carry it', async () => {
+  it('says every state in words, not colour alone', async () => {
     for (const state of PREVIEW_STATES) {
       const r = await render(StateBadge, { inputs: { state } });
       expect(r.el.textContent?.trim()).toBe(state);
-      expect(r.el.querySelector('[aria-hidden="true"]')).not.toBeNull(); // the dot is decoration
+      expect(r.el.querySelector('[aria-hidden="true"]')).not.toBeNull();
       TestBed.resetTestingModule();
     }
   });

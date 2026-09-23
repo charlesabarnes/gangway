@@ -1,7 +1,3 @@
-/**
- * Surface toggles through the real app: the lockout guard, the typed phrase, config pins,
- * the audit row, and the MCP drop hook.
- */
 import { describe, expect, test } from "bun:test";
 import { surfaceRoutes } from "../../src/app/routes/surfaces.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
@@ -57,7 +53,7 @@ describe("/v1/surfaces", () => {
     expect(surfaces.reenableUi).toContain(`'{"ui":true}'`);
   });
 
-  test("MCP turns on and off with no ceremony; each change is audited with old and new; off drops in-flight sessions", async () => {
+  test("MCP toggles freely, each change is audited, and turning it off drops sessions", async () => {
     const { put, settings, s, drops } = await make();
     expect((await put({ mcp: true })).status).toBe(200);
     expect(settings.get(SETTINGS.surfacesMcp)).toBe(true);
@@ -94,7 +90,6 @@ describe("/v1/surfaces", () => {
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ reason: "no_admin_token" });
 
-    // Tokens that are not a way back in: a deploy-only one, an expired one, a revoked one.
     tokens.mint(adaActor, { name: "deploy only", scopes: ["deploy"] });
     tokens.mint(adaActor, { name: "short", scopes: ["admin"], expiresIn: "1h" });
     const revoked = tokens.mint(adaActor, { name: "revoked", scopes: ["admin"] });
@@ -103,7 +98,6 @@ describe("/v1/surfaces", () => {
     expect((await put({ ui: false, confirm: PHRASE })).status).toBe(409);
     expect(settings.get(SETTINGS.surfacesUi)).toBe(true);
 
-    // A mixed PUT is whole-or-nothing: MCP did not change either.
     expect((await put({ mcp: true, ui: false, confirm: PHRASE })).status).toBe(409);
     expect(settings.get(SETTINGS.surfacesMcp)).toBe(false);
   });
@@ -113,7 +107,7 @@ describe("/v1/surfaces", () => {
     expect((await put({ ui: false, confirm: PHRASE }, ENV_TOKEN)).status).toBe(409);
   });
 
-  test("with a live admin token the UI turns off -- and back on with the bearer, as the shown curl does", async () => {
+  test("with a live admin token the UI turns off, and the bearer turns it back on", async () => {
     const { put, settings, tokens, adaActor, s } = await make();
     const { secret } = tokens.mint(adaActor, { name: "break glass", scopes: ["admin"] });
     expect((await put({ ui: false, confirm: PHRASE })).status).toBe(200);

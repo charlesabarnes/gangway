@@ -1,7 +1,3 @@
-/**
- * /v1/settings through the real app: secrets never come back, a config-pinned
- * key is refused, a PUT is whole-or-nothing, and surfaces are not changed here.
- */
 import { describe, expect, test } from "bun:test";
 import { settingsRoutes } from "../../src/app/routes/settings.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
@@ -22,7 +18,7 @@ async function make() {
 }
 
 describe("/v1/settings", () => {
-  test("GET reports sources and withholds secrets; PUT writes through each schema and audits keys only", async () => {
+  test("reports sources, withholds secrets, and audits only the keys a PUT changed", async () => {
     const { call, ada, settings, s } = await make();
     let res = await call("/v1/settings", { as: ada });
     expect(res.status).toBe(200);
@@ -63,33 +59,28 @@ describe("/v1/settings", () => {
     expect(JSON.stringify(entry)).not.toContain("hunter2");
   });
 
-  test("a config-pinned key is 409, an unknown key 422, a bad value 422 -- and nothing else in the PUT is written", async () => {
+  test.each([
+    ["a config-pinned key", 409, { "github.appId": "x" }],
+    ["an unknown key", 422, { nope: 1 }],
+    ["a bad value", 422, { "templates.default.pr": "Not A Slug" }],
+  ])("%s is %d and nothing else in the PUT is written", async (_, status, extra) => {
     const { call, ada, settings } = await make();
-    let res = await call("/v1/settings", {
+    const res = await call("/v1/settings", {
       method: "PUT",
       as: ada,
-      json: { values: { "acme.email": "ops@example.com", "github.appId": "x" } },
+      json: { values: { "acme.email": "ops@example.com", ...extra } },
     });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(status);
     expect(settings.get(SETTINGS.acmeEmail)).toBe("");
-    res = await call("/v1/settings", {
-      method: "PUT",
-      as: ada,
-      json: { values: { "acme.email": "ops@example.com", nope: 1 } },
-    });
-    expect(res.status).toBe(422);
-    res = await call("/v1/settings", {
-      method: "PUT",
-      as: ada,
-      json: { values: { "acme.email": "ops@example.com", "templates.default.pr": "Not A Slug" } },
-    });
-    expect(res.status).toBe(422);
-    expect(settings.get(SETTINGS.acmeEmail)).toBe("");
-    res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: {} } });
+  });
+
+  test("an empty PUT is 422", async () => {
+    const { call, ada } = await make();
+    const res = await call("/v1/settings", { method: "PUT", as: ada, json: { values: {} } });
     expect(res.status).toBe(422);
   });
 
-  test("the env admin token may write; surfaces.* are refused here, even to it: they go through /v1/surfaces", async () => {
+  test("the env admin token may write, but surfaces.* must go through /v1/surfaces", async () => {
     const { call } = await make();
     expect(
       (

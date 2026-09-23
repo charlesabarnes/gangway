@@ -1,4 +1,3 @@
-/** /v1/templates, the trigger defaults in /v1/settings, and a repository's templateId, through the real app. */
 import { describe, expect, test } from "bun:test";
 import { projectRoutes } from "../../src/app/routes/projects.ts";
 import { settingsRoutes } from "../../src/app/routes/settings.ts";
@@ -52,7 +51,7 @@ async function make() {
 }
 
 describe("/v1/templates", () => {
-  test("every install has `default`; create starts from it, edit is partial, the list puts the built-in first", async () => {
+  test("lists the built-in `default` first; create starts from it and edit is partial", async () => {
     const { call, ada, s } = await make();
     let res = await call("/v1/templates", { as: ada });
     expect(res.status).toBe(200);
@@ -84,7 +83,6 @@ describe("/v1/templates", () => {
     });
     expect(res.status).toBe(201);
     const { template } = (await res.json()) as { template: Record<string, unknown> };
-    // Unsaid fields come from `default`, not from hard-coded constants.
     expect(template).toMatchObject({
       id: "staging",
       name: "Staging",
@@ -119,63 +117,29 @@ describe("/v1/templates", () => {
     ]);
   });
 
-  test("what the schema cannot say: a duration that does not parse, a host that does not exist, an id already taken, an id that is not a slug", async () => {
+  test.each([
+    ["a ttl that does not parse", { id: "x", name: "x", ttl: "soon" }, 422],
+    ["an idleAfter that does not parse", { id: "x", name: "x", idleAfter: "later" }, 422],
+    ["a host that does not exist", { id: "x", name: "x", hostId: "mars" }, 422],
+    ["an id that is not a slug", { id: "Not A Slug", name: "x" }, 422],
+    ["an id already taken", { id: "default", name: "again" }, 409],
+  ])("create with %s is refused", async (_, json, status) => {
     const { call, ada } = await make();
-    expect(
-      (
-        await call("/v1/templates", {
-          method: "POST",
-          as: ada,
-          json: { id: "x", name: "x", ttl: "soon" },
-        })
-      ).status,
-    ).toBe(422);
-    expect(
-      (
-        await call("/v1/templates", {
-          method: "POST",
-          as: ada,
-          json: { id: "x", name: "x", idleAfter: "later" },
-        })
-      ).status,
-    ).toBe(422);
-    expect(
-      (
-        await call("/v1/templates", {
-          method: "POST",
-          as: ada,
-          json: { id: "x", name: "x", hostId: "mars" },
-        })
-      ).status,
-    ).toBe(422);
-    expect(
-      (
-        await call("/v1/templates", {
-          method: "POST",
-          as: ada,
-          json: { id: "Not A Slug", name: "x" },
-        })
-      ).status,
-    ).toBe(422);
-    expect(
-      (
-        await call("/v1/templates", {
-          method: "POST",
-          as: ada,
-          json: { id: "default", name: "again" },
-        })
-      ).status,
-    ).toBe(409);
+    expect((await call("/v1/templates", { method: "POST", as: ada, json })).status).toBe(status);
+  });
+
+  test("edit refuses an unknown field and an unknown template", async () => {
+    const { call, ada } = await make();
     expect(
       (await call("/v1/templates/default", { method: "PATCH", as: ada, json: { id: "renamed" } }))
         .status,
-    ).toBe(422); // strict: no such field
+    ).toBe(422);
     expect(
       (await call("/v1/templates/ghost", { method: "PATCH", as: ada, json: { name: "x" } })).status,
     ).toBe(404);
   });
 
-  test("delete: never the built-in one, never one a trigger default names; a repository on a deleted template falls back", async () => {
+  test("deletes neither the built-in nor a trigger default; its projects fall back", async () => {
     const { call, ada, settings, repos } = await make();
     expect((await call("/v1/templates/default", { method: "DELETE", as: ada })).status).toBe(409);
     await call("/v1/templates", {
@@ -184,7 +148,6 @@ describe("/v1/templates", () => {
       json: { id: "staging", name: "Staging" },
     });
 
-    // A trigger default must exist to be set, and pins the template while it does.
     expect(
       (
         await call("/v1/settings", {
@@ -246,8 +209,8 @@ describe("/v1/templates", () => {
     expect((await call("/v1/templates/staging", { as: ada })).status).toBe(404);
   });
 
-  test("permissions: previews.read lists, templates.manage changes, repos.manage tunes a repository", async () => {
-    const { call, ada, s, login, repos } = await make();
+  test("previews.read lists, templates.manage edits, and repos.manage tunes a project", async () => {
+    const { call, s, login, repos } = await make();
     s.roles.set("member", ["previews.read"], null);
     await s.accounts.createUser(
       {
@@ -295,6 +258,5 @@ describe("/v1/templates", () => {
         })
       ).status,
     ).toBe(200);
-    void ada;
   });
 });

@@ -1,8 +1,3 @@
-/**
- * /v1/projects through the real app: made on purpose, tuned, given secrets; and
- * `/pulls/:n`, where a workflow run -- identified by its OIDC token -- deploys and tears
- * down its pull requests' previews, and can do nothing else.
- */
 import { describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
@@ -35,7 +30,7 @@ const HOST = "api.preview.localhost:8443";
 const IMAGE = "ghcr.io/acme/web-app/preview@sha256:" + "d".repeat(64);
 const SHA = "a".repeat(40);
 
-/** A workflow run's token, as the OIDC verifier would resolve it: `wf:<repo>:<event>:<ref>`. */
+// Stands in for a workflow run's OIDC token; verifyWorkflow below parses it.
 const wf = (repo = "acme/web-app", ref = "refs/pull/7/merge", event = "pull_request") =>
   `wf:${repo}:${event}:${ref}`;
 
@@ -135,7 +130,7 @@ function make() {
 }
 
 describe("/v1/projects", () => {
-  test("made on purpose: slug from the name, workflow by default; a taken slug or repository is 409; with no repository it is fine", async () => {
+  test("creates a project with a slug from its name and the workflow trigger", async () => {
     const t = make();
     let res = await t.call("/v1/projects", {
       method: "POST",
@@ -150,26 +145,6 @@ describe("/v1/projects", () => {
       prTrigger: "workflow",
       enabled: true,
     });
-    expect(
-      (await t.call("/v1/projects", { method: "POST", json: { name: "web app" } })).status,
-    ).toBe(409);
-    res = await t.call("/v1/projects", {
-      method: "POST",
-      json: { name: "again", repository: "Acme/Web-App" },
-    });
-    expect(res.status).toBe(409);
-    expect(
-      (
-        await t.call("/v1/projects", {
-          method: "POST",
-          json: { name: "x", repository: "not a repo" },
-        })
-      ).status,
-    ).toBe(422);
-    expect(
-      (await t.call("/v1/projects", { method: "POST", json: { name: "x", templateId: "ghost" } }))
-        .status,
-    ).toBe(422);
     res = await t.call("/v1/projects", { method: "POST", json: { name: "whoami" } });
     expect(((await res.json()) as any).project).toMatchObject({
       slug: "whoami",
@@ -182,7 +157,24 @@ describe("/v1/projects", () => {
     expect(t.s.audit.page({ limit: 1 }).entries[0]).toMatchObject({ action: "project.created" });
   });
 
-  test("tuned by id or slug; the repository can be changed or removed; delete leaves previews running, unowned", async () => {
+  test.each([
+    ["a taken slug", { name: "web app" }, 409],
+    ["a taken repository in another case", { name: "again", repository: "Acme/Web-App" }, 409],
+    ["a malformed repository", { name: "x", repository: "not a repo" }, 422],
+    ["an unknown template", { name: "x", templateId: "ghost" }, 422],
+  ])("refuses to create a project with %s", async (_, json, status) => {
+    const t = make();
+    t.projects.create({
+      id: "P1",
+      name: "Web App",
+      slug: "web-app",
+      forge: "github",
+      fullName: "acme/web-app",
+    });
+    expect((await t.call("/v1/projects", { method: "POST", json })).status).toBe(status);
+  });
+
+  test("edits by id or slug, changes or removes the repository, and deletes", async () => {
     const t = make();
     const p = t.projects.create({
       id: "P1",
@@ -223,7 +215,7 @@ describe("/v1/projects", () => {
     expect((await t.call("/v1/projects/web")).status).toBe(404);
   });
 
-  test("the workflow file names this project and our API, and keeps GitHub's `${{ }}` intact", async () => {
+  test("the workflow file names the project and API and keeps GitHub's `${{ }}`", async () => {
     const t = make();
     t.projects.create({
       id: "P1",
@@ -246,7 +238,7 @@ describe("/v1/projects", () => {
   });
 });
 
-describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => {
+describe("/v1/projects/:ref/pulls/:n", () => {
   const setup = () => {
     const t = make();
     t.projects.create({
@@ -259,7 +251,7 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     return t;
   };
 
-  test("deploys the pushed image as the PR's preview, filed under the project, with its secrets as env; the registry login lives for `up` only", async () => {
+  test("deploys the pushed image as the PR's preview, logging in for `up` only", async () => {
     const t = setup();
     t.secrets.project("P1").update(null, { set: { API_KEY: "k-123" } });
     const res = await t.call("/v1/projects/web-app/pulls/7?wait=true", {
@@ -284,7 +276,6 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
         "ghcr.io": { auth: Buffer.from("dev:ghs_registry_token_value").toString("base64") },
       },
     });
-    // Gone once `up` returned; and never on the row, in the log or the audit.
     expect(await Bun.file(`${login.env!["DOCKER_CONFIG"]}/config.json`).exists()).toBe(false);
     const everywhere = JSON.stringify([
       t.s.previews.get(preview.id),
@@ -295,7 +286,7 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     expect(everywhere).not.toContain("k-123");
   });
 
-  test("the same head again is left alone; a new head replaces the preview; close tears it down with its image, and closing again is fine", async () => {
+  test("a new head replaces the preview, the same head does not, and close is idempotent", async () => {
     const t = setup();
     const first = (await (
       await t.call("/v1/projects/web-app/pulls/7?wait=true", {
@@ -323,7 +314,7 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     ).json()) as any;
     expect(next.preview.id).not.toBe(first.preview.id);
     expect(t.s.previews.get(first.preview.id)!.state).toBe("destroyed");
-    expect(t.s.fake.downArgvs[0]).toContain("all"); // --rmi all: the per-commit image goes with it
+    expect(t.s.fake.downArgvs[0]).toContain("all");
 
     expect(
       (await t.call("/v1/projects/web-app/pulls/7", { method: "DELETE", as: wf() })).status,
@@ -334,16 +325,22 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     ).toBe(204);
   });
 
-  test("a workflow acts only for its own repository, its own PR, on a pull_request event, for a workflow-mode project", async () => {
+  test.each([
+    ["another repository", wf("evil/web-app")],
+    ["another pull request", wf("acme/web-app", "refs/pull/8/merge")],
+    ["a push", wf("acme/web-app", "refs/heads/main", "push")],
+    ["a pull_request_target event", wf("acme/web-app", "refs/pull/7/merge", "pull_request_target")],
+  ])("refuses a workflow run from %s", async (_, as) => {
     const t = setup();
-    const put = (as: string, path = "/v1/projects/web-app/pulls/7") =>
-      t.call(path, { method: "PUT", as, json: t.body() });
-    expect((await put(wf("evil/web-app"))).status).toBe(403);
-    expect((await put(wf("acme/web-app", "refs/pull/8/merge"))).status).toBe(403);
-    expect((await put(wf("acme/web-app", "refs/heads/main", "push"))).status).toBe(403);
-    expect((await put(wf("acme/web-app", "refs/pull/7/merge", "pull_request_target"))).status).toBe(
-      403,
-    );
+    const res = await t.call("/v1/projects/web-app/pulls/7", { method: "PUT", as, json: t.body() });
+    expect(res.status).toBe(403);
+    expect(t.s.previews.list()).toEqual([]);
+  });
+
+  test("a workflow is refused by a webhook-mode or disabled project", async () => {
+    const t = setup();
+    const put = (as: string) =>
+      t.call("/v1/projects/web-app/pulls/7", { method: "PUT", as, json: t.body() });
     t.projects.update("P1", { prTrigger: "webhook" });
     expect((await put(wf())).status).toBe(409);
     t.projects.update("P1", { prTrigger: "workflow", enabled: false });
@@ -351,7 +348,7 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     expect(t.s.previews.list()).toEqual([]);
   });
 
-  test("a workflow token reaches nothing else: not the preview list, not a plain deploy, not the project's settings", async () => {
+  test("a workflow token reaches nothing but its pull request", async () => {
     const t = setup();
     expect((await t.call("/v1/previews", { as: wf() })).status).toBe(403);
     expect(
@@ -370,16 +367,16 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     ).toBe(403);
   });
 
-  test("an admin may do the same by hand; a project with no repository has no pull requests", async () => {
+  test("an admin may deploy a pull request by hand; a project with no repository cannot", async () => {
     const t = setup();
     const res = await t.call("/v1/projects/web-app/pulls/3", {
       method: "PUT",
       json: t.body({ registry: undefined }),
     });
-    expect(res.status).toBe(202); // without ?wait, answered as soon as the preview exists
+    expect(res.status).toBe(202);
     const { preview } = (await res.json()) as any;
     await t.s.ctx.inflight.get(preview.id)?.done;
-    expect(t.s.fake.upLogins[0]).toEqual({ env: undefined, config: null }); // no login given, none written
+    expect(t.s.fake.upLogins[0]).toEqual({ env: undefined, config: null });
     t.projects.create({ id: "P2", name: "bare", slug: "bare" });
     expect(
       (await t.call("/v1/projects/bare/pulls/3", { method: "PUT", json: t.body() })).status,
@@ -397,7 +394,7 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     ).toBe(422);
   });
 
-  test("a plain deploy can name a project: it is filed under it and follows its policy", async () => {
+  test("a plain deploy that names a project is filed under it and follows its policy", async () => {
     const t = setup();
     t.projects.update("P1", { visibility: "public" });
     const res = await t.call("/v1/previews?wait=true", {
@@ -423,10 +420,12 @@ describe("/v1/projects/:ref/pulls/:n -- from the project's own workflow", () => 
     ).toBe(422);
   });
 
-  test("registryOf: the host an image reference names", () => {
-    expect(registryOf("ghcr.io/acme/web")).toBe("ghcr.io");
-    expect(registryOf("registry.example.com:5000/x@sha256:ab")).toBe("registry.example.com:5000");
-    expect(registryOf("acme/web")).toBe("docker.io");
-    expect(registryOf("nginx")).toBe("docker.io");
+  test.each([
+    ["ghcr.io/acme/web", "ghcr.io"],
+    ["registry.example.com:5000/x@sha256:ab", "registry.example.com:5000"],
+    ["acme/web", "docker.io"],
+    ["nginx", "docker.io"],
+  ])("registryOf(%s) is %s", (image, registry) => {
+    expect(registryOf(image)).toBe(registry);
   });
 });

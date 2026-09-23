@@ -23,7 +23,7 @@ async function open(
 }
 
 describe('ConnectAgent', () => {
-  it("fills THIS server's MCP URL into every client's recipe, Claude Code first", async () => {
+  it("fills this server's MCP URL into every client's recipe, Claude Code first", async () => {
     const r = await open();
     const codes = () =>
       Array.from(r.el.querySelectorAll('[data-testid="agent-code"]')).map(

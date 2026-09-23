@@ -19,10 +19,10 @@ describe("sweepExpired", () => {
     const r = await sweepExpired(s.ctx, s.logger);
     expect(r).toEqual({ expired: 0, destroyed: [], skipped: [], failed: [] });
     expect(s.fake.downs).toEqual([]);
-    expect(s.lines).toEqual([]); // a quiet sweep says nothing
+    expect(s.lines).toEqual([]);
   });
 
-  test("an expired preview is destroyed through the normal lifecycle: down, routes gone, state destroyed", async () => {
+  test("destroys an expired preview through the normal lifecycle, once", async () => {
     const s = setup();
     const p = await s.deployed("old");
     s.clock.offset = 8 * DAY;
@@ -32,11 +32,10 @@ describe("sweepExpired", () => {
     expect(s.previews.get(p.id)!.state).toBe("destroyed");
     expect(s.routes.forPreview(p.id)).toEqual([]);
     expect(s.table.forPreview(p.id)).toEqual([]);
-    // and it never re-expires
     expect((await sweepExpired(s.ctx, s.logger)).expired).toBe(0);
   });
 
-  test("a preview on an unreachable host is skipped, NOT failed -- a dead tunnel must not turn TTLs into errors", async () => {
+  test("skips a preview on an unreachable host rather than failing it", async () => {
     const s = setup();
     const p = await s.deployed("stranded");
     s.clock.offset = 8 * DAY;
@@ -97,7 +96,7 @@ describe("flushLastSeen", () => {
     expect(s.previews.get(p.id)!.updatedAt).toEqual(before);
     expect(s.previews.get(q.id)!.lastSeenAt).toBeNull();
 
-    expect(flushLastSeen(s.ctx)).toBe(0); // drained
+    expect(flushLastSeen(s.ctx)).toBe(0);
   });
 
   test("never moves last_seen_at backwards", async () => {
@@ -110,7 +109,7 @@ describe("flushLastSeen", () => {
     expect(s.previews.get(p.id)!.lastSeenAt?.getTime()).toBe(9_000);
   });
 
-  test("a preview destroyed between the visit and the flush is simply not written", async () => {
+  test("skips a preview destroyed between the visit and the flush", async () => {
     const s = setup();
     const p = await s.deployed("gone");
     s.table.touch(s.routes.forPreview(p.id)[0]!.hostname, 4_000);

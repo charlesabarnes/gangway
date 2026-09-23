@@ -1,4 +1,3 @@
-import { TestBed } from '@angular/core/testing';
 import { FakeEventSource } from '../../../testing/fake-event-source';
 import { render, type Rendered } from '../../../testing/render';
 import type { LogLine, LogStream } from '../../core/api.types';
@@ -17,16 +16,16 @@ describe('stripAnsi', () => {
   it.each([
     ['\x1b[32mgreen\x1b[0m', 'green'],
     ['\x1b[1;31;40mbold red on black\x1b[m', 'bold red on black'],
-    ['\x1b[2K\x1b[1Gprogress 50%', 'progress 50%'], // erase line + cursor to column 1
+    ['\x1b[2K\x1b[1Gprogress 50%', 'progress 50%'],
     ['\x1b[?25lhidden cursor\x1b[?25h', 'hidden cursor'],
     ['bell\x07 and backspace\x08', 'bell and backspace'],
     ['tabs\tand newlines stay', 'tabs\tand newlines stay'],
-    ['no escapes [32m here', 'no escapes [32m here'], // a literal bracket is not an escape
+    ['no escapes [32m here', 'no escapes [32m here'],
   ])('%j -> %j', (raw, want) => expect(stripAnsi(raw)).toBe(want));
 });
 
 describe('isStuckToBottom', () => {
-  it('a sub-pixel gap still counts as the bottom; scrolling up a line or two does not', () => {
+  it('a small gap still counts as the bottom, but scrolling up a few lines does not', () => {
     expect(isStuckToBottom({ scrollHeight: 1000, scrollTop: 600, clientHeight: 400 })).toBe(true);
     expect(isStuckToBottom({ scrollHeight: 1000, scrollTop: 599.5, clientHeight: 400 })).toBe(true);
     expect(isStuckToBottom({ scrollHeight: 1000, scrollTop: 577, clientHeight: 400 })).toBe(true);
@@ -35,7 +34,7 @@ describe('isStuckToBottom', () => {
 });
 
 describe('LogBuffer', () => {
-  it('keeps the LAST N lines and counts what it let go', () => {
+  it('keeps the last N lines and counts what it let go', () => {
     const b = new LogBuffer(3);
     b.push([line(1), line(2)]);
     b.push([line(3), line(4), line(5)]);
@@ -43,7 +42,7 @@ describe('LogBuffer', () => {
     expect(b.dropped).toBe(2);
   });
 
-  it('a reconnect replays an overlap: anything not NEWER than the last line held is ignored', () => {
+  it('ignores a replayed line not newer than the last one held', () => {
     const b = new LogBuffer();
     b.push([line(1), line(2), line(3)]);
     expect(b.push([line(2), line(3)])).toBe(false);
@@ -57,7 +56,7 @@ describe('LogBuffer', () => {
     expect(b.lines[0]!.line).toBe('#5 DONE 0.4s');
   });
 
-  it('one huge batch is bounded too', () => {
+  it('bounds one huge batch too', () => {
     const b = new LogBuffer(100);
     b.push(Array.from({ length: 10_000 }, (_, i) => line(i + 1)));
     expect(b.lines).toHaveLength(100);
@@ -67,7 +66,7 @@ describe('LogBuffer', () => {
 });
 
 describe('LogViewer', () => {
-  /** Frame, by hand: nothing reaches the screen until the spec says a frame happened. */
+  // Frames run by hand: nothing renders until the spec calls nextFrame().
   let frames: (() => void)[] = [];
   const nextFrame = () => {
     const run = frames;
@@ -94,7 +93,6 @@ describe('LogViewer', () => {
       { at: '2026-09-21T20:00:00.000Z', stream, line: text },
       String(n),
     );
-  /** `<n> <text>`: two spans whose gap is CSS, so they are read separately. */
   const shown = (r: Rendered<unknown>) =>
     r.allByTestId('line').map((e) =>
       Array.from(e.querySelectorAll('span'))
@@ -102,20 +100,20 @@ describe('LogViewer', () => {
         .join(' '),
     );
 
-  it('asks for a TAIL, not the whole log, and listens for the named `log` event', async () => {
+  it('asks for a tail, not the whole log, and listens for the named `log` event', async () => {
     await open();
     expect(FakeEventSource.last.url).toBe('/v1/previews/01ABC/logs?tail=2000');
     expect(FakeEventSource.last.listensTo('log')).toBe(true);
   });
 
-  it('a burst of lines is ONE render, on the next frame -- not one per line', async () => {
+  it('renders a burst of lines once, on the next frame', async () => {
     const r = await open();
     FakeEventSource.last.open();
-    nextFrame(); // the initial scroll-to-bottom
+    nextFrame();
     for (let n = 1; n <= 500; n++) emit(n);
     await r.settle();
-    expect(shown(r)).toHaveLength(0); // nothing yet: no frame has happened
-    expect(frames).toHaveLength(1); // and 500 lines scheduled exactly one
+    expect(shown(r)).toHaveLength(0);
+    expect(frames).toHaveLength(1);
 
     nextFrame();
     await r.settle();
@@ -171,7 +169,7 @@ describe('LogViewer', () => {
       Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => m.clientHeight });
     };
 
-    it('follows the bottom while you are AT the bottom', async () => {
+    it('follows the bottom while you are at the bottom', async () => {
       const r = await open();
       const log = r.byTestId('log')!;
       measure(log, { scrollHeight: 5000, clientHeight: 400 });
@@ -184,7 +182,7 @@ describe('LogViewer', () => {
       expect(r.byTestId('jump')).toBeNull();
     });
 
-    it('scrolling up to read something is NOT yanked back down by the next line; a pill offers the way back', async () => {
+    it('stays where you scrolled up to, and a pill offers the way back down', async () => {
       const r = await open();
       const log = r.byTestId('log')!;
       measure(log, { scrollHeight: 5000, clientHeight: 400 });
@@ -211,7 +209,7 @@ describe('LogViewer', () => {
     });
   });
 
-  it('follow=false opens no stream at all: a destroyed preview has no log left to follow', async () => {
+  it('opens no stream at all with follow=false', async () => {
     await open({ previewId: '01ABC', follow: false });
     expect(FakeEventSource.instances).toHaveLength(0);
   });
@@ -225,10 +223,9 @@ describe('LogViewer', () => {
     expect(FakeEventSource.last.url).toBe('/v1/previews/01XYZ/logs?tail=2000');
     r.fixture.destroy();
     expect(FakeEventSource.last.closed).toBe(true);
-    void TestBed;
   });
 
-  it('is a labelled, focusable log region, so it can be reached and scrolled by keyboard', async () => {
+  it('is a labelled, focusable log region for keyboard users', async () => {
     const r = await open();
     const log = r.byTestId('log')!;
     expect(log.getAttribute('role')).toBe('log');

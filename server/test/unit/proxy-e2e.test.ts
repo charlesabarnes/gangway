@@ -1,12 +1,5 @@
-/**
- * The entire proxy, end to end, with no Docker: a real Bun.serve upstream on loopback, a
- * real gangway listener with a real TLS cert, and a client that does not decompress.
- * Covers the proxy behaviour that fails silently when wrong: forwarded headers, gzip
- * passthrough, certificate hot-swap, streaming, body limits and the WebSocket relay.
- */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Server } from "bun";
-// Bun.Server is generic over its websocket data type.
 type AnyServer = Server<unknown>;
 import * as tls from "node:tls";
 import { createCa, issueLeaf } from "../../src/tls/selfsigned.ts";
@@ -26,7 +19,7 @@ let store: CertStore;
 let entry: RouteEntry;
 let caPem: string;
 
-/** Raw TLS client: sets Host and SNI independently and never inflates the body. */
+// Sets Host and SNI independently and never inflates the body, unlike fetch.
 function raw(opts: {
   host: string;
   path: string;
@@ -219,14 +212,14 @@ afterAll(() => {
 });
 
 describe("headers", () => {
-  test("the ORIGINAL Host reaches the upstream, and X-Forwarded-* are set", async () => {
+  test("the original Host reaches the upstream, and X-Forwarded-* are set", async () => {
     const r = await raw({ host: PREVIEW, path: "/echo?a=1" });
     const j = JSON.parse(r.body.toString());
-    expect(j.host).toBe(PREVIEW); // else frameworks redirect to http://localhost
+    expect(j.host).toBe(PREVIEW);
     expect(j.headers["x-forwarded-proto"]).toBe("https");
     expect(j.headers["x-forwarded-host"]).toBe(PREVIEW);
     expect(j.headers["x-forwarded-port"]).toBe("8443");
-    expect(j.path).toBe("/echo?a=1"); // query preserved
+    expect(j.path).toBe("/echo?a=1");
   });
 
   test("client-supplied X-Forwarded-* are stripped, not appended to", async () => {
@@ -245,7 +238,7 @@ describe("headers", () => {
     expect(j.headers["x-forwarded-host"]).toBe(PREVIEW);
   });
 
-  test("the path is not normalized -- // and %2F survive", async () => {
+  test("the path is not normalized, so // and %2F survive", async () => {
     const r = await raw({ host: PREVIEW, path: "/echo//a%2Fb" });
     expect(JSON.parse(r.body.toString()).path).toBe("/echo//a%2Fb");
   });
@@ -260,8 +253,8 @@ describe("headers", () => {
     const r = await raw({ host: PREVIEW, path: "/gzip", headers: { "accept-encoding": "gzip" } });
     expect(r.headers["content-encoding"]).toBe("gzip");
     expect(r.body[0]).toBe(0x1f);
-    expect(r.body[1]).toBe(0x8b); // still compressed: header and body agree
-    expect(r.body.length).toBeLessThan(200); // 5000 bytes of 'x' compress hard
+    expect(r.body[1]).toBe(0x8b);
+    expect(r.body.length).toBeLessThan(200);
   });
 
   test("unlisted previews get X-Robots-Tag, public ones do not", async () => {
@@ -304,8 +297,7 @@ describe("TLS", () => {
     expect(ok).toBe(true);
   });
 
-  test("hot-swap: a NEW connection sees the new certificate, via SO_REUSEPORT rebind", async () => {
-    // Bun's server.reload({ tls }) does not swap the certificate, hence the rebind.
+  test("after a hot-swap a new connection sees the new certificate", async () => {
     const serialOf = () =>
       new Promise<string>((res, rej) => {
         const s = tls.connect(
@@ -333,7 +325,7 @@ describe("TLS", () => {
       after = await serialOf();
     }
     expect(after).not.toBe(before);
-    expect((await raw({ host: PREVIEW, path: "/echo" })).status).toBe(200); // still serving
+    expect((await raw({ host: PREVIEW, path: "/echo" })).status).toBe(200);
   });
 });
 
@@ -353,7 +345,8 @@ describe("streaming and limits", () => {
     }
     void reader.cancel();
     expect(ticks).toBeGreaterThan(20);
-    expect(Date.now() - t0).toBeGreaterThan(10_000); // survived idleTimeout: 10
+    // The listener's idleTimeout is 10 s.
+    expect(Date.now() - t0).toBeGreaterThan(10_000);
   }, 20_000);
 
   test("a body over the cap is 413, and one under it streams through", async () => {
@@ -381,7 +374,7 @@ describe("streaming and limits", () => {
 
   test("a dead upstream becomes 502 with no stack trace", async () => {
     const saved = entry.upstreamPort;
-    entry.upstreamPort = 1; // nothing listening
+    entry.upstreamPort = 1;
     const r = await raw({ host: PREVIEW, path: "/echo" });
     entry.upstreamPort = saved;
     expect(r.status).toBe(502);
@@ -389,7 +382,7 @@ describe("streaming and limits", () => {
   });
 });
 
-describe("WebSocket relay (fails silently when wrong)", () => {
+describe("WebSocket relay", () => {
   test("echoes text and binary, negotiates a subprotocol, propagates close", async () => {
     const ws = new WebSocket(`wss://127.0.0.1:${listener.port}/ws`, {
       protocols: ["gangway-v1"],

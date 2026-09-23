@@ -34,22 +34,21 @@ async function shell(session: SessionInfo | null) {
 }
 
 describe('the app shell', () => {
-  it('shows who is logged in, with their ROLE NAME as the server gave it, and links to their account', async () => {
+  it('shows who is logged in with the role name from the server, linking to account', async () => {
     const r = await shell(ADA);
-    // Two spans; the gap between them is CSS, so the text runs together.
     expect(r.byTestId('who')!.querySelectorAll('span')[0]!.textContent).toBe('ada@example.com');
     expect(r.byTestId('who')!.querySelectorAll('span')[1]!.textContent).toBe('member');
     expect(r.byTestId('who')!.getAttribute('href')).toBe('/account');
   });
 
-  it('Previews is the first link in the nav: it is the home page', async () => {
+  it('Previews, the home page, is the first link in the nav', async () => {
     const r = await shell(ADA);
     const first = r.el.querySelector('nav[aria-label="Main"] a')!;
     expect(first.getAttribute('data-testid')).toBe('nav-previews');
     expect(first.getAttribute('href')).toBe('/previews');
   });
 
-  it('has no header for someone who is not in: login and setup bring their own frame', async () => {
+  it('has no header for someone who is not signed in', async () => {
     const r = await shell({ authenticated: false, setupRequired: false });
     expect(r.el.querySelector('header')).toBeNull();
   });
@@ -61,7 +60,7 @@ describe('the app shell', () => {
     expect(r.el.querySelector('header')).toBeNull();
   });
 
-  it('log out ends the session and goes to login -- even if the server is unreachable', async () => {
+  it('log out ends the session and goes to login even if the server is unreachable', async () => {
     const r = await shell(ADA);
     r.byTestId('logout')!.click();
     r.http.expectOne('/v1/auth/logout').error(new ProgressEvent('error'));

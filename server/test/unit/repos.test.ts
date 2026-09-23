@@ -60,7 +60,6 @@ for (const [name, open] of DRIVERS) {
       expect(a.upstream).toEqual({ dial: "direct", address: "127.0.0.1", proxy: null });
       expect(a.capabilities).toEqual(["preview"]);
 
-      // Re-seeding from config on every boot must not fail, and must apply changes.
       const b = hosts.upsert({
         ...HOST,
         upstream: { dial: "socks5", address: "127.0.0.1", proxy: "socks5://127.0.0.1:1080" },
@@ -103,7 +102,6 @@ for (const [name, open] of DRIVERS) {
     });
 
     test("touch does not disturb updated_at", () => {
-      // last_seen_at means "someone visited"; updated_at means "the lifecycle changed".
       const { previews } = seeded();
       previews.create({
         id: "p1",
@@ -194,7 +192,7 @@ for (const [name, open] of DRIVERS) {
       expect(previews.idleSince(clock - 5_000).map((p) => p.id)).toEqual(["never"]);
     });
 
-    test("routes: collisions are constraint violations, and the table is the port ledger", () => {
+    test("route collisions are constraint violations, and the table is the port ledger", () => {
       const { previews, routes } = seeded();
       previews.create({
         id: "p1",
@@ -240,10 +238,8 @@ for (const [name, open] of DRIVERS) {
         upstream: { host: "127.0.0.1", port: 31001 },
       });
       expect(routes.usedPorts("127.0.0.1")).toEqual(new Set([31000, 31001]));
-      // a different host has its own independent pool
       expect(routes.usedPorts("10.0.0.9").size).toBe(0);
 
-      // primary sorts first
       expect(routes.forPreview("p1").map((r) => r.service)).toEqual(["web", "api"]);
     });
 
@@ -316,7 +312,7 @@ for (const [name, open] of DRIVERS) {
 
     test("certificates round-trip and drive renewal timing", () => {
       const { certs } = seeded();
-      expect(certs.isDueForRenewal("*.preview.test", 30 * 86400_000)).toBe(true); // missing
+      expect(certs.isDueForRenewal("*.preview.test", 30 * 86400_000)).toBe(true);
       certs.put({
         domain: "*.preview.test",
         certPem: "CERT",
@@ -340,16 +336,14 @@ for (const [name, open] of DRIVERS) {
       settings.set(SETTINGS.surfacesMcp, true);
       expect(settings.effective(SETTINGS.surfacesMcp).source).toBe("database");
 
-      // A fresh resolver with a config override reads the same store but config wins.
       const pinned = new Settings({ "surfaces.mcp": false }, store);
       expect(pinned.get(SETTINGS.surfacesMcp)).toBe(false);
       expect(pinned.effective(SETTINGS.surfacesMcp).managedByConfig).toBe(true);
-      // ...and the stored value survives underneath
       expect(store.get("surfaces.mcp")).toBe(true);
     });
 
-    test("projects: made with or without a repository; found by id, slug or full name (any case); the slug is one namespace", () => {
-      const { repos, previews } = seeded();
+    test("projects are found by id, slug or full name, and the slug is one namespace", () => {
+      const { repos } = seeded();
       const p = repos.create({
         id: "p1",
         name: "Web app",
@@ -381,7 +375,19 @@ for (const [name, open] of DRIVERS) {
       expect(() =>
         repos.create({ id: "p4", name: "x", slug: "x", forge: "github", fullName: "acme/web-app" }),
       ).toThrow();
+    });
 
+    test("updates and re-links a project; deleting it leaves its previews unowned", () => {
+      const { repos, previews } = seeded();
+      repos.create({
+        id: "p1",
+        name: "Web app",
+        slug: "web-app",
+        forge: "github",
+        fullName: "acme/web-app",
+        installationId: "4242",
+      });
+      repos.create({ id: "p2", name: "whoami", slug: "whoami" });
       clock += 1000;
       const patched = repos.update("p1", {
         visibility: "public",
@@ -410,7 +416,6 @@ for (const [name, open] of DRIVERS) {
       expect(repos.setRepository("p2", null, null)).toMatchObject({ forge: null, fullName: null });
       expect(repos.list().map((r) => r.name)).toEqual(["Store", "whoami"]);
 
-      // A deleted project leaves its previews running and unowned.
       const pv = previews.create({
         id: "01J0000000000000000000000Q",
         project: "gw-y",
@@ -427,7 +432,7 @@ for (const [name, open] of DRIVERS) {
       expect(previews.get(pv.id)!.projectId).toBeNull();
     });
 
-    test("previews: forge refs default to null and are written independently", () => {
+    test("preview forge refs default to null and are written independently", () => {
       const { previews } = seeded();
       const p = previews.create({
         id: "01J0000000000000000000000P",
@@ -451,7 +456,6 @@ for (const [name, open] of DRIVERS) {
         sha: "abc",
       });
 
-      // Found by source: the name of an unlisted preview is not stable, the PR is.
       expect(previews.findPullRequest("acme/web-app", 7)?.id).toBe(p.id);
       expect(previews.findPullRequest("acme/web-app", 8)).toBeUndefined();
       expect(previews.findPullRequest("other/web-app", 7)).toBeUndefined();

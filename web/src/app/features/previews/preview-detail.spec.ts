@@ -56,7 +56,6 @@ async function open(
   });
   await loading;
 
-  // Nothing is asked about this one preview until the list has answered.
   r.http.expectNone(`/v1/previews/${ID}`);
   r.http
     .expectOne('/v1/previews')
@@ -84,7 +83,7 @@ const answerHistory = async (
 describe('PreviewDetail', () => {
   beforeAll(installDialogPolyfill);
 
-  it('shows the name without its gw- prefix, state in words, visibility, every URL with the primary marked, and the facts', async () => {
+  it('shows the name, state, visibility, facts, and every URL with the primary marked', async () => {
     const r = await open();
     await answerHistory(r);
     expect(r.text('title')).toBe('shop-pr-42');
@@ -98,7 +97,7 @@ describe('PreviewDetail', () => {
     expect(r.text('facts')).toContain('acme/shop#42');
   });
 
-  it('when the list holds the preview, it is NOT fetched a second time on its own', async () => {
+  it('does not fetch the preview again when the list already holds it', async () => {
     const r = await open();
     await answerHistory(r);
     r.http.expectNone(`/v1/previews/${ID}`);
@@ -130,14 +129,14 @@ describe('PreviewDetail', () => {
     expect(r.byTestId('databases')).toBeNull();
   });
 
-  it('a preview that does not exist says so, and offers the way back -- it does not spin forever', async () => {
+  it('says so when a preview does not exist, rather than loading forever', async () => {
     const r = await open({ preview: null });
     await r.until(() => r.byTestId('empty') !== null, 'the not-found state');
     expect(r.text('empty')).toContain('No such preview');
     expect(r.byTestId('loading')).toBeNull();
   });
 
-  it('a failed preview leads with WHY', async () => {
+  it('a failed preview leads with why', async () => {
     const r = await open({
       preview: {
         ...base,
@@ -219,10 +218,10 @@ describe('PreviewDetail', () => {
     await answerHistory(r);
     expect(r.byTestId('log')).toBeNull();
     expect(FakeEventSource.instances.some((s) => s.url.includes('/logs'))).toBe(false);
-    r.http.expectNone(`/v1/previews/${ID}/events`); // nor history, without events.read
+    r.http.expectNone(`/v1/previews/${ID}/events`);
   });
 
-  it('a destroyed preview explains that its log is gone rather than showing an empty one', async () => {
+  it('a destroyed preview explains that its log is gone', async () => {
     const r = await open({
       preview: { ...base, state: 'destroyed', destroyedAt: base.updatedAt },
       inList: false,
@@ -230,7 +229,6 @@ describe('PreviewDetail', () => {
     await answerHistory(r);
     expect(r.text('logs-gone')).toContain('deleted when a preview is destroyed');
     expect(r.byTestId('destroy')).toBeNull();
-    // A destroyed preview must not say "Expires in 59 min".
     expect(r.text('facts')).toContain('Destroyed');
     expect(r.text('facts')).not.toContain('Expires');
   });
@@ -242,7 +240,7 @@ describe('PreviewDetail', () => {
       expect(r.byTestId('destroy')).toBeNull();
     });
 
-    it('confirms first, then the page shows it going -- and stops offering Destroy', async () => {
+    it('confirms first, then shows it going and stops offering Destroy', async () => {
       const r = await open();
       await answerHistory(r);
       (r.byTestId('destroy') as HTMLElement).click();
@@ -291,7 +289,7 @@ describe('PreviewDetail: who can open it', () => {
   };
   const member: Permission[] = ['previews.read', 'previews.update_own', 'logs.read', 'events.read'];
 
-  it('open: no badge, and choosing the password generates one by default', async () => {
+  it('an open preview has no badge, and choosing a password generates one', async () => {
     const r = await open({ permissions: member });
     await answerHistory(r);
     expect(r.byTestId('password-badge')).toBeNull();

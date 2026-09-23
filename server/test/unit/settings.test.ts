@@ -11,7 +11,7 @@ describe("precedence: config ?? database ?? default", () => {
   test("default when nothing is set", () => {
     const { settings } = mk();
     const e = settings.effective(SETTINGS.surfacesMcp);
-    expect(e.value).toBe(false); // MCP is opt-in
+    expect(e.value).toBe(false);
     expect(e.source).toBe("default");
     expect(e.managedByConfig).toBe(false);
   });
@@ -34,7 +34,6 @@ describe("precedence: config ?? database ?? default", () => {
   });
 
   test("the database value is preserved, not destroyed, while config wins", () => {
-    // Unset the override later and the operator's stored choice must still be there.
     const store = new MemorySettingsStore();
     store.set("surfaces.mcp", true);
     expect(new Settings({ "surfaces.mcp": false }, store).get(SETTINGS.surfacesMcp)).toBe(false);
@@ -58,7 +57,6 @@ describe("writes", () => {
 
 describe("invalid values", () => {
   test("an invalid config override throws rather than falling through", () => {
-    // A typo in an env var must not silently look like it worked.
     const { settings } = mk({ "surfaces.mcp": "yes-please" });
     expect(() => settings.effective(SETTINGS.surfacesMcp)).toThrow(/invalid/);
   });
@@ -87,7 +85,7 @@ describe("loadConfig", () => {
   test("dev defaults do not claim :443", () => {
     const c = loadConfig({});
     expect(c.listenPort).toBe(8443);
-    expect(c.listenAddress).toBe("::"); // *.localhost resolves ::1 first
+    expect(c.listenAddress).toBe("::");
   });
 
   test("an empty GANGWAY_LISTEN_HTTP_PORT disables the redirect listener", () => {
@@ -126,7 +124,7 @@ describe("loadConfig", () => {
 });
 
 describe("secrets in the view", () => {
-  test("a secret is reported as set or not, never as its value; a plain setting keeps its value", () => {
+  test("reports a secret as set or not, never its value; a plain setting keeps its value", () => {
     const { settings } = mk({ "github.appId": "12345" });
     settings.set(
       SETTINGS.githubPrivateKey,
@@ -158,7 +156,6 @@ describe("secrets in the view", () => {
       value: "default",
       set: true,
     });
-    // The value itself is stored with real newlines: an env-var PEM with literal \n is usable.
     expect(settings.get(SETTINGS.githubPrivateKey)).toBe(
       "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
     );

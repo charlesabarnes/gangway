@@ -25,7 +25,6 @@ describe("port allocator", () => {
   test("allocatePorts returns distinct ports", () => {
     const ps = allocatePorts(RANGE, new Set([31001]), 3);
     expect(ps).toEqual([31000, 31002, 31003]);
-    expect(new Set(ps).size).toBe(3);
   });
 
   test("throws rather than drifting outside the pool when exhausted", () => {
@@ -45,8 +44,6 @@ describe("port allocator", () => {
   });
 
   test("the pool sits below the kernel ephemeral floor", () => {
-    // docker-host's ephemeral range starts at 32768; an allocation above it could collide
-    // with a port the kernel hands to an unrelated process.
     expect(RANGE.rangeEnd).toBeLessThan(32768);
   });
 });
@@ -101,13 +98,12 @@ describe("RouteTable", () => {
     expect(routes.get("a.test")?.upstream.port).toBe(31000);
   });
 
-  test("a failed database write leaves MEMORY UNTOUCHED", () => {
-    // This is the invariant the whole cache design rests on.
+  test("a failed database write leaves memory untouched", () => {
     const { table } = setup();
     table.apply(seed("a.test", 31000));
-    expect(() => table.apply(seed("a.test", 31001))).toThrow(); // hostname collision
+    expect(() => table.apply(seed("a.test", 31001))).toThrow();
     expect(table.size).toBe(1);
-    expect(table.lookup("a.test")!.upstreamPort).toBe(31000); // unchanged
+    expect(table.lookup("a.test")!.upstreamPort).toBe(31000);
   });
 
   test("a duplicate upstream port is refused by the database, not silently accepted", () => {
@@ -117,19 +113,19 @@ describe("RouteTable", () => {
     expect(table.size).toBe(1);
   });
 
-  test("lookup is exact-match only -- no wildcard, no prefix", () => {
+  test("lookup is an exact match, with no wildcard or prefix", () => {
     const { table } = setup();
     table.apply(seed("a.test", 31000));
     expect(table.lookup("a.test")).toBeDefined();
     expect(table.lookup("sub.a.test")).toBeUndefined();
-    expect(table.lookup("A.TEST")).toBeUndefined(); // caller normalizes first
+    expect(table.lookup("A.TEST")).toBeUndefined();
   });
 
   test("hydrate replaces memory without writing the database", () => {
     const { table, routes } = setup();
     table.hydrate([seed("a.test", 31000), seed("b.test", 31001, "api")]);
     expect(table.size).toBe(2);
-    expect(routes.all()).toHaveLength(0); // hydrate is read-side only
+    expect(routes.all()).toHaveLength(0);
   });
 
   test("state and visibility propagate to every route of a preview", () => {

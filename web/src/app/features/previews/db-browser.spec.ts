@@ -43,7 +43,7 @@ describe('DbBrowser', () => {
     r.http.verify();
   });
 
-  it('lists tables, pages rows, shows NULL as NULL, runs the console read-only unless writes are on', async () => {
+  it('lists tables, pages rows, and runs the console read-only unless writes are on', async () => {
     const r = await open(['previews.read', 'previews.data']);
     r.http.expectOne(`/v1/previews/${ID}/addons`).flush({ addons: ADDONS });
     await r.settle();
@@ -95,7 +95,7 @@ describe('DbBrowser', () => {
     expect(w.request.body.write).toBe(true);
     w.flush(RESULT);
     await r.settle();
-    // A write may have made a table: listed again.
+    // A write may have made a table, so the list is fetched again.
     r.http.expectOne(`/v1/previews/${ID}/addons/postgres/tables`).flush({
       tables: [
         { schema: 'public', name: 'visits' },

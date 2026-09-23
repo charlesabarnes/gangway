@@ -20,15 +20,13 @@ describe("dev CA", () => {
     const ca = await createCa();
     const leaf = await issueLeaf(ca, ["*.preview.test", "preview.test"]);
 
-    // The leaf must ship the CA after it or clients fail with UNABLE_TO_VERIFY_LEAF_SIGNATURE.
     expect(leaf.cert.match(/BEGIN CERTIFICATE/g)).toHaveLength(2);
     expect(leaf.cert).toContain(ca.certPem.trim());
     expect(leaf.key).toContain("BEGIN PRIVATE KEY");
     expect(leaf.serverName).toBe("*.preview.test");
   });
 
-  test("the leaf covers BOTH the wildcard and the apex", async () => {
-    // A wildcard does not match the apex, and the reserved labels need the apex form.
+  test("the leaf covers both the wildcard and the apex", async () => {
     const ca = await createCa();
     const leaf = await issueLeaf(ca, ["*.preview.test", "preview.test"]);
     expect(sans(leaf.cert)).toEqual(["*.preview.test", "preview.test"]);
@@ -80,7 +78,6 @@ describe("SelfSignedProvider", () => {
     const p = new SelfSignedProvider(tempDir());
     const bundle = await p.ensure(["*.preview.localhost", "preview.localhost"]);
     expect(bundle.materials).toHaveLength(1);
-    // Bun requires serverName on every tls array entry or it throws ERR_INVALID_ARG_TYPE.
     expect(bundle.materials[0]!.serverName).toBe("*.preview.localhost");
     expect(bundle.caPath).toBeDefined();
   });
@@ -106,7 +103,7 @@ describe("FileProvider", () => {
     const p = new FileProvider(join(dir, "c.pem"), join(dir, "k.pem"));
     const bundle = await p.ensure(["*.preview.test"]);
     expect(bundle.materials[0]!.cert).toContain("BEGIN CERTIFICATE");
-    expect(p.isDue()).toBe(false); // the operator owns the lifecycle
+    expect(p.isDue()).toBe(false);
   });
 });
 

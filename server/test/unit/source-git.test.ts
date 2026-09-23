@@ -1,25 +1,18 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { realpathSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { cloneRepo, DEFAULT_ALLOWED_HOSTS } from "../../src/previews/source/git.ts";
 import { GitError, type CloneRejection } from "../../src/previews/source/types.ts";
 import { Logger, redactString } from "../../src/logger.ts";
+import { tempDir } from "../helpers/db.ts";
 import { silentLogger } from "../helpers/logger.ts";
 
-/** Shaped like a real GitHub App installation token so the redactor recognises it. */
+// Shaped like a GitHub App installation token so the redactor recognises it.
 const TOKEN = `ghs_${"A1b2C3d4E5f6G7h8".repeat(2)}`;
 
-const tmpdirs: string[] = [];
-async function scratch(): Promise<string> {
-  const d = await mkdtemp(path.join(await realpath(os.tmpdir()), "gw-git-test-"));
-  tmpdirs.push(d);
-  return d;
-}
-
-afterEach(async () => {
-  for (const d of tmpdirs.splice(0)) await rm(d, { recursive: true, force: true });
-});
+const scratch = () => realpathSync(tempDir());
 
 async function sh(cmd: string[], cwd: string): Promise<void> {
   const proc = Bun.spawn({ cmd, cwd, stdout: "pipe", stderr: "pipe" });
@@ -28,10 +21,6 @@ async function sh(cmd: string[], cwd: string): Promise<void> {
   if (code !== 0) throw new Error(`${cmd.join(" ")} failed (${code}): ${stderr}`);
 }
 
-/**
- * A one-commit repo on disk, so nothing in this file touches the network. It outlives the
- * per-test scratch dirs, which are wiped after every test.
- */
 let fixtureRoot = "";
 async function fixtureRepo(): Promise<{ dir: string; url: string; sha: string }> {
   fixtureRoot = await mkdtemp(path.join(await realpath(os.tmpdir()), "gw-git-origin-"));
@@ -66,10 +55,7 @@ async function fixtureRepo(): Promise<{ dir: string; url: string; sha: string }>
   return { dir, url: `file://${dir}`, sha };
 }
 
-/**
- * Stands in for the git binary: records exactly what the child was handed, exercises the
- * askpass helper the way git would, then runs the real thing.
- */
+// Records what git was handed and answers its prompts through askpass, then runs real git.
 async function spyGit(out: string): Promise<string> {
   await mkdir(out, { recursive: true });
   const script = path.join(out, "git-spy.sh");
@@ -113,7 +99,7 @@ afterAll(async () => {
 
 describe("cloneRepo host allowlist", () => {
   test("refuses a host that is not on the allowlist", async () => {
-    const dest = await scratch();
+    const dest = scratch();
     const err = await expectReject(
       () =>
         cloneRepo({ repo: "https://evil.example.com/acme/app.git", ref: "main", destDir: dest }),
@@ -124,7 +110,7 @@ describe("cloneRepo host allowlist", () => {
   });
 
   test("refuses a file:// repo unless it is explicitly allowed", async () => {
-    const dest = await scratch();
+    const dest = scratch();
     expect(DEFAULT_ALLOWED_HOSTS).not.toContain("file");
     await expectReject(
       () => cloneRepo({ repo: repo.url, ref: "main", destDir: dest }),
@@ -133,7 +119,7 @@ describe("cloneRepo host allowlist", () => {
   });
 
   test("refuses a scheme other than https or file", async () => {
-    const dest = await scratch();
+    const dest = scratch();
     await expectReject(
       () =>
         cloneRepo({
@@ -151,7 +137,7 @@ describe("cloneRepo host allowlist", () => {
   });
 
   test("refuses a URL that carries its own credentials", async () => {
-    const dest = await scratch();
+    const dest = scratch();
     await expectReject(
       () =>
         cloneRepo({
@@ -165,7 +151,7 @@ describe("cloneRepo host allowlist", () => {
   });
 
   test("refuses a ref that could be read as an option or escape the refspec", async () => {
-    const dest = await scratch();
+    const dest = scratch();
     for (const ref of [
       "--upload-pack=touch /tmp/pwned",
       "main..evil",
@@ -182,9 +168,9 @@ describe("cloneRepo host allowlist", () => {
 });
 
 describe("cloneRepo credential handling", () => {
-  test("the token reaches git through the environment, never argv, the URL or the helper file", async () => {
-    const dest = path.join(await scratch(), "checkout");
-    const spyOut = await scratch();
+  test("the token reaches git only through the environment", async () => {
+    const dest = path.join(scratch(), "checkout");
+    const spyOut = scratch();
     const lines: string[] = [];
 
     const result = await cloneRepo({
@@ -205,20 +191,17 @@ describe("cloneRepo credential handling", () => {
     expect(argv).toContain("--depth");
     expect(argv).toContain("--single-branch");
     expect(argv).toContain("--branch");
-    expect(argv).not.toContain("@"); // no credentials smuggled into the URL either
+    expect(argv).not.toContain("@");
 
-    // The helper script is a file on disk; it must name the variable, not hold the secret.
     const helper = await readFile(path.join(spyOut, "askpass.txt"), "utf8");
     expect(helper).not.toContain(TOKEN);
     expect(helper).toContain("GANGWAY_GIT_PASSWORD");
 
-    // ...and it must actually answer git's prompts, or auth would simply fail.
     expect((await readFile(path.join(spyOut, "username.txt"), "utf8")).trim()).toBe(
       "x-access-token",
     );
     expect(await readFile(path.join(spyOut, "password.txt"), "utf8")).toBe(TOKEN);
 
-    // The environment is the one place it is allowed to be.
     const env = await readFile(path.join(spyOut, "env.txt"), "utf8");
     expect(env).toContain(`GANGWAY_GIT_PASSWORD=${TOKEN}`);
     expect(env).toContain("GIT_TERMINAL_PROMPT=0");
@@ -226,7 +209,7 @@ describe("cloneRepo credential handling", () => {
   });
 
   test("no log line carries the token, and the redactor would catch it if one did", async () => {
-    const dest = path.join(await scratch(), "checkout");
+    const dest = path.join(scratch(), "checkout");
     const lines: string[] = [];
     const logger = new Logger("debug", {}, (l) => lines.push(l));
 
@@ -241,12 +224,11 @@ describe("cloneRepo credential handling", () => {
 
     expect(lines.length).toBeGreaterThan(0);
     for (const line of lines) expect(line).not.toContain(TOKEN);
-    // The safety net behind that assertion: this token shape is one the redactor knows.
     expect(redactString(`cloning with ${TOKEN}`)).not.toContain(TOKEN);
   });
 
   test("a failed clone logs stderr without leaking the token", async () => {
-    const dest = path.join(await scratch(), "checkout");
+    const dest = path.join(scratch(), "checkout");
     const lines: string[] = [];
 
     const err = await expectReject(
@@ -264,14 +246,13 @@ describe("cloneRepo credential handling", () => {
 
     expect(err.status).toBe(502);
     for (const line of lines) expect(line).not.toContain(TOKEN);
-    // A half-written checkout is not left behind for the next attempt to trip over.
     expect((await stat(dest)).isDirectory()).toBe(true);
     expect(await readFile(path.join(dest, "README.md"), "utf8").catch(() => null)).toBeNull();
   });
 
   test("no askpass helper is configured when there is no token", async () => {
-    const dest = path.join(await scratch(), "checkout");
-    const spyOut = await scratch();
+    const dest = path.join(scratch(), "checkout");
+    const spyOut = scratch();
     await cloneRepo({
       repo: repo.url,
       ref: "main",
@@ -288,12 +269,11 @@ describe("cloneRepo credential handling", () => {
 
 describe("cloneRepo timeout", () => {
   test("kills a clone that overruns its deadline", async () => {
-    const dir = await scratch();
+    const dir = scratch();
     const dest = path.join(dir, "checkout");
     const marker = path.join(dir, "marker");
     const hangingGit = path.join(dir, "slow-git.sh");
-    // Close the pipes before sleeping so the parent is not waiting on a drain, then try to
-    // leave a marker: if the process survived its deadline, the marker appears.
+    // The marker appears only if the script outlives its deadline.
     await writeFile(hangingGit, `#!/bin/sh\nexec >/dev/null 2>&1\nsleep 5\ntouch "${marker}"\n`, {
       mode: 0o755,
     });
@@ -318,28 +298,28 @@ describe("cloneRepo timeout", () => {
     expect(elapsed).toBeLessThan(3_000);
     expect(err.status).toBe(504);
 
-    // Wait past the point where the unkilled script would have written the marker.
     await Bun.sleep(5_200 - elapsed);
     expect(await stat(marker).catch(() => null)).toBeNull();
   }, 20_000);
 });
 
-describe("cloneRepo by commit sha (a pull request's head)", () => {
-  test("a 40-hex ref is fetched into an empty repository and checked out detached; HEAD is that sha", async () => {
-    const dest = path.join(await scratch(), "dest");
+describe("cloneRepo by commit sha", () => {
+  test("fetches a 40-hex ref and checks it out detached", async () => {
+    const dest = path.join(scratch(), "dest");
     const result = await cloneRepo({
       repo: repo.url,
       ref: repo.sha,
       destDir: dest,
       allowedHosts: ["file"],
+      logger: silentLogger(),
     });
     expect(result.sha).toBe(repo.sha);
     expect(result.ref).toBe(repo.sha);
     expect(await Bun.file(path.join(dest, "README.md")).text()).toBe("hello from the fixture\n");
   });
 
-  test("a sha the remote does not have is a clone_failed, and the destination is left empty", async () => {
-    const dest = path.join(await scratch(), "dest");
+  test("a sha the remote does not have is a clone_failed", async () => {
+    const dest = path.join(scratch(), "dest");
     await expectReject(
       () =>
         cloneRepo({

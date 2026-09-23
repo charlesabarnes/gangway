@@ -1,6 +1,3 @@
-/**
- * What the Previews and Preview-detail screens read, and the log stream for a long build.
- */
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import type { AppEnv } from "../../src/app/env.ts";
@@ -122,7 +119,7 @@ describe("GET /v1/previews/:id/events and /builds", () => {
     expect(events.map((e) => e.seq)).toEqual([...events.map((e) => e.seq)].sort((a, b) => a - b));
   });
 
-  test("builds: none for an image deploy; an unknown or malformed id is 404 before it names a file", async () => {
+  test("an image deploy has no builds; an unknown or malformed id is 404", async () => {
     const t = make();
     const p = await t.deployed("plain");
     expect(await (await t.get(`/previews/${p.id}/builds`)).json()).toEqual({ builds: [] });
@@ -183,7 +180,6 @@ describe("GET /v1/previews/:id/logs", () => {
     const { out, ended } = await frames(await t.get(`/previews/${p.id}/logs`), 499);
     expect(ended).toBe(false);
     expect(out).toHaveLength(499);
-    // The cut is said out loud, once, first -- and numbered so a resume lands on the next line.
     expect(out[0]).toMatchObject({
       id: 1200 - 498,
       stream: "system",
@@ -193,7 +189,7 @@ describe("GET /v1/previews/:id/logs", () => {
     expect(out.at(-1)).toMatchObject({ id: 1200, line: "step 1200" });
   });
 
-  test("at the real default queue size too: 6,000 lines", async () => {
+  test("streams 6,000 lines at the default queue size", async () => {
     const t = make();
     const p = await longLog(t, 6000);
     const { out, ended } = await frames(await t.get(`/previews/${p.id}/logs`), 4999, 10_000);
@@ -202,7 +198,7 @@ describe("GET /v1/previews/:id/logs", () => {
     expect(out.at(-1)!.id).toBe(6000);
   }, 20_000);
 
-  test("?tail=N starts from the last N and says what it skipped; a short log is not annotated", async () => {
+  test("?tail=N starts from the last N lines and notes what it skipped", async () => {
     const t = make();
     const p = await longLog(t, 300);
     const tailed = await frames(await t.get(`/previews/${p.id}/logs?tail=10`), 11);
@@ -222,7 +218,7 @@ describe("GET /v1/previews/:id/logs", () => {
       expect((await t.get(`/previews/${p.id}/logs?tail=${bad}`)).status).toBe(422);
   });
 
-  test("resuming with Last-Event-ID ignores tail's cut: exactly the lines after the cursor, no notice", async () => {
+  test("resuming with Last-Event-ID sends exactly the lines after the cursor", async () => {
     const t = make();
     const p = await longLog(t, 300);
     const resumed = await frames(
@@ -250,7 +246,7 @@ describe("GET /v1/previews/:id/logs", () => {
 });
 
 describe("PreviewLogs.follow", () => {
-  test("bounds apply to the REPLAY only; the follow that comes after is unbounded", () => {
+  test("bounds apply to the replay only, not to the follow after it", () => {
     const t = make();
     const logs: PreviewLogs = t.ctx.logs;
     const id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -263,7 +259,7 @@ describe("PreviewLogs.follow", () => {
     stop();
   });
 
-  test("with no bounds it behaves exactly as before", () => {
+  test("with no bounds it replays everything after the cursor", () => {
     const t = make();
     const id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
     t.ctx.logs.append(id, "build", "a\nb\nc");

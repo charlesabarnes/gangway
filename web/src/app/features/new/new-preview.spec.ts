@@ -110,11 +110,10 @@ describe('NewPreview', () => {
     r.http.verify();
   });
 
-  it('a runtime card posts its starter as a gzipped tar with ?runtime=, and lands on the new preview', async () => {
+  it('a runtime card posts its starter as a gzipped tar and opens the new preview', async () => {
     const r = await open();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     expect(r.allByTestId('starter-bun')).toHaveLength(1);
-    // Every card carries its runtime's mark, so they can be told apart at a glance.
     for (const id of ['static', 'bun', 'node'])
       expect(
         r.byTestId(`starter-${id}`)!.querySelector('svg path')!.getAttribute('d')!.length,
@@ -136,7 +135,7 @@ describe('NewPreview', () => {
     r.http.verify();
   });
 
-  it('who can open it: a chosen password rides in a header, never the URL; the rest ride the query', async () => {
+  it('sends a chosen password in a header, and other access options in the query', async () => {
     const r = await open();
     vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     const pick = async (id: string, v: string) => {
@@ -180,7 +179,7 @@ describe('NewPreview', () => {
     r.http.verify();
   });
 
-  it('dropped files show a summary and the detected runtime; the choice can be overridden; options ride the query', async () => {
+  it('dropped files show a summary and detected runtime, which can be overridden', async () => {
     const r = await open();
     await pickFolder(r, { 'api/package.json': '{}', 'api/server.js': 'x', 'api/.DS_Store': '' });
     await r.settle();
@@ -237,7 +236,7 @@ describe('NewPreview', () => {
     r.http.verify();
   });
 
-  it('asks the server for a plan, shows its reasons, deploys with runtime=auto; a plan that cannot run blocks Deploy', async () => {
+  it("shows the server's plan and deploys with runtime=auto; a failed plan blocks it", async () => {
     const r = await open();
     await pickFolder(r, {
       'site/package.json': '{"scripts":{"build":"vite build"}}',
@@ -246,7 +245,6 @@ describe('NewPreview', () => {
     });
     await r.settle();
     const ask = r.http.expectOne('/v1/runtimes/plan');
-    // Paths all named; only the plan files' text sent.
     expect(ask.request.body).toEqual({
       paths: ['index.html', 'package.json', 'src/main.ts'],
       files: { 'package.json': '{"scripts":{"build":"vite build"}}' },
@@ -275,7 +273,6 @@ describe('NewPreview', () => {
     req.flush({ title: 'x' }, { status: 500, statusText: 'x' });
     await r.settle();
 
-    // Choosing a runtime plans again; an error there disables Deploy.
     r.byTestId('choice-bun')!.click();
     await r.settle();
     const again = r.http.expectOne('/v1/runtimes/plan');
@@ -296,12 +293,11 @@ describe('NewPreview', () => {
     await r.settle();
     expect(r.allByTestId('plan-reason')[0]!.getAttribute('data-level')).toBe('error');
     expect((r.byTestId('deploy') as HTMLButtonElement).disabled).toBe(true);
-    // "Looks like" is still what auto found.
     expect(r.text('detected')).toBe('Looks like: Node.js');
     r.http.verify();
   });
 
-  it('add-ons: suggestions arrive ticked and ride the query; unticking everything sends none; a starter takes them too', async () => {
+  it('suggested add-ons arrive ticked and are sent, and unticking all sends none', async () => {
     const r = await open();
     await pickFolder(r, { 'package.json': '{"dependencies":{"pg":"8"}}', 'server.js': 'x' });
     await r.settle();
@@ -320,7 +316,6 @@ describe('NewPreview', () => {
     first.flush({ title: 'x' }, { status: 500, statusText: 'x' });
     await r.settle();
 
-    // Touching them re-plans with the choice, and an empty choice is said out loud.
     (r.byTestId('addon-postgres') as HTMLInputElement).click();
     await r.settle();
     expect(r.http.expectOne('/v1/runtimes/plan').request.body.addons).toEqual([]);

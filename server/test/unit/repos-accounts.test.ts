@@ -53,7 +53,7 @@ for (const [name, open] of DRIVERS) {
     };
 
     describe("users", () => {
-      test("a User never carries password material; credentials() is the only way to it", () => {
+      test("a User never carries password material; only credentials() returns it", () => {
         const { users, ada } = setup();
         const u = ada();
         expect(u).toEqual({
@@ -115,11 +115,11 @@ for (const [name, open] of DRIVERS) {
           salt: "s",
         });
         expect(users.countActiveAdmins()).toBe(1);
-        expect(users.countActiveAdmins("u-ada")).toBe(0); // who is left if ada stops being one? nobody.
+        expect(users.countActiveAdmins("u-ada")).toBe(0);
         users.update("u-bob", { roleId: "admin" });
         expect(users.countActiveAdmins("u-ada")).toBe(1);
         users.update("u-bob", { disabled: true });
-        expect(users.countActiveAdmins("u-ada")).toBe(0); // a disabled admin is not a way back in
+        expect(users.countActiveAdmins("u-ada")).toBe(0);
       });
 
       test("update touches only what it is given", () => {
@@ -149,7 +149,7 @@ for (const [name, open] of DRIVERS) {
         });
       };
 
-      test("findActive returns the session with its account, and refuses expired and disabled", () => {
+      test("findActive returns the session and account, refusing expired and disabled", () => {
         const s = setup();
         open1(s);
         const found = s.sessions.findActive("h1")!;
@@ -178,7 +178,7 @@ for (const [name, open] of DRIVERS) {
         const s = setup();
         const created = open1(s).createdAt.getTime();
         clock += 29 * DAY;
-        s.db.run("UPDATE sessions SET expires_at = $e WHERE id = 'h1'", { e: clock + DAY }); // kept alive by use until now
+        s.db.run("UPDATE sessions SET expires_at = $e WHERE id = 'h1'", { e: clock + DAY });
         expect(
           s.sessions.touch("h1", { staleBefore: clock, idleMs: 7 * DAY, absoluteMs: 30 * DAY }),
         ).toBe(true);
@@ -249,7 +249,7 @@ for (const [name, open] of DRIVERS) {
         ).not.toContain("hash-1");
       });
 
-      test("findActiveByHash returns the owner, and refuses revoked, expired and disabled-owner tokens", () => {
+      test("findActiveByHash returns the owner, refusing revoked, expired or disabled", () => {
         const s = setup();
         s.ada();
         mint(s, { expiresAt: clock + DAY });
@@ -269,7 +269,7 @@ for (const [name, open] of DRIVERS) {
         expect(s.tokens.revoke("t1")).toBe(true);
         expect(s.tokens.revoke("t1")).toBe(false);
         expect(s.tokens.findActiveByHash("hash-1")).toBeUndefined();
-        expect(s.tokens.get("t1")!.revokedAt).toEqual(new Date(clock)); // still there for the audit trail
+        expect(s.tokens.get("t1")!.revokedAt).toEqual(new Date(clock));
       });
 
       test("an ownerless token is active with a null owner", () => {
@@ -291,7 +291,7 @@ for (const [name, open] of DRIVERS) {
         expect(s.tokens.touch("t1", clock - MIN)).toBe(true);
       });
 
-      test("hasActiveAdmin: an owned admin token counts only while its owner is an enabled admin", () => {
+      test("hasActiveAdmin counts an owned admin token only while its owner is an admin", () => {
         const s = setup();
         s.ada();
         expect(s.tokens.hasActiveAdmin()).toBe(false);
@@ -378,7 +378,7 @@ for (const [name, open] of DRIVERS) {
         expect(rp.for("viewer").size).toBe(0);
       });
 
-      test("admin cannot be edited -- not through the API, and not by hand in SQLite", () => {
+      test("admin cannot be edited through the API or by hand in SQLite", () => {
         const { roles, db } = setup();
         const rp = new RolePermissions(roles);
         expect(() => rp.set("admin", [])).toThrow(/cannot be edited/);
@@ -388,7 +388,7 @@ for (const [name, open] of DRIVERS) {
         expect(rp.for("admin").size).toBe(ALL_PERMISSIONS.length);
       });
 
-      test("syncCatalogue adds what the code has learned, grants it to admin, and leaves the operator's matrix alone", () => {
+      test("syncCatalogue adds new permissions to admin only, leaving other roles alone", () => {
         const { roles, db } = setup();
         const rp = new RolePermissions(roles);
         rp.set("member", ["previews.read"]);
@@ -407,7 +407,7 @@ for (const [name, open] of DRIVERS) {
         expect([...rp.for("member")]).toEqual(["previews.read"]);
       });
 
-      test("a grant on an id the code does not know is inert: it is never served", () => {
+      test("a grant on an id the code does not know is never served", () => {
         const { roles, db } = setup();
         db.run("INSERT INTO permissions (id, feature) VALUES ('previews.retired', 'previews')");
         db.run(

@@ -5,13 +5,13 @@ import { clientIpResolver, parseTrustedProxies } from "../../src/net/trusted-pro
 const NPM = ["172.17.0.0/16"];
 
 describe("clientIpResolver", () => {
-  test("default (no trusted proxies): the socket peer is the visitor, whatever the header claims", () => {
+  test("with no trusted proxies the socket peer is the visitor, whatever the header says", () => {
     const ip = clientIpResolver([]);
     expect(ip("203.0.113.9", "1.2.3.4")).toBe("203.0.113.9");
     expect(ip("172.17.0.2", "1.2.3.4")).toBe("172.17.0.2");
   });
 
-  test("behind the proxy: the address the PROXY saw is the visitor", () => {
+  test("behind a trusted proxy the address the proxy saw is the visitor", () => {
     const ip = clientIpResolver(NPM);
     expect(ip("172.17.0.2", "198.51.100.7")).toBe("198.51.100.7");
     // A dual-stack listener reports the proxy as an IPv4-mapped IPv6 address.
@@ -19,21 +19,19 @@ describe("clientIpResolver", () => {
     expect(ip("172.17.0.2", "2001:db8::1")).toBe("2001:db8::1");
   });
 
-  test("a visitor who comes AROUND the proxy cannot spoof: an untrusted peer's header is ignored", () => {
+  test("ignores the header from an untrusted peer", () => {
     expect(clientIpResolver(NPM)("203.0.113.9", "10.0.0.1")).toBe("203.0.113.9");
   });
 
-  test("a visitor who comes THROUGH the proxy cannot spoof either: read right to left, stop at the first untrusted hop", () => {
+  test("reads the header right to left and stops at the first untrusted hop", () => {
     const ip = clientIpResolver(NPM);
-    // The visitor sent `X-Forwarded-For: 10.0.0.1`; the proxy appended what it really saw.
     expect(ip("172.17.0.2", "10.0.0.1, 198.51.100.7")).toBe("198.51.100.7");
-    // Two trusted hops (a CDN range in front of the proxy): both are skipped.
     expect(
       clientIpResolver([...NPM, "192.0.2.0/24"])("172.17.0.2", "6.6.6.6, 198.51.100.7, 192.0.2.10"),
     ).toBe("198.51.100.7");
   });
 
-  test("nothing usable in the header falls back to the peer, never to garbage", () => {
+  test("falls back to the peer when the header has nothing usable", () => {
     const ip = clientIpResolver(NPM);
     expect(ip("172.17.0.2", null)).toBe("172.17.0.2");
     expect(ip("172.17.0.2", "")).toBe("172.17.0.2");
@@ -55,7 +53,7 @@ describe("parseTrustedProxies / config", () => {
   });
 
   test.each(["npm", "172.17.0.0/33", "172.17.0.0/x", "fd00::/129", ""])(
-    "%p is refused loudly -- a typo must not silently mean 'trust nobody'",
+    "refuses %p rather than trusting nobody",
     (bad) => {
       expect(() => parseTrustedProxies([bad])).toThrow("trusted proxy");
     },

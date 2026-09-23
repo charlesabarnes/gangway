@@ -1,4 +1,3 @@
-/** The app plan -- conventions, gangway.yml, Procfile, nested roots -- as a pure function. */
 import { describe, expect, test } from "bun:test";
 import {
   cmdText,
@@ -11,7 +10,6 @@ import {
 import { gangwayJsonSchema, parseGangwayFile } from "../src/gangway-file.ts";
 import { DETECTION, detectRuntime, RUNTIMES } from "../src/runtimes.ts";
 
-/** An upload as `{ path: contents }`; every file is listed, and the plan reads what it wants. */
 const plan = (
   files: Record<string, string>,
   extra: Omit<PlanInput, "paths" | "files"> = {},
@@ -76,7 +74,7 @@ describe("node: Heroku's conventions", () => {
     ).toBe("yarn run build");
   });
 
-  test("a Vite app (no start script) builds and serves dist/ with nginx -- the case that used to fail", () => {
+  test("a Vite app with no start script builds and serves dist/ with nginx", () => {
     const p = plan({
       "package.json": pkg({ scripts: { dev: "vite", build: "vite build" } }),
       "index.html": "",
@@ -89,7 +87,7 @@ describe("node: Heroku's conventions", () => {
     expect(planError(p)).toBeNull();
   });
 
-  test("a start script that is a dev server, with a build: the build is served instead", () => {
+  test("a dev-server start script with a build serves the build instead", () => {
     const p = plan({
       "package.json": pkg({
         scripts: { start: "react-scripts start", build: "react-scripts build" },
@@ -99,7 +97,7 @@ describe("node: Heroku's conventions", () => {
     expect(p.reasons.some((r) => r.found.includes("dev server"))).toBe(true);
   });
 
-  test("a dev-server start with NO build runs, with a warning", () => {
+  test("a dev-server start script with no build runs, with a warning", () => {
     const p = plan({ "package.json": pkg({ scripts: { start: "vite" } }) });
     expect(start(p)).toBe("npm start");
     expect(p.reasons.find((r) => r.level === "warn")?.then).toContain("development server");
@@ -121,7 +119,6 @@ describe("node: Heroku's conventions", () => {
       "node srv/app.js",
     );
     expect(start(plan({ "package.json": pkg({}), "server.js": "" }))).toBe("node server.js");
-    // A main that leaves the upload is not an entry.
     expect(planError(plan({ "package.json": pkg({ main: "../../etc/passwd" }) }))).toContain(
       "`start` script",
     );
@@ -242,7 +239,7 @@ describe("other runtimes", () => {
   });
 
   test("php: composer, and public/ as the docroot when it has index.php", () => {
-    // Laravel: composer.json AND a package.json for its assets -- PHP, not Node.
+    // Laravel ships a package.json for its assets but is a PHP app.
     expect(
       plan({
         "composer.json": "{}",
@@ -282,20 +279,19 @@ describe("other runtimes", () => {
 });
 
 describe("where the app is", () => {
-  test("one directory holding the app, nothing recognisable beside it: that directory", () => {
+  test("a single directory holding the app, with nothing recognisable beside it", () => {
     const p = plan({
       "README.md": "",
       "docs/a.md": "",
       "web/package.json": pkg({ scripts: { start: "node s.js" } }),
       "web/s.js": "",
     });
-    // docs/ has no marker; web/ does.
     expect(p.root).toBe("web");
     expect(p.runtime).toBe("node");
     expect(start(p)).toBe("npm start");
   });
 
-  test("two candidate directories: no guess", () => {
+  test("two candidate directories mean no guess", () => {
     const p = plan({ "a/index.html": "", "b/index.html": "" });
     expect(p.root).toBe("");
   });
@@ -328,7 +324,7 @@ describe("a rebuild", () => {
   });
 });
 
-test("planFilePaths: only the files the plan reads, at the root and one level down", () => {
+test("planFilePaths keeps the files the plan reads, at the root and one level down", () => {
   expect(
     planFilePaths([
       "package.json",
@@ -348,7 +344,7 @@ test("gangway.yml's JSON Schema is valid JSON with every key", () => {
   expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
 });
 
-test("parseGangwayFile: empty is the conventions; a non-mapping is refused; aliases are bounded", () => {
+test("parseGangwayFile accepts empty, refuses a non-mapping, and bounds aliases", () => {
   expect(parseGangwayFile("")).toEqual({ ok: true, file: {} });
   expect(parseGangwayFile("- a\n- b\n")).toMatchObject({ ok: false });
   const bomb = `a: &a [x,x,x,x,x,x,x,x,x]\nb: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]\nc: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]\nd: [*c,*c,*c,*c,*c,*c,*c,*c,*c]\n`;

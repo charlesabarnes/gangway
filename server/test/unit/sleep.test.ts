@@ -1,4 +1,3 @@
-/** Idle-sleep and wake through the real pipeline with a fake compose. */
 import { describe, expect, test } from "bun:test";
 import { fixedPolicy } from "../../src/previews/policy.ts";
 import { Waker, sleepPreview, sweepIdle } from "../../src/previews/sleep.ts";
@@ -9,7 +8,7 @@ const quiet = silentLogger();
 const MIN = 60_000;
 
 describe("sleepPreview", () => {
-  test("stops the WHOLE project, file-less by -p, and the row and every route say asleep", async () => {
+  test("stops the whole project by name and marks the row and every route asleep", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("night");
     const slept = await sleepPreview(s.ctx, p.id, "idle for 31 min");
@@ -34,7 +33,7 @@ describe("sleepPreview", () => {
 });
 
 describe("sweepIdle", () => {
-  test("the template's window: a preview unseen for longer than it sleeps; a fresh one does not; a visit noted in memory counts", async () => {
+  test("sleeps a preview unseen for longer than its window, counting in-memory visits", async () => {
     const s = setupPreviewContext();
     s.ctx.policy = fixedPolicy({ idleAfter: "30m" });
     const old = await s.deployed("old");
@@ -43,7 +42,6 @@ describe("sweepIdle", () => {
     s.previews.touch(old.id, s.ctx.now() - 31 * MIN);
     s.previews.touch(fresh.id, s.ctx.now() - 5 * MIN);
     s.previews.touch(visited.id, s.ctx.now() - 31 * MIN);
-    // The proxy saw `visited` a moment ago; only the in-memory table knows.
     s.ctx.table.touch(s.ctx.table.forPreview(visited.id)[0]!.hostname, s.ctx.now());
     const r = await sweepIdle(s.ctx, quiet);
     expect(r).toMatchObject({ candidates: 1, slept: [old.id], skipped: [], failed: [] });
@@ -52,14 +50,14 @@ describe("sweepIdle", () => {
     expect(s.previews.get(visited.id)!.state).toBe("awake");
   });
 
-  test("never seen: created_at counts; the row's own window is what counts; 0 means never; a row from before templates (NULL) uses the default template's", async () => {
+  test("uses each row's pinned window, falling back to the default template's", async () => {
     const s = setupPreviewContext();
     s.ctx.policy = fixedPolicy({ idleAfter: "30m" });
     const a = await s.deployed("a");
     const b = await s.deployed("b");
     const c = await s.deployed("c");
     const d = await s.deployed("d");
-    expect(s.previews.get(a.id)!.idleAfterMs).toBe(30 * MIN); // pinned from the template at deploy
+    expect(s.previews.get(a.id)!.idleAfterMs).toBe(30 * MIN);
     s.db.run("UPDATE previews SET created_at = $t WHERE id IN ($a, $b, $c, $d)", {
       t: s.ctx.now() - 10 * MIN,
       a: a.id,
@@ -71,12 +69,13 @@ describe("sweepIdle", () => {
     s.db.run("UPDATE previews SET idle_after_ms = 0 WHERE id = $c", { c: c.id });
     s.db.run("UPDATE previews SET idle_after_ms = NULL WHERE id = $d", { d: d.id });
     s.previews.touch(c.id, s.ctx.now() - 500 * MIN);
-    s.ctx.policy = fixedPolicy({ idleAfter: "8m" }); // the default template, edited after the deploys
+    s.ctx.policy = fixedPolicy({ idleAfter: "8m" });
     const r = await sweepIdle(s.ctx, quiet);
-    expect(r.slept.sort()).toEqual([b.id, d.id].sort()); // a: 10 < its pinned 30; b: 10 > its own 5; c: never; d: 10 > the default's 8
+    // Never seen, so created_at 10 min ago counts. a: pinned 30; b: own 5; c: 0 is never; d: NULL is 8.
+    expect(r.slept.sort()).toEqual([b.id, d.id].sort());
   });
 
-  test("a template that never sleeps (idleAfter never -> 0 pinned): nothing ever sleeps", async () => {
+  test("nothing sleeps under a template whose idleAfter is never", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("p");
     expect(s.previews.get(p.id)!.idleAfterMs).toBe(0);
@@ -98,7 +97,7 @@ describe("sweepIdle", () => {
 });
 
 describe("Waker", () => {
-  test("asleep -> starting -> awake: compose start file-less, then healthy, then answering; the routes follow", async () => {
+  test("wakes by starting the project by name, and the routes follow it to awake", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("dawn");
     await sleepPreview(s.ctx, p.id, "idle");
@@ -109,7 +108,6 @@ describe("Waker", () => {
     expect(s.fake.starts[0]).not.toContain("--file");
     expect(s.ctx.table.forPreview(p.id).every((e) => e.state === "awake")).toBe(true);
     expect(s.ctx.logs.tail(p.id).join("\n")).toMatch(/waking[\s\S]*awake/);
-    // Already awake: a no-op that resolves.
     expect((await waker.wake(p.id)).state).toBe("awake");
     expect(s.fake.starts).toHaveLength(1);
   });
@@ -129,7 +127,7 @@ describe("Waker", () => {
     expect(s.ctx.inflight.has(p.id)).toBe(false);
   });
 
-  test("concurrent requests share ONE wake", async () => {
+  test("concurrent requests share one wake", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("crowd");
     await sleepPreview(s.ctx, p.id, "idle");
@@ -139,7 +137,7 @@ describe("Waker", () => {
     expect(s.fake.starts).toHaveLength(1);
   });
 
-  test("a wake that fails goes back to ASLEEP with the reason in the log, never to failed; the next request tries again", async () => {
+  test("a failed wake returns to asleep with the reason logged, and can be retried", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("stumble");
     await sleepPreview(s.ctx, p.id, "idle");

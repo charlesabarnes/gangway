@@ -1,4 +1,3 @@
-/** Secrets at rest and the repository env. */
 import { describe, expect, test } from "bun:test";
 import { statSync } from "node:fs";
 import { join } from "node:path";
@@ -19,7 +18,7 @@ describe("SecretBox", () => {
     expect(sealed).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
     expect(sealed).not.toContain("fa-abc");
     expect(box.open(sealed)).toBe('{"FONTAWESOME_TOKEN":"fa-abc"}');
-    expect(box.seal("x")).not.toBe(box.seal("x")); // a fresh iv every time
+    expect(box.seal("x")).not.toBe(box.seal("x"));
     expect(() => new SecretBox(randomBytes(32)).open(sealed)).toThrow(/could not be opened/);
     const [v, iv, tag, ct] = sealed.split(".");
     const flipped = Buffer.from(ct!, "base64url");
@@ -61,7 +60,7 @@ describe("Secrets: two scopes, one shape", () => {
     return { db, repos, repo, secrets, audited, store };
   };
 
-  test("a repository's map: set merges (a plain string is `standard`), levels re-level, unset removes; the row holds ciphertext only; the audit holds names only", () => {
+  test("a project's map merges, re-levels and unsets, storing only ciphertext and names", () => {
     const { repos, repo, secrets, audited, db } = setup();
     const m = secrets.project(repo.id);
     expect(m.list()).toEqual([]);
@@ -111,7 +110,7 @@ describe("Secrets: two scopes, one shape", () => {
     expect(() => m.update(null, { levels: { NOPE: "low" } })).toThrow(/not set/);
   });
 
-  test("the global map reaches a preview with no repository too, and a repository's entry wins on a name", () => {
+  test("the global map reaches previews with no repository; a repository's entry wins", () => {
     const { repo, secrets, store, audited } = setup();
     secrets.global().update(null, {
       set: {
@@ -136,7 +135,7 @@ describe("Secrets: two scopes, one shape", () => {
     expect(secrets.valuesFor(repo.id, "high")).toEqual({ SHARED: "repo" });
   });
 
-  test("the first shape -- a bare string per name -- reads as `standard`", () => {
+  test("a bare string per name, the first shape, reads as `standard`", () => {
     const { repos, repo, secrets } = setup();
     const box = new SecretBox(randomBytes(32));
     const legacy = new Secrets(repos, new MemorySettingsStore(), box);

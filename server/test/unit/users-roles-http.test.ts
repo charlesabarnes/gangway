@@ -1,8 +1,3 @@
-/**
- * /v1/users and /v1/roles through the real app: authenticate, permissions, sessions and
- * tokens are all live, because the point of these routes is what they do to other
- * people's already-open sessions.
- */
 import { describe, expect, test } from "bun:test";
 import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "@gangway/shared/permissions";
 import { requirePermission } from "../../src/app/middleware/auth.ts";
@@ -41,7 +36,7 @@ async function make() {
 }
 
 describe("/v1/users", () => {
-  test("an admin creates, lists, re-roles and disables; no response ever carries password material", async () => {
+  test("an admin creates, lists, re-roles and disables, and never sees password material", async () => {
     const t = await make();
     const made = await t.call("/v1/users", {
       method: "POST",
@@ -86,23 +81,24 @@ describe("/v1/users", () => {
     ).toBe(403);
   });
 
-  test("validation: unknown role 422, duplicate email 409, empty patch 422, unknown user 404, extra fields 422", async () => {
+  test.each([
+    ["an unknown role", { email: "c@example.com", password: PASSWORD, roleId: "wizard" }, 422],
+    ["a duplicate email", { email: "bob@example.com", password: PASSWORD, roleId: "member" }, 409],
+    ["a short password", { email: "c@example.com", password: "short", roleId: "member" }, 422],
+    [
+      "an extra field",
+      { email: "c@example.com", password: PASSWORD, roleId: "member", admin: true },
+      422,
+    ],
+  ])("create with %s is refused", async (_, json, status) => {
+    const t = await make();
+    await t.addUser("bob@example.com", "member");
+    expect((await t.call("/v1/users", { method: "POST", as: t.ada, json })).status).toBe(status);
+  });
+
+  test("an empty patch is 422 and an unknown user 404", async () => {
     const t = await make();
     const bob = await t.addUser("bob@example.com", "member");
-    const post = (json: unknown) => t.call("/v1/users", { method: "POST", as: t.ada, json });
-    expect(
-      (await post({ email: "c@example.com", password: PASSWORD, roleId: "wizard" })).status,
-    ).toBe(422);
-    expect(
-      (await post({ email: "bob@example.com", password: PASSWORD, roleId: "member" })).status,
-    ).toBe(409);
-    expect(
-      (await post({ email: "c@example.com", password: "short", roleId: "member" })).status,
-    ).toBe(422);
-    expect(
-      (await post({ email: "c@example.com", password: PASSWORD, roleId: "member", admin: true }))
-        .status,
-    ).toBe(422);
     expect(
       (await t.call(`/v1/users/${bob.id}`, { method: "PATCH", as: t.ada, json: {} })).status,
     ).toBe(422);
@@ -112,7 +108,7 @@ describe("/v1/users", () => {
     ).toBe(404);
   });
 
-  test("the last enabled admin cannot lock the door behind them: 409", async () => {
+  test("the last enabled admin cannot demote or disable themselves", async () => {
     const t = await make();
     const me = (
       (await (await t.call("/v1/users", { as: t.ada })).json()) as { users: { id: string }[] }
@@ -163,7 +159,7 @@ describe("/v1/roles", () => {
     catalogue: { id: string; feature: string }[];
   };
 
-  test("GET shows the three seeded roles, what each grants, and everything that CAN be granted", async () => {
+  test("shows the seeded roles, what each grants, and everything that can be granted", async () => {
     const t = await make();
     const body = (await (await t.call("/v1/roles", { as: t.ada })).json()) as RolesBody;
     expect(body.roles.map((r) => [r.id, r.builtin, r.editable])).toEqual([
@@ -177,7 +173,7 @@ describe("/v1/roles", () => {
     expect(new Set(body.catalogue.map((p) => p.feature)).size).toBeGreaterThan(8);
   });
 
-  test("an edit reaches a member's OPEN session and their TOKEN on the very next request -- no re-login", async () => {
+  test("an edit reaches a member's open session and token on their next request", async () => {
     const t = await make();
     await t.addUser("bob@example.com", "member");
     const session = await t.login("bob@example.com");
@@ -204,7 +200,6 @@ describe("/v1/roles", () => {
 
     expect((await t.call("/v1/previews/p1", { method: "DELETE", as: session })).status).toBe(403);
     expect((await t.call("/v1/previews/p1", { method: "DELETE", as: secret })).status).toBe(403);
-    // ...and the UI learns of it the same way, from the session endpoint.
     expect(
       (
         (await (await t.call("/v1/auth/session", { as: session })).json()) as {
@@ -221,7 +216,7 @@ describe("/v1/roles", () => {
     expect((await t.call("/v1/previews/p1", { method: "DELETE", as: session })).status).toBe(200);
   });
 
-  test("admin is 409, an unknown role 404, an unknown permission 422 -- and nothing was changed by any of them", async () => {
+  test("refuses admin, an unknown role and an unknown permission, changing nothing", async () => {
     const t = await make();
     const put = (role: string, permissions: unknown) =>
       t.call(`/v1/roles/${role}/permissions`, { method: "PUT", as: t.ada, json: { permissions } });
@@ -254,7 +249,7 @@ describe("/v1/roles", () => {
     });
   });
 
-  test("only roles.manage may edit, and the edit is audited with the whole before and after", async () => {
+  test("only roles.manage may edit, and the audit holds the whole before and after", async () => {
     const t = await make();
     await t.addUser("bob@example.com", "member");
     const bob = await t.login("bob@example.com");
@@ -283,7 +278,7 @@ describe("/v1/roles", () => {
     });
   });
 
-  test("the env admin token can edit roles too: the matrix is recoverable with no account at all", async () => {
+  test("the env admin token can edit roles, so the matrix needs no account to recover", async () => {
     const t = await make();
     expect(
       (
