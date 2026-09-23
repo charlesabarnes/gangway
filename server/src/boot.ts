@@ -21,7 +21,7 @@ import { userRoutes } from "./app/routes/users.ts";
 import { eventRoutes } from "./app/routes/events.ts";
 import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
-import { runtimeRoutes } from "./app/routes/runtimes.ts";
+import { runtimeRoutes, schemaRoutes } from "./app/routes/runtimes.ts";
 import { Audit } from "./audit/audit.ts";
 import { Accounts } from "./auth/accounts.ts";
 import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor.ts";
@@ -314,10 +314,13 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       secretRoutes(api, secrets);
       githubRoutes(api, { app: githubApp, settings, states: new ManifestStates(), audit, baseDomain, originFor: (label) => publicOriginFor(`${label}.${baseDomain()}`, ctx.origin) });
     },
-    publicV1: (pub) => authRoutes(pub, {
-      auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000),
-      gate: { lookup: (host) => table.lookup(host), issueTicket: (e) => gate.issueTicket(e), originFor: (host) => publicOriginFor(host, ctx.origin), safePath },
-    }),
+    publicV1: (pub) => {
+      authRoutes(pub, {
+        auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000),
+        gate: { lookup: (host) => table.lookup(host), issueTicket: (e) => gate.issueTicket(e), originFor: (host) => publicOriginFor(host, ctx.origin), safePath },
+      });
+      schemaRoutes(pub);
+    },
   });
 
   /* ---- TLS */

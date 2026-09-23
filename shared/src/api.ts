@@ -71,6 +71,21 @@ export const SourceEditSchema = z.strictObject({
   runtime: runtimeChoice.optional(),
 });
 export type SourceEdit = z.infer<typeof SourceEditSchema>;
+
+/**
+ * `POST /v1/runtimes/plan` (ADR-0016): what the server WOULD do with these files, asked
+ * before uploading them. `files` holds the contents of the few files the plan reads
+ * (`planFiles` in `GET /v1/runtimes`); the rest are only named.
+ */
+export const PlanRequestSchema = z.strictObject({
+  paths: z.array(z.string().min(1).max(255)).max(20_000),
+  files: z.record(z.string().min(1).max(255), z.string().max(256 * 1024))
+    .refine((f) => Object.keys(f).length <= 64, "at most 64 files")
+    .refine((f) => Object.values(f).reduce((n, t) => n + t.length, 0) <= 1024 * 1024, "at most 1 MiB of file contents")
+    .default({}),
+  runtime: runtimeChoice.optional(),
+});
+export type PlanRequest = z.infer<typeof PlanRequestSchema>;
 export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"] as const;
 
 export const DeployRequestSchema = z.strictObject({

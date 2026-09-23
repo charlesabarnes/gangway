@@ -1,23 +1,26 @@
 /**
- * Runtimes (ADR-0015): an upload with no Dockerfile becomes an image. This file decides
- * which runtime an upload is, finds its entry file, and writes the build files under
- * `.gangway/` -- never over a file the upload has. The catalogue itself (images, ports,
- * entries, starters, detection) is `shared/src/runtimes.ts`.
+ * Runtimes (ADR-0015, ADR-0016): an upload with no Dockerfile becomes an image. WHAT to do is
+ * decided by `planApp` (shared/src/app-plan.ts) over the files; this module reads those
+ * files from disk and turns the plan into build files under `<root>/.gangway/` -- never
+ * over a file the upload has.
  *
- * Everything written here is read by `docker build` on the host, so every string that
- * came from the upload (an entry path, a secret's NAME) is JSON-quoted where it lands.
+ * Nothing the upload wrote reaches the Dockerfile. Commands (`gangway.yml`, a Procfile, a
+ * package.json script) go into `.gangway/*.sh` scripts that the Dockerfile runs by fixed
+ * path in exec form; the only upload-derived strings in the Dockerfile itself are paths
+ * the planner has already checked against `REL_PATH_RE`, and they are JSON-quoted there.
  */
-import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DETECTION, detectRuntime, isRuntimeId, runtimeById, type Detected, type RuntimeId } from "../../../shared/src/runtimes.ts";
+import { planApp, planError, planFilePaths, MAX_PLAN_FILE_BYTES, STATIC_BUILD_OUTPUTS, type AppPlan, type PlanChoice } from "../../../shared/src/app-plan.ts";
+import type { Command } from "../../../shared/src/gangway-file.ts";
+import { isRuntimeId, runtimeById, type Detected, type RuntimeId } from "../../../shared/src/runtimes.ts";
 import { AppError } from "../errors.ts";
 import { composeForRuntime } from "./compose-model.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { containedIn, DIR_MODE, FILE_MODE } from "./source/types.ts";
 
 /** What a request may ask for: a runtime, `auto` (detect), or `own` (the upload's own stack). */
-export type RuntimeChoice = RuntimeId | "auto" | "own";
-export const RUNTIME_CHOICES = ["auto", "own"] as const;
+export type RuntimeChoice = PlanChoice;
 export const isRuntimeChoice = (s: string): s is RuntimeChoice => s === "auto" || s === "own" || isRuntimeId(s);
 
 const unprocessable = (m: string, d?: Record<string, unknown>) => new AppError("unprocessable", m, d);
@@ -27,68 +30,93 @@ export const WORKERD_VERSION = "1.20260922.1";
 export const ESBUILD_VERSION = "0.28.2";
 /** workerd refuses a date later than its own release; this one is before it. */
 export const WORKERD_COMPAT_DATE = "2026-09-01";
+/** PHP's composer, copied out of its official image when an upload has a composer.json. */
+export const COMPOSER_IMAGE = "composer:2";
 
-async function isFile(p: string): Promise<boolean> {
-  return (await lstat(p).catch(() => null))?.isFile() ?? false;
+/** Directories the plan never needs to see: they are not the app, and can be huge. */
+const SKIP_DIRS = new Set([".git", "node_modules", GENERATED_DIR, "__pycache__", ".venv", "vendor"]);
+const MAX_WALK = 20_000;
+
+/** Every file under `dir`, relative and forward-slashed, bounded. Symlinks are not followed. */
+export async function listPaths(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  const walk = async (abs: string, rel: string): Promise<void> => {
+    const entries = await readdir(abs, { withFileTypes: true }).catch(() => []);
+    for (const e of entries) {
+      if (out.length >= MAX_WALK) return;
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) await walk(path.join(abs, e.name), r); }
+      else if (e.isFile()) out.push(r);
+    }
+  };
+  await walk(dir, "");
+  return out.sort();
 }
 
-/** `auto` -> what the files look like; anything else is taken as asked. */
-export async function resolveRuntime(srcDir: string, choice: RuntimeChoice): Promise<Detected> {
-  if (choice !== "auto") return choice;
-  const markers = new Set(DETECTION.flatMap((r) => r.markers));
-  const present: string[] = [];
-  for (const m of markers) if (await isFile(path.join(srcDir, m))) present.push(m);
-  return detectRuntime(present);
-}
-
-/** A path from the upload's own config (package.json `main`, wrangler's `main`), checked to stay inside it. */
-async function entryFrom(srcDir: string, rel: unknown): Promise<string | null> {
-  if (typeof rel !== "string" || rel === "") return null;
-  const norm = path.posix.normalize(rel.replace(/^\.\//, ""));
-  // It lands in a generated file: nothing but ordinary path characters.
-  if (!/^[A-Za-z0-9._/@+-]+$/.test(norm)) return null;
-  const abs = path.resolve(srcDir, norm);
-  if (norm.startsWith("..") || path.isAbsolute(norm) || !containedIn(srcDir, abs)) return null;
-  return (await isFile(abs)) ? norm : null;
-}
-
-async function readJson(file: string): Promise<Record<string, unknown> | null> {
-  const text = await readFile(file, "utf8").catch(() => null);
-  if (text === null) return null;
-  try {
-    const v = JSON.parse(text) as unknown;
-    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-  } catch {
-    throw unprocessable(`${path.basename(file)} is not valid JSON`);
+/** The plan for an upload on disk: the same function the New screen calls through `/v1/runtimes/plan`. */
+export async function planFromDisk(srcDir: string, choice: RuntimeChoice, previous?: Detected): Promise<AppPlan> {
+  const paths = await listPaths(srcDir);
+  const files: Record<string, string> = {};
+  for (const p of planFilePaths(paths)) {
+    const abs = path.join(srcDir, p);
+    const st = await lstat(abs).catch(() => null);
+    if (!st?.isFile() || st.size > MAX_PLAN_FILE_BYTES) continue;
+    files[p] = await readFile(abs, "utf8");
   }
+  return planApp({ paths, files, runtime: choice, previous });
 }
 
-/** wrangler's `main`, from toml or json(c), read with a regex: the only key we want. */
-async function wranglerMain(srcDir: string): Promise<string | null> {
-  for (const name of ["wrangler.toml", "wrangler.json", "wrangler.jsonc"]) {
-    const text = await readFile(path.join(srcDir, name), "utf8").catch(() => null);
-    if (text === null) continue;
-    const m = name.endsWith(".toml") ? /^\s*main\s*=\s*["']([^"'\n]+)["']/m.exec(text) : /"main"\s*:\s*"([^"\n]+)"/.exec(text);
-    const found = await entryFrom(srcDir, m?.[1]);
-    if (found) return found;
+/** Refuses a plan that cannot run, with everything the UI needs to say why. */
+export function assertRunnable(plan: AppPlan): void {
+  const err = planError(plan);
+  if (err) throw unprocessable(err, { reasons: plan.reasons, issues: plan.issues });
+}
+
+/* ------------------------------------------------------------------ scripts */
+
+const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+/** A string that is one simple command can be exec'd, so signals reach the app. `a && b` cannot. */
+const SIMPLE = (s: string) => !/[;&|\n`<>()]|\$\(/.test(s);
+
+/**
+ * A `.gangway/<name>.sh`. `env` exports the plan's (non-secret) variables for a build step;
+ * the start script gets none -- its environment is the container's, secrets included.
+ */
+export function script(what: string, cmd: Command, env: Record<string, string> | null, exec: boolean): string {
+  const lines = ["#!/bin/sh", `# Generated by gangway (ADR-0016): ${what}. Rewritten on every build.`, "set -e"];
+  for (const [k, v] of Object.entries(env ?? {})) lines.push(`export ${k}=${shq(v)}`);
+  if (typeof cmd === "string") lines.push(exec && SIMPLE(cmd) ? `exec ${cmd}` : cmd);
+  else lines.push(`${exec ? "exec " : ""}${cmd.map(shq).join(" ")}`);
+  return `${lines.join("\n")}\n`;
+}
+
+function collectStatic(output: string | null): string {
+  const lines = [
+    "#!/bin/sh",
+    "# Generated by gangway (ADR-0016): copies a static build's output to /out for nginx.",
+    "set -e",
+    `serve() { mkdir -p /out && cp -R "$1"/. /out/ && echo "gangway: serving $1/ ($(find "$1" -type f | wc -l | tr -d ' ') files)"; exit 0; }`,
+  ];
+  if (output) {
+    lines.push(`if [ -d ${shq(output)} ]; then serve ${shq(output)}; fi`,
+      `echo ${shq(`gangway: static: ${output}/ does not exist after the build`)} >&2`, "exit 1");
+  } else {
+    lines.push(`for d in ${STATIC_BUILD_OUTPUTS.map((o) => (o.includes("*") ? o : shq(o))).join(" ")}; do`,
+      `  if [ -f "$d/index.html" ]; then serve "$d"; fi`, "done",
+      `echo ${shq(`gangway: the build left no ${STATIC_BUILD_OUTPUTS.join(", ")} with an index.html in it; set \`static: <dir>\` in gangway.yml`)} >&2`,
+      "exit 1");
   }
-  return null;
+  return `${lines.join("\n")}\n`;
 }
 
-async function firstEntry(srcDir: string, id: RuntimeId): Promise<string | null> {
-  for (const e of runtimeById(id).entries) if (await isFile(path.join(srcDir, e))) return e;
-  return null;
-}
+/* ------------------------------------------------------------------ build files */
 
-function noEntry(id: RuntimeId, extra = ""): AppError {
-  const rt = runtimeById(id);
-  return unprocessable(`the ${rt.name} runtime needs an entry file${extra}: one of ${rt.entries.join(", ")}`);
-}
-
-type Plan = { dockerfile: string; files: Record<string, string>; note: string };
+type Rendered = { dockerfile: string; files: Record<string, string>; note: string };
 
 const q = (s: string) => JSON.stringify(s);
-const header = (id: RuntimeId) => `# Generated by gangway for the "${id}" runtime (ADR-0015). Edits here are overwritten on every build.\n`;
+const header = (id: RuntimeId) => `# Generated by gangway for the "${id}" runtime (ADR-0015/0016). Edits here are overwritten on every build.\n`;
+const run = (name: string) => `RUN ["/bin/sh", ".gangway/${name}.sh"]\n`;
+const START = `CMD ["/bin/sh", "/app/.gangway/start.sh"]\n`;
 
 /** The Workers shape, served on $PORT. A module with no handler is assumed to serve itself. */
 function workerWrapper(entry: string, serve: "bun" | "deno"): string {
@@ -169,100 +197,122 @@ esbuild.build({
 `;
 }
 
-async function staticConf(srcDir: string, port: number): Promise<{ conf: string; note: string }> {
-  const index = await isFile(path.join(srcDir, "index.html"));
-  const notFound = await isFile(path.join(srcDir, "404.html"));
-  const fallback = notFound ? "=404" : index ? "/index.html" : "=404";
-  const note = notFound ? "404.html for unknown paths" : index ? "index.html for unknown paths (single-page app fallback)" : "no index.html: directories are listed";
-  const conf = `# Generated by gangway for the "static" runtime (ADR-0015).
+function nginxConf(port: number, fallback: "spa" | "404" | "listing"): string {
+  const tail = fallback === "404" ? "=404" : fallback === "spa" ? "/index.html" : "=404";
+  return `# Generated by gangway for a static site (ADR-0015/0016).
 server {
   listen ${port};
   server_name _;
   root /usr/share/nginx/html;
   index index.html index.htm;
-  ${index ? "" : "autoindex on;\n  "}${notFound ? "error_page 404 /404.html;\n  " : ""}location ^~ /.gangway/ { return 404; }
-  location / { try_files $uri $uri/ $uri.html ${fallback}; }
+  ${fallback === "listing" ? "autoindex on;\n  " : ""}${fallback === "404" ? "error_page 404 /404.html;\n  " : ""}location ^~ /.gangway/ { return 404; }
+  location / { try_files $uri $uri/ $uri.html ${tail}; }
 }
 `;
-  return { conf, note };
 }
 
+/** Install and build steps as scripts, run in order, with the plan's env exported for them. */
+function steps(plan: AppPlan, files: Record<string, string>): string {
+  let out = "";
+  for (const [name, cmd] of [["install", plan.install], ["build", plan.build]] as const) {
+    if (!cmd) continue;
+    files[`${name}.sh`] = script(name, cmd, plan.env, false);
+    out += run(name);
+  }
+  return out;
+}
+
+const describe = (c: Command | null) => (c === null ? "" : typeof c === "string" ? c : c.join(" "));
+
 /**
- * The Dockerfile and its helpers for one runtime. `bindings`: env NAMES the app may read
- * (workerd). `port`: listen here instead of the runtime's own -- a rebuild keeps the port
- * the preview is already routed to, so switching runtimes is not a new preview.
+ * The Dockerfile and its helpers for a plan. `bindings`: env NAMES the app may read
+ * (workerd). `port`: the port to listen on -- a rebuild passes the one the preview is
+ * already routed to, so switching runtimes is not a new preview.
  */
-export async function planRuntime(srcDir: string, id: RuntimeId, bindings: readonly string[] = [], port?: number): Promise<Plan> {
+export function renderRuntime(plan: AppPlan, bindings: readonly string[] = [], port?: number): Rendered {
+  if (plan.kind !== "runtime" || !plan.runtime || !plan.image) throw new AppError("internal", "renderRuntime needs a runtime plan");
+  const id = plan.runtime;
   const rt = runtimeById(id);
-  const listen = port ?? rt.port;
+  const listen = port ?? plan.port ?? rt.port;
   const env = `ENV PORT=${listen} HOST=0.0.0.0`;
+  const files: Record<string, string> = {};
+
+  // A build whose output nginx serves: the runtime builds, nginx runs.
+  if (plan.serve.kind === "static" && plan.serve.output !== false) {
+    const nginx = runtimeById("static").image;
+    files["nginx.conf"] = nginxConf(listen, plan.serve.fallback);
+    files["collect-static.sh"] = collectStatic(plan.serve.output);
+    return {
+      dockerfile: `${header(id)}FROM ${plan.image} AS build\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}RUN ["/bin/sh", ".gangway/collect-static.sh"]\n\n`
+        + `FROM ${nginx}\nCOPY .gangway/nginx.conf /etc/nginx/conf.d/default.conf\nCOPY --from=build /out/ /usr/share/nginx/html/\n${env}\n`,
+      files, note: `${describe(plan.build) || "no build"} -> nginx`,
+    };
+  }
+
+  const startWith = (fallbackCmd: string, note: string): { cmd: string; note: string } => {
+    if (!plan.start) return { cmd: fallbackCmd, note };
+    files["start.sh"] = script("start", plan.start, null, true);
+    return { cmd: START, note: describe(plan.start) };
+  };
+
   switch (id) {
-    case "static": {
-      const { conf, note } = await staticConf(srcDir, listen);
+    case "static":
+      files["nginx.conf"] = nginxConf(listen, plan.serve.kind === "static" ? plan.serve.fallback : "spa");
       return {
-        dockerfile: `${header(id)}FROM ${rt.image}\nCOPY .gangway/nginx.conf /etc/nginx/conf.d/default.conf\nCOPY . /usr/share/nginx/html/\n${env}\n`,
-        files: { "nginx.conf": conf }, note,
+        dockerfile: `${header(id)}FROM ${plan.image}\nCOPY .gangway/nginx.conf /etc/nginx/conf.d/default.conf\nCOPY . /usr/share/nginx/html/\n${env}\n`,
+        files, note: plan.serve.kind === "static" && plan.serve.fallback === "spa" ? "index.html for unknown paths (single-page app fallback)"
+          : plan.serve.kind === "static" && plan.serve.fallback === "404" ? "404.html for unknown paths" : "no index.html: directories are listed",
       };
-    }
-    case "php":
+    case "php": {
+      const composer = plan.install !== null && describe(plan.install).startsWith("composer ");
+      const docroot = plan.docroot ? `/var/www/html/${plan.docroot}` : null;
       return {
-        dockerfile: `${header(id)}FROM ${rt.image}\nCOPY . /var/www/html/\nRUN rm -rf /var/www/html/.gangway\n`
+        dockerfile: `${header(id)}FROM ${plan.image}\n`
+          + (composer ? `RUN apt-get update && apt-get install -y --no-install-recommends git unzip && rm -rf /var/lib/apt/lists/*\nCOPY --from=${COMPOSER_IMAGE} /usr/bin/composer /usr/local/bin/composer\nENV COMPOSER_ALLOW_SUPERUSER=1\n` : "")
+          + `WORKDIR /var/www/html\nCOPY . /var/www/html/\n${steps(plan, files)}RUN rm -rf /var/www/html/.gangway && a2enmod rewrite\n`
+          + (docroot ? `ENV APACHE_DOCUMENT_ROOT=${q(docroot)}\nRUN sed -ri -e 's!/var/www/html!\${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf && sed -ri -e 's!/var/www/!\${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf\n` : "")
           + (listen === 80 ? "" : `RUN sed -i 's/^Listen 80$/Listen ${listen}/' /etc/apache2/ports.conf && sed -i 's/:80>/:${listen}>/' /etc/apache2/sites-available/000-default.conf\n`)
           + `${env}\n`,
-        files: {}, note: "Apache + mod_php",
+        files, note: `Apache + mod_php${docroot ? `, serving ${plan.docroot}/` : ""}`,
       };
+    }
     case "python": {
-      const entry = await firstEntry(srcDir, id);
-      if (!entry) throw noEntry(id);
+      const s = startWith("", "");
       return {
-        dockerfile: `${header(id)}FROM ${rt.image}\nWORKDIR /app\nCOPY . .\n`
-          + `RUN if [ -f requirements.txt ]; then pip install --no-cache-dir --root-user-action=ignore -r requirements.txt; fi\n`
-          + `${env} PYTHONUNBUFFERED=1\nCMD ["python", ${q(entry)}]\n`,
-        files: {}, note: `python ${entry}`,
+        dockerfile: `${header(id)}FROM ${plan.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${env} PYTHONUNBUFFERED=1\n${s.cmd}`,
+        files, note: s.note,
       };
     }
     case "node": {
-      const pkg = await readJson(path.join(srcDir, "package.json"));
-      const scripts = pkg?.["scripts"] && typeof pkg["scripts"] === "object" ? (pkg["scripts"] as Record<string, unknown>) : {};
-      const main = typeof scripts["start"] === "string" ? null : (await entryFrom(srcDir, pkg?.["main"])) ?? (await firstEntry(srcDir, id));
-      if (typeof scripts["start"] !== "string" && !main) throw noEntry(id, " (or a `start` script in package.json)");
-      const install = `RUN if [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile; \\
-    elif [ -f yarn.lock ]; then corepack enable && yarn install; \\
-    elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then npm ci --no-audit --no-fund; \\
-    elif [ -f package.json ]; then npm install --no-audit --no-fund; fi\n`;
-      const build = pkg ? `RUN npm run build --if-present\n` : "";
-      const cmd = main ? `CMD ["node", ${q(main)}]` : `CMD ["npm", "start"]`;
+      const s = startWith("", "");
       return {
-        dockerfile: `${header(id)}FROM ${rt.image}\nWORKDIR /app\nCOPY . .\n${install}${build}${env} NODE_ENV=production\n${cmd}\n`,
-        files: {}, note: main ? `node ${main}` : "npm start",
+        dockerfile: `${header(id)}FROM ${plan.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${env} NODE_ENV=production\n${s.cmd}`,
+        files, note: s.note,
       };
     }
     case "bun": {
-      const pkg = await readJson(path.join(srcDir, "package.json"));
-      const entry = (await entryFrom(srcDir, pkg?.["module"])) ?? (await entryFrom(srcDir, pkg?.["main"])) ?? (await firstEntry(srcDir, id));
-      if (!entry) throw noEntry(id);
-      return {
-        dockerfile: `${header(id)}FROM ${rt.image}\nWORKDIR /app\nCOPY . .\nRUN if [ -f package.json ]; then bun install; fi\n${env}\nCMD ["bun", "run", ".gangway/entry.ts"]\n`,
-        files: { "entry.ts": workerWrapper(entry, "bun") }, note: `bun ${entry}`,
-      };
+      if (plan.entry && !plan.start) files["entry.ts"] = workerWrapper(plan.entry, "bun");
+      const s = startWith(`CMD ["bun", "run", ".gangway/entry.ts"]\n`, `bun ${plan.entry}`);
+      return { dockerfile: `${header(id)}FROM ${plan.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${env}\n${s.cmd}`, files, note: s.note };
     }
     case "deno": {
-      const entry = await firstEntry(srcDir, id);
-      if (!entry) throw noEntry(id);
+      const wrapped = plan.entry !== null && !plan.start;
+      if (wrapped) files["entry.ts"] = workerWrapper(plan.entry!, "deno");
+      const s = startWith(`CMD ["deno", "run", "-A", ".gangway/entry.ts"]\n`, `deno ${plan.entry}`);
       return {
-        dockerfile: `${header(id)}FROM ${rt.image}\nWORKDIR /app\nCOPY . .\nRUN deno cache .gangway/entry.ts\n${env}\nCMD ["deno", "run", "-A", ".gangway/entry.ts"]\n`,
-        files: { "entry.ts": workerWrapper(entry, "deno") }, note: `deno ${entry}`,
+        dockerfile: `${header(id)}FROM ${plan.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${wrapped ? `RUN deno cache .gangway/entry.ts\n` : ""}${env}\n${s.cmd}`,
+        files, note: s.note,
       };
     }
     case "workerd": {
-      const entry = (await wranglerMain(srcDir)) ?? (await firstEntry(srcDir, id));
-      if (!entry) throw noEntry(id, " (or wrangler's `main`)");
+      if (!plan.entry) throw new AppError("internal", "a workerd plan without an entry");
+      files["bundle.cjs"] = workerdBundler(plan.entry, bindings, listen);
       return {
-        dockerfile: `${header(id)}FROM node:24-bookworm-slim\n`
+        dockerfile: `${header(id)}FROM ${plan.image}\n`
           + `WORKDIR /opt/gangway\nRUN npm install --no-audit --no-fund --no-save workerd@${WORKERD_VERSION} esbuild@${ESBUILD_VERSION}\n`
-          + `WORKDIR /app\nCOPY . .\nRUN if [ -f package.json ]; then npm install --no-audit --no-fund; fi\nRUN node .gangway/bundle.cjs\n`
+          + `WORKDIR /app\nCOPY . .\n${steps(plan, files)}RUN node .gangway/bundle.cjs\n`
           + `${env}\nCMD ["/opt/gangway/node_modules/.bin/workerd", "serve", "/app/.gangway/config.capnp"]\n`,
-        files: { "bundle.cjs": workerdBundler(entry, bindings, listen) }, note: `workerd ${entry}`,
+        files, note: `workerd ${plan.entry}`,
       };
     }
   }
@@ -272,27 +322,40 @@ export async function planRuntime(srcDir: string, id: RuntimeId, bindings: reado
 const ALWAYS_BOUND = ["PUBLIC_URL", "GANGWAY_PREVIEW_ID"];
 
 /**
- * Writes `.gangway/` into `srcDir` and the compose file to `composePath`, which must be
- * OUTSIDE it: the compose file carries secret values, and `COPY . .` would bake anything in
- * the build context into a layer. Returns the compose file relative to `srcDir`. The
+ * Writes `<root>/.gangway/` into `srcDir` and the compose file to `composePath`, which must
+ * be OUTSIDE it: the compose file carries secret values, and `COPY . .` would bake anything
+ * in the build context into a layer. Returns the compose file relative to `srcDir`. The
  * upload's own `.gangway/`, if any, is replaced.
+ *
+ * `secrets` win over `gangway.yml`'s `env` of the same name: the file is in the upload,
+ * the secrets are the operator's.
  */
 export async function writeRuntime(
-  srcDir: string, id: RuntimeId, env: Record<string, string> | undefined, composePath: string, port?: number,
+  srcDir: string, plan: AppPlan, secrets: Record<string, string> | undefined, composePath: string, port?: number,
 ): Promise<{ composeFile: string; note: string }> {
   if (containedIn(srcDir, composePath)) throw new AppError("internal", "the runtime compose file must be outside the build context");
-  const bindings = [...new Set([...ALWAYS_BOUND, ...Object.keys(env ?? {})])].sort();
-  const plan = await planRuntime(srcDir, id, bindings, port);
-  const dir = path.join(srcDir, GENERATED_DIR);
+  const env = { ...plan.env, ...(secrets ?? {}) };
+  const bindings = [...new Set([...ALWAYS_BOUND, ...Object.keys(env)])].sort();
+  const rendered = renderRuntime(plan, bindings, port);
+  const context = plan.root ? path.join(srcDir, plan.root) : srcDir;
+  if (!containedIn(srcDir, context)) throw unprocessable("root: leaves the upload");
+  const dir = path.join(context, GENERATED_DIR);
   const st = await lstat(dir).catch(() => null);
-  if (st && !st.isDirectory()) throw unprocessable(`${GENERATED_DIR} in the upload is not a directory; gangway writes its build files there`);
+  if (st && !st.isDirectory()) throw unprocessable(`${plan.root ? `${plan.root}/` : ""}${GENERATED_DIR} in the upload is not a directory; gangway writes its build files there`);
   // World-readable like the extracted upload (FILE_MODE): COPY keeps modes, and nginx and
   // Apache run unprivileged in the image. Nothing here is secret -- the compose file is.
   await mkdir(dir, { recursive: true, mode: DIR_MODE });
-  await writeFile(path.join(dir, "Dockerfile"), plan.dockerfile, { mode: FILE_MODE });
+  await writeFile(path.join(dir, "Dockerfile"), rendered.dockerfile, { mode: FILE_MODE });
   // The Dockerfile's own ignore file: the upload's .dockerignore, if any, is left alone.
   await writeFile(path.join(dir, "Dockerfile.dockerignore"), ".git\n**/node_modules\n.gangway/out\n", { mode: FILE_MODE });
-  for (const [name, body] of Object.entries(plan.files)) await writeFile(path.join(dir, name), body, { mode: FILE_MODE });
-  await writeFile(composePath, composeForRuntime({ port: port ?? runtimeById(id).port, env }), { mode: 0o600 });
-  return { composeFile: path.relative(srcDir, composePath), note: plan.note };
+  for (const [name, body] of Object.entries(rendered.files)) await writeFile(path.join(dir, name), body, { mode: FILE_MODE });
+  const listen = port ?? plan.port ?? runtimeById(plan.runtime!).port;
+  await writeFile(composePath, composeForRuntime({ port: listen, env, context: plan.root || ".", stack: stackX(plan), health: plan.health }), { mode: 0o600 });
+  return { composeFile: path.relative(srcDir, composePath), note: rendered.note };
+}
+
+/** gangway.yml's stack policy, plus its release command, as the generated compose file's `x-gangway`. */
+export function stackX(plan: AppPlan): Record<string, string> {
+  const release = plan.release === null ? undefined : typeof plan.release === "string" ? plan.release : plan.release.map(shq).join(" ");
+  return { ...plan.stack, ...(release !== undefined ? { release } : {}) };
 }

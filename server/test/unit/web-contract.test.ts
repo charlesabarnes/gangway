@@ -185,6 +185,11 @@ describe("runtime wire shapes (ADR-0015)", () => {
     const noStarter = (r: unknown) => { const { starter, ...rest } = r as Record<string, unknown>; return shapeOf({ ...rest, starterIsObject: typeof starter === "object" }); };
     expect(noStarter(list.runtimes[0])).toEqual(noStarter(want.runtimes[0]));
     expect(shapeOf(list.detection[0])).toEqual(shapeOf(want.detection[0]));
+    // ADR-0016: the files a plan reads, and the plan itself, for a Vite app.
+    expect((list as unknown as { planFiles: string[] }).planFiles).toEqual((want as unknown as { planFiles: string[] }).planFiles);
+    const vite = { "package.json": JSON.stringify({ scripts: { dev: "vite", build: "vite build" } }), "index.html": "" };
+    const planned = await (await app.request("/runtimes/plan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ paths: Object.keys(vite), files: vite }) })).json();
+    expect(planned).toEqual(contract["appPlan"]);
 
     const p = pack(); p.entry({ name: "index.ts" }, "export default {}"); p.finalize();
     const chunks: Buffer[] = []; for await (const c of p) chunks.push(c as Buffer);

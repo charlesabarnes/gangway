@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { gunzipSync, strToU8 } from 'fflate';
 import contract from '../../../testing/fixtures/contract.json';
 import { render } from '../../../testing/render';
-import type { Permission, Preview, RuntimeList } from '../../core/api.types';
+import type { AppPlan, Permission, Preview, RuntimeList } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { NewPreview } from './new-preview';
 import { finish } from './pack';
@@ -14,11 +14,12 @@ class Blank {}
 
 const RUNTIMES: RuntimeList = {
   runtimes: [
-    { id: 'static', name: 'Static site', language: 'HTML', description: 'nginx', image: 'nginx', port: 8080, starter: { 'index.html': '<h1>hi</h1>' } },
-    { id: 'bun', name: 'TypeScript on Bun', language: 'TypeScript', description: 'bun', image: 'oven/bun', port: 3000, starter: { 'index.ts': 'export default {};' } },
-    { id: 'node', name: 'Node.js', language: 'JavaScript', description: 'node', image: 'node', port: 3000, starter: { 'server.js': '' } },
+    { id: 'static', name: 'Static site', language: 'HTML', description: 'nginx', image: 'nginx', port: 8080, starter: { 'index.html': '<h1>hi</h1>' }, versions: ['1.29'] },
+    { id: 'bun', name: 'TypeScript on Bun', language: 'TypeScript', description: 'bun', image: 'oven/bun', port: 3000, starter: { 'index.ts': 'export default {};' }, versions: ['1.4'] },
+    { id: 'node', name: 'Node.js', language: 'JavaScript', description: 'node', image: 'node', port: 3000, starter: { 'server.js': '' }, versions: ['24', '22', '20'] },
   ],
   detection: [{ runtime: 'own', markers: ['Dockerfile'] }, { runtime: 'node', markers: ['package.json'] }, { runtime: 'bun', markers: ['index.ts'] }],
+  planFiles: ['gangway.yml', 'package.json', 'Procfile'],
 };
 
 async function open(permissions: Permission[] = ['previews.read', 'previews.deploy']) {
@@ -114,6 +115,49 @@ describe('NewPreview', () => {
     await r.fixture.componentInstance.accept(finish([{ path: '.DS_Store', data: strToU8('') }]));
     await r.settle();
     expect(r.text('error')).toContain('Nothing to upload');
+    r.http.verify();
+  });
+
+  it('asks the server for a plan, shows its reasons, deploys with runtime=auto; a plan that cannot run blocks Deploy', async () => {
+    const r = await open();
+    await r.fixture.componentInstance.accept(finish([
+      { path: 'site/package.json', data: strToU8('{"scripts":{"build":"vite build"}}') },
+      { path: 'site/index.html', data: strToU8('<div id=app></div>') },
+      { path: 'site/src/main.ts', data: strToU8('x') },
+    ]));
+    await r.settle();
+    const ask = r.http.expectOne('/v1/runtimes/plan');
+    // Paths all named; only the plan files' text sent.
+    expect(ask.request.body).toEqual({ paths: ['index.html', 'package.json', 'src/main.ts'], files: { 'package.json': '{"scripts":{"build":"vite build"}}' }, runtime: 'auto' });
+    expect(r.byTestId('planning')).not.toBeNull();
+    ask.flush(contract.appPlan);
+    await r.settle();
+    const reasons = r.allByTestId('plan-reason').map((e) => e.textContent!.replace(/\s+/g, ' ').trim());
+    expect(reasons.some((t) => t.includes('a build script and nothing to start') && t.endsWith('with nginx'))).toBe(true);
+    expect(r.text('plan-summary')).toBe('node:24-alpine · npm install --no-audit --no-fund · npm run build · nginx serves the build output');
+    expect((r.byTestId('deploy') as HTMLButtonElement).disabled).toBe(false);
+
+    r.byTestId('deploy')!.click();
+    await r.settle();
+    const req = r.http.expectOne((q) => q.url.startsWith('/v1/previews'));
+    expect(req.request.urlWithParams).toBe('/v1/previews?runtime=auto&name=site');
+    req.flush({ title: 'x' }, { status: 500, statusText: 'x' });
+    await r.settle();
+
+    // Choosing a runtime plans again; an error there disables Deploy.
+    const select = r.byTestId('runtime-select') as HTMLSelectElement;
+    select.value = 'bun';
+    select.dispatchEvent(new Event('change'));
+    await r.settle();
+    const again = r.http.expectOne('/v1/runtimes/plan');
+    expect(again.request.body.runtime).toBe('bun');
+    const refused: AppPlan = { ...(contract.appPlan as AppPlan), runtime: 'bun', reasons: [{ level: 'error', found: 'no entry file for TypeScript on Bun', then: 'the TypeScript on Bun runtime needs an entry file: one of index.ts' }], issues: [] };
+    again.flush(refused);
+    await r.settle();
+    expect(r.allByTestId('plan-reason')[0]!.getAttribute('data-level')).toBe('error');
+    expect((r.byTestId('deploy') as HTMLButtonElement).disabled).toBe(true);
+    // "Looks like" is still what auto found.
+    expect(r.text('detected')).toBe('Looks like: Node.js');
     r.http.verify();
   });
 });

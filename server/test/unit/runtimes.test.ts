@@ -11,14 +11,23 @@ import { DETECTION, RUNTIMES, detectRuntime } from "../../../shared/src/runtimes
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
-import { runtimeRoutes } from "../../src/app/routes/runtimes.ts";
+import { runtimeRoutes, schemaRoutes } from "../../src/app/routes/runtimes.ts";
 import { Logger } from "../../src/logger.ts";
 import { deploy } from "../../src/previews/deploy.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { checkEditPath, redeploy } from "../../src/previews/redeploy.ts";
-import { planRuntime, resolveRuntime, writeRuntime } from "../../src/previews/runtimes.ts";
+import { assertRunnable, planFromDisk, renderRuntime, writeRuntime, type RuntimeChoice } from "../../src/previews/runtimes.ts";
+import type { RuntimeId } from "../../../shared/src/runtimes.ts";
 import { asText, SourceStore } from "../../src/previews/source/store.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+
+/** Plan an upload on disk as a runtime and render its build files: what a deploy does. */
+async function planRuntime(dir: string, id: RuntimeId, bindings: string[] = [], port?: number) {
+  const plan = await planFromDisk(dir, id);
+  assertRunnable(plan);
+  return renderRuntime(plan, bindings, port);
+}
+const planned = async (dir: string, choice: RuntimeChoice = "auto") => { const p = await planFromDisk(dir, choice); assertRunnable(p); return p; };
 
 async function tarball(files: Record<string, string>): Promise<Uint8Array> {
   const p = pack();
@@ -63,8 +72,8 @@ describe("detection", () => {
 
   test("the server reads the same markers from disk", async () => {
     const dir = await folder({ "deno.json": "{}", "main.ts": "" });
-    expect(await resolveRuntime(dir, "auto")).toBe("deno");
-    expect(await resolveRuntime(dir, "static")).toBe("static");
+    expect((await planFromDisk(dir, "auto")).runtime).toBe("deno");
+    expect((await planFromDisk(dir, "static")).runtime).toBe("static");
     rmSync(dir, { recursive: true });
   });
 
@@ -119,9 +128,11 @@ describe("generated build files", () => {
 
   test("node: a start script wins; else package.json main; a main that escapes is ignored", async () => {
     const a = await folder({ "package.json": JSON.stringify({ scripts: { start: "node x.js" } }) });
-    expect((await planRuntime(a, "node")).dockerfile).toContain(`CMD ["npm", "start"]`);
+    const ra = await planRuntime(a, "node");
+    expect(ra.dockerfile).toContain(`CMD ["/bin/sh", "/app/.gangway/start.sh"]`);
+    expect(ra.files["start.sh"]).toContain("exec npm start");
     const b = await folder({ "package.json": JSON.stringify({ main: "srv/app.js" }), "srv/app.js": "" });
-    expect((await planRuntime(b, "node")).dockerfile).toContain(`CMD ["node", "srv/app.js"]`);
+    expect((await planRuntime(b, "node")).files["start.sh"]).toContain("exec 'node' 'srv/app.js'");
     const c = await folder({ "package.json": JSON.stringify({ main: "../../etc/passwd" }) });
     await expect(planRuntime(c, "node")).rejects.toMatchObject({ code: "unprocessable" });
     for (const d of [a, b, c]) rmSync(d, { recursive: true });
@@ -148,7 +159,7 @@ describe("generated build files", () => {
   test("writeRuntime: .gangway/ in the context, the compose file (with secret VALUES) outside it", async () => {
     const dir = await folder({ "index.ts": "" });
     const out = mkdtempSync(join(tmpdir(), "gangway-rt-out-"));
-    const { composeFile } = await writeRuntime(dir, "bun", { API_KEY: "s3cret" }, join(out, "c.yaml"));
+    const { composeFile } = await writeRuntime(dir, await planned(dir, "bun"), { API_KEY: "s3cret" }, join(out, "c.yaml"));
     expect(existsSync(join(dir, ".gangway/Dockerfile"))).toBe(true);
     expect(existsSync(join(dir, ".gangway/entry.ts"))).toBe(true);
     expect(readFileSync(join(dir, ".gangway/Dockerfile.dockerignore"), "utf8")).toContain("node_modules");
@@ -157,7 +168,7 @@ describe("generated build files", () => {
     expect(statSync(join(out, "c.yaml")).mode & 0o777).toBe(0o600);
     expect(readFileSync(join(dir, composeFile), "utf8")).toContain("s3cret");
     expect(composeFile.startsWith("..")).toBe(true);
-    await expect(writeRuntime(dir, "bun", {}, join(dir, "inside.yaml"))).rejects.toMatchObject({ code: "internal" });
+    await expect(writeRuntime(dir, await planned(dir, "bun"), {}, join(dir, "inside.yaml"))).rejects.toMatchObject({ code: "internal" });
     for (const d of [dir, out]) rmSync(d, { recursive: true });
   });
 
@@ -333,5 +344,192 @@ describe("HTTP", () => {
     await s.ctx.inflight.get(up.preview.id)?.done;
 
     expect((await app.request(`/previews/${up.preview.id}/source`, { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" })).status).toBe(400);
+  });
+});
+
+describe("ADR-0016: conventions, gangway.yml, scripts", () => {
+  test("no upload-supplied command reaches the Dockerfile; scripts carry them, quoted", async () => {
+    const evil = "echo $(id) `x` \"; RUN rm -rf /";
+    const dir = await folder({ "package.json": JSON.stringify({ scripts: { build: evil, start: "node s.js" } }), "gangway.yml": "env: { NOTE: \"it's $HOME\" }\nstart: [node, \"s p a c e.js\", \"it's\"]\n", "s p a c e.js": "" });
+    const r = await planRuntime(dir, "node");
+    expect(r.dockerfile).not.toContain("id)");
+    expect(r.dockerfile).not.toContain("rm -rf");
+    expect(r.dockerfile).toContain(`RUN ["/bin/sh", ".gangway/build.sh"]`);
+    expect(r.files["build.sh"]).toContain("npm run build");
+    expect(r.files["build.sh"]).toContain(`export NOTE='it'\\''s $HOME'`);
+    expect(r.files["start.sh"]).toContain(`exec 'node' 's p a c e.js' 'it'\\''s'`);
+    // The start script's environment is the container's: no exports that would shadow a secret.
+    expect(r.files["start.sh"]).not.toContain("export");
+    for (const [name, body] of Object.entries(r.files)) {
+      if (!name.endsWith(".sh")) continue;
+      const res = Bun.spawnSync(["sh", "-n"], { stdin: new TextEncoder().encode(body) });
+      expect(res.exitCode).toBe(0);
+    }
+    rmSync(dir, { recursive: true });
+  });
+
+  test("a compound start command runs as written (no exec that would drop the rest)", async () => {
+    const dir = await folder({ "gangway.yml": "runtime: python\nstart: python migrate.py && exec python app.py\n" });
+    expect((await planRuntime(dir, "python")).files["start.sh"]).toContain("\npython migrate.py && exec python app.py\n");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("a Vite app: node builds, nginx serves the output, on the runtime's port", async () => {
+    const dir = await folder({ "package.json": JSON.stringify({ scripts: { dev: "vite", build: "vite build" } }), "index.html": "" });
+    const r = await planRuntime(dir, "node");
+    expect(r.dockerfile).toContain("FROM node:24-alpine AS build");
+    expect(r.dockerfile).toContain(`RUN ["/bin/sh", ".gangway/collect-static.sh"]`);
+    expect(r.dockerfile).toContain("FROM nginxinc/nginx-unprivileged:1.29-alpine");
+    expect(r.dockerfile).toContain("COPY --from=build /out/ /usr/share/nginx/html/");
+    expect(r.files["nginx.conf"]).toContain("listen 3000;");
+    expect(r.files["collect-static.sh"]).toContain("for d in 'dist' 'build' 'out' '.output/public' dist/*/browser; do");
+    expect(Bun.spawnSync(["sh", "-n"], { stdin: new TextEncoder().encode(r.files["collect-static.sh"]!) }).exitCode).toBe(0);
+    rmSync(dir, { recursive: true });
+  });
+
+  test("collect-static.sh finds the build output, and says so when there is none", async () => {
+    const dir = await folder({ "package.json": JSON.stringify({ scripts: { build: "x" } }) });
+    const script = (await planRuntime(dir, "node")).files["collect-static.sh"]!.replaceAll("/out", join(dir, "out-copy"));
+    await writeFile(join(dir, "collect.sh"), script);
+    expect(Bun.spawnSync(["sh", "collect.sh"], { cwd: dir }).exitCode).toBe(1);
+    await mkdir(join(dir, "dist/app/browser"), { recursive: true });
+    await writeFile(join(dir, "dist/app/browser/index.html"), "<h1>ng</h1>");
+    const ok = Bun.spawnSync(["sh", "collect.sh"], { cwd: dir });
+    expect(ok.exitCode).toBe(0);
+    expect(readFileSync(join(dir, "out-copy/index.html"), "utf8")).toBe("<h1>ng</h1>");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("php: composer and a public/ docroot", async () => {
+    const dir = await folder({ "composer.json": "{}", "public/index.php": "" });
+    const r = await planRuntime(dir, "php");
+    expect(r.dockerfile).toContain("COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer");
+    expect(r.dockerfile).toContain(`ENV APACHE_DOCUMENT_ROOT="/var/www/html/public"`);
+    expect(r.dockerfile).toContain("a2enmod rewrite");
+    expect(r.files["install.sh"]).toContain("composer install --no-dev");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("a version from gangway.yml picks the pinned image", async () => {
+    const dir = await folder({ "gangway.yml": "version: \"3.12\"\n", "main.py": "" });
+    expect((await planRuntime(dir, "python")).dockerfile).toContain("FROM python:3.12-slim");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("writeRuntime: a nested app builds from its own directory; policy and health reach the compose file", async () => {
+    const dir = await folder({ "README.md": "", "site/gangway.yml": "healthcheck: /up\nttl: 3d\nrelease: echo migrate\nenv: { MODE: demo }\n", "site/index.ts": "" });
+    const out = mkdtempSync(join(tmpdir(), "gangway-rt-out-"));
+    const plan = await planned(dir);
+    expect(plan.root).toBe("site");
+    const { composeFile } = await writeRuntime(dir, plan, { MODE: "secret-wins" }, join(out, "c.yaml"));
+    expect(existsSync(join(dir, "site/.gangway/Dockerfile"))).toBe(true);
+    expect(existsSync(join(dir, ".gangway"))).toBe(false);
+    const doc = JSON.parse(readFileSync(join(dir, composeFile), "utf8"));
+    expect(doc["x-gangway"]).toEqual({ ttl: "3d", release: "echo migrate" });
+    expect(doc.services.web.build).toEqual({ context: "site", dockerfile: ".gangway/Dockerfile" });
+    expect(doc.services.web["x-gangway"]).toEqual({ expose: true, port: 3000, health: "/up" });
+    expect(doc.services.web.environment.MODE).toBe("secret-wins");
+    for (const d of [dir, out]) rmSync(d, { recursive: true });
+  });
+
+  test("deploy: gangway.yml's release runs before the seed, the health path is probed, the plan is logged", async () => {
+    const s = setup();
+    const paths: (string | undefined)[] = [];
+    s.ctx.probe = async (_r, _h, path) => { paths.push(path); return true; };
+    const archive = await tarball({ "index.ts": "export default {}", "gangway.yml": "release: npm run migrate\nseed: npm run seed\nhealthcheck: /ready\n" });
+    const res = await deploy(s.ctx, { actor: ACTOR, visibility: "public", source: { kind: "tarball", archive, runtime: "auto" } });
+    expect((await res.done).state).toBe("awake");
+    expect(s.fake.runs.map((a) => a.at(-1))).toEqual(["npm run migrate", "npm run seed"]);
+    expect(paths).toContain("/ready");
+    const log = s.ctx.logs.read(res.preview.id).map((l) => l.line);
+    expect(log.some((l) => l.startsWith("plan: index.ts -> looks like TypeScript on Bun"))).toBe(true);
+    // The kept source is the upload, gangway.yml included.
+    expect((await s.sources.list(res.preview.id)).files.map((f) => f.path)).toEqual(["gangway.yml", "index.ts"]);
+  });
+
+  test("deploy: a bad gangway.yml is a 422 naming the key, and nothing is kept", async () => {
+    const s = setup();
+    const archive = await tarball({ "index.ts": "", "gangway.yml": "strat: x\n" });
+    await expect(deploy(s.ctx, { actor: ACTOR, visibility: "public", source: { kind: "tarball", archive, runtime: "auto" } }))
+      .rejects.toMatchObject({ code: "unprocessable", message: expect.stringContaining("gangway.yml:"), detail: { issues: [expect.objectContaining({ path: "" })] } });
+    expect(await s.sources.ids()).toEqual([]);
+  });
+
+  test("deploy: a lone Dockerfile gets its port from gangway.yml", async () => {
+    const s = setup();
+    const archive = await tarball({ Dockerfile: "FROM nginx", "gangway.yml": "port: 8081\n" });
+    const res = await deploy(s.ctx, { actor: ACTOR, visibility: "public", source: { kind: "tarball", archive, runtime: "auto" } });
+    await res.done;
+    expect(s.routes.forPreview(res.preview.id)[0]).toMatchObject({ containerPort: 8081 });
+  });
+
+  test("rebuild: the release runs before the swap; failing it keeps the old version serving", async () => {
+    const s = setup();
+    const res = await deploy(s.ctx, { actor: ACTOR, name: "rel", visibility: "public", source: { kind: "tarball", archive: await tarball({ "index.ts": "v1" }), runtime: "bun" } });
+    const p = await res.done;
+    s.fake.runExit = 1;
+    const o = await (await redeploy(s.ctx, { actor: ACTOR, previewId: p.id, change: { kind: "edit", files: { "gangway.yml": "release: npm run migrate\n" } } })).done;
+    expect(o).toMatchObject({ outcome: "failed", preview: { state: "awake" } });
+    expect(s.fake.runs.at(-1)!.at(-1)).toBe("npm run migrate");
+    expect(s.ctx.logs.read(p.id).map((l) => l.line)).toContain("rebuild FAILED: compose run (release) exited 1 -- the previous version is still serving");
+  });
+
+  test("rebuild: gangway.yml's runtime beats the recorded one; without it the recorded one is kept", async () => {
+    const s = setup();
+    const res = await deploy(s.ctx, { actor: ACTOR, name: "rt", visibility: "public", source: { kind: "tarball", archive: await tarball({ "main.ts": "x" }), runtime: "deno" } });
+    const p = await res.done;
+    await (await redeploy(s.ctx, { actor: ACTOR, previewId: p.id, change: { kind: "edit", files: { "main.ts": "y" } } })).done;
+    expect(s.previews.get(p.id)!.source).toMatchObject({ runtime: "deno" });
+    await (await redeploy(s.ctx, { actor: ACTOR, previewId: p.id, change: { kind: "edit", files: { "gangway.yml": "runtime: bun\n", "index.ts": "z" } } })).done;
+    expect(s.previews.get(p.id)!.source).toMatchObject({ runtime: "bun" });
+  });
+
+  test("edits may not write into any .gangway/, at any depth", () => {
+    expect(() => checkEditPath("site/.gangway/Dockerfile")).toThrow();
+    expect(() => checkEditPath("site/gangway.yml")).not.toThrow();
+  });
+});
+
+describe("ADR-0016 HTTP", () => {
+  const quiet = new Logger("error", {}, () => {});
+  const api = (s: ReturnType<typeof setup>) => {
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler(quiet));
+    app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
+    previewRoutes(app, s.ctx, null as never);
+    runtimeRoutes(app);
+    schemaRoutes(app);
+    return app;
+  };
+
+  test("POST /runtimes/plan answers what a deploy would do", async () => {
+    const app = api(setup());
+    const res = await app.request("/runtimes/plan", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paths: ["package.json", "index.html", "src/main.ts"], files: { "package.json": JSON.stringify({ scripts: { build: "vite build" } }) } }),
+    });
+    expect(res.status).toBe(200);
+    const plan = await res.json() as { runtime: string; serve: { kind: string }; reasons: { then: string }[] };
+    expect(plan.runtime).toBe("node");
+    expect(plan.serve.kind).toBe("static");
+    expect((await app.request("/runtimes/plan", { method: "POST", headers: { "content-type": "application/json" }, body: "{\"paths\":\"x\"}" })).status).toBe(422);
+  });
+
+  test("GET /runtimes lists the plan files and each runtime's versions", async () => {
+    const body = await (await api(setup()).request("/runtimes")).json() as { planFiles: string[]; runtimes: { id: string; versions: string[] }[] };
+    expect(body.planFiles).toContain("gangway.yml");
+    expect(body.runtimes.find((r) => r.id === "node")!.versions.sort()).toEqual(["20", "22", "24"]);
+  });
+
+  test("GET /schema/gangway.yml is JSON Schema; GET /previews/:id/plan explains a kept source", async () => {
+    const s = setup();
+    const app = api(s);
+    const schema = await (await app.request("/schema/gangway.yml")).json() as { title: string; properties: Record<string, unknown> };
+    expect(schema.title).toBe("gangway.yml");
+    const res = await deploy(s.ctx, { actor: ACTOR, name: "pl", visibility: "public", source: { kind: "tarball", archive: await tarball({ "main.ts": "" }), runtime: "deno" } });
+    await res.done;
+    const plan = await (await app.request(`/previews/${res.preview.id}/plan`)).json() as { runtime: string };
+    // The recorded runtime, not a fresh guess (main.ts alone would read as Bun).
+    expect(plan.runtime).toBe("deno");
   });
 });

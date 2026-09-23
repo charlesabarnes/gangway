@@ -2,11 +2,11 @@ import { HttpClient, HttpEventType } from '@angular/common/http';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom, last, tap } from 'rxjs';
-import { VISIBILITIES, type Detected, type Preview, type Project, type Runtime, type RuntimeList, type Template } from '../../core/api.types';
+import { VISIBILITIES, type AppPlan, type Command, type Detected, type Preview, type Project, type Runtime, type RuntimeList, type Template } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem, type ProblemError } from '../../core/problem';
 import { Btn } from '../../ui/button';
-import { collectFromDrop, collectFromFiles, detect, packFiles, packStarter, UploadError, type Collected } from './pack';
+import { collectFromDrop, collectFromFiles, detect, packFiles, packStarter, planPayload, UploadError, type Collected } from './pack';
 import { deployQuery, formatBytes, problemNotes } from './upload';
 
 const FIELD = 'block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent/30 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900';
@@ -54,6 +54,24 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
           @if (upload(); as u) {
             <p class="font-medium" data-testid="summary">{{ u.files.length }} file{{ u.files.length === 1 ? '' : 's' }}, {{ size(u.totalBytes) }}@if (u.skipped) { <span class="font-normal text-neutral-500"> ({{ u.skipped }} skipped: .git, node_modules, OS files)</span> }</p>
             <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400" data-testid="detected">Looks like: <span class="font-medium">{{ label(detected()) }}</span></p>
+            @if (plan(); as p) {
+              <ul class="mx-auto mt-4 max-w-xl space-y-1 text-left text-xs" data-testid="plan">
+                @for (i of p.issues; track $index) {
+                  <li class="flex gap-2 text-red-700 dark:text-red-400" data-testid="plan-issue"><span aria-hidden="true">✕</span><span><span class="font-mono">gangway.yml{{ i.path ? ' ' + i.path : '' }}</span>: {{ i.message }}</span></li>
+                }
+                @for (r of p.reasons; track $index) {
+                  <li class="flex gap-2" [class]="r.level === 'error' ? 'text-red-700 dark:text-red-400' : r.level === 'warn' ? 'text-amber-700 dark:text-amber-400' : 'text-neutral-600 dark:text-neutral-400'" data-testid="plan-reason" [attr.data-level]="r.level">
+                    <span aria-hidden="true">{{ r.level === 'error' ? '✕' : r.level === 'warn' ? '!' : '→' }}</span>
+                    <span><span class="font-medium">{{ r.found }}</span>: {{ r.then }}</span>
+                  </li>
+                }
+              </ul>
+              @if (p.kind === 'runtime') {
+                <p class="mt-2 font-mono text-[11px] text-neutral-500" data-testid="plan-summary">{{ summary(p) }}</p>
+              }
+            } @else if (planning()) {
+              <p class="mt-3 text-xs text-neutral-500" data-testid="planning">Working out how to build it…</p>
+            }
             <div class="mx-auto mt-4 flex max-w-md flex-wrap items-end justify-center gap-3">
               <label class="text-left text-xs text-neutral-500">Build it as
                 <select [class]="field" (change)="choice.set($any($event.target).value)" data-testid="runtime-select">
@@ -62,12 +80,12 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
                   <option value="own" [selected]="choice() === 'own'">{{ ownLabel }}</option>
                 </select>
               </label>
-              <button appBtn type="button" (click)="deployUpload()" [disabled]="busy()" data-testid="deploy">Deploy</button>
+              <button appBtn type="button" (click)="deployUpload()" [disabled]="busy() || blocked()" [title]="blocked() ? 'Fix the problems above first' : ''" data-testid="deploy">Deploy</button>
               <button appBtn variant="ghost" type="button" (click)="clear()" [disabled]="busy()" data-testid="clear">Clear</button>
             </div>
           } @else {
             <p class="font-medium">Drop files, a folder or a .zip here</p>
-            <p class="mt-1 text-sm text-neutral-500">A compose file or Dockerfile at the root is used as it is; anything else is built by a runtime, picked from what is there.</p>
+            <p class="mt-1 text-sm text-neutral-500">A compose file or Dockerfile at the root is used as it is; anything else is built by a runtime, picked from what is there. A <code class="font-mono text-xs">gangway.yml</code> can say how to start it.</p>
             <div class="mt-4 flex justify-center gap-3">
               <label class="cursor-pointer rounded-md border border-neutral-300 px-3.5 py-2 text-sm font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">
                 Choose files<input type="file" multiple class="sr-only" (change)="picked($event)" data-testid="pick-files" />
@@ -140,7 +158,22 @@ export class NewPreview {
   protected readonly dragging = signal(false);
   /** '' = auto. */
   protected readonly choice = signal<Detected | ''>('');
-  protected readonly detected = computed<Detected>(() => detect(this.upload()?.files.map((f) => f.path) ?? [], this.list()?.detection ?? []));
+  /** The server's plan for the upload under the current choice (ADR-0016); null while it is asked. */
+  readonly plan = signal<AppPlan | null>(null);
+  protected readonly planning = signal(false);
+  /** What `auto` resolved to, from the last auto plan; the local marker check until one arrives. */
+  readonly #autoPlan = signal<AppPlan | null>(null);
+  protected readonly detected = computed<Detected>(() => {
+    const auto = this.#autoPlan();
+    if (auto) return auto.kind === 'own' ? 'own' : (auto.runtime ?? 'static');
+    return detect(this.upload()?.files.map((f) => f.path) ?? [], this.list()?.detection ?? []);
+  });
+  /** A plan that cannot run: the server would refuse it, so the button says so first. */
+  protected readonly blocked = computed(() => {
+    const p = this.plan();
+    return p !== null && (p.issues.length > 0 || p.reasons.some((r) => r.level === 'error'));
+  });
+  #planSeq = 0;
 
   protected readonly name = signal('');
   protected readonly visibility = signal('');
@@ -160,6 +193,37 @@ export class NewPreview {
       if (!this.canDeploy()) return;
       untracked(() => void this.#load());
     });
+    // Re-plan whenever the files or the choice change -- and once the catalogue says which files to send.
+    effect(() => {
+      const u = this.upload(), choice = this.choice(), list = this.list();
+      if (!u || !list) return;
+      untracked(() => void this.#plan(u, choice, list.planFiles ?? []));
+    });
+  }
+
+  async #plan(u: Collected, choice: Detected | '', planFiles: readonly string[]): Promise<void> {
+    const seq = ++this.#planSeq;
+    this.planning.set(true);
+    this.plan.set(null);
+    try {
+      const body = { ...planPayload(u.files, planFiles), runtime: choice || 'auto' };
+      const p = await firstValueFrom(this.#http.post<AppPlan>('/v1/runtimes/plan', body));
+      if (seq !== this.#planSeq) return;
+      this.plan.set(p);
+      if (choice === '') this.#autoPlan.set(p);
+    } catch {
+      // The plan is advice; a deploy still gets the server's own answer.
+    } finally {
+      if (seq === this.#planSeq) this.planning.set(false);
+    }
+  }
+
+  /** `node:24-alpine · npm ci · npm run build · npm start` -- the plan in one line. */
+  protected summary(p: AppPlan): string {
+    const cmd = (c: Command | null) => (c === null ? null : typeof c === 'string' ? c : c.join(' '));
+    const serve = p.serve.kind === 'static' && p.serve.output !== false ? `nginx serves ${p.serve.output ?? 'the build output'}` : null;
+    return [p.image, p.root ? `in ${p.root}/` : null, cmd(p.install), cmd(p.build), serve ?? cmd(p.start) ?? (p.entry ? `runs ${p.entry}` : null)]
+      .filter((x) => x).join(' · ');
   }
 
   async #load(): Promise<void> {
@@ -202,6 +266,7 @@ export class NewPreview {
     try {
       const c = await fn();
       if (c.files.length === 0) throw new UploadError('Nothing to upload: no files were found (or all were skipped).');
+      this.#autoPlan.set(null);
       this.upload.set(c);
       this.choice.set('');
       if (!this.name() && c.name) this.name.set(c.name);
@@ -212,6 +277,8 @@ export class NewPreview {
 
   protected clear(): void {
     this.upload.set(null);
+    this.plan.set(null);
+    this.#autoPlan.set(null);
     this.choice.set('');
     this.error.set(null); this.notes.set([]);
   }
@@ -223,10 +290,11 @@ export class NewPreview {
   protected deployUpload(): Promise<void> {
     const u = this.upload();
     if (!u) return Promise.resolve();
-    return this.#post(packFiles(u.files), this.choice() || this.detected());
+    // `auto`, not our label for it: the server plans again, and a gangway.yml may name the runtime.
+    return this.#post(packFiles(u.files), this.choice() || 'auto');
   }
 
-  async #post(body: Blob, runtime: Detected): Promise<void> {
+  async #post(body: Blob, runtime: Detected | 'auto'): Promise<void> {
     this.busy.set(true);
     this.error.set(null); this.notes.set([]);
     this.progress.set(0);

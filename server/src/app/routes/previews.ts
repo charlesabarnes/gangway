@@ -12,6 +12,7 @@ import { urlsFor, type DeployInput } from "../../previews/deploy.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
 import { redeploy, type RedeployInput } from "../../previews/redeploy.ts";
+import { planFromDisk } from "../../previews/runtimes.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -95,6 +96,13 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) throw notFound("this preview keeps no source: only uploaded previews do");
     const listing = await ctx.sources.list(p.id);
     return c.json({ runtime: p.source.runtime ?? null, ...listing });
+  });
+
+  /** ADR-0016: how the kept source builds now, and why -- the same plan a save would follow. */
+  api.get("/previews/:id/plan", requirePermission("previews.read"), async (c) => {
+    const p = find(c.req.param("id"));
+    if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) throw notFound("this preview keeps no source: only uploaded previews do");
+    return c.json(await planFromDisk(ctx.sources.dirFor(p.id), "auto", p.source.runtime ?? "own"));
   });
 
   /** Rebuild in place from edits (JSON) or a whole new upload (tar.gz body). Same URL, same preview. */

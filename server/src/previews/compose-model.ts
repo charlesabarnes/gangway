@@ -43,6 +43,11 @@ export const ServiceExtensionSchema = z.strictObject({
   primary: z.boolean().optional(),
   /** Which container port to route to, when the service publishes several (or none). */
   port: portNumber.optional(),
+  /**
+   * A path that must answer 2xx/3xx before the service counts as up (ADR-0016). Omitted:
+   * any HTTP answer on `/`. Checked on deploy and rebuild; a wake uses the plain probe.
+   */
+  health: z.string().regex(/^\/[\x21-\x7e]*$/, "a path starting with /").max(200).optional(),
 });
 export type ServiceExtension = z.infer<typeof ServiceExtensionSchema>;
 
@@ -57,6 +62,12 @@ export const StackExtensionSchema = z.strictObject({
   visibility: z.enum(["public", "unlisted", "private"]).optional(),
   /** Idle-sleep after this long without a request; `never` opts the stack out (ADR-0012). */
   idle: z.string().refine((s) => s === "never" || parseDuration(s) !== null, "expected a duration like 30m, or never").optional(),
+  /**
+   * ADR-0016: runs before EVERY version goes live (migrations), in a one-off container of
+   * the primary service, `sh -c`. On a rebuild, before the swap: failing it keeps the old
+   * version serving. On a first deploy, once the stack is healthy and before the seed.
+   */
+  release: z.string().min(1).max(8192).optional(),
 });
 export type StackExtension = z.infer<typeof StackExtensionSchema>;
 
@@ -376,42 +387,41 @@ export function buildStack(i: StackInput): string {
 
 /* ------------------------------------------------------------------ generated stacks */
 
-/** An image deploy is a one-service stack (§7): same pipeline, no special case downstream. */
+type Generated = {
+  port: number;
+  env?: Record<string, string> | undefined;
+  /** Stack-level `x-gangway` (ttl, visibility, idle, seed, release) from gangway.yml. */
+  stack?: Record<string, string> | undefined;
+  health?: string | null | undefined;
+};
+
+const generated = (o: Generated, web: Record<string, unknown>): string => `${JSON.stringify({
+  ...(o.stack && Object.keys(o.stack).length ? { "x-gangway": o.stack } : {}),
+  services: {
+    web: {
+      ...web,
+      "x-gangway": { expose: true, port: o.port, ...(o.health ? { health: o.health } : {}) },
+      ...(o.env && Object.keys(o.env).length ? { environment: literal(o.env) } : {}),
+      restart: "unless-stopped",
+    },
+  },
+}, null, 2)}\n`;
+
 /** A source with a Dockerfile and nothing else: build it, expose it. */
-export function composeForDockerfile(o: { port: number }): string {
-  return `${JSON.stringify({
-    services: { web: { build: { context: "." }, "x-gangway": { expose: true, port: o.port }, restart: "unless-stopped" } },
-  }, null, 2)}\n`;
+export function composeForDockerfile(o: Generated): string {
+  return generated(o, { build: { context: "." } });
 }
 
+/** An image deploy is a one-service stack (§7): same pipeline, no special case downstream. */
 export function composeForImage(o: { image: string; port: number; env?: Record<string, string> | undefined }): string {
-  return `${JSON.stringify({
-    services: {
-      web: {
-        image: o.image,
-        "x-gangway": { expose: true, port: o.port },
-        ...(o.env && Object.keys(o.env).length ? { environment: literal(o.env) } : {}),
-        restart: "unless-stopped",
-      },
-    },
-  }, null, 2)}\n`;
+  return generated(o, { image: o.image });
 }
 
 /**
- * A runtime's stack (ADR-0015): built from the generated `.gangway/Dockerfile`, secrets as
- * the container's environment (never a `.env` in the build context), and an init process,
- * because `npm start` and friends make poor PID 1s.
+ * A runtime's stack (ADR-0015): built from the generated `.gangway/Dockerfile` in the app's
+ * root, secrets as the container's environment (never a `.env` in the build context), and
+ * an init process, because `npm start` and friends make poor PID 1s.
  */
-export function composeForRuntime(o: { port: number; env?: Record<string, string> | undefined }): string {
-  return `${JSON.stringify({
-    services: {
-      web: {
-        build: { context: ".", dockerfile: ".gangway/Dockerfile" },
-        "x-gangway": { expose: true, port: o.port },
-        init: true,
-        ...(o.env && Object.keys(o.env).length ? { environment: literal(o.env) } : {}),
-        restart: "unless-stopped",
-      },
-    },
-  }, null, 2)}\n`;
+export function composeForRuntime(o: Generated & { context?: string }): string {
+  return generated(o, { build: { context: o.context ?? ".", dockerfile: ".gangway/Dockerfile" }, init: true });
 }

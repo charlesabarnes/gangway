@@ -19,13 +19,13 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Host, Preview, PreviewSource } from "../../../shared/src/domain.ts";
 import { actorId, type Actor } from "../auth/actor.ts";
-import { buildArgv, composeArgv, psArgv, upArgv } from "../docker/compose.ts";
+import { buildArgv, composeArgv, psArgv, runArgv, upArgv } from "../docker/compose.ts";
 import { AppError, conflict, notFound } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { ulid } from "../util/ulid.ts";
 import { buildStack, selectExposed, type PlannedRoute } from "./compose-model.ts";
 import type { PreviewContext } from "./context.ts";
-import { PLAN_PROJECT, prepareUpload, readModel, salvage, STACK_FILE, StepFailed, stepper, waitAnswering, waitHealthy, type WaitTarget } from "./deploy.ts";
+import { healthOf, PLAN_PROJECT, prepareUpload, readModel, releaseFor, salvage, STACK_FILE, StepFailed, stepper, waitAnswering, waitHealthy, type WaitTarget } from "./deploy.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
@@ -47,7 +47,7 @@ export type RedeployResult = { preview: Preview; buildId: string; done: Promise<
 
 const unprocessable = (m: string, d?: Record<string, unknown>) => new AppError("unprocessable", m, d);
 
-/** Paths an edit may name: relative, forward-slashed, no `..`, nothing under `.gangway/`. */
+/** Paths an edit may name: relative, forward-slashed, no `..`, nothing in a `.gangway/` (at any depth: a nested app's root has one). */
 export function checkEditPath(p: string): string {
   const bad = (why: string) => unprocessable(`cannot write ${JSON.stringify(p.slice(0, 200))}: ${why}`);
   if (p.length === 0 || p.length > 255) throw bad("a path is 1-255 characters");
@@ -55,7 +55,7 @@ export function checkEditPath(p: string): string {
   if (p.startsWith("/")) throw bad("paths are relative to the upload's root");
   const parts = p.split("/");
   if (parts.some((s) => s === "" || s === "." || s === "..")) throw bad("no empty, `.` or `..` segments");
-  if (parts[0] === GENERATED_DIR) throw bad(`${GENERATED_DIR}/ is written by gangway`);
+  if (parts.includes(GENERATED_DIR)) throw bad(`${GENERATED_DIR}/ is written by gangway`);
   return p;
 }
 
@@ -128,12 +128,13 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
       const n = await applyEdits(wd.srcDir, input.change.files);
       ctx.logs.append(id, "system", `rebuilding with ${n} edited file${n === 1 ? "" : "s"} (requested by ${actorId(input.actor)})`);
     }
-    const choice: RuntimeChoice = input.runtime ?? source.runtime ?? "own";
+    // Asked for, else the upload's gangway.yml, else what it was built as before (ADR-0016).
+    const choice: RuntimeChoice = input.runtime ?? "auto";
     const env = preview.secretLevel === null || preview.secretLevel === "none" ? {} : ctx.secretsFor?.(preview.projectId, preview.secretLevel);
     // The port the preview already routes to: an own Dockerfile needs it, and a runtime
     // listens on it, so switching runtimes keeps the preview.
     const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
-    const up = await prepareUpload(ctx, id, wd, choice, env, port);
+    const up = await prepareUpload(ctx, id, wd, choice, env, port, source.runtime ?? "own");
     const { model, resolved } = await readModel(ctx, host, wd, up.composeFile);
 
     // The same services on the same ports, or it is a new preview: its routes, hostnames
@@ -212,11 +213,19 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
       }
     }
 
+    // ADR-0016: the release runs against the NEW image while the old version still serves.
+    // Failing it is failing the build: nothing has been swapped yet.
+    const release = releaseFor(r.model, r.routes);
+    if (release) {
+      log(`release: ${release.command} (in ${release.service})`);
+      await step("run (release)", runArgv(base, release.service, ["sh", "-c", release.command], ["--no-deps", "-T"]), "seed");
+    }
+
     r.signal.throwIfAborted();
     ctx.states.transition(id, "starting");
     upAttempted = true;
     await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout");
-    const target: WaitTarget = { previewId: id, host, routes: r.routes, signal: r.signal, ps: psArgv(base, ["--all"]), cwd: wd.srcDir };
+    const target: WaitTarget = { previewId: id, host, routes: r.routes, signal: r.signal, ps: psArgv(base, ["--all"]), cwd: wd.srcDir, health: healthOf(r.model) };
     await waitHealthy(ctx, target);
     await waitAnswering(ctx, target);
     log("rebuilt: awake");

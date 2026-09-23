@@ -60,6 +60,24 @@ export function detect(paths: Iterable<string>, rules: readonly DetectionRule[])
 
 export const isZip = (name: string) => /\.zip$/i.test(name);
 
+/** Server-side cap per file (`MAX_PLAN_FILE_BYTES`): a larger one is sent by name only. */
+export const MAX_PLAN_FILE_BYTES = 256 * 1024;
+
+/**
+ * The body of `POST /v1/runtimes/plan` (ADR-0016): every path, and the text of the few files
+ * the plan reads -- at the root and one directory down, as `planFilePaths` picks them.
+ */
+export function planPayload(files: readonly UploadFile[], planFiles: readonly string[]): { paths: string[]; files: Record<string, string> } {
+  const names = new Set(planFiles);
+  const contents: Record<string, string> = {};
+  for (const f of files) {
+    const parts = f.path.split('/');
+    if (parts.length > 2 || !names.has(parts[parts.length - 1]!) || f.data.byteLength > MAX_PLAN_FILE_BYTES) continue;
+    try { contents[f.path] = new TextDecoder('utf-8', { fatal: true }).decode(f.data); } catch { /* not text: named only */ }
+  }
+  return { paths: files.map((f) => f.path), files: contents };
+}
+
 /** The entries of a zip, directories dropped. */
 export function unzip(bytes: Uint8Array): UploadFile[] {
   let entries: Record<string, Uint8Array>;

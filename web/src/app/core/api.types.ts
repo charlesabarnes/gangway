@@ -189,10 +189,36 @@ export type Runtime = {
   id: RuntimeId; name: string; language: string; description: string; image: string; port: number;
   /** What a new preview of this runtime starts with: path -> text. */
   starter: Record<string, string>;
+  /** The versions `gangway.yml` may ask for (ADR-0016). */
+  versions: string[];
 };
 /** Root-level marker files; the first rule with any marker present wins, else `static`. */
 export type DetectionRule = { runtime: Detected; markers: string[] };
-export type RuntimeList = { runtimes: Runtime[]; detection: DetectionRule[] };
+/** `planFiles`: whose CONTENTS `POST /v1/runtimes/plan` wants (root and one level down); the rest are only named. */
+export type RuntimeList = { runtimes: Runtime[]; detection: DetectionRule[]; planFiles: string[] };
+
+/* ---- The app plan (ADR-0016): what the server will do with an upload, and why */
+
+/** A shell command, or an argv run as it is. */
+export type Command = string | string[];
+export type PlanReason = { level: 'info' | 'warn' | 'error'; found: string; then: string };
+/** A gangway.yml problem at a dotted key path ('' for the file as a whole). */
+export type PlanIssue = { path: string; message: string };
+export type AppPlan = {
+  kind: 'own' | 'runtime'; runtime: RuntimeId | null; version: string | null; image: string | null;
+  /** The app's directory within the upload; '' is its root. */
+  root: string;
+  install: Command | null; build: Command | null; start: Command | null; release: Command | null;
+  serve: { kind: 'server' } | { kind: 'static'; output: string | null | false; fallback: 'spa' | '404' | 'listing' };
+  docroot: string; entry: string | null; port: number | null; health: string | null;
+  env: Record<string, string>;
+  stack: { ttl?: string; visibility?: Visibility; idle?: string; seed?: string };
+  configFile: string | null;
+  reasons: PlanReason[];
+  issues: PlanIssue[];
+};
+/** `POST /v1/runtimes/plan`. */
+export type PlanRequest = { paths: string[]; files: Record<string, string>; runtime?: Detected | 'auto' };
 
 /** `GET /v1/previews/:id/source`. `text` is absent on a binary or too-large file: listed, not editable. */
 export type SourceFile = { path: string; size: number; text?: string };

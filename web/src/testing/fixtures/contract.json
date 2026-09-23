@@ -282,7 +282,10 @@
         "port": 3000,
         "starter": {
           "index.ts": "export default { fetch() { return new Response('hi'); } };\n"
-        }
+        },
+        "versions": [
+          "1.4"
+        ]
       }
     ],
     "detection": [
@@ -292,6 +295,20 @@
           "compose.yaml"
         ]
       }
+    ],
+    "planFiles": [
+      "gangway.yml",
+      "gangway.yaml",
+      "package.json",
+      "Procfile",
+      "composer.json",
+      "deno.json",
+      "deno.jsonc",
+      "wrangler.toml",
+      "wrangler.json",
+      "wrangler.jsonc",
+      "requirements.txt",
+      "pyproject.toml"
     ]
   },
   "previewSource": {
@@ -325,5 +342,51 @@
     "kind": "tarball",
     "uploadId": "01M32T8NBMWNSVJZT7XYX2MRZY",
     "runtime": "bun"
+  },
+  "appPlan": {
+    "kind": "runtime",
+    "runtime": "node",
+    "version": "24",
+    "image": "node:24-alpine",
+    "root": "",
+    "install": "npm install --no-audit --no-fund",
+    "build": "npm run build",
+    "start": null,
+    "release": null,
+    "serve": {
+      "kind": "static",
+      "output": null,
+      "fallback": "spa"
+    },
+    "docroot": "",
+    "entry": null,
+    "port": null,
+    "health": null,
+    "env": {},
+    "stack": {},
+    "configFile": null,
+    "reasons": [
+      {
+        "level": "info",
+        "found": "package.json",
+        "then": "looks like Node.js"
+      },
+      {
+        "level": "info",
+        "found": "package.json",
+        "then": "installs with `npm install --no-audit --no-fund`"
+      },
+      {
+        "level": "info",
+        "found": "a build script",
+        "then": "runs `npm run build`"
+      },
+      {
+        "level": "info",
+        "found": "a build script and nothing to start",
+        "then": "serves the build's output (dist/, build/, out/ …) with nginx"
+      }
+    ],
+    "issues": []
   }
 }

@@ -42,7 +42,8 @@ import { assertNoEscapingSymlinks, COMPOSE_FILENAMES, inspectComposeFile } from 
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { GENERATED_DIR } from "./source/store.ts";
-import { resolveRuntime, writeRuntime, type RuntimeChoice } from "./runtimes.ts";
+import { assertRunnable, planFromDisk, stackX, writeRuntime, type RuntimeChoice } from "./runtimes.ts";
+import type { AppPlan } from "../../../shared/src/app-plan.ts";
 import type { RuntimeId } from "../../../shared/src/runtimes.ts";
 
 export type DeploySource =
@@ -209,11 +210,14 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
 
   // Both checks come BEFORE `compose config`, which opens whatever the file points it at.
   await assertNoEscapingSymlinks(wd.srcDir);
-  return { source: recorded, composeFile: await ownStack(ctx, id, wd.srcDir, env, source.port) };
+  return { source: recorded, composeFile: await ownStack(ctx, id, wd.srcDir, env, source.port, null) };
 }
 
-/** A checkout or upload that brings its own compose file, or a Dockerfile and a port. */
-async function ownStack(ctx: PreviewContext, id: string, srcDir: string, env: Record<string, string> | undefined, port: number | undefined): Promise<string> {
+/**
+ * A checkout or upload that brings its own compose file, or a Dockerfile and a port. An
+ * upload's `gangway.yml` (ADR-0016) may name the port, env and policy for a lone Dockerfile.
+ */
+async function ownStack(ctx: PreviewContext, id: string, srcDir: string, env: Record<string, string> | undefined, askedPort: number | undefined, plan: AppPlan | null): Promise<string> {
   if (env) {
     const n = await writeDotenv(srcDir, env);
     if (n > 0) ctx.logs.append(id, "system", `wrote .env with ${n} repository secret${n === 1 ? "" : "s"}`);
@@ -225,14 +229,17 @@ async function ownStack(ctx: PreviewContext, id: string, srcDir: string, env: Re
   if (!dockerfile?.isFile()) {
     throw unprocessable(`the source has no compose file (${COMPOSE_FILENAMES.join(", ")}) and no Dockerfile at its root -- or choose a runtime to build it with`);
   }
+  const port = askedPort ?? plan?.port ?? undefined;
   if (port === undefined) {
-    throw unprocessable("the source has a Dockerfile but no compose file, so `port` is required: the port the app listens on inside the container");
+    throw unprocessable("the source has a Dockerfile but no compose file, so `port` is required: the port the app listens on inside the container (`port:` in gangway.yml, or ?port=)");
   }
-  await writeFile(join(srcDir, COMPOSE_FILE), composeForDockerfile({ port }), { mode: 0o600 });
+  await writeFile(join(srcDir, COMPOSE_FILE), composeForDockerfile({
+    port, env: plan?.env, health: plan?.health, ...(plan ? { stack: stackX(plan) } : {}),
+  }), { mode: 0o600 });
   return COMPOSE_FILE;
 }
 
-export type PreparedUpload = { composeFile: string; runtime: RuntimeId | null; pristine: string | null };
+export type PreparedUpload = { composeFile: string; runtime: RuntimeId | null; pristine: string | null; plan: AppPlan };
 
 /**
  * An upload on disk -> the compose file to read (ADR-0015). Deploy and redeploy both come
@@ -241,6 +248,7 @@ export type PreparedUpload = { composeFile: string; runtime: RuntimeId | null; p
  */
 export async function prepareUpload(
   ctx: PreviewContext, logId: string, wd: Workdir, choice: RuntimeChoice, env: Record<string, string> | undefined, port: number | undefined,
+  previous?: RuntimeId | "own",
 ): Promise<PreparedUpload> {
   await assertNoEscapingSymlinks(wd.srcDir);
   let pristine: string | null = null;
@@ -249,20 +257,24 @@ export async function prepareUpload(
     await rm(pristine, { recursive: true, force: true });
     await cp(wd.srcDir, pristine, {
       recursive: true, verbatimSymlinks: true,
-      filter: (src) => src === wd.srcDir || relative(wd.srcDir, src).split(sep)[0] !== GENERATED_DIR,
+      // Generated files live in `<root>/.gangway/`; none of them, at any depth, is the user's.
+      filter: (src) => src === wd.srcDir || !relative(wd.srcDir, src).split(sep).includes(GENERATED_DIR),
     });
   }
-  const runtime = await resolveRuntime(wd.srcDir, choice);
-  if (runtime === "own") {
+  const plan = await planFromDisk(wd.srcDir, choice, previous);
+  assertRunnable(plan);
+  for (const r of plan.reasons) ctx.logs.append(logId, "system", `plan: ${r.level === "info" ? "" : `${r.level}: `}${r.found} -> ${r.then}`);
+  if (plan.kind === "own") {
     if (choice === "auto") ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
-    return { composeFile: await ownStack(ctx, logId, wd.srcDir, env, port), runtime: null, pristine };
+    return { composeFile: await ownStack(ctx, logId, wd.srcDir, env, port, plan), runtime: null, pristine, plan };
   }
+  const runtime = plan.runtime!;
   // `port`, if given, overrides the runtime's own: a rebuild keeps the preview's.
-  const { composeFile, note } = await writeRuntime(wd.srcDir, runtime, env, join(wd.dir, "runtime.compose.yaml"), port);
+  const { composeFile, note } = await writeRuntime(wd.srcDir, plan, env, join(wd.dir, "runtime.compose.yaml"), port);
   ctx.logs.append(logId, "system", `${choice === "auto" ? "detected " : ""}runtime ${runtime}: ${note}`);
   const secrets = Object.keys(env ?? {}).length;
   if (secrets > 0) ctx.logs.append(logId, "system", `passing ${secrets} secret(s) to the container as environment`);
-  return { composeFile, runtime, pristine };
+  return { composeFile, runtime, pristine, plan };
 }
 
 type Planned = { model: ComposeModel; resolved: unknown };
@@ -460,8 +472,15 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
       if (r.dockerConfig) await rm(r.dockerConfig, { recursive: true, force: true });
     }
 
-    const target: WaitTarget = { previewId: id, host, routes: r.routes, signal: r.signal, ps: psArgv(base, ["--all"]), cwd: wd.srcDir };
+    const target: WaitTarget = { previewId: id, host, routes: r.routes, signal: r.signal, ps: psArgv(base, ["--all"]), cwd: wd.srcDir, health: healthOf(r.model) };
     await waitHealthy(ctx, target);
+
+    // ADR-0016: the release command runs before every version goes live; here, before the seed.
+    const release = releaseFor(r.model, r.routes);
+    if (release) {
+      log(`release: ${release.command} (in ${release.service})`);
+      await step("run (release)", runArgv(base, release.service, ["sh", "-c", release.command], ["--no-deps", "-T"]), "seed");
+    }
 
     // §7.3 / ADR-0012: the seed runs once, healthy but not yet routed. Failing it fails the preview.
     const seed = seedFor(r.model, r.routes);
@@ -512,6 +531,19 @@ export function seedFor(model: ComposeModel, routes: PlannedRoute[]): { service:
   return { service: primary.service, command: seed };
 }
 
+/** ADR-0016: the release command, in the primary route's service. */
+export function releaseFor(model: ComposeModel, routes: PlannedRoute[]): { service: string; command: string } | null {
+  const command = model.x.release;
+  if (command === undefined) return null;
+  const primary = routes.find((r) => r.primary) ?? routes[0];
+  if (!primary) throw unprocessable("x-gangway.release needs an exposed service to run in");
+  return { service: primary.service, command };
+}
+
+/** Each service's `x-gangway.health` path, for the answering probe (ADR-0016). */
+export const healthOf = (model: ComposeModel): Record<string, string> =>
+  Object.fromEntries(model.services.flatMap((s) => (s.x.health ? [[s.name, s.x.health]] : [])));
+
 /** What the two waits need: a deploy has it from its plan, a wake from the route table. */
 export type WaitTarget = {
   previewId: string;
@@ -521,6 +553,8 @@ export type WaitTarget = {
   /** The `ps` argv -- with the stack file for a deploy, file-less for a wake. */
   ps: string[];
   cwd: string;
+  /** Per service, a path that must answer 2xx/3xx. A wake has none: any answer will do. */
+  health?: Record<string, string> | undefined;
 };
 
 /** §5 step 7 / §7.4: gate on healthchecks, not on container start. */
@@ -559,11 +593,11 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
   let pending = [...r.routes];
   for (;;) {
     r.signal.throwIfAborted();
-    const results = await Promise.all(pending.map((route) => ctx.probe(route, r.host)));
+    const results = await Promise.all(pending.map((route) => ctx.probe(route, r.host, r.health?.[route.service])));
     pending = pending.filter((_, i) => !results[i]);
     if (pending.length === 0) return;
     if (Date.now() >= deadline) {
-      throw new StepFailed(`${pending.map((p) => `${p.service}:${p.containerPort}`).join(", ")} never answered HTTP -- is that the right port, and does the app listen on 0.0.0.0?`);
+      throw new StepFailed(`${pending.map((p) => `${p.service}:${p.containerPort}${r.health?.[p.service] ?? ""}`).join(", ")} never answered${r.health && pending.some((p) => r.health![p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`);
     }
     await sleep(ctx.timings.pollIntervalMs);
   }

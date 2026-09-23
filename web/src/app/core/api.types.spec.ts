@@ -2,7 +2,7 @@ import contract from '../../testing/fixtures/contract.json';
 import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
   CLEARANCES, FORK_POLICIES, PR_TRIGGERS, RUNTIME_IDS, TRIGGERS, type Template,
-  type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type SourceFile, type StreamEvent,
+  type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type AppPlan, type SourceFile, type StreamEvent,
   type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Project, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
@@ -48,10 +48,15 @@ describe('the /v1 wire contract', () => {
   it('runtimes, a kept source and a redeploy (ADR-0015)', () => {
     const keys = (o: object) => Object.keys(o).sort();
     const list: RuntimeList = contract.runtimeList as RuntimeList;
-    const RUNTIME_KEYS: (keyof Runtime)[] = ['id', 'name', 'language', 'description', 'image', 'port', 'starter'];
-    expect(keys(list)).toEqual(['detection', 'runtimes']);
+    const RUNTIME_KEYS: (keyof Runtime)[] = ['id', 'name', 'language', 'description', 'image', 'port', 'starter', 'versions'];
+    expect(keys(list)).toEqual(['detection', 'planFiles', 'runtimes']);
     expect(keys(list.runtimes[0]!)).toEqual([...RUNTIME_KEYS].sort());
     expect(keys(list.detection[0]!)).toEqual(['markers', 'runtime']);
+    // ADR-0016: the plan, as the New screen reads it.
+    const plan: AppPlan = contract.appPlan as AppPlan;
+    const PLAN_KEYS: (keyof AppPlan)[] = ['kind', 'runtime', 'version', 'image', 'root', 'install', 'build', 'start', 'release', 'serve', 'docroot', 'entry', 'port', 'health', 'env', 'stack', 'configFile', 'reasons', 'issues'];
+    expect(keys(plan)).toEqual([...PLAN_KEYS].sort());
+    expect(keys(plan.reasons[0]!)).toEqual(['found', 'level', 'then']);
     expect([...RUNTIME_IDS]).toEqual(contract.runtimeIds);
 
     const source: PreviewSourceFiles = contract.previewSource as PreviewSourceFiles;
