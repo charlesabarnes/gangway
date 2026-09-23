@@ -15,10 +15,10 @@ export default tseslint.config(
     rules: {
       "no-duplicate-imports": "error",
       "no-empty": ["error", { allowEmptyCatch: true }],
-      "max-lines": ["warn", { max: 400, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["warn", { max: 80, skipBlankLines: true, skipComments: true }],
-      complexity: ["warn", 20],
-      "max-depth": ["warn", 4],
+      "max-lines": ["error", { max: 400, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
+      complexity: ["error", 20],
+      "max-depth": ["error", 4],
       // Async methods often implement an interface without awaiting anything themselves.
       "@typescript-eslint/require-await": "off",
       // Sanitizers match control characters on purpose.
@@ -34,9 +34,17 @@ export default tseslint.config(
     // Tests read untyped JSON responses and poke at internals on purpose.
     files: ["**/test/**"],
     rules: {
-      "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }],
+      "max-lines": ["error", { max: 500, skipBlankLines: true, skipComments: true }],
       "max-lines-per-function": "off",
       complexity: "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            ":matches(CallExpression[callee.name=/^(test|it|describe)$/], CallExpression[callee.object.name=/^(test|it|describe)$/], CallExpression[callee.callee.object.name=/^(test|it|describe)$/]) > Literal.arguments:first-child[value.length>80]",
+          message: "Keep test titles to 80 characters.",
+        },
+      ],
       // bun types `expect(p).rejects.*` as void, but it must be awaited.
       "@typescript-eslint/await-thenable": "off",
       "@typescript-eslint/no-explicit-any": "off",

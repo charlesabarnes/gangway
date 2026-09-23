@@ -17,9 +17,9 @@ module.exports = defineConfig([
     processor: angular.processInlineTemplates,
     rules: {
       '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
-      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
-      complexity: ['warn', 20],
+      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
+      complexity: ['error', 20],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
@@ -49,8 +49,16 @@ module.exports = defineConfig([
   {
     files: ['**/*.spec.ts'],
     rules: {
-      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
       'max-lines-per-function': 'off',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            ':matches(CallExpression[callee.name=/^(test|it|describe)$/], CallExpression[callee.object.name=/^(test|it|describe)$/], CallExpression[callee.callee.object.name=/^(test|it|describe)$/]) > Literal.arguments:first-child[value.length>80]',
+          message: 'Keep test titles to 80 characters.',
+        },
+      ],
     },
   },
   {
