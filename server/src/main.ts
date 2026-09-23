@@ -2,7 +2,9 @@ import { boot } from "./boot.ts";
 import { loadConfig } from "./config.ts";
 
 const fileConfigPath = process.env["GANGWAY_CONFIG"];
-const fileConfig = fileConfigPath ? (await Bun.file(fileConfigPath).json() as Record<string, unknown>) : {};
+const fileConfig = fileConfigPath
+  ? ((await Bun.file(fileConfigPath).json()) as Record<string, unknown>)
+  : {};
 const config = loadConfig(process.env, fileConfig);
 const running = await boot(config);
 
@@ -18,6 +20,9 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     stopping = true;
     // stop() bounds itself; this bounds stop(). Nothing may keep a SIGTERM'd process alive.
     setTimeout(() => process.exit(1), config.shutdownGraceMs + 5_000).unref();
-    void running.stop().then(() => process.exit(0), () => process.exit(1));
+    void running.stop().then(
+      () => process.exit(0),
+      () => process.exit(1),
+    );
   });
 }

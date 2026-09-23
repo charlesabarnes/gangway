@@ -25,7 +25,11 @@ export class CertStore {
 
   /** The shape Bun.serve wants for `tls`. Every entry carries a serverName. */
   tlsConfig(): { serverName: string; cert: string; key: string }[] {
-    return this.#bundle.materials.map((m) => ({ serverName: m.serverName, cert: m.cert, key: m.key }));
+    return this.#bundle.materials.map((m) => ({
+      serverName: m.serverName,
+      cert: m.cert,
+      key: m.key,
+    }));
   }
 
   onSwap(fn: CertListener): () => void {

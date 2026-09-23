@@ -16,10 +16,14 @@ import { requirePermission } from "../middleware/auth.ts";
  * so the request can be read on its own. `catalogue` is everything that can be granted.
  */
 export function roleRoutes(api: Hono<AppEnv>, roles: RolePermissions): void {
-  api.get("/roles", requirePermission("roles.read"), (c) => c.json({ roles: roles.roles(), catalogue: PERMISSIONS }));
+  api.get("/roles", requirePermission("roles.read"), (c) =>
+    c.json({ roles: roles.roles(), catalogue: PERMISSIONS }),
+  );
 
   api.put("/roles/:id/permissions", requirePermission("roles.manage"), async (c) => {
-    const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+    const body = await c.req.json().catch(() => {
+      throw badRequest("the request body is not JSON");
+    });
     const { permissions } = SetRolePermissionsSchema.parse(body);
     roles.set(c.req.param("id"), permissions, c.get("actor"));
     return c.json({ role: roles.roles().find((r) => r.id === c.req.param("id")) });

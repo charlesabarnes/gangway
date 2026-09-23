@@ -45,7 +45,8 @@ export class Workdirs {
     if (!SAFE_ID.test(id)) throw badRequest("invalid workdir id", { id: id.slice(0, 64) });
     const dir = path.join(this.#root, id);
     // Belt and braces behind SAFE_ID: no caller-supplied string ever escapes the root.
-    if (!containedIn(this.#root, dir)) throw badRequest("invalid workdir id", { id: id.slice(0, 64) });
+    if (!containedIn(this.#root, dir))
+      throw badRequest("invalid workdir id", { id: id.slice(0, 64) });
     return dir;
   }
 

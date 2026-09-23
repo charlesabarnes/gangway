@@ -27,7 +27,10 @@ export type HooksDeps = {
 };
 
 const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
 
 export class Hooks {
   readonly #d: HooksDeps;
@@ -39,14 +42,19 @@ export class Hooks {
   }
 
   /** Deliveries still being acted on. Shutdown waits for these like any other pipeline. */
-  get inflight(): number { return this.#inflight.size; }
-  drain(): Promise<void> { return Promise.allSettled(this.#inflight).then(() => undefined); }
+  get inflight(): number {
+    return this.#inflight.size;
+  }
+  drain(): Promise<void> {
+    return Promise.allSettled(this.#inflight).then(() => undefined);
+  }
 
   handler(): SurfaceHandler {
     return async (req, ctx) => {
       const path = new URL(req.url).pathname;
       if (path !== `/${this.#d.forge.id}`) return json(404, { title: "not found", status: 404 });
-      if (req.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
+      if (req.method !== "POST")
+        return new Response(null, { status: 405, headers: { allow: "POST" } });
 
       const max = this.#d.maxBodyBytes ?? MAX_WEBHOOK_BYTES;
       const declared = Number(req.headers.get("content-length") ?? "0");
@@ -56,11 +64,16 @@ export class Hooks {
 
       const verdict = this.#d.forge.verify(req.headers, raw);
       if (!verdict.ok) {
-        this.#d.logger.warn("webhook refused", { forge: this.#d.forge.id, reason: verdict.reason, clientIp: ctx.clientIp });
+        this.#d.logger.warn("webhook refused", {
+          forge: this.#d.forge.id,
+          reason: verdict.reason,
+          clientIp: ctx.clientIp,
+        });
         return json(401, { title: "unauthorized", status: 401, detail: verdict.reason });
       }
       const { deliveryId } = verdict;
-      if (this.#seen.has(deliveryId)) return json(202, { accepted: false, deliveryId, reason: "already delivered" });
+      if (this.#seen.has(deliveryId))
+        return json(202, { accepted: false, deliveryId, reason: "already delivered" });
       this.#remember(deliveryId);
 
       let payload: unknown;
@@ -77,17 +90,25 @@ export class Hooks {
       }
 
       // 202 now; the work runs on. A build takes minutes and GitHub waits ten seconds.
-      const work = this.#d.service.handle(event).then(
-        (outcome) => {
-          const { settled: _settled, ...shown } = outcome as Outcome & { settled?: unknown };
-          this.#d.logger.info("webhook handled", { deliveryId, event: event.type, ...shown });
-          this.#d.onOutcome?.(deliveryId, outcome);
-        },
-        (e) => {
-          this.#d.logger.error("webhook failed", { deliveryId, event: event.type, err: e });
-          this.#d.onOutcome?.(deliveryId, { action: "ignored", reason: `failed: ${e instanceof Error ? e.message : String(e)}` });
-        },
-      ).finally(() => { this.#inflight.delete(work); });
+      const work = this.#d.service
+        .handle(event)
+        .then(
+          (outcome) => {
+            const { settled: _settled, ...shown } = outcome as Outcome & { settled?: unknown };
+            this.#d.logger.info("webhook handled", { deliveryId, event: event.type, ...shown });
+            this.#d.onOutcome?.(deliveryId, outcome);
+          },
+          (e) => {
+            this.#d.logger.error("webhook failed", { deliveryId, event: event.type, err: e });
+            this.#d.onOutcome?.(deliveryId, {
+              action: "ignored",
+              reason: `failed: ${e instanceof Error ? e.message : String(e)}`,
+            });
+          },
+        )
+        .finally(() => {
+          this.#inflight.delete(work);
+        });
       this.#inflight.add(work);
       return json(202, { accepted: true, deliveryId, event: event.type });
     };

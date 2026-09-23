@@ -1,15 +1,37 @@
 import { describe, expect, test } from "bun:test";
-import { CloudflareDnsProvider, type CloudflareOptions, type FetchLike } from "../../src/tls/dns/cloudflare.ts";
+import {
+  CloudflareDnsProvider,
+  type CloudflareOptions,
+  type FetchLike,
+} from "../../src/tls/dns/cloudflare.ts";
 import { ManualDnsProvider } from "../../src/tls/dns/manual.ts";
-import { waitForTxtPropagation, zoneCandidates, type DnsQueries } from "../../src/tls/dns/provider.ts";
+import {
+  waitForTxtPropagation,
+  zoneCandidates,
+  type DnsQueries,
+} from "../../src/tls/dns/provider.ts";
 import { Logger } from "../../src/logger.ts";
 
 const BASE = "https://api.cloudflare.test/client/v4";
 const CHALLENGE = "_acme-challenge.preview.example.com";
 const silent = () => new Logger("error", {}, () => {});
 
-type Call = { method: string; path: string; query: string; auth: string | null; headers: Headers; body: any };
-type CfRecord = { id: string; zoneId: string; type: string; name: string; content: string; ttl: number };
+type Call = {
+  method: string;
+  path: string;
+  query: string;
+  auth: string | null;
+  headers: Headers;
+  body: any;
+};
+type CfRecord = {
+  id: string;
+  zoneId: string;
+  type: string;
+  name: string;
+  content: string;
+  ttl: number;
+};
 
 /** An in-memory Cloudflare v4 API: enough of the shape to exercise every branch. */
 function fakeCloudflare(o: { zones?: Record<string, string>; forcedStatuses?: number[] } = {}) {
@@ -20,7 +42,10 @@ function fakeCloudflare(o: { zones?: Record<string, string>; forcedStatuses?: nu
   let seq = 0;
 
   const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json", ...headers },
+    });
   const ok = (result: unknown) => json(200, { success: true, errors: [], messages: [], result });
 
   const fetchImpl: FetchLike = async (url, init) => {
@@ -29,14 +54,21 @@ function fakeCloudflare(o: { zones?: Record<string, string>; forcedStatuses?: nu
     const rest = url.slice(BASE.length);
     const [path = "", query = ""] = rest.split("?");
     calls.push({
-      method, path, query, auth: headers.get("authorization"), headers,
+      method,
+      path,
+      query,
+      auth: headers.get("authorization"),
+      headers,
       body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
     });
 
     const force = forced.shift();
     if (force !== undefined) {
-      return json(force, { success: false, errors: [{ code: 971, message: "rate limited" }], result: null },
-        force === 429 ? { "retry-after": "0" } : {});
+      return json(
+        force,
+        { success: false, errors: [{ code: 971, message: "rate limited" }], result: null },
+        force === 429 ? { "retry-after": "0" } : {},
+      );
     }
 
     // GET /zones?name=<name>
@@ -50,14 +82,25 @@ function fakeCloudflare(o: { zones?: Record<string, string>; forcedStatuses?: nu
     if (method === "GET" && byId) {
       const id = byId[1]!;
       const name = Object.keys(zones).find((n) => zones[n] === id);
-      return name ? ok({ id, name }) : json(404, { success: false, errors: [{ code: 1049, message: "not found" }], result: null });
+      return name
+        ? ok({ id, name })
+        : json(404, {
+            success: false,
+            errors: [{ code: 1049, message: "not found" }],
+            result: null,
+          });
     }
     // POST /zones/<zid>/dns_records
     const create = /^\/zones\/([^/]+)\/dns_records$/.exec(path);
     if (method === "POST" && create) {
       const body = calls[calls.length - 1]!.body;
       const rec: CfRecord = {
-        id: `rec-${++seq}`, zoneId: create[1]!, type: body.type, name: body.name, content: body.content, ttl: body.ttl,
+        id: `rec-${++seq}`,
+        zoneId: create[1]!,
+        type: body.type,
+        name: body.name,
+        content: body.content,
+        ttl: body.ttl,
       };
       records.set(rec.id, rec);
       return ok(rec);
@@ -67,11 +110,19 @@ function fakeCloudflare(o: { zones?: Record<string, string>; forcedStatuses?: nu
     if (method === "DELETE" && del) {
       const id = del[2]!;
       if (!records.delete(id)) {
-        return json(404, { success: false, errors: [{ code: 81044, message: "Record does not exist." }], result: null });
+        return json(404, {
+          success: false,
+          errors: [{ code: 81044, message: "Record does not exist." }],
+          result: null,
+        });
       }
       return ok({ id });
     }
-    return json(404, { success: false, errors: [{ code: 7003, message: "no route" }], result: null });
+    return json(404, {
+      success: false,
+      errors: [{ code: 7003, message: "no route" }],
+      result: null,
+    });
   };
 
   return { fetch: fetchImpl, calls, records, zones };
@@ -79,17 +130,24 @@ function fakeCloudflare(o: { zones?: Record<string, string>; forcedStatuses?: nu
 
 function provider(cf: ReturnType<typeof fakeCloudflare>, extra: Partial<CloudflareOptions> = {}) {
   return new CloudflareDnsProvider({
-    apiToken: "cf-scoped-token", baseUrl: BASE, fetch: cf.fetch, log: silent(),
+    apiToken: "cf-scoped-token",
+    baseUrl: BASE,
+    fetch: cf.fetch,
+    log: silent(),
     retry: { attempts: 4, baseMs: 1, maxMs: 2, random: () => 0 },
     ...extra,
   });
 }
 
 /** A stub authoritative view: what each nameserver IP answers for a TXT name. */
-function fakeDns(answers: (ip: string, name: string, round: number) => string[] | Error): DnsQueries & { rounds: number } {
+function fakeDns(
+  answers: (ip: string, name: string, round: number) => string[] | Error,
+): DnsQueries & { rounds: number } {
   const state = { rounds: 0 };
   return {
-    get rounds() { return state.rounds; },
+    get rounds() {
+      return state.rounds;
+    },
     async resolveNs(zone: string) {
       state.rounds = state.rounds; // zone is recorded by callers that care
       return [`ns1.${zone}`, `ns2.${zone}`];
@@ -111,7 +169,10 @@ describe("zone candidates", () => {
     expect(zoneCandidates(CHALLENGE)).toEqual(["preview.example.com", "example.com"]);
     expect(zoneCandidates("example.com")).toEqual(["example.com"]);
     expect(zoneCandidates("a.b.c.example.com")).toEqual([
-      "a.b.c.example.com", "b.c.example.com", "c.example.com", "example.com",
+      "a.b.c.example.com",
+      "b.c.example.com",
+      "c.example.com",
+      "example.com",
     ]);
   });
 });
@@ -121,17 +182,23 @@ describe("CloudflareDnsProvider zone resolution", () => {
     const cf = fakeCloudflare();
     const { recordId } = await provider(cf).createTxt(CHALLENGE, "value-a");
 
-    const asked = cf.calls.filter((c) => c.path === "/zones").map((c) => new URLSearchParams(c.query).get("name"));
+    const asked = cf.calls
+      .filter((c) => c.path === "/zones")
+      .map((c) => new URLSearchParams(c.query).get("name"));
     expect(asked).toEqual(["preview.example.com", "example.com"]);
     expect(cf.records.get(recordId)!.zoneId).toBe("zone-example");
   });
 
   test("prefers a delegated subdomain zone when the account has one", async () => {
-    const cf = fakeCloudflare({ zones: { "example.com": "zone-example", "preview.example.com": "zone-preview" } });
+    const cf = fakeCloudflare({
+      zones: { "example.com": "zone-example", "preview.example.com": "zone-preview" },
+    });
     const { recordId } = await provider(cf).createTxt(CHALLENGE, "value-a");
     expect(cf.records.get(recordId)!.zoneId).toBe("zone-preview");
     // Most specific candidate hits first: example.com is never asked for.
-    const asked = cf.calls.filter((c) => c.path === "/zones").map((c) => new URLSearchParams(c.query).get("name"));
+    const asked = cf.calls
+      .filter((c) => c.path === "/zones")
+      .map((c) => new URLSearchParams(c.query).get("name"));
     expect(asked).toEqual(["preview.example.com"]);
   });
 
@@ -152,7 +219,9 @@ describe("CloudflareDnsProvider zone resolution", () => {
 
   test("fails loudly when no zone covers the name", async () => {
     const cf = fakeCloudflare({ zones: {} });
-    await expect(provider(cf).createTxt(CHALLENGE, "a")).rejects.toThrow(/no Cloudflare zone covers/);
+    await expect(provider(cf).createTxt(CHALLENGE, "a")).rejects.toThrow(
+      /no Cloudflare zone covers/,
+    );
   });
 });
 
@@ -187,7 +256,11 @@ describe("CloudflareDnsProvider createTxt", () => {
     expect(post.path).toBe("/zones/zone-example/dns_records");
     expect(post.body).toEqual({ type: "TXT", name: CHALLENGE, content: "key-auth-value", ttl: 60 });
     expect(recordId).toBe("rec-1");
-    expect(cf.records.get("rec-1")).toMatchObject({ name: CHALLENGE, content: "key-auth-value", ttl: 60 });
+    expect(cf.records.get("rec-1")).toMatchObject({
+      name: CHALLENGE,
+      content: "key-auth-value",
+      ttl: 60,
+    });
   });
 });
 
@@ -198,7 +271,10 @@ describe("CloudflareDnsProvider removeTxt", () => {
     const { recordId } = await p.createTxt(CHALLENGE, "a");
     await p.removeTxt(recordId, CHALLENGE);
     expect(cf.records.size).toBe(0);
-    expect(cf.calls.at(-1)).toMatchObject({ method: "DELETE", path: `/zones/zone-example/dns_records/${recordId}` });
+    expect(cf.calls.at(-1)).toMatchObject({
+      method: "DELETE",
+      path: `/zones/zone-example/dns_records/${recordId}`,
+    });
   });
 
   test("is idempotent: a 404 for an already-deleted record is success", async () => {
@@ -222,7 +298,9 @@ describe("CloudflareDnsProvider rate limits", () => {
 
   test("retries a 5xx as well", async () => {
     const cf = fakeCloudflare({ forcedStatuses: [502] });
-    await expect(provider(cf).createTxt(CHALLENGE, "a")).resolves.toMatchObject({ recordId: "rec-1" });
+    await expect(provider(cf).createTxt(CHALLENGE, "a")).resolves.toMatchObject({
+      recordId: "rec-1",
+    });
   });
 
   test("gives up after the attempt budget", async () => {
@@ -248,10 +326,15 @@ describe("wildcard order: two TXT records at one name", () => {
     const live = [...cf.records.values()];
     expect(live).toHaveLength(2);
     expect(live.every((r) => r.name === CHALLENGE)).toBe(true);
-    expect(live.map((r) => r.content).sort()).toEqual(["value-for-the-bare-name", "value-for-the-wildcard"]);
+    expect(live.map((r) => r.content).sort()).toEqual([
+      "value-for-the-bare-name",
+      "value-for-the-wildcard",
+    ]);
     // Nothing was updated or deleted on the way: two POSTs, no PUT/PATCH/DELETE.
     expect(cf.calls.filter((c) => c.method === "POST")).toHaveLength(2);
-    expect(cf.calls.some((c) => c.method === "PUT" || c.method === "PATCH" || c.method === "DELETE")).toBe(false);
+    expect(
+      cf.calls.some((c) => c.method === "PUT" || c.method === "PATCH" || c.method === "DELETE"),
+    ).toBe(false);
 
     await p.removeTxt(a.recordId, CHALLENGE);
     await p.removeTxt(b.recordId, CHALLENGE);
@@ -269,9 +352,15 @@ describe("wildcard order: two TXT records at one name", () => {
 
   test("propagation needs BOTH values, not just the first", async () => {
     const dns = fakeDns((ip) => (ip === "10.0.0.1" ? ["v1", "v2"] : ["v1"]));
-    expect(await waitForTxtPropagation(CHALLENGE, ["v1", "v2"], {
-      dns, zone: "example.com", log: silent(), timeoutMs: 60, intervalMs: 5,
-    })).toBe(false);
+    expect(
+      await waitForTxtPropagation(CHALLENGE, ["v1", "v2"], {
+        dns,
+        zone: "example.com",
+        log: silent(),
+        timeoutMs: 60,
+        intervalMs: 5,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -287,7 +376,11 @@ describe("waitForTxtPropagation", () => {
 
     const started = Date.now();
     const ok = await waitForTxtPropagation(CHALLENGE, ["v1"], {
-      dns, zone: "example.com", log: silent(), timeoutMs: 2_000, intervalMs: 5,
+      dns,
+      zone: "example.com",
+      log: silent(),
+      timeoutMs: 2_000,
+      intervalMs: 5,
     });
 
     expect(ok).toBe(true);
@@ -297,50 +390,84 @@ describe("waitForTxtPropagation", () => {
 
   test("succeeds only once every authoritative server agrees", async () => {
     const dns = fakeDns((ip) => (ip === "10.0.0.1" ? ["v1"] : []));
-    expect(await waitForTxtPropagation(CHALLENGE, ["v1"], {
-      dns, zone: "example.com", log: silent(), timeoutMs: 40, intervalMs: 5,
-    })).toBe(false);
+    expect(
+      await waitForTxtPropagation(CHALLENGE, ["v1"], {
+        dns,
+        zone: "example.com",
+        log: silent(),
+        timeoutMs: 40,
+        intervalMs: 5,
+      }),
+    ).toBe(false);
   });
 
   test("returns true immediately when every server already has it", async () => {
     const dns = fakeDns(() => ["v1", "v2"]);
-    expect(await waitForTxtPropagation(CHALLENGE, ["v1", "v2"], {
-      dns, zone: "example.com", log: silent(), timeoutMs: 1_000, intervalMs: 5,
-    })).toBe(true);
+    expect(
+      await waitForTxtPropagation(CHALLENGE, ["v1", "v2"], {
+        dns,
+        zone: "example.com",
+        log: silent(),
+        timeoutMs: 1_000,
+        intervalMs: 5,
+      }),
+    ).toBe(true);
     expect(dns.rounds).toBe(1);
   });
 
   test("treats NXDOMAIN from a nameserver as 'not yet', not as a failure", async () => {
     const dns = fakeDns((ip, _n, round) => {
-      if (ip === "10.0.0.2") return round >= 3 ? ["v1"] : Object.assign(new Error("queryTxt ENOTFOUND"), { code: "ENOTFOUND" });
+      if (ip === "10.0.0.2")
+        return round >= 3
+          ? ["v1"]
+          : Object.assign(new Error("queryTxt ENOTFOUND"), { code: "ENOTFOUND" });
       return ["v1"];
     });
-    expect(await waitForTxtPropagation(CHALLENGE, ["v1"], {
-      dns, zone: "example.com", log: silent(), timeoutMs: 2_000, intervalMs: 5,
-    })).toBe(true);
+    expect(
+      await waitForTxtPropagation(CHALLENGE, ["v1"], {
+        dns,
+        zone: "example.com",
+        log: silent(),
+        timeoutMs: 2_000,
+        intervalMs: 5,
+      }),
+    ).toBe(true);
   });
 
   test("throws when the zone has no reachable authoritative nameservers", async () => {
     const dns: DnsQueries = {
-      async resolveNs() { return ["ns1.example.com"]; },
-      async resolveAddresses() { return []; },
-      async resolveTxtFrom() { return []; },
+      async resolveNs() {
+        return ["ns1.example.com"];
+      },
+      async resolveAddresses() {
+        return [];
+      },
+      async resolveTxtFrom() {
+        return [];
+      },
     };
-    await expect(waitForTxtPropagation(CHALLENGE, ["v1"], { dns, zone: "example.com", log: silent() }))
-      .rejects.toThrow(/no authoritative nameserver addresses/);
+    await expect(
+      waitForTxtPropagation(CHALLENGE, ["v1"], { dns, zone: "example.com", log: silent() }),
+    ).rejects.toThrow(/no authoritative nameserver addresses/);
   });
 
   test("the provider asks the zone's nameservers, not the challenge name's", async () => {
     const asked: string[] = [];
     const base = fakeDns(() => ["v1"]);
     const dns: DnsQueries = {
-      resolveNs: (z) => { asked.push(z); return base.resolveNs(z); },
+      resolveNs: (z) => {
+        asked.push(z);
+        return base.resolveNs(z);
+      },
       resolveAddresses: (h) => base.resolveAddresses(h),
       resolveTxtFrom: (ip, n) => base.resolveTxtFrom(ip, n),
     };
     const cf = fakeCloudflare();
-    const ok = await provider(cf, { dns, propagationTimeoutMs: 1_000, propagationIntervalMs: 5 })
-      .waitForPropagation(CHALLENGE, ["v1"]);
+    const ok = await provider(cf, {
+      dns,
+      propagationTimeoutMs: 1_000,
+      propagationIntervalMs: 5,
+    }).waitForPropagation(CHALLENGE, ["v1"]);
     expect(ok).toBe(true);
     expect(asked).toEqual(["example.com"]);
   });

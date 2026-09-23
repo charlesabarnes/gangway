@@ -11,20 +11,35 @@ const ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 
 
 /** Token shapes worth catching on sight, independent of the field they arrive in. */
 const SECRET_PATTERNS: RegExp[] = [
-  /gw_[A-Za-z0-9_-]{16,}/g,                 // our own API tokens
-  /gh[pousr]_[A-Za-z0-9]{20,}/g,            // GitHub PAT / OAuth / installation tokens
+  /gw_[A-Za-z0-9_-]{16,}/g, // our own API tokens
+  /gh[pousr]_[A-Za-z0-9]{20,}/g, // GitHub PAT / OAuth / installation tokens
   /github_pat_[A-Za-z0-9_]{20,}/g,
   /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/gi,
-  /\b[A-Za-z0-9._-]+:[^@\s/]{6,}@/g,        // credentials embedded in a URL
+  /\b[A-Za-z0-9._-]+:[^@\s/]{6,}@/g, // credentials embedded in a URL
   /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g,
 ];
 
 /** Field names whose value is always replaced, whatever it looks like. */
 const SECRET_KEYS = new Set([
-  "password", "passwordhash", "token", "apitoken", "api_token", "accesstoken",
-  "secret", "clientsecret", "client_secret", "privatekey", "private_key",
-  "authorization", "cookie", "set-cookie", "webhooksecret", "webhook_secret",
-  "accountkey", "account_key", "key",
+  "password",
+  "passwordhash",
+  "token",
+  "apitoken",
+  "api_token",
+  "accesstoken",
+  "secret",
+  "clientsecret",
+  "client_secret",
+  "privatekey",
+  "private_key",
+  "authorization",
+  "cookie",
+  "set-cookie",
+  "webhooksecret",
+  "webhook_secret",
+  "accountkey",
+  "account_key",
+  "key",
 ]);
 
 export function redactString(s: string): string {
@@ -46,7 +61,9 @@ export function redact(value: unknown, depth = 0): unknown {
     // stderr lives there; without them the log says only "the compose file is not valid".
     const extra = value as Error & { code?: unknown; detail?: unknown };
     return {
-      name: value.name, message: redactString(value.message), stack: value.stack ? redactString(value.stack) : undefined,
+      name: value.name,
+      message: redactString(value.message),
+      stack: value.stack ? redactString(value.stack) : undefined,
       ...(extra.code !== undefined ? { code: extra.code } : {}),
       ...(extra.detail !== undefined ? { detail: redact(extra.detail, depth + 1) } : {}),
     };
@@ -87,8 +104,16 @@ export class Logger {
     this.#sink(JSON.stringify(record));
   }
 
-  debug(msg: string, f?: LogFields) { this.#log("debug", msg, f); }
-  info(msg: string, f?: LogFields) { this.#log("info", msg, f); }
-  warn(msg: string, f?: LogFields) { this.#log("warn", msg, f); }
-  error(msg: string, f?: LogFields) { this.#log("error", msg, f); }
+  debug(msg: string, f?: LogFields) {
+    this.#log("debug", msg, f);
+  }
+  info(msg: string, f?: LogFields) {
+    this.#log("info", msg, f);
+  }
+  warn(msg: string, f?: LogFields) {
+    this.#log("warn", msg, f);
+  }
+  error(msg: string, f?: LogFields) {
+    this.#log("error", msg, f);
+  }
 }

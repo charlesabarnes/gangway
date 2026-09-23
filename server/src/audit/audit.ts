@@ -17,22 +17,49 @@ import type { AuditRepo } from "../db/repos/audit.ts";
 import { redact, type Logger } from "../logger.ts";
 
 export type AuditAction =
-  | "preview.deploy" | "preview.destroy" | "preview.redeploy" | "preview.data.query" | "preview.password"
-  | "auth.setup" | "auth.login" | "auth.login.failed" | "auth.login.blocked" | "auth.logout" | "auth.password.changed"
-  | "user.created" | "user.updated"
+  | "preview.deploy"
+  | "preview.destroy"
+  | "preview.redeploy"
+  | "preview.data.query"
+  | "preview.password"
+  | "auth.setup"
+  | "auth.login"
+  | "auth.login.failed"
+  | "auth.login.blocked"
+  | "auth.logout"
+  | "auth.password.changed"
+  | "user.created"
+  | "user.updated"
   | "role.permissions.changed"
-  | "settings.changed" | "surface.changed"
-  | "github.connected" | "repo.updated" | "repo.deleted" | "repo.env.changed" | "secrets.changed"
-  | "project.created" | "project.updated" | "project.deleted" | "project.env.changed"
-  | "template.created" | "template.updated" | "template.deleted"
-  | "token.created" | "token.revoked"
-  | "oauth.grant.created" | "oauth.grant.revoked";
+  | "settings.changed"
+  | "surface.changed"
+  | "github.connected"
+  | "repo.updated"
+  | "repo.deleted"
+  | "repo.env.changed"
+  | "secrets.changed"
+  | "project.created"
+  | "project.updated"
+  | "project.deleted"
+  | "project.env.changed"
+  | "template.created"
+  | "template.updated"
+  | "template.deleted"
+  | "token.created"
+  | "token.revoked"
+  | "oauth.grant.created"
+  | "oauth.grant.revoked";
 
 export type AuditChange = { old?: unknown; new?: unknown };
 
 /** What the service layer depends on, so a context built without a database still works. */
 export interface AuditSink {
-  record(actor: Actor | null, action: AuditAction, target: string | null, change?: AuditChange): void;
+  record(
+    actor: Actor | null,
+    action: AuditAction,
+    target: string | null,
+    change?: AuditChange,
+  ): void;
 }
 
 export class Audit implements AuditSink {
@@ -49,16 +76,28 @@ export class Audit implements AuditSink {
    * The schema has no "anonymous" actor type, so those are `system` with no id, and the
    * target says who it was about.
    */
-  record(actor: Actor | null, action: AuditAction, target: string | null, change: AuditChange = {}): void {
+  record(
+    actor: Actor | null,
+    action: AuditAction,
+    target: string | null,
+    change: AuditChange = {},
+  ): void {
     try {
       const who = actor ? auditActor(actor) : { type: "system" as const, id: null };
       this.#repo.append({
-        actorType: who.type, actorId: who.id, action, target,
+        actorType: who.type,
+        actorId: who.id,
+        action,
+        target,
         old: change.old === undefined ? undefined : redact(change.old),
         new: change.new === undefined ? undefined : redact(change.new),
       });
     } catch (err) {
-      this.#logger.error("audit write failed; the action itself succeeded", { action, target, err });
+      this.#logger.error("audit write failed; the action itself succeeded", {
+        action,
+        target,
+        err,
+      });
     }
   }
 }

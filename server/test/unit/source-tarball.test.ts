@@ -1,10 +1,26 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, lstat, readlink, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  lstat,
+  readlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pack, type Header } from "tar-stream";
 import { extractTarball } from "../../src/previews/source/tarball.ts";
-import { TarballError, containedIn, resolveWithin, type TarballRejection } from "../../src/previews/source/types.ts";
+import {
+  TarballError,
+  containedIn,
+  resolveWithin,
+  type TarballRejection,
+} from "../../src/previews/source/types.ts";
 import { Workdirs } from "../../src/previews/source/workdir.ts";
 import { AppError } from "../../src/errors.ts";
 
@@ -35,7 +51,10 @@ afterEach(async () => {
   for (const d of tmpdirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
 
-async function expectReject(fn: () => Promise<unknown>, reason: TarballRejection): Promise<TarballError> {
+async function expectReject(
+  fn: () => Promise<unknown>,
+  reason: TarballRejection,
+): Promise<TarballError> {
   let caught: unknown;
   try {
     await fn();
@@ -49,9 +68,11 @@ async function expectReject(fn: () => Promise<unknown>, reason: TarballRejection
 }
 
 const gzip = (b: Uint8Array): ReadableStream<Uint8Array> =>
-  new Blob([b]).stream().pipeThrough(
-    new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
-  );
+  new Blob([b])
+    .stream()
+    .pipeThrough(
+      new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
+    );
 
 describe("containment guard", () => {
   // The bug this whole module exists to avoid: a prefix match is not a path match.
@@ -107,7 +128,11 @@ describe("extractTarball happy path", () => {
 
   test("accepts gzip padded with zeros to a 10240-byte record, as macOS bsdtar writes to a pipe (`tar -czf - . | curl`)", async () => {
     const dest = await scratch();
-    const compressed = new Uint8Array(await new Response(gzip(await tarBytes([{ header: { name: "a.txt" }, body: "padded" }]))).arrayBuffer());
+    const compressed = new Uint8Array(
+      await new Response(
+        gzip(await tarBytes([{ header: { name: "a.txt" }, body: "padded" }])),
+      ).arrayBuffer(),
+    );
     const padded = new Uint8Array(10240);
     padded.set(compressed);
     expect((await extractTarball(padded, dest)).files).toBe(1);
@@ -116,7 +141,11 @@ describe("extractTarball happy path", () => {
 
   test("a corrupt gzip stream is still the archive's fault", async () => {
     const dest = await scratch();
-    const compressed = new Uint8Array(await new Response(gzip(await tarBytes([{ header: { name: "a.txt" }, body: "x".repeat(4000) }]))).arrayBuffer());
+    const compressed = new Uint8Array(
+      await new Response(
+        gzip(await tarBytes([{ header: { name: "a.txt" }, body: "x".repeat(4000) }])),
+      ).arrayBuffer(),
+    );
     compressed.fill(0x55, 12, 40);
     await expectReject(() => extractTarball(compressed, dest), "malformed_archive");
   });
@@ -147,11 +176,16 @@ describe("extractTarball rejects hostile archives", () => {
   test("a path with traversal segments", async () => {
     const dest = await scratch();
     await expectReject(
-      () => extractTarball(tarBytes([{ header: { name: "../../escaped.txt" }, body: "pwned" }]), dest),
+      () =>
+        extractTarball(tarBytes([{ header: { name: "../../escaped.txt" }, body: "pwned" }]), dest),
       "path_traversal",
     );
     await expectReject(
-      () => extractTarball(tarBytes([{ header: { name: "a/b/../../../out.txt" }, body: "pwned" }]), dest),
+      () =>
+        extractTarball(
+          tarBytes([{ header: { name: "a/b/../../../out.txt" }, body: "pwned" }]),
+          dest,
+        ),
       "path_traversal",
     );
     expect(await readdir(dest)).toEqual([]);
@@ -168,11 +202,19 @@ describe("extractTarball rejects hostile archives", () => {
   test("a symlink pointing outside the destination", async () => {
     const dest = await scratch();
     await expectReject(
-      () => extractTarball(tarBytes([{ header: { name: "passwd", type: "symlink", linkname: "/etc/passwd" } }]), dest),
+      () =>
+        extractTarball(
+          tarBytes([{ header: { name: "passwd", type: "symlink", linkname: "/etc/passwd" } }]),
+          dest,
+        ),
       "link_escape",
     );
     await expectReject(
-      () => extractTarball(tarBytes([{ header: { name: "up", type: "symlink", linkname: "../../../etc" } }]), dest),
+      () =>
+        extractTarball(
+          tarBytes([{ header: { name: "up", type: "symlink", linkname: "../../../etc" } }]),
+          dest,
+        ),
       "link_escape",
     );
   });
@@ -180,7 +222,11 @@ describe("extractTarball rejects hostile archives", () => {
   test("a hardlink pointing outside the destination", async () => {
     const dest = await scratch();
     await expectReject(
-      () => extractTarball(tarBytes([{ header: { name: "shadow", type: "link", linkname: "../outside.txt" } }]), dest),
+      () =>
+        extractTarball(
+          tarBytes([{ header: { name: "shadow", type: "link", linkname: "../outside.txt" } }]),
+          dest,
+        ),
       "link_escape",
     );
   });
@@ -198,10 +244,13 @@ describe("extractTarball rejects hostile archives", () => {
     await writeFile(path.join(sibling, "secret.txt"), "secret");
 
     await expectReject(
-      () => extractTarball(
-        tarBytes([{ header: { name: "leak", type: "symlink", linkname: "../foobar/secret.txt" } }]),
-        dest,
-      ),
+      () =>
+        extractTarball(
+          tarBytes([
+            { header: { name: "leak", type: "symlink", linkname: "../foobar/secret.txt" } },
+          ]),
+          dest,
+        ),
       "link_escape",
     );
     expect(await readdir(dest)).toEqual([]);
@@ -214,14 +263,15 @@ describe("extractTarball rejects hostile archives", () => {
   test("a file written through a symlinked directory component", async () => {
     const dest = await scratch();
     await expectReject(
-      () => extractTarball(
-        tarBytes([
-          { header: { name: "real", type: "directory" } },
-          { header: { name: "alias", type: "symlink", linkname: "real" } },
-          { header: { name: "alias/planted.txt" }, body: "pwned" },
-        ]),
-        dest,
-      ),
+      () =>
+        extractTarball(
+          tarBytes([
+            { header: { name: "real", type: "directory" } },
+            { header: { name: "alias", type: "symlink", linkname: "real" } },
+            { header: { name: "alias/planted.txt" }, body: "pwned" },
+          ]),
+          dest,
+        ),
       "path_escape",
     );
     expect(await readdir(path.join(dest, "real"))).toEqual([]);
@@ -239,17 +289,24 @@ describe("extractTarball rejects hostile archives", () => {
 
   test("more entries than maxEntries", async () => {
     const dest = await scratch();
-    const entries = Array.from({ length: 12 }, (_, i) => ({ header: { name: `f${i}.txt` }, body: "x" }));
-    await expectReject(() => extractTarball(tarBytes(entries), dest, { maxEntries: 5 }), "too_many_entries");
+    const entries = Array.from({ length: 12 }, (_, i) => ({
+      header: { name: `f${i}.txt` },
+      body: "x",
+    }));
+    await expectReject(
+      () => extractTarball(tarBytes(entries), dest, { maxEntries: 5 }),
+      "too_many_entries",
+    );
     expect((await readdir(dest)).length).toBeLessThanOrEqual(5);
   });
 
   test("a single file over maxFileBytes", async () => {
     const dest = await scratch();
     await expectReject(
-      () => extractTarball(tarBytes([{ header: { name: "big.bin" }, body: "x".repeat(5000) }]), dest, {
-        maxFileBytes: 1024,
-      }),
+      () =>
+        extractTarball(tarBytes([{ header: { name: "big.bin" }, body: "x".repeat(5000) }]), dest, {
+          maxFileBytes: 1024,
+        }),
       "file_too_large",
     );
   });
@@ -265,7 +322,10 @@ describe("extractTarball rejects hostile archives", () => {
     const compressed = await new Response(gzip(bytes)).arrayBuffer();
     expect(compressed.byteLength).toBeLessThan(bytes.byteLength / 10); // it really is a bomb
 
-    await expectReject(() => extractTarball(gzip(bytes), dest, { maxTotalBytes: 256 * 1024 }), "archive_too_large");
+    await expectReject(
+      () => extractTarball(gzip(bytes), dest, { maxTotalBytes: 256 * 1024 }),
+      "archive_too_large",
+    );
 
     // Aborted mid-stream, not after inflating all of it: most entries never reach the disk.
     expect((await readdir(dest)).length).toBeLessThan(entries.length / 2);
@@ -275,33 +335,42 @@ describe("extractTarball rejects hostile archives", () => {
     const dest = await scratch();
     const long = `${"a".repeat(120)}/${"b".repeat(150)}.txt`;
     expect(Buffer.byteLength(long)).toBeGreaterThan(255);
-    await expectReject(() => extractTarball(tarBytes([{ header: { name: long }, body: "x" }]), dest), "path_too_long");
+    await expectReject(
+      () => extractTarball(tarBytes([{ header: { name: long }, body: "x" }]), dest),
+      "path_too_long",
+    );
   });
 
   test("a path that only exceeds 255 once encoded", async () => {
     const dest = await scratch();
     const name = "é".repeat(200); // 200 characters, 400 bytes
     expect(name.length).toBeLessThan(255);
-    await expectReject(() => extractTarball(tarBytes([{ header: { name }, body: "x" }]), dest), "path_too_long");
+    await expectReject(
+      () => extractTarball(tarBytes([{ header: { name }, body: "x" }]), dest),
+      "path_too_long",
+    );
   });
 
   test("a path containing a NUL byte", async () => {
     const dest = await scratch();
     // The ustar name field is NUL-terminated, so a NUL can only arrive via a PAX record.
-    const bytes = await tarBytes([{ header: { name: "ok.txt", pax: { path: "evil\u0000.txt" } }, body: "x" }]);
+    const bytes = await tarBytes([
+      { header: { name: "ok.txt", pax: { path: "evil\u0000.txt" } }, body: "x" },
+    ]);
     await expectReject(() => extractTarball(bytes, dest), "invalid_path");
   });
 
   test("two entries writing the same path", async () => {
     const dest = await scratch();
     await expectReject(
-      () => extractTarball(
-        tarBytes([
-          { header: { name: "dup.txt" }, body: "first" },
-          { header: { name: "dup.txt" }, body: "second" },
-        ]),
-        dest,
-      ),
+      () =>
+        extractTarball(
+          tarBytes([
+            { header: { name: "dup.txt" }, body: "first" },
+            { header: { name: "dup.txt" }, body: "second" },
+          ]),
+          dest,
+        ),
       "duplicate_entry",
     );
   });
@@ -309,14 +378,15 @@ describe("extractTarball rejects hostile archives", () => {
   test("a file entry landing on a path already taken by a symlink", async () => {
     const dest = await scratch();
     await expectReject(
-      () => extractTarball(
-        tarBytes([
-          { header: { name: "target.txt" }, body: "harmless" },
-          { header: { name: "alias", type: "symlink", linkname: "target.txt" } },
-          { header: { name: "alias" }, body: "written through the link" },
-        ]),
-        dest,
-      ),
+      () =>
+        extractTarball(
+          tarBytes([
+            { header: { name: "target.txt" }, body: "harmless" },
+            { header: { name: "alias", type: "symlink", linkname: "target.txt" } },
+            { header: { name: "alias" }, body: "written through the link" },
+          ]),
+          dest,
+        ),
       "duplicate_entry",
     );
     expect(await readFile(path.join(dest, "target.txt"), "utf8")).toBe("harmless");
@@ -342,7 +412,10 @@ describe("Workdirs", () => {
     expect(workdir.dir.startsWith(path.join(state, "work") + path.sep)).toBe(true);
     expect((await stat(workdir.dir)).mode & 0o7777).toBe(0o700);
 
-    await extractTarball(await tarBytes([{ header: { name: "app.js" }, body: "ok" }]), workdir.srcDir);
+    await extractTarball(
+      await tarBytes([{ header: { name: "app.js" }, body: "ok" }]),
+      workdir.srcDir,
+    );
     expect(await readFile(path.join(workdir.srcDir, "app.js"), "utf8")).toBe("ok");
 
     await workdir.cleanup();

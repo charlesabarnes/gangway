@@ -37,7 +37,10 @@ function forwardContext(entry: RouteEntry, o: UpstreamOptions, clientIp: string)
 function agentFor(o: UpstreamOptions): http.Agent {
   const agent = new http.Agent({ keepAlive: true, maxSockets: 64 });
   // @ts-expect-error -- createConnection is a documented Agent hook, loosely typed.
-  agent.createConnection = (opts: { host: string; port: number }, cb: (e: Error | null, s?: net.Socket) => void) => {
+  agent.createConnection = (
+    opts: { host: string; port: number },
+    cb: (e: Error | null, s?: net.Socket) => void,
+  ) => {
     dialUpstream({ host: opts.host, port: opts.port }, o.dial)
       .then((s) => cb(null, s))
       .catch((e) => cb(e as Error));
@@ -59,46 +62,69 @@ export class NodeHttpUpstream implements Upstream {
     const url = new URL(req.url);
     const headers = buildUpstreamHeaders(req, forwardContext(entry, this.#o, ctx.clientIp));
     const hdr: Record<string, string> = {};
-    headers.forEach((v, k) => { hdr[k] = v; });
+    headers.forEach((v, k) => {
+      hdr[k] = v;
+    });
 
     return new Promise<Response>((resolve, reject) => {
       // Destroying a pooled socket surfaces ECONNRESET rather than our own error, so the
       // reason has to be tracked out of band or a timeout is misreported as a bad gateway.
       let timedOut = false;
-      const creq = http.request({
-        host: entry.upstreamHost,
-        port: entry.upstreamPort,
-        method: req.method,
-        // Never normalize the path: collapsing // or decoding %2F breaks real apps.
-        path: url.pathname + url.search,
-        headers: hdr,
-        agent: this.#agent,
-      }, (cres) => {
-        const out = new Headers();
-        for (const [k, v] of Object.entries(cres.headers)) {
-          if (v === undefined) continue;
-          out.set(k, Array.isArray(v) ? v.join(", ") : String(v));
-        }
-        const body = new ReadableStream<Uint8Array>({
-          start(c) {
-            cres.on("data", (d: Buffer) => c.enqueue(new Uint8Array(d)));
-            cres.on("end", () => { try { c.close(); } catch { /* already closed */ } });
-            cres.on("error", (e) => { try { c.error(e); } catch { /* already errored */ } });
-          },
-          cancel() { cres.destroy(); },
-        });
-        resolve(new Response(cres.statusCode === 204 || cres.statusCode === 304 ? null : body, {
-          status: cres.statusCode ?? 502,
-          headers: buildResponseHeaders(out, { unlisted: entry.visibility === "unlisted" }),
-        }));
-      });
+      const creq = http.request(
+        {
+          host: entry.upstreamHost,
+          port: entry.upstreamPort,
+          method: req.method,
+          // Never normalize the path: collapsing // or decoding %2F breaks real apps.
+          path: url.pathname + url.search,
+          headers: hdr,
+          agent: this.#agent,
+        },
+        (cres) => {
+          const out = new Headers();
+          for (const [k, v] of Object.entries(cres.headers)) {
+            if (v === undefined) continue;
+            out.set(k, Array.isArray(v) ? v.join(", ") : String(v));
+          }
+          const body = new ReadableStream<Uint8Array>({
+            start(c) {
+              cres.on("data", (d: Buffer) => c.enqueue(new Uint8Array(d)));
+              cres.on("end", () => {
+                try {
+                  c.close();
+                } catch {
+                  /* already closed */
+                }
+              });
+              cres.on("error", (e) => {
+                try {
+                  c.error(e);
+                } catch {
+                  /* already errored */
+                }
+              });
+            },
+            cancel() {
+              cres.destroy();
+            },
+          });
+          resolve(
+            new Response(cres.statusCode === 204 || cres.statusCode === 304 ? null : body, {
+              status: cres.statusCode ?? 502,
+              headers: buildResponseHeaders(out, { unlisted: entry.visibility === "unlisted" }),
+            }),
+          );
+        },
+      );
 
       creq.setTimeout(this.#o.timeoutMs, () => {
         timedOut = true;
         creq.destroy(new Error("UPSTREAM_TIMEOUT"));
       });
       creq.on("error", (e) => reject(timedOut ? new UpstreamTimeout() : e));
-      req.signal.addEventListener("abort", () => creq.destroy(new Error("CLIENT_ABORTED")), { once: true });
+      req.signal.addEventListener("abort", () => creq.destroy(new Error("CLIENT_ABORTED")), {
+        once: true,
+      });
 
       if (req.body) {
         void (async () => {
@@ -171,7 +197,11 @@ export class UpstreamTimeout extends Error {
 export function isTimeout(e: unknown): boolean {
   if (e instanceof UpstreamTimeout) return true;
   const m = String((e as Error)?.message ?? "");
-  return m.includes("UPSTREAM_TIMEOUT") || m.includes("timed out") || (e as Error)?.name === "TimeoutError";
+  return (
+    m.includes("UPSTREAM_TIMEOUT") ||
+    m.includes("timed out") ||
+    (e as Error)?.name === "TimeoutError"
+  );
 }
 
 /**

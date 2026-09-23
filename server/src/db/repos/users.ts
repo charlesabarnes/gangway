@@ -39,18 +39,24 @@ export class UsersRepo {
   }
 
   getByEmail(email: string): User | undefined {
-    const r = this.#db.get<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE email = $email`, { email });
+    const r = this.#db.get<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE email = $email`, {
+      email,
+    });
     return r ? rowToUser(r) : undefined;
   }
 
   credentials(id: string): UserCredentials | undefined {
     const r = this.#db.get<{ password_hash: string; password_salt: string }>(
-      "SELECT password_hash, password_salt FROM users WHERE id = $id", { id });
+      "SELECT password_hash, password_salt FROM users WHERE id = $id",
+      { id },
+    );
     return r ? { hash: r.password_hash, salt: r.password_salt } : undefined;
   }
 
   list(): User[] {
-    return this.#db.query<UserRow>(`SELECT ${USER_COLUMNS} FROM users ORDER BY created_at, id`).map(rowToUser);
+    return this.#db
+      .query<UserRow>(`SELECT ${USER_COLUMNS} FROM users ORDER BY created_at, id`)
+      .map(rowToUser);
   }
 
   count(): number {
@@ -58,13 +64,19 @@ export class UsersRepo {
   }
 
   update(id: string, patch: { roleId?: string; disabled?: boolean }): User | undefined {
-    if (patch.roleId !== undefined) this.#db.run("UPDATE users SET role_id = $r WHERE id = $id", { id, r: patch.roleId });
-    if (patch.disabled !== undefined) this.#db.run("UPDATE users SET disabled = $d WHERE id = $id", { id, d: num(patch.disabled) });
+    if (patch.roleId !== undefined)
+      this.#db.run("UPDATE users SET role_id = $r WHERE id = $id", { id, r: patch.roleId });
+    if (patch.disabled !== undefined)
+      this.#db.run("UPDATE users SET disabled = $d WHERE id = $id", { id, d: num(patch.disabled) });
     return this.get(id);
   }
 
   setPassword(id: string, c: UserCredentials): void {
-    this.#db.run("UPDATE users SET password_hash = $hash, password_salt = $salt WHERE id = $id", { id, hash: c.hash, salt: c.salt });
+    this.#db.run("UPDATE users SET password_hash = $hash, password_salt = $salt WHERE id = $id", {
+      id,
+      hash: c.hash,
+      salt: c.salt,
+    });
   }
 
   /**

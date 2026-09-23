@@ -18,18 +18,28 @@ export class EventBus {
     this.#onListenerError = onListenerError;
   }
 
-  publish(type: string, payload: Record<string, unknown> = {}, previewId: string | null = null): GangwayEvent {
+  publish(
+    type: string,
+    payload: Record<string, unknown> = {},
+    previewId: string | null = null,
+  ): GangwayEvent {
     const event = this.#repo.append(type, payload, previewId);
     for (const l of this.#listeners) {
       // One broken SSE client must not stop a deploy from publishing to the others.
-      try { l(event); } catch (e) { this.#onListenerError(e); }
+      try {
+        l(event);
+      } catch (e) {
+        this.#onListenerError(e);
+      }
     }
     return event;
   }
 
   subscribe(listener: EventListener): () => void {
     this.#listeners.add(listener);
-    return () => { this.#listeners.delete(listener); };
+    return () => {
+      this.#listeners.delete(listener);
+    };
   }
 
   /**
@@ -76,7 +86,13 @@ export class EventBus {
         // Too far behind to replay. Say so rather than silently skipping: the client
         // drops what it has and refetches, then follows from here.
         const seq = this.#repo.latestSeq();
-        emit({ seq, previewId: previewId ?? null, type: "reset", payload: { reason: "backlog" }, createdAt: new Date() });
+        emit({
+          seq,
+          previewId: previewId ?? null,
+          type: "reset",
+          payload: { reason: "backlog" },
+          createdAt: new Date(),
+        });
         break;
       }
       const page = this.#repo.since(cursor, PAGE, previewId);

@@ -8,9 +8,22 @@ const BASE = "preview.example.com";
 
 function entry(over: Partial<RouteEntry> = {}): RouteEntry {
   return {
-    hostname: `acme-pr-1.${BASE}`, previewId: "p1", hostId: "local", project: "gw-1", service: "web",
-    containerPort: 3000, upstreamHost: "127.0.0.1", upstreamPort: 31000, primary: true,
-    visibility: "public", password: { mode: "inherit" }, passwordLogin: "inherit", state: "awake", inflight: 0, bytesInFlight: 0, lastSeenAt: 0,
+    hostname: `acme-pr-1.${BASE}`,
+    previewId: "p1",
+    hostId: "local",
+    project: "gw-1",
+    service: "web",
+    containerPort: 3000,
+    upstreamHost: "127.0.0.1",
+    upstreamPort: 31000,
+    primary: true,
+    visibility: "public",
+    password: { mode: "inherit" },
+    passwordLogin: "inherit",
+    state: "awake",
+    inflight: 0,
+    bytesInFlight: 0,
+    lastSeenAt: 0,
     ...over,
   };
 }
@@ -37,11 +50,15 @@ function deps(over: Partial<DispatchDeps> = {}, e: RouteEntry | null = entry()):
 }
 
 const get = (host: string, init: RequestInit = {}) =>
-  new Request("https://ignored.example/path?q=1", { ...init, headers: { host, ...(init.headers ?? {}) } });
+  new Request("https://ignored.example/path?q=1", {
+    ...init,
+    headers: { host, ...(init.headers ?? {}) },
+  });
 
 describe("host normalization and scoping", () => {
   test("a missing Host is a 400", async () => {
-    const req = new Request("https://x/"); req.headers.delete("host");
+    const req = new Request("https://x/");
+    req.headers.delete("host");
     expect((await dispatch(req, deps())).status).toBe(400);
   });
 
@@ -55,7 +72,11 @@ describe("host normalization and scoping", () => {
   });
 
   test("case, port and trailing dot are normalized before lookup", async () => {
-    for (const h of [`ACME-PR-1.${BASE.toUpperCase()}`, `acme-pr-1.${BASE}:8443`, `acme-pr-1.${BASE}.`]) {
+    for (const h of [
+      `ACME-PR-1.${BASE.toUpperCase()}`,
+      `acme-pr-1.${BASE}:8443`,
+      `acme-pr-1.${BASE}.`,
+    ]) {
       const res = await dispatch(get(h), deps());
       expect(await res.text()).toBe("upstream-ok");
     }
@@ -63,11 +84,15 @@ describe("host normalization and scoping", () => {
 });
 
 describe("reserved labels", () => {
-  test.each([["app", "APP"], ["api", "API"], ["mcp", "MCP"], ["hooks", "HOOKS"]])(
-    "%s routes to its own surface", async (label, body) => {
-      const res = await dispatch(get(`${label}.${BASE}`), deps());
-      expect(await res.text()).toBe(body);
-    });
+  test.each([
+    ["app", "APP"],
+    ["api", "API"],
+    ["mcp", "MCP"],
+    ["hooks", "HOOKS"],
+  ])("%s routes to its own surface", async (label, body) => {
+    const res = await dispatch(get(`${label}.${BASE}`), deps());
+    expect(await res.text()).toBe(body);
+  });
 
   test("www is an alias for the app surface", async () => {
     expect(await (await dispatch(get(`www.${BASE}`), deps())).text()).toBe("APP");
@@ -86,7 +111,10 @@ describe("reserved labels", () => {
 
   test("a disabled surface is 404, never 503", async () => {
     // Do not advertise what is there but switched off (§10.5).
-    const res = await dispatch(get(`mcp.${BASE}`), deps({ surfaceEnabled: (s: Surface) => s !== "mcp" }));
+    const res = await dispatch(
+      get(`mcp.${BASE}`),
+      deps({ surfaceEnabled: (s: Surface) => s !== "mcp" }),
+    );
     expect(res.status).toBe(404);
     expect(res.status).not.toBe(503);
   });
@@ -115,16 +143,20 @@ describe("preview state machine", () => {
   });
 
   test.each(["building", "starting"] as PreviewState[])(
-    "%s returns 202 with a refresh, not 502", async (state) => {
+    "%s returns 202 with a refresh, not 502",
+    async (state) => {
       const res = await dispatch(get(`acme-pr-1.${BASE}`), deps({}, entry({ state })));
       expect(res.status).toBe(202);
-      expect(await res.text()).toContain("http-equiv=\"refresh\"");
-    });
+      expect(await res.text()).toContain('http-equiv="refresh"');
+    },
+  );
 
   test("failed returns 502 with the last log lines", async () => {
     const lines = Array.from({ length: 80 }, (_, i) => `line ${i}`);
-    const res = await dispatch(get(`acme-pr-1.${BASE}`), deps(
-      { logTailFor: () => lines }, entry({ state: "failed" })));
+    const res = await dispatch(
+      get(`acme-pr-1.${BASE}`),
+      deps({ logTailFor: () => lines }, entry({ state: "failed" })),
+    );
     expect(res.status).toBe(502);
     const body = await res.text();
     expect(body).toContain("line 79");
@@ -134,10 +166,27 @@ describe("preview state machine", () => {
   test("asleep: wake answering null means awake now -- THIS request is proxied; a Response is sent instead; unwired shows the waking page", async () => {
     // The wake flips the entry to awake (as the state machine does through the table) and says "proxy it".
     const e = entry({ state: "asleep" });
-    const proxied = await dispatch(get(`acme-pr-1.${BASE}`), deps({ wake: async (en) => { en.state = "awake"; return null; } }, e));
+    const proxied = await dispatch(
+      get(`acme-pr-1.${BASE}`),
+      deps(
+        {
+          wake: async (en) => {
+            en.state = "awake";
+            return null;
+          },
+        },
+        e,
+      ),
+    );
     expect(await proxied.text()).toBe("upstream-ok");
 
-    const slow = await dispatch(get(`acme-pr-1.${BASE}`), deps({ wake: async () => new Response("still waking", { status: 202 }) }, entry({ state: "asleep" })));
+    const slow = await dispatch(
+      get(`acme-pr-1.${BASE}`),
+      deps(
+        { wake: async () => new Response("still waking", { status: 202 }) },
+        entry({ state: "asleep" }),
+      ),
+    );
     expect(slow.status).toBe(202);
     expect(await slow.text()).toBe("still waking");
 
@@ -150,9 +199,17 @@ describe("preview state machine", () => {
   });
 
   test("error pages never leak a stack trace", async () => {
-    const res = await dispatch(get(`acme-pr-1.${BASE}`), deps({
-      upstream: { name: "boom", fetch: async () => { throw new Error("SECRET internal detail at /src/x.ts:42"); } },
-    }));
+    const res = await dispatch(
+      get(`acme-pr-1.${BASE}`),
+      deps({
+        upstream: {
+          name: "boom",
+          fetch: async () => {
+            throw new Error("SECRET internal detail at /src/x.ts:42");
+          },
+        },
+      }),
+    );
     expect(res.status).toBe(502);
     const body = await res.text();
     expect(body).not.toContain("SECRET");
@@ -168,10 +225,23 @@ describe("preview state machine", () => {
 describe("visibility gate", () => {
   test("runs before the upstream ever sees the request", async () => {
     let upstreamCalled = false;
-    const res = await dispatch(get(`acme-pr-1.${BASE}`), deps({
-      upstream: { name: "s", fetch: async () => { upstreamCalled = true; return new Response("x"); } },
-      visibilityGate: () => new Response(null, { status: 302, headers: { location: "/login" } }),
-    }, entry({ visibility: "private" })));
+    const res = await dispatch(
+      get(`acme-pr-1.${BASE}`),
+      deps(
+        {
+          upstream: {
+            name: "s",
+            fetch: async () => {
+              upstreamCalled = true;
+              return new Response("x");
+            },
+          },
+          visibilityGate: () =>
+            new Response(null, { status: 302, headers: { location: "/login" } }),
+        },
+        entry({ visibility: "private" }),
+      ),
+    );
     expect(res.status).toBe(302);
     expect(upstreamCalled).toBe(false);
   });
@@ -191,23 +261,56 @@ describe("limits", () => {
 
   test("the in-flight counter is released even when the upstream throws", async () => {
     const e = entry();
-    await dispatch(get(e.hostname), deps({
-      upstream: { name: "s", fetch: async () => { throw new Error("boom"); } },
-    }, e));
+    await dispatch(
+      get(e.hostname),
+      deps(
+        {
+          upstream: {
+            name: "s",
+            fetch: async () => {
+              throw new Error("boom");
+            },
+          },
+        },
+        e,
+      ),
+    );
     expect(e.inflight).toBe(0);
   });
 
   test("an oversized body maps to 413 and a timeout to 504", async () => {
     const { BodyTooLarge } = await import("../../src/net/limits.ts");
     const e = entry();
-    const big = await dispatch(get(e.hostname), deps({
-      upstream: { name: "s", fetch: async () => { throw new BodyTooLarge(10); } },
-    }, e));
+    const big = await dispatch(
+      get(e.hostname),
+      deps(
+        {
+          upstream: {
+            name: "s",
+            fetch: async () => {
+              throw new BodyTooLarge(10);
+            },
+          },
+        },
+        e,
+      ),
+    );
     expect(big.status).toBe(413);
 
-    const slow = await dispatch(get(e.hostname), deps({
-      upstream: { name: "s", fetch: async () => { throw new Error("UPSTREAM_TIMEOUT"); } },
-    }, e));
+    const slow = await dispatch(
+      get(e.hostname),
+      deps(
+        {
+          upstream: {
+            name: "s",
+            fetch: async () => {
+              throw new Error("UPSTREAM_TIMEOUT");
+            },
+          },
+        },
+        e,
+      ),
+    );
     expect(slow.status).toBe(504);
   });
 });
@@ -222,11 +325,14 @@ describe("PerHostUpstream (T36)", () => {
       return { name: hostId, fetch: async () => new Response(`via ${hostId}`) };
     });
     const req = new Request("https://x.preview.example.com/");
-    const via = async (hostId: string) => (await per.fetch(req, entry({ hostId }), { clientIp: "::1" })).text();
+    const via = async (hostId: string) =>
+      (await per.fetch(req, entry({ hostId }), { clientIp: "::1" })).text();
     expect(await via("docker-host")).toBe("via docker-host");
     expect(await via("laptop")).toBe("via laptop");
     expect(await via("docker-host")).toBe("via docker-host");
     expect(made).toEqual(["docker-host", "laptop"]);
-    await expect(per.fetch(req, entry({ hostId: "gone" }), { clientIp: "::1" })).rejects.toThrow("no such host: gone");
+    await expect(per.fetch(req, entry({ hostId: "gone" }), { clientIp: "::1" })).rejects.toThrow(
+      "no such host: gone",
+    );
   });
 });

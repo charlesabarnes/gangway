@@ -11,7 +11,8 @@
 
 export const RUNTIME_IDS = ["static", "node", "bun", "deno", "workerd", "python", "php"] as const;
 export type RuntimeId = (typeof RUNTIME_IDS)[number];
-export const isRuntimeId = (s: string): s is RuntimeId => (RUNTIME_IDS as readonly string[]).includes(s);
+export const isRuntimeId = (s: string): s is RuntimeId =>
+  (RUNTIME_IDS as readonly string[]).includes(s);
 
 export type Runtime = {
   id: RuntimeId;
@@ -55,10 +56,15 @@ const worker = (name: string) => WORKER_TS.replace("__RUNTIME__", name);
 
 export const RUNTIMES: readonly Runtime[] = [
   {
-    id: "static", name: "Static site", language: "HTML",
-    description: "Files served as they are by nginx. A root index.html becomes the fallback for unknown paths (single-page apps) unless there is a 404.html; with neither, directories are listed.",
+    id: "static",
+    name: "Static site",
+    language: "HTML",
+    description:
+      "Files served as they are by nginx. A root index.html becomes the fallback for unknown paths (single-page apps) unless there is a 404.html; with neither, directories are listed.",
     image: "nginxinc/nginx-unprivileged:1.29-alpine",
-    versions: { "1.29": "nginxinc/nginx-unprivileged:1.29-alpine" }, port: 8080, entries: [],
+    versions: { "1.29": "nginxinc/nginx-unprivileged:1.29-alpine" },
+    port: 8080,
+    entries: [],
     starter: {
       "index.html": `<!doctype html>
 <html lang="en">
@@ -82,10 +88,15 @@ main { max-width: 40rem; padding: 2rem; }
     },
   },
   {
-    id: "node", name: "Node.js", language: "JavaScript",
-    description: "npm (or pnpm/yarn by lockfile) installs, `npm run build` if there is one, then `npm start` -- or `node` on package.json's main. Listen on $PORT.",
+    id: "node",
+    name: "Node.js",
+    language: "JavaScript",
+    description:
+      "npm (or pnpm/yarn by lockfile) installs, `npm run build` if there is one, then `npm start` -- or `node` on package.json's main. Listen on $PORT.",
     image: "node:24-alpine",
-    versions: { "24": "node:24-alpine", "22": "node:22-alpine", "20": "node:20-alpine" }, port: 3000, entries: ["server.js", "index.js", "app.js", "main.js"],
+    versions: { "24": "node:24-alpine", "22": "node:22-alpine", "20": "node:20-alpine" },
+    port: 3000,
+    entries: ["server.js", "index.js", "app.js", "main.js"],
     starter: {
       "package.json": `{
   "name": "hello",
@@ -105,27 +116,71 @@ createServer((req, res) => {
     },
   },
   {
-    id: "bun", name: "TypeScript on Bun", language: "TypeScript",
-    description: "Runs the entry file as-is -- no build step. Export a Workers-style `{ fetch }` (or a function), or serve on $PORT yourself. A package.json is installed with `bun install`.",
+    id: "bun",
+    name: "TypeScript on Bun",
+    language: "TypeScript",
+    description:
+      "Runs the entry file as-is -- no build step. Export a Workers-style `{ fetch }` (or a function), or serve on $PORT yourself. A package.json is installed with `bun install`.",
     image: "oven/bun:1.4.2-alpine",
-    versions: { "1.4": "oven/bun:1.4.2-alpine" }, port: 3000,
-    entries: ["index.ts", "index.tsx", "index.js", "main.ts", "main.js", "worker.ts", "worker.js", "server.ts", "src/index.ts", "src/index.js", "src/main.ts", "src/worker.ts"],
+    versions: { "1.4": "oven/bun:1.4.2-alpine" },
+    port: 3000,
+    entries: [
+      "index.ts",
+      "index.tsx",
+      "index.js",
+      "main.ts",
+      "main.js",
+      "worker.ts",
+      "worker.js",
+      "server.ts",
+      "src/index.ts",
+      "src/index.js",
+      "src/main.ts",
+      "src/worker.ts",
+    ],
     starter: { "index.ts": worker("Bun") },
   },
   {
-    id: "deno", name: "TypeScript on Deno", language: "TypeScript",
-    description: "Runs the entry file as-is, dependencies cached at build. Export a Workers-style `{ fetch }` (or a function), or serve on $PORT yourself. Runs with -A: the container is the sandbox.",
+    id: "deno",
+    name: "TypeScript on Deno",
+    language: "TypeScript",
+    description:
+      "Runs the entry file as-is, dependencies cached at build. Export a Workers-style `{ fetch }` (or a function), or serve on $PORT yourself. Runs with -A: the container is the sandbox.",
     image: "denoland/deno:alpine-2.9.7",
-    versions: { "2.9": "denoland/deno:alpine-2.9.7" }, port: 8000,
-    entries: ["main.ts", "main.tsx", "main.js", "index.ts", "index.js", "worker.ts", "server.ts", "mod.ts", "src/main.ts", "src/index.ts"],
+    versions: { "2.9": "denoland/deno:alpine-2.9.7" },
+    port: 8000,
+    entries: [
+      "main.ts",
+      "main.tsx",
+      "main.js",
+      "index.ts",
+      "index.js",
+      "worker.ts",
+      "server.ts",
+      "mod.ts",
+      "src/main.ts",
+      "src/index.ts",
+    ],
     starter: { "main.ts": worker("Deno") },
   },
   {
-    id: "workerd", name: "Cloudflare Worker (workerd)", language: "TypeScript",
-    description: "Cloudflare's own Workers runtime. The entry (wrangler's `main`, else index.ts) is bundled with esbuild; `.wasm` imports become WebAssembly modules; secrets arrive on `env`. nodejs_compat is on.",
+    id: "workerd",
+    name: "Cloudflare Worker (workerd)",
+    language: "TypeScript",
+    description:
+      "Cloudflare's own Workers runtime. The entry (wrangler's `main`, else index.ts) is bundled with esbuild; `.wasm` imports become WebAssembly modules; secrets arrive on `env`. nodejs_compat is on.",
     image: "node:24-bookworm-slim + workerd 1.20260922.1",
-    versions: { "1.20260922": "node:24-bookworm-slim" }, port: 8080,
-    entries: ["src/index.ts", "src/index.js", "src/worker.ts", "index.ts", "index.js", "worker.ts", "worker.js"],
+    versions: { "1.20260922": "node:24-bookworm-slim" },
+    port: 8080,
+    entries: [
+      "src/index.ts",
+      "src/index.js",
+      "src/worker.ts",
+      "index.ts",
+      "index.js",
+      "worker.ts",
+      "worker.js",
+    ],
     starter: {
       "src/index.ts": worker("workerd"),
       "wrangler.toml": `name = "hello"
@@ -135,10 +190,19 @@ compatibility_date = "2026-09-01"
     },
   },
   {
-    id: "python", name: "Python", language: "Python",
-    description: "`pip install -r requirements.txt` if there is one, then `python` on the entry file. Listen on $PORT, on 0.0.0.0.",
+    id: "python",
+    name: "Python",
+    language: "Python",
+    description:
+      "`pip install -r requirements.txt` if there is one, then `python` on the entry file. Listen on $PORT, on 0.0.0.0.",
     image: "python:3.14-slim",
-    versions: { "3.14": "python:3.14-slim", "3.13": "python:3.13-slim", "3.12": "python:3.12-slim" }, port: 8000, entries: ["main.py", "app.py", "server.py"],
+    versions: {
+      "3.14": "python:3.14-slim",
+      "3.13": "python:3.13-slim",
+      "3.12": "python:3.12-slim",
+    },
+    port: 8000,
+    entries: ["main.py", "app.py", "server.py"],
     starter: {
       "main.py": `import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -161,10 +225,14 @@ HTTPServer(("0.0.0.0", port), Handler).serve_forever()
     },
   },
   {
-    id: "php", name: "PHP", language: "PHP",
+    id: "php",
+    name: "PHP",
+    language: "PHP",
     description: "Apache with mod_php serving the files; .php runs, everything else is static.",
     image: "php:8.5-apache",
-    versions: { "8.5": "php:8.5-apache", "8.4": "php:8.4-apache", "8.3": "php:8.3-apache" }, port: 80, entries: [],
+    versions: { "8.5": "php:8.5-apache", "8.4": "php:8.4-apache", "8.3": "php:8.3-apache" },
+    port: 80,
+    entries: [],
     starter: {
       "index.php": `<?php
 header('content-type: text/plain; charset=utf-8');
@@ -184,7 +252,16 @@ export type Detected = RuntimeId | "own";
  * `GET /v1/runtimes`, so the UI's guess and the server's choice are the same function.
  */
 export const DETECTION: readonly { runtime: Detected; markers: readonly string[] }[] = [
-  { runtime: "own", markers: ["compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml", "Dockerfile"] },
+  {
+    runtime: "own",
+    markers: [
+      "compose.yaml",
+      "compose.yml",
+      "docker-compose.yaml",
+      "docker-compose.yml",
+      "Dockerfile",
+    ],
+  },
   // Before node: Laravel and Symfony carry a package.json for their front-end assets.
   { runtime: "php", markers: ["composer.json"] },
   { runtime: "workerd", markers: ["wrangler.toml", "wrangler.json", "wrangler.jsonc"] },

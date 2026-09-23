@@ -97,7 +97,8 @@ export class TarballError extends AppError {
   }
 }
 
-export const rejectTarball = (r: TarballRejection, m: string, entry?: string) => new TarballError(r, m, entry);
+export const rejectTarball = (r: TarballRejection, m: string, entry?: string) =>
+  new TarballError(r, m, entry);
 
 export type ExtractResult = {
   entries: number;
@@ -135,4 +136,5 @@ export class GitError extends AppError {
   }
 }
 
-export const rejectClone = (r: CloneRejection, m: string, d?: Record<string, unknown>) => new GitError(r, m, d);
+export const rejectClone = (r: CloneRejection, m: string, d?: Record<string, unknown>) =>
+  new GitError(r, m, d);

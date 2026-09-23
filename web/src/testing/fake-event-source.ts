@@ -6,8 +6,12 @@ type Listener = (e: MessageEvent) => void;
 
 export class FakeEventSource {
   static instances: FakeEventSource[] = [];
-  static reset(): void { FakeEventSource.instances = []; }
-  static get last(): FakeEventSource { return FakeEventSource.instances[FakeEventSource.instances.length - 1]!; }
+  static reset(): void {
+    FakeEventSource.instances = [];
+  }
+  static get last(): FakeEventSource {
+    return FakeEventSource.instances[FakeEventSource.instances.length - 1]!;
+  }
 
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
@@ -45,7 +49,10 @@ export class FakeEventSource {
   }
 
   emit(type: string, data: unknown, id = ''): void {
-    const e = new MessageEvent(type, { data: typeof data === 'string' ? data : JSON.stringify(data), lastEventId: id });
+    const e = new MessageEvent(type, {
+      data: typeof data === 'string' ? data : JSON.stringify(data),
+      lastEventId: id,
+    });
     for (const l of this.#listeners.get(type) ?? []) l(e);
   }
 

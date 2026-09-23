@@ -6,18 +6,21 @@ import { HttpErrorResponse } from '@angular/common/http';
  * nothing about that); `toProblem` keeps only the common fields, so they are read here.
  */
 export function problemNotes(e: unknown): string[] {
-  if (!(e instanceof HttpErrorResponse) || e.error === null || typeof e.error !== 'object') return [];
+  if (!(e instanceof HttpErrorResponse) || e.error === null || typeof e.error !== 'object')
+    return [];
   const body = e.error as Record<string, unknown>;
   const out: string[] = [];
   if (Array.isArray(body['violations'])) out.push(...(body['violations'] as unknown[]).map(String));
-  if (typeof body['compose'] === 'string' && body['compose'].trim() !== '') out.push(body['compose'].trim());
+  if (typeof body['compose'] === 'string' && body['compose'].trim() !== '')
+    out.push(body['compose'].trim());
   return out;
 }
 
 /** Query-string options for a tarball deploy (`TarballDeployQuerySchema`), empties dropped. */
 export function deployQuery(o: Record<string, string | null | undefined>): string {
   const q = new URLSearchParams();
-  for (const [k, v] of Object.entries(o)) if (v !== null && v !== undefined && v !== '') q.set(k, v);
+  for (const [k, v] of Object.entries(o))
+    if (v !== null && v !== undefined && v !== '') q.set(k, v);
   const s = q.toString();
   return s ? `?${s}` : '';
 }

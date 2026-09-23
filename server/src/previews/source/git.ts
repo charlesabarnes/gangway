@@ -75,9 +75,21 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
     // `--` keeps a ref or URL that starts with "-" from being read as an option.
     const clone = SHA_RE.test(ref)
       ? await cloneSha(gitPath, url.href, ref, options.destDir, env, timeoutMs)
-      : await run(gitPath, [
-        "clone", "--depth", "1", "--single-branch", "--branch", ref, "--", url.href, options.destDir,
-      ], { env, timeoutMs });
+      : await run(
+          gitPath,
+          [
+            "clone",
+            "--depth",
+            "1",
+            "--single-branch",
+            "--branch",
+            ref,
+            "--",
+            url.href,
+            options.destDir,
+          ],
+          { env, timeoutMs },
+        );
 
     if (clone.timedOut) {
       await resetDest(options.destDir);
@@ -97,7 +109,9 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
       cwd: options.destDir,
     });
     if (head.code !== 0) {
-      throw rejectClone("clone_failed", "could not read HEAD of the clone", { stderr: tail(head.stderr) });
+      throw rejectClone("clone_failed", "could not read HEAD of the clone", {
+        stderr: tail(head.stderr),
+      });
     }
 
     const durationMs = Date.now() - startedAt;
@@ -113,7 +127,12 @@ const SHA_RE = /^[0-9a-f]{40}$/i;
 
 /** `init` + `fetch --depth 1 <sha>` + `checkout FETCH_HEAD`, reported like one `clone`. */
 async function cloneSha(
-  gitPath: string, href: string, sha: string, destDir: string, env: Record<string, string>, timeoutMs: number,
+  gitPath: string,
+  href: string,
+  sha: string,
+  destDir: string,
+  env: Record<string, string>,
+  timeoutMs: number,
 ): Promise<RunResult> {
   const steps: string[][] = [
     ["init", "--quiet", "--", destDir],
@@ -165,11 +184,15 @@ function validateRef(ref: string): string {
     ref.includes("..") ||
     ref.includes("@{") ||
     /[\u0000-\u0020\u007f~^:?*[\\]/.test(ref);
-  if (invalid) throw rejectClone("invalid_ref", "ref is not a valid git ref name", { ref: ref.slice(0, 64) });
+  if (invalid)
+    throw rejectClone("invalid_ref", "ref is not a valid git ref name", { ref: ref.slice(0, 64) });
   return ref;
 }
 
-async function buildEnv(helperDir: string, token: string | undefined): Promise<Record<string, string>> {
+async function buildEnv(
+  helperDir: string,
+  token: string | undefined,
+): Promise<Record<string, string>> {
   const env: Record<string, string> = {
     PATH: process.env["PATH"] ?? "/usr/bin:/bin",
     HOME: helperDir,

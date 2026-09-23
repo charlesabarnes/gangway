@@ -105,47 +105,62 @@ export type StopOrphanReason =
 /** Every action carries the caller's clock so the writer does not have to invent one. */
 type Stamped = { at: number };
 
-export type Action = Stamped & (
+export type Action = Stamped &
   /**
    * Not in §11's table: a human can recreate a container by hand and the published port moves.
    * Without this row the route silently points at nothing.
    */
-  | {
-      kind: "UpdateUpstream";
-      hostname: string;
-      previewId: string;
-      containerId: string;
-      from: { host: string; port: number };
-      to: { host: string; port: number };
-    }
-  /** Never a bulk start: sixty containers at once thrashes the box. Wake-on-request handles the rest. */
-  | { kind: "MarkAsleep"; previewId: string }
-  /** Rebuild the route row from the container's labels (§4.1). */
-  | {
-      kind: "AdoptRoute";
-      containerId: string;
-      hostId: string;
-      hostname: string;
-      previewId: string;
-      service: string;
-      containerPort: number;
-      upstream: { host: string; port: number };
-      primary: boolean;
-      visibility: Visibility;
-    }
-  /** An orphan holding a port is worse than a missing preview. */
-  | { kind: "StopOrphan"; containerId: string; hostId: string; hostname: string | null; reason: StopOrphanReason }
-  /** The builder died mid-build; without this the row stays `building` forever. */
-  | { kind: "MarkFailed"; previewId: string; error: string }
-  | { kind: "LeaveAlone"; reason: LeaveAloneReason; hostname: string | null; containerId: string | null; warn: boolean }
-);
+  (
+    | {
+        kind: "UpdateUpstream";
+        hostname: string;
+        previewId: string;
+        containerId: string;
+        from: { host: string; port: number };
+        to: { host: string; port: number };
+      }
+    /** Never a bulk start: sixty containers at once thrashes the box. Wake-on-request handles the rest. */
+    | { kind: "MarkAsleep"; previewId: string }
+    /** Rebuild the route row from the container's labels (§4.1). */
+    | {
+        kind: "AdoptRoute";
+        containerId: string;
+        hostId: string;
+        hostname: string;
+        previewId: string;
+        service: string;
+        containerPort: number;
+        upstream: { host: string; port: number };
+        primary: boolean;
+        visibility: Visibility;
+      }
+    /** An orphan holding a port is worse than a missing preview. */
+    | {
+        kind: "StopOrphan";
+        containerId: string;
+        hostId: string;
+        hostname: string | null;
+        reason: StopOrphanReason;
+      }
+    /** The builder died mid-build; without this the row stays `building` forever. */
+    | { kind: "MarkFailed"; previewId: string; error: string }
+    | {
+        kind: "LeaveAlone";
+        reason: LeaveAloneReason;
+        hostname: string | null;
+        containerId: string | null;
+        warn: boolean;
+      }
+  );
 
 /** `LeaveAlone` is the only outcome that touches nothing. Everything else writes or stops something. */
 export const isMutating = (a: Action): boolean => a.kind !== "LeaveAlone";
 
 /** Anomalies worth a log line even though we chose to do nothing about them. */
 const WARNING_REASONS: ReadonlySet<LeaveAloneReason> = new Set<LeaveAloneReason>([
-  "newer-gangway", "unknown-preview", "container-port-unknown",
+  "newer-gangway",
+  "unknown-preview",
+  "container-port-unknown",
 ]);
 
 type CompleteLabels = {
@@ -164,7 +179,8 @@ type CompleteLabels = {
  */
 const completeLabels = (l: ScannedLabels): CompleteLabels | null => {
   if (!l.previewId || !l.hostname || !l.service) return null;
-  if (l.containerPort === undefined || !Number.isInteger(l.containerPort) || l.containerPort <= 0) return null;
+  if (l.containerPort === undefined || !Number.isInteger(l.containerPort) || l.containerPort <= 0)
+    return null;
   return {
     previewId: l.previewId,
     hostname: l.hostname,
@@ -187,7 +203,9 @@ export const diff = (input: DiffInput): Action[] => {
     reason: LeaveAloneReason,
     where: { hostname?: string | null; containerId?: string | null } = {},
   ): Action => ({
-    kind: "LeaveAlone", at: now, reason,
+    kind: "LeaveAlone",
+    at: now,
+    reason,
     hostname: where.hostname ?? null,
     containerId: where.containerId ?? null,
     warn: WARNING_REASONS.has(reason),
@@ -195,7 +213,9 @@ export const diff = (input: DiffInput): Action[] => {
 
   // Sorted once so the output order is a function of the data, not of scan order. Everything
   // below is Map lookups over these, so the whole pass is O(n log n), not O(n^2).
-  const routes = [...input.dbRoutes].sort((a, b) => (a.hostname < b.hostname ? -1 : a.hostname > b.hostname ? 1 : 0));
+  const routes = [...input.dbRoutes].sort((a, b) =>
+    a.hostname < b.hostname ? -1 : a.hostname > b.hostname ? 1 : 0,
+  );
   const containers = [...input.containers].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   const previewsById = new Map<string, Preview>(input.previews.map((p) => [p.id, p]));
@@ -231,18 +251,27 @@ export const diff = (input: DiffInput): Action[] => {
 
     // A container matches a route only when it agrees on BOTH hostname and preview: same
     // hostname under a different preview is the collision case, not a match.
-    const candidate = (containersByHostname.get(route.hostname) ?? [])
-      .find((c) => c.state === "running" && c.labels.previewId === route.previewId);
+    const candidate = (containersByHostname.get(route.hostname) ?? []).find(
+      (c) => c.state === "running" && c.labels.previewId === route.previewId,
+    );
 
     if (candidate) {
       matched.add(candidate.id);
       if (candidate.publishedPort === null) {
-        actions.push(leave("container-port-unknown", { hostname: route.hostname, containerId: candidate.id }));
-      } else if (candidate.publishedPort === route.upstream.port && candidate.upstreamHost === route.upstream.host) {
+        actions.push(
+          leave("container-port-unknown", { hostname: route.hostname, containerId: candidate.id }),
+        );
+      } else if (
+        candidate.publishedPort === route.upstream.port &&
+        candidate.upstreamHost === route.upstream.host
+      ) {
         actions.push(leave("in-sync", { hostname: route.hostname, containerId: candidate.id }));
       } else {
         actions.push({
-          kind: "UpdateUpstream", at: now, hostname: route.hostname, previewId: route.previewId,
+          kind: "UpdateUpstream",
+          at: now,
+          hostname: route.hostname,
+          previewId: route.previewId,
           containerId: candidate.id,
           from: { host: route.upstream.host, port: route.upstream.port },
           to: { host: candidate.upstreamHost, port: candidate.publishedPort },
@@ -260,7 +289,9 @@ export const diff = (input: DiffInput): Action[] => {
       } else {
         settled.add(preview.id);
         actions.push({
-          kind: "MarkFailed", at: now, previewId: preview.id,
+          kind: "MarkFailed",
+          at: now,
+          previewId: preview.id,
           error: "build did not survive a gangway restart: no container and no live build",
         });
       }
@@ -270,7 +301,11 @@ export const diff = (input: DiffInput): Action[] => {
       actions.push(leave("already-asleep", { hostname: route.hostname }));
       continue;
     }
-    if (preview.state === "failed" || preview.state === "destroying" || preview.state === "destroyed") {
+    if (
+      preview.state === "failed" ||
+      preview.state === "destroying" ||
+      preview.state === "destroyed"
+    ) {
       actions.push(leave("preview-inactive", { hostname: route.hostname }));
       continue;
     }
@@ -303,26 +338,53 @@ export const diff = (input: DiffInput): Action[] => {
 
     const labels = completeLabels(c.labels);
     if (!labels) {
-      actions.push({ kind: "StopOrphan", at: now, containerId: c.id, hostId: c.hostId, hostname: labelHostname, reason: "incomplete-labels" });
+      actions.push({
+        kind: "StopOrphan",
+        at: now,
+        containerId: c.id,
+        hostId: c.hostId,
+        hostname: labelHostname,
+        reason: "incomplete-labels",
+      });
       continue;
     }
     if (routesByHostname.has(labels.hostname) || claimed.has(labels.hostname)) {
       // It survived pass 1 unmatched, so SQLite's row for this hostname belongs to someone else.
-      actions.push({ kind: "StopOrphan", at: now, containerId: c.id, hostId: c.hostId, hostname: labels.hostname, reason: "hostname-conflict" });
+      actions.push({
+        kind: "StopOrphan",
+        at: now,
+        containerId: c.id,
+        hostId: c.hostId,
+        hostname: labels.hostname,
+        reason: "hostname-conflict",
+      });
       continue;
     }
     if (c.publishedPort === null) {
-      actions.push({ kind: "StopOrphan", at: now, containerId: c.id, hostId: c.hostId, hostname: labels.hostname, reason: "unroutable" });
+      actions.push({
+        kind: "StopOrphan",
+        at: now,
+        containerId: c.id,
+        hostId: c.hostId,
+        hostname: labels.hostname,
+        reason: "unroutable",
+      });
       continue;
     }
 
     claimed.add(labels.hostname);
     actions.push({
-      kind: "AdoptRoute", at: now, containerId: c.id, hostId: c.hostId,
-      hostname: labels.hostname, previewId: labels.previewId, service: labels.service,
+      kind: "AdoptRoute",
+      at: now,
+      containerId: c.id,
+      hostId: c.hostId,
+      hostname: labels.hostname,
+      previewId: labels.previewId,
+      service: labels.service,
       containerPort: labels.containerPort,
       upstream: { host: c.upstreamHost, port: c.publishedPort },
-      primary: labels.primary, visibility: labels.visibility,
+      primary: labels.primary,
+      visibility: labels.visibility,
     });
   }
 

@@ -9,7 +9,11 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
-import { DISABLE_UI_PHRASE, PREVIEW_STATE_VALUES, VISIBILITY_VALUES } from "../../../shared/src/api.ts";
+import {
+  DISABLE_UI_PHRASE,
+  PREVIEW_STATE_VALUES,
+  VISIBILITY_VALUES,
+} from "../../../shared/src/api.ts";
 import { CLEARANCES, TRIGGERS } from "../../../shared/src/domain.ts";
 import { ALL_PERMISSIONS, SCOPES, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
@@ -38,14 +42,21 @@ import { LOG_STREAMS } from "../../src/previews/logs.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
-const contract = JSON.parse(readFileSync(join(import.meta.dir, "../../../web/src/testing/fixtures/contract.json"), "utf8")) as Record<string, unknown>;
+const contract = JSON.parse(
+  readFileSync(join(import.meta.dir, "../../../web/src/testing/fixtures/contract.json"), "utf8"),
+) as Record<string, unknown>;
 const quiet = new Logger("error", {}, () => {});
 
 /** Keys and value TYPES, recursively; an array is the shape of its first element. Values do not matter. */
 function shapeOf(v: unknown): unknown {
   if (v === null) return "null";
   if (Array.isArray(v)) return v.length === 0 ? [] : [shapeOf(v[0])];
-  if (typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, shapeOf(x)]));
+  if (typeof v === "object")
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, x]) => [k, shapeOf(x)]),
+    );
   return typeof v;
 }
 
@@ -58,8 +69,11 @@ describe("string unions the UI switches on", () => {
   });
 
   test("what each token scope grants: the UI greys out a scope the role does not cover, from this", () => {
-    const sorted = (o: Record<string, readonly string[]>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
-    expect(sorted(contract["scopePermissions"] as Record<string, string[]>)).toEqual(sorted(SCOPE_PERMISSIONS));
+    const sorted = (o: Record<string, readonly string[]>) =>
+      Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
+    expect(sorted(contract["scopePermissions"] as Record<string, string[]>)).toEqual(
+      sorted(SCOPE_PERMISSIONS),
+    );
   });
 
   test("the permission ids the UI gates on are exactly the catalogue", () => {
@@ -71,7 +85,11 @@ describe("preview wire shapes", () => {
   const api = (s: ReturnType<typeof setupPreviewContext>) => {
     const app = new Hono<AppEnv>();
     app.onError(errorHandler(quiet));
-    app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
+    app.use(async (c, next) => {
+      c.set("requestId", "r");
+      c.set("actor", ACTOR);
+      return next();
+    });
     previewRoutes(app, s.ctx, null as never);
     return app;
   };
@@ -80,21 +98,28 @@ describe("preview wire shapes", () => {
     const s = setupPreviewContext();
     const p = await s.deployed("contract");
     const app = api(s);
-    const detail = await (await app.request(`/previews/${p.id}`)).json() as { preview: unknown };
+    const detail = (await (await app.request(`/previews/${p.id}`)).json()) as { preview: unknown };
     expect(shapeOf(detail.preview)).toEqual(shapeOf(contract["preview"]));
 
-    const list = await (await app.request("/previews")).json() as { seq: number; previews: unknown[] };
+    const list = (await (await app.request("/previews")).json()) as {
+      seq: number;
+      previews: unknown[];
+    };
     expect(Object.keys(list).sort()).toEqual(Object.keys(contract["previewList"] as object).sort());
     expect(shapeOf(list.previews[0])).toEqual(shapeOf(contract["preview"]));
 
-    const { events } = await (await app.request(`/previews/${p.id}/events`)).json() as { events: { type: string }[] };
-    expect(shapeOf(events.find((e) => e.type === "preview.state"))).toEqual(shapeOf(contract["previewEvent"]));
+    const { events } = (await (await app.request(`/previews/${p.id}/events`)).json()) as {
+      events: { type: string }[];
+    };
+    expect(shapeOf(events.find((e) => e.type === "preview.state"))).toEqual(
+      shapeOf(contract["previewEvent"]),
+    );
   });
 
   test("every event type the server publishes to the stream is one the UI listens for", async () => {
     const s = setupPreviewContext();
     await s.deployed("types");
-    const published = new Set(s.ctx.bus.history((s.previews.list()[0]!).id).map((e) => e.type));
+    const published = new Set(s.ctx.bus.history(s.previews.list()[0]!.id).map((e) => e.type));
     for (const type of published) expect(contract["streamEventTypes"]).toContain(type);
     expect(contract["streamEventTypes"]).toContain("reset"); // synthetic, from EventBus.follow
   });
@@ -104,30 +129,72 @@ describe("account wire shapes", () => {
   test("session (anonymous and logged in), login, a token, and a problem", async () => {
     const s = setupAccounts();
     const tokens = new Tokens(s.tokensRepo, s.roles, s.audit, s.now);
-    const auth = { verifyToken: staticTokenVerifier("gw_contract_env_token_0123456789abcd"), resolveSession: (x: string) => s.sessions.resolve(x)?.actor ?? null, originFor: (h: string) => `https://${h}` };
+    const auth = {
+      verifyToken: staticTokenVerifier("gw_contract_env_token_0123456789abcd"),
+      resolveSession: (x: string) => s.sessions.resolve(x)?.actor ?? null,
+      originFor: (h: string) => `https://${h}`,
+    };
     const app = createApp({
-      ...auth, logger: quiet, v1: (a) => tokenRoutes(a, tokens),
-      publicV1: (pub) => authRoutes(pub, { auth, accounts: s.accounts, bootstrap: new Bootstrap(() => s.users.count()), roles: s.roles, sessionMaxAgeSec: 60 }),
+      ...auth,
+      logger: quiet,
+      v1: (a) => tokenRoutes(a, tokens),
+      publicV1: (pub) =>
+        authRoutes(pub, {
+          auth,
+          accounts: s.accounts,
+          bootstrap: new Bootstrap(() => s.users.count()),
+          roles: s.roles,
+          sessionMaxAgeSec: 60,
+        }),
     });
     const h = surfaceHandler(app, "app");
     const HOST = "app.preview.localhost";
-    const call = (path: string, init: RequestInit = {}) => Promise.resolve(h(new Request(`https://${HOST}${path}`, { ...init, headers: { host: HOST, origin: `https://${HOST}`, "content-type": "application/json", ...(init.headers as Record<string, string> | undefined) } }), { clientIp: "::1" }));
+    const call = (path: string, init: RequestInit = {}) =>
+      Promise.resolve(
+        h(
+          new Request(`https://${HOST}${path}`, {
+            ...init,
+            headers: {
+              host: HOST,
+              origin: `https://${HOST}`,
+              "content-type": "application/json",
+              ...(init.headers as Record<string, string> | undefined),
+            },
+          }),
+          { clientIp: "::1" },
+        ),
+      );
 
-    expect(shapeOf(await (await call("/v1/auth/session")).json())).toEqual(shapeOf(contract["sessionAnonymous"]));
+    expect(shapeOf(await (await call("/v1/auth/session")).json())).toEqual(
+      shapeOf(contract["sessionAnonymous"]),
+    );
 
     await s.admin();
-    const login = await call("/v1/auth/login", { method: "POST", body: JSON.stringify({ email: "ada@example.com", password: PASSWORD }) });
+    const login = await call("/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: "ada@example.com", password: PASSWORD }),
+    });
     expect(shapeOf(await login.json())).toEqual(shapeOf(contract["login"]));
     const cookie = login.headers.get("set-cookie")!.split(";")[0]!;
-    expect(shapeOf(await (await call("/v1/auth/session", { headers: { cookie } })).json())).toEqual(shapeOf(contract["sessionUser"]));
+    expect(shapeOf(await (await call("/v1/auth/session", { headers: { cookie } })).json())).toEqual(
+      shapeOf(contract["sessionUser"]),
+    );
 
-    const minted = await (await call("/v1/tokens", { method: "POST", headers: { cookie }, body: JSON.stringify({ name: "ci", scopes: ["deploy"] }) })).json() as { token: unknown };
+    const minted = (await (
+      await call("/v1/tokens", {
+        method: "POST",
+        headers: { cookie },
+        body: JSON.stringify({ name: "ci", scopes: ["deploy"] }),
+      })
+    ).json()) as { token: unknown };
     expect(shapeOf(minted.token)).toEqual(shapeOf(contract["token"]));
 
     // A read-only token refused a write: the 403 the UI shows in a toast.
     void tokenActor;
     const denied = await call("/v1/tokens", { headers: { authorization: "Bearer gw_nope" } });
-    expect(Object.keys(await denied.json() as object).sort()).toEqual(Object.keys(contract["problem"] as object).sort());
+    expect(Object.keys((await denied.json()) as object).sort()).toEqual(
+      Object.keys(contract["problem"] as object).sort(),
+    );
   });
 });
 
@@ -136,12 +203,23 @@ describe("surface wire shapes (§10.5)", () => {
     const settings = new Settings({}, new MemorySettingsStore());
     const api = new Hono<AppEnv>();
     api.onError(errorHandler(quiet));
-    api.use(async (c, next) => { c.set("actor", ACTOR); await next(); });
-    surfaceRoutes(api, { settings, audit: { record() {} }, hasActiveAdmin: () => false, apiOrigin: () => "https://api.preview.localhost:8443", mcpOrigin: () => "https://mcp.preview.localhost:8443" });
+    api.use(async (c, next) => {
+      c.set("actor", ACTOR);
+      await next();
+    });
+    surfaceRoutes(api, {
+      settings,
+      audit: { record() {} },
+      hasActiveAdmin: () => false,
+      apiOrigin: () => "https://api.preview.localhost:8443",
+      mcpOrigin: () => "https://mcp.preview.localhost:8443",
+    });
     const { surfaces } = (await (await api.request("/surfaces")).json()) as { surfaces: unknown };
     expect(shapeOf(surfaces)).toEqual(shapeOf(contract["surfaces"]));
     expect(surfaces).toEqual(contract["surfaces"]);
-    expect(shapeOf(await (await api.request("/capabilities")).json())).toEqual(shapeOf(contract["capabilities"]));
+    expect(shapeOf(await (await api.request("/capabilities")).json())).toEqual(
+      shapeOf(contract["capabilities"]),
+    );
     expect(contract["disableUiPhrase"]).toBe(DISABLE_UI_PHRASE);
   });
 });
@@ -150,25 +228,64 @@ describe("oauth wire shapes (ADR-0020)", () => {
   test("the consent view, the decision, and a connected agent", async () => {
     const s = setupAccounts();
     const { user } = await s.admin();
-    const CLIENT = "https://claude.ai/oauth/claude-code-client-metadata", CB = "https://claude.ai/api/mcp/auth_callback";
+    const CLIENT = "https://claude.ai/oauth/claude-code-client-metadata",
+      CB = "https://claude.ai/api/mcp/auth_callback";
     const oauth = new OAuthServer({
-      grants: new OAuthGrantsRepo(s.db, s.now), roles: s.roles, audit: s.audit, now: s.now,
-      issuer: () => "https://app.preview.localhost:8443", resource: () => "https://mcp.preview.localhost:8443",
+      grants: new OAuthGrantsRepo(s.db, s.now),
+      roles: s.roles,
+      audit: s.audit,
+      now: s.now,
+      issuer: () => "https://app.preview.localhost:8443",
+      resource: () => "https://mcp.preview.localhost:8443",
       clients: { get: async (id) => ({ clientId: id, clientName: "Claude", redirectUris: [CB] }) },
     });
-    const actor = { kind: "user", userId: user.id, roleId: "admin", sessionId: "s", permissions: s.roles.for("admin") } as const;
+    const actor = {
+      kind: "user",
+      userId: user.id,
+      roleId: "admin",
+      sessionId: "s",
+      permissions: s.roles.for("admin"),
+    } as const;
     const api = new Hono<AppEnv>();
     api.onError(errorHandler(quiet));
-    api.use(async (c, next) => { c.set("actor", actor); await next(); });
+    api.use(async (c, next) => {
+      c.set("actor", actor);
+      await next();
+    });
     oauthRoutes(api, { oauth, enabled: () => true });
     const verifier = "v".repeat(43);
-    const out = await oauth.authorize(new URLSearchParams({ response_type: "code", client_id: CLIENT, redirect_uri: CB, code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256", state: "xyz" }));
+    const out = await oauth.authorize(
+      new URLSearchParams({
+        response_type: "code",
+        client_id: CLIENT,
+        redirect_uri: CB,
+        code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+        code_challenge_method: "S256",
+        state: "xyz",
+      }),
+    );
     const id = (out as { requestId: string }).requestId;
-    const view = (await (await api.request(`/oauth/requests/${id}`)).json()) as { request: unknown };
+    const view = (await (await api.request(`/oauth/requests/${id}`)).json()) as {
+      request: unknown;
+    };
     expect(shapeOf(view.request)).toEqual(shapeOf(contract["oauthRequest"]));
-    const decided = await (await api.request(`/oauth/requests/${id}`, { method: "POST", body: JSON.stringify({ approve: true }), headers: { "content-type": "application/json" } })).json() as { redirect: string };
+    const decided = (await (
+      await api.request(`/oauth/requests/${id}`, {
+        method: "POST",
+        body: JSON.stringify({ approve: true }),
+        headers: { "content-type": "application/json" },
+      })
+    ).json()) as { redirect: string };
     expect(shapeOf(decided)).toEqual(shapeOf(contract["oauthDecided"]));
-    oauth.token(new URLSearchParams({ grant_type: "authorization_code", code: new URL(decided.redirect).searchParams.get("code")!, client_id: CLIENT, redirect_uri: CB, code_verifier: verifier }));
+    oauth.token(
+      new URLSearchParams({
+        grant_type: "authorization_code",
+        code: new URL(decided.redirect).searchParams.get("code")!,
+        client_id: CLIENT,
+        redirect_uri: CB,
+        code_verifier: verifier,
+      }),
+    );
     const { grants } = (await (await api.request("/oauth/grants")).json()) as { grants: unknown[] };
     // lastUsedAt is null until the first call, as in the fixture.
     expect(shapeOf(grants[0])).toEqual(shapeOf(contract["oauthGrant"]));
@@ -179,30 +296,61 @@ describe("github wire shapes (ADR-0011)", () => {
   test("the status and a repository", async () => {
     const s = setupAccounts();
     const settings = new Settings({}, new MemorySettingsStore());
-    settings.set(SETTINGS.githubAppId, "777"); settings.set(SETTINGS.githubAppSlug, "gangway-preview");
-    settings.set(SETTINGS.githubPrivateKey, "k"); settings.set(SETTINGS.githubWebhookSecret, "s");
+    settings.set(SETTINGS.githubAppId, "777");
+    settings.set(SETTINGS.githubAppSlug, "gangway-preview");
+    settings.set(SETTINGS.githubPrivateKey, "k");
+    settings.set(SETTINGS.githubWebhookSecret, "s");
     const repos = new ProjectsRepo(s.db, s.now);
-    repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web-app", installationId: "4242", slug: "web-app" });
+    repos.create({
+      id: "r1",
+      name: "web",
+      forge: "github",
+      fullName: "acme/web-app",
+      installationId: "4242",
+      slug: "web-app",
+    });
     const app = new Hono<AppEnv>();
     app.onError(errorHandler(quiet));
-    app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
+    app.use(async (c, next) => {
+      c.set("requestId", "r");
+      c.set("actor", ACTOR);
+      return next();
+    });
     const templates = new TemplatesRepo(s.db, s.now);
     projectRoutes(app, { projects: repos, audit: s.audit, templates });
-    templateRoutes(app, { templates, hosts: { get: () => undefined }, audit: s.audit, namedByTrigger: () => [] });
-    githubRoutes(app, { app: null as never, settings, states: new ManifestStates(), audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
+    templateRoutes(app, {
+      templates,
+      hosts: { get: () => undefined },
+      audit: s.audit,
+      namedByTrigger: () => [],
+    });
+    githubRoutes(app, {
+      app: null as never,
+      settings,
+      states: new ManifestStates(),
+      audit: s.audit,
+      baseDomain: () => "preview.localhost",
+      originFor: (l) => `https://${l}.preview.localhost:8443`,
+    });
 
-    expect(shapeOf(await (await app.request("/github")).json())).toEqual(shapeOf(contract["githubStatus"]));
-    const { project } = await (await app.request("/projects/r1")).json() as { project: unknown };
+    expect(shapeOf(await (await app.request("/github")).json())).toEqual(
+      shapeOf(contract["githubStatus"]),
+    );
+    const { project } = (await (await app.request("/projects/r1")).json()) as { project: unknown };
     expect(shapeOf(project)).toEqual(shapeOf(contract["project"]));
     // A project with no repository: forge and fullName are null, not absent.
     repos.create({ id: "r2", name: "whoami", slug: "whoami" });
-    const bare = (await (await app.request("/projects/whoami")).json() as { project: Record<string, unknown> }).project;
+    const bare = (
+      (await (await app.request("/projects/whoami")).json()) as { project: Record<string, unknown> }
+    ).project;
     expect(Object.keys(bare).sort()).toEqual(Object.keys(contract["project"] as object).sort());
     expect(bare).toMatchObject({ forge: null, fullName: null });
     expect(contract["forkPolicies"]).toEqual(["ask", "auto", "never"]);
     expect(contract["clearances"]).toEqual([...CLEARANCES]);
     // ADR-0013: a template, and the triggers a default is set for.
-    const { template } = await (await app.request("/templates/default")).json() as { template: unknown };
+    const { template } = (await (await app.request("/templates/default")).json()) as {
+      template: unknown;
+    };
     expect(shapeOf(template)).toEqual(shapeOf(contract["template"]));
     expect(contract["triggers"]).toEqual([...TRIGGERS]);
   });
@@ -222,44 +370,85 @@ describe("runtime wire shapes (ADR-0015)", () => {
     s.ctx.sources = new SourceStore(dirname(s.ctx.workdirs.root));
     const app = new Hono<AppEnv>();
     app.onError(errorHandler(quiet));
-    app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
+    app.use(async (c, next) => {
+      c.set("requestId", "r");
+      c.set("actor", ACTOR);
+      return next();
+    });
     previewRoutes(app, s.ctx, null as never);
     runtimeRoutes(app);
 
     expect(contract["runtimeIds"]).toEqual([...RUNTIME_IDS]);
-    const list = await (await app.request("/runtimes")).json() as { runtimes: unknown[]; detection: unknown[] };
+    const list = (await (await app.request("/runtimes")).json()) as {
+      runtimes: unknown[];
+      detection: unknown[];
+    };
     const want = contract["runtimeList"] as { runtimes: unknown[]; detection: unknown[] };
     expect(Object.keys(list).sort()).toEqual(Object.keys(want).sort());
     // Starter maps differ per runtime; their VALUES are strings -- compare the rest of the shape.
-    const noStarter = (r: unknown) => { const { starter, ...rest } = r as Record<string, unknown>; return shapeOf({ ...rest, starterIsObject: typeof starter === "object" }); };
+    const noStarter = (r: unknown) => {
+      const { starter, ...rest } = r as Record<string, unknown>;
+      return shapeOf({ ...rest, starterIsObject: typeof starter === "object" });
+    };
     expect(noStarter(list.runtimes[0])).toEqual(noStarter(want.runtimes[0]));
     expect(shapeOf(list.detection[0])).toEqual(shapeOf(want.detection[0]));
     // ADR-0016: the files a plan reads, and the plan itself, for a Vite app.
-    expect((list as unknown as { planFiles: string[] }).planFiles).toEqual((want as unknown as { planFiles: string[] }).planFiles);
-    const vite = { "package.json": JSON.stringify({ scripts: { dev: "vite", build: "vite build" } }), "index.html": "" };
-    const planned = await (await app.request("/runtimes/plan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ paths: Object.keys(vite), files: vite }) })).json();
+    expect((list as unknown as { planFiles: string[] }).planFiles).toEqual(
+      (want as unknown as { planFiles: string[] }).planFiles,
+    );
+    const vite = {
+      "package.json": JSON.stringify({ scripts: { dev: "vite", build: "vite build" } }),
+      "index.html": "",
+    };
+    const planned = await (
+      await app.request("/runtimes/plan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths: Object.keys(vite), files: vite }),
+      })
+    ).json();
     expect(planned).toEqual(contract["appPlan"]);
     // ADR-0017: the add-on catalogue the New screen offers.
     const addons = (list as unknown as { addons: unknown[] }).addons;
-    expect(shapeOf(addons[0])).toEqual(shapeOf((want as unknown as { addons: unknown[] }).addons[0]));
+    expect(shapeOf(addons[0])).toEqual(
+      shapeOf((want as unknown as { addons: unknown[] }).addons[0]),
+    );
     const { ADDON_IDS } = await import("../../../shared/src/addons.ts");
     expect(contract["addonIds"]).toEqual([...ADDON_IDS]);
 
-    const p = pack(); p.entry({ name: "index.ts" }, "export default {}"); p.finalize();
-    const chunks: Buffer[] = []; for await (const c of p) chunks.push(c as Buffer);
-    const res = await deploy(s.ctx, { actor: ACTOR, name: "rt", visibility: "public", source: { kind: "tarball", archive: gzipSync(Buffer.concat(chunks)), runtime: "bun" } });
+    const p = pack();
+    p.entry({ name: "index.ts" }, "export default {}");
+    p.finalize();
+    const chunks: Buffer[] = [];
+    for await (const c of p) chunks.push(c as Buffer);
+    const res = await deploy(s.ctx, {
+      actor: ACTOR,
+      name: "rt",
+      visibility: "public",
+      source: { kind: "tarball", archive: gzipSync(Buffer.concat(chunks)), runtime: "bun" },
+    });
     await res.done;
     expect(shapeOf(res.preview.source)).toEqual(shapeOf(contract["tarballSource"]));
-    expect(shapeOf(await (await app.request(`/previews/${res.preview.id}/source`)).json())).toEqual(shapeOf(contract["previewSource"]));
+    expect(shapeOf(await (await app.request(`/previews/${res.preview.id}/source`)).json())).toEqual(
+      shapeOf(contract["previewSource"]),
+    );
 
     s.fake.buildExit = 1;
-    const accepted = await app.request(`/previews/${res.preview.id}/source?wait=true`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ files: { "index.ts": "x" } }) });
-    const done = await accepted.json() as Record<string, unknown>;
+    const accepted = await app.request(`/previews/${res.preview.id}/source?wait=true`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ files: { "index.ts": "x" } }),
+    });
+    const done = (await accepted.json()) as Record<string, unknown>;
     const { preview: _p, ...rest } = done;
     expect(shapeOf(rest)).toEqual(shapeOf(contract["redeployDone"]));
     void redeploy;
-    const { events } = await (await app.request(`/previews/${res.preview.id}/events`)).json() as { events: { type: string; phase?: string }[] };
-    expect(shapeOf(events.find((e) => e.type === "preview.redeploy" && e.phase === "started"))).toEqual(shapeOf(contract["redeployEvent"]));
+    const { events } = (await (await app.request(`/previews/${res.preview.id}/events`)).json()) as {
+      events: { type: string; phase?: string }[];
+    };
+    expect(
+      shapeOf(events.find((e) => e.type === "preview.redeploy" && e.phase === "started")),
+    ).toEqual(shapeOf(contract["redeployEvent"]));
     for (const e of events) expect(contract["streamEventTypes"]).toContain(e.type);
   });
 });

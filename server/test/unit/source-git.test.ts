@@ -40,11 +40,26 @@ async function fixtureRepo(): Promise<{ dir: string; url: string; sha: string }>
   await writeFile(path.join(dir, "README.md"), "hello from the fixture\n");
   await sh(["git", "add", "README.md"], dir);
   await sh(
-    ["git", "-c", "user.name=gangway", "-c", "user.email=test@example.invalid", "commit", "-q", "-m", "init"],
+    [
+      "git",
+      "-c",
+      "user.name=gangway",
+      "-c",
+      "user.email=test@example.invalid",
+      "commit",
+      "-q",
+      "-m",
+      "init",
+    ],
     dir,
   );
 
-  const proc = Bun.spawn({ cmd: ["git", "rev-parse", "HEAD"], cwd: dir, stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn({
+    cmd: ["git", "rev-parse", "HEAD"],
+    cwd: dir,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   const sha = (await new Response(proc.stdout).text()).trim();
   await proc.exited;
   return { dir, url: `file://${dir}`, sha };
@@ -99,7 +114,8 @@ describe("cloneRepo host allowlist", () => {
   test("refuses a host that is not on the allowlist", async () => {
     const dest = await scratch();
     const err = await expectReject(
-      () => cloneRepo({ repo: "https://evil.example.com/acme/app.git", ref: "main", destDir: dest }),
+      () =>
+        cloneRepo({ repo: "https://evil.example.com/acme/app.git", ref: "main", destDir: dest }),
       "host_not_allowed",
     );
     expect(err.status).toBe(403);
@@ -109,13 +125,22 @@ describe("cloneRepo host allowlist", () => {
   test("refuses a file:// repo unless it is explicitly allowed", async () => {
     const dest = await scratch();
     expect(DEFAULT_ALLOWED_HOSTS).not.toContain("file");
-    await expectReject(() => cloneRepo({ repo: repo.url, ref: "main", destDir: dest }), "host_not_allowed");
+    await expectReject(
+      () => cloneRepo({ repo: repo.url, ref: "main", destDir: dest }),
+      "host_not_allowed",
+    );
   });
 
   test("refuses a scheme other than https or file", async () => {
     const dest = await scratch();
     await expectReject(
-      () => cloneRepo({ repo: "ssh://git@github.com/acme/app.git", ref: "main", destDir: dest, allowedHosts: ["github.com"] }),
+      () =>
+        cloneRepo({
+          repo: "ssh://git@github.com/acme/app.git",
+          ref: "main",
+          destDir: dest,
+          allowedHosts: ["github.com"],
+        }),
       "invalid_repo_url",
     );
     await expectReject(
@@ -127,19 +152,26 @@ describe("cloneRepo host allowlist", () => {
   test("refuses a URL that carries its own credentials", async () => {
     const dest = await scratch();
     await expectReject(
-      () => cloneRepo({
-        repo: `https://x-access-token:${TOKEN}@github.com/acme/app.git`,
-        ref: "main",
-        destDir: dest,
-        allowedHosts: ["github.com"],
-      }),
+      () =>
+        cloneRepo({
+          repo: `https://x-access-token:${TOKEN}@github.com/acme/app.git`,
+          ref: "main",
+          destDir: dest,
+          allowedHosts: ["github.com"],
+        }),
       "credentials_in_url",
     );
   });
 
   test("refuses a ref that could be read as an option or escape the refspec", async () => {
     const dest = await scratch();
-    for (const ref of ["--upload-pack=touch /tmp/pwned", "main..evil", "a b", "refs/heads/x.lock", ""]) {
+    for (const ref of [
+      "--upload-pack=touch /tmp/pwned",
+      "main..evil",
+      "a b",
+      "refs/heads/x.lock",
+      "",
+    ]) {
       await expectReject(
         () => cloneRepo({ repo: repo.url, ref, destDir: dest, allowedHosts: ["file"] }),
         "invalid_ref",
@@ -180,7 +212,9 @@ describe("cloneRepo credential handling", () => {
     expect(helper).toContain("GANGWAY_GIT_PASSWORD");
 
     // ...and it must actually answer git's prompts, or auth would simply fail.
-    expect((await readFile(path.join(spyOut, "username.txt"), "utf8")).trim()).toBe("x-access-token");
+    expect((await readFile(path.join(spyOut, "username.txt"), "utf8")).trim()).toBe(
+      "x-access-token",
+    );
     expect(await readFile(path.join(spyOut, "password.txt"), "utf8")).toBe(TOKEN);
 
     // The environment is the one place it is allowed to be.
@@ -215,14 +249,15 @@ describe("cloneRepo credential handling", () => {
     const lines: string[] = [];
 
     const err = await expectReject(
-      () => cloneRepo({
-        repo: repo.url,
-        ref: "no-such-branch",
-        destDir: dest,
-        token: TOKEN,
-        allowedHosts: ["file"],
-        logger: new Logger("debug", {}, (l) => lines.push(l)),
-      }),
+      () =>
+        cloneRepo({
+          repo: repo.url,
+          ref: "no-such-branch",
+          destDir: dest,
+          token: TOKEN,
+          allowedHosts: ["file"],
+          logger: new Logger("debug", {}, (l) => lines.push(l)),
+        }),
       "clone_failed",
     );
 
@@ -258,20 +293,23 @@ describe("cloneRepo timeout", () => {
     const hangingGit = path.join(dir, "slow-git.sh");
     // Close the pipes before sleeping so the parent is not waiting on a drain, then try to
     // leave a marker: if the process survived its deadline, the marker appears.
-    await writeFile(hangingGit, `#!/bin/sh\nexec >/dev/null 2>&1\nsleep 5\ntouch "${marker}"\n`, { mode: 0o755 });
+    await writeFile(hangingGit, `#!/bin/sh\nexec >/dev/null 2>&1\nsleep 5\ntouch "${marker}"\n`, {
+      mode: 0o755,
+    });
     await chmod(hangingGit, 0o755);
 
     const startedAt = Date.now();
     const err = await expectReject(
-      () => cloneRepo({
-        repo: repo.url,
-        ref: "main",
-        destDir: dest,
-        allowedHosts: ["file"],
-        gitPath: hangingGit,
-        timeoutMs: 300,
-        logger: new Logger("error", {}, () => {}),
-      }),
+      () =>
+        cloneRepo({
+          repo: repo.url,
+          ref: "main",
+          destDir: dest,
+          allowedHosts: ["file"],
+          gitPath: hangingGit,
+          timeoutMs: 300,
+          logger: new Logger("error", {}, () => {}),
+        }),
       "clone_timeout",
     );
 
@@ -288,7 +326,12 @@ describe("cloneRepo timeout", () => {
 describe("cloneRepo by commit sha (a pull request's head)", () => {
   test("a 40-hex ref is fetched into an empty repository and checked out detached; HEAD is that sha", async () => {
     const dest = path.join(await scratch(), "dest");
-    const result = await cloneRepo({ repo: repo.url, ref: repo.sha, destDir: dest, allowedHosts: ["file"] });
+    const result = await cloneRepo({
+      repo: repo.url,
+      ref: repo.sha,
+      destDir: dest,
+      allowedHosts: ["file"],
+    });
     expect(result.sha).toBe(repo.sha);
     expect(result.ref).toBe(repo.sha);
     expect(await Bun.file(path.join(dest, "README.md")).text()).toBe("hello from the fixture\n");
@@ -297,7 +340,14 @@ describe("cloneRepo by commit sha (a pull request's head)", () => {
   test("a sha the remote does not have is a clone_failed, and the destination is left empty", async () => {
     const dest = path.join(await scratch(), "dest");
     await expectReject(
-      () => cloneRepo({ repo: repo.url, ref: "0123456789abcdef0123456789abcdef01234567", destDir: dest, allowedHosts: ["file"], logger: new Logger("error", {}, () => {}) }),
+      () =>
+        cloneRepo({
+          repo: repo.url,
+          ref: "0123456789abcdef0123456789abcdef01234567",
+          destDir: dest,
+          allowedHosts: ["file"],
+          logger: new Logger("error", {}, () => {}),
+        }),
       "clone_failed",
     );
   });

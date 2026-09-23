@@ -20,7 +20,9 @@ const DOMAINS = ["*.preview.test", "preview.test"];
 const DIRECTORY = "https://ca.test/directory";
 const DAY = 86_400_000;
 const tmps: string[] = [];
-afterEach(() => { for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 async function setup(o: { propagates?: boolean; failAt?: string; days?: number } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "gangway-acme-"));
@@ -36,37 +38,80 @@ async function setup(o: { propagates?: boolean; failAt?: string; days?: number }
   let txt = 0;
 
   const dns: DnsProvider = {
-    async createTxt(name, value) { log.push(`txt+ ${name}=${value}`); return { recordId: `r${++txt}` }; },
-    async removeTxt(recordId) { log.push(`txt- ${recordId}`); },
-    async waitForPropagation(name, values) { log.push(`propagated? ${name} [${[...values].sort().join(",")}]`); return o.propagates ?? true; },
+    async createTxt(name, value) {
+      log.push(`txt+ ${name}=${value}`);
+      return { recordId: `r${++txt}` };
+    },
+    async removeTxt(recordId) {
+      log.push(`txt- ${recordId}`);
+    },
+    async waitForPropagation(name, values) {
+      log.push(`propagated? ${name} [${[...values].sort().join(",")}]`);
+      return o.propagates ?? true;
+    },
   };
-  const step = (name: string) => { log.push(name); if (o.failAt === name) throw new Error(`${name} failed`); };
+  const step = (name: string) => {
+    log.push(name);
+    if (o.failAt === name) throw new Error(`${name} failed`);
+  };
   const connect = (c: { accountUrl?: string }) => {
     connects.push({ accountUrl: c.accountUrl });
     const api = {
-      async createAccount() { step("createAccount"); return {}; },
+      async createAccount() {
+        step("createAccount");
+        return {};
+      },
       getAccountUrl: () => "https://ca.test/acct/1",
-      async createOrder(data: { identifiers: { value: string }[] }) { step("createOrder"); return { identifiers: data.identifiers }; },
+      async createOrder(data: { identifiers: { value: string }[] }) {
+        step("createOrder");
+        return { identifiers: data.identifiers };
+      },
       async getAuthorizations(order: { identifiers: { value: string }[] }) {
         return order.identifiers.map((identifier, i) => ({
-          identifier, status: "pending", wildcard: identifier.value.startsWith("*."),
-          challenges: [{ type: "http-01", token: `h${i}` }, { type: "dns-01", token: `d${i}` }],
+          identifier,
+          status: "pending",
+          wildcard: identifier.value.startsWith("*."),
+          challenges: [
+            { type: "http-01", token: `h${i}` },
+            { type: "dns-01", token: `d${i}` },
+          ],
         }));
       },
-      async getChallengeKeyAuthorization(c: { token: string }) { return `ka-${c.token}`; },
-      async completeChallenge(c: { token: string }) { step(`complete ${c.token}`); return c; },
-      async waitForValidStatus(c: { token: string }) { step(`valid ${c.token}`); return c; },
-      async finalizeOrder(order: unknown) { step("finalize"); return order; },
-      async getCertificate() { step("getCertificate"); return (await issueLeaf(ca, DOMAINS, o.days ?? 90)).cert; },
+      async getChallengeKeyAuthorization(c: { token: string }) {
+        return `ka-${c.token}`;
+      },
+      async completeChallenge(c: { token: string }) {
+        step(`complete ${c.token}`);
+        return c;
+      },
+      async waitForValidStatus(c: { token: string }) {
+        step(`valid ${c.token}`);
+        return c;
+      },
+      async finalizeOrder(order: unknown) {
+        step("finalize");
+        return order;
+      },
+      async getCertificate() {
+        step("getCertificate");
+        return (await issueLeaf(ca, DOMAINS, o.days ?? 90)).cert;
+      },
     };
     return api as unknown as AcmeApi;
   };
 
   const clock = { now: Date.now() };
-  const make = (directoryUrl = DIRECTORY) => new AcmeProvider({
-    directoryUrl, email: "ops@example.com", dns, certs, store, connect,
-    logger: new Logger("error", {}, () => {}), now: () => clock.now,
-  });
+  const make = (directoryUrl = DIRECTORY) =>
+    new AcmeProvider({
+      directoryUrl,
+      email: "ops@example.com",
+      dns,
+      certs,
+      store,
+      connect,
+      logger: new Logger("error", {}, () => {}),
+      now: () => clock.now,
+    });
   return { provider: make(), make, certs, store, log, connects, clock };
 }
 
@@ -75,13 +120,19 @@ describe("AcmeProvider.issue", () => {
     const s = await setup();
     const bundle = await s.provider.issue(DOMAINS);
     expect(s.log).toEqual([
-      "createAccount", "createOrder",
+      "createAccount",
+      "createOrder",
       "txt+ _acme-challenge.preview.test=ka-d0",
       "txt+ _acme-challenge.preview.test=ka-d1",
       "propagated? _acme-challenge.preview.test [ka-d0,ka-d1]",
-      "complete d0", "valid d0", "complete d1", "valid d1",
-      "finalize", "getCertificate",
-      "txt- r1", "txt- r2",
+      "complete d0",
+      "valid d0",
+      "complete d1",
+      "valid d1",
+      "finalize",
+      "getCertificate",
+      "txt- r1",
+      "txt- r2",
     ]);
     const m = bundle.materials[0]!;
     expect(m.serverName).toBe("*.preview.test");
@@ -94,7 +145,10 @@ describe("AcmeProvider.issue", () => {
   test("stored before it is returned, with the directory that issued it", async () => {
     const s = await setup();
     await s.provider.issue(DOMAINS);
-    expect(s.certs.get("*.preview.test")).toMatchObject({ source: DIRECTORY, issuer: "Fake ACME CA" });
+    expect(s.certs.get("*.preview.test")).toMatchObject({
+      source: DIRECTORY,
+      issuer: "Fake ACME CA",
+    });
     expect(s.certs.get("*.preview.test")!.chainPem).toContain("BEGIN CERTIFICATE");
   });
 
@@ -172,7 +226,16 @@ describe("AcmeProvider.load / renewIfDue", () => {
 
   test("garbage in the certificates table is 'nothing stored', not a crash at boot", async () => {
     const s = await setup();
-    s.certs.put({ domain: "*.preview.test", certPem: "not a pem", keyPem: "k", chainPem: null, issuer: null, source: DIRECTORY, notBefore: new Date(), notAfter: new Date(Date.now() + DAY) });
+    s.certs.put({
+      domain: "*.preview.test",
+      certPem: "not a pem",
+      keyPem: "k",
+      chainPem: null,
+      issuer: null,
+      source: DIRECTORY,
+      notBefore: new Date(),
+      notAfter: new Date(Date.now() + DAY),
+    });
     expect(s.provider.load(DOMAINS)).toBeNull();
   });
 });

@@ -31,8 +31,11 @@ const KEY_RE = /^[\x21-\x7e]{1,255}$/;
 function canonical(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
   if (v && typeof v === "object") {
-    return `{${Object.entries(v).filter(([, x]) => x !== undefined).sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([k, x]) => `${JSON.stringify(k)}:${canonical(x)}`).join(",")}}`;
+    return `{${Object.entries(v)
+      .filter(([, x]) => x !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([k, x]) => `${JSON.stringify(k)}:${canonical(x)}`)
+      .join(",")}}`;
   }
   return JSON.stringify(v);
 }
@@ -43,8 +46,11 @@ function canonical(v: unknown): string {
  * Content-Length). The mismatch check is a guard against caller bugs, not an integrity check.
  */
 export const requestHash = ({ actor: _actor, ...request }: DeployInput): string => {
-  const source = request.source.kind === "tarball" ? { ...request.source, archive: undefined } : request.source;
-  return createHash("sha256").update(canonical({ ...request, source })).digest("hex");
+  const source =
+    request.source.kind === "tarball" ? { ...request.source, archive: undefined } : request.source;
+  return createHash("sha256")
+    .update(canonical({ ...request, source }))
+    .digest("hex");
 };
 
 export type IdempotentResult = DeployResult & { replayed: boolean };
@@ -61,12 +67,17 @@ export class IdempotentDeploys {
 
   async deploy(input: DeployInput, key: string | undefined): Promise<IdempotentResult> {
     if (key === undefined) return { ...(await deploy(this.#ctx, input)), replayed: false };
-    if (!KEY_RE.test(key)) throw badRequest("Idempotency-Key must be 1-255 printable ASCII characters");
+    if (!KEY_RE.test(key))
+      throw badRequest("Idempotency-Key must be 1-255 printable ASCII characters");
 
     const ctx = this.#ctx;
     const ownerId = actorId(input.actor);
     const hash = requestHash(input);
-    const mismatch = () => new AppError("unprocessable", "this Idempotency-Key was already used with a different request");
+    const mismatch = () =>
+      new AppError(
+        "unprocessable",
+        "this Idempotency-Key was already used with a different request",
+      );
 
     const seen = this.#keys.get(key, ownerId);
     if (seen && seen.createdAt > ctx.now() - IDEMPOTENCY_TTL_MS) {

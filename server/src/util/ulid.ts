@@ -28,7 +28,10 @@ function randomChars(): number[] {
 export function ulid(now: number = Date.now()): string {
   if (now === lastTime) {
     for (let i = RAND_LEN - 1; i >= 0; i--) {
-      if (lastRandom[i]! < 31) { lastRandom[i]!++; break; }
+      if (lastRandom[i]! < 31) {
+        lastRandom[i]!++;
+        break;
+      }
       lastRandom[i] = 0;
     }
   } else {

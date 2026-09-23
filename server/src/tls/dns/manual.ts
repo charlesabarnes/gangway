@@ -5,7 +5,12 @@
  * path and `tlsMode: "acme"` works on any DNS host before a second API integration exists.
  */
 import { Logger } from "../../logger.ts";
-import { nodeDnsQueries, waitForTxtPropagation, type DnsProvider, type DnsQueries } from "./provider.ts";
+import {
+  nodeDnsQueries,
+  waitForTxtPropagation,
+  type DnsProvider,
+  type DnsQueries,
+} from "./provider.ts";
 
 export type ManualOptions = {
   log?: Logger;
@@ -34,26 +39,49 @@ export class ManualDnsProvider implements DnsProvider {
     const recordId = `manual-${++this.#seq}`;
     this.#pending.set(recordId, { name, value });
     // ADD, do not replace: a wildcard order asks for two records at this same name.
-    this.#log.info(`ACTION REQUIRED: add TXT ${name} = "${value}" (ttl 60), in ADDITION to any existing record at that name`, {
-      provider: "manual", action: "add", type: "TXT", name, content: value, ttl: 60, recordId,
-    });
+    this.#log.info(
+      `ACTION REQUIRED: add TXT ${name} = "${value}" (ttl 60), in ADDITION to any existing record at that name`,
+      {
+        provider: "manual",
+        action: "add",
+        type: "TXT",
+        name,
+        content: value,
+        ttl: 60,
+        recordId,
+      },
+    );
     return { recordId };
   }
 
   async removeTxt(recordId: string, name: string): Promise<void> {
     const pending = this.#pending.get(recordId);
     this.#pending.delete(recordId);
-    this.#log.info(`cleanup: the TXT record ${name} = "${pending?.value ?? "(unknown)"}" can now be deleted`, {
-      provider: "manual", action: "remove", type: "TXT", name, recordId,
-    });
+    this.#log.info(
+      `cleanup: the TXT record ${name} = "${pending?.value ?? "(unknown)"}" can now be deleted`,
+      {
+        provider: "manual",
+        action: "remove",
+        type: "TXT",
+        name,
+        recordId,
+      },
+    );
   }
 
   waitForPropagation(name: string, expectedValues: string[]): Promise<boolean> {
-    this.#log.info(`waiting for ${expectedValues.length} TXT value(s) at ${name} to appear on the zone's authoritative nameservers`, {
-      provider: "manual", name,
-    });
+    this.#log.info(
+      `waiting for ${expectedValues.length} TXT value(s) at ${name} to appear on the zone's authoritative nameservers`,
+      {
+        provider: "manual",
+        name,
+      },
+    );
     return waitForTxtPropagation(name, expectedValues, {
-      dns: this.#dns, log: this.#log, timeoutMs: this.#timeoutMs, intervalMs: this.#intervalMs,
+      dns: this.#dns,
+      log: this.#log,
+      timeoutMs: this.#timeoutMs,
+      intervalMs: this.#intervalMs,
     });
   }
 }

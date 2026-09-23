@@ -1,4 +1,13 @@
-import type { Clearance, PasswordLogin, PasswordMode, Preview, PreviewKind, PreviewSource, PreviewState, Visibility } from "../../../../shared/src/domain.ts";
+import type {
+  Clearance,
+  PasswordLogin,
+  PasswordMode,
+  Preview,
+  PreviewKind,
+  PreviewSource,
+  PreviewState,
+  Visibility,
+} from "../../../../shared/src/domain.ts";
 import type { Db } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 
@@ -24,7 +33,10 @@ export type CreatePreview = {
 };
 
 /** A preview's password as the database holds it: the mode, and the scrypt hash for `set` / `generated`. */
-export type StoredPreviewPassword = { mode: PasswordMode; secret: { hash: string; salt: string } | null };
+export type StoredPreviewPassword = {
+  mode: PasswordMode;
+  secret: { hash: string; salt: string } | null;
+};
 
 export type PreviewFilter = {
   state?: PreviewState | PreviewState[];
@@ -54,10 +66,27 @@ export class PreviewsRepo {
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner,
                $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $now, $now)`,
       {
-        id: p.id, project: p.project, host_id: p.hostId, kind: p.kind ?? "preview",
-        state: p.state, source_kind, source_json, visibility: p.visibility,
-        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, projectId: p.projectId ?? null, owner: p.owner ?? null,
-        pwMode: p.password?.mode ?? "inherit", pwHash: p.password?.secret?.hash ?? null, pwSalt: p.password?.secret?.salt ?? null, pwLogin: p.passwordLogin === "only" || p.passwordLogin === undefined ? "inherit" : p.passwordLogin, only: p.passwordLogin === "only" ? 1 : 0, now,
+        id: p.id,
+        project: p.project,
+        host_id: p.hostId,
+        kind: p.kind ?? "preview",
+        state: p.state,
+        source_kind,
+        source_json,
+        visibility: p.visibility,
+        ttl: fromDate(p.ttlExpiresAt ?? null),
+        idle: p.idleAfterMs ?? null,
+        level: p.secretLevel ?? null,
+        template: p.templateId ?? null,
+        projectId: p.projectId ?? null,
+        owner: p.owner ?? null,
+        pwMode: p.password?.mode ?? "inherit",
+        pwHash: p.password?.secret?.hash ?? null,
+        pwSalt: p.password?.secret?.salt ?? null,
+        pwLogin:
+          p.passwordLogin === "only" || p.passwordLogin === undefined ? "inherit" : p.passwordLogin,
+        only: p.passwordLogin === "only" ? 1 : 0,
+        now,
       },
     );
     return this.get(p.id)!;
@@ -70,29 +99,50 @@ export class PreviewsRepo {
 
   /** ADR-0021: who deployed it, or null (a PR, a workflow, a row from before 0010). */
   ownerOf(id: string): string | null {
-    return this.#db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = $id", { id })?.owner ?? null;
+    return (
+      this.#db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = $id", { id })
+        ?.owner ?? null
+    );
   }
 
   /** ADR-0023: the mode and hash. Not on `Preview`: only the gate reads the hash. */
   passwordOf(id: string): StoredPreviewPassword {
-    const r = this.#db.get<{ password_mode: string | null; password_hash: string | null; password_salt: string | null }>(
-      "SELECT password_mode, password_hash, password_salt FROM previews WHERE id = $id", { id });
+    const r = this.#db.get<{
+      password_mode: string | null;
+      password_hash: string | null;
+      password_salt: string | null;
+    }>("SELECT password_mode, password_hash, password_salt FROM previews WHERE id = $id", { id });
     const mode = (r?.password_mode ?? "inherit") as PasswordMode;
-    const secret = r?.password_hash && r.password_salt ? { hash: r.password_hash, salt: r.password_salt } : null;
+    const secret =
+      r?.password_hash && r.password_salt ? { hash: r.password_hash, salt: r.password_salt } : null;
     return { mode, secret: mode === "set" || mode === "generated" ? secret : null };
   }
 
   setPassword(id: string, pw: StoredPreviewPassword): void {
     this.#db.run(
       "UPDATE previews SET password_mode = $mode, password_hash = $hash, password_salt = $salt, updated_at = $now WHERE id = $id",
-      { id, mode: pw.mode, hash: pw.secret?.hash ?? null, salt: pw.secret?.salt ?? null, now: this.#now() },
+      {
+        id,
+        mode: pw.mode,
+        hash: pw.secret?.hash ?? null,
+        salt: pw.secret?.salt ?? null,
+        now: this.#now(),
+      },
     );
   }
 
   /** `only` is its own column (migration 0013); anything else clears it and sets the rule. */
   setPasswordLogin(id: string, login: PasswordLogin): void {
-    if (login === "only") this.#db.run("UPDATE previews SET signed_in_only = 1, updated_at = $now WHERE id = $id", { id, now: this.#now() });
-    else this.#db.run("UPDATE previews SET signed_in_only = 0, password_login = $login, updated_at = $now WHERE id = $id", { id, login, now: this.#now() });
+    if (login === "only")
+      this.#db.run("UPDATE previews SET signed_in_only = 1, updated_at = $now WHERE id = $id", {
+        id,
+        now: this.#now(),
+      });
+    else
+      this.#db.run(
+        "UPDATE previews SET signed_in_only = 0, password_login = $login, updated_at = $now WHERE id = $id",
+        { id, login, now: this.#now() },
+      );
   }
 
   getByProject(project: string): Preview | undefined {
@@ -107,15 +157,28 @@ export class PreviewsRepo {
     if (f.state) {
       const states = Array.isArray(f.state) ? f.state : [f.state];
       where.push(`state IN (${states.map((_, i) => `$s${i}`).join(", ")})`);
-      states.forEach((s, i) => { params[`s${i}`] = s; });
+      states.forEach((s, i) => {
+        params[`s${i}`] = s;
+      });
     }
-    if (f.hostId) { where.push("host_id = $hostId"); params["hostId"] = f.hostId; }
-    if (f.kind) { where.push("kind = $kind"); params["kind"] = f.kind; }
-    if (f.projectId) { where.push("project_id = $projectId"); params["projectId"] = f.projectId; }
+    if (f.hostId) {
+      where.push("host_id = $hostId");
+      params["hostId"] = f.hostId;
+    }
+    if (f.kind) {
+      where.push("kind = $kind");
+      params["kind"] = f.kind;
+    }
+    if (f.projectId) {
+      where.push("project_id = $projectId");
+      params["projectId"] = f.projectId;
+    }
     if (!f.includeDestroyed && !f.state) where.push("state != 'destroyed'");
 
     const sql = `SELECT * FROM previews${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC`;
-    return this.#db.query<PreviewRow>(sql, Object.keys(params).length ? params : undefined).map(rowToPreview);
+    return this.#db
+      .query<PreviewRow>(sql, Object.keys(params).length ? params : undefined)
+      .map(rowToPreview);
   }
 
   setState(id: string, state: PreviewState, error: string | null = null): void {
@@ -151,7 +214,8 @@ export class PreviewsRepo {
       let n = 0;
       for (const [id, at] of seen) {
         n += this.#db.run(
-          "UPDATE previews SET last_seen_at = $at WHERE id = $id AND COALESCE(last_seen_at, 0) < $at", { id, at },
+          "UPDATE previews SET last_seen_at = $at WHERE id = $id AND COALESCE(last_seen_at, 0) < $at",
+          { id, at },
         ).changes;
       }
       return n;
@@ -160,23 +224,27 @@ export class PreviewsRepo {
 
   /** TTL sweeper (Phase 3). Destroyed previews are already gone and never re-expire. */
   expired(now: number = this.#now()): Preview[] {
-    return this.#db.query<PreviewRow>(
-      `SELECT * FROM previews
+    return this.#db
+      .query<PreviewRow>(
+        `SELECT * FROM previews
        WHERE ttl_expires_at IS NOT NULL AND ttl_expires_at <= $now
          AND state NOT IN ('destroyed', 'destroying')
        ORDER BY ttl_expires_at`,
-      { now },
-    ).map(rowToPreview);
+        { now },
+      )
+      .map(rowToPreview);
   }
 
   /** Idle-sleep sweeper (Phase 4): awake previews untouched since the cutoff. */
   idleSince(cutoff: number): Preview[] {
-    return this.#db.query<PreviewRow>(
-      `SELECT * FROM previews
+    return this.#db
+      .query<PreviewRow>(
+        `SELECT * FROM previews
        WHERE state = 'awake' AND kind = 'preview'
          AND COALESCE(last_seen_at, created_at) <= $cutoff`,
-      { cutoff },
-    ).map(rowToPreview);
+        { cutoff },
+      )
+      .map(rowToPreview);
   }
 
   /**
@@ -198,13 +266,26 @@ export class PreviewsRepo {
   /** The forge-side objects a PR preview keeps current (ADR-0011): ids only. */
   forgeRefs(id: string): { commentId: number | null; deploymentId: number | null } {
     const r = this.#db.get<{ forge_comment_id: number | null; forge_deployment_id: number | null }>(
-      "SELECT forge_comment_id, forge_deployment_id FROM previews WHERE id = $id", { id });
+      "SELECT forge_comment_id, forge_deployment_id FROM previews WHERE id = $id",
+      { id },
+    );
     return { commentId: r?.forge_comment_id ?? null, deploymentId: r?.forge_deployment_id ?? null };
   }
 
-  setForgeRefs(id: string, refs: { commentId?: number | null; deploymentId?: number | null }): void {
-    if (refs.commentId !== undefined) this.#db.run("UPDATE previews SET forge_comment_id = $v WHERE id = $id", { id, v: refs.commentId });
-    if (refs.deploymentId !== undefined) this.#db.run("UPDATE previews SET forge_deployment_id = $v WHERE id = $id", { id, v: refs.deploymentId });
+  setForgeRefs(
+    id: string,
+    refs: { commentId?: number | null; deploymentId?: number | null },
+  ): void {
+    if (refs.commentId !== undefined)
+      this.#db.run("UPDATE previews SET forge_comment_id = $v WHERE id = $id", {
+        id,
+        v: refs.commentId,
+      });
+    if (refs.deploymentId !== undefined)
+      this.#db.run("UPDATE previews SET forge_deployment_id = $v WHERE id = $id", {
+        id,
+        v: refs.deploymentId,
+      });
   }
 
   delete(id: string): boolean {

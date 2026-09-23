@@ -6,7 +6,12 @@ const MIN = 60_000;
 function make(o = {}) {
   let clock = 1_700_000_000_000;
   const limiter = new LoginLimiter(o, () => clock);
-  return { limiter, tick: (ms: number) => { clock += ms; } };
+  return {
+    limiter,
+    tick: (ms: number) => {
+      clock += ms;
+    },
+  };
 }
 
 describe("sourceKey", () => {
@@ -30,7 +35,10 @@ describe("LoginLimiter", () => {
   test("an account gets 5 free failures, then a lock that doubles and is capped", () => {
     const { limiter, tick } = make({ ipMax: 1000 });
     const email = "ada@example.com";
-    for (let i = 0; i < 4; i++) { limiter.fail("198.51.100.1", email); expect(limiter.check("198.51.100.1", email).ok).toBe(true); }
+    for (let i = 0; i < 4; i++) {
+      limiter.fail("198.51.100.1", email);
+      expect(limiter.check("198.51.100.1", email).ok).toBe(true);
+    }
 
     const locks: number[] = [];
     for (let i = 0; i < 7; i++) {
@@ -54,7 +62,11 @@ describe("LoginLimiter", () => {
 
   test("one source spraying many accounts is stopped at 10 failures, until the oldest ages out", () => {
     const { limiter, tick } = make();
-    for (let i = 0; i < 10; i++) { expect(limiter.check("203.0.113.7", `user${i}@example.com`).ok).toBe(true); limiter.fail("203.0.113.7", `user${i}@example.com`); tick(1000); }
+    for (let i = 0; i < 10; i++) {
+      expect(limiter.check("203.0.113.7", `user${i}@example.com`).ok).toBe(true);
+      limiter.fail("203.0.113.7", `user${i}@example.com`);
+      tick(1000);
+    }
     const v = limiter.check("203.0.113.7", "fresh@example.com");
     expect(v).toEqual({ ok: false, retryAfterSec: 15 * 60 - 10, reason: "ip" });
     expect(limiter.check("203.0.113.8", "fresh@example.com").ok).toBe(true);
@@ -79,7 +91,10 @@ describe("LoginLimiter", () => {
     // account must not buy fresh guesses at someone else's.
     limiter.fail("203.0.113.7", "bob@example.com");
     limiter.fail("203.0.113.7", "bob@example.com");
-    expect(limiter.check("203.0.113.7", "carol@example.com")).toMatchObject({ ok: false, reason: "ip" });
+    expect(limiter.check("203.0.113.7", "carol@example.com")).toMatchObject({
+      ok: false,
+      reason: "ip",
+    });
   });
 
   test("a streak is forgotten after an hour of quiet", () => {
@@ -93,7 +108,8 @@ describe("LoginLimiter", () => {
   test("memory is bounded, and flooding addresses cannot evict an account's lock", () => {
     const { limiter } = make({ maxKeys: 100 });
     for (let i = 0; i < 5; i++) limiter.fail("198.51.100.1", "ada@example.com");
-    for (let i = 0; i < 5000; i++) limiter.fail(`10.${(i >> 8) & 255}.${i & 255}.1`, "ada@example.com");
+    for (let i = 0; i < 5000; i++)
+      limiter.fail(`10.${(i >> 8) & 255}.${i & 255}.1`, "ada@example.com");
     expect(limiter.trackedKeys).toEqual({ ips: 100, emails: 1 });
     expect(limiter.check("203.0.113.200", "ada@example.com").ok).toBe(false);
   });

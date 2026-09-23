@@ -21,24 +21,49 @@ class Host {}
 
 const NOW = Date.parse('2026-09-21T20:00:00Z');
 const p = (name: string, over: Partial<Preview> = {}): Preview => ({
-  ...(contract.preview as Preview), id: `01${name.toUpperCase().padEnd(24, '0')}`, project: `gw-${name}`,
-  createdAt: new Date(NOW - 3_600_000).toISOString(), updatedAt: new Date(NOW - 3_600_000).toISOString(), ttlExpiresAt: new Date(NOW + 6 * 86_400_000).toISOString(),
-  urls: [{ service: 'web', url: `https://${name}.preview.example.dev/`, primary: true }], ...over,
+  ...(contract.preview as Preview),
+  id: `01${name.toUpperCase().padEnd(24, '0')}`,
+  project: `gw-${name}`,
+  createdAt: new Date(NOW - 3_600_000).toISOString(),
+  updatedAt: new Date(NOW - 3_600_000).toISOString(),
+  ttlExpiresAt: new Date(NOW + 6 * 86_400_000).toISOString(),
+  urls: [{ service: 'web', url: `https://${name}.preview.example.dev/`, primary: true }],
+  ...over,
 });
 const ALL = [
   p('alpha'),
-  p('bravo', { state: 'asleep', source: { kind: 'pr', repo: 'acme/shop', number: 42, sha: 'abc' } }),
-  p('charlie', { state: 'starting', source: { kind: 'git', repo: 'https://github.com/acme/docs.git', ref: 'main' }, ttlExpiresAt: null }),
+  p('bravo', {
+    state: 'asleep',
+    source: { kind: 'pr', repo: 'acme/shop', number: 42, sha: 'abc' },
+  }),
+  p('charlie', {
+    state: 'starting',
+    source: { kind: 'git', repo: 'https://github.com/acme/docs.git', ref: 'main' },
+    ttlExpiresAt: null,
+  }),
   p('delta', { state: 'failed', error: 'exit 1', source: { kind: 'tarball', uploadId: 'u1' } }),
 ];
 
-async function open(o: { permissions?: Permission[]; query?: Record<string, string>; previews?: Preview[] } = {}) {
+async function open(
+  o: { permissions?: Permission[]; query?: Record<string, string>; previews?: Preview[] } = {},
+) {
   FakeEventSource.reset();
-  const session: SessionInfo = { authenticated: true, setupRequired: false, user: { id: 'u', email: 'a@example.com', role: { id: 'member', name: 'member' } }, permissions: o.permissions ?? ['previews.read', 'previews.destroy'] };
+  const session: SessionInfo = {
+    authenticated: true,
+    setupRequired: false,
+    user: { id: 'u', email: 'a@example.com', role: { id: 'member', name: 'member' } },
+    permissions: o.permissions ?? ['previews.read', 'previews.destroy'],
+  };
   const r = await render(Host, {
-    routes: [{ path: 'previews/:id', component: Blank }, { path: '**', component: Blank }],
+    routes: [
+      { path: 'previews/:id', component: Blank },
+      { path: '**', component: Blank },
+    ],
     providers: [
-      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(o.query ?? {}) } } },
+      {
+        provide: ActivatedRoute,
+        useValue: { snapshot: { queryParamMap: convertToParamMap(o.query ?? {}) } },
+      },
       { provide: EVENT_SOURCE_FACTORY, useValue: (url: string) => new FakeEventSource(url) },
       { provide: SSE_JITTER, useValue: () => 0 },
     ],
@@ -49,7 +74,9 @@ async function open(o: { permissions?: Permission[]; query?: Record<string, stri
   const loading = auth.refresh();
   r.http.expectOne('/v1/auth/session').flush(session);
   await loading;
-  r.http.expectOne((req) => req.url.startsWith('/v1/previews')).flush({ seq: 5, previews: o.previews ?? ALL });
+  r.http
+    .expectOne((req) => req.url.startsWith('/v1/previews'))
+    .flush({ seq: 5, previews: o.previews ?? ALL });
   await r.settle();
   FakeEventSource.last.open();
   await r.settle();
@@ -57,7 +84,10 @@ async function open(o: { permissions?: Permission[]; query?: Record<string, stri
 }
 
 const names = (r: Rendered<unknown>) => r.allByTestId('name').map((e) => e.textContent?.trim());
-const click = async (r: Rendered<unknown>, id: string, within?: HTMLElement) => { ((within ?? r.el).querySelector(`[data-testid="${id}"]`) as HTMLElement).click(); await r.settle(); };
+const click = async (r: Rendered<unknown>, id: string, within?: HTMLElement) => {
+  ((within ?? r.el).querySelector(`[data-testid="${id}"]`) as HTMLElement).click();
+  await r.settle();
+};
 
 describe('PreviewList', () => {
   beforeAll(installDialogPolyfill);
@@ -95,7 +125,11 @@ describe('PreviewList', () => {
     expect(names(r)).toEqual(['echo']);
     expect(r.allByTestId('row')[0]!.textContent).toContain('building');
 
-    FakeEventSource.last.emit('preview.state', { previewId: echo.id, at: new Date(NOW).toISOString(), state: 'awake', from: 'starting' }, '8');
+    FakeEventSource.last.emit(
+      'preview.state',
+      { previewId: echo.id, at: new Date(NOW).toISOString(), state: 'awake', from: 'starting' },
+      '8',
+    );
     await r.settle();
     expect(r.allByTestId('row')[0]!.textContent).toContain('awake');
   });
@@ -110,13 +144,19 @@ describe('PreviewList', () => {
       expect(r.text('count')).toBe('2 of 4');
 
       const source = r.byTestId('source') as HTMLSelectElement;
-      source.value = 'tarball'; source.dispatchEvent(new Event('change')); await r.settle();
+      source.value = 'tarball';
+      source.dispatchEvent(new Event('change'));
+      await r.settle();
       expect(names(r)).toEqual(['delta']);
 
-      await click(r, 'chip-building'); await click(r, 'chip-failed');
-      source.value = ''; source.dispatchEvent(new Event('change'));
+      await click(r, 'chip-building');
+      await click(r, 'chip-failed');
+      source.value = '';
+      source.dispatchEvent(new Event('change'));
       const search = r.byTestId('search') as HTMLInputElement;
-      search.value = 'ACME/shop'; search.dispatchEvent(new Event('input')); await r.settle();
+      search.value = 'ACME/shop';
+      search.dispatchEvent(new Event('input'));
+      await r.settle();
       expect(names(r)).toEqual(['bravo']); // matches the SOURCE, not just the name
     });
 
@@ -125,7 +165,13 @@ describe('PreviewList', () => {
       const router = TestBed.inject(Router);
       const navigate = vi.spyOn(router, 'navigate');
       await click(r, 'chip-awake');
-      expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ replaceUrl: true, queryParams: { state: 'awake', source: null, q: null, destroyed: null } }));
+      expect(navigate).toHaveBeenLastCalledWith(
+        [],
+        expect.objectContaining({
+          replaceUrl: true,
+          queryParams: { state: 'awake', source: null, q: null, destroyed: null },
+        }),
+      );
     });
 
     it('...and are read back from it, ignoring anything that is not a real filter', async () => {
@@ -144,8 +190,11 @@ describe('PreviewList', () => {
     it('"destroyed" refetches with includeDestroyed', async () => {
       const r = await open();
       const box = r.byTestId('show-destroyed') as HTMLInputElement;
-      box.checked = true; box.dispatchEvent(new Event('change'));
-      r.http.expectOne('/v1/previews?includeDestroyed=true').flush({ seq: 9, previews: [...ALL, p('gone', { state: 'destroyed' })] });
+      box.checked = true;
+      box.dispatchEvent(new Event('change'));
+      r.http
+        .expectOne('/v1/previews?includeDestroyed=true')
+        .flush({ seq: 9, previews: [...ALL, p('gone', { state: 'destroyed' })] });
       await r.settle();
       expect(names(r)).toContain('gone');
       const gone = r.allByTestId('row').find((row) => row.textContent?.includes('gone'))!;
@@ -177,7 +226,9 @@ describe('PreviewList', () => {
       const row = r.allByTestId('row')[3]!;
       expect(row.textContent).toContain('destroying');
       expect(row.querySelector('[data-testid="destroy"]')).toBeNull();
-      r.http.expectOne({ method: 'DELETE', url: `/v1/previews/${ALL[0]!.id}` }).flush({ preview: { ...ALL[0]!, state: 'destroyed' } });
+      r.http
+        .expectOne({ method: 'DELETE', url: `/v1/previews/${ALL[0]!.id}` })
+        .flush({ preview: { ...ALL[0]!, state: 'destroyed' } });
       await r.settle();
       expect(r.allByTestId('row')[3]!.textContent).toContain('destroyed');
     });
@@ -186,13 +237,24 @@ describe('PreviewList', () => {
       const r = await open();
       await click(r, 'destroy', r.allByTestId('row')[3]!);
       await click(r, 'confirm-ok');
-      r.http.expectOne(`/v1/previews/${ALL[0]!.id}`).flush({ title: 'forbidden', detail: 'requires the "previews.destroy" permission', requestId: '01REQ' }, { status: 403, statusText: 'x' });
+      r.http
+        .expectOne(`/v1/previews/${ALL[0]!.id}`)
+        .flush(
+          {
+            title: 'forbidden',
+            detail: 'requires the "previews.destroy" permission',
+            requestId: '01REQ',
+          },
+          { status: 403, statusText: 'x' },
+        );
       await r.until(() => r.byTestId('toast') !== null, 'the error toast');
       expect(r.allByTestId('row')[3]!.textContent).toContain('awake');
       expect(r.text('toast')).toContain('Could not destroy alpha');
       expect(r.text('toast')).toContain('request 01REQ');
 
-      r.http.expectOne('/v1/auth/session').flush({ authenticated: true, setupRequired: false, permissions: ['previews.read'] });
+      r.http
+        .expectOne('/v1/auth/session')
+        .flush({ authenticated: true, setupRequired: false, permissions: ['previews.read'] });
       await r.settle();
       expect(r.allByTestId('destroy')).toHaveLength(0); // the button is gone now that the UI knows
     });
@@ -200,8 +262,21 @@ describe('PreviewList', () => {
 
   it('a failed load says why, with the request id, instead of claiming there are no previews', async () => {
     FakeEventSource.reset();
-    const r = await render(PreviewList, { providers: [{ provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } }, { provide: EVENT_SOURCE_FACTORY, useValue: (u: string) => new FakeEventSource(u) }] });
-    r.http.expectOne('/v1/previews').flush({ title: 'internal', detail: 'internal error', requestId: '01REQ' }, { status: 500, statusText: 'x' });
+    const r = await render(PreviewList, {
+      providers: [
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap({}) } },
+        },
+        { provide: EVENT_SOURCE_FACTORY, useValue: (u: string) => new FakeEventSource(u) },
+      ],
+    });
+    r.http
+      .expectOne('/v1/previews')
+      .flush(
+        { title: 'internal', detail: 'internal error', requestId: '01REQ' },
+        { status: 500, statusText: 'x' },
+      );
     await r.until(() => r.byTestId('list-error') !== null, 'the load error');
     expect(r.text('list-error')).toContain('01REQ');
     expect(r.byTestId('empty')).toBeNull();
@@ -212,14 +287,24 @@ describe('source labels', () => {
   it.each([
     [{ kind: 'pr', repo: 'acme/shop', number: 42, sha: 'x' }, 'acme/shop#42'],
     [{ kind: 'git', repo: 'https://github.com/acme/docs.git', ref: 'main' }, 'acme/docs@main'],
-    [{ kind: 'git', repo: 'https://gitlab.example/acme/docs', ref: 'v2' }, 'https://gitlab.example/acme/docs@v2'],
+    [
+      { kind: 'git', repo: 'https://gitlab.example/acme/docs', ref: 'v2' },
+      'https://gitlab.example/acme/docs@v2',
+    ],
     [{ kind: 'image', image: 'traefik/whoami:v1.10' }, 'traefik/whoami:v1.10'],
     [{ kind: 'tarball', uploadId: 'u' }, 'uploaded archive'],
   ] as const)('%o -> %s', (source, want) => expect(sourceLabel(source)).toBe(want));
 
   it('gw- is the Docker namespace, not part of the name; the primary URL wins', () => {
     expect(displayName({ project: 'gw-hello' })).toBe('hello');
-    expect(primaryUrl({ urls: [{ service: 'api', url: 'https://a/', primary: false }, { service: 'web', url: 'https://w/', primary: true }] })).toBe('https://w/');
+    expect(
+      primaryUrl({
+        urls: [
+          { service: 'api', url: 'https://a/', primary: false },
+          { service: 'web', url: 'https://w/', primary: true },
+        ],
+      }),
+    ).toBe('https://w/');
     expect(primaryUrl({ urls: [] })).toBeNull();
   });
 
@@ -236,8 +321,18 @@ describe('source labels', () => {
 
 describe('PreviewList: passwords (ADR-0023)', () => {
   it('a lock on the protected rows, naming who can open them', async () => {
-    const r = await open({ previews: [p('open'), p('locked', { password: 'set', access: 'password' }), p('mine', { password: 'generated', access: 'either' }), p('team', { passwordLogin: 'only', access: 'signed-in' })] });
-    const badge = (id: string) => r.fixture.nativeElement.querySelector(`[data-id="${id}"] [data-testid="password-badge"]`)?.textContent?.trim() ?? null;
+    const r = await open({
+      previews: [
+        p('open'),
+        p('locked', { password: 'set', access: 'password' }),
+        p('mine', { password: 'generated', access: 'either' }),
+        p('team', { passwordLogin: 'only', access: 'signed-in' }),
+      ],
+    });
+    const badge = (id: string) =>
+      r.fixture.nativeElement
+        .querySelector(`[data-id="${id}"] [data-testid="password-badge"]`)
+        ?.textContent?.trim() ?? null;
     expect(badge(p('open').id)).toBeNull();
     expect(badge(p('locked').id)).toBe('Password');
     expect(badge(p('mine').id)).toBe('Password or gangway login');

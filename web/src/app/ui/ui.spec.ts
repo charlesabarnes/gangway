@@ -19,7 +19,9 @@ describe('StateBadge', () => {
 
 describe('ConnectionDot', () => {
   it('is silent when idle, and announces the rest politely', async () => {
-    expect((await render(ConnectionDot, { inputs: { status: 'idle' } })).byTestId('connection')).toBeNull();
+    expect(
+      (await render(ConnectionDot, { inputs: { status: 'idle' } })).byTestId('connection'),
+    ).toBeNull();
     TestBed.resetTestingModule();
     const r = await render(ConnectionDot, { inputs: { status: 'reconnecting' } });
     expect(r.text('connection')).toBe('reconnecting…');
@@ -30,10 +32,15 @@ describe('ConnectionDot', () => {
 describe('relativeTime', () => {
   const now = Date.parse('2026-09-21T12:00:00Z');
   it.each([
-    ['2026-09-21T11:59:55Z', 'just now'], ['2026-09-21T11:59:15Z', '45 s ago'], ['2026-09-21T11:55:00Z', '5 min ago'],
-    ['2026-09-21T09:00:00Z', '3 h ago'], ['2026-09-18T12:00:00Z', '3 d ago'],
-    ['2026-09-21T12:30:00Z', 'in 30 min'], ['2026-09-28T12:00:00Z', 'in 7 d'],
-    [null, ''], ['not a date', ''],
+    ['2026-09-21T11:59:55Z', 'just now'],
+    ['2026-09-21T11:59:15Z', '45 s ago'],
+    ['2026-09-21T11:55:00Z', '5 min ago'],
+    ['2026-09-21T09:00:00Z', '3 h ago'],
+    ['2026-09-18T12:00:00Z', '3 d ago'],
+    ['2026-09-21T12:30:00Z', 'in 30 min'],
+    ['2026-09-28T12:00:00Z', 'in 7 d'],
+    [null, ''],
+    ['not a date', ''],
   ])('%s -> %s', (iso, want) => expect(relativeTime(iso, now)).toBe(want));
 });
 
@@ -45,17 +52,28 @@ describe('toasts', () => {
       const fixture = TestBed.createComponent(Toasts);
       const svc = TestBed.inject(ToastService);
       svc.info('Copied');
-      svc.problem('Could not destroy gw-x', { status: 403, title: 'forbidden', detail: 'requires the "previews.destroy" permission', requestId: '01REQ', retryAfter: null, issues: [] });
+      svc.problem('Could not destroy gw-x', {
+        status: 403,
+        title: 'forbidden',
+        detail: 'requires the "previews.destroy" permission',
+        requestId: '01REQ',
+        retryAfter: null,
+        issues: [],
+      });
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelectorAll('[data-testid="toast"]')).toHaveLength(2);
       expect(el.textContent).toContain('request 01REQ');
       expect(el.querySelector('[role="alert"]')!.textContent).toContain('Could not destroy gw-x');
 
-      vi.advanceTimersByTime(5_000); fixture.detectChanges();
+      vi.advanceTimersByTime(5_000);
+      fixture.detectChanges();
       expect(el.querySelectorAll('[data-testid="toast"]')).toHaveLength(1);
-      (el.querySelector('button[aria-label="Dismiss"]') as HTMLButtonElement).click(); fixture.detectChanges();
+      (el.querySelector('button[aria-label="Dismiss"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
       expect(el.querySelectorAll('[data-testid="toast"]')).toHaveLength(0);
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -9,17 +9,35 @@ import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import type { Project, Template } from "../../../shared/src/domain.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
-const USER = { kind: "user", userId: "u1", roleId: "admin", permissions: new Set(), sessionId: "s" } as const;
+const USER = {
+  kind: "user",
+  userId: "u1",
+  roleId: "admin",
+  permissions: new Set(),
+  sessionId: "s",
+} as const;
 const FORGE = { kind: "forge", forge: "github", login: "octocat", permissions: new Set() } as const;
 const IMAGE = { kind: "image", image: "traefik/whoami:v1.10", port: 80 } as const;
-const PR = { kind: "pr", repo: "acme/web", number: 1, sha: "a".repeat(40), cloneUrl: "https://github.com/acme/web.git", credential: undefined } as const;
+const PR = {
+  kind: "pr",
+  repo: "acme/web",
+  number: 1,
+  sha: "a".repeat(40),
+  cloneUrl: "https://github.com/acme/web.git",
+  credential: undefined,
+} as const;
 
 describe("triggerOf", () => {
   test("a PR source is `pr` whoever sent it; a session user is `manual`; a token is `api`", () => {
     expect(triggerOf(PR as never, FORGE as never)).toBe("pr");
     expect(triggerOf(IMAGE as never, USER as never)).toBe("manual");
     expect(triggerOf(IMAGE as never, ACTOR)).toBe("api");
-    expect(triggerOf({ kind: "git", repo: "https://github.com/acme/web.git", ref: "main" } as never, ACTOR)).toBe("api");
+    expect(
+      triggerOf(
+        { kind: "git", repo: "https://github.com/acme/web.git", ref: "main" } as never,
+        ACTOR,
+      ),
+    ).toBe("api");
   });
 });
 
@@ -33,26 +51,44 @@ describe("PolicyResolver", () => {
     const defaults: Record<string, string> = { pr: "default", api: "ci", manual: "default" };
     const lines: string[] = [];
     const policy = new PolicyResolver({
-      templates, defaultFor: (t) => defaults[t]!, logger: new Logger("warn", {}, (l) => lines.push(l)),
+      templates,
+      defaultFor: (t) => defaults[t]!,
+      logger: new Logger("warn", {}, (l) => lines.push(l)),
       project: (ref) => repos.find(ref),
-      projectForSource: (source) => (source.kind === "pr" ? repos.getByFullName("github", source.repo) : undefined),
+      projectForSource: (source) =>
+        source.kind === "pr" ? repos.getByFullName("github", source.repo) : undefined,
     });
     return { s, templates, repos, defaults, policy, lines };
   };
 
   test("the request's template wins; an unknown one is a 422, not a silent fallback", () => {
     const { policy } = setup();
-    expect(policy.resolve({ source: IMAGE, actor: ACTOR, template: "staging" }).template.id).toBe("staging");
-    expect(() => policy.resolve({ source: IMAGE, actor: ACTOR, template: "ghost" })).toThrow(AppError);
+    expect(policy.resolve({ source: IMAGE, actor: ACTOR, template: "staging" }).template.id).toBe(
+      "staging",
+    );
+    expect(() => policy.resolve({ source: IMAGE, actor: ACTOR, template: "ghost" })).toThrow(
+      AppError,
+    );
   });
 
   test("else the repository's; else the trigger's default; a stale default falls back to `default` and is logged once", () => {
     const { policy, repos, defaults, lines } = setup();
     expect(policy.resolve({ source: IMAGE, actor: ACTOR }).template.id).toBe("ci");
     expect(policy.resolve({ source: IMAGE, actor: USER as never }).template.id).toBe("default");
-    const repo = repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web", installationId: "1", slug: "web" });
+    const repo = repos.create({
+      id: "r1",
+      name: "web",
+      forge: "github",
+      fullName: "acme/web",
+      installationId: "1",
+      slug: "web",
+    });
     const resolved = policy.resolve({ source: PR, actor: FORGE as never });
-    expect(resolved).toMatchObject({ template: { id: "default" }, project: { id: "r1" }, trigger: "pr" });
+    expect(resolved).toMatchObject({
+      template: { id: "default" },
+      project: { id: "r1" },
+      trigger: "pr",
+    });
     repos.update(repo.id, { templateId: "staging" });
     expect(policy.resolve({ source: PR, actor: FORGE as never }).template.id).toBe("staging");
 
@@ -64,11 +100,25 @@ describe("PolicyResolver", () => {
 
   test("a project named by the request wins over the source's, by id or slug; an unknown one is a 422", () => {
     const { policy, repos } = setup();
-    repos.create({ id: "r1", name: "web", forge: "github", fullName: "acme/web", slug: "web", templateId: "staging" });
+    repos.create({
+      id: "r1",
+      name: "web",
+      forge: "github",
+      fullName: "acme/web",
+      slug: "web",
+      templateId: "staging",
+    });
     repos.create({ id: "r2", name: "ci box", slug: "ci-box", templateId: "ci" });
-    expect(policy.resolve({ source: IMAGE, actor: ACTOR, projectId: "ci-box" })).toMatchObject({ project: { id: "r2" }, template: { id: "ci" } });
-    expect(policy.resolve({ source: PR, actor: FORGE as never, projectId: "r2" }).project?.id).toBe("r2");
-    expect(() => policy.resolve({ source: IMAGE, actor: ACTOR, projectId: "ghost" })).toThrow(AppError);
+    expect(policy.resolve({ source: IMAGE, actor: ACTOR, projectId: "ci-box" })).toMatchObject({
+      project: { id: "r2" },
+      template: { id: "ci" },
+    });
+    expect(policy.resolve({ source: PR, actor: FORGE as never, projectId: "r2" }).project?.id).toBe(
+      "r2",
+    );
+    expect(() => policy.resolve({ source: IMAGE, actor: ACTOR, projectId: "ghost" })).toThrow(
+      AppError,
+    );
   });
 });
 
@@ -77,33 +127,89 @@ describe("deploy follows the template", () => {
   const withRepo = (fields: Partial<Template>, repo?: Partial<Project>): Policy => {
     const base = fixedPolicy(fields);
     const full: Project | undefined = repo && {
-      id: "r1", name: "web", forge: "github", fullName: "acme/web", installationId: "1", prTrigger: "workflow", slug: "web", enabled: true, disabledReason: null, templateId: null,
-      visibility: null, ttl: null, prClearance: null, forks: "ask", drafts: false, forkClearance: "none", createdAt: new Date(0), updatedAt: new Date(0), ...repo,
+      id: "r1",
+      name: "web",
+      forge: "github",
+      fullName: "acme/web",
+      installationId: "1",
+      prTrigger: "workflow",
+      slug: "web",
+      enabled: true,
+      disabledReason: null,
+      templateId: null,
+      visibility: null,
+      ttl: null,
+      prClearance: null,
+      forks: "ask",
+      drafts: false,
+      forkClearance: "none",
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+      ...repo,
     };
     return { resolve: (i) => ({ ...base.resolve(i), project: full }), default: base.default };
   };
 
   test("visibility, ttl, idle, clearance and placement come from the template; the row records which one", async () => {
     const s = setupPreviewContext();
-    s.ctx.policy = withRepo({ id: "staging", visibility: "private", ttl: null, idleAfter: "10m", clearance: "high", hostId: "local" });
+    s.ctx.policy = withRepo({
+      id: "staging",
+      visibility: "private",
+      ttl: null,
+      idleAfter: "10m",
+      clearance: "high",
+      hostId: "local",
+    });
     const asked: [string | null, string][] = [];
-    s.ctx.secretsFor = (repoId, clearance) => { asked.push([repoId, clearance]); return {}; };
+    s.ctx.secretsFor = (repoId, clearance) => {
+      asked.push([repoId, clearance]);
+      return {};
+    };
     const p = await (await deploy(s.ctx, { actor: ACTOR, name: "tpl", source: IMAGE })).done;
-    expect(p).toMatchObject({ visibility: "private", ttlExpiresAt: null, idleAfterMs: 600_000, secretLevel: "high", templateId: "staging", hostId: "local", projectId: null });
+    expect(p).toMatchObject({
+      visibility: "private",
+      ttlExpiresAt: null,
+      idleAfterMs: 600_000,
+      secretLevel: "high",
+      templateId: "staging",
+      hostId: "local",
+      projectId: null,
+    });
     expect(asked).toEqual([[null, "high"]]);
   });
 
   test("the repository's overrides sit on top of the template, and the request on top of those", async () => {
     const s = setupPreviewContext();
-    new ProjectsRepo(s.db).create({ id: "r1", name: "web", slug: "web", forge: "github", fullName: "acme/web" }); // the preview's project_id references it
-    s.ctx.policy = withRepo({ visibility: "public", ttl: "7d", clearance: "standard" }, { visibility: "private", ttl: "2h", prClearance: "low" });
+    new ProjectsRepo(s.db).create({
+      id: "r1",
+      name: "web",
+      slug: "web",
+      forge: "github",
+      fullName: "acme/web",
+    }); // the preview's project_id references it
+    s.ctx.policy = withRepo(
+      { visibility: "public", ttl: "7d", clearance: "standard" },
+      { visibility: "private", ttl: "2h", prClearance: "low" },
+    );
     const asked: [string | null, string][] = [];
-    s.ctx.secretsFor = (repoId, clearance) => { asked.push([repoId, clearance]); return {}; };
+    s.ctx.secretsFor = (repoId, clearance) => {
+      asked.push([repoId, clearance]);
+      return {};
+    };
     const a = await (await deploy(s.ctx, { actor: ACTOR, name: "over", source: IMAGE })).done;
     expect(a).toMatchObject({ visibility: "private", secretLevel: "low", projectId: "r1" });
     expect(a.ttlExpiresAt!.getTime() - s.ctx.now()).toBeLessThanOrEqual(2 * 3_600_000);
     expect(asked).toEqual([["r1", "low"]]); // the repository's secrets, at the override's clearance
-    const b = await (await deploy(s.ctx, { actor: ACTOR, name: "req", source: IMAGE, visibility: "public", ttl: null, secretLevel: "none" })).done;
+    const b = await (
+      await deploy(s.ctx, {
+        actor: ACTOR,
+        name: "req",
+        source: IMAGE,
+        visibility: "public",
+        ttl: null,
+        secretLevel: "none",
+      })
+    ).done;
     expect(b).toMatchObject({ visibility: "public", ttlExpiresAt: null, secretLevel: "none" });
   });
 
@@ -114,6 +220,8 @@ describe("deploy follows the template", () => {
     expect(p.state).toBe("awake");
     expect(p.hostId).toBe("local");
     // An explicit request for a bad host is still refused: that one is a typo, not a stale row.
-    await expect(deploy(s.ctx, { actor: ACTOR, name: "typo", source: IMAGE, hostId: "mars" })).rejects.toThrow(/does not exist/);
+    await expect(
+      deploy(s.ctx, { actor: ACTOR, name: "typo", source: IMAGE, hostId: "mars" }),
+    ).rejects.toThrow(/does not exist/);
   });
 });

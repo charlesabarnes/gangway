@@ -49,13 +49,26 @@ export class PreviewLogs {
     for (const raw of text.split(/\r?\n|\r/)) {
       if (raw === "") continue;
       const clipped = raw.length > MAX_LINE ? `${raw.slice(0, MAX_LINE)} [truncated]` : raw;
-      out.push({ n: n++, ts: this.#now(), stream, line: redactString(this.#masked(previewId, clipped)) });
+      out.push({
+        n: n++,
+        ts: this.#now(),
+        stream,
+        line: redactString(this.#masked(previewId, clipped)),
+      });
     }
     if (out.length === 0) return;
     this.#next.set(previewId, n);
     appendFileSync(path, out.map((l) => JSON.stringify(l)).join("\n") + "\n");
     const ls = this.#listeners.get(previewId);
-    if (ls) for (const line of out) for (const l of ls) { try { l(line); } catch { /* one bad client */ } }
+    if (ls)
+      for (const line of out)
+        for (const l of ls) {
+          try {
+            l(line);
+          } catch {
+            /* one bad client */
+          }
+        }
   }
 
   /**
@@ -65,7 +78,8 @@ export class PreviewLogs {
    */
   mask(previewId: string, values: readonly string[]): void {
     const keep = values.filter((v) => v.length >= 8);
-    if (keep.length > 0) this.#masks.set(previewId, [...new Set([...(this.#masks.get(previewId) ?? []), ...keep])]);
+    if (keep.length > 0)
+      this.#masks.set(previewId, [...new Set([...(this.#masks.get(previewId) ?? []), ...keep])]);
   }
 
   #masked(previewId: string, line: string): string {
@@ -86,14 +100,18 @@ export class PreviewLogs {
       try {
         const l = JSON.parse(row) as LogLine;
         if (l.n > afterLine) out.push(l);
-      } catch { /* a torn final line after a crash */ }
+      } catch {
+        /* a torn final line after a crash */
+      }
     }
     return out;
   }
 
   /** The proxy's failure page shows these (§6.1: "502 + last 50 log lines"). */
   tail(previewId: string, count = 50): string[] {
-    return this.read(previewId).slice(-count).map((l) => l.line);
+    return this.read(previewId)
+      .slice(-count)
+      .map((l) => l.line);
   }
 
   /**
@@ -108,9 +126,19 @@ export class PreviewLogs {
    * can take) -- and the cut is said out loud: one `system` line, numbered as the last line
    * skipped, so resuming from it lands exactly on the first line that was shown.
    */
-  follow(previewId: string, afterLine: number, deliver: LogListener, o: { tail?: number | undefined; maxReplay?: number | undefined } = {}): () => void {
+  follow(
+    previewId: string,
+    afterLine: number,
+    deliver: LogListener,
+    o: { tail?: number | undefined; maxReplay?: number | undefined } = {},
+  ): () => void {
     let cursor = afterLine;
-    const emit = (l: LogLine) => { if (l.n > cursor) { cursor = l.n; deliver(l); } };
+    const emit = (l: LogLine) => {
+      if (l.n > cursor) {
+        cursor = l.n;
+        deliver(l);
+      }
+    };
     let set = this.#listeners.get(previewId);
     if (!set) this.#listeners.set(previewId, (set = new Set()));
     set.add(emit);
@@ -121,7 +149,12 @@ export class PreviewLogs {
     if (skipped > 0) {
       backlog = backlog.slice(-keep);
       const first = backlog[0]!;
-      emit({ n: first.n - 1, ts: first.ts, stream: "system", line: `... ${skipped} earlier line${skipped === 1 ? "" : "s"} not shown` });
+      emit({
+        n: first.n - 1,
+        ts: first.ts,
+        stream: "system",
+        line: `... ${skipped} earlier line${skipped === 1 ? "" : "s"} not shown`,
+      });
     }
     for (const l of backlog) emit(l);
     return () => {

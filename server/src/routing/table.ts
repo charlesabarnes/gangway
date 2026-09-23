@@ -17,7 +17,8 @@ import type { RoutesRepo } from "../db/repos/routes.ts";
  * rest. `inherit` is resolved against the server-wide default per request, so changing the
  * default takes effect at once; `own` carries the preview's scrypt hash.
  */
-export type EntryPassword = { mode: "inherit" } | { mode: "none" } | { mode: "own"; hash: string; salt: string };
+export type EntryPassword =
+  { mode: "inherit" } | { mode: "none" } | { mode: "own"; hash: string; salt: string };
 
 /**
  * Denormalized so a proxied request touches zero SQLite: the hot path is one Map lookup.
@@ -104,7 +105,9 @@ export class RouteTable {
   forPreview(previewId: string): RouteEntry[] {
     const names = this.#byPreview.get(previewId);
     if (!names) return [];
-    return [...names].map((n) => this.#byHostname.get(n)).filter((e): e is RouteEntry => e !== undefined);
+    return [...names]
+      .map((n) => this.#byHostname.get(n))
+      .filter((e): e is RouteEntry => e !== undefined);
   }
 
   /** Boot load (§11 step 1). Replaces memory wholesale; does not write the database. */

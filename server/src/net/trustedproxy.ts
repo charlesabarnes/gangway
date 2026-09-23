@@ -21,10 +21,12 @@ export function parseTrustedProxies(entries: readonly string[]): BlockList {
   for (const raw of entries) {
     const [addr = "", bits] = raw.trim().split("/");
     const family = isIP(addr);
-    if (family === 0) throw new Error(`trusted proxy ${JSON.stringify(raw)} is not an IP address or CIDR`);
+    if (family === 0)
+      throw new Error(`trusted proxy ${JSON.stringify(raw)} is not an IP address or CIDR`);
     const max = family === 4 ? 32 : 128;
     const prefix = bits === undefined ? max : Number(bits);
-    if (!/^\d+$/.test(bits ?? String(max)) || prefix > max) throw new Error(`trusted proxy ${JSON.stringify(raw)} has an invalid prefix length`);
+    if (!/^\d+$/.test(bits ?? String(max)) || prefix > max)
+      throw new Error(`trusted proxy ${JSON.stringify(raw)} has an invalid prefix length`);
     list.addSubnet(addr, prefix, family === 4 ? "ipv4" : "ipv6");
   }
   return list;
@@ -36,7 +38,10 @@ const unmap = (ip: string): string => (/^::ffff:\d+\.\d+\.\d+\.\d+$/i.test(ip) ?
 export function clientIpResolver(trusted: readonly string[]): ClientIpResolver {
   if (trusted.length === 0) return (peer) => peer;
   const list = parseTrustedProxies(trusted);
-  const isTrusted = (ip: string) => { const f = isIP(ip); return f !== 0 && list.check(ip, f === 4 ? "ipv4" : "ipv6"); };
+  const isTrusted = (ip: string) => {
+    const f = isIP(ip);
+    return f !== 0 && list.check(ip, f === 4 ? "ipv4" : "ipv6");
+  };
 
   return (peer, forwardedFor) => {
     const direct = unmap(peer);

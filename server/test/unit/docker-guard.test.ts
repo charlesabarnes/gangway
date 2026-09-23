@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
-  ALLOW_LOCAL_ENV, DockerGuardError, assertHostDaemon, assertRemoteDaemon, checkDaemon,
-  describeDaemon, localDockerAllowed, looksLikeDockerDesktop, type DockerInfo,
+  ALLOW_LOCAL_ENV,
+  DockerGuardError,
+  assertHostDaemon,
+  assertRemoteDaemon,
+  checkDaemon,
+  describeDaemon,
+  localDockerAllowed,
+  looksLikeDockerDesktop,
+  type DockerInfo,
 } from "../../src/docker/guard.ts";
 
 /* Captured shapes. The strings matter more than they look: the whole guard is a
@@ -70,8 +77,9 @@ describe("Docker Desktop detection", () => {
   /* "desktop-linux" is the CONTEXT name on this machine, not a daemon OperatingSystem.
      Matching on it would be matching the wrong string. */
   test("a host merely named like a desktop context is not Desktop", () => {
-    expect(looksLikeDockerDesktop({ Name: "desktop-linux", OperatingSystem: "Debian 12" }))
-      .toBe(false);
+    expect(looksLikeDockerDesktop({ Name: "desktop-linux", OperatingSystem: "Debian 12" })).toBe(
+      false,
+    );
   });
 });
 
@@ -82,7 +90,11 @@ describe("refusing Docker Desktop", () => {
 
   test("the error says which daemon answered, so the cause is readable", () => {
     let err: unknown;
-    try { assertRemoteDaemon(DESKTOP_MAC, null, EMPTY); } catch (e) { err = e; }
+    try {
+      assertRemoteDaemon(DESKTOP_MAC, null, EMPTY);
+    } catch (e) {
+      err = e;
+    }
     expect(err).toBeInstanceOf(DockerGuardError);
     const g = err as DockerGuardError;
     expect(g.reason).toBe("docker-desktop");
@@ -94,7 +106,8 @@ describe("refusing Docker Desktop", () => {
   test("a remote daemon passes with no expectName", () => {
     expect(assertRemoteDaemon(REMOTE_HOST, null, EMPTY)).toEqual({ ok: true, name: "docker-host" });
     expect(assertRemoteDaemon(OTHER_LINUX, undefined, EMPTY)).toEqual({
-      ok: true, name: "preview-host-2",
+      ok: true,
+      name: "preview-host-2",
     });
   });
 
@@ -107,15 +120,17 @@ describe("refusing Docker Desktop", () => {
 describe("the escape hatch", () => {
   test("GANGWAY_ALLOW_LOCAL_DOCKER=1 permits Desktop", () => {
     expect(assertRemoteDaemon(DESKTOP_MAC, null, ALLOWED)).toEqual({
-      ok: true, name: "docker-desktop",
+      ok: true,
+      name: "docker-desktop",
     });
   });
 
   test("only the literal 1 opens it", () => {
     for (const v of ["true", "yes", "0", "", "01", " 1"]) {
       expect(localDockerAllowed({ [ALLOW_LOCAL_ENV]: v })).toBe(false);
-      expect(() => assertRemoteDaemon(DESKTOP_MAC, null, { [ALLOW_LOCAL_ENV]: v }))
-        .toThrow(DockerGuardError);
+      expect(() => assertRemoteDaemon(DESKTOP_MAC, null, { [ALLOW_LOCAL_ENV]: v })).toThrow(
+        DockerGuardError,
+      );
     }
     expect(localDockerAllowed({ [ALLOW_LOCAL_ENV]: "1" })).toBe(true);
   });
@@ -127,7 +142,10 @@ describe("the escape hatch", () => {
 
 describe("expectName", () => {
   test("a match passes", () => {
-    expect(assertRemoteDaemon(REMOTE_HOST, "docker-host", EMPTY)).toEqual({ ok: true, name: "docker-host" });
+    expect(assertRemoteDaemon(REMOTE_HOST, "docker-host", EMPTY)).toEqual({
+      ok: true,
+      name: "docker-host",
+    });
   });
 
   test("a mismatch throws with reason name-mismatch", () => {
@@ -152,8 +170,12 @@ describe("expectName", () => {
   });
 
   test("matching is exact — no trimming, no case folding", () => {
-    expect(checkDaemon({ Name: "Docker-Host", OperatingSystem: "Ubuntu" }, "docker-host", EMPTY).ok).toBe(false);
-    expect(checkDaemon({ Name: "docker-host ", OperatingSystem: "Ubuntu" }, "docker-host", EMPTY).ok).toBe(false);
+    expect(
+      checkDaemon({ Name: "Docker-Host", OperatingSystem: "Ubuntu" }, "docker-host", EMPTY).ok,
+    ).toBe(false);
+    expect(
+      checkDaemon({ Name: "docker-host ", OperatingSystem: "Ubuntu" }, "docker-host", EMPTY).ok,
+    ).toBe(false);
   });
 });
 
@@ -168,8 +190,11 @@ describe("the actual accident", () => {
 
   test("the desktop reason is reported first, because that is the headline", () => {
     let err: DockerGuardError | undefined;
-    try { assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, DESKTOP_MAC, EMPTY); }
-    catch (e) { err = e as DockerGuardError; }
+    try {
+      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, DESKTOP_MAC, EMPTY);
+    } catch (e) {
+      err = e as DockerGuardError;
+    }
     expect(err?.reason).toBe("docker-desktop");
     expect(err?.message).toContain("host docker-host");
     expect(err?.detail?.["hostId"]).toBe("docker-host");
@@ -183,14 +208,17 @@ describe("the actual accident", () => {
   });
 
   test("a correctly configured docker-host host passes cleanly", () => {
-    expect(assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, REMOTE_HOST, EMPTY))
-      .toEqual({ ok: true, name: "docker-host" });
+    expect(
+      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, REMOTE_HOST, EMPTY),
+    ).toEqual({ ok: true, name: "docker-host" });
   });
 });
 
 describe("describeDaemon", () => {
   test("one line, no credentials", () => {
-    expect(describeDaemon(REMOTE_HOST)).toBe("docker-host / Debian GNU/Linux 12 (bookworm) / docker 27.3.1 / x86_64");
+    expect(describeDaemon(REMOTE_HOST)).toBe(
+      "docker-host / Debian GNU/Linux 12 (bookworm) / docker 27.3.1 / x86_64",
+    );
   });
 
   test("survives an empty payload", () => {

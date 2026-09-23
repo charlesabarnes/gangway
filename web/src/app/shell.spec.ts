@@ -9,8 +9,17 @@ import type { SessionInfo } from './core/api.types';
 @Component({ template: '' })
 class Blank {}
 
-const ADA: SessionInfo = { authenticated: true, setupRequired: false, user: { id: 'u1', email: 'ada@example.com', role: { id: 'member', name: 'member' } }, permissions: ['previews.read'] };
-const ROUTES = [{ path: 'login', component: Blank }, { path: 'previews', component: Blank }, { path: 'account', component: Blank }];
+const ADA: SessionInfo = {
+  authenticated: true,
+  setupRequired: false,
+  user: { id: 'u1', email: 'ada@example.com', role: { id: 'member', name: 'member' } },
+  permissions: ['previews.read'],
+};
+const ROUTES = [
+  { path: 'login', component: Blank },
+  { path: 'previews', component: Blank },
+  { path: 'account', component: Blank },
+];
 
 async function shell(session: SessionInfo | null) {
   const r = await render(App, { routes: ROUTES });
@@ -67,10 +76,13 @@ describe('the app shell', () => {
     TestBed.resetTestingModule();
 
     const r = await render(App, { routes: ROUTES });
-    r.http.expectOne('/healthz').flush({ ok: false, draining: true }, { status: 503, statusText: 'x' });
+    r.http
+      .expectOne('/healthz')
+      .flush({ ok: false, draining: true }, { status: 503, statusText: 'x' });
     const loading = TestBed.inject(AuthService).refresh();
     r.http.expectOne('/v1/auth/session').flush(ADA);
-    await loading; await r.settle();
+    await loading;
+    await r.settle();
     expect(r.text('health')).toBe('shutting down');
   });
 });

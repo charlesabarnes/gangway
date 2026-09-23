@@ -19,11 +19,28 @@ import { randomBytes } from "node:crypto";
 import { cp, lstat, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
-import { projectNameFor, type Clearance, type Host, type Preview, type PreviewSource, type Route, type Visibility } from "../../../shared/src/domain.ts";
+import {
+  projectNameFor,
+  type Clearance,
+  type Host,
+  type Preview,
+  type PreviewSource,
+  type Route,
+  type Visibility,
+} from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
 import { actorId, principalOf, type Actor } from "../auth/actor.ts";
-import { buildArgv, composeArgv, downArgv, parseComposePs, psArgv, runArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
+import {
+  buildArgv,
+  composeArgv,
+  downArgv,
+  parseComposePs,
+  psArgv,
+  runArgv,
+  upArgv,
+  type ComposeSpec,
+} from "../docker/compose.ts";
 import { AppError, conflict } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { allocatePorts } from "../routing/ports.ts";
@@ -33,7 +50,16 @@ import { idleMs } from "../settings.ts";
 import { parseDuration } from "../util/duration.ts";
 import { ulid } from "../util/ulid.ts";
 import { parse as parseYaml } from "yaml";
-import { buildStack, composeForDockerfile, composeForImage, parseComposeModel, planRoutes, selectExposed, type ComposeModel, type PlannedRoute } from "./compose-model.ts";
+import {
+  buildStack,
+  composeForDockerfile,
+  composeForImage,
+  parseComposeModel,
+  planRoutes,
+  selectExposed,
+  type ComposeModel,
+  type PlannedRoute,
+} from "./compose-model.ts";
 import type { PreviewContext } from "./context.ts";
 import { rmiFor } from "./destroy.ts";
 import { cloneRepo } from "./source/git.ts";
@@ -42,7 +68,13 @@ import { assertNoEscapingSymlinks, COMPOSE_FILENAMES, inspectComposeFile } from 
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { GENERATED_DIR } from "./source/store.ts";
-import { assertRunnable, planFromDisk, stackX, writeRuntime, type RuntimeChoice } from "./runtimes.ts";
+import {
+  assertRunnable,
+  planFromDisk,
+  stackX,
+  writeRuntime,
+  type RuntimeChoice,
+} from "./runtimes.ts";
 import type { AddonRequest, AppPlan } from "../../../shared/src/app-plan.ts";
 import type { AddonChoice } from "../../../shared/src/addons.ts";
 import { renderAddons, type RenderedAddons } from "./addons.ts";
@@ -60,18 +92,39 @@ export type DeploySource =
    * A pull request's head (ADR-0011). `credential` is presented to git and forgotten: it is
    * not on the recorded source, not in a label, not in the log.
    */
-  | { kind: "pr"; repo: string; number: number; sha: string; cloneUrl: string; credential: string | undefined; port?: number | undefined }
+  | {
+      kind: "pr";
+      repo: string;
+      number: number;
+      sha: string;
+      cloneUrl: string;
+      credential: string | undefined;
+      port?: number | undefined;
+    }
   /**
    * A tar or tar.gz of the project. `runtime` (ADR-0015) builds it with a runtime, `auto`
    * detects one; absent or `own`, the upload brings its compose file (or Dockerfile).
    */
-  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined; runtime?: RuntimeChoice | undefined; addons?: readonly AddonRequest[] | undefined }
+  | {
+      kind: "tarball";
+      archive: TarballSource;
+      port?: number | undefined;
+      digest?: string | undefined;
+      runtime?: RuntimeChoice | undefined;
+      addons?: readonly AddonRequest[] | undefined;
+    }
   /**
    * An image a workflow built and pushed for one commit of a pull request (ADR-0014).
    * `registry` logs in for this pull only: written to a DOCKER_CONFIG in the work
    * directory for `up`, deleted after it, never recorded, never logged.
    */
-  | { kind: "pushed"; image: string; port: number; pr: { repo: string; number: number; sha: string }; registry?: RegistryLogin | undefined };
+  | {
+      kind: "pushed";
+      image: string;
+      port: number;
+      pr: { repo: string; number: number; sha: string };
+      registry?: RegistryLogin | undefined;
+    };
 
 export type RegistryLogin = { server: string; username: string; password: string };
 
@@ -112,7 +165,8 @@ export type DeployResult = {
   plan?: AppPlan | undefined;
 };
 
-const unprocessable = (m: string, d?: Record<string, unknown>) => new AppError("unprocessable", m, d);
+const unprocessable = (m: string, d?: Record<string, unknown>) =>
+  new AppError("unprocessable", m, d);
 
 /** A placeholder `-p` for the config passes, which run before the real name is known. */
 export const PLAN_PROJECT = "gw-plan";
@@ -128,27 +182,41 @@ function unguessable(): string {
 
 function defaultName(source: DeploySource, runtime: RuntimeId | null): string {
   // A runtime preview is made on a whim, several at a time: its default must not collide.
-  if (source.kind === "tarball") return runtime ? `${runtime}-${unguessable().slice(0, 4)}` : "preview";
+  if (source.kind === "tarball")
+    return runtime ? `${runtime}-${unguessable().slice(0, 4)}` : "preview";
   if (source.kind === "pr") return `${source.repo.split("/").pop() ?? "repo"}-pr-${source.number}`;
-  if (source.kind === "pushed") return `${source.pr.repo.split("/").pop() ?? "repo"}-pr-${source.pr.number}`;
+  if (source.kind === "pushed")
+    return `${source.pr.repo.split("/").pop() ?? "repo"}-pr-${source.pr.number}`;
   // "ghcr.io/acme/web-app:1.2" -> "web-app";  "https://github.com/acme/web-app.git" -> "web-app"
-  const from = source.kind === "git" ? source.repo.replace(/\/+$/, "").replace(/\.git$/, "") : source.image;
+  const from =
+    source.kind === "git" ? source.repo.replace(/\/+$/, "").replace(/\.git$/, "") : source.image;
   const last = from.split("/").pop() ?? from;
   return slugify(last.split(/[:@]/)[0] ?? last) || "preview";
 }
 
-export function urlsFor(ctx: Pick<PreviewContext, "table" | "origin">, previewId: string): PreviewUrl[] {
-  return ctx.table.forPreview(previewId)
-    .map((e) => ({ service: e.service, url: `${publicOriginFor(e.hostname, ctx.origin)}/`, primary: e.primary }))
+export function urlsFor(
+  ctx: Pick<PreviewContext, "table" | "origin">,
+  previewId: string,
+): PreviewUrl[] {
+  return ctx.table
+    .forPreview(previewId)
+    .map((e) => ({
+      service: e.service,
+      url: `${publicOriginFor(e.hostname, ctx.origin)}/`,
+      primary: e.primary,
+    }))
     .sort((a, b) => Number(b.primary) - Number(a.primary) || a.service.localeCompare(b.service));
 }
 
 /* ------------------------------------------------------------------ plan */
 
 type Materialized = {
-  source: PreviewSource; composeFile: string; dockerConfig?: string;
+  source: PreviewSource;
+  composeFile: string;
+  dockerConfig?: string;
   /** An upload as it arrived, to keep once the preview exists (ADR-0015). */
-  pristine?: string | null; runtime?: RuntimeId | null;
+  pristine?: string | null;
+  runtime?: RuntimeId | null;
   plan?: AppPlan;
 };
 
@@ -161,9 +229,14 @@ async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<str
   const cfg = join(dir, "docker-config");
   await mkdir(cfg, { recursive: true, mode: 0o700 });
   const auth = Buffer.from(`${login.username}:${login.password}`).toString("base64");
-  await writeFile(join(cfg, "config.json"), JSON.stringify({ auths: { [login.server]: { auth } } }), { mode: 0o600 });
+  await writeFile(
+    join(cfg, "config.json"),
+    JSON.stringify({ auths: { [login.server]: { auth } } }),
+    { mode: 0o600 },
+  );
   const plugins = join(process.env["DOCKER_CONFIG"] ?? join(homedir(), ".docker"), "cli-plugins");
-  if (await lstat(plugins).catch(() => null)) await symlink(plugins, join(cfg, "cli-plugins")).catch(() => {});
+  if (await lstat(plugins).catch(() => null))
+    await symlink(plugins, join(cfg, "cli-plugins")).catch(() => {});
   return cfg;
 }
 
@@ -186,44 +259,102 @@ async function writeDotenv(srcDir: string, env: Record<string, string>): Promise
 }
 
 /** §5 steps 2-3: put the source on disk and find its compose file -- trusting neither. */
-async function writeSource(ctx: PreviewContext, id: string, source: DeploySource, env: Record<string, string> | undefined, wd: Workdir): Promise<Materialized> {
+async function writeSource(
+  ctx: PreviewContext,
+  id: string,
+  source: DeploySource,
+  env: Record<string, string> | undefined,
+  wd: Workdir,
+): Promise<Materialized> {
   if (source.kind === "image") {
     await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage(source), { mode: 0o600 });
     return { source: { kind: "image", image: source.image }, composeFile: COMPOSE_FILE };
   }
   if (source.kind === "pushed") {
     // No checkout, so no .env file: the project's secrets reach the one service as its environment.
-    await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage({ image: source.image, port: source.port, env }), { mode: 0o600 });
-    const dockerConfig = source.registry ? await writeDockerConfig(wd.dir, source.registry) : undefined;
-    if (env && Object.keys(env).length > 0) ctx.logs.append(id, "system", `passing ${Object.keys(env).length} secret(s) to the container`);
+    await writeFile(
+      join(wd.srcDir, COMPOSE_FILE),
+      composeForImage({ image: source.image, port: source.port, env }),
+      { mode: 0o600 },
+    );
+    const dockerConfig = source.registry
+      ? await writeDockerConfig(wd.dir, source.registry)
+      : undefined;
+    if (env && Object.keys(env).length > 0)
+      ctx.logs.append(
+        id,
+        "system",
+        `passing ${Object.keys(env).length} secret(s) to the container`,
+      );
     return {
-      source: { kind: "pr", repo: source.pr.repo, number: source.pr.number, sha: source.pr.sha, image: source.image },
-      composeFile: COMPOSE_FILE, ...(dockerConfig ? { dockerConfig } : {}),
+      source: {
+        kind: "pr",
+        repo: source.pr.repo,
+        number: source.pr.number,
+        sha: source.pr.sha,
+        image: source.image,
+      },
+      composeFile: COMPOSE_FILE,
+      ...(dockerConfig ? { dockerConfig } : {}),
     };
   }
 
   let recorded: PreviewSource;
   if (source.kind === "git") {
-    const cloned = await cloneRepo({ repo: source.repo, ref: source.ref, destDir: wd.srcDir, logger: ctx.logger, ...ctx.git });
-    ctx.logs.append(id, "system", `cloned ${source.repo} @ ${cloned.ref} (${cloned.sha.slice(0, 12)}) in ${cloned.durationMs}ms`);
+    const cloned = await cloneRepo({
+      repo: source.repo,
+      ref: source.ref,
+      destDir: wd.srcDir,
+      logger: ctx.logger,
+      ...ctx.git,
+    });
+    ctx.logs.append(
+      id,
+      "system",
+      `cloned ${source.repo} @ ${cloned.ref} (${cloned.sha.slice(0, 12)}) in ${cloned.durationMs}ms`,
+    );
     recorded = { kind: "git", repo: source.repo, ref: source.ref };
   } else if (source.kind === "pr") {
-    const cloned = await cloneRepo({ repo: source.cloneUrl, ref: source.sha, destDir: wd.srcDir, token: source.credential, logger: ctx.logger, ...ctx.git });
-    ctx.logs.append(id, "system", `fetched ${source.repo}#${source.number} @ ${cloned.sha.slice(0, 12)} in ${cloned.durationMs}ms`);
+    const cloned = await cloneRepo({
+      repo: source.cloneUrl,
+      ref: source.sha,
+      destDir: wd.srcDir,
+      token: source.credential,
+      logger: ctx.logger,
+      ...ctx.git,
+    });
+    ctx.logs.append(
+      id,
+      "system",
+      `fetched ${source.repo}#${source.number} @ ${cloned.sha.slice(0, 12)} in ${cloned.durationMs}ms`,
+    );
     recorded = { kind: "pr", repo: source.repo, number: source.number, sha: source.sha };
   } else {
     const r = await extractTarball(source.archive, wd.srcDir);
     ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
-    const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port, { addons: source.addons });
+    const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port, {
+      addons: source.addons,
+    });
     return {
-      source: { kind: "tarball", uploadId: id, ...(up.runtime ? { runtime: up.runtime } : {}), ...(up.plan.addons.length ? { addons: up.plan.addons } : {}) },
-      composeFile: up.composeFile, pristine: up.pristine, runtime: up.runtime, plan: up.plan,
+      source: {
+        kind: "tarball",
+        uploadId: id,
+        ...(up.runtime ? { runtime: up.runtime } : {}),
+        ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
+      },
+      composeFile: up.composeFile,
+      pristine: up.pristine,
+      runtime: up.runtime,
+      plan: up.plan,
     };
   }
 
   // Both checks come BEFORE `compose config`, which opens whatever the file points it at.
   await assertNoEscapingSymlinks(wd.srcDir);
-  return { source: recorded, composeFile: await ownStack(ctx, id, wd.srcDir, env, source.port, null) };
+  return {
+    source: recorded,
+    composeFile: await ownStack(ctx, id, wd.srcDir, env, source.port, null),
+  };
 }
 
 /**
@@ -231,39 +362,68 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
  * upload's `gangway.yml` (ADR-0016) may name the port, env and policy for a lone Dockerfile.
  */
 async function ownStack(
-  ctx: PreviewContext, id: string, srcDir: string, env: Record<string, string> | undefined, askedPort: number | undefined, plan: AppPlan | null, sidecars?: RenderedAddons,
+  ctx: PreviewContext,
+  id: string,
+  srcDir: string,
+  env: Record<string, string> | undefined,
+  askedPort: number | undefined,
+  plan: AppPlan | null,
+  sidecars?: RenderedAddons,
 ): Promise<string> {
   if (env) {
     const n = await writeDotenv(srcDir, env);
-    if (n > 0) ctx.logs.append(id, "system", `wrote .env with ${n} repository secret${n === 1 ? "" : "s"}`);
+    if (n > 0)
+      ctx.logs.append(id, "system", `wrote .env with ${n} repository secret${n === 1 ? "" : "s"}`);
   }
   const found = await inspectComposeFile(srcDir);
   if (found) return found;
 
   const dockerfile = await lstat(join(srcDir, "Dockerfile")).catch(() => null);
   if (!dockerfile?.isFile()) {
-    throw unprocessable(`the source has no compose file (${COMPOSE_FILENAMES.join(", ")}) and no Dockerfile at its root -- or choose a runtime to build it with`);
+    throw unprocessable(
+      `the source has no compose file (${COMPOSE_FILENAMES.join(", ")}) and no Dockerfile at its root -- or choose a runtime to build it with`,
+    );
   }
   const port = askedPort ?? plan?.port ?? undefined;
   if (port === undefined) {
-    throw unprocessable("the source has a Dockerfile but no compose file, so `port` is required: the port the app listens on inside the container (`port:` in gangway.yml, or ?port=)");
+    throw unprocessable(
+      "the source has a Dockerfile but no compose file, so `port` is required: the port the app listens on inside the container (`port:` in gangway.yml, or ?port=)",
+    );
   }
   if (sidecars) {
     await mkdir(join(srcDir, GENERATED_DIR), { recursive: true, mode: DIR_MODE });
-    for (const [name, body] of Object.entries(sidecars.files)) await writeFile(join(srcDir, GENERATED_DIR, name), body, { mode: FILE_MODE });
+    for (const [name, body] of Object.entries(sidecars.files))
+      await writeFile(join(srcDir, GENERATED_DIR, name), body, { mode: FILE_MODE });
   }
   // A lone Dockerfile's env: gangway.yml's, then the add-ons'. Secrets reach it as the .env above.
   const appEnv = { ...(plan?.env ?? {}), ...(sidecars?.appEnv ?? {}) };
-  await writeFile(join(srcDir, COMPOSE_FILE), composeForDockerfile({
-    port, env: appEnv, health: plan?.health, sidecars, ...(plan ? { stack: stackX(plan) } : {}),
-  }), { mode: 0o600 });
+  await writeFile(
+    join(srcDir, COMPOSE_FILE),
+    composeForDockerfile({
+      port,
+      env: appEnv,
+      health: plan?.health,
+      sidecars,
+      ...(plan ? { stack: stackX(plan) } : {}),
+    }),
+    { mode: 0o600 },
+  );
   return COMPOSE_FILE;
 }
 
-export type PreparedUpload = { composeFile: string; runtime: RuntimeId | null; pristine: string | null; plan: AppPlan };
+export type PreparedUpload = {
+  composeFile: string;
+  runtime: RuntimeId | null;
+  pristine: string | null;
+  plan: AppPlan;
+};
 
 /** The options a plan takes beyond the files: what was asked for, and what a rebuild had. */
-export type PlanOptions = { previous?: RuntimeId | "own" | undefined; addons?: readonly AddonRequest[] | undefined; previousAddons?: readonly AddonChoice[] | undefined };
+export type PlanOptions = {
+  previous?: RuntimeId | "own" | undefined;
+  addons?: readonly AddonRequest[] | undefined;
+  previousAddons?: readonly AddonChoice[] | undefined;
+};
 
 /**
  * An upload on disk -> the compose file to read (ADR-0015). Deploy and redeploy both come
@@ -271,7 +431,12 @@ export type PlanOptions = { previous?: RuntimeId | "own" | undefined; addons?: r
  * before gangway writes `.env` or `.gangway/` into the tree.
  */
 export async function prepareUpload(
-  ctx: PreviewContext, logId: string, wd: Workdir, choice: RuntimeChoice, env: Record<string, string> | undefined, port: number | undefined,
+  ctx: PreviewContext,
+  logId: string,
+  wd: Workdir,
+  choice: RuntimeChoice,
+  env: Record<string, string> | undefined,
+  port: number | undefined,
   opts: PlanOptions = {},
 ): Promise<PreparedUpload> {
   await assertNoEscapingSymlinks(wd.srcDir);
@@ -280,55 +445,112 @@ export async function prepareUpload(
     pristine = join(wd.dir, "pristine");
     await rm(pristine, { recursive: true, force: true });
     await cp(wd.srcDir, pristine, {
-      recursive: true, verbatimSymlinks: true,
+      recursive: true,
+      verbatimSymlinks: true,
       // Generated files live in `<root>/.gangway/`; none of them, at any depth, is the user's.
-      filter: (src) => src === wd.srcDir || !relative(wd.srcDir, src).split(sep).includes(GENERATED_DIR),
+      filter: (src) =>
+        src === wd.srcDir || !relative(wd.srcDir, src).split(sep).includes(GENERATED_DIR),
     });
   }
   const plan = await planFromDisk(wd.srcDir, choice, opts);
   assertRunnable(plan);
-  for (const r of plan.reasons) ctx.logs.append(logId, "system", `plan: ${r.level === "info" ? "" : `${r.level}: `}${r.found} -> ${r.then}`);
+  for (const r of plan.reasons)
+    ctx.logs.append(
+      logId,
+      "system",
+      `plan: ${r.level === "info" ? "" : `${r.level}: `}${r.found} -> ${r.then}`,
+    );
   let sidecars: RenderedAddons | undefined;
   if (plan.addons.length > 0) {
     const secret = ctx.addonSecret;
-    if (!secret) throw new AppError("internal", "add-ons are not available: no key to derive their passwords from");
+    if (!secret)
+      throw new AppError(
+        "internal",
+        "add-ons are not available: no key to derive their passwords from",
+      );
     sidecars = renderAddons(plan.addons, (a) => secret(logId, a), plan.sqlSeed, plan.root || ".");
     // Before anything that could print them: compose's own output, a seed, a release.
     ctx.logs.mask(logId, sidecars.secrets);
-    const shadowed = Object.keys(sidecars.appEnv).filter((k) => env?.[k] !== undefined || plan.env[k] !== undefined);
-    if (shadowed.length > 0) ctx.logs.append(logId, "system", `add-ons set ${shadowed.join(", ")}, replacing the value${shadowed.length === 1 ? "" : "s"} from secrets or gangway.yml`);
+    const shadowed = Object.keys(sidecars.appEnv).filter(
+      (k) => env?.[k] !== undefined || plan.env[k] !== undefined,
+    );
+    if (shadowed.length > 0)
+      ctx.logs.append(
+        logId,
+        "system",
+        `add-ons set ${shadowed.join(", ")}, replacing the value${shadowed.length === 1 ? "" : "s"} from secrets or gangway.yml`,
+      );
   }
   if (plan.kind === "own") {
-    if (choice === "auto") ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
-    return { composeFile: await ownStack(ctx, logId, wd.srcDir, env, port, plan, sidecars), runtime: null, pristine, plan };
+    if (choice === "auto")
+      ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
+    return {
+      composeFile: await ownStack(ctx, logId, wd.srcDir, env, port, plan, sidecars),
+      runtime: null,
+      pristine,
+      plan,
+    };
   }
   const runtime = plan.runtime!;
   // `port`, if given, overrides the runtime's own: a rebuild keeps the preview's.
-  const { composeFile, note } = await writeRuntime(wd.srcDir, plan, env, join(wd.dir, "runtime.compose.yaml"), port, sidecars);
-  ctx.logs.append(logId, "system", `${choice === "auto" ? "detected " : ""}runtime ${runtime}: ${note}`);
+  const { composeFile, note } = await writeRuntime(
+    wd.srcDir,
+    plan,
+    env,
+    join(wd.dir, "runtime.compose.yaml"),
+    port,
+    sidecars,
+  );
+  ctx.logs.append(
+    logId,
+    "system",
+    `${choice === "auto" ? "detected " : ""}runtime ${runtime}: ${note}`,
+  );
   const secrets = Object.keys(env ?? {}).length;
-  if (secrets > 0) ctx.logs.append(logId, "system", `passing ${secrets} secret(s) to the container as environment`);
+  if (secrets > 0)
+    ctx.logs.append(
+      logId,
+      "system",
+      `passing ${secrets} secret(s) to the container as environment`,
+    );
   return { composeFile, runtime, pristine, plan };
 }
 
 type Planned = { model: ComposeModel; resolved: unknown };
 
-export async function readModel(ctx: PreviewContext, host: Host, wd: Workdir, composeFile: string): Promise<Planned> {
+export async function readModel(
+  ctx: PreviewContext,
+  host: Host,
+  wd: Workdir,
+  composeFile: string,
+): Promise<Planned> {
   const argv = composeArgv({
-    project: PLAN_PROJECT, files: [join(wd.srcDir, composeFile)], projectDirectory: wd.srcDir, docker: ctx.docker,
+    project: PLAN_PROJECT,
+    files: [join(wd.srcDir, composeFile)],
+    projectDirectory: wd.srcDir,
+    docker: ctx.docker,
     // YAML, not `--format json`: JSON output drops service-level x-gangway. See compose-model.ts.
     command: "config",
   });
   const r = await ctx.compose.capture(argv, host, { cwd: wd.srcDir });
-  if (r.code !== 0) throw unprocessable("the compose file is not valid", { compose: redactString(r.stderr).slice(-2_000) });
+  if (r.code !== 0)
+    throw unprocessable("the compose file is not valid", {
+      compose: redactString(r.stderr).slice(-2_000),
+    });
   let resolved: unknown;
-  try { resolved = parseYaml(r.stdout); } catch { throw new AppError("internal", "could not read `compose config` output"); }
+  try {
+    resolved = parseYaml(r.stdout);
+  } catch {
+    throw new AppError("internal", "could not read `compose config` output");
+  }
 
   // Both spellings: compose may hand back the path as given or with symlinks resolved
   // (on macOS every temp dir is one).
   const model = parseComposeModel(PLAN_PROJECT, resolved, [wd.srcDir, await realpath(wd.srcDir)]);
   if (model.violations.length > 0) {
-    throw unprocessable("the compose file asks for things a preview may not have", { violations: model.violations });
+    throw unprocessable("the compose file asks for things a preview may not have", {
+      violations: model.violations,
+    });
   }
   return { model, resolved };
 }
@@ -336,13 +558,25 @@ export async function readModel(ctx: PreviewContext, host: Host, wd: Workdir, co
 export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
   const id = ulid(ctx.now());
   // ADR-0013: the template first -- it may place the preview, and it fills every gap below.
-  const { template, project: owner } = ctx.policy.resolve({ source: input.source, actor: input.actor, template: input.template, projectId: input.projectId });
+  const { template, project: owner } = ctx.policy.resolve({
+    source: input.source,
+    actor: input.actor,
+    template: input.template,
+    projectId: input.projectId,
+  });
   const allHosts = ctx.hosts.list();
   let wantedHost = input.hostId ?? template.hostId ?? undefined;
-  if (input.hostId === undefined && template.hostId !== null && !allHosts.some((h) => h.id === template.hostId)) {
+  if (
+    input.hostId === undefined &&
+    template.hostId !== null &&
+    !allHosts.some((h) => h.id === template.hostId)
+  ) {
     // The template names a host that left the config. Placing it anyway beats failing
     // every preview on that template for a stale row.
-    ctx.logger.warn("template names a host that does not exist; letting the scheduler place the preview", { template: template.id, hostId: template.hostId });
+    ctx.logger.warn(
+      "template names a host that does not exist; letting the scheduler place the preview",
+      { template: template.id, hostId: template.hostId },
+    );
     wantedHost = undefined;
   }
   // §9: placement is decided here and nowhere else, even while there is one host.
@@ -361,8 +595,20 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   try {
     // The clearance: asked for, else the project's override, else the template's (ADR-0012, ADR-0013).
     const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
-    const env = input.env !== undefined ? input.env : secretLevel === "none" ? {} : ctx.secretsFor?.(owner?.id ?? null, secretLevel);
-    const { source, composeFile, dockerConfig: login, pristine: kept, runtime, plan } = await writeSource(ctx, id, input.source, env, wd);
+    const env =
+      input.env !== undefined
+        ? input.env
+        : secretLevel === "none"
+          ? {}
+          : ctx.secretsFor?.(owner?.id ?? null, secretLevel);
+    const {
+      source,
+      composeFile,
+      dockerConfig: login,
+      pristine: kept,
+      runtime,
+      plan,
+    } = await writeSource(ctx, id, input.source, env, wd);
     appPlan = plan;
     dockerConfig = login;
     pristine = kept ?? null;
@@ -375,13 +621,20 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     visibility = input.visibility ?? owner?.visibility ?? model.x.visibility ?? template.visibility;
     // A private preview is opened by logging in to the UI (net/gate.ts). With the UI switched
     // off there is no login page to send anyone to: say so now, not with a dead link later.
-    if ((visibility === "private" || input.passwordLogin === "only") && ctx.privateAvailable?.() === false) {
-      throw unprocessable("private previews need the web UI, which is switched off (surfaces.ui); use unlisted instead");
+    if (
+      (visibility === "private" || input.passwordLogin === "only") &&
+      ctx.privateAvailable?.() === false
+    ) {
+      throw unprocessable(
+        "private previews need the web UI, which is switched off (surfaces.ui); use unlisted instead",
+      );
     }
 
-    const ttlText = input.ttl !== undefined ? input.ttl : owner?.ttl ?? model.x.ttl ?? template.ttl;
+    const ttlText =
+      input.ttl !== undefined ? input.ttl : (owner?.ttl ?? model.x.ttl ?? template.ttl);
     const ttlMs = ttlText === null ? null : parseDuration(ttlText);
-    if (ttlText !== null && ttlMs === null) throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
+    if (ttlText !== null && ttlMs === null)
+      throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
 
     // ADR-0023: hashed BEFORE the synchronous block below (scrypt is async).
     const password = await resolvePassword(ctx.passwords, input.password);
@@ -393,15 +646,23 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 
     const existing = ctx.previews.getByProject(project);
     if (existing && existing.state !== "destroyed") {
-      throw conflict(`a preview named "${slug}" already exists`, { previewId: existing.id, state: existing.state });
+      throw conflict(`a preview named "${slug}" already exists`, {
+        previewId: existing.id,
+        state: existing.state,
+      });
     }
 
     // ---- from here to the end of the block is SYNCHRONOUS. Ports are allocated from
     // the route table and claimed in the route table with no await in between, so two
     // concurrent deploys cannot be handed the same port.
     routes = planRoutes({
-      previewId: id, slug, baseDomain: ctx.baseDomain(), host, exposed,
-      allocate: (n) => allocatePorts(host.ports, ctx.table.usedPorts(host.upstream.address), n, host.id),
+      previewId: id,
+      slug,
+      baseDomain: ctx.baseDomain(),
+      host,
+      exposed,
+      allocate: (n) =>
+        allocatePorts(host.ports, ctx.table.usedPorts(host.upstream.address), n, host.id),
     });
     if (existing) {
       ctx.previews.delete(existing.id);
@@ -411,20 +672,40 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     // later template edit changes new previews and not running ones.
     const idleAfterMs = idleMs(model.x.idle ?? template.idleAfter);
     preview = ctx.previews.create({
-      id, project, hostId: host.id, state: "building", source, visibility,
-      ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
-      secretLevel, templateId: template.id, projectId: owner?.id ?? null, owner: principalOf(input.actor),
-      password: password.stored, passwordLogin: input.passwordLogin ?? "inherit",
+      id,
+      project,
+      hostId: host.id,
+      state: "building",
+      source,
+      visibility,
+      ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs),
+      idleAfterMs,
+      secretLevel,
+      templateId: template.id,
+      projectId: owner?.id ?? null,
+      owner: principalOf(input.actor),
+      password: password.stored,
+      passwordLogin: input.passwordLogin ?? "inherit",
     });
     generatedPassword = password.generated;
     try {
       for (const route of routes) {
-        ctx.table.apply({ route: { ...route, createdAt: preview.createdAt }, hostId: host.id, project, visibility, password: entryPassword(password.stored), passwordLogin: input.passwordLogin ?? "inherit", state: "building" });
+        ctx.table.apply({
+          route: { ...route, createdAt: preview.createdAt },
+          hostId: host.id,
+          project,
+          visibility,
+          password: entryPassword(password.stored),
+          passwordLogin: input.passwordLogin ?? "inherit",
+          state: "building",
+        });
       }
     } catch (e) {
       ctx.table.removePreview(id);
       ctx.previews.delete(id);
-      throw /UNIQUE|PRIMARY/i.test(String(e)) ? conflict("that hostname is already taken by another preview") : e;
+      throw /UNIQUE|PRIMARY/i.test(String(e))
+        ? conflict("that hostname is already taken by another preview")
+        : e;
     }
     // ---- end synchronous block
   } catch (e) {
@@ -436,21 +717,46 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   // ADR-0015: the upload is kept once there is a preview to keep it for. Losing it costs the
   // editor, not the deploy.
   if (pristine && ctx.sources) {
-    await ctx.sources.adopt(id, pristine).catch((e) => ctx.logger.warn("could not keep the uploaded source", { previewId: id, err: e }));
+    await ctx.sources
+      .adopt(id, pristine)
+      .catch((e) =>
+        ctx.logger.warn("could not keep the uploaded source", { previewId: id, err: e }),
+      );
   }
 
   const urls = urlsFor(ctx, id);
-  ctx.bus.publish("preview.created", { project: preview.project, by: actorId(input.actor), urls: urls.map((u) => u.url) }, id);
+  ctx.bus.publish(
+    "preview.created",
+    { project: preview.project, by: actorId(input.actor), urls: urls.map((u) => u.url) },
+    id,
+  );
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
   if (generatedPassword) logGenerated(ctx, id, generatedPassword);
   // After the rows exist: a rejected deploy made nothing, so there is nothing to have done.
   ctx.audit?.record(input.actor, "preview.deploy", id, {
-    new: { project: preview.project, visibility, passwordMode: preview.password, source: input.source.kind, hostId: host.id, urls: urls.map((u) => u.url) },
+    new: {
+      project: preview.project,
+      visibility,
+      passwordMode: preview.password,
+      source: input.source.kind,
+      hostId: host.id,
+      urls: urls.map((u) => u.url),
+    },
   });
 
   const abort = new AbortController();
-  const done = run(ctx, { preview, host, wd, ...planned, routes, visibility, dockerConfig, signal: abort.signal })
-    .finally(() => { ctx.inflight.delete(id); });
+  const done = run(ctx, {
+    preview,
+    host,
+    wd,
+    ...planned,
+    routes,
+    visibility,
+    dockerConfig,
+    signal: abort.signal,
+  }).finally(() => {
+    ctx.inflight.delete(id);
+  });
   ctx.inflight.set(id, { abort, done });
 
   return { preview, urls, done, plan: appPlan };
@@ -459,8 +765,14 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 /* ------------------------------------------------------------------ run */
 
 type RunInput = {
-  preview: Preview; host: Host; wd: Workdir; model: ComposeModel; resolved: unknown;
-  routes: PlannedRoute[]; visibility: Visibility; signal: AbortSignal;
+  preview: Preview;
+  host: Host;
+  wd: Workdir;
+  model: ComposeModel;
+  resolved: unknown;
+  routes: PlannedRoute[];
+  visibility: Visibility;
+  signal: AbortSignal;
   /** A one-deploy registry login (ADR-0014), for `up`'s pull. Deleted once `up` returns. */
   dockerConfig?: string | undefined;
 };
@@ -480,18 +792,37 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   const stackPath = join(wd.dir, STACK_FILE);
   // ONE file. The user's compose.yaml is not on this command line: it has already been
   // read, by compose itself, into the document the stack file was built from.
-  const base = { project: preview.project, files: [stackPath], projectDirectory: wd.srcDir, docker: ctx.docker };
+  const base = {
+    project: preview.project,
+    files: [stackPath],
+    projectDirectory: wd.srcDir,
+    docker: ctx.docker,
+  };
 
   const step = stepper(ctx, { previewId: id, host, cwd: wd.srcDir, signal: r.signal });
 
   let upAttempted = false;
   try {
-    await writeFile(stackPath, buildStack({
-      resolved: r.resolved, planProject: PLAN_PROJECT,
-      model: r.model, routes: r.routes, createdAt: preview.createdAt,
-      ctx: { instance: ctx.instance, env: ctx.env, project: preview.project, hostId: host.id, visibility: r.visibility },
-      publishBind: host.publishBind, origin: ctx.origin,
-    }), { mode: 0o600 });
+    await writeFile(
+      stackPath,
+      buildStack({
+        resolved: r.resolved,
+        planProject: PLAN_PROJECT,
+        model: r.model,
+        routes: r.routes,
+        createdAt: preview.createdAt,
+        ctx: {
+          instance: ctx.instance,
+          env: ctx.env,
+          project: preview.project,
+          hostId: host.id,
+          visibility: r.visibility,
+        },
+        publishBind: host.publishBind,
+        origin: ctx.origin,
+      }),
+      { mode: 0o600 },
+    );
 
     const toBuild = r.model.services.filter((s) => s.hasBuild).map((s) => s.name);
     if (toBuild.length > 0) {
@@ -501,7 +832,11 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
         await step("build", buildArgv(base, toBuild), "build");
         ctx.builds?.finish(buildId, "succeeded", 0);
       } catch (e) {
-        ctx.builds?.finish(buildId, r.signal.aborted ? "cancelled" : "failed", e instanceof StepFailed ? e.exitCode : null);
+        ctx.builds?.finish(
+          buildId,
+          r.signal.aborted ? "cancelled" : "failed",
+          e instanceof StepFailed ? e.exitCode : null,
+        );
         throw e;
       }
     }
@@ -509,27 +844,48 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     ctx.states.transition(id, "starting");
     upAttempted = true;
     try {
-      await step("up", upArgv(base, ["--no-build", "--remove-orphans"]), "stdout", r.dockerConfig ? { DOCKER_CONFIG: r.dockerConfig } : undefined);
+      await step(
+        "up",
+        upArgv(base, ["--no-build", "--remove-orphans"]),
+        "stdout",
+        r.dockerConfig ? { DOCKER_CONFIG: r.dockerConfig } : undefined,
+      );
     } finally {
       // The login was for this pull. Gone before anything else runs, success or not.
       if (r.dockerConfig) await rm(r.dockerConfig, { recursive: true, force: true });
     }
 
-    const target: WaitTarget = { previewId: id, host, routes: r.routes, signal: r.signal, ps: psArgv(base, ["--all"]), cwd: wd.srcDir, health: healthOf(r.model) };
+    const target: WaitTarget = {
+      previewId: id,
+      host,
+      routes: r.routes,
+      signal: r.signal,
+      ps: psArgv(base, ["--all"]),
+      cwd: wd.srcDir,
+      health: healthOf(r.model),
+    };
     await waitHealthy(ctx, target);
 
     // ADR-0016: the release command runs before every version goes live; here, before the seed.
     const release = releaseFor(r.model, r.routes);
     if (release) {
       log(`release: ${release.command} (in ${release.service})`);
-      await step("run (release)", runArgv(base, release.service, ["sh", "-c", release.command], ["--no-deps", "-T"]), "seed");
+      await step(
+        "run (release)",
+        runArgv(base, release.service, ["sh", "-c", release.command], ["--no-deps", "-T"]),
+        "seed",
+      );
     }
 
     // §7.3 / ADR-0012: the seed runs once, healthy but not yet routed. Failing it fails the preview.
     const seed = seedFor(r.model, r.routes);
     if (seed) {
       log(`seeding: ${seed.command} (in ${seed.service})`);
-      await step("run (seed)", runArgv(base, seed.service, ["sh", "-c", seed.command], ["--no-deps", "-T"]), "seed");
+      await step(
+        "run (seed)",
+        runArgv(base, seed.service, ["sh", "-c", seed.command], ["--no-deps", "-T"]),
+        "seed",
+      );
     }
 
     await waitAnswering(ctx, target);
@@ -541,7 +897,8 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     if (r.signal.aborted) return ctx.previews.get(id) ?? preview;
 
     const message = redactString(e instanceof Error ? e.message : String(e));
-    if (!(e instanceof StepFailed)) ctx.logger.error("deploy pipeline error", { previewId: id, err: e });
+    if (!(e instanceof StepFailed))
+      ctx.logger.error("deploy pipeline error", { previewId: id, err: e });
     log(`FAILED: ${message}`);
     if (upAttempted) await salvage(ctx, r);
     return ctx.states.transition(id, "failed", message);
@@ -550,32 +907,60 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   }
 }
 
-export type Step = (what: string, argv: string[], stream: "build" | "seed" | "stdout", env?: Record<string, string>) => Promise<void>;
+export type Step = (
+  what: string,
+  argv: string[],
+  stream: "build" | "seed" | "stdout",
+  env?: Record<string, string>,
+) => Promise<void>;
 
 /** Streams a compose command into the preview log; throws unless it exits 0. */
-export function stepper(ctx: PreviewContext, o: { previewId: string; host: Host; cwd: string; signal: AbortSignal }): Step {
+export function stepper(
+  ctx: PreviewContext,
+  o: { previewId: string; host: Host; cwd: string; signal: AbortSignal },
+): Step {
   return async (what, argv, stream, env) => {
     ctx.logs.append(o.previewId, "system", `$ compose ${what}`);
-    for await (const ev of ctx.compose.stream(argv, o.host, { cwd: o.cwd, signal: o.signal, ...(env ? { env } : {}) })) {
-      if (ev.type === "line") ctx.logs.append(o.previewId, ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream, ev.line);
-      else if (ev.code !== 0) throw new StepFailed(`compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`, ev.code);
+    for await (const ev of ctx.compose.stream(argv, o.host, {
+      cwd: o.cwd,
+      signal: o.signal,
+      ...(env ? { env } : {}),
+    })) {
+      if (ev.type === "line")
+        ctx.logs.append(
+          o.previewId,
+          ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream,
+          ev.line,
+        );
+      else if (ev.code !== 0)
+        throw new StepFailed(
+          `compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`,
+          ev.code,
+        );
     }
     o.signal.throwIfAborted();
   };
 }
 
 /** The seed hook as `{ service, command }`, the primary route's service filling in. */
-export function seedFor(model: ComposeModel, routes: PlannedRoute[]): { service: string; command: string } | null {
+export function seedFor(
+  model: ComposeModel,
+  routes: PlannedRoute[],
+): { service: string; command: string } | null {
   const seed = model.x.seed;
   if (seed === undefined) return null;
   if (typeof seed !== "string") return seed;
   const primary = routes.find((r) => r.primary) ?? routes[0];
-  if (!primary) throw unprocessable("x-gangway.seed names no service and nothing is exposed to run it in");
+  if (!primary)
+    throw unprocessable("x-gangway.seed names no service and nothing is exposed to run it in");
   return { service: primary.service, command: seed };
 }
 
 /** ADR-0016: the release command, in the primary route's service. */
-export function releaseFor(model: ComposeModel, routes: PlannedRoute[]): { service: string; command: string } | null {
+export function releaseFor(
+  model: ComposeModel,
+  routes: PlannedRoute[],
+): { service: string; command: string } | null {
   const command = model.x.release;
   if (command === undefined) return null;
   const primary = routes.find((r) => r.primary) ?? routes[0];
@@ -612,20 +997,34 @@ export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<v
     const routed = new Set(r.routes.map((x) => x.service));
 
     for (const c of rows) {
-      const died = c.state === "dead" || (c.state === "exited" && (c.exitCode !== 0 || routed.has(c.service)));
-      if (died) throw new StepFailed(`service "${c.service}" exited${c.exitCode === null ? "" : ` with code ${c.exitCode}`}`);
+      const died =
+        c.state === "dead" || (c.state === "exited" && (c.exitCode !== 0 || routed.has(c.service)));
+      if (died)
+        throw new StepFailed(
+          `service "${c.service}" exited${c.exitCode === null ? "" : ` with code ${c.exitCode}`}`,
+        );
       if (c.health === "unhealthy") throw new StepFailed(`service "${c.service}" is unhealthy`);
     }
     // A one-shot service (a migration) that exited 0 is done, not broken.
-    const waiting = rows.filter((c) => !(c.state === "exited" && c.exitCode === 0))
+    const waiting = rows
+      .filter((c) => !(c.state === "exited" && c.exitCode === 0))
       .filter((c) => c.state !== "running" || (c.health !== null && c.health !== "healthy"));
     const seen = new Set(rows.map((c) => c.service));
     const missing = [...routed].filter((s) => !seen.has(s));
     if (rows.length > 0 && waiting.length === 0 && missing.length === 0) return;
 
-    const status = [...waiting.map((c) => `${c.service}: ${c.health ?? c.state}`), ...missing.map((s) => `${s}: not created`)].join(", ");
-    if (status !== last) { ctx.logs.append(r.previewId, "system", `waiting for ${status || "containers"}`); last = status; }
-    if (Date.now() >= deadline) throw new StepFailed(`timed out after ${Math.round(ctx.timings.startTimeoutMs / 1000)}s waiting for ${status || "containers"}`);
+    const status = [
+      ...waiting.map((c) => `${c.service}: ${c.health ?? c.state}`),
+      ...missing.map((s) => `${s}: not created`),
+    ].join(", ");
+    if (status !== last) {
+      ctx.logs.append(r.previewId, "system", `waiting for ${status || "containers"}`);
+      last = status;
+    }
+    if (Date.now() >= deadline)
+      throw new StepFailed(
+        `timed out after ${Math.round(ctx.timings.startTimeoutMs / 1000)}s waiting for ${status || "containers"}`,
+      );
     await sleep(ctx.timings.pollIntervalMs);
   }
 }
@@ -636,11 +1035,15 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
   let pending = [...r.routes];
   for (;;) {
     r.signal.throwIfAborted();
-    const results = await Promise.all(pending.map((route) => ctx.probe(route, r.host, r.health?.[route.service])));
+    const results = await Promise.all(
+      pending.map((route) => ctx.probe(route, r.host, r.health?.[route.service])),
+    );
     pending = pending.filter((_, i) => !results[i]);
     if (pending.length === 0) return;
     if (Date.now() >= deadline) {
-      throw new StepFailed(`${pending.map((p) => `${p.service}:${p.containerPort}${r.health?.[p.service] ?? ""}`).join(", ")} never answered${r.health && pending.some((p) => r.health![p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`);
+      throw new StepFailed(
+        `${pending.map((p) => `${p.service}:${p.containerPort}${r.health?.[p.service] ?? ""}`).join(", ")} never answered${r.health && pending.some((p) => r.health![p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`,
+      );
     }
     await sleep(ctx.timings.pollIntervalMs);
   }
@@ -651,18 +1054,40 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
  * workloads -- but its last words are kept first, because the container logs are the
  * only thing that says WHY, and the failure page shows them (§6.1).
  */
-export async function salvage(ctx: PreviewContext, r: Pick<RunInput, "preview" | "host">): Promise<void> {
+export async function salvage(
+  ctx: PreviewContext,
+  r: Pick<RunInput, "preview" | "host">,
+): Promise<void> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-salvage-"));
   try {
     const logs = await ctx.compose.capture(
-      composeArgv({ project: r.preview.project, files: [], command: "logs", args: ["--no-color", "--tail", "60"], docker: ctx.docker }),
-      r.host, { cwd: empty },
+      composeArgv({
+        project: r.preview.project,
+        files: [],
+        command: "logs",
+        args: ["--no-color", "--tail", "60"],
+        docker: ctx.docker,
+      }),
+      r.host,
+      { cwd: empty },
     );
     if (logs.stdout) ctx.logs.append(r.preview.id, "stdout", logs.stdout);
     // Volumes stay (ADR-0017): a failed rebuild must not take the add-on's data. Destroy removes them.
-    await ctx.compose.capture(downArgv({ project: r.preview.project, files: [], docker: ctx.docker }, [], rmiFor(r.preview), { volumes: false }), r.host, { cwd: empty });
+    await ctx.compose.capture(
+      downArgv(
+        { project: r.preview.project, files: [], docker: ctx.docker },
+        [],
+        rmiFor(r.preview),
+        { volumes: false },
+      ),
+      r.host,
+      { cwd: empty },
+    );
   } catch (e) {
-    ctx.logger.warn("could not tear down a failed stack; the reconciler will", { previewId: r.preview.id, err: e });
+    ctx.logger.warn("could not tear down a failed stack; the reconciler will", {
+      previewId: r.preview.id,
+      err: e,
+    });
   } finally {
     await rm(empty, { recursive: true, force: true });
   }

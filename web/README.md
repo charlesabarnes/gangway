@@ -11,7 +11,7 @@ npm run build                    # -> dist/browser, which server/src/boot.ts ser
 npm test -- --watch=false        # vitest, jsdom
 ```
 
-The spec caps the product at eight screens: *"a dashboard is how this becomes Coolify."*
+The spec caps the product at eight screens: _"a dashboard is how this becomes Coolify."_
 Today: login, first-run setup, **Previews**, **Preview detail**, and an account page that
 stands in for Tokens.
 
@@ -34,7 +34,7 @@ not its own (ADR-0010) and the browser honestly sends `http://localhost:4200`.
 Works in Chrome and Firefox, which treat `localhost` as a secure context and so accept the
 `Secure`, `__Host-` session cookie over plain http. **Safari does not** — use B.
 
-**B. Served by gangway (what production does).** `npm run watch`, started *before* gangway
+**B. Served by gangway (what production does).** `npm run watch`, started _before_ gangway
 (boot checks for `dist/browser` once), then open `https://app.preview.localhost:8443`. The
 certificate is from gangway's dev CA (`state/dev-ca/ca.pem`); trust it or click through.
 

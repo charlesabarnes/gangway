@@ -13,10 +13,15 @@ export class SqliteSettingsStore implements SettingsStore {
 
   get(key: string): unknown | undefined {
     const r = this.#db.get<{ value_json: string }>(
-      "SELECT value_json FROM settings WHERE key = $key", { key },
+      "SELECT value_json FROM settings WHERE key = $key",
+      { key },
     );
     if (!r) return undefined;
-    try { return JSON.parse(r.value_json); } catch { return undefined; }
+    try {
+      return JSON.parse(r.value_json);
+    } catch {
+      return undefined;
+    }
   }
 
   set(key: string, value: unknown): void {
@@ -29,8 +34,14 @@ export class SqliteSettingsStore implements SettingsStore {
 
   all(): Record<string, unknown> {
     const out: Record<string, unknown> = {};
-    for (const r of this.#db.query<{ key: string; value_json: string }>("SELECT key, value_json FROM settings")) {
-      try { out[r.key] = JSON.parse(r.value_json); } catch { /* skip a corrupt row */ }
+    for (const r of this.#db.query<{ key: string; value_json: string }>(
+      "SELECT key, value_json FROM settings",
+    )) {
+      try {
+        out[r.key] = JSON.parse(r.value_json);
+      } catch {
+        /* skip a corrupt row */
+      }
     }
     return out;
   }

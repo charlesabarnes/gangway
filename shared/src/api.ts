@@ -9,16 +9,29 @@ import { RUNTIME_IDS } from "./runtimes.ts";
 import { ADDON_IDS, isAddonId } from "./addons.ts";
 
 /** Runtime copies of the domain's string unions, so the web contract test has something to compare. */
-export const PREVIEW_STATE_VALUES = ["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"] as const;
+export const PREVIEW_STATE_VALUES = [
+  "building",
+  "starting",
+  "awake",
+  "asleep",
+  "failed",
+  "destroying",
+  "destroyed",
+] as const;
 export const VISIBILITY_VALUES = ["public", "unlisted", "private"] as const;
 
 /** A Docker image reference. Conservative on purpose: it becomes an argument to a CLI. */
-const imageRef = z.string().max(255).regex(/^[a-z0-9][a-z0-9._/:@-]*$/i, "not a valid image reference");
+const imageRef = z
+  .string()
+  .max(255)
+  .regex(/^[a-z0-9][a-z0-9._/:@-]*$/i, "not a valid image reference");
 
-const envMap = z.record(
-  z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid environment variable name"),
-  z.string().max(32_768),
-).refine((e) => Object.keys(e).length <= 100, "at most 100 variables");
+const envMap = z
+  .record(
+    z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid environment variable name"),
+    z.string().max(32_768),
+  )
+  .refine((e) => Object.keys(e).length <= 100, "at most 100 variables");
 
 const containerPort = z.number().int().min(1).max(65535);
 
@@ -40,27 +53,54 @@ export const DeploySourceSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-const templateId = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/, "a template id is 1-32 lowercase letters, digits and hyphens");
+const templateId = z
+  .string()
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/,
+    "a template id is 1-32 lowercase letters, digits and hyphens",
+  );
 
 /** ADR-0017: an add-on by id, optionally at a major version. */
-const addonRequest = z.union([z.enum(ADDON_IDS), z.strictObject({ id: z.enum(ADDON_IDS), version: z.string().regex(/^\d+(\.\d+)*$/).max(16).optional() })]);
-const addonArray = z.array(addonRequest).max(ADDON_IDS.length)
-  .refine((a) => new Set(a.map((x) => (typeof x === "string" ? x : x.id))).size === a.length, "each add-on at most once");
+const addonRequest = z.union([
+  z.enum(ADDON_IDS),
+  z.strictObject({
+    id: z.enum(ADDON_IDS),
+    version: z
+      .string()
+      .regex(/^\d+(\.\d+)*$/)
+      .max(16)
+      .optional(),
+  }),
+]);
+const addonArray = z
+  .array(addonRequest)
+  .max(ADDON_IDS.length)
+  .refine(
+    (a) => new Set(a.map((x) => (typeof x === "string" ? x : x.id))).size === a.length,
+    "each add-on at most once",
+  );
 
 /** `?addons=postgres,redis@8` in a query string; `none` for no add-ons. */
-export const addonQuery = z.string().max(200).transform((s, ctx) => {
-  const out: z.input<typeof addonArray> = [];
-  if (s === "none" || s === "") return out;
-  for (const part of s.split(",")) {
-    const [id, version] = part.trim().split("@") as [string, string | undefined];
-    if (!isAddonId(id) || (version !== undefined && !/^\d+(\.\d+)*$/.test(version))) {
-      ctx.addIssue({ code: "custom", message: `unknown add-on ${JSON.stringify(part)}: one of ${ADDON_IDS.join(", ")}, optionally @<major>` });
-      return z.NEVER;
+export const addonQuery = z
+  .string()
+  .max(200)
+  .transform((s, ctx) => {
+    const out: z.input<typeof addonArray> = [];
+    if (s === "none" || s === "") return out;
+    for (const part of s.split(",")) {
+      const [id, version] = part.trim().split("@") as [string, string | undefined];
+      if (!isAddonId(id) || (version !== undefined && !/^\d+(\.\d+)*$/.test(version))) {
+        ctx.addIssue({
+          code: "custom",
+          message: `unknown add-on ${JSON.stringify(part)}: one of ${ADDON_IDS.join(", ")}, optionally @<major>`,
+        });
+        return z.NEVER;
+      }
+      out.push(version ? { id, version } : { id });
     }
-    out.push(version ? { id, version } : { id });
-  }
-  return out;
-}).pipe(addonArray);
+    return out;
+  })
+  .pipe(addonArray);
 
 /**
  * A tarball deploy has no JSON body -- the body IS the archive -- so its options ride in
@@ -87,16 +127,31 @@ export const TarballDeployQuerySchema = z.object({
 const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
 
 /** `PUT /v1/previews/:id/source`: the body is the new upload; the runtime rides in the query. */
-export const SourceReplaceQuerySchema = z.object({ runtime: runtimeChoice.optional(), addons: addonQuery.optional() });
+export const SourceReplaceQuerySchema = z.object({
+  runtime: runtimeChoice.optional(),
+  addons: addonQuery.optional(),
+});
 
 /** `PATCH /v1/previews/:id/source` (ADR-0015): each path's new text, or null to delete it. */
-export const SourceEditSchema = z.strictObject({
-  files: z.record(z.string().min(1).max(255), z.string().max(1024 * 1024).nullable())
-    .refine((f) => Object.keys(f).length <= 500, "at most 500 files per edit"),
-  runtime: runtimeChoice.optional(),
-  /** ADR-0017. Omitted: as gangway.yml says, else as before. `[]` removes them. */
-  addons: addonArray.optional(),
-}).refine((e) => Object.keys(e.files).length > 0 || e.runtime !== undefined || e.addons !== undefined, "nothing to change");
+export const SourceEditSchema = z
+  .strictObject({
+    files: z
+      .record(
+        z.string().min(1).max(255),
+        z
+          .string()
+          .max(1024 * 1024)
+          .nullable(),
+      )
+      .refine((f) => Object.keys(f).length <= 500, "at most 500 files per edit"),
+    runtime: runtimeChoice.optional(),
+    /** ADR-0017. Omitted: as gangway.yml says, else as before. `[]` removes them. */
+    addons: addonArray.optional(),
+  })
+  .refine(
+    (e) => Object.keys(e.files).length > 0 || e.runtime !== undefined || e.addons !== undefined,
+    "nothing to change",
+  );
 export type SourceEdit = z.infer<typeof SourceEditSchema>;
 
 /**
@@ -106,15 +161,24 @@ export type SourceEdit = z.infer<typeof SourceEditSchema>;
  */
 export const PlanRequestSchema = z.strictObject({
   paths: z.array(z.string().min(1).max(255)).max(20_000),
-  files: z.record(z.string().min(1).max(255), z.string().max(256 * 1024))
+  files: z
+    .record(z.string().min(1).max(255), z.string().max(256 * 1024))
     .refine((f) => Object.keys(f).length <= 64, "at most 64 files")
-    .refine((f) => Object.values(f).reduce((n, t) => n + t.length, 0) <= 1024 * 1024, "at most 1 MiB of file contents")
+    .refine(
+      (f) => Object.values(f).reduce((n, t) => n + t.length, 0) <= 1024 * 1024,
+      "at most 1 MiB of file contents",
+    )
     .default({}),
   runtime: runtimeChoice.optional(),
   addons: addonArray.optional(),
 });
 export type PlanRequest = z.infer<typeof PlanRequestSchema>;
-export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"] as const;
+export const TARBALL_CONTENT_TYPES = [
+  "application/gzip",
+  "application/x-gzip",
+  "application/x-tar",
+  "application/octet-stream",
+] as const;
 
 /**
  * ADR-0023: a preview's password. `inherit` (the default) follows Settings; `none` opens it;
@@ -126,7 +190,10 @@ export const PasswordChoiceSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("inherit") }),
   z.strictObject({ mode: z.literal("none") }),
   z.strictObject({ mode: z.literal("generate") }),
-  z.strictObject({ mode: z.literal("set"), value: z.string().min(1, "a password cannot be empty").max(PREVIEW_PASSWORD_MAX) }),
+  z.strictObject({
+    mode: z.literal("set"),
+    value: z.string().min(1, "a password cannot be empty").max(PREVIEW_PASSWORD_MAX),
+  }),
 ]);
 export type PasswordChoice = z.infer<typeof PasswordChoiceSchema>;
 
@@ -136,10 +203,15 @@ export const PasswordLoginSchema = z.enum(["inherit", "on", "off", "only"]);
  * `PUT /v1/previews/:id/password`: the password, whether a gangway login gets past it, or
  * both. What is left out is kept.
  */
-export const PreviewPasswordChangeSchema = z.strictObject({
-  password: PasswordChoiceSchema.optional(),
-  login: PasswordLoginSchema.optional(),
-}).refine((b) => b.password !== undefined || b.login !== undefined, "nothing to change: send password, login or both");
+export const PreviewPasswordChangeSchema = z
+  .strictObject({
+    password: PasswordChoiceSchema.optional(),
+    login: PasswordLoginSchema.optional(),
+  })
+  .refine(
+    (b) => b.password !== undefined || b.login !== undefined,
+    "nothing to change: send password, login or both",
+  );
 
 /**
  * `PUT /v1/settings/preview-password`: the server-wide default. `shared` needs a value unless
@@ -209,7 +281,11 @@ export const LoginRequestSchema = z.strictObject({
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
-export const SetupRequestSchema = z.strictObject({ token: z.string().min(1).max(256), email, password });
+export const SetupRequestSchema = z.strictObject({
+  token: z.string().min(1).max(256),
+  email,
+  password,
+});
 export type SetupRequest = z.infer<typeof SetupRequestSchema>;
 
 const roleId = z.string().min(1).max(64);
@@ -217,15 +293,20 @@ const roleId = z.string().min(1).max(64);
 export const CreateUserSchema = z.strictObject({ email, password, roleId });
 export type CreateUserRequest = z.infer<typeof CreateUserSchema>;
 
-export const UpdateUserSchema = z.strictObject({
-  roleId: roleId.optional(),
-  disabled: z.boolean().optional(),
-  /** An admin reset. Ends every session the account has. */
-  password: password.optional(),
-}).refine((u) => Object.keys(u).length > 0, "nothing to change");
+export const UpdateUserSchema = z
+  .strictObject({
+    roleId: roleId.optional(),
+    disabled: z.boolean().optional(),
+    /** An admin reset. Ends every session the account has. */
+    password: password.optional(),
+  })
+  .refine((u) => Object.keys(u).length > 0, "nothing to change");
 export type UpdateUserRequest = z.infer<typeof UpdateUserSchema>;
 
-export const ChangePasswordSchema = z.strictObject({ current: z.string().min(1).max(1024), next: password });
+export const ChangePasswordSchema = z.strictObject({
+  current: z.string().min(1).max(1024),
+  next: password,
+});
 export type ChangePasswordRequest = z.infer<typeof ChangePasswordSchema>;
 
 export const CreateTokenSchema = z.strictObject({
@@ -238,13 +319,17 @@ export type CreateTokenRequest = z.infer<typeof CreateTokenSchema>;
 
 /** The COMPLETE set a role should hold afterwards -- a PUT, not a patch. */
 export const SetRolePermissionsSchema = z.strictObject({
-  permissions: z.array(z.string().refine((s): s is Permission => isPermission(s), "not a known permission")).max(ALL_PERMISSIONS.length),
+  permissions: z
+    .array(z.string().refine((s): s is Permission => isPermission(s), "not a known permission"))
+    .max(ALL_PERMISSIONS.length),
 });
 export type SetRolePermissionsRequest = z.infer<typeof SetRolePermissionsSchema>;
 
 /** `PUT /v1/settings`: a partial map of key -> value. Each value is checked against its own schema. */
 export const SetSettingsSchema = z.strictObject({
-  values: z.record(z.string().min(1).max(64), z.unknown()).refine((v) => Object.keys(v).length > 0, "no settings given"),
+  values: z
+    .record(z.string().min(1).max(64), z.unknown())
+    .refine((v) => Object.keys(v).length > 0, "no settings given"),
 });
 export type SetSettingsRequest = z.infer<typeof SetSettingsSchema>;
 
@@ -253,11 +338,13 @@ export type SetSettingsRequest = z.infer<typeof SetSettingsSchema>;
  * phrase the SERVER checks: the ceremony is not a client-side courtesy.
  */
 export const DISABLE_UI_PHRASE = "disable the UI";
-export const SetSurfacesSchema = z.strictObject({
-  ui: z.boolean().optional(),
-  mcp: z.boolean().optional(),
-  confirm: z.string().max(100).optional(),
-}).refine((v) => v.ui !== undefined || v.mcp !== undefined, "name ui, mcp, or both");
+export const SetSurfacesSchema = z
+  .strictObject({
+    ui: z.boolean().optional(),
+    mcp: z.boolean().optional(),
+    confirm: z.string().max(100).optional(),
+  })
+  .refine((v) => v.ui !== undefined || v.mcp !== undefined, "name ui, mcp, or both");
 export type SetSurfacesRequest = z.infer<typeof SetSurfacesSchema>;
 
 /** `POST /v1/github/manifest/exchange`: what GitHub sent the browser back with. */
@@ -268,9 +355,17 @@ export const ManifestExchangeSchema = z.strictObject({
 export type ManifestExchangeRequest = z.infer<typeof ManifestExchangeSchema>;
 
 /** `PATCH /v1/repos/:id`: the per-repository knobs (ADR-0011). */
-const projectSlug = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?$/, "a slug is 1-24 lowercase letters, digits and hyphens");
+const projectSlug = z
+  .string()
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?$/,
+    "a slug is 1-24 lowercase letters, digits and hyphens",
+  );
 /** `owner/name`, as GitHub spells it. */
-const repository = z.string().trim().regex(/^[\w.-]+\/[\w.-]+$/, "a repository is owner/name");
+const repository = z
+  .string()
+  .trim()
+  .regex(/^[\w.-]+\/[\w.-]+$/, "a repository is owner/name");
 const prTrigger = z.enum(["workflow", "webhook"]);
 
 /** `POST /v1/projects` (ADR-0014). A project is made on purpose; the slug defaults from the name. */
@@ -289,10 +384,16 @@ export type ProjectCreateRequest = z.infer<typeof ProjectCreateSchema>;
  * head. `registry` logs in for this one pull and is never stored.
  */
 export const PullDeploySchema = z.strictObject({
-  image: z.string().min(3).max(512).regex(/^[a-z0-9][a-z0-9._\/:@-]*$/i, "not an image reference"),
+  image: z
+    .string()
+    .min(3)
+    .max(512)
+    .regex(/^[a-z0-9][a-z0-9._\/:@-]*$/i, "not an image reference"),
   port: z.number().int().min(1).max(65535),
   sha: z.string().regex(/^[0-9a-f]{7,64}$/, "a commit sha"),
-  registry: z.strictObject({ username: z.string().min(1).max(256), password: z.string().min(1).max(4096) }).optional(),
+  registry: z
+    .strictObject({ username: z.string().min(1).max(256), password: z.string().min(1).max(4096) })
+    .optional(),
 });
 export type PullDeployRequestBody = z.infer<typeof PullDeploySchema>;
 
@@ -337,16 +438,33 @@ export const TemplateCreateSchema = z.strictObject({
   hostId: templateFields.hostId.optional(),
 });
 export type TemplateCreateRequest = z.infer<typeof TemplateCreateSchema>;
-export const TemplatePatchSchema = z.strictObject(Object.fromEntries(Object.entries(templateFields).map(([k, v]) => [k, v.optional()])) as { [K in keyof typeof templateFields]: z.ZodOptional<(typeof templateFields)[K]> });
+export const TemplatePatchSchema = z.strictObject(
+  Object.fromEntries(Object.entries(templateFields).map(([k, v]) => [k, v.optional()])) as {
+    [K in keyof typeof templateFields]: z.ZodOptional<(typeof templateFields)[K]>;
+  },
+);
 export type TemplatePatchRequest = z.infer<typeof TemplatePatchSchema>;
 
 /** `PATCH /v1/repos/:id/env`: merge secrets in, take names out. Values are never returned. */
 const secretLevel = z.enum(["low", "standard", "high"]);
-export const EnvPatchSchema = z.strictObject({
-  set: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name"), z.union([z.string(), z.strictObject({ value: z.string(), level: secretLevel })])).optional(),
-  unset: z.array(z.string()).max(100).optional(),
-  levels: z.record(z.string(), secretLevel).optional(),
-}).refine((v) => Object.keys(v.set ?? {}).length > 0 || (v.unset ?? []).length > 0 || Object.keys(v.levels ?? {}).length > 0, "nothing to change");
+export const EnvPatchSchema = z
+  .strictObject({
+    set: z
+      .record(
+        z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name"),
+        z.union([z.string(), z.strictObject({ value: z.string(), level: secretLevel })]),
+      )
+      .optional(),
+    unset: z.array(z.string()).max(100).optional(),
+    levels: z.record(z.string(), secretLevel).optional(),
+  })
+  .refine(
+    (v) =>
+      Object.keys(v.set ?? {}).length > 0 ||
+      (v.unset ?? []).length > 0 ||
+      Object.keys(v.levels ?? {}).length > 0,
+    "nothing to change",
+  );
 export type EnvPatchRequest = z.infer<typeof EnvPatchSchema>;
 
 export const AuditQuerySchema = z.object({

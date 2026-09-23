@@ -8,11 +8,19 @@ import { CertStore } from "../../src/tls/certstore.ts";
 import { FileProvider, SelfSignedProvider, RENEWAL_WINDOW_MS } from "../../src/tls/provider.ts";
 
 const tmps: string[] = [];
-const tmp = () => { const d = mkdtempSync(join(tmpdir(), "gangway-tls-")); tmps.push(d); return d; };
-afterEach(() => { for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true }); });
+const tmp = () => {
+  const d = mkdtempSync(join(tmpdir(), "gangway-tls-"));
+  tmps.push(d);
+  return d;
+};
+afterEach(() => {
+  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 const sans = (pem: string) => {
-  const c = new x509.X509Certificate(pem.split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----");
+  const c = new x509.X509Certificate(
+    pem.split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----",
+  );
   const ext = c.getExtension(x509.SubjectAlternativeNameExtension);
   return ext ? ext.names.items.map((n) => n.value) : [];
 };
@@ -41,7 +49,8 @@ describe("dev CA", () => {
     const leaf = await issueLeaf(ca, ["*.preview.test"]);
     const caCert = new x509.X509Certificate(ca.certPem);
     const leafCert = new x509.X509Certificate(
-      leaf.cert.split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----");
+      leaf.cert.split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----",
+    );
     expect(caCert.getExtension(x509.BasicConstraintsExtension)?.ca).toBe(true);
     expect(leafCert.getExtension(x509.BasicConstraintsExtension)?.ca).toBe(false);
     expect(leafCert.issuer).toBe(caCert.subject);
@@ -51,8 +60,11 @@ describe("dev CA", () => {
     const ca = await createCa();
     const leaf = await issueLeaf(ca, ["*.preview.test"]);
     const leafCert = new x509.X509Certificate(
-      leaf.cert.split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----");
-    expect(await leafCert.verify({ publicKey: new x509.X509Certificate(ca.certPem).publicKey })).toBe(true);
+      leaf.cert.split("-----END CERTIFICATE-----")[0] + "-----END CERTIFICATE-----",
+    );
+    expect(
+      await leafCert.verify({ publicKey: new x509.X509Certificate(ca.certPem).publicKey }),
+    ).toBe(true);
   });
 
   test("the CA persists across restarts so it is trusted once, not every boot", async () => {
@@ -109,8 +121,12 @@ describe("FileProvider", () => {
 });
 
 describe("CertStore", () => {
-  const mat = (serverName: string, notAfter?: Date) =>
-    ({ serverName, cert: "C", key: "K", notAfter });
+  const mat = (serverName: string, notAfter?: Date) => ({
+    serverName,
+    cert: "C",
+    key: "K",
+    notAfter,
+  });
 
   test("tlsConfig carries serverName on every entry", () => {
     const s = new CertStore({ materials: [mat("*.a.test"), mat("*.b.test")] });
@@ -123,7 +139,9 @@ describe("CertStore", () => {
   test("swap notifies listeners so the listener can rebind", async () => {
     const s = new CertStore({ materials: [mat("*.a.test")] });
     const seen: string[] = [];
-    s.onSwap((b) => { seen.push(b.materials[0]!.serverName); });
+    s.onSwap((b) => {
+      seen.push(b.materials[0]!.serverName);
+    });
     await s.swap({ materials: [mat("*.new.test")] });
     expect(seen).toEqual(["*.new.test"]);
     expect(s.current().materials[0]!.serverName).toBe("*.new.test");
@@ -132,7 +150,9 @@ describe("CertStore", () => {
   test("unsubscribing stops notifications", async () => {
     const s = new CertStore({ materials: [mat("*.a.test")] });
     let n = 0;
-    const off = s.onSwap(() => { n++; });
+    const off = s.onSwap(() => {
+      n++;
+    });
     await s.swap({ materials: [mat("*.b.test")] });
     off();
     await s.swap({ materials: [mat("*.c.test")] });

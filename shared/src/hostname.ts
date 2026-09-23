@@ -19,7 +19,12 @@
  * would collide with a live preview.
  */
 export const RESERVED_LABELS: ReadonlySet<string> = new Set([
-  "app", "api", "mcp", "hooks", "registry", "www",
+  "app",
+  "api",
+  "mcp",
+  "hooks",
+  "registry",
+  "www",
 ]);
 
 /** A single DNS label: 1-63 chars, a-z 0-9 and hyphen, never leading or trailing hyphen. */
@@ -27,12 +32,7 @@ export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 export const MAX_LABEL_LENGTH = 63;
 
-export type LabelRejection =
-  | "empty"
-  | "too-long"
-  | "contains-dot"
-  | "malformed"
-  | "reserved";
+export type LabelRejection = "empty" | "too-long" | "contains-dot" | "malformed" | "reserved";
 
 export type LabelCheck = { ok: true } | { ok: false; reason: LabelRejection; message: string };
 
@@ -115,8 +115,7 @@ export function slugify(input: string): string {
 }
 
 export type LabelSource =
-  | { kind: "pr"; repo: string; number: number }
-  | { kind: "slug"; slug: string };
+  { kind: "pr"; repo: string; number: number } | { kind: "slug"; slug: string };
 
 /**
  * Builds a preview label. The service segment is dropped for single-service stacks and
@@ -131,9 +130,7 @@ export function buildLabel(
   opts: { service?: string; isPrimary?: boolean; isSingleService?: boolean } = {},
 ): { ok: true; label: string } | { ok: false; reason: LabelRejection; message: string } {
   const stem =
-    source.kind === "pr"
-      ? `${slugify(source.repo)}-pr-${source.number}`
-      : slugify(source.slug);
+    source.kind === "pr" ? `${slugify(source.repo)}-pr-${source.number}` : slugify(source.slug);
 
   const dropService = opts.isPrimary === true || opts.isSingleService === true || !opts.service;
   const label = dropService ? stem : `${stem}-${slugify(opts.service!)}`;

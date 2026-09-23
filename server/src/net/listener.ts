@@ -100,8 +100,12 @@ export function startListener(o: ListenerOptions): RunningListener {
   let server = Bun.serve<WsData>(serveOptions() as never);
 
   return {
-    get port() { return server.port ?? o.port; },
-    get hostname() { return o.hostname; },
+    get port() {
+      return server.port ?? o.port;
+    },
+    get hostname() {
+      return o.hostname;
+    },
 
     /**
      * Certificate hot-swap.

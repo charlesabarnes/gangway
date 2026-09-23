@@ -37,7 +37,7 @@ export type Host = {
  * distinguishable from a live one by the reconciler.
  */
 export type PreviewState =
-  | "building" | "starting" | "awake" | "asleep" | "failed" | "destroying" | "destroyed";
+  "building" | "starting" | "awake" | "asleep" | "failed" | "destroying" | "destroyed";
 
 export type Visibility = "public" | "unlisted" | "private";
 
@@ -87,7 +87,8 @@ export type SecretLevel = "low" | "standard" | "high";
 export type Clearance = "none" | SecretLevel;
 export const CLEARANCES: readonly Clearance[] = ["none", "low", "standard", "high"];
 export const SECRET_LEVELS: readonly SecretLevel[] = ["low", "standard", "high"];
-export const clears = (clearance: Clearance, level: SecretLevel): boolean => CLEARANCES.indexOf(clearance) >= CLEARANCES.indexOf(level);
+export const clears = (clearance: Clearance, level: SecretLevel): boolean =>
+  CLEARANCES.indexOf(clearance) >= CLEARANCES.indexOf(level);
 
 /**
  * A named preview policy (ADR-0013): what a deploy gets unless the request, the
@@ -311,7 +312,10 @@ export type AuditEntry = {
 };
 
 export const PREVIEW_ACTIVE_STATES: readonly PreviewState[] = [
-  "building", "starting", "awake", "asleep",
+  "building",
+  "starting",
+  "awake",
+  "asleep",
 ];
 
 export const isActive = (s: PreviewState): boolean => PREVIEW_ACTIVE_STATES.includes(s);

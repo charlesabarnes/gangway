@@ -22,18 +22,45 @@ const RowsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).max(10_000_000).default(0),
 });
-const KeysQuery = z.object({ cursor: z.string().max(20).default("0"), match: z.string().max(256).default("*") });
-const QueryBody = z.strictObject({ text: z.string().min(1).max(64 * 1024), write: z.boolean().default(false) });
+const KeysQuery = z.object({
+  cursor: z.string().max(20).default("0"),
+  match: z.string().max(256).default("*"),
+});
+const QueryBody = z.strictObject({
+  text: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
+  write: z.boolean().default(false),
+});
 
 export function addonRoutes(api: Hono<AppEnv>, data: DataBrowser): void {
-  api.get("/previews/:id/addons", requirePermission("previews.read"), (c) => c.json({ addons: data.list(c.req.param("id")) }));
+  api.get("/previews/:id/addons", requirePermission("previews.read"), (c) =>
+    c.json({ addons: data.list(c.req.param("id")) }),
+  );
 
   api.get("/previews/:id/addons/:addon/tables", requirePermission("previews.data"), async (c) =>
-    c.json({ tables: await data.tables(c.get("actor"), c.req.param("id"), addonParam(c.req.param("addon"))) }));
+    c.json({
+      tables: await data.tables(
+        c.get("actor"),
+        c.req.param("id"),
+        addonParam(c.req.param("addon")),
+      ),
+    }),
+  );
 
   api.get("/previews/:id/addons/:addon/rows", requirePermission("previews.data"), async (c) => {
     const q = RowsQuery.parse(c.req.query());
-    return c.json(await data.rows(c.get("actor"), c.req.param("id"), addonParam(c.req.param("addon")), { schema: q.schema, name: q.table }, q.limit, q.offset));
+    return c.json(
+      await data.rows(
+        c.get("actor"),
+        c.req.param("id"),
+        addonParam(c.req.param("addon")),
+        { schema: q.schema, name: q.table },
+        q.limit,
+        q.offset,
+      ),
+    );
   });
 
   api.get("/previews/:id/addons/redis/keys", requirePermission("previews.data"), async (c) => {
@@ -43,12 +70,25 @@ export function addonRoutes(api: Hono<AppEnv>, data: DataBrowser): void {
 
   api.get("/previews/:id/addons/redis/key", requirePermission("previews.data"), async (c) => {
     const name = c.req.query("name");
-    if (name === undefined || name === "" || name.length > 1024) throw badRequest("?name= is the key");
+    if (name === undefined || name === "" || name.length > 1024)
+      throw badRequest("?name= is the key");
     return c.json(await data.key(c.get("actor"), c.req.param("id"), name));
   });
 
   api.post("/previews/:id/addons/:addon/query", requirePermission("previews.data"), async (c) => {
-    const body = QueryBody.parse(await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); }));
-    return c.json(await data.query(c.get("actor"), c.req.param("id"), addonParam(c.req.param("addon")), body.text, body.write));
+    const body = QueryBody.parse(
+      await c.req.json().catch(() => {
+        throw badRequest("the request body is not JSON");
+      }),
+    );
+    return c.json(
+      await data.query(
+        c.get("actor"),
+        c.req.param("id"),
+        addonParam(c.req.param("addon")),
+        body.text,
+        body.write,
+      ),
+    );
   });
 }

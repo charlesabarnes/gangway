@@ -30,9 +30,7 @@ export const wsRelay = {
     const headers: Record<string, string> = { host: entry.hostname };
     if (cookie) headers["cookie"] = cookie;
 
-    const upstream = protocol
-      ? new WebSocket(url, protocol)
-      : new WebSocket(url);
+    const upstream = protocol ? new WebSocket(url, protocol) : new WebSocket(url);
     upstream.binaryType = "arraybuffer";
 
     const relay: Relay = { upstream, pending: [] };
@@ -44,21 +42,36 @@ export const wsRelay = {
       relay.pending.length = 0;
     };
     upstream.onmessage = (ev) => {
-      try { ws.send(ev.data as string | ArrayBuffer); } catch { /* client gone */ }
+      try {
+        ws.send(ev.data as string | ArrayBuffer);
+      } catch {
+        /* client gone */
+      }
     };
     upstream.onclose = (ev) => {
       // 1005 means "no status received" and may not be sent on the wire.
-      try { ws.close(ev.code === 1005 ? 1000 : ev.code, ev.reason); } catch { /* already closed */ }
+      try {
+        ws.close(ev.code === 1005 ? 1000 : ev.code, ev.reason);
+      } catch {
+        /* already closed */
+      }
     };
     upstream.onerror = () => {
-      try { ws.close(1011, "upstream error"); } catch { /* already closed */ }
+      try {
+        ws.close(1011, "upstream error");
+      } catch {
+        /* already closed */
+      }
     };
   },
 
   message(ws: ServerWebSocket<WsData>, msg: string | Buffer) {
     const relay = relays.get(ws);
     if (!relay) return;
-    const payload = typeof msg === "string" ? msg : msg.buffer.slice(msg.byteOffset, msg.byteOffset + msg.byteLength);
+    const payload =
+      typeof msg === "string"
+        ? msg
+        : msg.buffer.slice(msg.byteOffset, msg.byteOffset + msg.byteLength);
     if (relay.upstream.readyState === WebSocket.OPEN) {
       relay.upstream.send(payload as string);
     } else {
@@ -71,7 +84,11 @@ export const wsRelay = {
     if (!relay) return;
     // 1005/1006 are local-only codes and must not be forwarded verbatim.
     const out = code === 1005 || code === 1006 ? 1000 : code;
-    try { relay.upstream.close(out, reason); } catch { /* already closed */ }
+    try {
+      relay.upstream.close(out, reason);
+    } catch {
+      /* already closed */
+    }
     relays.delete(ws);
   },
 };

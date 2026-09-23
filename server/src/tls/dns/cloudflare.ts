@@ -98,7 +98,10 @@ export class CloudflareDnsProvider implements DnsProvider {
     });
     const id = res?.id;
     if (id === undefined || id === "") {
-      throw internal("cloudflare created a TXT record but returned no id", { name, zone: zone.name });
+      throw internal("cloudflare created a TXT record but returned no id", {
+        name,
+        zone: zone.name,
+      });
     }
     this.#log.info("created ACME TXT record", { name, recordId: id, zone: zone.name });
     return { recordId: id };
@@ -111,9 +114,14 @@ export class CloudflareDnsProvider implements DnsProvider {
    */
   async removeTxt(recordId: string, name: string): Promise<void> {
     const zone = await this.#zoneFor(name);
-    await this.#request<CfRecord>("DELETE", `/zones/${zone.id}/dns_records/${encodeURIComponent(recordId)}`, undefined, {
-      tolerateMissing: true,
-    });
+    await this.#request<CfRecord>(
+      "DELETE",
+      `/zones/${zone.id}/dns_records/${encodeURIComponent(recordId)}`,
+      undefined,
+      {
+        tolerateMissing: true,
+      },
+    );
     this.#log.info("removed ACME TXT record", { name, recordId, zone: zone.name });
   }
 
@@ -145,13 +153,17 @@ export class CloudflareDnsProvider implements DnsProvider {
   async #lookupZone(name: string): Promise<CfZone> {
     if (this.#zoneId !== undefined) {
       const zone = await this.#request<CfZone>("GET", `/zones/${encodeURIComponent(this.#zoneId)}`);
-      if (!zone) throw notFound(`Cloudflare zone ${this.#zoneId} not found`, { zoneId: this.#zoneId });
+      if (!zone)
+        throw notFound(`Cloudflare zone ${this.#zoneId} not found`, { zoneId: this.#zoneId });
       return { id: zone.id, name: zone.name };
     }
 
     const tried = zoneCandidates(name);
     for (const candidate of tried) {
-      const zones = await this.#request<CfZone[]>("GET", `/zones?name=${encodeURIComponent(candidate)}`);
+      const zones = await this.#request<CfZone[]>(
+        "GET",
+        `/zones?name=${encodeURIComponent(candidate)}`,
+      );
       const hit = zones?.[0];
       if (hit) {
         this.#log.debug("resolved Cloudflare zone", { name, zone: hit.name, zoneId: hit.id });
@@ -195,7 +207,10 @@ export class CloudflareDnsProvider implements DnsProvider {
         const failed = res.status >= 400 || envelope.success === false;
         if (failed) {
           const errors = envelope.errors ?? [];
-          if (o.tolerateMissing && (res.status === 404 || errors.some((e) => e.code === RECORD_NOT_FOUND))) {
+          if (
+            o.tolerateMissing &&
+            (res.status === 404 || errors.some((e) => e.code === RECORD_NOT_FOUND))
+          ) {
             return null;
           }
           throw cloudflareError(method, path, res.status, errors);
@@ -240,7 +255,12 @@ async function readEnvelope<T>(res: Response): Promise<CfEnvelope<T>> {
   }
 }
 
-function cloudflareError(method: string, path: string, status: number, errors: CfError[]): AppError {
+function cloudflareError(
+  method: string,
+  path: string,
+  status: number,
+  errors: CfError[],
+): AppError {
   const detail = errors.map((e) => `${e.code}: ${e.message}`).join("; ") || `HTTP ${status}`;
   if (status === 401 || status === 403) {
     return new AppError(

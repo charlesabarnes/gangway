@@ -60,7 +60,13 @@ describe("sweepIdle", () => {
     const c = await s.deployed("c");
     const d = await s.deployed("d");
     expect(s.previews.get(a.id)!.idleAfterMs).toBe(30 * MIN); // pinned from the template at deploy
-    s.db.run("UPDATE previews SET created_at = $t WHERE id IN ($a, $b, $c, $d)", { t: s.ctx.now() - 10 * MIN, a: a.id, b: b.id, c: c.id, d: d.id });
+    s.db.run("UPDATE previews SET created_at = $t WHERE id IN ($a, $b, $c, $d)", {
+      t: s.ctx.now() - 10 * MIN,
+      a: a.id,
+      b: b.id,
+      c: c.id,
+      d: d.id,
+    });
     s.db.run("UPDATE previews SET idle_after_ms = 5 * 60000 WHERE id = $b", { b: b.id });
     s.db.run("UPDATE previews SET idle_after_ms = 0 WHERE id = $c", { c: c.id });
     s.db.run("UPDATE previews SET idle_after_ms = NULL WHERE id = $d", { d: d.id });
@@ -114,7 +120,10 @@ describe("Waker", () => {
     await sleepPreview(s.ctx, p.id, "idle");
     let during = false as boolean;
     const probe = s.ctx.probe;
-    s.ctx.probe = async (r, h, path) => { during = s.ctx.inflight.has(p.id); return probe(r, h, path); };
+    s.ctx.probe = async (r, h, path) => {
+      during = s.ctx.inflight.has(p.id);
+      return probe(r, h, path);
+    };
     await new Waker(s.ctx, quiet).wake(p.id);
     expect(during).toBe(true);
     expect(s.ctx.inflight.has(p.id)).toBe(false);

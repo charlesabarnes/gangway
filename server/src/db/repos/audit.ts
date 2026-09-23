@@ -3,8 +3,12 @@ import type { Db } from "../types.ts";
 import { rowToAuditEntry, type AuditRow } from "./mappers.ts";
 
 export type AppendAudit = {
-  actorType: AuditActorType; actorId: string | null; action: string; target: string | null;
-  old?: unknown; new?: unknown;
+  actorType: AuditActorType;
+  actorId: string | null;
+  action: string;
+  target: string | null;
+  old?: unknown;
+  new?: unknown;
 };
 
 /**
@@ -26,12 +30,23 @@ export class AuditRepo {
     return this.#db.run(
       `INSERT INTO audit (actor_type, actor_id, action, target, old_json, new_json, created_at)
        VALUES ($type, $id, $action, $target, $old, $new, $now)`,
-      { type: e.actorType, id: e.actorId, action: e.action, target: e.target, old: json(e.old), new: json(e.new), now: this.#now() },
+      {
+        type: e.actorType,
+        id: e.actorId,
+        action: e.action,
+        target: e.target,
+        old: json(e.old),
+        new: json(e.new),
+        now: this.#now(),
+      },
     ).lastInsertRowid;
   }
 
   /** Newest first. `nextBefore` is the cursor for the following page, or null at the end. */
-  page(q: { before?: number; limit: number; action?: string }): { entries: AuditEntry[]; nextBefore: number | null } {
+  page(q: { before?: number; limit: number; action?: string }): {
+    entries: AuditEntry[];
+    nextBefore: number | null;
+  } {
     const rows = this.#db.query<AuditRow>(
       `SELECT * FROM audit
         WHERE seq < $before AND ($action IS NULL OR action = $action)

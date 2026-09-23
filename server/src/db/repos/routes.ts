@@ -30,10 +30,12 @@ export class RoutesRepo {
   }
 
   forPreview(previewId: string): Route[] {
-    return this.#db.query<RouteRow>(
-      "SELECT * FROM routes WHERE preview_id = $p ORDER BY is_primary DESC, service",
-      { p: previewId },
-    ).map(rowToRoute);
+    return this.#db
+      .query<RouteRow>(
+        "SELECT * FROM routes WHERE preview_id = $p ORDER BY is_primary DESC, service",
+        { p: previewId },
+      )
+      .map(rowToRoute);
   }
 
   /** Throws on a hostname or (host, port) collision -- both are constraint violations. */
@@ -44,9 +46,14 @@ export class RoutesRepo {
        VALUES ($hostname, $preview_id, $service, $container_port,
                $upstream_host, $upstream_port, $is_primary, $now)`,
       {
-        hostname: r.hostname, preview_id: r.previewId, service: r.service,
-        container_port: r.containerPort, upstream_host: r.upstream.host,
-        upstream_port: r.upstream.port, is_primary: num(r.primary ?? false), now: this.#now(),
+        hostname: r.hostname,
+        preview_id: r.previewId,
+        service: r.service,
+        container_port: r.containerPort,
+        upstream_host: r.upstream.host,
+        upstream_port: r.upstream.port,
+        is_primary: num(r.primary ?? false),
+        now: this.#now(),
       },
     );
     return this.get(r.hostname)!;
@@ -74,7 +81,8 @@ export class RoutesRepo {
    */
   usedPorts(upstreamHost: string): Set<number> {
     const rows = this.#db.query<{ upstream_port: number }>(
-      "SELECT upstream_port FROM routes WHERE upstream_host = $h", { h: upstreamHost },
+      "SELECT upstream_port FROM routes WHERE upstream_host = $h",
+      { h: upstreamHost },
     );
     return new Set(rows.map((r) => r.upstream_port));
   }

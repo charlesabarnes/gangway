@@ -6,13 +6,20 @@
 import type { Host } from "../../../shared/src/domain.ts";
 import { AppError } from "../errors.ts";
 import { verifyDaemon, type DockerClients } from "./client.ts";
-import { composeCapture, composeEnv, runCompose, type ComposeEvent, type ComposeResult } from "./compose.ts";
+import {
+  composeCapture,
+  composeEnv,
+  runCompose,
+  type ComposeEvent,
+  type ComposeResult,
+} from "./compose.ts";
 import { DockerGuardError } from "./guard.ts";
 
 export type ComposeTarget = Pick<Host, "id" | "dockerHost" | "expectName">;
 
 export type ComposeRunOpts = {
-  cwd: string; signal?: AbortSignal | undefined;
+  cwd: string;
+  signal?: AbortSignal | undefined;
   /** Added to the child's allowlisted environment -- a per-deploy DOCKER_CONFIG, say. Never DOCKER_HOST. */
   env?: Record<string, string> | undefined;
 };
@@ -22,7 +29,10 @@ export type ComposeRunner = {
   capture(argv: string[], host: ComposeTarget, o: ComposeRunOpts): Promise<ComposeResult>;
 };
 
-export function createComposeRunner(clients: DockerClients, onHostState?: (hostId: string, ok: boolean, error: string | null) => void): ComposeRunner {
+export function createComposeRunner(
+  clients: DockerClients,
+  onHostState?: (hostId: string, ok: boolean, error: string | null) => void,
+): ComposeRunner {
   // EVERY invocation is preceded by `docker info` + the guard. It costs one round trip
   // and it is the only thing standing between a dropped tunnel and a preview deployed to
   // whatever daemon the CLI found instead.
@@ -34,11 +44,16 @@ export function createComposeRunner(clients: DockerClients, onHostState?: (hostI
       if (e instanceof DockerGuardError) throw e;
       const message = e instanceof Error ? e.message : String(e);
       onHostState?.(host.id, false, message);
-      throw new AppError("unavailable", `host "${host.id}" is unreachable: ${message}`, { hostId: host.id });
+      throw new AppError("unavailable", `host "${host.id}" is unreachable: ${message}`, {
+        hostId: host.id,
+      });
     }
   };
   const opts = (host: ComposeTarget, o: ComposeRunOpts) => ({
-    dockerHost: host.dockerHost, cwd: o.cwd, signal: o.signal, preflight: preflight(host),
+    dockerHost: host.dockerHost,
+    cwd: o.cwd,
+    signal: o.signal,
+    preflight: preflight(host),
     ...(o.env ? { env: composeEnv({ dockerHost: host.dockerHost, extra: o.env }) } : {}),
   });
   return {

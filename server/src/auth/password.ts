@@ -34,7 +34,11 @@ function derive(password: string, salt: Buffer, { ln, r, p }: Params): Promise<B
   // Node's default maxmem is 32 MiB, which is EXACTLY what N=2^15,r=8 needs -- so the
   // default throws. Ask for what the parameters require, with headroom.
   const opts: ScryptOptions = { N: 2 ** ln, r, p, maxmem: 128 * 2 ** ln * r * 2 };
-  return new Promise((resolve, reject) => scrypt(password.normalize("NFKC"), salt, KEY_LEN, opts, (e, key) => (e ? reject(e) : resolve(key))));
+  return new Promise((resolve, reject) =>
+    scrypt(password.normalize("NFKC"), salt, KEY_LEN, opts, (e, key) =>
+      e ? reject(e) : resolve(key),
+    ),
+  );
 }
 
 function parse(stored: string): (Params & { key: Buffer }) | null {
@@ -63,7 +67,8 @@ export class Passwords {
 
   async #slot<T>(work: () => Promise<T>): Promise<T> {
     if (this.#running >= this.#concurrency) {
-      if (this.#waiting.length >= this.#maxQueue) throw rateLimited(2, "the server is busy; try again shortly");
+      if (this.#waiting.length >= this.#maxQueue)
+        throw rateLimited(2, "the server is busy; try again shortly");
       await new Promise<void>((go) => this.#waiting.push(go));
     }
     this.#running++;
@@ -79,14 +84,19 @@ export class Passwords {
     const salt = randomBytes(SALT_LEN);
     const { ln, r, p } = this.#params;
     const key = await this.#slot(() => derive(password, salt, this.#params));
-    return { hash: `scrypt$ln=${ln},r=${r},p=${p}$${key.toString("base64")}`, salt: salt.toString("base64") };
+    return {
+      hash: `scrypt$ln=${ln},r=${r},p=${p}$${key.toString("base64")}`,
+      salt: salt.toString("base64"),
+    };
   }
 
   /** False for a wrong password AND for a stored value that does not parse: never throws on bad data. */
   async verify(password: string, stored: { hash: string; salt: string }): Promise<boolean> {
     const parsed = parse(stored.hash);
     if (!parsed) return false;
-    const key = await this.#slot(() => derive(password, Buffer.from(stored.salt, "base64"), parsed));
+    const key = await this.#slot(() =>
+      derive(password, Buffer.from(stored.salt, "base64"), parsed),
+    );
     return timingSafeEqual(key, parsed.key);
   }
 
@@ -102,6 +112,11 @@ export class Passwords {
 
   needsRehash(storedHash: string): boolean {
     const parsed = parse(storedHash);
-    return !parsed || parsed.ln !== this.#params.ln || parsed.r !== this.#params.r || parsed.p !== this.#params.p;
+    return (
+      !parsed ||
+      parsed.ln !== this.#params.ln ||
+      parsed.r !== this.#params.r ||
+      parsed.p !== this.#params.p
+    );
   }
 }

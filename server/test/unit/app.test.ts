@@ -6,7 +6,16 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { createApp, surfaceHandler, type AppDeps } from "../../src/app/app.ts";
 import { requirePermission } from "../../src/app/middleware/auth.ts";
-import { actorId, auditActor, can, permissionsForScopes, staticTokenVerifier, systemActor, tokenActor, type Actor } from "../../src/auth/actor.ts";
+import {
+  actorId,
+  auditActor,
+  can,
+  permissionsForScopes,
+  staticTokenVerifier,
+  systemActor,
+  tokenActor,
+  type Actor,
+} from "../../src/auth/actor.ts";
 import { ALL_PERMISSIONS, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
 import { conflict, rateLimited } from "../../src/errors.ts";
 import { Logger } from "../../src/logger.ts";
@@ -31,20 +40,36 @@ function make(over: Partial<AppDeps> = {}) {
     verifyToken: (t) => (t === "gw_readonly_token_0123456789" ? readOnly : admin(t)),
     staticDir: root,
     v1: (api) => {
-      api.get("/whoami", (c) => { const a = c.get("actor"); return c.json({ id: actorId(a), kind: a.kind, permissions: [...a.permissions].sort() }); });
+      api.get("/whoami", (c) => {
+        const a = c.get("actor");
+        return c.json({ id: actorId(a), kind: a.kind, permissions: [...a.permissions].sort() });
+      });
       api.post("/mutate", requirePermission("previews.deploy"), (c) => c.json({ ok: true }));
-      api.get("/limited", () => { throw rateLimited(30); });
-      api.get("/boom", () => { throw new Error("secret internal detail"); });
-      api.get("/conflict", () => { throw conflict("already exists", { project: "gw-x" }); });
-      api.get("/zod", () => { z.object({ a: z.string() }).parse({}); return new Response(); });
-      api.get("/http", () => { throw new HTTPException(413, { message: "too big" }); });
+      api.get("/limited", () => {
+        throw rateLimited(30);
+      });
+      api.get("/boom", () => {
+        throw new Error("secret internal detail");
+      });
+      api.get("/conflict", () => {
+        throw conflict("already exists", { project: "gw-x" });
+      });
+      api.get("/zod", () => {
+        z.object({ a: z.string() }).parse({});
+        return new Response();
+      });
+      api.get("/http", () => {
+        throw new HTTPException(413, { message: "too big" });
+      });
     },
     ...over,
   });
   const as = (surface: "app" | "api") => {
     const h = surfaceHandler(app, surface);
     return (path: string, init: RequestInit = {}) =>
-      Promise.resolve(h(new Request(`https://${surface}.preview.localhost${path}`, init), { clientIp: "::1" }));
+      Promise.resolve(
+        h(new Request(`https://${surface}.preview.localhost${path}`, init), { clientIp: "::1" }),
+      );
   };
   return { api: as("api"), ui: as("app"), lines };
 }
@@ -76,8 +101,16 @@ describe("app root", () => {
   });
 
   test("nothing frames gangway (the workspace frames previews, never the reverse); the gate is the one exception", async () => {
-    const { ui, api } = make({ publicV1: (pub) => { pub.get("/auth/gate", (c) => c.redirect("https://x.preview.localhost/")); } });
-    for (const res of [await ui("/v1/whoami", auth), await api("/v1/whoami", auth), await ui("/nope")]) {
+    const { ui, api } = make({
+      publicV1: (pub) => {
+        pub.get("/auth/gate", (c) => c.redirect("https://x.preview.localhost/"));
+      },
+    });
+    for (const res of [
+      await ui("/v1/whoami", auth),
+      await api("/v1/whoami", auth),
+      await ui("/nope"),
+    ]) {
       expect(res.headers.get("x-frame-options")).toBe("DENY");
       expect(res.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
     }
@@ -97,7 +130,7 @@ describe("app root", () => {
     const res = await api("/nope");
     expect(res.status).toBe(404);
     expect(res.headers.get("content-type")).toBe("application/problem+json");
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body).toMatchObject({ status: 404, title: "not found", instance: "/nope" });
     expect(body["requestId"]).toBe(res.headers.get("x-request-id"));
   });
@@ -107,11 +140,18 @@ describe("auth (T14)", () => {
   test("missing, malformed and wrong credentials are indistinguishable 401s", async () => {
     const { api } = make();
     const bodies: unknown[] = [];
-    for (const h of [undefined, "Basic abc", "Bearer", "Bearer wrong-token", `Bearer ${TOKEN}x`, `bearer  `]) {
+    for (const h of [
+      undefined,
+      "Basic abc",
+      "Bearer",
+      "Bearer wrong-token",
+      `Bearer ${TOKEN}x`,
+      `bearer  `,
+    ]) {
       const res = await api("/v1/whoami", h ? { headers: { authorization: h } } : {});
       expect(res.status).toBe(401);
       expect(res.headers.get("www-authenticate")).toBe('Bearer realm="gangway"');
-      const b = await res.json() as Record<string, unknown>;
+      const b = (await res.json()) as Record<string, unknown>;
       delete b["requestId"];
       bodies.push(b);
     }
@@ -127,24 +167,37 @@ describe("auth (T14)", () => {
   test("the static token is the admin actor; the scheme is case-insensitive", async () => {
     const { api } = make();
     const res = await api("/v1/whoami", { headers: { authorization: `bearer ${TOKEN}` } });
-    expect(await res.json()).toEqual({ id: "env:admin", kind: "token", permissions: [...ALL_PERMISSIONS].sort() });
+    expect(await res.json()).toEqual({
+      id: "env:admin",
+      kind: "token",
+      permissions: [...ALL_PERMISSIONS].sort(),
+    });
   });
 
   test("requirePermission: a read token cannot deploy, admin can", async () => {
     const { api } = make();
-    const ro = await api("/v1/mutate", { method: "POST", headers: { authorization: "Bearer gw_readonly_token_0123456789" } });
+    const ro = await api("/v1/mutate", {
+      method: "POST",
+      headers: { authorization: "Bearer gw_readonly_token_0123456789" },
+    });
     expect(ro.status).toBe(403);
     expect(ro.headers.get("content-type")).toBe("application/problem+json");
     expect((await api("/v1/mutate", { method: "POST", ...auth })).status).toBe(200);
   });
 
   test("a 403 names the permission that was missing", async () => {
-    const res = await make().api("/v1/mutate", { method: "POST", headers: { authorization: "Bearer gw_readonly_token_0123456789" } });
-    expect(((await res.json()) as { detail: string }).detail).toBe('requires the "previews.deploy" permission');
+    const res = await make().api("/v1/mutate", {
+      method: "POST",
+      headers: { authorization: "Bearer gw_readonly_token_0123456789" },
+    });
+    expect(((await res.json()) as { detail: string }).detail).toBe(
+      'requires the "previews.deploy" permission',
+    );
   });
 
   test("scopes are bundles of permissions: admin is everything, deploy contains read, read cannot mutate", () => {
-    const p = (...scopes: Parameters<typeof permissionsForScopes>[0]) => permissionsForScopes(scopes);
+    const p = (...scopes: Parameters<typeof permissionsForScopes>[0]) =>
+      permissionsForScopes(scopes);
     expect([...p("admin")].sort()).toEqual([...ALL_PERMISSIONS].sort());
     for (const r of SCOPE_PERMISSIONS.read) expect(p("deploy").has(r)).toBe(true);
     expect(p("deploy").has("previews.destroy")).toBe(true);
@@ -154,7 +207,13 @@ describe("auth (T14)", () => {
   });
 
   test("actorId: a user can never be mistaken for a token, even with the same raw id", () => {
-    const user: Actor = { kind: "user", userId: "env:admin", roleId: "viewer", permissions: new Set(), sessionId: "s" };
+    const user: Actor = {
+      kind: "user",
+      userId: "env:admin",
+      roleId: "viewer",
+      permissions: new Set(),
+      sessionId: "s",
+    };
     expect(actorId(user)).toBe("user:env:admin");
     expect(actorId(tokenActor("env:admin", ["admin"]))).toBe("env:admin");
     expect(can(user, "previews.read")).toBe(false);
@@ -162,8 +221,19 @@ describe("auth (T14)", () => {
 
   test("auditActor maps onto the audit table's actor_type", () => {
     expect(auditActor(systemActor("ttl-sweep"))).toEqual({ type: "system", id: "ttl-sweep" });
-    expect(auditActor(tokenActor("env:admin", ["admin"]))).toEqual({ type: "token", id: "env:admin" });
-    expect(auditActor({ kind: "user", userId: "u1", roleId: "member", permissions: new Set(), sessionId: "s" })).toEqual({ type: "user", id: "u1" });
+    expect(auditActor(tokenActor("env:admin", ["admin"]))).toEqual({
+      type: "token",
+      id: "env:admin",
+    });
+    expect(
+      auditActor({
+        kind: "user",
+        userId: "u1",
+        roleId: "member",
+        permissions: new Set(),
+        sessionId: "s",
+      }),
+    ).toEqual({ type: "user", id: "u1" });
   });
 });
 
@@ -179,7 +249,11 @@ describe("problem+json", () => {
   test("AppError keeps its detail members", async () => {
     const res = await make().api("/v1/conflict", auth);
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ detail: "already exists", project: "gw-x", instance: "/v1/conflict" });
+    expect(await res.json()).toMatchObject({
+      detail: "already exists",
+      project: "gw-x",
+      instance: "/v1/conflict",
+    });
   });
 
   test("an unexpected throw is a bare 500 for the client and a full record in the log", async () => {
@@ -233,7 +307,12 @@ describe("static + SPA fallback", () => {
 
   test("traversal cannot leave the root", async () => {
     const { ui } = make();
-    for (const p of ["/../outside-secret.txt", "/%2e%2e/outside-secret.txt", "/assets/..%2f..%2foutside-secret.txt", "/%00"]) {
+    for (const p of [
+      "/../outside-secret.txt",
+      "/%2e%2e/outside-secret.txt",
+      "/assets/..%2f..%2foutside-secret.txt",
+      "/%00",
+    ]) {
       const res = await ui(p);
       expect(await res.text()).not.toContain("nope");
     }
@@ -243,7 +322,9 @@ describe("static + SPA fallback", () => {
     const { api, ui } = make();
     expect((await api("/")).status).toBe(404);
     expect((await ui("/v1/nothing", auth)).status).toBe(404);
-    expect((await ui("/v1/nothing", auth)).headers.get("content-type")).toBe("application/problem+json");
+    expect((await ui("/v1/nothing", auth)).headers.get("content-type")).toBe(
+      "application/problem+json",
+    );
   });
 
   test("HEAD has no body; POST is not static's business", async () => {

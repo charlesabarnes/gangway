@@ -10,13 +10,21 @@ import { DESTROYED_LINGER_MS, PreviewsStore } from './previews.store';
 
 const T0 = '2026-09-21T20:00:00.000Z';
 const at = (s: number) => new Date(Date.parse(T0) + s * 1000).toISOString();
-const preview = (id: string, over: Partial<Preview> = {}): Preview => ({ ...(contract.preview as Preview), id, project: `gw-${id}`, updatedAt: T0, ...over });
+const preview = (id: string, over: Partial<Preview> = {}): Preview => ({
+  ...(contract.preview as Preview),
+  id,
+  project: `gw-${id}`,
+  updatedAt: T0,
+  ...over,
+});
 
 function setup() {
   FakeEventSource.reset();
   TestBed.configureTestingModule({
     providers: [
-      provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
+      provideRouter([]),
+      provideHttpClient(),
+      provideHttpClientTesting(),
       { provide: EVENT_SOURCE_FACTORY, useValue: (url: string) => new FakeEventSource(url) },
       { provide: SSE_JITTER, useValue: () => 0 },
     ],
@@ -51,14 +59,26 @@ describe('PreviewsStore', () => {
   it('a state event patches the row in place', async () => {
     const t = setup();
     const source = await t.start([preview('01A')]);
-    source.emit('preview.state', { previewId: '01A', at: at(5), state: 'failed', from: 'awake', error: 'it fell over' }, '8');
-    expect(t.store.previews()[0]).toMatchObject({ state: 'failed', error: 'it fell over', updatedAt: at(5) });
+    source.emit(
+      'preview.state',
+      { previewId: '01A', at: at(5), state: 'failed', from: 'awake', error: 'it fell over' },
+      '8',
+    );
+    expect(t.store.previews()[0]).toMatchObject({
+      state: 'failed',
+      error: 'it fell over',
+      updatedAt: at(5),
+    });
   });
 
   it('an event OLDER than the row is ignored: a reconnect replays history onto a list that is already newer', async () => {
     const t = setup();
     const source = await t.start([preview('01A', { state: 'awake', updatedAt: at(60) })]);
-    source.emit('preview.state', { previewId: '01A', at: at(10), state: 'starting', from: 'building' }, '8');
+    source.emit(
+      'preview.state',
+      { previewId: '01A', at: at(10), state: 'starting', from: 'building' },
+      '8',
+    );
     expect(t.ids()).toEqual(['01A:awake']);
   });
 
@@ -66,9 +86,19 @@ describe('PreviewsStore', () => {
     const t = setup();
     const source = await t.start([]);
     source.emit('preview.created', { previewId: '01NEW', at: at(1) }, '8');
-    source.emit('preview.state', { previewId: '01NEW', at: at(1), state: 'starting', from: 'building' }, '9');
-    source.emit('preview.state', { previewId: '01NEW', at: at(2), state: 'awake', from: 'starting' }, '10');
-    t.http.expectOne('/v1/previews/01NEW').flush({ preview: preview('01NEW', { state: 'awake', updatedAt: at(2) }) });
+    source.emit(
+      'preview.state',
+      { previewId: '01NEW', at: at(1), state: 'starting', from: 'building' },
+      '9',
+    );
+    source.emit(
+      'preview.state',
+      { previewId: '01NEW', at: at(2), state: 'awake', from: 'starting' },
+      '10',
+    );
+    t.http
+      .expectOne('/v1/previews/01NEW')
+      .flush({ preview: preview('01NEW', { state: 'awake', updatedAt: at(2) }) });
     await t.tick();
     expect(t.ids()).toEqual(['01NEW:awake']);
     t.http.verify();
@@ -88,7 +118,11 @@ describe('PreviewsStore', () => {
   it('a preview destroyed while you watch lingers, greyed, then goes', async () => {
     const t = setup();
     const source = await t.start([preview('01A'), preview('01B')]);
-    source.emit('preview.state', { previewId: '01A', at: at(5), state: 'destroyed', from: 'destroying' }, '8');
+    source.emit(
+      'preview.state',
+      { previewId: '01A', at: at(5), state: 'destroyed', from: 'destroying' },
+      '8',
+    );
     expect(t.ids()).toEqual(['01B:awake', '01A:destroyed']);
     expect(t.store.previews()[1]!.destroyedAt).toBe(at(5));
     await vi.advanceTimersByTimeAsync(DESTROYED_LINGER_MS - 1);
@@ -101,7 +135,9 @@ describe('PreviewsStore', () => {
     const t = setup();
     await t.start([preview('01A')]);
     const on = t.store.setIncludeDestroyed(true);
-    t.http.expectOne('/v1/previews?includeDestroyed=true').flush({ seq: 9, previews: [preview('01A'), preview('010', { state: 'destroyed' })] });
+    t.http
+      .expectOne('/v1/previews?includeDestroyed=true')
+      .flush({ seq: 9, previews: [preview('01A'), preview('010', { state: 'destroyed' })] });
     await on;
     await vi.advanceTimersByTimeAsync(DESTROYED_LINGER_MS * 2);
     expect(t.ids()).toEqual(['01A:awake', '010:destroyed']);
@@ -128,7 +164,9 @@ describe('PreviewsStore', () => {
     expect(t.store.byId('01A')()?.project).toBe('gw-01A');
 
     const miss = t.store.load('nope');
-    t.http.expectOne('/v1/previews/nope').flush({ title: 'not found' }, { status: 404, statusText: 'x' });
+    t.http
+      .expectOne('/v1/previews/nope')
+      .flush({ title: 'not found' }, { status: 404, statusText: 'x' });
     expect(await miss).toBeUndefined();
   });
 
@@ -136,7 +174,12 @@ describe('PreviewsStore', () => {
     const t = setup();
     await t.start([preview('01A')]);
     const again = t.store.reload();
-    t.http.expectOne('/v1/previews').flush({ title: 'internal', detail: 'internal error', requestId: '01REQ' }, { status: 500, statusText: 'x' });
+    t.http
+      .expectOne('/v1/previews')
+      .flush(
+        { title: 'internal', detail: 'internal error', requestId: '01REQ' },
+        { status: 500, statusText: 'x' },
+      );
     await again;
     expect(t.store.error()).toMatchObject({ status: 500, requestId: '01REQ' });
     expect(t.ids()).toEqual(['01A:awake']);
@@ -148,7 +191,9 @@ describe('PreviewsStore', () => {
       await t.start([preview('01A')]);
       const done = t.store.destroy('01A');
       expect(t.ids()).toEqual(['01A:destroying']);
-      t.http.expectOne({ method: 'DELETE', url: '/v1/previews/01A' }).flush({ preview: preview('01A', { state: 'destroyed', destroyedAt: at(3) }) });
+      t.http
+        .expectOne({ method: 'DELETE', url: '/v1/previews/01A' })
+        .flush({ preview: preview('01A', { state: 'destroyed', destroyedAt: at(3) }) });
       await done;
       expect(t.ids()).toEqual(['01A:destroyed']);
     });
@@ -157,8 +202,21 @@ describe('PreviewsStore', () => {
       const t = setup();
       await t.start([preview('01A')]);
       const done = t.store.destroy('01A');
-      t.http.expectOne('/v1/previews/01A').flush({ title: 'forbidden', detail: 'requires the "previews.destroy" permission', requestId: '01REQ' }, { status: 403, statusText: 'x' });
-      await expect(done).rejects.toMatchObject({ status: 403, requestId: '01REQ', detail: 'requires the "previews.destroy" permission' });
+      t.http
+        .expectOne('/v1/previews/01A')
+        .flush(
+          {
+            title: 'forbidden',
+            detail: 'requires the "previews.destroy" permission',
+            requestId: '01REQ',
+          },
+          { status: 403, statusText: 'x' },
+        );
+      await expect(done).rejects.toMatchObject({
+        status: 403,
+        requestId: '01REQ',
+        detail: 'requires the "previews.destroy" permission',
+      });
       expect(t.ids()).toEqual(['01A:awake']);
     });
 
@@ -166,8 +224,14 @@ describe('PreviewsStore', () => {
       const t = setup();
       const source = await t.start([preview('01A')]);
       const done = t.store.destroy('01A');
-      source.emit('preview.state', { previewId: '01A', at: at(9), state: 'failed', from: 'awake' }, '8');
-      t.http.expectOne('/v1/previews/01A').flush({ title: 'conflict' }, { status: 409, statusText: 'x' });
+      source.emit(
+        'preview.state',
+        { previewId: '01A', at: at(9), state: 'failed', from: 'awake' },
+        '8',
+      );
+      t.http
+        .expectOne('/v1/previews/01A')
+        .flush({ title: 'conflict' }, { status: 409, statusText: 'x' });
       await done.catch(() => {});
       expect(t.ids()).toEqual(['01A:failed']);
     });

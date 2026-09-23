@@ -5,19 +5,35 @@ import { rowToTemplate, type TemplateRow } from "./mappers.ts";
 export const DEFAULT_TEMPLATE_ID = "default";
 
 export type CreateTemplate = {
-  id: string; name: string; description?: string | undefined;
-  visibility?: Visibility | undefined; ttl?: string | null | undefined; idleAfter?: string | undefined;
-  clearance?: Clearance | undefined; hostId?: string | null | undefined;
+  id: string;
+  name: string;
+  description?: string | undefined;
+  visibility?: Visibility | undefined;
+  ttl?: string | null | undefined;
+  idleAfter?: string | undefined;
+  clearance?: Clearance | undefined;
+  hostId?: string | null | undefined;
 };
 
 /** Absent AND undefined both mean "leave it": zod's optional output is passed straight through. */
 export type TemplatePatch = {
-  name?: string | undefined; description?: string | undefined; visibility?: Visibility | undefined;
-  ttl?: string | null | undefined; idleAfter?: string | undefined; clearance?: Clearance | undefined; hostId?: string | null | undefined;
+  name?: string | undefined;
+  description?: string | undefined;
+  visibility?: Visibility | undefined;
+  ttl?: string | null | undefined;
+  idleAfter?: string | undefined;
+  clearance?: Clearance | undefined;
+  hostId?: string | null | undefined;
 };
 
 const COLUMNS: Record<keyof TemplatePatch, string> = {
-  name: "name", description: "description", visibility: "visibility", ttl: "ttl", idleAfter: "idle_after", clearance: "clearance", hostId: "host_id",
+  name: "name",
+  description: "description",
+  visibility: "visibility",
+  ttl: "ttl",
+  idleAfter: "idle_after",
+  clearance: "clearance",
+  hostId: "host_id",
 };
 
 /** Named preview policies (ADR-0013). `default` is seeded by migration 0007 and never deleted. */
@@ -38,7 +54,9 @@ export class TemplatesRepo {
       `INSERT INTO templates (id, name, description, builtin, visibility, ttl, idle_after, clearance, host_id, created_at, updated_at)
        VALUES ($id, $name, $description, 0, $visibility, $ttl, $idleAfter, $clearance, $hostId, $now, $now)`,
       {
-        id: t.id, name: t.name, description: t.description ?? "",
+        id: t.id,
+        name: t.name,
+        description: t.description ?? "",
         visibility: t.visibility ?? base?.visibility ?? "unlisted",
         ttl: t.ttl === undefined ? (base?.ttl ?? "7d") : t.ttl,
         idleAfter: t.idleAfter ?? base?.idleAfter ?? "30m",
@@ -63,7 +81,9 @@ export class TemplatesRepo {
   }
 
   list(): Template[] {
-    return this.#db.query<TemplateRow>("SELECT * FROM templates ORDER BY builtin DESC, name").map(rowToTemplate);
+    return this.#db
+      .query<TemplateRow>("SELECT * FROM templates ORDER BY builtin DESC, name")
+      .map(rowToTemplate);
   }
 
   update(id: string, patch: TemplatePatch): Template | undefined {
@@ -75,7 +95,10 @@ export class TemplatesRepo {
       params[k] = v as string | null;
     }
     if (sets.length === 0) return this.get(id);
-    this.#db.run(`UPDATE templates SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`, params);
+    this.#db.run(
+      `UPDATE templates SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`,
+      params,
+    );
     return this.get(id);
   }
 
@@ -87,6 +110,10 @@ export class TemplatesRepo {
 
   /** How many projects name this template -- said before a delete, not after. */
   repoCount(id: string): number {
-    return this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", { id })?.n ?? 0;
+    return (
+      this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", {
+        id,
+      })?.n ?? 0
+    );
   }
 }

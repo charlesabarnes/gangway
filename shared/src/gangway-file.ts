@@ -23,19 +23,37 @@ export const MAX_GANGWAY_FILE_BYTES = 64 * 1024;
  * no `.`/`..`/empty segments. A trailing slash is forgiven.
  */
 export const REL_PATH_RE = /^[A-Za-z0-9._@+-][A-Za-z0-9._/@+-]*$/;
-export const isRelPath = (p: string): boolean => p.length <= 200 && REL_PATH_RE.test(p) && !p.split("/").some((s) => s === "" || s === "." || s === "..");
-const relPath = z.string().trim().transform((p) => p.replace(/\/+$/, ""))
-  .pipe(z.string().min(1).refine(isRelPath, "a relative path inside the upload: letters, digits, . _ - @ + and /, no `..`"));
+export const isRelPath = (p: string): boolean =>
+  p.length <= 200 &&
+  REL_PATH_RE.test(p) &&
+  !p.split("/").some((s) => s === "" || s === "." || s === "..");
+const relPath = z
+  .string()
+  .trim()
+  .transform((p) => p.replace(/\/+$/, ""))
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .refine(
+        isRelPath,
+        "a relative path inside the upload: letters, digits, . _ - @ + and /, no `..`",
+      ),
+  );
 
 /** A shell command (`npm run build && npm run export`), or an argv run as it is (`[node, server.js]`). */
 const command = z.union([
   z.string().trim().min(1).max(8192),
-  z.array(z.union([z.string(), z.number()]).transform(String).pipe(z.string().max(4096))).min(1).max(64),
+  z
+    .array(z.union([z.string(), z.number()]).transform(String).pipe(z.string().max(4096)))
+    .min(1)
+    .max(64),
 ]);
 export type Command = z.infer<typeof command>;
 
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const duration = (what: string) => z.string().refine((s) => parseDuration(s) !== null, `expected a duration like ${what}`);
+const duration = (what: string) =>
+  z.string().refine((s) => parseDuration(s) !== null, `expected a duration like ${what}`);
 
 export const GangwayFileSchema = z.strictObject({
   /** For editors that read it; ignored. */
@@ -43,7 +61,11 @@ export const GangwayFileSchema = z.strictObject({
   /** Which runtime builds it. Omitted: detected from the files. */
   runtime: z.enum(RUNTIME_IDS).optional(),
   /** A version the runtime offers (`node: 22`, `python: "3.13"`). Quote it: YAML reads 3.10 as 3.1. */
-  version: z.union([z.string(), z.number()]).transform(String).pipe(z.string().regex(/^\d+(\.\d+)*$/, "a version like 22 or \"3.13\"")).optional(),
+  version: z
+    .union([z.string(), z.number()])
+    .transform(String)
+    .pipe(z.string().regex(/^\d+(\.\d+)*$/, 'a version like 22 or "3.13"'))
+    .optional(),
   /** The app lives in this directory of the upload, not at its root. */
   root: relPath.optional(),
   /** Replaces the install step (`false`: none). */
@@ -61,18 +83,39 @@ export const GangwayFileSchema = z.strictObject({
   /** The port the app listens on. Needed for an own Dockerfile; a runtime is told its port in $PORT. */
   port: z.number().int().min(1).max(65535).optional(),
   /** A path that answers 2xx/3xx once the app is really up. Omitted: any HTTP answer on `/`. */
-  healthcheck: z.string().regex(/^\/[\x21-\x7e]*$/, "a path starting with /, no spaces").max(200).optional(),
+  healthcheck: z
+    .string()
+    .regex(/^\/[\x21-\x7e]*$/, "a path starting with /, no spaces")
+    .max(200)
+    .optional(),
   /** Non-secret environment, at build and at run. Secrets belong in the project's secrets, which win. */
-  env: z.record(z.string().regex(ENV_NAME_RE, "not a valid variable name"), z.union([z.string(), z.number(), z.boolean()]).transform(String).pipe(z.string().max(4096)))
-    .refine((e) => Object.keys(e).length <= 100, "at most 100 variables").optional(),
+  env: z
+    .record(
+      z.string().regex(ENV_NAME_RE, "not a valid variable name"),
+      z.union([z.string(), z.number(), z.boolean()]).transform(String).pipe(z.string().max(4096)),
+    )
+    .refine((e) => Object.keys(e).length <= 100, "at most 100 variables")
+    .optional(),
   /**
    * Throwaway databases beside the app (ADR-0017): `[postgres]`, or `[{ id: postgres, version: 17 }]`.
    * Gone with the preview. `[]` removes them.
    */
-  addons: z.array(z.union([
-    z.enum(ADDON_IDS),
-    z.strictObject({ id: z.enum(ADDON_IDS), version: z.union([z.string(), z.number()]).transform(String).optional() }),
-  ])).max(ADDON_IDS.length).refine((a) => new Set(a.map((x) => (typeof x === "string" ? x : x.id))).size === a.length, "each add-on at most once").optional(),
+  addons: z
+    .array(
+      z.union([
+        z.enum(ADDON_IDS),
+        z.strictObject({
+          id: z.enum(ADDON_IDS),
+          version: z.union([z.string(), z.number()]).transform(String).optional(),
+        }),
+      ]),
+    )
+    .max(ADDON_IDS.length)
+    .refine(
+      (a) => new Set(a.map((x) => (typeof x === "string" ? x : x.id))).size === a.length,
+      "each add-on at most once",
+    )
+    .optional(),
   /** Runs once after the first deploy is healthy (§7.3), in the app's container. */
   seed: z.string().min(1).max(8192).optional(),
   ttl: duration("12h or 7d").optional(),
@@ -85,25 +128,51 @@ export type GangwayFile = z.infer<typeof GangwayFileSchema>;
 /** Where in the file, as a dotted key path (`env.PORT`, `start.1`), and what is wrong there. */
 export type FileIssue = { path: string; message: string };
 
-export type ParsedGangwayFile = { ok: true; file: GangwayFile } | { ok: false; issues: FileIssue[] };
+export type ParsedGangwayFile =
+  { ok: true; file: GangwayFile } | { ok: false; issues: FileIssue[] };
 
 export function parseGangwayFile(text: string): ParsedGangwayFile {
   if (new TextEncoder().encode(text).length > MAX_GANGWAY_FILE_BYTES) {
-    return { ok: false, issues: [{ path: "", message: `gangway.yml is larger than ${MAX_GANGWAY_FILE_BYTES / 1024} KiB` }] };
+    return {
+      ok: false,
+      issues: [
+        { path: "", message: `gangway.yml is larger than ${MAX_GANGWAY_FILE_BYTES / 1024} KiB` },
+      ],
+    };
   }
   const doc = parseDocument(text, { uniqueKeys: true, prettyErrors: false });
-  if (doc.errors.length > 0) return { ok: false, issues: doc.errors.slice(0, 5).map((e) => ({ path: "", message: e.message.split("\n")[0] ?? "invalid YAML" })) };
+  if (doc.errors.length > 0)
+    return {
+      ok: false,
+      issues: doc.errors
+        .slice(0, 5)
+        .map((e) => ({ path: "", message: e.message.split("\n")[0] ?? "invalid YAML" })),
+    };
   let raw: unknown;
   try {
     // A billion-laughs file dies here, not in the planner.
     raw = doc.toJS({ maxAliasCount: 20 }) ?? {};
   } catch (e) {
-    return { ok: false, issues: [{ path: "", message: e instanceof Error ? e.message : "invalid YAML" }] };
+    return {
+      ok: false,
+      issues: [{ path: "", message: e instanceof Error ? e.message : "invalid YAML" }],
+    };
   }
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ok: false, issues: [{ path: "", message: "gangway.yml must be a mapping of keys, like `start: npm run serve`" }] };
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return {
+      ok: false,
+      issues: [
+        { path: "", message: "gangway.yml must be a mapping of keys, like `start: npm run serve`" },
+      ],
+    };
   const r = GangwayFileSchema.safeParse(raw);
   if (r.success) return { ok: true, file: r.data };
-  return { ok: false, issues: r.error.issues.slice(0, 20).map((i) => ({ path: i.path.map(String).join("."), message: i.message })) };
+  return {
+    ok: false,
+    issues: r.error.issues
+      .slice(0, 20)
+      .map((i) => ({ path: i.path.map(String).join("."), message: i.message })),
+  };
 }
 
 /** For editors: the file's shape as JSON Schema (draft 2020-12). */

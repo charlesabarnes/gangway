@@ -1,7 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal, type Signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { STREAM_EVENT_TYPES, type PasswordChange, type Preview, type PreviewList, type StreamEvent } from '../../core/api.types';
+import {
+  STREAM_EVENT_TYPES,
+  type PasswordChange,
+  type Preview,
+  type PreviewList,
+  type StreamEvent,
+} from '../../core/api.types';
 import { toProblem, type ProblemError } from '../../core/problem';
 import { SseService, type SseHandle, type SseStatus } from '../../core/sse.service';
 
@@ -31,7 +37,9 @@ export class PreviewsStore {
   readonly includeDestroyed = signal(false);
 
   /** Newest first: ids are ULIDs, so they sort by creation time. */
-  readonly previews = computed(() => [...this.#byId().values()].sort((a, b) => (a.id < b.id ? 1 : -1)));
+  readonly previews = computed(() =>
+    [...this.#byId().values()].sort((a, b) => (a.id < b.id ? 1 : -1)),
+  );
   readonly status: Signal<SseStatus | 'idle'> = computed(() => this.#handle()?.status() ?? 'idle');
 
   #users = 0;
@@ -82,7 +90,10 @@ export class PreviewsStore {
     const running = this.#fetching.get(id);
     if (running) return running;
     const p = firstValueFrom(this.#http.get<{ preview: Preview }>(`/v1/previews/${id}`))
-      .then(({ preview }) => { this.#put(preview); return preview as Preview | undefined; })
+      .then(({ preview }) => {
+        this.#put(preview);
+        return preview as Preview | undefined;
+      })
       .catch(() => undefined)
       .finally(() => this.#fetching.delete(id));
     this.#fetching.set(id, p);
@@ -97,7 +108,9 @@ export class PreviewsStore {
     const before = this.#byId().get(id);
     if (before) this.#put({ ...before, state: 'destroying' });
     try {
-      const { preview } = await firstValueFrom(this.#http.delete<{ preview: Preview }>(`/v1/previews/${id}`));
+      const { preview } = await firstValueFrom(
+        this.#http.delete<{ preview: Preview }>(`/v1/previews/${id}`),
+      );
       this.#put(preview);
     } catch (e) {
       // Only if nothing newer arrived meanwhile: an event may already have moved it on.
@@ -109,7 +122,9 @@ export class PreviewsStore {
   /** ADR-0023: change a preview's password and/or its login rule. Rejects with a ProblemError the caller can show. */
   async setPassword(id: string, change: PasswordChange): Promise<Preview> {
     try {
-      const { preview } = await firstValueFrom(this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/password`, change));
+      const { preview } = await firstValueFrom(
+        this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/password`, change),
+      );
       this.#put(preview);
       return preview;
     } catch (e) {
@@ -119,18 +134,40 @@ export class PreviewsStore {
 
   #follow(seq: number): void {
     this.#handle()?.close();
-    this.#handle.set(this.#sse.open<Patch>('/v1/events', STREAM_EVENT_TYPES, (m) => this.#on({ ...m.data, type: m.type as StreamEvent['type'] } as StreamEvent), { after: seq }));
+    this.#handle.set(
+      this.#sse.open<Patch>(
+        '/v1/events',
+        STREAM_EVENT_TYPES,
+        (m) => this.#on({ ...m.data, type: m.type as StreamEvent['type'] } as StreamEvent),
+        { after: seq },
+      ),
+    );
   }
 
   #on(e: StreamEvent): void {
-    if (e.type === 'reset') { void this.reload(); return; }
-    if (e.type === 'preview.redeploy') { this.#noteRedeploy(e); return; }
+    if (e.type === 'reset') {
+      void this.reload();
+      return;
+    }
+    if (e.type === 'preview.redeploy') {
+      this.#noteRedeploy(e);
+      return;
+    }
     // created/adopted carry no preview; an event about an id not held is the same problem.
     const held = this.#byId().get(e.previewId);
-    if (e.type !== 'preview.state' || !held) { void this.load(e.previewId); return; }
+    if (e.type !== 'preview.state' || !held) {
+      void this.load(e.previewId);
+      return;
+    }
     // The replay after a reconnect can include events OLDER than the row just fetched.
     if (Date.parse(e.at) < Date.parse(held.updatedAt)) return;
-    this.#put({ ...held, state: e.state, error: e.error ?? null, updatedAt: e.at, ...(e.state === 'destroyed' ? { destroyedAt: e.at } : {}) });
+    this.#put({
+      ...held,
+      state: e.state,
+      error: e.error ?? null,
+      updatedAt: e.at,
+      ...(e.state === 'destroyed' ? { destroyedAt: e.at } : {}),
+    });
   }
 
   /** The latest `preview.redeploy` per preview (ADR-0015): the Source panel shows its phase. */
@@ -153,12 +190,15 @@ export class PreviewsStore {
     next.set(p.id, p);
     this.#byId.set(next);
     if (p.state !== 'destroyed' || this.includeDestroyed() || this.#dropTimers.has(p.id)) return;
-    this.#dropTimers.set(p.id, setTimeout(() => {
-      this.#dropTimers.delete(p.id);
-      if (this.includeDestroyed() || this.#byId().get(p.id)?.state !== 'destroyed') return;
-      const without = new Map(this.#byId());
-      without.delete(p.id);
-      this.#byId.set(without);
-    }, DESTROYED_LINGER_MS));
+    this.#dropTimers.set(
+      p.id,
+      setTimeout(() => {
+        this.#dropTimers.delete(p.id);
+        if (this.includeDestroyed() || this.#byId().get(p.id)?.state !== 'destroyed') return;
+        const without = new Map(this.#byId());
+        without.delete(p.id);
+        this.#byId.set(without);
+      }, DESTROYED_LINGER_MS),
+    );
   }
 }

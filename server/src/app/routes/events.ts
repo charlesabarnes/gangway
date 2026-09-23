@@ -8,11 +8,21 @@ import { resumeCursor, sse, type SseOptions } from "../sse.ts";
 export function eventRoutes(api: Hono<AppEnv>, bus: EventBus, o: SseOptions = {}): void {
   api.get("/events", requirePermission("events.read"), (c) => {
     const after = resumeCursor(c);
-    return sse(c, (push) =>
-      bus.follow(after, (e) => push({
-        id: String(e.seq),
-        event: e.type,
-        data: JSON.stringify({ previewId: e.previewId, at: e.createdAt.toISOString(), ...e.payload }),
-      })), o);
+    return sse(
+      c,
+      (push) =>
+        bus.follow(after, (e) =>
+          push({
+            id: String(e.seq),
+            event: e.type,
+            data: JSON.stringify({
+              previewId: e.previewId,
+              at: e.createdAt.toISOString(),
+              ...e.payload,
+            }),
+          }),
+        ),
+      o,
+    );
   });
 }

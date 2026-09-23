@@ -30,7 +30,11 @@ export function resolvePreview(ctx: PreviewContext, ref: string): Preview {
   // A URL or a hostname: the route table knows it exactly.
   let host = text.toLowerCase();
   if (/^https?:\/\//.test(host)) {
-    try { host = new URL(host).hostname; } catch { throw unprocessable(`${JSON.stringify(text)} is not a URL`); }
+    try {
+      host = new URL(host).hostname;
+    } catch {
+      throw unprocessable(`${JSON.stringify(text)} is not a URL`);
+    }
   }
   if (host.includes(".")) {
     const entry = ctx.table.lookup(host);
@@ -43,8 +47,16 @@ export function resolvePreview(ctx: PreviewContext, ref: string): Preview {
   const exact = all.filter((p) => nameOf(ctx, p) === host);
   if (exact.length === 1) return exact[0]!;
   // Unlisted: `<stem>-<suffix>`. The suffix is 10 characters from the unguessable alphabet.
-  const stem = exact.length === 0 ? all.filter((p) => new RegExp(`^${host.replace(/[^a-z0-9-]/g, "")}-[a-z0-9]{10}$`).test(nameOf(ctx, p))) : exact;
+  const stem =
+    exact.length === 0
+      ? all.filter((p) =>
+          new RegExp(`^${host.replace(/[^a-z0-9-]/g, "")}-[a-z0-9]{10}$`).test(nameOf(ctx, p)),
+        )
+      : exact;
   if (stem.length === 1) return stem[0]!;
-  if (stem.length > 1) throw unprocessable(`${JSON.stringify(text)} matches ${stem.length} previews: ${stem.map((p) => `${nameOf(ctx, p)} (${p.id})`).join(", ")}. Use the URL or the id`);
+  if (stem.length > 1)
+    throw unprocessable(
+      `${JSON.stringify(text)} matches ${stem.length} previews: ${stem.map((p) => `${nameOf(ctx, p)} (${p.id})`).join(", ")}. Use the URL or the id`,
+    );
   throw notFound(`no live preview is called ${JSON.stringify(text)}`);
 }

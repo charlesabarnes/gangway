@@ -20,7 +20,10 @@ export function place(req: PlacementRequest, hosts: readonly Host[]): Host {
   if (req.hostId !== undefined) {
     const chosen = capable.find((h) => h.id === req.hostId);
     if (!chosen) {
-      throw new AppError("unprocessable", `host "${req.hostId}" does not exist or lacks the "${req.capability}" capability`);
+      throw new AppError(
+        "unprocessable",
+        `host "${req.hostId}" does not exist or lacks the "${req.capability}" capability`,
+      );
     }
     return chosen;
   }

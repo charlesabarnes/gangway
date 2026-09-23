@@ -7,7 +7,9 @@ import { AppError, notFound } from "../../src/errors.ts";
 describe("ulid", () => {
   test("shape", () => expect(ULID_RE.test(ulid())).toBe(true));
   test("sorts chronologically", () => {
-    const a = ulid(1000), b = ulid(2000), c = ulid(3000);
+    const a = ulid(1000),
+      b = ulid(2000),
+      c = ulid(3000);
     expect([c, a, b].sort()).toEqual([a, b, c]);
   });
   test("monotonic within one millisecond", () => {
@@ -38,7 +40,11 @@ describe("redaction", () => {
   });
 
   test("redacts by field name whatever the value looks like", () => {
-    const o = redact({ password: "hunter2", nested: { apiToken: "plain" }, keep: "visible" }) as any;
+    const o = redact({
+      password: "hunter2",
+      nested: { apiToken: "plain" },
+      keep: "visible",
+    }) as any;
     expect(o.password).toBe("[redacted]");
     expect(o.nested.apiToken).toBe("[redacted]");
     expect(o.keep).toBe("visible");
@@ -53,8 +59,16 @@ describe("redaction", () => {
   });
 
   test("an AppError keeps its code and detail (redacted) -- compose's stderr lives there", () => {
-    const o = redact(new AppError("unprocessable", "the compose file is not valid", { compose: "bad indent; token gw_abcdefghijklmnopqrstuvwxyz012345" })) as any;
-    expect(o).toMatchObject({ name: "AppError", code: "unprocessable", message: "the compose file is not valid" });
+    const o = redact(
+      new AppError("unprocessable", "the compose file is not valid", {
+        compose: "bad indent; token gw_abcdefghijklmnopqrstuvwxyz012345",
+      }),
+    ) as any;
+    expect(o).toMatchObject({
+      name: "AppError",
+      code: "unprocessable",
+      message: "the compose file is not valid",
+    });
     expect(o.detail.compose).toContain("bad indent");
     expect(o.detail.compose).not.toContain("abcdefghijklmnop");
     expect(redact(new Error("plain"))).toMatchObject({ name: "Error", message: "plain" });
@@ -63,8 +77,10 @@ describe("redaction", () => {
 
   test("log lines are redacted end to end", () => {
     const lines: string[] = [];
-    new Logger("info", {}, (l) => lines.push(l))
-      .info("cloning with gw_abcdefghijklmnopqrstuvwx", { token: "secret", repo: "acme" });
+    new Logger("info", {}, (l) => lines.push(l)).info("cloning with gw_abcdefghijklmnopqrstuvwx", {
+      token: "secret",
+      repo: "acme",
+    });
     const rec = JSON.parse(lines[0]!);
     expect(rec.msg).toContain("[redacted]");
     expect(rec.token).toBe("[redacted]");
@@ -74,12 +90,14 @@ describe("redaction", () => {
   test("respects the level threshold", () => {
     const lines: string[] = [];
     const log = new Logger("warn", {}, (l) => lines.push(l));
-    log.info("ignored"); log.error("kept");
+    log.info("ignored");
+    log.error("kept");
     expect(lines).toHaveLength(1);
   });
 
   test("survives a cyclic object", () => {
-    const a: any = { name: "a" }; a.self = a;
+    const a: any = { name: "a" };
+    a.self = a;
     expect(() => redact(a)).not.toThrow();
   });
 });
@@ -88,7 +106,11 @@ describe("SingleFlight", () => {
   test("collapses concurrent calls on one key", async () => {
     const sf = new SingleFlight<number>();
     let calls = 0;
-    const fn = async () => { calls++; await Bun.sleep(20); return 42; };
+    const fn = async () => {
+      calls++;
+      await Bun.sleep(20);
+      return 42;
+    };
     const all = await Promise.all(Array.from({ length: 60 }, () => sf.run("preview-1", fn)));
     expect(calls).toBe(1);
     expect(all.every((v) => v === 42)).toBe(true);
@@ -98,14 +120,21 @@ describe("SingleFlight", () => {
   test("different keys do not collapse", async () => {
     const sf = new SingleFlight<string>();
     let calls = 0;
-    const fn = async () => { calls++; return "x"; };
+    const fn = async () => {
+      calls++;
+      return "x";
+    };
     await Promise.all([sf.run("a", fn), sf.run("b", fn)]);
     expect(calls).toBe(2);
   });
 
   test("a rejection clears the slot so the next call retries", async () => {
     const sf = new SingleFlight<number>();
-    await expect(sf.run("k", async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+    await expect(
+      sf.run("k", async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
     expect(sf.has("k")).toBe(false);
     expect(await sf.run("k", async () => 1)).toBe(1);
   });
@@ -121,22 +150,41 @@ describe("retry / backoff", () => {
 
   test("succeeds after transient failures", async () => {
     let n = 0;
-    const v = await retry(async () => { if (++n < 3) throw new Error("nope"); return n; },
-      { baseMs: 1, random: () => 0 });
+    const v = await retry(
+      async () => {
+        if (++n < 3) throw new Error("nope");
+        return n;
+      },
+      { baseMs: 1, random: () => 0 },
+    );
     expect(v).toBe(3);
   });
 
   test("gives up after the attempt budget", async () => {
     let n = 0;
-    await expect(retry(async () => { n++; throw new Error("always"); }, { attempts: 3, baseMs: 1, random: () => 0 }))
-      .rejects.toThrow("always");
+    await expect(
+      retry(
+        async () => {
+          n++;
+          throw new Error("always");
+        },
+        { attempts: 3, baseMs: 1, random: () => 0 },
+      ),
+    ).rejects.toThrow("always");
     expect(n).toBe(3);
   });
 
   test("shouldRetry short-circuits non-retryable errors", async () => {
     let n = 0;
-    await expect(retry(async () => { n++; throw new AppError("bad_request", "no"); },
-      { attempts: 5, baseMs: 1, shouldRetry: (e) => !(e instanceof AppError) })).rejects.toThrow("no");
+    await expect(
+      retry(
+        async () => {
+          n++;
+          throw new AppError("bad_request", "no");
+        },
+        { attempts: 5, baseMs: 1, shouldRetry: (e) => !(e instanceof AppError) },
+      ),
+    ).rejects.toThrow("no");
     expect(n).toBe(1);
   });
 });
@@ -144,7 +192,9 @@ describe("retry / backoff", () => {
 describe("waitFor", () => {
   test("returns as soon as a value appears", async () => {
     let n = 0;
-    expect(await waitFor(async () => (++n >= 3 ? "ready" : null), { timeoutMs: 1000, intervalMs: 5 })).toBe("ready");
+    expect(
+      await waitFor(async () => (++n >= 3 ? "ready" : null), { timeoutMs: 1000, intervalMs: 5 }),
+    ).toBe("ready");
   });
   test("returns null at the deadline instead of hanging", async () => {
     expect(await waitFor(async () => null, { timeoutMs: 40, intervalMs: 10 })).toBeNull();

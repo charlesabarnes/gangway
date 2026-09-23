@@ -49,7 +49,12 @@ export type SchedulerOptions = {
   setTimer?: (fn: () => void, ms: number) => TimerHandle;
 };
 
-type Entry = { job: Job; status: JobStatus; timer: TimerHandle | null; current: Promise<void> | null };
+type Entry = {
+  job: Job;
+  status: JobStatus;
+  timer: TimerHandle | null;
+  current: Promise<void> | null;
+};
 
 const realTimer = (fn: () => void, ms: number): TimerHandle => {
   const t = setTimeout(fn, ms);
@@ -84,8 +89,19 @@ export class Scheduler {
     if (this.#stopping) throw new Error(`scheduler is stopped; cannot register ${job.name}`);
     if (this.#jobs.has(job.name)) throw new Error(`duplicate job name: ${job.name}`);
     const entry: Entry = {
-      job, timer: null, current: null,
-      status: { name: job.name, enabled: job.intervalMs > 0, running: false, runs: 0, failures: 0, lastStartedAt: null, lastDurationMs: null, lastError: null },
+      job,
+      timer: null,
+      current: null,
+      status: {
+        name: job.name,
+        enabled: job.intervalMs > 0,
+        running: false,
+        runs: 0,
+        failures: 0,
+        lastStartedAt: null,
+        lastDurationMs: null,
+        lastError: null,
+      },
     };
     this.#jobs.set(job.name, entry);
     if (this.#started) this.#arm(entry, true);
@@ -119,7 +135,10 @@ export class Scheduler {
    */
   stop(timeoutMs = 10_000): Promise<void> {
     if (this.#stopping) return this.#stopping;
-    for (const e of this.#jobs.values()) { e.timer?.cancel(); e.timer = null; }
+    for (const e of this.#jobs.values()) {
+      e.timer?.cancel();
+      e.timer = null;
+    }
     this.#abort.abort();
     const running = [...this.#jobs.values()].filter((e) => e.current);
     const settled = Promise.allSettled(running.map((e) => e.current));
@@ -129,7 +148,11 @@ export class Scheduler {
       new Promise<void>((resolve) => {
         deadline.timer = this.#setTimer(() => {
           const late = running.filter((e) => e.current).map((e) => e.job.name);
-          if (late.length) this.#o.logger.warn("scheduler stopped with jobs still running", { jobs: late, timeoutMs });
+          if (late.length)
+            this.#o.logger.warn("scheduler stopped with jobs still running", {
+              jobs: late,
+              timeoutMs,
+            });
           resolve();
         }, timeoutMs);
       }),
@@ -139,13 +162,16 @@ export class Scheduler {
 
   #arm(e: Entry, first: boolean): void {
     if (this.#stopping || e.job.intervalMs <= 0 || e.timer) return;
-    const delay = first && e.job.initialDelayMs !== undefined
-      ? Math.max(0, e.job.initialDelayMs)
-      : jittered(e.job.intervalMs, e.job.jitter ?? 0.1, this.#random);
+    const delay =
+      first && e.job.initialDelayMs !== undefined
+        ? Math.max(0, e.job.initialDelayMs)
+        : jittered(e.job.intervalMs, e.job.jitter ?? 0.1, this.#random);
     e.timer = this.#setTimer(() => {
       e.timer = null;
       // Re-armed from the END of the run, whoever started it: that is rule 1.
-      this.#run(e).catch(() => {}).finally(() => this.#arm(e, false));
+      this.#run(e)
+        .catch(() => {})
+        .finally(() => this.#arm(e, false));
     }, delay);
   }
 
@@ -166,7 +192,8 @@ export class Scheduler {
         s.failures++;
         s.lastError = err instanceof Error ? err.message : String(err);
         // An abort during stop() is the job doing what it was told.
-        if (!this.#abort.signal.aborted) this.#o.logger.error("scheduled job failed", { job: e.job.name, err });
+        if (!this.#abort.signal.aborted)
+          this.#o.logger.error("scheduled job failed", { job: e.job.name, err });
         throw err;
       } finally {
         s.runs++;

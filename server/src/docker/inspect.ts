@@ -14,7 +14,13 @@
  */
 import type { Route } from "../../../shared/src/domain.ts";
 import type { ContainerSummary, DockerClient } from "./client.ts";
-import { MANAGED_FILTER, parseLabels, routeFromLabels, type GangwayLabels, type LabelParseFailure } from "./labels.ts";
+import {
+  MANAGED_FILTER,
+  parseLabels,
+  routeFromLabels,
+  type GangwayLabels,
+  type LabelParseFailure,
+} from "./labels.ts";
 
 export type PortProtocol = "tcp" | "udp" | "sctp";
 
@@ -27,7 +33,8 @@ export type InspectJson = {
   Name?: string | undefined;
   Created?: string | undefined;
   Image?: string | undefined;
-  Config?: { Image?: string | undefined; Labels?: Record<string, string> | null | undefined } | undefined;
+  Config?:
+    { Image?: string | undefined; Labels?: Record<string, string> | null | undefined } | undefined;
   State?:
     | {
         Status?: string | undefined;
@@ -35,10 +42,12 @@ export type InspectJson = {
         ExitCode?: number | undefined;
         StartedAt?: string | undefined;
         FinishedAt?: string | undefined;
-        Health?: { Status?: string | undefined; FailingStreak?: number | undefined } | null | undefined;
+        Health?:
+          { Status?: string | undefined; FailingStreak?: number | undefined } | null | undefined;
       }
     | undefined;
-  NetworkSettings?: { Ports?: Record<string, PortBindingJson[] | null> | null | undefined } | undefined;
+  NetworkSettings?:
+    { Ports?: Record<string, PortBindingJson[] | null> | null | undefined } | undefined;
 };
 
 export type PublishedPort = {
@@ -123,10 +132,14 @@ export function healthState(inspect: InspectJson): HealthState {
   const health = inspect.State?.Health;
   if (health === undefined || health === null) return "none";
   switch (health.Status) {
-    case "starting": return "starting";
-    case "healthy": return "healthy";
-    case "unhealthy": return "unhealthy";
-    default: return "unknown";
+    case "starting":
+      return "starting";
+    case "healthy":
+      return "healthy";
+    case "unhealthy":
+      return "unhealthy";
+    default:
+      return "unknown";
   }
 }
 
@@ -156,8 +169,7 @@ export function containerName(inspect: InspectJson): string {
  * `null` means agreement. Anything else is the `UpdateUpstream` case.
  */
 export type PortDrift =
-  | { kind: "no-binding"; expected: number }
-  | { kind: "moved"; expected: number; actual: number };
+  { kind: "no-binding"; expected: number } | { kind: "moved"; expected: number; actual: number };
 
 export function portDrift(
   route: Pick<Route, "containerPort" | "upstream">,
@@ -230,7 +242,10 @@ const isManagedRow = (r: ManagedContainer | UnusableContainer): r is ManagedCont
 export async function scanManaged(
   client: Pick<DockerClient, "hostId" | "listContainers">,
 ): Promise<ManagedScan> {
-  const containers = await client.listContainers({ all: true, filters: { label: [MANAGED_FILTER] } });
+  const containers = await client.listContainers({
+    all: true,
+    filters: { label: [MANAGED_FILTER] },
+  });
   const rows = containers.map(classifyContainer);
   return {
     hostId: client.hostId,

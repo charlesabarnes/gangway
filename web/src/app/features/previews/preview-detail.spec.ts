@@ -14,17 +14,30 @@ import { PreviewDetail } from './preview-detail';
 @Component({ template: '' })
 class Blank {}
 
-@Component({ imports: [PreviewDetail, Toasts], template: '<app-preview-detail [id]="id" /><app-toasts />' })
-class Host { id = ID; }
+@Component({
+  imports: [PreviewDetail, Toasts],
+  template: '<app-preview-detail [id]="id" /><app-toasts />',
+})
+class Host {
+  id = ID;
+}
 
 const ID = '01DETAIL000000000000000000';
 const base: Preview = {
-  ...(contract.preview as Preview), id: ID, project: 'gw-shop-pr-42',
-  source: { kind: 'pr', repo: 'acme/shop', number: 42, sha: 'abc' }, visibility: 'unlisted',
-  urls: [{ service: 'web', url: 'https://shop-pr-42.preview.example.dev/', primary: true }, { service: 'api', url: 'https://shop-pr-42-api.preview.example.dev/', primary: false }],
+  ...(contract.preview as Preview),
+  id: ID,
+  project: 'gw-shop-pr-42',
+  source: { kind: 'pr', repo: 'acme/shop', number: 42, sha: 'abc' },
+  visibility: 'unlisted',
+  urls: [
+    { service: 'web', url: 'https://shop-pr-42.preview.example.dev/', primary: true },
+    { service: 'api', url: 'https://shop-pr-42-api.preview.example.dev/', primary: false },
+  ],
 };
 
-async function open(o: { preview?: Preview | null; permissions?: Permission[]; inList?: boolean } = {}) {
+async function open(
+  o: { preview?: Preview | null; permissions?: Permission[]; inList?: boolean } = {},
+) {
   FakeEventSource.reset();
   const preview = o.preview === undefined ? base : o.preview;
   const r = await render(Host, {
@@ -36,22 +49,40 @@ async function open(o: { preview?: Preview | null; permissions?: Permission[]; i
     ],
   });
   const loading = TestBed.inject(AuthService).refresh();
-  r.http.expectOne('/v1/auth/session').flush({ authenticated: true, setupRequired: false, permissions: o.permissions ?? ['previews.read', 'previews.destroy', 'logs.read', 'events.read'] });
+  r.http
+    .expectOne('/v1/auth/session')
+    .flush({
+      authenticated: true,
+      setupRequired: false,
+      permissions: o.permissions ?? [
+        'previews.read',
+        'previews.destroy',
+        'logs.read',
+        'events.read',
+      ],
+    });
   await loading;
 
   // Nothing is asked about this ONE preview until the list has answered.
   r.http.expectNone(`/v1/previews/${ID}`);
-  r.http.expectOne('/v1/previews').flush({ seq: 5, previews: o.inList === false || !preview ? [] : [preview] });
+  r.http
+    .expectOne('/v1/previews')
+    .flush({ seq: 5, previews: o.inList === false || !preview ? [] : [preview] });
   await r.settle();
   if (o.inList === false || !preview) {
     const one = r.http.expectOne(`/v1/previews/${ID}`);
-    if (preview) one.flush({ preview }); else one.flush({ title: 'not found' }, { status: 404, statusText: 'x' });
+    if (preview) one.flush({ preview });
+    else one.flush({ title: 'not found' }, { status: 404, statusText: 'x' });
   }
   await r.settle();
   return r;
 }
 
-const answerHistory = async (r: Awaited<ReturnType<typeof open>>, events: unknown[] = [], builds: unknown[] = []) => {
+const answerHistory = async (
+  r: Awaited<ReturnType<typeof open>>,
+  events: unknown[] = [],
+  builds: unknown[] = [],
+) => {
   r.http.match(`/v1/previews/${ID}/events`).forEach((q) => q.flush({ events }));
   r.http.match(`/v1/previews/${ID}/builds`).forEach((q) => q.flush({ builds }));
   await r.settle();
@@ -88,7 +119,15 @@ describe('PreviewDetail', () => {
   });
 
   it('an uploaded preview with add-ons shows its databases', async () => {
-    const withDb: Preview = { ...base, source: { kind: 'tarball', uploadId: ID, runtime: 'node', addons: [{ id: 'postgres', version: '18' }] } };
+    const withDb: Preview = {
+      ...base,
+      source: {
+        kind: 'tarball',
+        uploadId: ID,
+        runtime: 'node',
+        addons: [{ id: 'postgres', version: '18' }],
+      },
+    };
     const r = await open({ preview: withDb, permissions: ['previews.read', 'previews.data'] });
     expect(r.byTestId('databases')).not.toBeNull();
   });
@@ -106,7 +145,13 @@ describe('PreviewDetail', () => {
   });
 
   it('a failed preview leads with WHY', async () => {
-    const r = await open({ preview: { ...base, state: 'failed', error: 'web exited with code 1\nError: listen EADDRINUSE' } });
+    const r = await open({
+      preview: {
+        ...base,
+        state: 'failed',
+        error: 'web exited with code 1\nError: listen EADDRINUSE',
+      },
+    });
     await answerHistory(r);
     expect(r.text('failure')).toContain('listen EADDRINUSE');
     expect(r.byTestId('failure')!.getAttribute('role')).toBe('alert');
@@ -114,13 +159,43 @@ describe('PreviewDetail', () => {
 
   it('follows the live log, and its history is newest first', async () => {
     const r = await open();
-    await answerHistory(r, [
-      { seq: 1, type: 'preview.created', at: '2026-09-21T20:00:00.000Z' },
-      { seq: 2, type: 'preview.state', at: '2026-09-21T20:00:01.000Z', state: 'starting', from: 'building' },
-      { seq: 3, type: 'preview.state', at: '2026-09-21T20:00:02.000Z', state: 'awake', from: 'starting' },
-    ], [{ id: 'b1', previewId: ID, service: 'web', state: 'succeeded', startedAt: '2026-09-21T20:00:00.000Z', finishedAt: '2026-09-21T20:00:01.000Z', exitCode: 0 }]);
-    expect(FakeEventSource.instances.map((s) => s.url)).toContain(`/v1/previews/${ID}/logs?tail=2000`);
-    const history = Array.from(r.byTestId('events')!.querySelectorAll('li')).map((li) => li.textContent?.replace(/\s+/g, ' ').trim());
+    await answerHistory(
+      r,
+      [
+        { seq: 1, type: 'preview.created', at: '2026-09-21T20:00:00.000Z' },
+        {
+          seq: 2,
+          type: 'preview.state',
+          at: '2026-09-21T20:00:01.000Z',
+          state: 'starting',
+          from: 'building',
+        },
+        {
+          seq: 3,
+          type: 'preview.state',
+          at: '2026-09-21T20:00:02.000Z',
+          state: 'awake',
+          from: 'starting',
+        },
+      ],
+      [
+        {
+          id: 'b1',
+          previewId: ID,
+          service: 'web',
+          state: 'succeeded',
+          startedAt: '2026-09-21T20:00:00.000Z',
+          finishedAt: '2026-09-21T20:00:01.000Z',
+          exitCode: 0,
+        },
+      ],
+    );
+    expect(FakeEventSource.instances.map((s) => s.url)).toContain(
+      `/v1/previews/${ID}/logs?tail=2000`,
+    );
+    const history = Array.from(r.byTestId('events')!.querySelectorAll('li')).map((li) =>
+      li.textContent?.replace(/\s+/g, ' ').trim(),
+    );
     expect(history[0]).toContain('starting → awake');
     expect(history[2]).toContain('created');
     expect(r.text('builds')).toContain('succeeded');
@@ -131,7 +206,16 @@ describe('PreviewDetail', () => {
     await answerHistory(r);
     const events = FakeEventSource.instances.find((s) => s.url.startsWith('/v1/events'))!;
     events.open();
-    events.emit('preview.state', { previewId: ID, at: new Date(Date.parse(base.updatedAt) + 60_000).toISOString(), state: 'asleep', from: 'awake' }, '6');
+    events.emit(
+      'preview.state',
+      {
+        previewId: ID,
+        at: new Date(Date.parse(base.updatedAt) + 60_000).toISOString(),
+        state: 'asleep',
+        from: 'awake',
+      },
+      '6',
+    );
     await r.settle();
     expect(r.el.querySelector('[data-state]')!.textContent?.trim()).toBe('asleep');
     expect(r.http.match(`/v1/previews/${ID}/events`)).toHaveLength(1);
@@ -146,7 +230,10 @@ describe('PreviewDetail', () => {
   });
 
   it('a destroyed preview explains that its log is gone rather than showing an empty one', async () => {
-    const r = await open({ preview: { ...base, state: 'destroyed', destroyedAt: base.updatedAt }, inList: false });
+    const r = await open({
+      preview: { ...base, state: 'destroyed', destroyedAt: base.updatedAt },
+      inList: false,
+    });
     await answerHistory(r);
     expect(r.text('logs-gone')).toContain('deleted when a preview is destroyed');
     expect(r.byTestId('destroy')).toBeNull();
@@ -165,12 +252,16 @@ describe('PreviewDetail', () => {
     it('confirms first, then the page shows it going -- and stops offering Destroy', async () => {
       const r = await open();
       await answerHistory(r);
-      (r.byTestId('destroy') as HTMLElement).click(); await r.settle();
+      (r.byTestId('destroy') as HTMLElement).click();
+      await r.settle();
       expect(r.byTestId('confirm')!.textContent).toContain('Destroy shop-pr-42?');
-      (r.byTestId('confirm-ok') as HTMLElement).click(); await r.settle();
+      (r.byTestId('confirm-ok') as HTMLElement).click();
+      await r.settle();
       expect(r.el.querySelector('[data-state]')!.textContent?.trim()).toBe('destroying');
       expect(r.byTestId('destroy')).toBeNull();
-      r.http.expectOne({ method: 'DELETE', url: `/v1/previews/${ID}` }).flush({ preview: { ...base, state: 'destroyed' } });
+      r.http
+        .expectOne({ method: 'DELETE', url: `/v1/previews/${ID}` })
+        .flush({ preview: { ...base, state: 'destroyed' } });
       await answerHistory(r);
       expect(r.byTestId('logs-gone')).not.toBeNull();
     });
@@ -178,9 +269,20 @@ describe('PreviewDetail', () => {
     it('a refusal rolls back and says why, with the request id', async () => {
       const r = await open();
       await answerHistory(r);
-      (r.byTestId('destroy') as HTMLElement).click(); await r.settle();
-      (r.byTestId('confirm-ok') as HTMLElement).click(); await r.settle();
-      r.http.expectOne(`/v1/previews/${ID}`).flush({ title: 'conflict', detail: 'this preview is already being destroyed', requestId: '01REQ' }, { status: 409, statusText: 'x' });
+      (r.byTestId('destroy') as HTMLElement).click();
+      await r.settle();
+      (r.byTestId('confirm-ok') as HTMLElement).click();
+      await r.settle();
+      r.http
+        .expectOne(`/v1/previews/${ID}`)
+        .flush(
+          {
+            title: 'conflict',
+            detail: 'this preview is already being destroyed',
+            requestId: '01REQ',
+          },
+          { status: 409, statusText: 'x' },
+        );
       await r.until(() => r.byTestId('toast') !== null, 'the error toast');
       expect(r.text('toast')).toContain('already being destroyed');
       expect(r.text('toast')).toContain('01REQ');
@@ -190,7 +292,12 @@ describe('PreviewDetail', () => {
 });
 
 describe('PreviewDetail: who can open it (ADR-0023)', () => {
-  const pick = async (r: Awaited<ReturnType<typeof open>>, id: string, v: string) => { const el = r.byTestId(id) as HTMLSelectElement; el.value = v; el.dispatchEvent(new Event('change')); await r.settle(); };
+  const pick = async (r: Awaited<ReturnType<typeof open>>, id: string, v: string) => {
+    const el = r.byTestId(id) as HTMLSelectElement;
+    el.value = v;
+    el.dispatchEvent(new Event('change'));
+    await r.settle();
+  };
   const member: Permission[] = ['previews.read', 'previews.update_own', 'logs.read', 'events.read'];
 
   it('open: no badge, and choosing the password generates one by default', async () => {
@@ -204,7 +311,15 @@ describe('PreviewDetail: who can open it (ADR-0023)', () => {
     await r.settle();
     const req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
     expect(req.request.body).toEqual({ login: 'off', password: { mode: 'generate' } });
-    req.flush({ preview: { ...base, password: 'generated', passwordLogin: 'off', access: 'password', updatedAt: '2026-09-23T00:00:00.000Z' } });
+    req.flush({
+      preview: {
+        ...base,
+        password: 'generated',
+        passwordLogin: 'off',
+        access: 'password',
+        updatedAt: '2026-09-23T00:00:00.000Z',
+      },
+    });
     await r.settle();
     await answerHistory(r);
     expect(r.text('password-badge')).toBe('Password');
@@ -212,7 +327,10 @@ describe('PreviewDetail: who can open it (ADR-0023)', () => {
   });
 
   it('with a password of its own, switching to signed-in or either keeps it', async () => {
-    const r = await open({ permissions: member, preview: { ...base, password: 'set', passwordLogin: 'off', access: 'password' } });
+    const r = await open({
+      permissions: member,
+      preview: { ...base, password: 'set', passwordLogin: 'off', access: 'password' },
+    });
     await answerHistory(r);
     await pick(r, 'who', 'either');
     expect((r.byTestId('password-source') as HTMLSelectElement).value).toBe('keep');
@@ -220,7 +338,15 @@ describe('PreviewDetail: who can open it (ADR-0023)', () => {
     await r.settle();
     let req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
     expect(req.request.body).toEqual({ login: 'on' });
-    req.flush({ preview: { ...base, password: 'set', passwordLogin: 'on', access: 'either', updatedAt: '2026-09-23T00:00:01.000Z' } });
+    req.flush({
+      preview: {
+        ...base,
+        password: 'set',
+        passwordLogin: 'on',
+        access: 'either',
+        updatedAt: '2026-09-23T00:00:01.000Z',
+      },
+    });
     await r.settle();
     await answerHistory(r);
     expect(r.text('password-badge')).toBe('Password or gangway login');
@@ -231,7 +357,15 @@ describe('PreviewDetail: who can open it (ADR-0023)', () => {
     await r.settle();
     req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
     expect(req.request.body).toEqual({ login: 'only' });
-    req.flush({ preview: { ...base, password: 'set', passwordLogin: 'only', access: 'signed-in', updatedAt: '2026-09-23T00:00:02.000Z' } });
+    req.flush({
+      preview: {
+        ...base,
+        password: 'set',
+        passwordLogin: 'only',
+        access: 'signed-in',
+        updatedAt: '2026-09-23T00:00:02.000Z',
+      },
+    });
     await r.settle();
     await answerHistory(r);
     expect(r.text('password-badge')).toBe('Gangway users');

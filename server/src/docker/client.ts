@@ -180,7 +180,8 @@ export async function* demultiplex(
     for (;;) {
       if (buf.length < DEMUX_HEADER) break;
       const type = buf[0]!;
-      const framed = (type === 0 || type === 1 || type === 2) && buf[1] === 0 && buf[2] === 0 && buf[3] === 0;
+      const framed =
+        (type === 0 || type === 1 || type === 2) && buf[1] === 0 && buf[2] === 0 && buf[3] === 0;
       if (!framed) {
         yield { stream: "stdout", bytes: buf };
         buf = new Uint8Array(0);
@@ -214,9 +215,7 @@ export async function* toLogLines(
     const m = TS_RE.exec(raw);
     if (!m) return { stream, line: raw };
     const at = new Date(m[1]!);
-    return Number.isNaN(at.getTime())
-      ? { stream, line: raw }
-      : { stream, line: m[2]!, at };
+    return Number.isNaN(at.getTime()) ? { stream, line: raw } : { stream, line: m[2]!, at };
   };
 
   for await (const frame of frames) {
@@ -295,7 +294,8 @@ class DockerodeClient implements DockerClient {
           ...(opts.since === undefined ? {} : { since: Math.floor(opts.since.getTime() / 1000) }),
         } as never)) as unknown as NodeReadableLike;
         yield* self.#consume(stream, opts.signal, (chunks) =>
-          toLogLines(demultiplex(chunks), opts.timestamps ?? false));
+          toLogLines(demultiplex(chunks), opts.timestamps ?? false),
+        );
       },
     };
   }
@@ -348,7 +348,8 @@ type ContainerInfoLike = {
   Status?: string | undefined;
   Labels?: Record<string, string> | undefined;
   Created?: number | undefined;
-  Ports?: Array<{ IP?: string; PrivatePort: number; PublicPort?: number; Type?: string }> | undefined;
+  Ports?:
+    Array<{ IP?: string; PrivatePort: number; PublicPort?: number; Type?: string }> | undefined;
 };
 
 function toSummary(c: ContainerInfoLike): ContainerSummary {

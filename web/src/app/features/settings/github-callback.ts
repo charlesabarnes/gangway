@@ -19,7 +19,9 @@ import { ToastService } from '../../ui/toast';
     <section class="mx-auto max-w-lg px-6 py-16 text-center">
       @if (error(); as e) {
         <h1 class="text-lg font-semibold">The GitHub App was not connected</h1>
-        <p class="mt-2 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="error">{{ e }}</p>
+        <p class="mt-2 text-sm text-red-700 dark:text-red-400" role="alert" data-testid="error">
+          {{ e }}
+        </p>
         <a appBtn routerLink="/settings" class="mt-6 inline-block">Back to Settings</a>
       } @else {
         <h1 class="text-lg font-semibold" data-testid="working">Connecting the GitHub App…</h1>
@@ -47,8 +49,13 @@ export class GitHubCallback {
       return;
     }
     try {
-      const status = await firstValueFrom(this.#http.post<GitHubStatus>('/v1/github/manifest/exchange', { code, state }));
-      this.#toasts.info(`Connected as ${status.appSlug}`, 'Now install the App on your repositories.');
+      const status = await firstValueFrom(
+        this.#http.post<GitHubStatus>('/v1/github/manifest/exchange', { code, state }),
+      );
+      this.#toasts.info(
+        `Connected as ${status.appSlug}`,
+        'Now install the App on your repositories.',
+      );
       await this.#router.navigateByUrl('/settings');
     } catch (e) {
       this.error.set(toProblem(e).detail);

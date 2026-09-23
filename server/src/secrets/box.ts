@@ -25,12 +25,18 @@ export class SecretBox {
     const iv = randomBytes(12);
     const cipher = createCipheriv(ALG, this.#key, iv);
     const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-    return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), ct.toString("base64url")].join(".");
+    return [
+      "v1",
+      iv.toString("base64url"),
+      cipher.getAuthTag().toString("base64url"),
+      ct.toString("base64url"),
+    ].join(".");
   }
 
   open(sealed: string): string {
     const [v, iv, tag, ct] = sealed.split(".");
-    if (v !== "v1" || !iv || !tag || !ct) throw new AppError("internal", "sealed secret has an unknown format");
+    if (v !== "v1" || !iv || !tag || !ct)
+      throw new AppError("internal", "sealed secret has an unknown format");
     try {
       const d = createDecipheriv(ALG, this.#key, Buffer.from(iv, "base64url"));
       d.setAuthTag(Buffer.from(tag, "base64url"));

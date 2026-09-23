@@ -18,7 +18,14 @@ export type GitHubRouteDeps = {
   originFor: (label: string) => string;
 };
 
-const GITHUB_KEYS = [SETTINGS.githubAppId, SETTINGS.githubAppSlug, SETTINGS.githubClientId, SETTINGS.githubClientSecret, SETTINGS.githubPrivateKey, SETTINGS.githubWebhookSecret];
+const GITHUB_KEYS = [
+  SETTINGS.githubAppId,
+  SETTINGS.githubAppSlug,
+  SETTINGS.githubClientId,
+  SETTINGS.githubClientSecret,
+  SETTINGS.githubPrivateKey,
+  SETTINGS.githubWebhookSecret,
+];
 
 /**
  * `/v1/github` (§10.4, ADR-0011): is the App connected, and the manifest flow that
@@ -32,11 +39,19 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
     const hasSecret = d.settings.get(SETTINGS.githubWebhookSecret) !== "";
     return {
       configured: appId !== "" && hasKey && hasSecret,
-      appId, appSlug: slug,
+      appId,
+      appSlug: slug,
       appUrl: slug === "" ? null : `https://github.com/apps/${encodeURIComponent(slug)}`,
-      installUrl: slug === "" ? null : `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`,
+      installUrl:
+        slug === ""
+          ? null
+          : `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`,
       webhookUrl: `${d.originFor("hooks")}/github`,
-      missing: [...(appId === "" ? ["github.appId"] : []), ...(hasKey ? [] : ["github.privateKey"]), ...(hasSecret ? [] : ["github.webhookSecret"])],
+      missing: [
+        ...(appId === "" ? ["github.appId"] : []),
+        ...(hasKey ? [] : ["github.privateKey"]),
+        ...(hasSecret ? [] : ["github.webhookSecret"]),
+      ],
       managedByConfig: GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key)),
     };
   };
@@ -53,20 +68,35 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
   /** The manifest and a one-time state; the UI posts the manifest to GitHub as a form. */
   api.get("/github/manifest", requirePermission("github.manage"), (c) => {
     if (GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key))) {
-      throw conflict("the GitHub App is managed by config (GANGWAY_GITHUB_*); the manifest flow cannot overwrite it");
+      throw conflict(
+        "the GitHub App is managed by config (GANGWAY_GITHUB_*); the manifest flow cannot overwrite it",
+      );
     }
     const state = d.states.issue();
-    const manifest = buildManifest({ baseDomain: d.baseDomain(), appOrigin: d.originFor("app"), hooksOrigin: d.originFor("hooks") });
-    return c.json({ action: `https://github.com/settings/apps/new?state=${encodeURIComponent(state)}`, manifest, state });
+    const manifest = buildManifest({
+      baseDomain: d.baseDomain(),
+      appOrigin: d.originFor("app"),
+      hooksOrigin: d.originFor("hooks"),
+    });
+    return c.json({
+      action: `https://github.com/settings/apps/new?state=${encodeURIComponent(state)}`,
+      manifest,
+      state,
+    });
   });
 
   /** GitHub sent the browser back with `code` and `state`; the code becomes the credentials. */
   api.post("/github/manifest/exchange", requirePermission("github.manage"), async (c) => {
-    const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+    const body = await c.req.json().catch(() => {
+      throw badRequest("the request body is not JSON");
+    });
     const { code, state } = ManifestExchangeSchema.parse(body);
-    if (!d.states.consume(state)) throw unprocessable("the manifest state is unknown or expired; start again");
+    if (!d.states.consume(state))
+      throw unprocessable("the manifest state is unknown or expired; start again");
     if (GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key))) {
-      throw conflict("the GitHub App is managed by config (GANGWAY_GITHUB_*); the manifest flow cannot overwrite it");
+      throw conflict(
+        "the GitHub App is managed by config (GANGWAY_GITHUB_*); the manifest flow cannot overwrite it",
+      );
     }
     const app = await d.app.convertManifest(code);
     d.settings.set(SETTINGS.githubAppId, app.appId);
@@ -75,7 +105,15 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
     d.settings.set(SETTINGS.githubClientSecret, app.clientSecret);
     d.settings.set(SETTINGS.githubPrivateKey, app.privateKey);
     d.settings.set(SETTINGS.githubWebhookSecret, app.webhookSecret);
-    d.audit.record(c.get("actor"), "github.connected", app.appId, { new: { appId: app.appId, slug: app.slug, privateKey: "[set]", webhookSecret: "[set]", clientSecret: "[set]" } });
+    d.audit.record(c.get("actor"), "github.connected", app.appId, {
+      new: {
+        appId: app.appId,
+        slug: app.slug,
+        privateKey: "[set]",
+        webhookSecret: "[set]",
+        clientSecret: "[set]",
+      },
+    });
     return c.json(status(), 201);
   });
 }

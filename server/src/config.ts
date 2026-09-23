@@ -34,8 +34,14 @@ export const ConfigSchema = z.object({
    * Written into every container label (§4.1). Two gangway installations can share one
    * daemon; these are how each tells its containers from the other's.
    */
-  instanceId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/).default("default"),
-  environment: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/).default("dev"),
+  instanceId: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9_-]{0,31}$/)
+    .default("default"),
+  environment: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9_-]{0,31}$/)
+    .default("dev"),
 
   stateDir: z.string().default("./state"),
   databasePath: z.string().optional(),
@@ -48,7 +54,11 @@ export const ConfigSchema = z.object({
   publicScheme: z.enum(["http", "https"]).default("https"),
   publicPort: port.default(8443),
 
-  maxBodyBytes: z.coerce.number().int().positive().default(512 * 1024 * 1024),
+  maxBodyBytes: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(512 * 1024 * 1024),
   upstreamTimeoutMs: z.coerce.number().int().positive().default(30_000),
   previewInflightCap: z.coerce.number().int().positive().default(256),
 
@@ -71,7 +81,13 @@ export const ConfigSchema = z.object({
    * gangway faces the internet itself and believes no one. See net/trustedproxy.ts.
    */
   trustedProxies: z.preprocess(
-    (v) => (typeof v === "string" ? v.split(",").map((s) => s.trim()).filter(Boolean) : v),
+    (v) =>
+      typeof v === "string"
+        ? v
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : v,
     z.array(z.string()).default([]),
   ),
 

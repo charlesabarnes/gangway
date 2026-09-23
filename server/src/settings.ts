@@ -36,15 +36,29 @@ export type SettingDef<T> = { key: string; schema: z.ZodType<T>; fallback: T; se
 
 /** What the API reports: a secret's value is withheld, its presence is not. */
 export type SettingView = {
-  key: string; source: SettingSource; managedByConfig: boolean; secret: boolean;
-  value: unknown | null; set: boolean;
+  key: string;
+  source: SettingSource;
+  managedByConfig: boolean;
+  secret: boolean;
+  value: unknown | null;
+  set: boolean;
 };
 
-function def<T>(key: string, schema: z.ZodType<T>, fallback: T, o: { secret?: boolean } = {}): SettingDef<T> {
+function def<T>(
+  key: string,
+  schema: z.ZodType<T>,
+  fallback: T,
+  o: { secret?: boolean } = {},
+): SettingDef<T> {
   return { key, schema, fallback, secret: o.secret === true };
 }
 
-const templateRef = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/, "a template id is 1-32 lowercase letters, digits and hyphens");
+const templateRef = z
+  .string()
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/,
+    "a template id is 1-32 lowercase letters, digits and hyphens",
+  );
 
 /** A PEM pasted into an env var arrives with literal `\n`; GitHub's download has real newlines. */
 const pem = z.string().transform((v) => v.replace(/\\n/g, "\n").trim());
@@ -68,7 +82,12 @@ export const SETTINGS = {
   // of a preview that follows this default. A preview can say on or off for itself. OFF by
   // default: a password means everyone is asked, until the owner says otherwise.
   previewPasswordLogin: def("previews.password.login", z.boolean(), false),
-  previewPasswordShared: def("previews.password.shared", z.object({ hash: z.string().min(1), salt: z.string().min(1) }).nullable(), null, { secret: true }),
+  previewPasswordShared: def(
+    "previews.password.shared",
+    z.object({ hash: z.string().min(1), salt: z.string().min(1) }).nullable(),
+    null,
+    { secret: true },
+  ),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),
@@ -88,8 +107,9 @@ export const SETTINGS = {
   githubWebhookSecret: def("github.webhookSecret", z.string(), "", { secret: true }),
 } as const;
 
-export const SETTINGS_BY_KEY: ReadonlyMap<string, SettingDef<unknown>> =
-  new Map(Object.values(SETTINGS).map((d) => [d.key, d as SettingDef<unknown>]));
+export const SETTINGS_BY_KEY: ReadonlyMap<string, SettingDef<unknown>> = new Map(
+  Object.values(SETTINGS).map((d) => [d.key, d as SettingDef<unknown>]),
+);
 
 export type SettingKey = (typeof SETTINGS)[keyof typeof SETTINGS]["key"];
 
@@ -102,9 +122,15 @@ export interface SettingsStore {
 
 export class MemorySettingsStore implements SettingsStore {
   #m = new Map<string, unknown>();
-  get(key: string) { return this.#m.get(key); }
-  set(key: string, value: unknown) { this.#m.set(key, value); }
-  all() { return Object.fromEntries(this.#m); }
+  get(key: string) {
+    return this.#m.get(key);
+  }
+  set(key: string, value: unknown) {
+    this.#m.set(key, value);
+  }
+  all() {
+    return Object.fromEntries(this.#m);
+  }
 }
 
 export class Settings {
@@ -173,7 +199,14 @@ export class Settings {
     return Object.values(SETTINGS).map((d) => {
       const e = this.effective(d as SettingDef<unknown>);
       const set = e.value !== "" && e.value !== null && e.value !== undefined;
-      return { key: e.key, source: e.source, managedByConfig: e.managedByConfig, secret: d.secret, value: d.secret ? null : e.value, set };
+      return {
+        key: e.key,
+        source: e.source,
+        managedByConfig: e.managedByConfig,
+        secret: d.secret,
+        value: d.secret ? null : e.value,
+        set,
+      };
     });
   }
 }

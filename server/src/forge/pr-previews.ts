@@ -38,7 +38,10 @@ export type PrPreviewsDeps = {
     findPullRequest(repo: string, number: number): Preview | undefined;
     urls(id: string): PreviewUrl[];
     forgeRefs(id: string): { commentId: number | null; deploymentId: number | null };
-    setForgeRefs(id: string, refs: { commentId?: number | null; deploymentId?: number | null }): void;
+    setForgeRefs(
+      id: string,
+      refs: { commentId?: number | null; deploymentId?: number | null },
+    ): void;
   };
   /** The repository's secrets at or below a clearance (ADR-0012). */
   secretsFor?: ((repo: RepoProject, clearance: Clearance) => Record<string, string>) | undefined;
@@ -69,10 +72,14 @@ export class PrPreviews {
 
   async handle(event: ForgeEvent): Promise<Outcome> {
     switch (event.type) {
-      case "ignored": return { action: "ignored", reason: event.reason };
-      case "pr.updated": return this.#onUpdated(event.pr);
-      case "pr.closed": return this.#onClosed(event.pr);
-      case "pr.command": return this.#onCommand(event);
+      case "ignored":
+        return { action: "ignored", reason: event.reason };
+      case "pr.updated":
+        return this.#onUpdated(event.pr);
+      case "pr.closed":
+        return this.#onClosed(event.pr);
+      case "pr.command":
+        return this.#onCommand(event);
     }
   }
 
@@ -85,13 +92,20 @@ export class PrPreviews {
    */
   projectFor(fr: ForgeRepo): RepoProject | string {
     const existing = this.#d.repos.getByFullName(fr.forge, fr.fullName);
-    if (!existing) return `${fr.fullName} is not a gangway project; create one to preview its pull requests`;
-    if (existing.prTrigger !== "webhook") return `${fr.fullName} takes pull requests from its workflow, not the GitHub App`;
+    if (!existing)
+      return `${fr.fullName} is not a gangway project; create one to preview its pull requests`;
+    if (existing.prTrigger !== "webhook")
+      return `${fr.fullName} takes pull requests from its workflow, not the GitHub App`;
     if (existing.installationId === fr.installationId) return existing;
-    return (this.#d.repos.update(existing.id, { installationId: fr.installationId }) as RepoProject | undefined) ?? existing;
+    return (
+      (this.#d.repos.update(existing.id, { installationId: fr.installationId }) as
+        RepoProject | undefined) ?? existing
+    );
   }
 
-  previewName(repo: RepoProject, number: number): string { return `${repo.slug}-pr-${number}`; }
+  previewName(repo: RepoProject, number: number): string {
+    return `${repo.slug}-pr-${number}`;
+  }
 
   /** By source, not by name: an unlisted preview's name carries a suffix that changes per deploy. */
   current(repo: RepoProject, number: number): Preview | undefined {
@@ -103,11 +117,23 @@ export class PrPreviews {
   async #onUpdated(pr: PullRequest): Promise<Outcome> {
     const repo = this.projectFor(pr.repo);
     if (typeof repo === "string") return { action: "ignored", reason: repo };
-    if (!repo.enabled) return { action: "ignored", reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}` };
+    if (!repo.enabled)
+      return {
+        action: "ignored",
+        reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}`,
+      };
     if (pr.draft && !repo.drafts) return { action: "ignored", reason: `#${pr.number} is a draft` };
     if (pr.fromFork) {
-      if (repo.forks === "never") return { action: "ignored", reason: `#${pr.number} is from a fork; forks are never previewed for ${repo.fullName}` };
-      if (repo.forks === "ask") return { action: "ignored", reason: `#${pr.number} is from a fork; waiting for /preview deploy from someone with a say` };
+      if (repo.forks === "never")
+        return {
+          action: "ignored",
+          reason: `#${pr.number} is from a fork; forks are never previewed for ${repo.fullName}`,
+        };
+      if (repo.forks === "ask")
+        return {
+          action: "ignored",
+          reason: `#${pr.number} is from a fork; waiting for /preview deploy from someone with a say`,
+        };
     }
     return this.#deploy(repo, pr, forgeActor(pr.repo.forge, pr.author));
   }
@@ -122,39 +148,66 @@ export class PrPreviews {
 
   async #onCommand(ev: Extract<ForgeEvent, { type: "pr.command" }>): Promise<Outcome> {
     // Anyone else is answered with nothing: an error comment is an amplifier (ADR-0011).
-    if (!SPEAKS_FOR_REPO.has(ev.association)) return { action: "ignored", reason: `/preview ${ev.command} from ${ev.author || "someone"} (${ev.association}) on #${ev.number}` };
+    if (!SPEAKS_FOR_REPO.has(ev.association))
+      return {
+        action: "ignored",
+        reason: `/preview ${ev.command} from ${ev.author || "someone"} (${ev.association}) on #${ev.number}`,
+      };
     const repo = this.projectFor(ev.repo);
     if (typeof repo === "string") return { action: "ignored", reason: repo };
     const actor = forgeActor(ev.repo.forge, ev.author);
 
     if (ev.command === "status") {
       const existing = this.current(repo, ev.number);
-      const body = existing ? this.#body(existing, this.#d.previews.urls(existing.id), "status") : "No preview exists for this pull request. Comment `/preview deploy` to build one.";
-      await this.#say({ repo: ev.repo, number: ev.number }, existing ? this.#d.previews.forgeRefs(existing.id).commentId : null, body);
+      const body = existing
+        ? this.#body(existing, this.#d.previews.urls(existing.id), "status")
+        : "No preview exists for this pull request. Comment `/preview deploy` to build one.";
+      await this.#say(
+        { repo: ev.repo, number: ev.number },
+        existing ? this.#d.previews.forgeRefs(existing.id).commentId : null,
+        body,
+      );
       return { action: "commented", previewId: existing?.id ?? null };
     }
     if (ev.command === "secrets") {
       // Raise or lower THIS pull request's clearance: a redeploy at that level, and it sticks.
-      if (!repo.enabled) return { action: "ignored", reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}` };
+      if (!repo.enabled)
+        return {
+          action: "ignored",
+          reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}`,
+        };
       const pr = await this.#d.forge.pullRequest(ev.repo, ev.number);
       if (pr.fromFork && repo.forks === "never") {
-        await this.#say(pr, this.#refsOf(repo, pr.number).commentId, `Pull requests from forks are never previewed for ${repo.fullName}.`);
+        await this.#say(
+          pr,
+          this.#refsOf(repo, pr.number).commentId,
+          `Pull requests from forks are never previewed for ${repo.fullName}.`,
+        );
         return { action: "commented", previewId: null };
       }
       return this.#deploy(repo, pr, actor, { force: true, clearance: ev.level });
     }
     if (ev.command === "destroy") {
       const existing = this.current(repo, ev.number);
-      if (!existing) return { action: "ignored", reason: `#${ev.number} has no preview to destroy` };
+      if (!existing)
+        return { action: "ignored", reason: `#${ev.number} has no preview to destroy` };
       const pr = await this.#d.forge.pullRequest(ev.repo, ev.number);
       return this.#destroy(repo, pr, existing, actor, "destroyed on request");
     }
     // deploy | redeploy
-    if (!repo.enabled) return { action: "ignored", reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}` };
+    if (!repo.enabled)
+      return {
+        action: "ignored",
+        reason: `${repo.fullName} is disabled: ${repo.disabledReason ?? "by the operator"}`,
+      };
     const pr = await this.#d.forge.pullRequest(ev.repo, ev.number);
     if (pr.fromFork && repo.forks === "never") {
       const existing = this.current(repo, pr.number);
-      await this.#say(pr, existing ? this.#d.previews.forgeRefs(existing.id).commentId : null, `Pull requests from forks are never previewed for ${repo.fullName}.`);
+      await this.#say(
+        pr,
+        existing ? this.#d.previews.forgeRefs(existing.id).commentId : null,
+        `Pull requests from forks are never previewed for ${repo.fullName}.`,
+      );
       return { action: "commented", previewId: null };
     }
     return this.#deploy(repo, pr, actor, { force: ev.command === "redeploy" });
@@ -162,24 +215,51 @@ export class PrPreviews {
 
   /* ---------------------------------------------------------------- the two moves */
 
-  #refsOf(repo: RepoProject, number: number): { commentId: number | null; deploymentId: number | null } {
+  #refsOf(
+    repo: RepoProject,
+    number: number,
+  ): { commentId: number | null; deploymentId: number | null } {
     const existing = this.current(repo, number);
-    return existing ? this.#d.previews.forgeRefs(existing.id) : { commentId: null, deploymentId: null };
+    return existing
+      ? this.#d.previews.forgeRefs(existing.id)
+      : { commentId: null, deploymentId: null };
   }
 
-  async #deploy(repo: RepoProject, pr: PullRequest, actor: Actor, o: { force?: boolean; clearance?: Clearance } = {}): Promise<Outcome> {
+  async #deploy(
+    repo: RepoProject,
+    pr: PullRequest,
+    actor: Actor,
+    o: { force?: boolean; clearance?: Clearance } = {},
+  ): Promise<Outcome> {
     const name = this.previewName(repo, pr.number);
     const existing = this.current(repo, pr.number);
     let refs = { commentId: null as number | null, deploymentId: null as number | null };
-    const source: DeploySource = { kind: "pr", repo: pr.repo.fullName, number: pr.number, sha: pr.headSha, cloneUrl: pr.repo.cloneUrl, credential: undefined };
+    const source: DeploySource = {
+      kind: "pr",
+      repo: pr.repo.fullName,
+      number: pr.number,
+      sha: pr.headSha,
+      cloneUrl: pr.repo.cloneUrl,
+      credential: undefined,
+    };
     // The clearance: asked for now, else what this PR already had, else the repository's
     // policy -- a fork's clearance, or the override on top of the template's.
     const { template } = this.#d.policy.resolve({ source, actor, projectId: repo.id });
-    const clearance: Clearance = o.clearance ?? existing?.secretLevel ?? (pr.fromFork ? repo.forkClearance : repo.prClearance ?? template.clearance);
+    const clearance: Clearance =
+      o.clearance ??
+      existing?.secretLevel ??
+      (pr.fromFork ? repo.forkClearance : (repo.prClearance ?? template.clearance));
     if (existing) {
       const sameHead = existing.source.kind === "pr" && existing.source.sha === pr.headSha;
-      const live = existing.state === "building" || existing.state === "starting" || existing.state === "awake";
-      if (sameHead && live && !o.force) return { action: "ignored", reason: `#${pr.number} is already ${existing.state} at ${pr.headSha.slice(0, 7)}` };
+      const live =
+        existing.state === "building" ||
+        existing.state === "starting" ||
+        existing.state === "awake";
+      if (sameHead && live && !o.force)
+        return {
+          action: "ignored",
+          reason: `#${pr.number} is already ${existing.state} at ${pr.headSha.slice(0, 7)}`,
+        };
       // The comment outlives the preview it was made for: the thread stays one comment.
       refs = this.#d.previews.forgeRefs(existing.id);
       await this.#retireDeployment(pr.repo, refs.deploymentId);
@@ -195,7 +275,12 @@ export class PrPreviews {
       // Given explicitly, even as {}: the pipeline's by-source lookup must not fill it in.
       const env = clearance === "none" ? {} : (this.#d.secretsFor?.(repo, clearance) ?? {});
       result = await this.#d.previews.deploy({
-        actor, name, env, secretLevel: clearance, projectId: repo.id, ...(pr.fromFork ? { visibility: "public" as const } : {}),
+        actor,
+        name,
+        env,
+        secretLevel: clearance,
+        projectId: repo.id,
+        ...(pr.fromFork ? { visibility: "public" as const } : {}),
         source: { ...source, credential },
       });
     } catch (e) {
@@ -203,53 +288,97 @@ export class PrPreviews {
       // no word to the author. A policy refusal would otherwise be silence on the PR.
       if (!(e instanceof AppError) || e.status >= 500) throw e;
       const why = this.#refusal(e);
-      await this.#say(pr, refs.commentId, `### ❌ Preview refused for \`${pr.headSha.slice(0, 7)}\`\n\n${why}\n\n\`/preview redeploy\` after a fix.`);
+      await this.#say(
+        pr,
+        refs.commentId,
+        `### ❌ Preview refused for \`${pr.headSha.slice(0, 7)}\`\n\n${why}\n\n\`/preview redeploy\` after a fix.`,
+      );
       return { action: "refused", reason: e.message };
     }
     const id = result.preview.id;
 
     // Tell the forge. Failures are logged and do not touch the preview.
-    const commentId = await this.#say(pr, refs.commentId, this.#body(result.preview, result.urls, "building"));
+    const commentId = await this.#say(
+      pr,
+      refs.commentId,
+      this.#body(result.preview, result.urls, "building"),
+    );
     let deploymentId: number | null = null;
     try {
       deploymentId = await this.#d.forge.createDeployment(pr, `preview/${name}`);
-      await this.#d.forge.setDeploymentStatus(pr.repo, deploymentId, "in_progress", this.#logUrl(id));
+      await this.#d.forge.setDeploymentStatus(
+        pr.repo,
+        deploymentId,
+        "in_progress",
+        this.#logUrl(id),
+      );
     } catch (e) {
       this.#d.logger.warn("forge deployment not recorded", { previewId: id, err: e });
     }
     this.#d.previews.setForgeRefs(id, { commentId, deploymentId });
 
-    const settled = result.done.then(async (final) => {
-      const urls = this.#d.previews.urls(id);
-      await this.#say(pr, commentId, this.#body(final, urls, final.state === "awake" ? "ready" : "failed"));
-      if (deploymentId !== null) {
-        try {
-          const primary = urls.find((u) => u.primary)?.url;
-          await this.#d.forge.setDeploymentStatus(pr.repo, deploymentId, final.state === "awake" ? "success" : "failure",
-            { ...(primary ? { environmentUrl: primary } : {}), ...this.#logUrl(id) });
-        } catch (e) {
-          this.#d.logger.warn("forge deployment status not set", { previewId: id, err: e });
+    const settled = result.done.then(
+      async (final) => {
+        const urls = this.#d.previews.urls(id);
+        await this.#say(
+          pr,
+          commentId,
+          this.#body(final, urls, final.state === "awake" ? "ready" : "failed"),
+        );
+        if (deploymentId !== null) {
+          try {
+            const primary = urls.find((u) => u.primary)?.url;
+            await this.#d.forge.setDeploymentStatus(
+              pr.repo,
+              deploymentId,
+              final.state === "awake" ? "success" : "failure",
+              { ...(primary ? { environmentUrl: primary } : {}), ...this.#logUrl(id) },
+            );
+          } catch (e) {
+            this.#d.logger.warn("forge deployment status not set", { previewId: id, err: e });
+          }
         }
-      }
-    }, (e) => { this.#d.logger.warn("deploy did not settle", { previewId: id, err: e }); });
+      },
+      (e) => {
+        this.#d.logger.warn("deploy did not settle", { previewId: id, err: e });
+      },
+    );
     return { action: "deployed", previewId: id, name, settled };
   }
 
-  async #destroy(repo: RepoProject, pr: PullRequest, existing: Preview, actor: Actor, why: string): Promise<Outcome> {
+  async #destroy(
+    repo: RepoProject,
+    pr: PullRequest,
+    existing: Preview,
+    actor: Actor,
+    why: string,
+  ): Promise<Outcome> {
     const refs = this.#d.previews.forgeRefs(existing.id);
     await this.#d.previews.destroy(existing.id, actor);
     await this.#retireDeployment(pr.repo, refs.deploymentId);
-    await this.#say(pr, refs.commentId, `Preview **${this.previewName(repo, pr.number)}** ${why}; its containers and URLs are gone.`);
+    await this.#say(
+      pr,
+      refs.commentId,
+      `Preview **${this.previewName(repo, pr.number)}** ${why}; its containers and URLs are gone.`,
+    );
     return { action: "destroyed", previewId: existing.id };
   }
 
   /* ---------------------------------------------------------------- forge helpers */
 
-  async #say(pr: Pick<PullRequest, "repo" | "number">, existingId: number | null, body: string): Promise<number | null> {
+  async #say(
+    pr: Pick<PullRequest, "repo" | "number">,
+    existingId: number | null,
+    body: string,
+  ): Promise<number | null> {
     try {
       return await this.#d.forge.upsertComment(pr, existingId, body);
     } catch (e) {
-      this.#d.logger.warn("forge comment not written", { repo: pr.repo.fullName, number: pr.number, err: e });
+      this.#d.logger.warn("forge comment not written", {
+        repo: pr.repo.fullName,
+        number: pr.number,
+        err: e,
+      });
       return existingId;
     }
   }
@@ -259,16 +388,26 @@ export class PrPreviews {
     try {
       await this.#d.forge.setDeploymentStatus(repo, deploymentId, "inactive");
     } catch (e) {
-      this.#d.logger.warn("forge deployment not retired", { repo: repo.fullName, deploymentId, err: e });
+      this.#d.logger.warn("forge deployment not retired", {
+        repo: repo.fullName,
+        deploymentId,
+        err: e,
+      });
     }
   }
 
   /** The message, and the part of the detail a human can act on (compose's stderr, a policy note). */
   #refusal(e: AppError): string {
     const d = e.detail ?? {};
-    const text = [d["compose"], d["reason"], d["message"]].find((v) => typeof v === "string" && v.trim() !== "") as string | undefined;
+    const text = [d["compose"], d["reason"], d["message"]].find(
+      (v) => typeof v === "string" && v.trim() !== "",
+    ) as string | undefined;
     // Compose warns about every unset `${VAR}` before saying what is wrong; the warnings are not it.
-    const shown = text?.split(/\r?\n/).filter((l) => !/^time="[^"]*" level=warning /.test(l)).join("\n").trim();
+    const shown = text
+      ?.split(/\r?\n/)
+      .filter((l) => !/^time="[^"]*" level=warning /.test(l))
+      .join("\n")
+      .trim();
     return shown ? `${e.message}\n\n\`\`\`\n${shown.slice(-1500)}\n\`\`\`` : e.message;
   }
 
@@ -282,15 +421,31 @@ export class PrPreviews {
     const primary = urls.find((u) => u.primary) ?? urls[0];
     const lines: string[] = [];
     const state = phase === "status" ? p.state : phase;
-    const title = { building: "🚧 Building preview", ready: "✅ Preview ready", failed: "❌ Preview failed", status: `Preview is **${p.state}**` }[phase];
+    const title = {
+      building: "🚧 Building preview",
+      ready: "✅ Preview ready",
+      failed: "❌ Preview failed",
+      status: `Preview is **${p.state}**`,
+    }[phase];
     lines.push(`### ${title}${sha ? ` for \`${sha}\`` : ""}`);
-    if (p.secretLevel) lines.push("", `_Secrets: **${p.secretLevel}**${p.secretLevel === "none" ? " (no .env)" : ""} · \`/preview secrets low|standard|high|none\` to change._`);
+    if (p.secretLevel)
+      lines.push(
+        "",
+        `_Secrets: **${p.secretLevel}**${p.secretLevel === "none" ? " (no .env)" : ""} · \`/preview secrets low|standard|high|none\` to change._`,
+      );
     if (primary && state !== "failed") lines.push("", `**${primary.url}**`);
     if (urls.length > 1) lines.push("", ...urls.map((u) => `- \`${u.service}\`: ${u.url}`));
     if (p.state === "failed" && p.error) lines.push("", "```", p.error.slice(0, 2000), "```");
     const log = this.#d.logUrlFor?.(p.id);
-    lines.push("", `${log ? `[Build log](${log}) · ` : ""}\`/preview redeploy\` · \`/preview destroy\` · \`/preview status\``);
-    if (p.ttlExpiresAt) lines.push("", `_Expires ${p.ttlExpiresAt.toISOString().slice(0, 16).replace("T", " ")} UTC unless visited._`);
+    lines.push(
+      "",
+      `${log ? `[Build log](${log}) · ` : ""}\`/preview redeploy\` · \`/preview destroy\` · \`/preview status\``,
+    );
+    if (p.ttlExpiresAt)
+      lines.push(
+        "",
+        `_Expires ${p.ttlExpiresAt.toISOString().slice(0, 16).replace("T", " ")} UTC unless visited._`,
+      );
     return lines.join("\n");
   }
 }

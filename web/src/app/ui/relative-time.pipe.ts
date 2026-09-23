@@ -1,7 +1,10 @@
 import { Pipe, type PipeTransform } from '@angular/core';
 
 const STEPS: [limit: number, div: number, unit: string][] = [
-  [90, 1, 's'], [90 * 60, 60, 'min'], [36 * 3600, 3600, 'h'], [Infinity, 86_400, 'd'],
+  [90, 1, 's'],
+  [90 * 60, 60, 'min'],
+  [36 * 3600, 3600, 'h'],
+  [Infinity, 86_400, 'd'],
 ];
 
 /** "3 h ago" / "in 5 d". Pure over (value, now): pass `clock.now()` so it re-renders when time moves. */

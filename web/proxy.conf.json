@@ -5,5 +5,9 @@
     "changeOrigin": true,
     "headers": { "origin": "https://app.preview.localhost:8443" }
   },
-  "/healthz": { "target": "https://app.preview.localhost:8443", "secure": false, "changeOrigin": true }
+  "/healthz": {
+    "target": "https://app.preview.localhost:8443",
+    "secure": false,
+    "changeOrigin": true
+  }
 }

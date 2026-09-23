@@ -18,7 +18,10 @@ export type SurfacesDeps = {
   onMcpDisabled?: (() => void) | undefined;
 };
 
-const SURFACES = { ui: SETTINGS.surfacesUi, mcp: SETTINGS.surfacesMcp } as const satisfies Record<string, SettingDef<boolean>>;
+const SURFACES = { ui: SETTINGS.surfacesUi, mcp: SETTINGS.surfacesMcp } as const satisfies Record<
+  string,
+  SettingDef<boolean>
+>;
 type SurfaceName = keyof typeof SURFACES;
 
 /**
@@ -45,12 +48,21 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
 
   // What is live, for anyone who can see previews: the UI's nav and an agent's own checks.
   api.get("/capabilities", requirePermission("previews.read"), (c) =>
-    c.json({ surfaces: { ui: d.settings.get(SETTINGS.surfacesUi), mcp: d.settings.get(SETTINGS.surfacesMcp) }, mcpUrl: d.mcpOrigin() }));
+    c.json({
+      surfaces: {
+        ui: d.settings.get(SETTINGS.surfacesUi),
+        mcp: d.settings.get(SETTINGS.surfacesMcp),
+      },
+      mcpUrl: d.mcpOrigin(),
+    }),
+  );
 
   api.get("/surfaces", requirePermission("surfaces.manage"), (c) => c.json({ surfaces: view() }));
 
   api.put("/surfaces", requirePermission("surfaces.manage"), async (c) => {
-    const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+    const body = await c.req.json().catch(() => {
+      throw badRequest("the request body is not JSON");
+    });
     const req = SetSurfacesSchema.parse(body);
 
     // Validate everything before writing anything.
@@ -59,21 +71,34 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
       const value = req[name];
       if (value === undefined) continue;
       const def = SURFACES[name];
-      if (d.settings.isManagedByConfig(def.key)) throw conflict(`the ${name} surface is managed by config and cannot be changed at runtime`, { surface: name });
+      if (d.settings.isManagedByConfig(def.key))
+        throw conflict(
+          `the ${name} surface is managed by config and cannot be changed at runtime`,
+          { surface: name },
+        );
       const old = d.settings.get(def);
       if (old !== value) changes.push({ name, old, value });
     }
     if (changes.some((ch) => ch.name === "ui" && !ch.value)) {
-      if (req.confirm !== DISABLE_UI_PHRASE) throw unprocessable(`turning the UI off needs "confirm": "${DISABLE_UI_PHRASE}"`, { phrase: DISABLE_UI_PHRASE });
+      if (req.confirm !== DISABLE_UI_PHRASE)
+        throw unprocessable(`turning the UI off needs "confirm": "${DISABLE_UI_PHRASE}"`, {
+          phrase: DISABLE_UI_PHRASE,
+        });
       if (!d.hasActiveAdmin()) {
-        throw conflict("refusing to turn the UI off: no unexpired admin-scoped API token exists, so there would be no way back in. Create one under Account -> API tokens first", { reason: "no_admin_token" });
+        throw conflict(
+          "refusing to turn the UI off: no unexpired admin-scoped API token exists, so there would be no way back in. Create one under Account -> API tokens first",
+          { reason: "no_admin_token" },
+        );
       }
     }
 
     for (const ch of changes) {
       d.settings.set(SURFACES[ch.name], ch.value);
       // `setting`, never `key`: redact() hides a field named key.
-      d.audit.record(c.get("actor"), "surface.changed", ch.name, { old: { setting: SURFACES[ch.name].key, enabled: ch.old }, new: { setting: SURFACES[ch.name].key, enabled: ch.value } });
+      d.audit.record(c.get("actor"), "surface.changed", ch.name, {
+        old: { setting: SURFACES[ch.name].key, enabled: ch.old },
+        new: { setting: SURFACES[ch.name].key, enabled: ch.value },
+      });
       if (ch.name === "mcp" && !ch.value) d.onMcpDisabled?.();
     }
     return c.json({ surfaces: view() });

@@ -1,4 +1,16 @@
-import { Component, DestroyRef, ElementRef, InjectionToken, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  InjectionToken,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { LOG_STREAMS, type LogLine, type LogStream } from '../../core/api.types';
 import { SseService, type SseHandle } from '../../core/sse.service';
 import { ConnectionDot } from '../../ui/connection-dot';
@@ -7,14 +19,21 @@ import { LogBuffer, isStuckToBottom } from './log-buffer';
 /** "Once per frame". Injected because jsdom has no requestAnimationFrame, and specs want to choose when. */
 export const FRAME = new InjectionToken<(cb: () => void) => void>('FRAME', {
   providedIn: 'root',
-  factory: () => (cb: () => void) => { if (typeof requestAnimationFrame === 'function') requestAnimationFrame(cb); else setTimeout(cb, 16); },
+  factory: () => (cb: () => void) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(cb);
+    else setTimeout(cb, 16);
+  },
 });
 
 /** How much history to ask for. The server says so, in the stream, when there was more. */
 const TAIL = 2_000;
 
 const STREAM_CLASS: Record<LogStream, string> = {
-  system: 'text-sky-400', build: 'text-neutral-400', seed: 'text-violet-300', stdout: 'text-neutral-100', stderr: 'text-amber-300',
+  system: 'text-sky-400',
+  build: 'text-neutral-400',
+  seed: 'text-violet-300',
+  stdout: 'text-neutral-100',
+  stderr: 'text-amber-300',
 };
 
 /**
@@ -34,27 +53,64 @@ const STREAM_CLASS: Record<LogStream, string> = {
     <div class="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950">
       <div class="flex flex-wrap items-center gap-1.5 border-b border-neutral-800 px-3 py-2">
         @for (f of filters; track f) {
-          <button type="button" (click)="filter.set(f)" [attr.aria-pressed]="filter() === f" [attr.data-testid]="'stream-' + f"
-                  class="rounded px-2 py-0.5 text-xs" [class]="filter() === f ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'">{{ f }}</button>
+          <button
+            type="button"
+            (click)="filter.set(f)"
+            [attr.aria-pressed]="filter() === f"
+            [attr.data-testid]="'stream-' + f"
+            class="rounded px-2 py-0.5 text-xs"
+            [class]="
+              filter() === f
+                ? 'bg-neutral-800 text-neutral-100'
+                : 'text-neutral-500 hover:text-neutral-300'
+            "
+          >
+            {{ f }}
+          </button>
         }
         <span class="ml-auto"><app-connection-dot [status]="status()" /></span>
       </div>
 
       <div class="relative">
-        <div #scroller (scroll)="onScroll()" class="h-[28rem] overflow-auto px-3 py-2 font-mono text-xs leading-5" tabindex="0" role="log" aria-label="Preview log" data-testid="log">
-          @if (dropped() > 0) { <p class="text-neutral-600" data-testid="dropped">… {{ dropped() }} older lines dropped from this tab</p> }
+        <div
+          #scroller
+          (scroll)="onScroll()"
+          class="h-[28rem] overflow-auto px-3 py-2 font-mono text-xs leading-5"
+          tabindex="0"
+          role="log"
+          aria-label="Preview log"
+          data-testid="log"
+        >
+          @if (dropped() > 0) {
+            <p class="text-neutral-600" data-testid="dropped">
+              … {{ dropped() }} older lines dropped from this tab
+            </p>
+          }
           @for (l of visible(); track l.n) {
-            <div class="flex gap-3 [contain-intrinsic-size:auto_1.25rem] [content-visibility:auto]" data-testid="line">
+            <div
+              class="flex gap-3 [contain-intrinsic-size:auto_1.25rem] [content-visibility:auto]"
+              data-testid="line"
+            >
               <span class="w-12 shrink-0 text-right text-neutral-600 select-none">{{ l.n }}</span>
-              <span class="break-all whitespace-pre-wrap" [class]="cls[l.stream]">{{ l.line }}</span>
+              <span class="break-all whitespace-pre-wrap" [class]="cls[l.stream]">{{
+                l.line
+              }}</span>
             </div>
           } @empty {
-            <p class="py-8 text-center text-neutral-600" data-testid="log-empty">{{ status() === 'live' ? 'Nothing logged yet.' : 'Connecting…' }}</p>
+            <p class="py-8 text-center text-neutral-600" data-testid="log-empty">
+              {{ status() === 'live' ? 'Nothing logged yet.' : 'Connecting…' }}
+            </p>
           }
         </div>
         @if (!stuck()) {
-          <button type="button" (click)="jump()" data-testid="jump"
-                  class="absolute right-4 bottom-3 rounded-full bg-accent px-3 py-1 text-xs font-medium text-white shadow-lg">↓ Jump to latest</button>
+          <button
+            type="button"
+            (click)="jump()"
+            data-testid="jump"
+            class="absolute right-4 bottom-3 rounded-full bg-accent px-3 py-1 text-xs font-medium text-white shadow-lg"
+          >
+            ↓ Jump to latest
+          </button>
         }
       </div>
     </div>
@@ -81,7 +137,10 @@ export class LogViewer {
   #scheduled = false;
 
   protected readonly status = computed(() => this.#handle()?.status() ?? 'idle');
-  protected readonly dropped = computed(() => { this.#version(); return this.#buffer.dropped; });
+  protected readonly dropped = computed(() => {
+    this.#version();
+    return this.#buffer.dropped;
+  });
   protected readonly visible = computed(() => {
     this.#version();
     const f = this.filter();
@@ -94,11 +153,22 @@ export class LogViewer {
       const follow = this.follow();
       untracked(() => {
         this.#handle()?.close();
-        this.#handle.set(follow ? this.#sse.open<Omit<LogLine, 'n'>>(`/v1/previews/${id}/logs?tail=${TAIL}`, ['log'], (m) => this.#receive({ ...m.data, n: Number(m.id) })) : null);
+        this.#handle.set(
+          follow
+            ? this.#sse.open<Omit<LogLine, 'n'>>(
+                `/v1/previews/${id}/logs?tail=${TAIL}`,
+                ['log'],
+                (m) => this.#receive({ ...m.data, n: Number(m.id) }),
+              )
+            : null,
+        );
       });
     });
     // After the lines are in the DOM, not before: scrollHeight has to include them.
-    effect(() => { this.visible(); if (untracked(this.stuck)) this.#frame(() => this.#toBottom()); });
+    effect(() => {
+      this.visible();
+      if (untracked(this.stuck)) this.#frame(() => this.#toBottom());
+    });
     inject(DestroyRef).onDestroy(() => this.#handle()?.close());
   }
 

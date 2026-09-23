@@ -57,7 +57,11 @@ export class SourceStore {
 
   /** Copies the kept source into `toDir` (which must exist), for a rebuild to work on. */
   async copyTo(previewId: string, toDir: string): Promise<void> {
-    await cp(this.dirFor(previewId), toDir, { recursive: true, verbatimSymlinks: true, errorOnExist: false });
+    await cp(this.dirFor(previewId), toDir, {
+      recursive: true,
+      verbatimSymlinks: true,
+      errorOnExist: false,
+    });
   }
 
   async remove(previewId: string): Promise<void> {
@@ -77,11 +81,19 @@ export class SourceStore {
     const files: SourceFile[] = [];
     let truncated = false;
     const walk = async (dir: string): Promise<void> => {
-      const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+      const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
       for (const e of entries) {
-        if (files.length >= MAX_LISTED) { truncated = true; return; }
+        if (files.length >= MAX_LISTED) {
+          truncated = true;
+          return;
+        }
         const abs = path.join(dir, e.name);
-        if (e.isDirectory()) { await walk(abs); continue; }
+        if (e.isDirectory()) {
+          await walk(abs);
+          continue;
+        }
         if (!e.isFile()) continue;
         const rel = path.relative(root, abs).split(path.sep).join("/");
         const size = (await lstat(abs)).size;
@@ -101,19 +113,33 @@ export class SourceStore {
    * ADR-0021: what is really deployed, file by file -- sha256 over the bytes gangway kept, so
    * a caller can check them against what it meant to send (`shasum -a 256`). Sorted like `list`.
    */
-  async manifest(previewId: string): Promise<{ files: { path: string; bytes: number; sha256: string }[]; truncated: boolean }> {
+  async manifest(
+    previewId: string,
+  ): Promise<{ files: { path: string; bytes: number; sha256: string }[]; truncated: boolean }> {
     const root = this.dirFor(previewId);
     const out: { path: string; bytes: number; sha256: string }[] = [];
     let truncated = false;
     const walk = async (dir: string): Promise<void> => {
-      const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+      const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
       for (const e of entries) {
-        if (out.length >= MAX_LISTED) { truncated = true; return; }
+        if (out.length >= MAX_LISTED) {
+          truncated = true;
+          return;
+        }
         const abs = path.join(dir, e.name);
-        if (e.isDirectory()) { await walk(abs); continue; }
+        if (e.isDirectory()) {
+          await walk(abs);
+          continue;
+        }
         if (!e.isFile()) continue;
         const bytes = await readFile(abs);
-        out.push({ path: path.relative(root, abs).split(path.sep).join("/"), bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
+        out.push({
+          path: path.relative(root, abs).split(path.sep).join("/"),
+          bytes: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        });
       }
     };
     await walk(root);

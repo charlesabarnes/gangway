@@ -51,14 +51,32 @@ export type Association = "owner" | "member" | "collaborator" | "other";
 import { CLEARANCES, type Clearance } from "../../../shared/src/domain.ts";
 
 export type PreviewCommand = "deploy" | "redeploy" | "destroy" | "status" | "secrets";
-export const PREVIEW_COMMANDS: readonly PreviewCommand[] = ["deploy", "redeploy", "destroy", "status", "secrets"];
-export type ParsedCommand = { command: Exclude<PreviewCommand, "secrets"> } | { command: "secrets"; level: Clearance };
+export const PREVIEW_COMMANDS: readonly PreviewCommand[] = [
+  "deploy",
+  "redeploy",
+  "destroy",
+  "status",
+  "secrets",
+];
+export type ParsedCommand =
+  { command: Exclude<PreviewCommand, "secrets"> } | { command: "secrets"; level: Clearance };
 
 export type ForgeEvent =
-  | { type: "pr.updated"; pr: PullRequest; action: "opened" | "reopened" | "synchronize" | "ready_for_review" }
+  | {
+      type: "pr.updated";
+      pr: PullRequest;
+      action: "opened" | "reopened" | "synchronize" | "ready_for_review";
+    }
   | { type: "pr.closed"; pr: PullRequest; merged: boolean }
   /** `/preview <command>` in a comment. The PR itself is fetched when it is needed. */
-  | ({ type: "pr.command"; repo: ForgeRepo; number: number; author: string; association: Association; commentId: number } & ParsedCommand)
+  | ({
+      type: "pr.command";
+      repo: ForgeRepo;
+      number: number;
+      author: string;
+      association: Association;
+      commentId: number;
+    } & ParsedCommand)
   | { type: "ignored"; reason: string };
 
 export type DeploymentState = "in_progress" | "success" | "failure" | "inactive";
@@ -69,16 +87,28 @@ export type Forge = {
    * Authenticates a delivery. The raw body, because the signature is over the bytes as
    * sent; a re-serialized JSON object would not verify.
    */
-  verify(headers: Headers, rawBody: Uint8Array): { ok: true; deliveryId: string } | { ok: false; reason: string };
+  verify(
+    headers: Headers,
+    rawBody: Uint8Array,
+  ): { ok: true; deliveryId: string } | { ok: false; reason: string };
   /** Turns an authenticated delivery into a `ForgeEvent`. Never throws on a strange payload: `ignored`. */
   parse(headers: Headers, payload: unknown): ForgeEvent;
   pullRequest(repo: ForgeRepo, number: number): Promise<PullRequest>;
   /** A short-lived credential `cloneRepo` can present. A value to pass along, never to store. */
   cloneCredential(repo: ForgeRepo): Promise<string>;
   /** Creates or edits the one comment gangway owns on a PR; returns its id. */
-  upsertComment(pr: Pick<PullRequest, "repo" | "number">, existingId: number | null, body: string): Promise<number>;
+  upsertComment(
+    pr: Pick<PullRequest, "repo" | "number">,
+    existingId: number | null,
+    body: string,
+  ): Promise<number>;
   createDeployment(pr: Pick<PullRequest, "repo" | "headSha">, environment: string): Promise<number>;
-  setDeploymentStatus(repo: ForgeRepo, deploymentId: number, state: DeploymentState, o?: { environmentUrl?: string; logUrl?: string }): Promise<void>;
+  setDeploymentStatus(
+    repo: ForgeRepo,
+    deploymentId: number,
+    state: DeploymentState,
+    o?: { environmentUrl?: string; logUrl?: string },
+  ): Promise<void>;
 };
 
 /**
@@ -91,7 +121,12 @@ export function parsePreviewCommand(body: string): ParsedCommand | null {
   if (!m) return null;
   const verb = m[1]!.toLowerCase();
   const arg = m[2]?.toLowerCase();
-  if (verb === "secrets") return arg !== undefined && (CLEARANCES as readonly string[]).includes(arg) ? { command: "secrets", level: arg as Clearance } : null;
+  if (verb === "secrets")
+    return arg !== undefined && (CLEARANCES as readonly string[]).includes(arg)
+      ? { command: "secrets", level: arg as Clearance }
+      : null;
   if (arg !== undefined) return null;
-  return (PREVIEW_COMMANDS as readonly string[]).includes(verb) ? { command: verb as Exclude<PreviewCommand, "secrets"> } : null;
+  return (PREVIEW_COMMANDS as readonly string[]).includes(verb)
+    ? { command: verb as Exclude<PreviewCommand, "secrets"> }
+    : null;
 }

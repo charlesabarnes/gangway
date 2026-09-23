@@ -1,5 +1,9 @@
 const ESCAPES: Record<string, string> = {
-  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
 };
 
 /** Preview hostnames and log output are attacker-influenced; never interpolate raw. */

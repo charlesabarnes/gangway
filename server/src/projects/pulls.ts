@@ -19,7 +19,9 @@ import { AppError, conflict, forbidden, notFound } from "../errors.ts";
 import type { DeployInput, DeployResult, RegistryLogin } from "../previews/deploy.ts";
 
 export type PullDeployRequest = {
-  image: string; port: number; sha: string;
+  image: string;
+  port: number;
+  sha: string;
   registry?: { username: string; password: string } | undefined;
 };
 
@@ -33,15 +35,17 @@ export type PullsDeps = {
 };
 
 export type PullOutcome =
-  | { action: "deployed"; result: DeployResult }
-  | { action: "unchanged"; preview: Preview };
+  { action: "deployed"; result: DeployResult } | { action: "unchanged"; preview: Preview };
 
 const LIVE = new Set(["building", "starting", "awake", "asleep"]);
 
 /** The registry an image reference names: its first segment when that looks like a host. */
 export function registryOf(image: string): string {
   const first = image.split("/")[0] ?? "";
-  return image.includes("/") && (first.includes(".") || first.includes(":") || first === "localhost") ? first : "docker.io";
+  return image.includes("/") &&
+    (first.includes(".") || first.includes(":") || first === "localhost")
+    ? first
+    : "docker.io";
 }
 
 export class Pulls {
@@ -49,37 +53,78 @@ export class Pulls {
   /** One operation per pull request at a time: two pushes in a row must not race each other's teardown. */
   readonly #queues = new Map<string, Promise<unknown>>();
 
-  constructor(d: PullsDeps) { this.#d = d; }
+  constructor(d: PullsDeps) {
+    this.#d = d;
+  }
 
   /** The project, if this actor may act on this pull request of it. */
   authorize(ref: string, number: number, actor: Actor): Project & { fullName: string } {
     const project = this.#d.projects.find(ref);
     if (!project) throw notFound(`no such project: ${ref}`);
-    if (!hasRepo(project)) throw new AppError("unprocessable", `project "${project.slug}" has no repository, so it has no pull requests`);
+    if (!hasRepo(project))
+      throw new AppError(
+        "unprocessable",
+        `project "${project.slug}" has no repository, so it has no pull requests`,
+      );
     if (actor.kind === "workflow") {
-      if (actor.repository.toLowerCase() !== project.fullName.toLowerCase()) throw forbidden(`this run belongs to ${actor.repository}, not to ${project.fullName}`);
-      if (project.prTrigger !== "workflow") throw conflict(`project "${project.slug}" takes pull requests from the GitHub App, not from a workflow; switch it in the project's settings`);
-      if (actor.eventName !== "pull_request") throw forbidden(`a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`);
-      if (actor.pull !== number) throw forbidden(`this run is for ${actor.pull === null ? "no pull request" : `#${actor.pull}`}, not #${number}`);
+      if (actor.repository.toLowerCase() !== project.fullName.toLowerCase())
+        throw forbidden(`this run belongs to ${actor.repository}, not to ${project.fullName}`);
+      if (project.prTrigger !== "workflow")
+        throw conflict(
+          `project "${project.slug}" takes pull requests from the GitHub App, not from a workflow; switch it in the project's settings`,
+        );
+      if (actor.eventName !== "pull_request")
+        throw forbidden(
+          `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
+        );
+      if (actor.pull !== number)
+        throw forbidden(
+          `this run is for ${actor.pull === null ? "no pull request" : `#${actor.pull}`}, not #${number}`,
+        );
     }
     return project;
   }
 
-  async deploy(ref: string, number: number, req: PullDeployRequest, actor: Actor): Promise<PullOutcome> {
+  async deploy(
+    ref: string,
+    number: number,
+    req: PullDeployRequest,
+    actor: Actor,
+  ): Promise<PullOutcome> {
     const project = this.authorize(ref, number, actor);
-    if (!project.enabled) throw conflict(`project "${project.slug}" is disabled${project.disabledReason ? `: ${project.disabledReason}` : ""}`);
+    if (!project.enabled)
+      throw conflict(
+        `project "${project.slug}" is disabled${project.disabledReason ? `: ${project.disabledReason}` : ""}`,
+      );
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
-      if (existing && existing.source.kind === "pr" && existing.source.sha === req.sha && existing.source.image === req.image && LIVE.has(existing.state)) {
+      if (
+        existing &&
+        existing.source.kind === "pr" &&
+        existing.source.sha === req.sha &&
+        existing.source.image === req.image &&
+        LIVE.has(existing.state)
+      ) {
         return { action: "unchanged", preview: existing };
       }
       if (existing) await this.#d.previews.destroy(existing.id, actor);
-      const registry: RegistryLogin | undefined = req.registry && { server: registryOf(req.image), ...req.registry };
+      const registry: RegistryLogin | undefined = req.registry && {
+        server: registryOf(req.image),
+        ...req.registry,
+      };
       const result = await this.#d.previews.deploy({
-        actor, name: `${project.slug}-pr-${number}`, projectId: project.id,
+        actor,
+        name: `${project.slug}-pr-${number}`,
+        projectId: project.id,
         // Sticky: a clearance someone set on this PR outlives its pushes (ADR-0012).
         ...(existing?.secretLevel ? { secretLevel: existing.secretLevel } : {}),
-        source: { kind: "pushed", image: req.image, port: req.port, pr: { repo: project.fullName, number, sha: req.sha }, registry },
+        source: {
+          kind: "pushed",
+          image: req.image,
+          port: req.port,
+          pr: { repo: project.fullName, number, sha: req.sha },
+          registry,
+        },
       });
       return { action: "deployed", result };
     });
@@ -98,7 +143,11 @@ export class Pulls {
     const prev = this.#queues.get(key) ?? Promise.resolve();
     const next = prev.catch(() => {}).then(fn);
     this.#queues.set(key, next);
-    void next.finally(() => { if (this.#queues.get(key) === next) this.#queues.delete(key); }).catch(() => {});
+    void next
+      .finally(() => {
+        if (this.#queues.get(key) === next) this.#queues.delete(key);
+      })
+      .catch(() => {});
     return next;
   }
 }

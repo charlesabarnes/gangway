@@ -9,7 +9,12 @@
  * whole lockout guarantee, so it lives in one `if`.
  */
 import type { Role } from "../../../shared/src/domain.ts";
-import { ADMIN_ROLE_ID, ALL_PERMISSIONS, PERMISSIONS, type Permission } from "../../../shared/src/permissions.ts";
+import {
+  ADMIN_ROLE_ID,
+  ALL_PERMISSIONS,
+  PERMISSIONS,
+  type Permission,
+} from "../../../shared/src/permissions.ts";
 import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
 import { conflict, notFound } from "../errors.ts";
@@ -41,7 +46,13 @@ export class RolePermissions {
   }
 
   roles(): (Role & { permissions: Permission[]; editable: boolean })[] {
-    return this.#repo.list().map((r) => ({ ...r, permissions: [...this.for(r.id)].sort(), editable: r.id !== ADMIN_ROLE_ID }));
+    return this.#repo
+      .list()
+      .map((r) => ({
+        ...r,
+        permissions: [...this.for(r.id)].sort(),
+        editable: r.id !== ADMIN_ROLE_ID,
+      }));
   }
 
   /**
@@ -50,14 +61,22 @@ export class RolePermissions {
    * "Who let viewers destroy previews" is exactly the question asked later, so the whole
    * before-and-after goes to the audit log.
    */
-  set(roleId: string, permissions: readonly Permission[], actor: Actor | null = null): { old: Permission[]; new: Permission[] } {
+  set(
+    roleId: string,
+    permissions: readonly Permission[],
+    actor: Actor | null = null,
+  ): { old: Permission[]; new: Permission[] } {
     if (!this.#repo.get(roleId)) throw notFound(`no such role: ${roleId}`);
-    if (roleId === ADMIN_ROLE_ID) throw conflict("the admin role always holds every permission and cannot be edited");
+    if (roleId === ADMIN_ROLE_ID)
+      throw conflict("the admin role always holds every permission and cannot be edited");
     const old = [...this.for(roleId)].sort();
     this.#repo.setPermissions(roleId, permissions);
     this.reload();
     const change = { old, new: [...this.for(roleId)].sort() };
-    this.#audit?.record(actor, "role.permissions.changed", roleId, { old: { permissions: change.old }, new: { permissions: change.new } });
+    this.#audit?.record(actor, "role.permissions.changed", roleId, {
+      old: { permissions: change.old },
+      new: { permissions: change.new },
+    });
     return change;
   }
 }

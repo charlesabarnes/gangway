@@ -58,9 +58,7 @@
         "name": "admin"
       }
     },
-    "permissions": [
-      "previews.read"
-    ]
+    "permissions": ["previews.read"]
   },
   "login": {
     "user": {
@@ -71,17 +69,13 @@
         "name": "admin"
       }
     },
-    "permissions": [
-      "previews.read"
-    ]
+    "permissions": ["previews.read"]
   },
   "token": {
     "id": "01M32T80JC0F8X7NAF659PWE91",
     "name": "ci",
     "prefix": "gw_2t3Gr_pN",
-    "scopes": [
-      "deploy"
-    ],
+    "scopes": ["deploy"],
     "userId": "01M32T80F881ZTYFWN40SMVWT6",
     "appName": null,
     "expiresAt": null,
@@ -97,33 +91,10 @@
     "instance": "/v1/previews/x",
     "requestId": "01M32T80F881ZTYFWN40SMVWT6"
   },
-  "previewStates": [
-    "building",
-    "starting",
-    "awake",
-    "asleep",
-    "failed",
-    "destroying",
-    "destroyed"
-  ],
-  "visibilities": [
-    "public",
-    "unlisted",
-    "private"
-  ],
-  "logStreams": [
-    "system",
-    "build",
-    "seed",
-    "stdout",
-    "stderr"
-  ],
-  "scopes": [
-    "read",
-    "deploy",
-    "update",
-    "admin"
-  ],
+  "previewStates": ["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"],
+  "visibilities": ["public", "unlisted", "private"],
+  "logStreams": ["system", "build", "seed", "stdout", "stderr"],
+  "scopes": ["read", "deploy", "update", "admin"],
   "streamEventTypes": [
     "preview.created",
     "preview.adopted",
@@ -163,12 +134,7 @@
     "jobs.claim"
   ],
   "scopePermissions": {
-    "read": [
-      "previews.read",
-      "logs.read",
-      "events.read",
-      "hosts.read"
-    ],
+    "read": ["previews.read", "logs.read", "events.read", "hosts.read"],
     "deploy": [
       "previews.read",
       "logs.read",
@@ -178,9 +144,7 @@
       "previews.destroy",
       "previews.update_own"
     ],
-    "update": [
-      "previews.update"
-    ],
+    "update": ["previews.update"],
     "admin": [
       "previews.read",
       "previews.deploy",
@@ -243,17 +207,8 @@
     "createdAt": "2026-09-21T20:00:00.000Z",
     "updatedAt": "2026-09-21T20:00:00.000Z"
   },
-  "forkPolicies": [
-    "ask",
-    "auto",
-    "never"
-  ],
-  "clearances": [
-    "none",
-    "low",
-    "standard",
-    "high"
-  ],
+  "forkPolicies": ["ask", "auto", "never"],
+  "clearances": ["none", "low", "standard", "high"],
   "template": {
     "id": "default",
     "name": "Default",
@@ -267,24 +222,9 @@
     "createdAt": "2026-09-21T20:00:00.000Z",
     "updatedAt": "2026-09-21T20:00:00.000Z"
   },
-  "triggers": [
-    "pr",
-    "api",
-    "manual"
-  ],
-  "prTriggers": [
-    "workflow",
-    "webhook"
-  ],
-  "runtimeIds": [
-    "static",
-    "node",
-    "bun",
-    "deno",
-    "workerd",
-    "python",
-    "php"
-  ],
+  "triggers": ["pr", "api", "manual"],
+  "prTriggers": ["workflow", "webhook"],
+  "runtimeIds": ["static", "node", "bun", "deno", "workerd", "python", "php"],
   "runtimeList": {
     "runtimes": [
       {
@@ -297,17 +237,13 @@
         "starter": {
           "index.ts": "export default { fetch() { return new Response('hi'); } };\n"
         },
-        "versions": [
-          "1.4"
-        ]
+        "versions": ["1.4"]
       }
     ],
     "detection": [
       {
         "runtime": "own",
-        "markers": [
-          "compose.yaml"
-        ]
+        "markers": ["compose.yaml"]
       }
     ],
     "planFiles": [
@@ -329,11 +265,7 @@
         "id": "postgres",
         "name": "PostgreSQL",
         "description": "A fresh Postgres for this preview. DATABASE_URL points at it; seed.sql (or db/seed.sql) loads on its first start.",
-        "versions": [
-          "16",
-          "17",
-          "18"
-        ],
+        "versions": ["16", "17", "18"],
         "defaultVersion": "18",
         "env": [
           "DATABASE_URL",
@@ -428,22 +360,10 @@
     "suggested": [],
     "sqlSeed": null
   },
-  "addonIds": [
-    "postgres",
-    "mysql",
-    "redis"
-  ],
+  "addonIds": ["postgres", "mysql", "redis"],
   "dataResult": {
-    "columns": [
-      "n",
-      "note"
-    ],
-    "rows": [
-      [
-        "1",
-        null
-      ]
-    ],
+    "columns": ["n", "note"],
+    "rows": [["1", null]],
     "truncated": false,
     "message": null,
     "ms": 12
@@ -454,9 +374,7 @@
       "version": "18",
       "name": "PostgreSQL",
       "service": "postgres",
-      "env": [
-        "DATABASE_URL"
-      ]
+      "env": ["DATABASE_URL"]
     }
   ],
   "surfaces": {
@@ -490,21 +408,10 @@
     "redirectUri": "https://claude.ai/api/mcp/auth_callback",
     "redirectHost": "claude.ai",
     "resource": "https://mcp.preview.localhost:8443",
-    "requested": [
-      "read",
-      "deploy"
-    ],
-    "grantable": [
-      "read",
-      "deploy"
-    ],
+    "requested": ["read", "deploy"],
+    "grantable": ["read", "deploy"],
     "scopePermissions": {
-      "read": [
-        "previews.read",
-        "logs.read",
-        "events.read",
-        "hosts.read"
-      ],
+      "read": ["previews.read", "logs.read", "events.read", "hosts.read"],
       "deploy": [
         "previews.read",
         "logs.read",
@@ -514,9 +421,7 @@
         "previews.destroy",
         "previews.update_own"
       ],
-      "update": [
-        "previews.update"
-      ]
+      "update": ["previews.update"]
     },
     "expiresAt": "2026-09-22T12:10:00.000Z"
   },
@@ -526,10 +431,7 @@
     "clientId": "https://claude.ai/oauth/claude-code-client-metadata",
     "clientName": "Claude",
     "redirectUri": "https://claude.ai/api/mcp/auth_callback",
-    "scopes": [
-      "read",
-      "deploy"
-    ],
+    "scopes": ["read", "deploy"],
     "createdAt": "2026-09-22T12:00:00.000Z",
     "lastUsedAt": null,
     "expiresAt": "2026-12-21T12:00:00.000Z",

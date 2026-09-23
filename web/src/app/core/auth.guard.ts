@@ -8,7 +8,15 @@ import { AuthService } from './auth.service';
  * is attacker-controlled text in a link someone was sent.
  */
 export function safeReturnUrl(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\') || raw.startsWith('/login') || raw.startsWith('/setup')) return '/';
+  if (
+    !raw ||
+    !raw.startsWith('/') ||
+    raw.startsWith('//') ||
+    raw.startsWith('/\\') ||
+    raw.startsWith('/login') ||
+    raw.startsWith('/setup')
+  )
+    return '/';
   return raw;
 }
 
@@ -32,7 +40,9 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   await auth.ensureLoaded();
   if (auth.authenticated()) return true;
   if (auth.setupRequired()) return router.createUrlTree(['/setup']);
-  return router.createUrlTree(['/login'], { queryParams: state.url === '/' ? {} : { returnUrl: state.url } });
+  return router.createUrlTree(['/login'], {
+    queryParams: state.url === '/' ? {} : { returnUrl: state.url },
+  });
 };
 
 /** The login page: pointless when already logged in, and wrong when nobody exists yet. */
@@ -42,10 +52,14 @@ export const anonymousOnly: CanActivateFn = async (route) => {
   await auth.ensureLoaded();
   if (auth.authenticated()) {
     const to = safeReturnUrl(route.queryParamMap.get('returnUrl'));
-    if (isServerReturn(to)) { inject(HARD_NAVIGATE)(to); return false; }
+    if (isServerReturn(to)) {
+      inject(HARD_NAVIGATE)(to);
+      return false;
+    }
     return router.parseUrl(to);
   }
-  if (auth.setupRequired()) return router.createUrlTree(['/setup'], { queryParams: route.queryParams });
+  if (auth.setupRequired())
+    return router.createUrlTree(['/setup'], { queryParams: route.queryParams });
   return true;
 };
 

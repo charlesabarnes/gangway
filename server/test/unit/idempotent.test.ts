@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { actorId, tokenActor, type Actor } from "../../src/auth/actor.ts";
 import { IdempotencyRepo } from "../../src/db/repos/index.ts";
 import { destroy } from "../../src/previews/destroy.ts";
-import { IDEMPOTENCY_TTL_MS, IdempotentDeploys, requestHash } from "../../src/previews/idempotent.ts";
+import {
+  IDEMPOTENCY_TTL_MS,
+  IdempotentDeploys,
+  requestHash,
+} from "../../src/previews/idempotent.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
 function setup() {
@@ -15,9 +19,18 @@ describe("requestHash", () => {
   test("ignores key order and the actor; notices everything else", () => {
     const s = setup();
     const a = s.request("x");
-    expect(requestHash(a)).toBe(requestHash({ source: a.source, visibility: a.visibility, name: a.name, actor: tokenActor("other", ["admin"]) }));
+    expect(requestHash(a)).toBe(
+      requestHash({
+        source: a.source,
+        visibility: a.visibility,
+        name: a.name,
+        actor: tokenActor("other", ["admin"]),
+      }),
+    );
     expect(requestHash(a)).not.toBe(requestHash({ ...a, ttl: "1h" }));
-    expect(requestHash(a)).not.toBe(requestHash({ ...a, source: { kind: "image", image: "traefik/whoami:v1.10", port: 81 } }));
+    expect(requestHash(a)).not.toBe(
+      requestHash({ ...a, source: { kind: "image", image: "traefik/whoami:v1.10", port: 81 } }),
+    );
     expect(requestHash(a)).toBe(requestHash({ ...a, hostId: undefined }));
   });
 });
@@ -28,7 +41,9 @@ describe("IdempotentDeploys", () => {
     const first = await s.deploys.deploy(s.request("plain"), undefined);
     expect(first.replayed).toBe(false);
     await first.done;
-    await expect(s.deploys.deploy(s.request("plain"), undefined)).rejects.toMatchObject({ code: "conflict" });
+    await expect(s.deploys.deploy(s.request("plain"), undefined)).rejects.toMatchObject({
+      code: "conflict",
+    });
   });
 
   test("three retries, one preview, one URL -- and the replay reports the preview as it is NOW", async () => {
@@ -61,7 +76,9 @@ describe("IdempotentDeploys", () => {
   test("concurrent retries before any row exists: one deploy, everyone gets it", async () => {
     const s = setup();
     s.fake.planDelayMs = 30;
-    const results = await Promise.all([1, 2, 3].map(() => s.deploys.deploy(s.request("race"), "k")));
+    const results = await Promise.all(
+      [1, 2, 3].map(() => s.deploys.deploy(s.request("race"), "k")),
+    );
     expect(new Set(results.map((r) => r.preview.id)).size).toBe(1);
     expect(results.map((r) => r.replayed).sort()).toEqual([false, true, true]);
     await Promise.all(results.map((r) => r.done));
@@ -70,12 +87,21 @@ describe("IdempotentDeploys", () => {
 
   test("same key, different request: 422, whether the first has finished or is still planning", async () => {
     const s = setup();
-    await (await s.deploys.deploy(s.request("one"), "k")).done;
-    await expect(s.deploys.deploy(s.request("two"), "k")).rejects.toMatchObject({ code: "unprocessable" });
-    await expect(s.deploys.deploy({ ...s.request("one"), ttl: "1h" }, "k")).rejects.toMatchObject({ code: "unprocessable" });
+    await (
+      await s.deploys.deploy(s.request("one"), "k")
+    ).done;
+    await expect(s.deploys.deploy(s.request("two"), "k")).rejects.toMatchObject({
+      code: "unprocessable",
+    });
+    await expect(s.deploys.deploy({ ...s.request("one"), ttl: "1h" }, "k")).rejects.toMatchObject({
+      code: "unprocessable",
+    });
 
     s.fake.planDelayMs = 30;
-    const [a, b] = await Promise.allSettled([s.deploys.deploy(s.request("three"), "k2"), s.deploys.deploy(s.request("four"), "k2")]);
+    const [a, b] = await Promise.allSettled([
+      s.deploys.deploy(s.request("three"), "k2"),
+      s.deploys.deploy(s.request("four"), "k2"),
+    ]);
     expect(a.status).toBe("fulfilled");
     expect(b).toMatchObject({ status: "rejected", reason: { code: "unprocessable" } });
     expect(s.previews.getByProject("gw-four")).toBeUndefined();
@@ -95,7 +121,13 @@ describe("IdempotentDeploys", () => {
   test("a user and a token are different principals even when their raw ids are equal", async () => {
     const s = setup();
     const raw = actorId(ACTOR);
-    const user: Actor = { kind: "user", userId: raw, roleId: "member", permissions: ACTOR.permissions, sessionId: "sess" };
+    const user: Actor = {
+      kind: "user",
+      userId: raw,
+      roleId: "member",
+      permissions: ACTOR.permissions,
+      sessionId: "sess",
+    };
     const asToken = await s.deploys.deploy(s.request("from-token"), "shared");
     const asUser = await s.deploys.deploy({ ...s.request("from-user"), actor: user }, "shared");
     expect(asUser.replayed).toBe(false);
@@ -121,7 +153,10 @@ describe("IdempotentDeploys", () => {
     const first = await s.deploys.deploy(s.request("broken"), "k");
     expect((await first.done).state).toBe("failed");
     const again = await s.deploys.deploy(s.request("broken"), "k");
-    expect(again).toMatchObject({ replayed: true, preview: { id: first.preview.id, state: "failed" } });
+    expect(again).toMatchObject({
+      replayed: true,
+      preview: { id: first.preview.id, state: "failed" },
+    });
   });
 
   test("once the preview is destroyed the key is free, and may even mean something new", async () => {
@@ -138,11 +173,15 @@ describe("IdempotentDeploys", () => {
 
   test("keys expire after 24h, and purge() removes them", async () => {
     const s = setup();
-    await (await s.deploys.deploy(s.request("old"), "k")).done;
+    await (
+      await s.deploys.deploy(s.request("old"), "k")
+    ).done;
     expect(s.deploys.purge()).toBe(0);
     s.clock.offset = IDEMPOTENCY_TTL_MS + 1_000;
     // Expired: no longer a replay. The name is still taken, so this is the ordinary 409.
-    await expect(s.deploys.deploy(s.request("old"), "k")).rejects.toMatchObject({ code: "conflict" });
+    await expect(s.deploys.deploy(s.request("old"), "k")).rejects.toMatchObject({
+      code: "conflict",
+    });
     expect(s.deploys.purge()).toBe(1);
     expect(s.keys.get("k", actorId(ACTOR))).toBeUndefined();
   });
@@ -150,7 +189,9 @@ describe("IdempotentDeploys", () => {
   test("a malformed key is a 400, not a row", async () => {
     const s = setup();
     for (const key of ["", "has space", "x".repeat(256), "naïve"]) {
-      await expect(s.deploys.deploy(s.request("x"), key)).rejects.toMatchObject({ code: "bad_request" });
+      await expect(s.deploys.deploy(s.request("x"), key)).rejects.toMatchObject({
+        code: "bad_request",
+      });
     }
   });
 });

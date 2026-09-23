@@ -1,8 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type { Route, Visibility } from "../../../shared/src/domain.ts";
 import {
-  CURRENT_LABEL_VERSION, LABEL, buildLabels, containerLabels, isManaged,
-  labelsFromRoute, parseLabels, routeFromLabels, type GangwayLabels,
+  CURRENT_LABEL_VERSION,
+  LABEL,
+  buildLabels,
+  containerLabels,
+  isManaged,
+  labelsFromRoute,
+  parseLabels,
+  routeFromLabels,
+  type GangwayLabels,
 } from "../../src/docker/labels.ts";
 
 /* A tiny deterministic generator: property tests that change every run are tests that
@@ -18,7 +25,7 @@ function lcg(seed: number): () => number {
 const VISIBILITIES: Visibility[] = ["public", "unlisted", "private"];
 
 function generate(rand: () => number): GangwayLabels {
-  const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
   const word = () => Math.floor(rand() * 1e9).toString(36);
   return {
     instance: `gw-${word()}`,
@@ -79,9 +86,18 @@ describe("round trip", () => {
   test("the spec's key list is present verbatim", () => {
     const l = buildLabels(sample);
     for (const key of [
-      "gangway.managed", "gangway.version", "gangway.instance", "gangway.env",
-      "gangway.preview_id", "gangway.project", "gangway.service", "gangway.host_id",
-      "gangway.hostname", "gangway.port", "gangway.visibility", "gangway.primary",
+      "gangway.managed",
+      "gangway.version",
+      "gangway.instance",
+      "gangway.env",
+      "gangway.preview_id",
+      "gangway.project",
+      "gangway.service",
+      "gangway.host_id",
+      "gangway.hostname",
+      "gangway.port",
+      "gangway.visibility",
+      "gangway.primary",
       "gangway.created_at",
     ]) {
       expect(Object.hasOwn(l, key)).toBe(true);
@@ -108,8 +124,11 @@ describe("§4.1: the label set alone reconstructs a Route", () => {
       createdAt: new Date("2026-02-03T04:05:06.007Z"),
     };
     const ctx = {
-      instance: "gw-main", env: "prod", project: "gw-acme-pr-123",
-      hostId: "docker-host", visibility: "unlisted" as Visibility,
+      instance: "gw-main",
+      env: "prod",
+      project: "gw-acme-pr-123",
+      hostId: "docker-host",
+      visibility: "unlisted" as Visibility,
     };
 
     // The reconciler's inputs: a bag of strings off the daemon. No DB, no host record.
@@ -128,10 +147,15 @@ describe("§4.1: the label set alone reconstructs a Route", () => {
     for (let i = 0; i < 200; i++) {
       const g = generate(rand);
       const route = routeFromLabels(g);
-      const rebuilt = routeFromLabels(labelsFromRoute(route, {
-        instance: g.instance, env: g.env, project: g.project,
-        hostId: g.hostId, visibility: g.visibility,
-      }));
+      const rebuilt = routeFromLabels(
+        labelsFromRoute(route, {
+          instance: g.instance,
+          env: g.env,
+          project: g.project,
+          hostId: g.hostId,
+          visibility: g.visibility,
+        }),
+      );
       expect(rebuilt).toEqual(route);
     }
   });
@@ -220,7 +244,10 @@ describe("version skew", () => {
   test("a higher version is reported distinctly, not as malformed", () => {
     const r = parseLabels({ ...buildLabels(sample), [LABEL.version]: "2" });
     expect(r).toEqual({
-      ok: false, reason: "future-version", version: 2, ours: CURRENT_LABEL_VERSION,
+      ok: false,
+      reason: "future-version",
+      version: 2,
+      ours: CURRENT_LABEL_VERSION,
     });
   });
 
@@ -237,8 +264,9 @@ describe("version skew", () => {
   });
 
   test("our own version parses", () => {
-    expect(parseLabels({ ...buildLabels(sample), [LABEL.version]: String(CURRENT_LABEL_VERSION) }).ok)
-      .toBe(true);
+    expect(
+      parseLabels({ ...buildLabels(sample), [LABEL.version]: String(CURRENT_LABEL_VERSION) }).ok,
+    ).toBe(true);
   });
 
   test("a missing version is malformed, not not-managed", () => {

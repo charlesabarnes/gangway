@@ -26,28 +26,77 @@ const passwords = new Passwords({ ln: 10 });
 const HOST = "shop.preview.example.dev";
 
 const entry = (password: EntryPassword, over: Partial<RouteEntry> = {}): RouteEntry => ({
-  hostname: HOST, previewId: "01SHOP0000000000000000000A", hostId: "local", project: "gw-shop", service: "web",
-  containerPort: 80, upstreamHost: "127.0.0.1", upstreamPort: 31000, primary: true, visibility: "public", password, passwordLogin: "off", state: "awake",
-  inflight: 0, bytesInFlight: 0, lastSeenAt: 0, ...over,
+  hostname: HOST,
+  previewId: "01SHOP0000000000000000000A",
+  hostId: "local",
+  project: "gw-shop",
+  service: "web",
+  containerPort: 80,
+  upstreamHost: "127.0.0.1",
+  upstreamPort: 31000,
+  primary: true,
+  visibility: "public",
+  password,
+  passwordLogin: "off",
+  state: "awake",
+  inflight: 0,
+  bytesInFlight: 0,
+  lastSeenAt: 0,
+  ...over,
 });
 
-async function makeGate(o: { shared?: { hash: string; salt: string } | null; limiter?: LoginLimiter } = {}) {
+async function makeGate(
+  o: { shared?: { hash: string; salt: string } | null; limiter?: LoginLimiter } = {},
+) {
   let now = 1_700_000_000_000;
   const failures: string[] = [];
   const gate = new PreviewGate({
-    key: randomBytes(32), appOrigin: () => "https://app.preview.example.dev", now: () => now,
-    sharedPassword: () => o.shared ?? null, passwords, limiter: o.limiter ?? new LoginLimiter(),
+    key: randomBytes(32),
+    appOrigin: () => "https://app.preview.example.dev",
+    now: () => now,
+    sharedPassword: () => o.shared ?? null,
+    passwords,
+    limiter: o.limiter ?? new LoginLimiter(),
     onPasswordFailure: (_e, _ip, reason) => failures.push(reason),
   });
   const get = (e: RouteEntry, path = "/", headers: Record<string, string> = {}) =>
-    gate.handle(e, new Request(`https://${HOST}${path}`, { headers: { "sec-fetch-mode": "navigate", ...headers } }), "198.51.100.4");
-  const post = async (e: RouteEntry, password: string, to = "/", headers: Record<string, string> = {}) =>
-    gate.handle(e, new Request(`https://${HOST}/__gangway/password`, {
-      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", origin: `https://${HOST}`, ...headers },
-      body: new URLSearchParams({ password, to }).toString(),
-    }), "198.51.100.4")!;
+    gate.handle(
+      e,
+      new Request(`https://${HOST}${path}`, {
+        headers: { "sec-fetch-mode": "navigate", ...headers },
+      }),
+      "198.51.100.4",
+    );
+  const post = async (
+    e: RouteEntry,
+    password: string,
+    to = "/",
+    headers: Record<string, string> = {},
+  ) =>
+    gate.handle(
+      e,
+      new Request(`https://${HOST}/__gangway/password`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: `https://${HOST}`,
+          ...headers,
+        },
+        body: new URLSearchParams({ password, to }).toString(),
+      }),
+      "198.51.100.4",
+    )!;
   const cookieOf = (res: Response) => res.headers.get("set-cookie")?.split(";")[0] ?? "";
-  return { gate, get, post, cookieOf, failures, tick: (ms: number) => { now += ms; } };
+  return {
+    gate,
+    get,
+    post,
+    cookieOf,
+    failures,
+    tick: (ms: number) => {
+      now += ms;
+    },
+  };
 }
 
 describe("the password gate", () => {
@@ -68,7 +117,10 @@ describe("the password gate", () => {
     expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
     expect(res.headers.get("cache-control")).toBe("no-store");
 
-    const api = (await t.gate.handle(entry({ mode: "own", ...own }), new Request(`https://${HOST}/api`, { headers: { "sec-fetch-mode": "cors" } })))!;
+    const api = (await t.gate.handle(
+      entry({ mode: "own", ...own }),
+      new Request(`https://${HOST}/api`, { headers: { "sec-fetch-mode": "cors" } }),
+    ))!;
     expect(api.status).toBe(401);
     expect(api.headers.get("content-type")).toContain("text/plain");
   });
@@ -120,14 +172,18 @@ describe("the password gate", () => {
   test("a POST from another site is refused before the password is tried", async () => {
     const t = await makeGate();
     const e = entry({ mode: "own", ...(await passwords.hash("correct horse")) });
-    expect((await t.post(e, "correct horse", "/", { origin: "https://evil.example" })).status).toBe(403);
+    expect((await t.post(e, "correct horse", "/", { origin: "https://evil.example" })).status).toBe(
+      403,
+    );
     expect(t.failures).toEqual([]);
   });
 
   test("the form only redirects to a path on the same preview", async () => {
     const t = await makeGate();
     const e = entry({ mode: "own", ...(await passwords.hash("correct horse")) });
-    expect((await t.post(e, "correct horse", "https://evil.example/")).headers.get("location")).toBe("/");
+    expect(
+      (await t.post(e, "correct horse", "https://evil.example/")).headers.get("location"),
+    ).toBe("/");
     expect((await t.post(e, "correct horse", "//evil.example/")).headers.get("location")).toBe("/");
   });
 
@@ -147,7 +203,10 @@ describe("the password gate", () => {
 
   test("a private preview asks for the login first, then the password", async () => {
     const t = await makeGate();
-    const e = entry({ mode: "own", ...(await passwords.hash("correct horse")) }, { visibility: "private" });
+    const e = entry(
+      { mode: "own", ...(await passwords.hash("correct horse")) },
+      { visibility: "private" },
+    );
     const res = (await t.get(e))!;
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("/v1/auth/gate");
@@ -156,12 +215,27 @@ describe("the password gate", () => {
 
 describe("signed in instead of the password", () => {
   async function gateWith(loginDefault = true) {
-    const gate = new PreviewGate({ key: randomBytes(32), appOrigin: () => "https://app.preview.example.dev", passwords, loginDefault: () => loginDefault });
+    const gate = new PreviewGate({
+      key: randomBytes(32),
+      appOrigin: () => "https://app.preview.example.dev",
+      passwords,
+      loginDefault: () => loginDefault,
+    });
     const own = await passwords.hash("pw");
     const get = (e: RouteEntry, path = "/", cookie?: string) =>
-      gate.handle(e, new Request(`https://${HOST}${path}`, { headers: { "sec-fetch-mode": "navigate", ...(cookie ? { cookie } : {}) } })) as Response | null;
+      gate.handle(
+        e,
+        new Request(`https://${HOST}${path}`, {
+          headers: { "sec-fetch-mode": "navigate", ...(cookie ? { cookie } : {}) },
+        }),
+      ) as Response | null;
     const signIn = (e: RouteEntry, skipPassword: boolean) =>
-      get(e, `/__gangway/auth?ticket=${encodeURIComponent(gate.issueTicket(e, { skipPassword }))}&to=/`)!.headers.get("set-cookie")!.split(";")[0]!;
+      get(
+        e,
+        `/__gangway/auth?ticket=${encodeURIComponent(gate.issueTicket(e, { skipPassword }))}&to=/`,
+      )!
+        .headers.get("set-cookie")!
+        .split(";")[0]!;
     return { gate, own, get, signIn };
   }
 
@@ -169,19 +243,30 @@ describe("signed in instead of the password", () => {
     const t = await gateWith();
     const res = t.get(entry({ mode: "own", ...t.own }, { passwordLogin: "on" }), "/x")!;
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(`https://app.preview.example.dev/v1/auth/gate?host=${HOST}&to=%2Fx`);
+    expect(res.headers.get("location")).toBe(
+      `https://app.preview.example.dev/v1/auth/gate?host=${HOST}&to=%2Fx`,
+    );
   });
 
   test("login off, or inherit with the switch off: the form, no bounce", async () => {
-    expect((await gateWith()).get(entry({ mode: "own", ...(await passwords.hash("pw")) }, { passwordLogin: "off" }))!.status).toBe(401);
+    expect(
+      (await gateWith()).get(
+        entry({ mode: "own", ...(await passwords.hash("pw")) }, { passwordLogin: "off" }),
+      )!.status,
+    ).toBe(401);
     const t = await gateWith(false);
     expect(t.get(entry({ mode: "own", ...t.own }, { passwordLogin: "inherit" }))!.status).toBe(401);
-    expect(t.gate.gateable(entry({ mode: "own", ...t.own }, { passwordLogin: "inherit" }))).toEqual({ private: false, passwordSkippable: false });
+    expect(t.gate.gateable(entry({ mode: "own", ...t.own }, { passwordLogin: "inherit" }))).toEqual(
+      { private: false, passwordSkippable: false },
+    );
   });
 
   test("app sends a stranger back to /__gangway/password, which is the form for where they were going", async () => {
     const t = await gateWith();
-    const res = t.get(entry({ mode: "own", ...t.own }, { passwordLogin: "on" }), "/__gangway/password?to=%2Forders")!;
+    const res = t.get(
+      entry({ mode: "own", ...t.own }, { passwordLogin: "on" }),
+      "/__gangway/password?to=%2Forders",
+    )!;
     expect(res.status).toBe(401);
     expect(await res.text()).toContain('name="to" value="/orders"');
   });
@@ -201,7 +286,12 @@ describe("signed in instead of the password", () => {
     e.passwordLogin = "off";
     expect(t.get(e, "/", cookie)!.status).toBe(401);
     // ...and no ticket is redeemed for it either.
-    expect(t.get(e, `/__gangway/auth?ticket=${encodeURIComponent(t.gate.issueTicket(e, { skipPassword: true }))}&to=/`)!.status).toBe(404);
+    expect(
+      t.get(
+        e,
+        `/__gangway/auth?ticket=${encodeURIComponent(t.gate.issueTicket(e, { skipPassword: true }))}&to=/`,
+      )!.status,
+    ).toBe(404);
   });
 
   test("private and password: the private sign-in may carry the skip, so there is one handshake, not two", async () => {
@@ -217,57 +307,151 @@ describe("signed in instead of the password", () => {
     const { createHmac } = await import("node:crypto");
     const payload = `01SHOP0000000000000000000A.${Date.now() + 60_000}`;
     const old = `__Host-gw_pv=${payload}.${createHmac("sha256", key).update(`cookie|${payload}`).digest("base64url")}`;
-    const gate = new PreviewGate({ key, appOrigin: () => "https://app.preview.example.dev", passwords });
-    const req = () => new Request(`https://${HOST}/`, { headers: { cookie: old, "sec-fetch-mode": "navigate" } });
+    const gate = new PreviewGate({
+      key,
+      appOrigin: () => "https://app.preview.example.dev",
+      passwords,
+    });
+    const req = () =>
+      new Request(`https://${HOST}/`, { headers: { cookie: old, "sec-fetch-mode": "navigate" } });
     expect(gate.check(entry({ mode: "none" }, { visibility: "private" }), req())).toBeNull();
-    expect(gate.check(entry({ mode: "own", ...(await passwords.hash("pw")) }, { visibility: "private", passwordLogin: "on" }), req())!.status).toBe(401);
+    expect(
+      gate.check(
+        entry(
+          { mode: "own", ...(await passwords.hash("pw")) },
+          { visibility: "private", passwordLogin: "on" },
+        ),
+        req(),
+      )!.status,
+    ).toBe(401);
   });
 });
 
 describe("who can open it, as the UI is told", () => {
-  const deps = (o: { mode?: DefaultPasswordMode; shared?: boolean; login?: boolean } = {}) =>
-    ({ passwords, defaultMode: () => o.mode ?? "off", sharedSet: () => o.shared ?? false, loginDefault: () => o.login ?? false });
+  const deps = (o: { mode?: DefaultPasswordMode; shared?: boolean; login?: boolean } = {}) => ({
+    passwords,
+    defaultMode: () => o.mode ?? "off",
+    sharedSet: () => o.shared ?? false,
+    loginDefault: () => o.login ?? false,
+  });
   const pub = { visibility: "unlisted" as const };
   test("a password of its own means the password, for everyone, unless the login rule says either", () => {
-    expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "inherit" })).toBe("password");
-    expect(previewAccess(deps({ login: true }), { ...pub, password: "generated", passwordLogin: "inherit" })).toBe("either");
-    expect(previewAccess(deps({ login: true }), { ...pub, password: "set", passwordLogin: "off" })).toBe("password");
+    expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "inherit" })).toBe(
+      "password",
+    );
+    expect(
+      previewAccess(deps({ login: true }), {
+        ...pub,
+        password: "generated",
+        passwordLogin: "inherit",
+      }),
+    ).toBe("either");
+    expect(
+      previewAccess(deps({ login: true }), { ...pub, password: "set", passwordLogin: "off" }),
+    ).toBe("password");
     expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "on" })).toBe("either");
   });
   test("only: signed-in people, whatever the password", () => {
-    expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "only" })).toBe("signed-in");
-    expect(previewAccess(deps(), { ...pub, password: "none", passwordLogin: "only" })).toBe("signed-in");
+    expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "only" })).toBe(
+      "signed-in",
+    );
+    expect(previewAccess(deps(), { ...pub, password: "none", passwordLogin: "only" })).toBe(
+      "signed-in",
+    );
   });
   test("inherit is a password only while the default is shared AND one is set; none is open", () => {
-    expect(previewAccess(deps({ mode: "shared", shared: true }), { ...pub, password: "inherit", passwordLogin: "inherit" })).toBe("password");
-    expect(previewAccess(deps({ mode: "shared", shared: false }), { ...pub, password: "inherit", passwordLogin: "inherit" })).toBe("open");
-    expect(previewAccess(deps({ mode: "generated", shared: true }), { ...pub, password: "inherit", passwordLogin: "inherit" })).toBe("open");
-    expect(previewAccess(deps({ mode: "shared", shared: true }), { ...pub, password: "none", passwordLogin: "on" })).toBe("open");
+    expect(
+      previewAccess(deps({ mode: "shared", shared: true }), {
+        ...pub,
+        password: "inherit",
+        passwordLogin: "inherit",
+      }),
+    ).toBe("password");
+    expect(
+      previewAccess(deps({ mode: "shared", shared: false }), {
+        ...pub,
+        password: "inherit",
+        passwordLogin: "inherit",
+      }),
+    ).toBe("open");
+    expect(
+      previewAccess(deps({ mode: "generated", shared: true }), {
+        ...pub,
+        password: "inherit",
+        passwordLogin: "inherit",
+      }),
+    ).toBe("open");
+    expect(
+      previewAccess(deps({ mode: "shared", shared: true }), {
+        ...pub,
+        password: "none",
+        passwordLogin: "on",
+      }),
+    ).toBe("open");
   });
   test("private visibility is signed-in, plus the password unless a login skips it", () => {
-    expect(previewAccess(deps(), { visibility: "private", password: "none", passwordLogin: "inherit" })).toBe("signed-in");
-    expect(previewAccess(deps(), { visibility: "private", password: "set", passwordLogin: "off" })).toBe("signed-in+password");
-    expect(previewAccess(deps(), { visibility: "private", password: "set", passwordLogin: "on" })).toBe("signed-in");
+    expect(
+      previewAccess(deps(), { visibility: "private", password: "none", passwordLogin: "inherit" }),
+    ).toBe("signed-in");
+    expect(
+      previewAccess(deps(), { visibility: "private", password: "set", passwordLogin: "off" }),
+    ).toBe("signed-in+password");
+    expect(
+      previewAccess(deps(), { visibility: "private", password: "set", passwordLogin: "on" }),
+    ).toBe("signed-in");
   });
 });
 
 describe("only people signed in to gangway (passwordLogin only)", () => {
   test("the gate treats it as private: a bounce to app to log in, never the password form, and the password does not open it", async () => {
-    const gate = new PreviewGate({ key: randomBytes(32), appOrigin: () => "https://app.preview.example.dev", passwords });
+    const gate = new PreviewGate({
+      key: randomBytes(32),
+      appOrigin: () => "https://app.preview.example.dev",
+      passwords,
+    });
     const e = entry({ mode: "own", ...(await passwords.hash("pw")) }, { passwordLogin: "only" });
-    const res = gate.handle(e, new Request(`https://${HOST}/x`, { headers: { "sec-fetch-mode": "navigate" } })) as Response;
+    const res = gate.handle(
+      e,
+      new Request(`https://${HOST}/x`, { headers: { "sec-fetch-mode": "navigate" } }),
+    ) as Response;
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("/v1/auth/gate");
     expect(gate.gateable(e)).toEqual({ private: true, passwordSkippable: false });
-    const post = await gate.handle(e, new Request(`https://${HOST}/__gangway/password`, { method: "POST", headers: { origin: `https://${HOST}`, "content-type": "application/x-www-form-urlencoded" }, body: "password=pw&to=/" }));
+    const post = await gate.handle(
+      e,
+      new Request(`https://${HOST}/__gangway/password`, {
+        method: "POST",
+        headers: { origin: `https://${HOST}`, "content-type": "application/x-www-form-urlencoded" },
+        body: "password=pw&to=/",
+      }),
+    );
     expect(post!.status).toBe(404);
-    const cookie = gate.handle(e, new Request(`https://${HOST}/__gangway/auth?ticket=${encodeURIComponent(gate.issueTicket(e))}&to=/`)) as Response;
-    expect(gate.check(e, new Request(`https://${HOST}/`, { headers: { cookie: cookie.headers.get("set-cookie")!.split(";")[0]! } }))).toBeNull();
+    const cookie = gate.handle(
+      e,
+      new Request(
+        `https://${HOST}/__gangway/auth?ticket=${encodeURIComponent(gate.issueTicket(e))}&to=/`,
+      ),
+    ) as Response;
+    expect(
+      gate.check(
+        e,
+        new Request(`https://${HOST}/`, {
+          headers: { cookie: cookie.headers.get("set-cookie")!.split(";")[0]! },
+        }),
+      ),
+    ).toBeNull();
   });
 
   test("stored in its own column: switching away and back keeps the password and the earlier rule", async () => {
     const t = withPasswords();
-    const { preview, done } = await deploy(t.ctx, { actor: ACTOR, name: "only", visibility: "public", source: t.image, password: { mode: "set", value: "pw" }, passwordLogin: "only" });
+    const { preview, done } = await deploy(t.ctx, {
+      actor: ACTOR,
+      name: "only",
+      visibility: "public",
+      source: t.image,
+      password: { mode: "set", value: "pw" },
+      passwordLogin: "only",
+    });
     await done;
     expect(preview.passwordLogin).toBe("only");
     expect(t.table.forPreview(preview.id)[0]!.passwordLogin).toBe("only");
@@ -284,7 +468,9 @@ describe("only people signed in to gangway (passwordLogin only)", () => {
     t.ctx.privateAvailable = () => false;
     const p = await t.deployed("x");
     const { setPreviewPassword } = await import("../../src/previews/password.ts");
-    await expect(setPreviewPassword(t.ctx, { actor: ACTOR, previewId: p.id, login: "only" })).rejects.toThrow(/web UI/);
+    await expect(
+      setPreviewPassword(t.ctx, { actor: ACTOR, previewId: p.id, login: "only" }),
+    ).rejects.toThrow(/web UI/);
   });
 });
 
@@ -311,7 +497,12 @@ function withPasswords(defaultMode: DefaultPasswordMode = "off") {
 describe("deploying with a password", () => {
   test("omitted: inherit, and the route entry says so", async () => {
     const t = withPasswords();
-    const { preview, done } = await deploy(t.ctx, { actor: ACTOR, name: "plain", visibility: "public", source: t.image });
+    const { preview, done } = await deploy(t.ctx, {
+      actor: ACTOR,
+      name: "plain",
+      visibility: "public",
+      source: t.image,
+    });
     await done;
     expect(preview.password).toBe("inherit");
     expect(t.table.forPreview(preview.id)[0]!.password).toEqual({ mode: "inherit" });
@@ -319,13 +510,22 @@ describe("deploying with a password", () => {
 
   test("set: hashed, never stored or logged as text", async () => {
     const t = withPasswords();
-    const { preview, done } = await deploy(t.ctx, { actor: ACTOR, name: "set", visibility: "public", source: t.image, password: { mode: "set", value: "my own password" } });
+    const { preview, done } = await deploy(t.ctx, {
+      actor: ACTOR,
+      name: "set",
+      visibility: "public",
+      source: t.image,
+      password: { mode: "set", value: "my own password" },
+    });
     await done;
     expect(preview.password).toBe("set");
     const stored = t.previews.passwordOf(preview.id);
     expect(stored.mode).toBe("set");
     expect(await passwords.verify("my own password", stored.secret!)).toBe(true);
-    expect(t.table.forPreview(preview.id)[0]!.password).toMatchObject({ mode: "own", hash: stored.secret!.hash });
+    expect(t.table.forPreview(preview.id)[0]!.password).toMatchObject({
+      mode: "own",
+      hash: stored.secret!.hash,
+    });
     expect(t.ctx.logs.tail(preview.id, 500).join("\n")).not.toContain("my own password");
     const dump = JSON.stringify(t.db.query("SELECT * FROM audit"));
     expect(dump).not.toContain("my own password");
@@ -333,7 +533,13 @@ describe("deploying with a password", () => {
 
   test("generate: the password is in the preview's log, once, and verifies against the stored hash", async () => {
     const t = withPasswords();
-    const { preview, done } = await deploy(t.ctx, { actor: ACTOR, name: "gen", visibility: "public", source: t.image, password: { mode: "generate" } });
+    const { preview, done } = await deploy(t.ctx, {
+      actor: ACTOR,
+      name: "gen",
+      visibility: "public",
+      source: t.image,
+      password: { mode: "generate" },
+    });
     await done;
     expect(preview.password).toBe("generated");
     const lines = t.ctx.logs.tail(preview.id, 500).filter((l) => l.includes("preview password"));
@@ -346,15 +552,28 @@ describe("deploying with a password", () => {
 
   test("inherit while the default is `generated` gives the new preview its own", async () => {
     const t = withPasswords("generated");
-    const { preview, done } = await deploy(t.ctx, { actor: ACTOR, name: "auto", visibility: "public", source: t.image });
+    const { preview, done } = await deploy(t.ctx, {
+      actor: ACTOR,
+      name: "auto",
+      visibility: "public",
+      source: t.image,
+    });
     await done;
     expect(preview.password).toBe("generated");
-    expect(t.ctx.logs.tail(preview.id, 500).some((l) => l.includes("preview password (generated"))).toBe(true);
+    expect(
+      t.ctx.logs.tail(preview.id, 500).some((l) => l.includes("preview password (generated")),
+    ).toBe(true);
   });
 
   test("none opens it whatever the default", async () => {
     const t = withPasswords("generated");
-    const { preview, done } = await deploy(t.ctx, { actor: ACTOR, name: "open", visibility: "public", source: t.image, password: { mode: "none" } });
+    const { preview, done } = await deploy(t.ctx, {
+      actor: ACTOR,
+      name: "open",
+      visibility: "public",
+      source: t.image,
+      password: { mode: "none" },
+    });
     await done;
     expect(preview.password).toBe("none");
     expect(t.table.forPreview(preview.id)[0]!.password).toEqual({ mode: "none" });
@@ -362,7 +581,15 @@ describe("deploying with a password", () => {
 
   test("without a hasher, only inherit and none work", async () => {
     const t = setupPreviewContext();
-    await expect(deploy(t.ctx, { actor: ACTOR, name: "x", visibility: "public", source: { kind: "image", image: "a", port: 80 }, password: { mode: "generate" } })).rejects.toThrow(/not available/);
+    await expect(
+      deploy(t.ctx, {
+        actor: ACTOR,
+        name: "x",
+        visibility: "public",
+        source: { kind: "image", image: "a", port: 80 },
+        password: { mode: "generate" },
+      }),
+    ).rejects.toThrow(/not available/);
   });
 });
 
@@ -371,9 +598,18 @@ describe("PUT /v1/previews/:id/password", () => {
     const t = withPasswords();
     const api = new Hono<AppEnv>();
     api.onError(errorHandler(new Logger("error", {}, () => {})));
-    api.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", actor); return next(); });
+    api.use(async (c, next) => {
+      c.set("requestId", "r");
+      c.set("actor", actor);
+      return next();
+    });
     previewRoutes(api, t.ctx, null as never);
-    const put = (id: string, body: unknown) => api.request(`/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const put = (id: string, body: unknown) =>
+      api.request(`/previews/${id}/password`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
     return { ...t, put };
   }
 
@@ -386,15 +622,21 @@ describe("PUT /v1/previews/:id/password", () => {
     expect(t.table.forPreview(p.id)[0]!.password.mode).toBe("own");
 
     res = await t.put(p.id, { password: { mode: "generate" } });
-    expect(((await res.json()) as { preview: { password: string } }).preview.password).toBe("generated");
-    const lines = t.ctx.logs.tail(p.id, 500).filter((l) => l.includes("preview password (generated"));
+    expect(((await res.json()) as { preview: { password: string } }).preview.password).toBe(
+      "generated",
+    );
+    const lines = t.ctx.logs
+      .tail(p.id, 500)
+      .filter((l) => l.includes("preview password (generated"));
     expect(lines).toHaveLength(1);
     const plain = /: ([a-z0-9-]{19})$/.exec(lines[0]!)![1]!;
     expect(JSON.stringify(t.previews.get(p.id))).not.toContain(plain);
 
     res = await t.put(p.id, { password: { mode: "none" } });
     expect(t.table.forPreview(p.id)[0]!.password).toEqual({ mode: "none" });
-    const audit = t.db.query<{ action: string; new_json: string }>("SELECT action, new_json FROM audit WHERE action = 'preview.password' ORDER BY seq");
+    const audit = t.db.query<{ action: string; new_json: string }>(
+      "SELECT action, new_json FROM audit WHERE action = 'preview.password' ORDER BY seq",
+    );
     expect(audit.map((a) => JSON.parse(a.new_json).mode)).toEqual(["set", "generated", "none"]);
     expect(JSON.stringify(audit)).not.toContain("brand new password");
   });
@@ -405,12 +647,17 @@ describe("PUT /v1/previews/:id/password", () => {
     expect((await t.put(p.id, { password: { mode: "set", value: "" } })).status).toBe(422);
     expect((await t.put(p.id, { password: { mode: "set", value: "a" } })).status).toBe(200);
 
-    const member: Actor = { kind: "user", userId: "u-bob", roleId: "member", permissions: new Set(["previews.update_own"]), sessionId: "s" };
+    const member: Actor = {
+      kind: "user",
+      userId: "u-bob",
+      roleId: "member",
+      permissions: new Set(["previews.update_own"]),
+      sessionId: "s",
+    };
     const other = make(member);
     const q = await other.deployed("theirs");
     expect((await other.put(q.id, { password: { mode: "none" } })).status).toBe(403);
   });
-
 });
 
 describe("PUT /v1/settings/preview-password", () => {
@@ -419,20 +666,49 @@ describe("PUT /v1/settings/preview-password", () => {
     const records: unknown[] = [];
     const api = new Hono<AppEnv>();
     api.onError(errorHandler(new Logger("error", {}, () => {})));
-    api.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
-    settingsRoutes(api, settings, { record: (...a: unknown[]) => { records.push(a); } } as never, undefined, (p) => passwords.hash(p));
-    const put = (path: string, body: unknown) => api.request(path, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    api.use(async (c, next) => {
+      c.set("requestId", "r");
+      c.set("actor", ACTOR);
+      return next();
+    });
+    settingsRoutes(
+      api,
+      settings,
+      {
+        record: (...a: unknown[]) => {
+          records.push(a);
+        },
+      } as never,
+      undefined,
+      (p) => passwords.hash(p),
+    );
+    const put = (path: string, body: unknown) =>
+      api.request(path, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
     return { settings, put, records };
   }
 
   test("shared: hashed into a secret setting, reported as set, never as a value", async () => {
     const t = make();
-    const res = await t.put("/settings/preview-password", { mode: "shared", value: "team password" });
+    const res = await t.put("/settings/preview-password", {
+      mode: "shared",
+      value: "team password",
+    });
     expect(res.status).toBe(200);
-    const view = ((await res.json()) as { settings: { key: string; value: unknown; set: boolean }[] }).settings;
+    const view = (
+      (await res.json()) as { settings: { key: string; value: unknown; set: boolean }[] }
+    ).settings;
     expect(view.find((v) => v.key === "previews.password.mode")?.value).toBe("shared");
-    expect(view.find((v) => v.key === "previews.password.shared")).toMatchObject({ value: null, set: true });
-    expect(await passwords.verify("team password", t.settings.get(SETTINGS.previewPasswordShared)!)).toBe(true);
+    expect(view.find((v) => v.key === "previews.password.shared")).toMatchObject({
+      value: null,
+      set: true,
+    });
+    expect(
+      await passwords.verify("team password", t.settings.get(SETTINGS.previewPasswordShared)!),
+    ).toBe(true);
     expect(JSON.stringify(t.records)).not.toContain("team password");
   });
 
@@ -442,14 +718,27 @@ describe("PUT /v1/settings/preview-password", () => {
     await t.put("/settings/preview-password", { mode: "shared", value: "team password" });
     await t.put("/settings/preview-password", { mode: "off" });
     expect((await t.put("/settings/preview-password", { mode: "shared" })).status).toBe(200);
-    expect(await passwords.verify("team password", t.settings.get(SETTINGS.previewPasswordShared)!)).toBe(true);
+    expect(
+      await passwords.verify("team password", t.settings.get(SETTINGS.previewPasswordShared)!),
+    ).toBe(true);
   });
 
   test("a value with any other mode is refused; the generic PUT cannot write these keys", async () => {
     const t = make();
-    expect((await t.put("/settings/preview-password", { mode: "generated", value: "team password" })).status).toBe(422);
-    expect((await t.put("/settings", { values: { "previews.password.shared": { hash: "x", salt: "y" } } })).status).toBe(409);
-    expect((await t.put("/settings", { values: { "previews.password.mode": "shared" } })).status).toBe(409);
+    expect(
+      (await t.put("/settings/preview-password", { mode: "generated", value: "team password" }))
+        .status,
+    ).toBe(422);
+    expect(
+      (
+        await t.put("/settings", {
+          values: { "previews.password.shared": { hash: "x", salt: "y" } },
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (await t.put("/settings", { values: { "previews.password.mode": "shared" } })).status,
+    ).toBe(409);
     expect((await t.put("/settings/preview-password", { mode: "generated" })).status).toBe(200);
     expect(t.settings.get(SETTINGS.previewPasswordMode)).toBe("generated");
   });

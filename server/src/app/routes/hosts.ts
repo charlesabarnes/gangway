@@ -9,5 +9,7 @@ import { requirePermission } from "../middleware/auth.ts";
 const toWire = (h: Host) => ({ ...h, dockerHost: redactString(h.dockerHost) });
 
 export function hostRoutes(api: Hono<AppEnv>, hosts: HostsRepo): void {
-  api.get("/hosts", requirePermission("hosts.read"), (c) => c.json({ hosts: hosts.list().map(toWire) }));
+  api.get("/hosts", requirePermission("hosts.read"), (c) =>
+    c.json({ hosts: hosts.list().map(toWire) }),
+  );
 }

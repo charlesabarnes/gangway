@@ -16,10 +16,18 @@ export class App {
   readonly #router = inject(Router);
 
   protected readonly health = toSignal(inject(HealthService).check());
-  readonly #url = toSignal(this.#router.events.pipe(filter((e) => e instanceof NavigationEnd), map((e) => e.urlAfterRedirects)), { initialValue: this.#router.url });
+  readonly #url = toSignal(
+    this.#router.events.pipe(
+      filter((e) => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.#router.url },
+  );
 
   /** Login and setup bring their own frame; the app header is for people who are in. */
-  protected readonly chrome = computed(() => this.auth.authenticated() && !/^\/(login|setup)(\?|\/|$)/.test(this.#url()));
+  protected readonly chrome = computed(
+    () => this.auth.authenticated() && !/^\/(login|setup)(\?|\/|$)/.test(this.#url()),
+  );
 
   protected async logout(): Promise<void> {
     await this.auth.logout().catch(() => {});

@@ -42,7 +42,10 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
     let wake: (() => void) | null = null;
     let open = true;
 
-    const close = () => { open = false; wake?.(); };
+    const close = () => {
+      open = false;
+      wake?.();
+    };
     const unsubscribe = source((m) => {
       if (queue.length >= maxQueue) return close();
       queue.push(m);
@@ -66,7 +69,10 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
         if (!open || queue.length > 0) continue;
         const timedOut = await new Promise<boolean>((resolve) => {
           const t = setTimeout(() => resolve(true), heartbeatMs);
-          wake = () => { clearTimeout(t); resolve(false); };
+          wake = () => {
+            clearTimeout(t);
+            resolve(false);
+          };
         });
         wake = null;
         // A comment line: keeps idle connections alive through NAT and lets us notice

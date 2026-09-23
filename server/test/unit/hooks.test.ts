@@ -8,17 +8,33 @@ import type { Outcome, PrPreviews } from "../../src/forge/pr-previews.ts";
 import { Logger } from "../../src/logger.ts";
 
 const SECRET = "s3cret";
-const repository = { name: "web-app", full_name: "acme/web-app", owner: { login: "acme" }, clone_url: "https://github.com/acme/web-app.git", private: false };
+const repository = {
+  name: "web-app",
+  full_name: "acme/web-app",
+  owner: { login: "acme" },
+  clone_url: "https://github.com/acme/web-app.git",
+  private: false,
+};
 const opened = {
-  action: "opened", repository, installation: { id: 4242 },
-  pull_request: { number: 1, title: "t", head: { sha: "a".repeat(40), ref: "f", repo: { full_name: "acme/web-app" } }, base: { ref: "main" }, user: { login: "dev" } },
+  action: "opened",
+  repository,
+  installation: { id: 4242 },
+  pull_request: {
+    number: 1,
+    title: "t",
+    head: { sha: "a".repeat(40), ref: "f", repo: { full_name: "acme/web-app" } },
+    base: { ref: "main" },
+    user: { login: "dev" },
+  },
 };
 
 function make(o: { secret?: string; slow?: boolean; fail?: boolean } = {}) {
   const forge = new GitHubForge({ app: {} as never, webhookSecret: () => o.secret ?? SECRET });
   const handled: ForgeEvent[] = [];
   let release: () => void = () => {};
-  const gate = new Promise<void>((r) => { release = r; });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
   const service = {
     async handle(event: ForgeEvent): Promise<Outcome> {
       handled.push(event);
@@ -28,15 +44,34 @@ function make(o: { secret?: string; slow?: boolean; fail?: boolean } = {}) {
     },
   } as unknown as PrPreviews;
   const outcomes: [string, Outcome][] = [];
-  const hooks = new Hooks({ forge: forge as Forge, service, logger: new Logger("error", {}, () => {}), onOutcome: (id, out) => outcomes.push([id, out]) });
+  const hooks = new Hooks({
+    forge: forge as Forge,
+    service,
+    logger: new Logger("error", {}, () => {}),
+    onOutcome: (id, out) => outcomes.push([id, out]),
+  });
   const handler = hooks.handler();
-  const post = (payload: unknown, h: Record<string, string> = {}, o2: { path?: string; method?: string; secret?: string; raw?: string } = {}) => {
+  const post = (
+    payload: unknown,
+    h: Record<string, string> = {},
+    o2: { path?: string; method?: string; secret?: string; raw?: string } = {},
+  ) => {
     const raw = o2.raw ?? JSON.stringify(payload);
     const headers = new Headers({
-      "content-type": "application/json", "x-github-event": "pull_request", "x-github-delivery": "d-1",
-      "x-hub-signature-256": signPayload(o2.secret ?? SECRET, new TextEncoder().encode(raw)), ...h,
+      "content-type": "application/json",
+      "x-github-event": "pull_request",
+      "x-github-delivery": "d-1",
+      "x-hub-signature-256": signPayload(o2.secret ?? SECRET, new TextEncoder().encode(raw)),
+      ...h,
     });
-    return handler(new Request(`https://hooks.preview.localhost:8443${o2.path ?? "/github"}`, { method: o2.method ?? "POST", headers, body: o2.method === "GET" ? null : raw }), { clientIp: "140.82.115.1" });
+    return handler(
+      new Request(`https://hooks.preview.localhost:8443${o2.path ?? "/github"}`, {
+        method: o2.method ?? "POST",
+        headers,
+        body: o2.method === "GET" ? null : raw,
+      }),
+      { clientIp: "140.82.115.1" },
+    );
   };
   return { hooks, post, handled, outcomes, release: () => release() };
 }
@@ -48,7 +83,11 @@ describe("POST /github", () => {
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ accepted: true, deliveryId: "d-1", event: "pr.updated" });
     await t.hooks.drain();
-    expect(t.handled[0]).toMatchObject({ type: "pr.updated", action: "opened", pr: { number: 1, repo: { fullName: "acme/web-app", installationId: "4242" } } });
+    expect(t.handled[0]).toMatchObject({
+      type: "pr.updated",
+      action: "opened",
+      pr: { number: 1, repo: { fullName: "acme/web-app", installationId: "4242" } },
+    });
     expect(t.outcomes).toEqual([["d-1", { action: "ignored", reason: "fake" }]]);
   });
 
@@ -78,7 +117,11 @@ describe("POST /github", () => {
     expect((await t.post(opened)).status).toBe(202);
     const again = await t.post(opened);
     expect(again.status).toBe(202);
-    expect(await again.json()).toEqual({ accepted: false, deliveryId: "d-1", reason: "already delivered" });
+    expect(await again.json()).toEqual({
+      accepted: false,
+      deliveryId: "d-1",
+      reason: "already delivered",
+    });
     await t.hooks.drain();
     expect(t.handled).toHaveLength(1);
   });

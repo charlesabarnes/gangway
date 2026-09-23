@@ -33,8 +33,15 @@ export class CertificatesRepo {
          issuer = excluded.issuer, source = excluded.source, not_before = excluded.not_before,
          not_after = excluded.not_after, updated_at = excluded.updated_at`,
       {
-        d: c.domain, cert: c.certPem, key: c.keyPem, chain: c.chainPem,
-        issuer: c.issuer, source: c.source ?? null, nb: fromDate(c.notBefore), na: fromDate(c.notAfter), now: this.#now(),
+        d: c.domain,
+        cert: c.certPem,
+        key: c.keyPem,
+        chain: c.chainPem,
+        issuer: c.issuer,
+        source: c.source ?? null,
+        nb: fromDate(c.notBefore),
+        na: fromDate(c.notAfter),
+        now: this.#now(),
       },
     );
     return this.get(c.domain)!;

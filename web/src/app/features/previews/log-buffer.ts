@@ -10,8 +10,11 @@ export const stripAnsi = (s: string): string => s.replace(ANSI, '').replace(CONT
 
 /** Closer than this to the bottom counts as "at the bottom": a sub-pixel gap must not unstick the view. */
 export const STICK_THRESHOLD_PX = 24;
-export const isStuckToBottom = (m: { scrollHeight: number; scrollTop: number; clientHeight: number }): boolean =>
-  m.scrollHeight - m.scrollTop - m.clientHeight < STICK_THRESHOLD_PX;
+export const isStuckToBottom = (m: {
+  scrollHeight: number;
+  scrollTop: number;
+  clientHeight: number;
+}): boolean => m.scrollHeight - m.scrollTop - m.clientHeight < STICK_THRESHOLD_PX;
 
 /**
  * The last N lines. A build can emit tens of thousands; a tab that kept them all would
@@ -34,7 +37,9 @@ export class LogBuffer {
 
   /** True if anything was added. */
   push(batch: readonly LogLine[]): boolean {
-    const fresh = batch.filter((l) => l.n > this.#last).map((l) => ({ ...l, line: stripAnsi(l.line) }));
+    const fresh = batch
+      .filter((l) => l.n > this.#last)
+      .map((l) => ({ ...l, line: stripAnsi(l.line) }));
     if (fresh.length === 0) return false;
     this.#last = fresh[fresh.length - 1]!.n;
     const all = this.#lines.concat(fresh);
@@ -44,8 +49,14 @@ export class LogBuffer {
     return true;
   }
 
-  get lines(): readonly LogLine[] { return this.#lines; }
+  get lines(): readonly LogLine[] {
+    return this.#lines;
+  }
   /** Lines this tab let go of to stay bounded. */
-  get dropped(): number { return this.#dropped; }
-  get lastN(): number { return this.#last; }
+  get dropped(): number {
+    return this.#dropped;
+  }
+  get lastN(): number {
+    return this.#last;
+  }
 }

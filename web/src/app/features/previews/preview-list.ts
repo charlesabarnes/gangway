@@ -26,38 +26,91 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
 
 @Component({
   selector: 'app-preview-list',
-  imports: [RouterLink, Btn, ConfirmDialog, ConnectionDot, EmptyState, RelativeTimePipe, StateBadge, PasswordBadge],
+  imports: [
+    RouterLink,
+    Btn,
+    ConfirmDialog,
+    ConnectionDot,
+    EmptyState,
+    RelativeTimePipe,
+    StateBadge,
+    PasswordBadge,
+  ],
   template: `
     <section class="mx-auto max-w-5xl px-6 py-10">
       <div class="flex items-baseline gap-3">
         <h1 class="text-2xl font-semibold tracking-tight">Previews</h1>
-        <span class="text-sm text-neutral-500" data-testid="count">{{ shown().length }}@if (filtered()) { of {{ store.previews().length }} }</span>
+        <span class="text-sm text-neutral-500" data-testid="count"
+          >{{ shown().length }}
+          @if (filtered()) {
+            of {{ store.previews().length }}
+          }
+        </span>
         <span class="ml-auto"><app-connection-dot [status]="store.status()" /></span>
-        @if (canDeploy()) { <a appBtn routerLink="/new" class="self-center" data-testid="new">New preview</a> }
+        @if (canDeploy()) {
+          <a appBtn routerLink="/new" class="self-center" data-testid="new">New preview</a>
+        }
       </div>
 
       <div class="mt-6 flex flex-wrap items-center gap-2">
         @for (chip of chips; track chip.key) {
-          <button type="button" (click)="toggleState(chip.key)" [attr.aria-pressed]="states().has(chip.key)"
-                  class="rounded-full border px-3 py-1 text-sm transition"
-                  [class]="states().has(chip.key) ? 'border-accent bg-accent/10 text-accent' : 'border-neutral-300 text-neutral-600 hover:border-neutral-400 dark:border-neutral-700 dark:text-neutral-400'"
-                  [attr.data-testid]="'chip-' + chip.key">{{ chip.label }}</button>
+          <button
+            type="button"
+            (click)="toggleState(chip.key)"
+            [attr.aria-pressed]="states().has(chip.key)"
+            class="rounded-full border px-3 py-1 text-sm transition"
+            [class]="
+              states().has(chip.key)
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-neutral-300 text-neutral-600 hover:border-neutral-400 dark:border-neutral-700 dark:text-neutral-400'
+            "
+            [attr.data-testid]="'chip-' + chip.key"
+          >
+            {{ chip.label }}
+          </button>
         }
-        <select aria-label="Source" [value]="source()" (change)="setSource($any($event.target).value)" data-testid="source"
-                class="rounded-full border border-neutral-300 bg-transparent px-3 py-1 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+        <select
+          aria-label="Source"
+          [value]="source()"
+          (change)="setSource($any($event.target).value)"
+          data-testid="source"
+          class="rounded-full border border-neutral-300 bg-transparent px-3 py-1 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
+        >
           <option value="">any source</option>
-          @for (k of sourceKinds; track k) { <option [value]="k">{{ k }}</option> }
+          @for (k of sourceKinds; track k) {
+            <option [value]="k">{{ k }}</option>
+          }
         </select>
-        <input type="search" placeholder="Search name or repo" aria-label="Search" [value]="query()" (input)="setQuery($any($event.target).value)" data-testid="search"
-               class="min-w-48 flex-1 rounded-full border border-neutral-300 bg-transparent px-3.5 py-1 text-sm placeholder:text-neutral-400 dark:border-neutral-700" />
+        <input
+          type="search"
+          placeholder="Search name or repo"
+          aria-label="Search"
+          [value]="query()"
+          (input)="setQuery($any($event.target).value)"
+          data-testid="search"
+          class="min-w-48 flex-1 rounded-full border border-neutral-300 bg-transparent px-3.5 py-1 text-sm placeholder:text-neutral-400 dark:border-neutral-700"
+        />
         <label class="flex items-center gap-1.5 text-sm text-neutral-600 dark:text-neutral-400">
-          <input type="checkbox" [checked]="store.includeDestroyed()" (change)="setDestroyed($any($event.target).checked)" data-testid="show-destroyed" /> destroyed
+          <input
+            type="checkbox"
+            [checked]="store.includeDestroyed()"
+            (change)="setDestroyed($any($event.target).checked)"
+            data-testid="show-destroyed"
+          />
+          destroyed
         </label>
       </div>
 
       @if (store.error(); as e) {
-        <p class="mt-6 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert" data-testid="list-error">
-          Could not load previews: {{ e.detail }}@if (e.requestId) { <span class="font-mono text-xs opacity-70"> (request {{ e.requestId }})</span> }
+        <p
+          class="mt-6 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+          role="alert"
+          data-testid="list-error"
+        >
+          Could not load previews: {{ e.detail }}
+          @if (e.requestId) {
+            <span class="font-mono text-xs opacity-70"> (request {{ e.requestId }})</span>
+          }
         </p>
       }
 
@@ -65,7 +118,9 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
         @if (shown().length > 0) {
           <div class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
             <table class="w-full text-left text-sm">
-              <thead class="border-b border-neutral-200 bg-neutral-50 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/50">
+              <thead
+                class="border-b border-neutral-200 bg-neutral-50 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/50"
+              >
                 <tr>
                   <th scope="col" class="px-4 py-2.5 font-medium">Name</th>
                   <th scope="col" class="px-4 py-2.5 font-medium">State</th>
@@ -77,23 +132,71 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
               </thead>
               <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
                 @for (p of shown(); track p.id) {
-                  <tr [class.opacity-50]="p.state === 'destroyed'" data-testid="row" [attr.data-id]="p.id">
+                  <tr
+                    [class.opacity-50]="p.state === 'destroyed'"
+                    data-testid="row"
+                    [attr.data-id]="p.id"
+                  >
                     <td class="px-4 py-3">
-                      <a [routerLink]="['/previews', p.id]" class="font-medium hover:text-accent" data-testid="name">{{ name(p) }}</a>
-                      @if (p.state !== 'destroyed') { <app-password-badge class="ml-2 align-middle" [access]="p.access" /> }
+                      <a
+                        [routerLink]="['/previews', p.id]"
+                        class="font-medium hover:text-accent"
+                        data-testid="name"
+                        >{{ name(p) }}</a
+                      >
+                      @if (p.state !== 'destroyed') {
+                        <app-password-badge class="ml-2 align-middle" [access]="p.access" />
+                      }
                       @if (url(p); as u) {
-                        <a [href]="u" target="_blank" rel="noopener noreferrer" class="mt-0.5 block max-w-xs truncate font-mono text-xs text-neutral-500 hover:text-accent" data-testid="url">{{ host(u) }} ↗</a>
+                        <a
+                          [href]="u"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="mt-0.5 block max-w-xs truncate font-mono text-xs text-neutral-500 hover:text-accent"
+                          data-testid="url"
+                          >{{ host(u) }} ↗</a
+                        >
                       }
                     </td>
                     <td class="px-4 py-3"><app-state-badge [state]="p.state" /></td>
-                    <td class="max-w-56 truncate px-4 py-3 text-neutral-600 dark:text-neutral-400" [title]="label(p)">
-                      <span class="mr-1.5 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800">{{ p.source.kind }}</span>{{ label(p) }}
+                    <td
+                      class="max-w-56 truncate px-4 py-3 text-neutral-600 dark:text-neutral-400"
+                      [title]="label(p)"
+                    >
+                      <span
+                        class="mr-1.5 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800"
+                        >{{ p.source.kind }}</span
+                      >{{ label(p) }}
                     </td>
-                    <td class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400" [title]="p.ttlExpiresAt ?? ''" data-testid="expires">{{ p.state === 'destroyed' ? '—' : p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never' }}</td>
-                    <td class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400" [title]="p.createdAt">{{ p.createdAt | relativeTime: clock.now() }}</td>
+                    <td
+                      class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400"
+                      [title]="p.ttlExpiresAt ?? ''"
+                      data-testid="expires"
+                    >
+                      {{
+                        p.state === 'destroyed'
+                          ? '—'
+                          : p.ttlExpiresAt
+                            ? (p.ttlExpiresAt | relativeTime: clock.now())
+                            : 'never'
+                      }}
+                    </td>
+                    <td
+                      class="px-4 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-400"
+                      [title]="p.createdAt"
+                    >
+                      {{ p.createdAt | relativeTime: clock.now() }}
+                    </td>
                     <td class="px-4 py-3 text-right">
                       @if (canDestroy() && destroyable(p)) {
-                        <button type="button" (click)="ask(p)" class="text-sm text-neutral-500 hover:text-red-600 dark:hover:text-red-400" data-testid="destroy">Destroy</button>
+                        <button
+                          type="button"
+                          (click)="ask(p)"
+                          class="text-sm text-neutral-500 hover:text-red-600 dark:hover:text-red-400"
+                          data-testid="destroy"
+                        >
+                          Destroy
+                        </button>
                       }
                     </td>
                   </tr>
@@ -105,23 +208,48 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
           <p class="py-14 text-center text-sm text-neutral-500" data-testid="loading">Loading…</p>
         } @else if (filtered()) {
           <app-empty-state heading="Nothing matches these filters">
-            <button appBtn variant="ghost" type="button" class="mt-3" (click)="clearFilters()" data-testid="clear">Clear filters</button>
+            <button
+              appBtn
+              variant="ghost"
+              type="button"
+              class="mt-3"
+              (click)="clearFilters()"
+              data-testid="clear"
+            >
+              Clear filters
+            </button>
           </app-empty-state>
         } @else if (!store.error()) {
           <app-empty-state heading="No previews yet">
             @if (canDeploy()) {
-              <p><a routerLink="/new" class="text-accent hover:underline" data-testid="empty-new">Create one</a> from a runtime's starter or by dropping in files — or deploy from the API. It will appear here as it happens, no refresh needed.</p>
+              <p>
+                <a routerLink="/new" class="text-accent hover:underline" data-testid="empty-new"
+                  >Create one</a
+                >
+                from a runtime's starter or by dropping in files — or deploy from the API. It will
+                appear here as it happens, no refresh needed.
+              </p>
             } @else {
-              <p>Deploy one from the API and it will appear here as it happens — no refresh needed.</p>
+              <p>
+                Deploy one from the API and it will appear here as it happens — no refresh needed.
+              </p>
             }
-            <pre class="mt-4 overflow-x-auto rounded-md bg-neutral-100 p-3 text-left font-mono text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300" data-testid="curl">{{ curl }}</pre>
+            <pre
+              class="mt-4 overflow-x-auto rounded-md bg-neutral-100 p-3 text-left font-mono text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+              data-testid="curl"
+              >{{ curl }}</pre>
           </app-empty-state>
         }
       </div>
     </section>
 
-    <app-confirm-dialog [heading]="'Destroy ' + (pending() ? name(pending()!) : '') + '?'" confirmLabel="Destroy" (confirmed)="destroy()">
-      Its containers, volumes and network are removed, its URL stops working, and its logs are deleted. This cannot be undone.
+    <app-confirm-dialog
+      [heading]="'Destroy ' + (pending() ? name(pending()!) : '') + '?'"
+      confirmLabel="Destroy"
+      (confirmed)="destroy()"
+    >
+      Its containers, volumes and network are removed, its URL stops working, and its logs are
+      deleted. This cannot be undone.
     </app-confirm-dialog>
   `,
 })
@@ -140,7 +268,13 @@ export class PreviewList {
   protected readonly name = displayName;
   protected readonly url = primaryUrl;
   protected readonly label = (p: Preview) => sourceLabel(p.source);
-  protected readonly host = (u: string) => { try { return new URL(u).host; } catch { return u; } };
+  protected readonly host = (u: string) => {
+    try {
+      return new URL(u).host;
+    } catch {
+      return u;
+    }
+  };
   /** The API answers on this origin too, so the hint is copy-pasteable as it stands. */
   protected readonly curl = [
     `curl -X POST ${typeof location === 'undefined' ? '' : location.origin}/v1/previews \\`,
@@ -156,22 +290,37 @@ export class PreviewList {
   /** Advice about what to SHOW. The server refuses a DELETE the role does not allow, whatever this says. */
   protected readonly canDestroy = computed(() => this.#auth.can('previews.destroy'));
   protected readonly canDeploy = computed(() => this.#auth.can('previews.deploy'));
-  protected readonly filtered = computed(() => this.states().size > 0 || this.source() !== '' || this.query().trim() !== '');
+  protected readonly filtered = computed(
+    () => this.states().size > 0 || this.source() !== '' || this.query().trim() !== '',
+  );
 
   protected readonly shown = computed(() => {
-    const wanted = new Set(STATE_CHIPS.filter((c) => this.states().has(c.key)).flatMap((c) => c.states));
+    const wanted = new Set(
+      STATE_CHIPS.filter((c) => this.states().has(c.key)).flatMap((c) => c.states),
+    );
     const source = this.source();
     const q = this.query().trim().toLowerCase();
-    return this.store.previews().filter((p) =>
-      // `destroyed` rows are governed by their own checkbox, not by the state chips.
-      (wanted.size === 0 || p.state === 'destroyed' || p.state === 'destroying' || wanted.has(p.state)) &&
-      (source === '' || p.source.kind === source) &&
-      (q === '' || displayName(p).toLowerCase().includes(q) || sourceLabel(p.source).toLowerCase().includes(q)));
+    return this.store.previews().filter(
+      (p) =>
+        // `destroyed` rows are governed by their own checkbox, not by the state chips.
+        (wanted.size === 0 ||
+          p.state === 'destroyed' ||
+          p.state === 'destroying' ||
+          wanted.has(p.state)) &&
+        (source === '' || p.source.kind === source) &&
+        (q === '' ||
+          displayName(p).toLowerCase().includes(q) ||
+          sourceLabel(p.source).toLowerCase().includes(q)),
+    );
   });
 
   constructor() {
     const q = this.#route.snapshot.queryParamMap;
-    this.states.set(new Set((q.get('state') ?? '').split(',').filter((k) => STATE_CHIPS.some((c) => c.key === k))));
+    this.states.set(
+      new Set(
+        (q.get('state') ?? '').split(',').filter((k) => STATE_CHIPS.some((c) => c.key === k)),
+      ),
+    );
     this.source.set(SOURCE_KINDS.includes(q.get('source') as SourceKind) ? q.get('source')! : '');
     this.query.set(q.get('q') ?? '');
     if (q.get('destroyed') === '1') this.store.includeDestroyed.set(true);
@@ -190,10 +339,24 @@ export class PreviewList {
     this.states.set(next);
     this.#syncUrl();
   }
-  protected setSource(v: string): void { this.source.set(v); this.#syncUrl(); }
-  protected setQuery(v: string): void { this.query.set(v); this.#syncUrl(); }
-  protected setDestroyed(on: boolean): void { void this.store.setIncludeDestroyed(on); this.#syncUrl(on); }
-  protected clearFilters(): void { this.states.set(new Set()); this.source.set(''); this.query.set(''); this.#syncUrl(); }
+  protected setSource(v: string): void {
+    this.source.set(v);
+    this.#syncUrl();
+  }
+  protected setQuery(v: string): void {
+    this.query.set(v);
+    this.#syncUrl();
+  }
+  protected setDestroyed(on: boolean): void {
+    void this.store.setIncludeDestroyed(on);
+    this.#syncUrl(on);
+  }
+  protected clearFilters(): void {
+    this.states.set(new Set());
+    this.source.set('');
+    this.query.set('');
+    this.#syncUrl();
+  }
 
   protected ask(p: Preview): void {
     this.pending.set(p);
@@ -215,7 +378,8 @@ export class PreviewList {
   /** Filters live in the URL so a filtered view can be bookmarked, shared, and survives a reload. */
   #syncUrl(destroyed = this.store.includeDestroyed()): void {
     void this.#router.navigate([], {
-      relativeTo: this.#route, replaceUrl: true,
+      relativeTo: this.#route,
+      replaceUrl: true,
       queryParams: {
         state: this.states().size ? [...this.states()].join(',') : null,
         source: this.source() || null,

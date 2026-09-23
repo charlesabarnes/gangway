@@ -12,7 +12,12 @@ import type { SessionInfo } from './api.types';
 @Component({ template: '' })
 class Blank {}
 
-const ADA: SessionInfo = { authenticated: true, setupRequired: false, user: { id: 'u1', email: 'ada@example.com', role: { id: 'member', name: 'member' } }, permissions: ['previews.read', 'previews.destroy'] };
+const ADA: SessionInfo = {
+  authenticated: true,
+  setupRequired: false,
+  user: { id: 'u1', email: 'ada@example.com', role: { id: 'member', name: 'member' } },
+  permissions: ['previews.read', 'previews.destroy'],
+};
 const ANON: SessionInfo = { authenticated: false, setupRequired: false };
 const FIRST_RUN: SessionInfo = { authenticated: false, setupRequired: true };
 
@@ -40,7 +45,10 @@ function setup() {
     // question to be asked rather than guessing how many.
     for (let i = 0; session && i < 50; i++) {
       const [asked] = http.match('/v1/auth/session');
-      if (asked) { asked.flush(session); break; }
+      if (asked) {
+        asked.flush(session);
+        break;
+      }
       await new Promise((r) => setTimeout(r));
     }
     await nav;
@@ -93,7 +101,10 @@ describe('AuthService', () => {
     const { auth, http } = setup();
     const login = auth.login('ada@example.com', 'a long enough passphrase');
     const req = http.expectOne('/v1/auth/login');
-    expect(req.request.body).toEqual({ email: 'ada@example.com', password: 'a long enough passphrase' });
+    expect(req.request.body).toEqual({
+      email: 'ada@example.com',
+      password: 'a long enough passphrase',
+    });
     req.flush({ user: ADA.authenticated ? ADA.user : null, permissions: ['previews.read'] });
     await login;
     expect(auth.authenticated()).toBe(true);
@@ -107,7 +118,8 @@ describe('AuthService', () => {
 });
 
 describe('guards', () => {
-  it('logged in: through', async () => expect(await setup().go('/previews', ADA)).toBe('/previews'));
+  it('logged in: through', async () =>
+    expect(await setup().go('/previews', ADA)).toBe('/previews'));
 
   it('anonymous: to login, remembering where you were going', async () => {
     expect(await setup().go('/previews/01ABC', ANON)).toBe('/login?returnUrl=%2Fpreviews%2F01ABC');
@@ -136,9 +148,17 @@ describe('guards', () => {
 
 describe('safeReturnUrl', () => {
   it.each([
-    ['/previews/01ABC', '/previews/01ABC'], ['/previews?state=awake', '/previews?state=awake'],
-    ['//evil.example', '/'], ['https://evil.example', '/'], ['/\\evil.example', '/'], ['javascript:alert(1)', '/'],
-    ['', '/'], [null, '/'], ['/login', '/'], ['/login?returnUrl=/login', '/'], ['/setup?token=x', '/'],
+    ['/previews/01ABC', '/previews/01ABC'],
+    ['/previews?state=awake', '/previews?state=awake'],
+    ['//evil.example', '/'],
+    ['https://evil.example', '/'],
+    ['/\\evil.example', '/'],
+    ['javascript:alert(1)', '/'],
+    ['', '/'],
+    [null, '/'],
+    ['/login', '/'],
+    ['/login?returnUrl=/login', '/'],
+    ['/setup?token=x', '/'],
   ])('%s -> %s', (raw, want) => expect(safeReturnUrl(raw)).toBe(want));
 });
 
@@ -152,7 +172,9 @@ describe('apiInterceptor', () => {
   it('a 401 from the API ends the session and goes to login, remembering the page', async () => {
     const t = await loggedInAt('/previews/01ABC');
     t.client.get('/v1/previews/01ABC').subscribe({ error: () => {} });
-    t.http.expectOne('/v1/previews/01ABC').flush({ title: 'unauthorized' }, { status: 401, statusText: 'x' });
+    t.http
+      .expectOne('/v1/previews/01ABC')
+      .flush({ title: 'unauthorized' }, { status: 401, statusText: 'x' });
     await new Promise((r) => setTimeout(r));
     expect(t.auth.authenticated()).toBe(false);
     expect(t.router.url).toBe('/login?returnUrl=%2Fpreviews%2F01ABC');
@@ -161,7 +183,9 @@ describe('apiInterceptor', () => {
   it('a 401 from /v1/auth/login is the ANSWER (wrong password), not a lost session', async () => {
     const t = await loggedInAt('/previews');
     t.client.post('/v1/auth/login', {}).subscribe({ error: () => {} });
-    t.http.expectOne('/v1/auth/login').flush({ title: 'unauthorized' }, { status: 401, statusText: 'x' });
+    t.http
+      .expectOne('/v1/auth/login')
+      .flush({ title: 'unauthorized' }, { status: 401, statusText: 'x' });
     await new Promise((r) => setTimeout(r));
     expect(t.auth.authenticated()).toBe(true);
     expect(t.router.url).toBe('/previews');
@@ -170,7 +194,9 @@ describe('apiInterceptor', () => {
   it('a 403 is not a 401: you are still you, you just may not do that', async () => {
     const t = await loggedInAt('/previews');
     t.client.delete('/v1/previews/x').subscribe({ error: () => {} });
-    t.http.expectOne('/v1/previews/x').flush({ title: 'forbidden' }, { status: 403, statusText: 'x' });
+    t.http
+      .expectOne('/v1/previews/x')
+      .flush({ title: 'forbidden' }, { status: 403, statusText: 'x' });
     await new Promise((r) => setTimeout(r));
     expect(t.auth.authenticated()).toBe(true);
     expect(t.router.url).toBe('/previews');

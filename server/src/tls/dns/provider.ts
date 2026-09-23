@@ -71,7 +71,10 @@ export function nodeDnsQueries(): DnsQueries {
  * skipped: `_acme-challenge.…` is never a zone, and asking costs a round trip.
  */
 export function zoneCandidates(name: string): string[] {
-  const labels = name.replace(/\.$/, "").split(".").filter((l) => l.length > 0);
+  const labels = name
+    .replace(/\.$/, "")
+    .split(".")
+    .filter((l) => l.length > 0);
   const out: string[] = [];
   for (let i = 0; i + 2 <= labels.length; i++) {
     const first = labels[i];
@@ -120,7 +123,11 @@ export async function waitForTxtPropagation(
   const nameservers = await dns.resolveNs(zone);
   const addresses = [
     ...new Set(
-      (await Promise.all(nameservers.map((ns) => dns.resolveAddresses(ns).catch(() => [] as string[])))).flat(),
+      (
+        await Promise.all(
+          nameservers.map((ns) => dns.resolveAddresses(ns).catch(() => [] as string[])),
+        )
+      ).flat(),
     ),
   ];
   if (addresses.length === 0) {
@@ -161,9 +168,17 @@ export async function waitForTxtPropagation(
   );
 
   if (settled === null) {
-    log.warn("TXT records did not propagate before the deadline", { name, zone, servers: addresses.length });
+    log.warn("TXT records did not propagate before the deadline", {
+      name,
+      zone,
+      servers: addresses.length,
+    });
     return false;
   }
-  log.info("TXT records visible on every authoritative nameserver", { name, zone, servers: addresses.length });
+  log.info("TXT records visible on every authoritative nameserver", {
+    name,
+    zone,
+    servers: addresses.length,
+  });
   return true;
 }

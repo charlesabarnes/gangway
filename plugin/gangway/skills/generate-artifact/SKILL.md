@@ -27,12 +27,14 @@ What to build: $ARGUMENTS (if that is empty or unexpanded, the user's request)
 **Up to about 30 KB of text in a few files:** call the gangway MCP `deploy` tool with `files` directly, and don't write anything to disk first.
 
 **Anything bigger, or already on disk:** use upload by reference, so the bytes are never retyped into a tool call.
+
 1. Write the files into a fresh scratch directory.
 2. Call `deploy` with `upload: "new"`. It answers with a one-use URL and the exact command to fill it.
 3. Run that command from the app's directory. It is `tar … | curl -X PUT … --data-binary @-`.
 4. Call `deploy` with `upload: "<id>"` plus `name`, `visibility`, `addons` and `check`.
 
 **Always** pass `check` with the paths that matter, for example `["/", "/api/items"]`. The answer then includes:
+
 - each path's HTTP status;
 - the plan gangway followed (runtime, what runs, add-ons, and why);
 - every deployed file with its sha256.

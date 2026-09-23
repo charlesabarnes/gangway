@@ -1,10 +1,44 @@
 import contract from '../../testing/fixtures/contract.json';
 import {
-  LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
-  CLEARANCES, FORK_POLICIES, PR_TRIGGERS, RUNTIME_IDS, TRIGGERS, type Template,
-  type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type AppPlan, type AddonInfo, ADDON_IDS, type DataResult, type PreviewAddon, type SourceFile, type StreamEvent,
-  type Surfaces, type Capabilities, DISABLE_UI_PHRASE, type ConsentRequest, type OAuthGrant,
-  type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Project, type Scope, type SessionInfo, type Visibility,
+  LOG_STREAMS,
+  PERMISSIONS,
+  PREVIEW_STATES,
+  SCOPE_PERMISSIONS,
+  STREAM_EVENT_TYPES,
+  CLEARANCES,
+  FORK_POLICIES,
+  PR_TRIGGERS,
+  RUNTIME_IDS,
+  TRIGGERS,
+  type Template,
+  type PreviewSource,
+  type PreviewSourceFiles,
+  type RedeployAccepted,
+  type RedeployDone,
+  type Runtime,
+  type RuntimeList,
+  type AppPlan,
+  type AddonInfo,
+  ADDON_IDS,
+  type DataResult,
+  type PreviewAddon,
+  type SourceFile,
+  type StreamEvent,
+  type Surfaces,
+  type Capabilities,
+  DISABLE_UI_PHRASE,
+  type ConsentRequest,
+  type OAuthGrant,
+  type ApiToken,
+  type GitHubStatus,
+  type LoginResponse,
+  type Preview,
+  type PreviewEvent,
+  type PreviewList,
+  type Project,
+  type Scope,
+  type SessionInfo,
+  type Visibility,
 } from './api.types';
 
 /**
@@ -26,16 +60,89 @@ describe('the /v1 wire contract', () => {
 
     // Every key the server sends is one the type knows, and the other way round.
     const keys = (o: object) => Object.keys(o).sort();
-    const PREVIEW_KEYS: (keyof Preview)[] = ['id', 'project', 'hostId', 'kind', 'state', 'source', 'visibility', 'ttlExpiresAt', 'idleAfterMs', 'secretLevel', 'templateId', 'projectId', 'password', 'passwordLogin', 'access', 'lastSeenAt', 'error', 'createdAt', 'updatedAt', 'destroyedAt', 'urls'];
-    const TOKEN_KEYS: (keyof ApiToken)[] = ['id', 'name', 'prefix', 'scopes', 'userId', 'appName', 'expiresAt', 'lastUsedAt', 'revokedAt', 'createdAt'];
+    const PREVIEW_KEYS: (keyof Preview)[] = [
+      'id',
+      'project',
+      'hostId',
+      'kind',
+      'state',
+      'source',
+      'visibility',
+      'ttlExpiresAt',
+      'idleAfterMs',
+      'secretLevel',
+      'templateId',
+      'projectId',
+      'password',
+      'passwordLogin',
+      'access',
+      'lastSeenAt',
+      'error',
+      'createdAt',
+      'updatedAt',
+      'destroyedAt',
+      'urls',
+    ];
+    const TOKEN_KEYS: (keyof ApiToken)[] = [
+      'id',
+      'name',
+      'prefix',
+      'scopes',
+      'userId',
+      'appName',
+      'expiresAt',
+      'lastUsedAt',
+      'revokedAt',
+      'createdAt',
+    ];
     expect(keys(preview)).toEqual([...PREVIEW_KEYS].sort());
     expect(keys(token)).toEqual([...TOKEN_KEYS].sort());
-    const REPO_KEYS: (keyof Project)[] = ['id', 'name', 'forge', 'fullName', 'installationId', 'prTrigger', 'slug', 'enabled', 'disabledReason', 'templateId', 'visibility', 'ttl', 'forks', 'drafts', 'prClearance', 'forkClearance', 'createdAt', 'updatedAt'];
-    const GITHUB_KEYS: (keyof GitHubStatus)[] = ['configured', 'appId', 'appSlug', 'appUrl', 'installUrl', 'webhookUrl', 'missing', 'managedByConfig'];
+    const REPO_KEYS: (keyof Project)[] = [
+      'id',
+      'name',
+      'forge',
+      'fullName',
+      'installationId',
+      'prTrigger',
+      'slug',
+      'enabled',
+      'disabledReason',
+      'templateId',
+      'visibility',
+      'ttl',
+      'forks',
+      'drafts',
+      'prClearance',
+      'forkClearance',
+      'createdAt',
+      'updatedAt',
+    ];
+    const GITHUB_KEYS: (keyof GitHubStatus)[] = [
+      'configured',
+      'appId',
+      'appSlug',
+      'appUrl',
+      'installUrl',
+      'webhookUrl',
+      'missing',
+      'managedByConfig',
+    ];
     expect(keys(repo)).toEqual([...REPO_KEYS].sort());
     expect(contract.prTriggers).toEqual([...PR_TRIGGERS]);
     const template: Template = contract.template as Template;
-    const TEMPLATE_KEYS: (keyof Template)[] = ['id', 'name', 'description', 'builtin', 'visibility', 'ttl', 'idleAfter', 'clearance', 'hostId', 'createdAt', 'updatedAt'];
+    const TEMPLATE_KEYS: (keyof Template)[] = [
+      'id',
+      'name',
+      'description',
+      'builtin',
+      'visibility',
+      'ttl',
+      'idleAfter',
+      'clearance',
+      'hostId',
+      'createdAt',
+      'updatedAt',
+    ];
     expect(keys(template)).toEqual([...TEMPLATE_KEYS].sort());
     expect(contract.triggers).toEqual([...TRIGGERS]);
     expect(keys(github)).toEqual([...GITHUB_KEYS].sort());
@@ -60,8 +167,29 @@ describe('the /v1 wire contract', () => {
     const keys = (o: object) => Object.keys(o).sort();
     const req: ConsentRequest = contract.oauthRequest as ConsentRequest;
     const grant: OAuthGrant = contract.oauthGrant as OAuthGrant;
-    expect(keys(req)).toEqual(['client', 'expiresAt', 'grantable', 'id', 'redirectHost', 'redirectUri', 'requested', 'resource', 'scopePermissions']);
-    const GRANT_KEYS: (keyof OAuthGrant)[] = ['id', 'userId', 'clientId', 'clientName', 'redirectUri', 'scopes', 'createdAt', 'lastUsedAt', 'expiresAt', 'revokedAt'];
+    expect(keys(req)).toEqual([
+      'client',
+      'expiresAt',
+      'grantable',
+      'id',
+      'redirectHost',
+      'redirectUri',
+      'requested',
+      'resource',
+      'scopePermissions',
+    ]);
+    const GRANT_KEYS: (keyof OAuthGrant)[] = [
+      'id',
+      'userId',
+      'clientId',
+      'clientName',
+      'redirectUri',
+      'scopes',
+      'createdAt',
+      'lastUsedAt',
+      'expiresAt',
+      'revokedAt',
+    ];
     expect(keys(grant)).toEqual([...GRANT_KEYS].sort());
     expect(keys(contract.oauthDecided)).toEqual(['redirect']);
   });
@@ -69,9 +197,25 @@ describe('the /v1 wire contract', () => {
   it('runtimes, a kept source and a redeploy (ADR-0015)', () => {
     const keys = (o: object) => Object.keys(o).sort();
     const list: RuntimeList = contract.runtimeList as RuntimeList;
-    const RUNTIME_KEYS: (keyof Runtime)[] = ['id', 'name', 'language', 'description', 'image', 'port', 'starter', 'versions'];
+    const RUNTIME_KEYS: (keyof Runtime)[] = [
+      'id',
+      'name',
+      'language',
+      'description',
+      'image',
+      'port',
+      'starter',
+      'versions',
+    ];
     expect(keys(list)).toEqual(['addons', 'detection', 'planFiles', 'runtimes']);
-    const ADDON_KEYS: (keyof AddonInfo)[] = ['id', 'name', 'description', 'versions', 'defaultVersion', 'env'];
+    const ADDON_KEYS: (keyof AddonInfo)[] = [
+      'id',
+      'name',
+      'description',
+      'versions',
+      'defaultVersion',
+      'env',
+    ];
     expect(keys(list.addons[0]!)).toEqual([...ADDON_KEYS].sort());
     expect([...ADDON_IDS]).toEqual(contract.addonIds);
     expect(keys(list.runtimes[0]!)).toEqual([...RUNTIME_KEYS].sort());
@@ -83,7 +227,30 @@ describe('the /v1 wire contract', () => {
     expect(keys(addon)).toEqual(['env', 'id', 'name', 'service', 'version']);
     // ADR-0016: the plan, as the New screen reads it.
     const plan: AppPlan = contract.appPlan as AppPlan;
-    const PLAN_KEYS: (keyof AppPlan)[] = ['kind', 'runtime', 'version', 'image', 'root', 'install', 'build', 'start', 'release', 'serve', 'docroot', 'entry', 'port', 'health', 'env', 'stack', 'configFile', 'addons', 'suggested', 'sqlSeed', 'reasons', 'issues'];
+    const PLAN_KEYS: (keyof AppPlan)[] = [
+      'kind',
+      'runtime',
+      'version',
+      'image',
+      'root',
+      'install',
+      'build',
+      'start',
+      'release',
+      'serve',
+      'docroot',
+      'entry',
+      'port',
+      'health',
+      'env',
+      'stack',
+      'configFile',
+      'addons',
+      'suggested',
+      'sqlSeed',
+      'reasons',
+      'issues',
+    ];
     expect(keys(plan)).toEqual([...PLAN_KEYS].sort());
     expect(keys(plan.reasons[0]!)).toEqual(['found', 'level', 'then']);
     expect([...RUNTIME_IDS]).toEqual(contract.runtimeIds);
@@ -120,7 +287,8 @@ describe('the /v1 wire contract', () => {
   });
 
   it('what each token scope grants matches the server, scope by scope', () => {
-    const sorted = (o: Record<string, readonly string[]>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
+    const sorted = (o: Record<string, readonly string[]>) =>
+      Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
     expect(sorted(SCOPE_PERMISSIONS)).toEqual(sorted(contract.scopePermissions));
   });
 

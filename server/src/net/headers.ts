@@ -4,17 +4,33 @@
 import { stripGangwayCookies } from "./gate.ts";
 
 export const HOP_BY_HOP = new Set([
-  "connection", "keep-alive", "transfer-encoding", "te", "trailer",
-  "upgrade", "proxy-authenticate", "proxy-authorization",
+  "connection",
+  "keep-alive",
+  "transfer-encoding",
+  "te",
+  "trailer",
+  "upgrade",
+  "proxy-authenticate",
+  "proxy-authorization",
 ]);
 
 /** Removes hop-by-hop headers, including any the Connection header names. */
 export function stripHopByHop(h: Headers): void {
-  const named = h.get("connection")?.split(",").map((s) => s.trim().toLowerCase()) ?? [];
+  const named =
+    h
+      .get("connection")
+      ?.split(",")
+      .map((s) => s.trim().toLowerCase()) ?? [];
   for (const k of [...HOP_BY_HOP, ...named]) h.delete(k);
 }
 
-const FORWARDED = ["x-forwarded-for", "x-forwarded-proto", "x-forwarded-host", "x-forwarded-port", "forwarded"];
+const FORWARDED = [
+  "x-forwarded-for",
+  "x-forwarded-proto",
+  "x-forwarded-host",
+  "x-forwarded-port",
+  "forwarded",
+];
 
 export type ForwardContext = {
   clientHost: string;
@@ -39,7 +55,8 @@ export function buildUpstreamHeaders(req: Request, ctx: ForwardContext): Headers
   // gangway's own cookies are not the preview's to read: the gate cookie is what lets a
   // visitor into a PRIVATE preview, and the preview's code must not be able to lift it.
   const cookie = stripGangwayCookies(h.get("cookie"));
-  if (cookie === null) h.delete("cookie"); else h.set("cookie", cookie);
+  if (cookie === null) h.delete("cookie");
+  else h.set("cookie", cookie);
 
   h.set("host", ctx.clientHost);
   h.set("x-forwarded-for", ctx.clientIp);

@@ -11,7 +11,12 @@ import type { Detected, DetectionRule } from '../../core/api.types';
  */
 
 export type UploadFile = { path: string; data: Uint8Array };
-export type Collected = { files: UploadFile[]; totalBytes: number; skipped: number; name: string | null };
+export type Collected = {
+  files: UploadFile[];
+  totalBytes: number;
+  skipped: number;
+  name: string | null;
+};
 
 /** Client-side cap. The server enforces its own (larger) limits; this one fails fast and says why. */
 export const MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
@@ -27,12 +32,19 @@ const JUNK_NAMES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
 
 export function isJunk(path: string): boolean {
   const parts = path.split('/');
-  return parts.some((p) => JUNK_SEGMENTS.has(p)) || JUNK_NAMES.has(parts[parts.length - 1] ?? '') || (parts[parts.length - 1] ?? '').startsWith('._');
+  return (
+    parts.some((p) => JUNK_SEGMENTS.has(p)) ||
+    JUNK_NAMES.has(parts[parts.length - 1] ?? '') ||
+    (parts[parts.length - 1] ?? '').startsWith('._')
+  );
 }
 
 /** A relative, forward-slash path with no `.`/`..` segments -- or an error that names it. */
 export function normalizePath(raw: string): string {
-  const parts = raw.replace(/\\/g, '/').split('/').filter((p) => p !== '' && p !== '.');
+  const parts = raw
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((p) => p !== '' && p !== '.');
   if (parts.some((p) => p === '..')) throw new UploadError(`"${raw}" points outside the upload`);
   if (parts.length === 0) throw new UploadError(`"${raw}" is not a file path`);
   return parts.join('/');
@@ -43,7 +55,9 @@ export function normalizePath(raw: string): string {
  * The server looks for markers (package.json, index.html) at the ROOT, so that one segment
  * is removed -- and remembered, as a name for the preview.
  */
-export function stripCommonRoot<T extends { path: string }>(files: T[]): { files: T[]; root: string | null } {
+export function stripCommonRoot<T extends { path: string }>(
+  files: T[],
+): { files: T[]; root: string | null } {
   if (files.length === 0) return { files, root: null };
   const first = files[0]!.path.split('/')[0]!;
   const shared = files.every((f) => f.path.includes('/') && f.path.split('/')[0] === first);
@@ -67,13 +81,25 @@ export const MAX_PLAN_FILE_BYTES = 256 * 1024;
  * The body of `POST /v1/runtimes/plan` (ADR-0016): every path, and the text of the few files
  * the plan reads -- at the root and one directory down, as `planFilePaths` picks them.
  */
-export function planPayload(files: readonly UploadFile[], planFiles: readonly string[]): { paths: string[]; files: Record<string, string> } {
+export function planPayload(
+  files: readonly UploadFile[],
+  planFiles: readonly string[],
+): { paths: string[]; files: Record<string, string> } {
   const names = new Set(planFiles);
   const contents: Record<string, string> = {};
   for (const f of files) {
     const parts = f.path.split('/');
-    if (parts.length > 2 || !names.has(parts[parts.length - 1]!) || f.data.byteLength > MAX_PLAN_FILE_BYTES) continue;
-    try { contents[f.path] = new TextDecoder('utf-8', { fatal: true }).decode(f.data); } catch { /* not text: named only */ }
+    if (
+      parts.length > 2 ||
+      !names.has(parts[parts.length - 1]!) ||
+      f.data.byteLength > MAX_PLAN_FILE_BYTES
+    )
+      continue;
+    try {
+      contents[f.path] = new TextDecoder('utf-8', { fatal: true }).decode(f.data);
+    } catch {
+      /* not text: named only */
+    }
   }
   return { paths: files.map((f) => f.path), files: contents };
 }
@@ -81,9 +107,14 @@ export function planPayload(files: readonly UploadFile[], planFiles: readonly st
 /** The entries of a zip, directories dropped. */
 export function unzip(bytes: Uint8Array): UploadFile[] {
   let entries: Record<string, Uint8Array>;
-  try { entries = unzipSync(bytes); }
-  catch { throw new UploadError('That zip could not be read. Is it a complete .zip file?'); }
-  return Object.entries(entries).filter(([name]) => !name.endsWith('/')).map(([name, data]) => ({ path: name, data }));
+  try {
+    entries = unzipSync(bytes);
+  } catch {
+    throw new UploadError('That zip could not be read. Is it a complete .zip file?');
+  }
+  return Object.entries(entries)
+    .filter(([name]) => !name.endsWith('/'))
+    .map(([name, data]) => ({ path: name, data }));
 }
 
 /**
@@ -95,7 +126,10 @@ export function finish(raw: UploadFile[], fallbackName: string | null = null): C
   let skipped = 0;
   for (const f of raw) {
     const path = normalizePath(f.path);
-    if (isJunk(path)) { skipped++; continue; }
+    if (isJunk(path)) {
+      skipped++;
+      continue;
+    }
     kept.push({ path, data: f.data });
   }
   const { files, root } = stripCommonRoot(kept);
@@ -106,9 +140,18 @@ export function finish(raw: UploadFile[], fallbackName: string | null = null): C
     seen.add(f.path);
     totalBytes += f.data.byteLength;
   }
-  if (files.length > MAX_UPLOAD_FILES) throw new UploadError(`That is ${files.length} files; the limit is ${MAX_UPLOAD_FILES}.`);
-  if (totalBytes > MAX_UPLOAD_BYTES) throw new UploadError(`That is ${mib(totalBytes)}; uploads are limited to ${mib(MAX_UPLOAD_BYTES)}.`);
-  return { files: files.sort((a, b) => a.path.localeCompare(b.path)), totalBytes, skipped, name: root ?? fallbackName };
+  if (files.length > MAX_UPLOAD_FILES)
+    throw new UploadError(`That is ${files.length} files; the limit is ${MAX_UPLOAD_FILES}.`);
+  if (totalBytes > MAX_UPLOAD_BYTES)
+    throw new UploadError(
+      `That is ${mib(totalBytes)}; uploads are limited to ${mib(MAX_UPLOAD_BYTES)}.`,
+    );
+  return {
+    files: files.sort((a, b) => a.path.localeCompare(b.path)),
+    totalBytes,
+    skipped,
+    name: root ?? fallbackName,
+  };
 }
 
 /* ------------------------------------------------------------------ tar */
@@ -125,10 +168,14 @@ const octal = (n: number, length: number) => n.toString(8).padStart(length - 1, 
 function splitPath(path: string): { name: string; prefix: string } {
   if (enc.encode(path).length <= 100) return { name: path, prefix: '' };
   for (let i = path.indexOf('/'); i !== -1; i = path.indexOf('/', i + 1)) {
-    const prefix = path.slice(0, i), name = path.slice(i + 1);
-    if (enc.encode(prefix).length <= 155 && enc.encode(name).length <= 100 && name !== '') return { name, prefix };
+    const prefix = path.slice(0, i),
+      name = path.slice(i + 1);
+    if (enc.encode(prefix).length <= 155 && enc.encode(name).length <= 100 && name !== '')
+      return { name, prefix };
   }
-  throw new UploadError(`"${path}" is too long a path for an upload (255 bytes at most, with no file name over 100)`);
+  throw new UploadError(
+    `"${path}" is too long a path for an upload (255 bytes at most, with no file name over 100)`,
+  );
 }
 
 function header(path: string, size: number, type: '0', mode: number, mtime: number): Uint8Array {
@@ -156,7 +203,10 @@ function header(path: string, size: number, type: '0', mode: number, mtime: numb
  * extractor creates (and checks) every parent itself, and a directory entry would only
  * add a second way to be too long.
  */
-export function writeTar(files: readonly UploadFile[], mtime = Math.floor(Date.now() / 1000)): Uint8Array {
+export function writeTar(
+  files: readonly UploadFile[],
+  mtime = Math.floor(Date.now() / 1000),
+): Uint8Array {
   const parts: Uint8Array[] = [];
   for (const f of files) {
     parts.push(header(f.path, f.data.byteLength, '0', 0o644, mtime));
@@ -167,7 +217,10 @@ export function writeTar(files: readonly UploadFile[], mtime = Math.floor(Date.n
   parts.push(new Uint8Array(1024)); // two zero blocks end the archive
   const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
   let at = 0;
-  for (const p of parts) { out.set(p, at); at += p.byteLength; }
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.byteLength;
+  }
   return out;
 }
 
@@ -178,7 +231,12 @@ export function packFiles(files: readonly UploadFile[]): Blob {
 
 /** A runtime's starter (path -> text) as an upload. */
 export function packStarter(starter: Record<string, string>): Blob {
-  return packFiles(Object.entries(starter).map(([path, text]) => ({ path: normalizePath(path), data: enc.encode(text) })));
+  return packFiles(
+    Object.entries(starter).map(([path, text]) => ({
+      path: normalizePath(path),
+      data: enc.encode(text),
+    })),
+  );
 }
 
 /* ------------------------------------------------------------------ collecting from the browser */
@@ -188,9 +246,17 @@ async function bytesOf(file: Blob): Promise<Uint8Array> {
 }
 
 /** A file, or a zip's contents placed under its own name (so strip-root sees one folder). */
-async function expand(path: string, file: File, raw: UploadFile[], budget: { bytes: number }): Promise<void> {
+async function expand(
+  path: string,
+  file: File,
+  raw: UploadFile[],
+  budget: { bytes: number },
+): Promise<void> {
   budget.bytes += file.size;
-  if (budget.bytes > MAX_UPLOAD_BYTES * 2) throw new UploadError(`That is more than ${mib(MAX_UPLOAD_BYTES)}; uploads are limited to that.`);
+  if (budget.bytes > MAX_UPLOAD_BYTES * 2)
+    throw new UploadError(
+      `That is more than ${mib(MAX_UPLOAD_BYTES)}; uploads are limited to that.`,
+    );
   const data = await bytesOf(file);
   if (isZip(path)) {
     const inside = unzip(data);
@@ -202,7 +268,8 @@ async function expand(path: string, file: File, raw: UploadFile[], budget: { byt
 }
 
 /** Only a single zip dropped on its own names the preview after the zip; a folder names it after itself. */
-const zipName = (files: readonly File[]) => (files.length === 1 && isZip(files[0]!.name) ? files[0]!.name.replace(/\.zip$/i, '') : null);
+const zipName = (files: readonly File[]) =>
+  files.length === 1 && isZip(files[0]!.name) ? files[0]!.name.replace(/\.zip$/i, '') : null;
 
 /** From `<input type=file multiple>` (or `webkitdirectory`, whose files carry `webkitRelativePath`). */
 export async function collectFromFiles(list: readonly File[]): Promise<Collected> {
@@ -214,9 +281,15 @@ export async function collectFromFiles(list: readonly File[]): Promise<Collected
 
 type Entry = { isFile: boolean; isDirectory: boolean; name: string; fullPath: string };
 type FileEntry = Entry & { file(ok: (f: File) => void, err: (e: unknown) => void): void };
-type DirEntry = Entry & { createReader(): { readEntries(ok: (e: Entry[]) => void, err: (e: unknown) => void): void } };
+type DirEntry = Entry & {
+  createReader(): { readEntries(ok: (e: Entry[]) => void, err: (e: unknown) => void): void };
+};
 
-async function walk(entry: Entry, prefix: string, out: { path: string; file: File }[]): Promise<void> {
+async function walk(
+  entry: Entry,
+  prefix: string,
+  out: { path: string; file: File }[],
+): Promise<void> {
   if (entry.isFile) {
     const file = await new Promise<File>((ok, err) => (entry as FileEntry).file(ok, err));
     out.push({ path: prefix + entry.name, file });
@@ -237,7 +310,9 @@ export async function collectFromDrop(dt: DataTransfer): Promise<Collected> {
   const entries: Entry[] = [];
   for (const item of Array.from(dt.items ?? [])) {
     if (item.kind !== 'file') continue;
-    const e = (item as DataTransferItem & { webkitGetAsEntry?: () => Entry | null }).webkitGetAsEntry?.();
+    const e = (
+      item as DataTransferItem & { webkitGetAsEntry?: () => Entry | null }
+    ).webkitGetAsEntry?.();
     if (e) entries.push(e);
   }
   // No entry API (or a synthetic drop): the flat file list is all there is.

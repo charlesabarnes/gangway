@@ -1,14 +1,34 @@
 import { describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
-import { GATE_COOKIE, PreviewGate, loadOrCreateGateKey, safePath, stripGangwayCookies } from "../../src/net/gate.ts";
+import {
+  GATE_COOKIE,
+  PreviewGate,
+  loadOrCreateGateKey,
+  safePath,
+  stripGangwayCookies,
+} from "../../src/net/gate.ts";
 import { buildUpstreamHeaders } from "../../src/net/headers.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
 
 const APP = "https://app.preview.example.dev";
 const entry = (over: Partial<RouteEntry> = {}): RouteEntry => ({
-  hostname: "shop.preview.example.dev", previewId: "01SHOP0000000000000000000A", hostId: "local", project: "gw-shop", service: "web",
-  containerPort: 80, upstreamHost: "127.0.0.1", upstreamPort: 31000, primary: true, visibility: "private", password: { mode: "inherit" }, passwordLogin: "inherit", state: "awake",
-  inflight: 0, bytesInFlight: 0, lastSeenAt: 0, ...over,
+  hostname: "shop.preview.example.dev",
+  previewId: "01SHOP0000000000000000000A",
+  hostId: "local",
+  project: "gw-shop",
+  service: "web",
+  containerPort: 80,
+  upstreamHost: "127.0.0.1",
+  upstreamPort: 31000,
+  primary: true,
+  visibility: "private",
+  password: { mode: "inherit" },
+  passwordLogin: "inherit",
+  state: "awake",
+  inflight: 0,
+  bytesInFlight: 0,
+  lastSeenAt: 0,
+  ...over,
 });
 
 function make(key = randomBytes(32)) {
@@ -18,10 +38,20 @@ function make(key = randomBytes(32)) {
     gate.check(e, new Request(`https://${e.hostname}${path}`, { method, headers }));
   /** Walk the handshake the way a browser would and hand back the cookie it would now hold. */
   const signIn = (e: RouteEntry, to = "/") => {
-    const res = get(e, `/__gangway/auth?ticket=${encodeURIComponent(gate.issueTicket(e))}&to=${encodeURIComponent(to)}`)!;
+    const res = get(
+      e,
+      `/__gangway/auth?ticket=${encodeURIComponent(gate.issueTicket(e))}&to=${encodeURIComponent(to)}`,
+    )!;
     return { res, cookie: res.headers.get("set-cookie")?.split(";")[0] ?? "" };
   };
-  return { gate, get, signIn, tick: (ms: number) => { now += ms; } };
+  return {
+    gate,
+    get,
+    signIn,
+    tick: (ms: number) => {
+      now += ms;
+    },
+  };
 }
 
 describe("public and unlisted previews", () => {
@@ -34,7 +64,12 @@ describe("public and unlisted previews", () => {
   test("/__gangway/* is never forwarded, for ANY preview: a preview must not be able to serve a fake of it", () => {
     const t = make();
     for (const visibility of ["public", "unlisted", "private"] as const) {
-      for (const path of ["/__gangway", "/__gangway/", "/__gangway/auth-but-not", "/__gangway/anything/else"]) {
+      for (const path of [
+        "/__gangway",
+        "/__gangway/",
+        "/__gangway/auth-but-not",
+        "/__gangway/anything/else",
+      ]) {
         expect(t.get(entry({ visibility }), path)?.status).toBe(404);
       }
     }
@@ -64,12 +99,15 @@ describe("a private preview, with no gate cookie", () => {
     expect(t.get(entry(), "/api", { "sec-fetch-mode": "cors" })?.status).toBe(401);
     expect(t.get(entry(), "/img.png", { "sec-fetch-mode": "no-cors" })?.status).toBe(401);
     expect(t.get(entry(), "/form", { "sec-fetch-mode": "navigate" }, "POST")?.status).toBe(401);
-    expect(t.get(entry(), "/ws", { upgrade: "websocket", connection: "Upgrade" })?.status).toBe(401);
+    expect(t.get(entry(), "/ws", { upgrade: "websocket", connection: "Upgrade" })?.status).toBe(
+      401,
+    );
   });
 
   test("the container never sees an unauthenticated request: the gate answers every one of them", () => {
     const t = make();
-    for (const path of ["/", "/admin", "/.env", "/api/secret"]) expect(t.get(entry(), path)).not.toBeNull();
+    for (const path of ["/", "/admin", "/.env", "/api/secret"])
+      expect(t.get(entry(), path)).not.toBeNull();
   });
 });
 
@@ -79,7 +117,9 @@ describe("the handshake", () => {
     const { res } = t.signIn(entry(), "/orders/42?tab=items");
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/orders/42?tab=items");
-    expect(res.headers.get("set-cookie")).toMatch(/^__Host-gw_pv=01SHOP0000000000000000000A\.\d+\.0\.[A-Za-z0-9_-]{43}; Max-Age=28800; Path=\/; HttpOnly; Secure; SameSite=Lax$/);
+    expect(res.headers.get("set-cookie")).toMatch(
+      /^__Host-gw_pv=01SHOP0000000000000000000A\.\d+\.0\.[A-Za-z0-9_-]{43}; Max-Age=28800; Path=\/; HttpOnly; Secure; SameSite=Lax$/,
+    );
     expect(res.headers.get("referrer-policy")).toBe("no-referrer"); // the ticket is in THIS url
   });
 
@@ -110,19 +150,47 @@ describe("the handshake", () => {
   test("a ticket for one preview does not open another -- not by hostname, and not by id", () => {
     const t = make();
     const shop = entry();
-    const blog = entry({ hostname: "blog.preview.example.dev", previewId: "01BLOG0000000000000000000B" });
+    const blog = entry({
+      hostname: "blog.preview.example.dev",
+      previewId: "01BLOG0000000000000000000B",
+    });
     expect(t.get(blog, `/__gangway/auth?ticket=${t.gate.issueTicket(shop)}`)?.status).toBe(403);
     // Same hostname, a NEW preview behind it (destroyed and redeployed): still no.
-    expect(t.get(entry({ previewId: "01SHOP0000000000000000NEW2" }), `/__gangway/auth?ticket=${t.gate.issueTicket(shop)}`)?.status).toBe(403);
+    expect(
+      t.get(
+        entry({ previewId: "01SHOP0000000000000000NEW2" }),
+        `/__gangway/auth?ticket=${t.gate.issueTicket(shop)}`,
+      )?.status,
+    ).toBe(403);
   });
 
   test("forged, truncated, re-signed-with-another-key and garbage tickets are all refused", () => {
     const t = make();
     const good = t.gate.issueTicket(entry());
     const [payload, sig] = good.split(".") as [string, string];
-    const forgedBody = Buffer.from(JSON.stringify({ h: "shop.preview.example.dev", p: "01SHOP0000000000000000000A", exp: 9_999_999_999_999, n: "x" })).toString("base64url");
+    const forgedBody = Buffer.from(
+      JSON.stringify({
+        h: "shop.preview.example.dev",
+        p: "01SHOP0000000000000000000A",
+        exp: 9_999_999_999_999,
+        n: "x",
+      }),
+    ).toString("base64url");
     const otherKey = make().gate.issueTicket(entry());
-    for (const bad of ["", "x", "a.b", "a.b.c", `${payload}.`, `.${sig}`, `${forgedBody}.${sig}`, `${payload}.${sig}x`, `${payload}.${sig}.extra`, otherKey, "%00", "../../etc/passwd"]) {
+    for (const bad of [
+      "",
+      "x",
+      "a.b",
+      "a.b.c",
+      `${payload}.`,
+      `.${sig}`,
+      `${forgedBody}.${sig}`,
+      `${payload}.${sig}x`,
+      `${payload}.${sig}.extra`,
+      otherKey,
+      "%00",
+      "../../etc/passwd",
+    ]) {
       expect(t.get(entry(), `/__gangway/auth?ticket=${encodeURIComponent(bad)}`)?.status).toBe(403);
     }
     expect(t.get(entry(), "/__gangway/auth")?.status).toBe(403);
@@ -132,7 +200,15 @@ describe("the handshake", () => {
 
   test("`to` can only ever be a path on THIS preview: no open redirect", () => {
     const t = make();
-    for (const evil of ["https://evil.example/", "//evil.example/", "/\\evil.example", "javascript:alert(1)", "/__gangway/auth?ticket=x", "", "/ok\r\nSet-Cookie: x=1"]) {
+    for (const evil of [
+      "https://evil.example/",
+      "//evil.example/",
+      "/\\evil.example",
+      "javascript:alert(1)",
+      "/__gangway/auth?ticket=x",
+      "",
+      "/ok\r\nSet-Cookie: x=1",
+    ]) {
       expect(t.signIn(entry(), evil).res.headers.get("location")).toBe("/");
     }
     expect(safePath("/fine/path?q=1#frag")).toBe("/fine/path?q=1#frag");
@@ -141,7 +217,9 @@ describe("the handshake", () => {
 
   test("only GET redeems a ticket", () => {
     const t = make();
-    expect(t.get(entry(), `/__gangway/auth?ticket=${t.gate.issueTicket(entry())}`, {}, "POST")?.status).toBe(404);
+    expect(
+      t.get(entry(), `/__gangway/auth?ticket=${t.gate.issueTicket(entry())}`, {}, "POST")?.status,
+    ).toBe(404);
   });
 });
 
@@ -158,7 +236,9 @@ describe("the gate cookie", () => {
   test("is bound to the PREVIEW ID: destroy `shop`, deploy a new `shop`, and the old cookie does not open it", () => {
     const t = make();
     const { cookie } = t.signIn(entry());
-    expect(t.get(entry({ previewId: "01SHOP0000000000000000NEW2" }), "/", { cookie })?.status).toBe(302);
+    expect(t.get(entry({ previewId: "01SHOP0000000000000000NEW2" }), "/", { cookie })?.status).toBe(
+      302,
+    );
   });
 
   test("cannot be forged, extended, or replayed as a ticket", () => {
@@ -166,11 +246,24 @@ describe("the gate cookie", () => {
     const { cookie } = t.signIn(entry());
     const [, value] = cookie.split("=") as [string, string];
     const [id, exp, sig] = value.split(".") as [string, string, string];
-    for (const bad of [`${id}.${Number(exp) + 1}.${sig}`, `01OTHER.${exp}.${sig}`, `${id}.${exp}.`, `${id}.${exp}`, `${id}.${exp}.${sig}.x`, "garbage", ""]) {
+    for (const bad of [
+      `${id}.${Number(exp) + 1}.${sig}`,
+      `01OTHER.${exp}.${sig}`,
+      `${id}.${exp}.`,
+      `${id}.${exp}`,
+      `${id}.${exp}.${sig}.x`,
+      "garbage",
+      "",
+    ]) {
       expect(t.get(entry(), "/", { cookie: `${GATE_COOKIE}=${bad}` })?.status).toBe(302);
     }
     // Domain separation: a cookie's signature is not a ticket's, even over a payload an attacker chose.
-    expect(t.get(entry(), `/__gangway/auth?ticket=${Buffer.from(`${id}.${exp}`).toString("base64url")}.${sig}`)?.status).toBe(403);
+    expect(
+      t.get(
+        entry(),
+        `/__gangway/auth?ticket=${Buffer.from(`${id}.${exp}`).toString("base64url")}.${sig}`,
+      )?.status,
+    ).toBe(403);
   });
 
   test("a key from another install opens nothing; the same key across a restart keeps visitors in", () => {
@@ -181,7 +274,9 @@ describe("the gate cookie", () => {
   });
 
   test("a short key is refused at construction", () => {
-    expect(() => new PreviewGate({ key: randomBytes(16), appOrigin: () => APP })).toThrow(/32 bytes/);
+    expect(() => new PreviewGate({ key: randomBytes(16), appOrigin: () => APP })).toThrow(
+      /32 bytes/,
+    );
   });
 });
 
@@ -189,14 +284,26 @@ describe("what the preview's own code is allowed to see", () => {
   test("gangway's cookies are stripped from the request before it is forwarded; the app's own survive", () => {
     const t = make();
     const { cookie } = t.signIn(entry());
-    const req = new Request("https://shop.preview.example.dev/", { headers: { cookie: `sid=abc; ${cookie}; __Host-gw_session=SESSIONSECRET; theme=dark` } });
-    const forwarded = buildUpstreamHeaders(req, { clientHost: "shop.preview.example.dev", clientIp: "203.0.113.7", publicPort: 443 });
+    const req = new Request("https://shop.preview.example.dev/", {
+      headers: { cookie: `sid=abc; ${cookie}; __Host-gw_session=SESSIONSECRET; theme=dark` },
+    });
+    const forwarded = buildUpstreamHeaders(req, {
+      clientHost: "shop.preview.example.dev",
+      clientIp: "203.0.113.7",
+      publicPort: 443,
+    });
     expect(forwarded.get("cookie")).toBe("sid=abc; theme=dark");
   });
 
   test("when ours were the only cookies, no Cookie header is sent at all", () => {
-    const req = new Request("https://shop.preview.example.dev/", { headers: { cookie: `${GATE_COOKIE}=a.b.c` } });
-    expect(buildUpstreamHeaders(req, { clientHost: "x", clientIp: "::1", publicPort: 443 }).has("cookie")).toBe(false);
+    const req = new Request("https://shop.preview.example.dev/", {
+      headers: { cookie: `${GATE_COOKIE}=a.b.c` },
+    });
+    expect(
+      buildUpstreamHeaders(req, { clientHost: "x", clientIp: "::1", publicPort: 443 }).has(
+        "cookie",
+      ),
+    ).toBe(false);
   });
 
   test("stripGangwayCookies", () => {
@@ -210,7 +317,10 @@ describe("what the preview's own code is allowed to see", () => {
 describe("loadOrCreateGateKey", () => {
   test("creates once, then returns the same key; replaces one that is too short", () => {
     const data = new Map<string, unknown>();
-    const store = { get: (k: string) => data.get(k), set: (k: string, v: unknown) => void data.set(k, v) };
+    const store = {
+      get: (k: string) => data.get(k),
+      set: (k: string, v: unknown) => void data.set(k, v),
+    };
     const first = loadOrCreateGateKey(store);
     expect(first).toHaveLength(32);
     expect(loadOrCreateGateKey(store).equals(first)).toBe(true);

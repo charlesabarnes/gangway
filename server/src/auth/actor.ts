@@ -25,7 +25,13 @@ export type Actor =
       /** The owning account, for a database token. Absent on the env token and system actors. */
       userId?: string;
     }
-  | { kind: "user"; userId: string; roleId: string; permissions: ReadonlySet<Permission>; sessionId: string }
+  | {
+      kind: "user";
+      userId: string;
+      roleId: string;
+      permissions: ReadonlySet<Permission>;
+      sessionId: string;
+    }
   /**
    * A forge acting on a webhook (ADR-0011). `login` is whoever caused it -- the PR author,
    * the commenter -- for the audit line; the permissions are FIXED and not a role, so the
@@ -37,15 +43,27 @@ export type Actor =
    * middleware to `/v1/projects/:ref/pulls/:n`, and by that route to the project whose
    * repository is `repository`. `pull` is the PR number its `ref` names, if any.
    */
-  | { kind: "workflow"; repository: string; runId: string; login: string; eventName: string; pull: number | null; permissions: ReadonlySet<Permission> };
+  | {
+      kind: "workflow";
+      repository: string;
+      runId: string;
+      login: string;
+      eventName: string;
+      pull: number | null;
+      permissions: ReadonlySet<Permission>;
+    };
 
 export function permissionsForScopes(scopes: readonly Scope[]): ReadonlySet<Permission> {
   return new Set(scopes.flatMap((s) => SCOPE_PERMISSIONS[s]));
 }
 
 /** An ownerless token actor whose permissions are exactly its scopes' bundles. */
-export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor =>
-  ({ kind: "token", tokenId, scopes, permissions: permissionsForScopes(scopes) });
+export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor => ({
+  kind: "token",
+  tokenId,
+  scopes,
+  permissions: permissionsForScopes(scopes),
+});
 
 /**
  * Work gangway does on its own behalf (the TTL sweep, later idle-sleep). Still a `token`
@@ -54,17 +72,44 @@ export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor =>
  */
 export const systemActor = (job: string): Actor => tokenActor(`system:${job}`, ["admin"]);
 
-export const FORGE_PERMISSIONS: readonly Permission[] = ["previews.deploy", "previews.destroy", "previews.read", "logs.read"];
+export const FORGE_PERMISSIONS: readonly Permission[] = [
+  "previews.deploy",
+  "previews.destroy",
+  "previews.read",
+  "logs.read",
+];
 
-export const forgeActor = (forge: ForgeId, login: string): Actor =>
-  ({ kind: "forge", forge, login, permissions: new Set(FORGE_PERMISSIONS) });
+export const forgeActor = (forge: ForgeId, login: string): Actor => ({
+  kind: "forge",
+  forge,
+  login,
+  permissions: new Set(FORGE_PERMISSIONS),
+});
 
 /** Fixed, like a forge's: what a workflow may do inside the one route it can reach. */
-export const WORKFLOW_PERMISSIONS: readonly Permission[] = ["previews.deploy", "previews.destroy", "previews.read"];
+export const WORKFLOW_PERMISSIONS: readonly Permission[] = [
+  "previews.deploy",
+  "previews.destroy",
+  "previews.read",
+];
 
-export function workflowActor(c: { repository: string; runId: string; actor: string; eventName: string; ref: string }): Actor {
+export function workflowActor(c: {
+  repository: string;
+  runId: string;
+  actor: string;
+  eventName: string;
+  ref: string;
+}): Actor {
   const m = /^refs\/pull\/(\d+)\/(?:merge|head)$/.exec(c.ref);
-  return { kind: "workflow", repository: c.repository, runId: c.runId, login: c.actor, eventName: c.eventName, pull: m ? Number(m[1]) : null, permissions: new Set(WORKFLOW_PERMISSIONS) };
+  return {
+    kind: "workflow",
+    repository: c.repository,
+    runId: c.runId,
+    login: c.actor,
+    eventName: c.eventName,
+    pull: m ? Number(m[1]) : null,
+    permissions: new Set(WORKFLOW_PERMISSIONS),
+  };
 }
 
 export const can = (actor: Actor, needed: Permission): boolean => actor.permissions.has(needed);
@@ -74,7 +119,13 @@ export const can = (actor: Actor, needed: Permission): boolean => actor.permissi
  * lines. A user's id is prefixed so it can never equal a token id.
  */
 export const actorId = (a: Actor): string =>
-  a.kind === "user" ? `user:${a.userId}` : a.kind === "forge" ? `${a.forge}:${a.login}` : a.kind === "workflow" ? `actions:${a.repository}#${a.runId}` : a.tokenId;
+  a.kind === "user"
+    ? `user:${a.userId}`
+    : a.kind === "forge"
+      ? `${a.forge}:${a.login}`
+      : a.kind === "workflow"
+        ? `actions:${a.repository}#${a.runId}`
+        : a.tokenId;
 
 /**
  * ADR-0021: who a preview belongs to. A person behind the credential -- a session, their
@@ -100,7 +151,9 @@ export function auditActor(a: Actor): { type: "user" | "token" | "system" | "git
   if (a.kind === "user") return { type: "user", id: a.userId };
   if (a.kind === "forge") return { type: a.forge, id: a.login };
   if (a.kind === "workflow") return { type: "github", id: `actions:${a.repository}#${a.runId}` };
-  return a.tokenId.startsWith("system:") ? { type: "system", id: a.tokenId.slice("system:".length) } : { type: "token", id: a.tokenId };
+  return a.tokenId.startsWith("system:")
+    ? { type: "system", id: a.tokenId.slice("system:".length) }
+    : { type: "token", id: a.tokenId };
 }
 
 /** Resolves a presented bearer credential to an actor, or null. Never throws. */

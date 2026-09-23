@@ -54,7 +54,9 @@ export function applyPragmas(
 
   const fk = db.pragma<{ foreign_keys: number }>(`PRAGMA foreign_keys`);
   if (Number(fk?.foreign_keys) !== 1) {
-    throw new Error("PRAGMA foreign_keys did not take effect; refusing to run without referential integrity");
+    throw new Error(
+      "PRAGMA foreign_keys did not take effect; refusing to run without referential integrity",
+    );
   }
   return { journalMode: got };
 }

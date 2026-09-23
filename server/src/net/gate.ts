@@ -76,7 +76,8 @@ export type GateOptions = {
   loginDefault?: () => boolean;
 };
 
-type ResolvedOptions = Required<Omit<GateOptions, "passwords" | "limiter" | "onPasswordFailure">> & Pick<GateOptions, "passwords" | "limiter" | "onPasswordFailure">;
+type ResolvedOptions = Required<Omit<GateOptions, "passwords" | "limiter" | "onPasswordFailure">> &
+  Pick<GateOptions, "passwords" | "limiter" | "onPasswordFailure">;
 type Secret = { hash: string; salt: string; fp: string };
 
 /** `s`: the visitor may skip this preview's password (signed in with `previews.skip_password`). */
@@ -86,7 +87,14 @@ const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
 
 /** Only ever a same-origin PATH: `to` arrives in a URL, and this is a redirect. */
 export function safePath(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\") || raw.startsWith(GATE_PREFIX)) return "/";
+  if (
+    !raw ||
+    !raw.startsWith("/") ||
+    raw.startsWith("//") ||
+    raw.startsWith("/\\") ||
+    raw.startsWith(GATE_PREFIX)
+  )
+    return "/";
   return /[\x00-\x1f]/.test(raw) ? "/" : raw;
 }
 
@@ -99,7 +107,15 @@ export class PreviewGate {
 
   constructor(o: GateOptions) {
     if (o.key.length < 32) throw new Error("the gate key must be at least 32 bytes");
-    this.#o = { now: Date.now, ticketTtlMs: 60_000, cookieTtlMs: 8 * 3_600_000, passwordCookieTtlMs: 7 * 24 * 3_600_000, sharedPassword: () => null, loginDefault: () => false, ...o };
+    this.#o = {
+      now: Date.now,
+      ticketTtlMs: 60_000,
+      cookieTtlMs: 8 * 3_600_000,
+      passwordCookieTtlMs: 7 * 24 * 3_600_000,
+      sharedPassword: () => null,
+      loginDefault: () => false,
+      ...o,
+    };
   }
 
   /** Domain-separated, so a cookie can never be replayed as a ticket or the reverse. */
@@ -114,8 +130,17 @@ export class PreviewGate {
   }
 
   /** Called by the app surface AFTER it has checked the session and the permission. */
-  issueTicket(entry: Pick<RouteEntry, "hostname" | "previewId">, o: { skipPassword?: boolean } = {}): string {
-    const body: TicketBody = { h: entry.hostname, p: entry.previewId, exp: this.#o.now() + this.#o.ticketTtlMs, n: randomBytes(12).toString("base64url"), ...(o.skipPassword ? { s: 1 as const } : {}) };
+  issueTicket(
+    entry: Pick<RouteEntry, "hostname" | "previewId">,
+    o: { skipPassword?: boolean } = {},
+  ): string {
+    const body: TicketBody = {
+      h: entry.hostname,
+      p: entry.previewId,
+      exp: this.#o.now() + this.#o.ticketTtlMs,
+      n: randomBytes(12).toString("base64url"),
+      ...(o.skipPassword ? { s: 1 as const } : {}),
+    };
     const payload = b64(JSON.stringify(body));
     return `${payload}.${b64(this.#mac("ticket", payload))}`;
   }
@@ -123,9 +148,14 @@ export class PreviewGate {
   /** The ticket's body when it is good for this entry (and now spent), else null. */
   #redeem(ticket: string, entry: RouteEntry): TicketBody | null {
     const [payload, sig, extra] = ticket.split(".");
-    if (!payload || !sig || extra !== undefined || !this.#verify("ticket", payload, sig)) return null;
+    if (!payload || !sig || extra !== undefined || !this.#verify("ticket", payload, sig))
+      return null;
     let body: TicketBody;
-    try { body = JSON.parse(Buffer.from(payload, "base64url").toString()) as TicketBody; } catch { return null; }
+    try {
+      body = JSON.parse(Buffer.from(payload, "base64url").toString()) as TicketBody;
+    } catch {
+      return null;
+    }
     const now = this.#o.now();
     if (body.exp <= now || body.h !== entry.hostname || body.p !== entry.previewId) return null;
     if (this.#used.has(body.n)) return null;
@@ -148,12 +178,16 @@ export class PreviewGate {
     for (const part of header.split(";")) {
       const eq = part.indexOf("=");
       if (eq < 0 || part.slice(0, eq).trim() !== GATE_COOKIE) continue;
-      const fields = part.slice(eq + 1).trim().split(".");
+      const fields = part
+        .slice(eq + 1)
+        .trim()
+        .split(".");
       // Three fields: a cookie from before ADR-0023, which never skips a password.
       if (fields.length !== 3 && fields.length !== 4) continue;
       const sig = fields.pop()!;
       const [previewId, exp, skip] = fields;
-      if (!previewId || !exp || previewId !== entry.previewId || !(Number(exp) > this.#o.now())) continue;
+      if (!previewId || !exp || previewId !== entry.previewId || !(Number(exp) > this.#o.now()))
+        continue;
       if (!this.#verify("cookie", fields.join("."), sig)) continue;
       out.valid = true;
       if (skip === "1") out.skip = true;
@@ -172,7 +206,10 @@ export class PreviewGate {
    * password a gangway login gets past. Anything else, and the gate is not an open redirect.
    */
   gateable(entry: RouteEntry): { private: boolean; passwordSkippable: boolean } {
-    return { private: isPrivate(entry), passwordSkippable: this.#secretFor(entry) !== null && this.#loginSkips(entry) };
+    return {
+      private: isPrivate(entry),
+      passwordSkippable: this.#secretFor(entry) !== null && this.#loginSkips(entry),
+    };
   }
 
   /** The password this preview is behind right now, or null when it is open (or login-only). */
@@ -201,9 +238,18 @@ export class PreviewGate {
     for (const part of header.split(";")) {
       const eq = part.indexOf("=");
       if (eq < 0 || part.slice(0, eq).trim() !== PASSWORD_COOKIE) continue;
-      const [previewId, exp, cfp, sig, extra] = part.slice(eq + 1).trim().split(".");
+      const [previewId, exp, cfp, sig, extra] = part
+        .slice(eq + 1)
+        .trim()
+        .split(".");
       if (!previewId || !exp || !cfp || !sig || extra !== undefined) continue;
-      if (previewId === entry.previewId && cfp === fp && Number(exp) > this.#o.now() && this.#verify("password", `${previewId}.${exp}.${cfp}`, sig)) return true;
+      if (
+        previewId === entry.previewId &&
+        cfp === fp &&
+        Number(exp) > this.#o.now() &&
+        this.#verify("password", `${previewId}.${exp}.${cfp}`, sig)
+      )
+        return true;
     }
     return false;
   }
@@ -217,8 +263,16 @@ export class PreviewGate {
    * The dispatcher's hook: `check`, plus the one request that must be awaited -- the
    * password form's POST. Kept apart so `check` stays synchronous for the WebSocket path.
    */
-  readonly handle = (entry: RouteEntry, req: Request, clientIp = ""): Response | Promise<Response> | null => {
-    if (req.method === "POST" && req.url.includes(PASSWORD_PATH) && new URL(req.url).pathname === PASSWORD_PATH) {
+  readonly handle = (
+    entry: RouteEntry,
+    req: Request,
+    clientIp = "",
+  ): Response | Promise<Response> | null => {
+    if (
+      req.method === "POST" &&
+      req.url.includes(PASSWORD_PATH) &&
+      new URL(req.url).pathname === PASSWORD_PATH
+    ) {
       const secret = this.#secretFor(entry);
       if (!secret) return plain(404, "not found");
       return this.#submit(entry, req, clientIp, secret);
@@ -226,15 +280,26 @@ export class PreviewGate {
     return this.check(entry, req);
   };
 
-  async #submit(entry: RouteEntry, req: Request, clientIp: string, secret: Secret): Promise<Response> {
+  async #submit(
+    entry: RouteEntry,
+    req: Request,
+    clientIp: string,
+    secret: Secret,
+  ): Promise<Response> {
     // A cross-site form must not sign a visitor in (or burn their guesses).
     const origin = req.headers.get("origin");
     if (origin !== null && origin !== "null") {
       let host = "";
-      try { host = new URL(origin).hostname; } catch { /* unparseable: refused below */ }
-      if (host !== entry.hostname) return plain(403, "This form must be sent from the preview's own page.");
+      try {
+        host = new URL(origin).hostname;
+      } catch {
+        /* unparseable: refused below */
+      }
+      if (host !== entry.hostname)
+        return plain(403, "This form must be sent from the preview's own page.");
     }
-    if (!this.#o.passwords) return plain(503, "Password-protected previews are not available on this server.");
+    if (!this.#o.passwords)
+      return plain(503, "Password-protected previews are not available on this server.");
     const form = await readForm(req);
     if (!form) return plain(413, "That request is too large to be the password form.");
     const to = safePath(form.get("to"));
@@ -244,7 +309,13 @@ export class PreviewGate {
     const verdict = this.#o.limiter?.check(source, entry.previewId) ?? { ok: true };
     if (!verdict.ok) {
       this.#o.onPasswordFailure?.(entry, clientIp, "throttled");
-      return passwordPage(entry.hostname, to, `Too many attempts. Try again in ${Math.ceil(verdict.retryAfterSec / 60)} minute(s).`, 429, verdict.retryAfterSec);
+      return passwordPage(
+        entry.hostname,
+        to,
+        `Too many attempts. Try again in ${Math.ceil(verdict.retryAfterSec / 60)} minute(s).`,
+        429,
+        verdict.retryAfterSec,
+      );
     }
     let ok = false;
     try {
@@ -280,20 +351,26 @@ export class PreviewGate {
     if (!priv && secret === null && !req.url.includes("/__gangway")) return null;
     const url = new URL(req.url);
 
-    const gate = priv || secret !== null ? this.#gateCookie(req, entry) : { valid: false, skip: false };
+    const gate =
+      priv || secret !== null ? this.#gateCookie(req, entry) : { valid: false, skip: false };
     const loginSkips = secret !== null && this.#loginSkips(entry);
 
     if (url.pathname.startsWith(GATE_PREFIX) || url.pathname === GATE_PREFIX.slice(0, -1)) {
       // app sent a visitor back who cannot skip the password: the form, and no bounce.
       if (url.pathname === PASSWORD_PATH && req.method === "GET" && secret !== null) {
-        if (this.#hasPasswordCookie(req, entry, secret.fp)) return redirect(safePath(url.searchParams.get("to")));
+        if (this.#hasPasswordCookie(req, entry, secret.fp))
+          return redirect(safePath(url.searchParams.get("to")));
         return passwordPage(entry.hostname, safePath(url.searchParams.get("to")), null, 401);
       }
       // The form's POST goes through `handle`; anything else at this path is a 404 like the rest.
-      if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET") return plain(404, "not found");
+      if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET")
+        return plain(404, "not found");
       const ticket = this.#redeem(url.searchParams.get("ticket") ?? "", entry);
       if (!ticket) {
-        return plain(403, "This sign-in link has expired or was already used. Open the preview again to get a new one.");
+        return plain(
+          403,
+          "This sign-in link has expired or was already used. Open the preview again to get a new one.",
+        );
       }
       return new Response(null, {
         status: 302,
@@ -311,21 +388,29 @@ export class PreviewGate {
     // WebSocket or a POST cannot follow a cross-origin redirect to an HTML login page and
     // come back -- tell those plainly instead.
     const mode = req.headers.get("sec-fetch-mode");
-    const navigation = (req.method === "GET" || req.method === "HEAD") && !req.headers.has("upgrade") && (mode === null || mode === "navigate");
+    const navigation =
+      (req.method === "GET" || req.method === "HEAD") &&
+      !req.headers.has("upgrade") &&
+      (mode === null || mode === "navigate");
     const back = safePath(`${url.pathname}${url.search}`);
 
     if (!priv || gate.valid) {
       // Signed in (or not private): the password, if there is one, comes next.
       if (secret === null || this.#hasPasswordCookie(req, entry, secret.fp)) return null;
       if (loginSkips && gate.skip) return null;
-      if (!navigation) return plain(401, "This preview is password-protected. Open it in a browser tab and enter the password first.");
+      if (!navigation)
+        return plain(
+          401,
+          "This preview is password-protected. Open it in a browser tab and enter the password first.",
+        );
       // Not signed in here yet, and a login would do: ask app once. It sends a stranger
       // straight back to the form.
       if (loginSkips && !gate.valid) return redirect(this.#appGate(entry, back));
       return passwordPage(entry.hostname, back, null, 401);
     }
 
-    if (!navigation) return plain(401, "This preview is private. Open it in a browser tab and log in first.");
+    if (!navigation)
+      return plain(401, "This preview is private. Open it in a browser tab and log in first.");
     return redirect(this.#appGate(entry, back));
   };
 
@@ -358,7 +443,10 @@ async function readForm(req: Request): Promise<URLSearchParams | null> {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > MAX_FORM_BYTES) { await reader.cancel().catch(() => {}); return null; }
+    if (size > MAX_FORM_BYTES) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
     chunks.push(value);
   }
   return new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
@@ -370,7 +458,13 @@ const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt
  * The password form. Served by gangway on the preview's own hostname, before anything of the
  * preview's runs: no scripts, no external resources, nothing the preview can style or read.
  */
-function passwordPage(host: string, to: string, error: string | null, status: number, retryAfterSec?: number): Response {
+function passwordPage(
+  host: string,
+  to: string,
+  error: string | null,
+  status: number,
+  retryAfterSec?: number,
+): Response {
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>Password required</title>
@@ -394,16 +488,27 @@ ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
 </form></body></html>
 `;
   const headers: Record<string, string> = {
-    "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-    "x-frame-options": "DENY", "referrer-policy": "no-referrer",
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "x-robots-tag": "noindex, nofollow",
+    "content-security-policy":
+      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
   };
   if (retryAfterSec !== undefined) headers["retry-after"] = String(retryAfterSec);
   return new Response(html, { status, headers });
 }
 
 function plain(status: number, message: string): Response {
-  return new Response(`${message}\n`, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" } });
+  return new Response(`${message}\n`, {
+    status,
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
+      "x-robots-tag": "noindex, nofollow",
+    },
+  });
 }
 
 /**
@@ -413,12 +518,18 @@ function plain(status: number, message: string): Response {
  */
 export function stripGangwayCookies(header: string | null | undefined): string | null {
   if (!header) return null;
-  const kept = header.split(";").map((p) => p.trim()).filter((p) => p !== "" && !p.startsWith("__Host-gw_"));
+  const kept = header
+    .split(";")
+    .map((p) => p.trim())
+    .filter((p) => p !== "" && !p.startsWith("__Host-gw_"));
   return kept.length > 0 ? kept.join("; ") : null;
 }
 
 /** The gate key lives with everything else that must survive a restart and ride in a backup. */
-export function loadOrCreateGateKey(store: { get(key: string): unknown; set(key: string, value: unknown): void }): Buffer {
+export function loadOrCreateGateKey(store: {
+  get(key: string): unknown;
+  set(key: string, value: unknown): void;
+}): Buffer {
   const KEY = "auth.gateKey";
   const stored = store.get(KEY);
   if (typeof stored === "string") {

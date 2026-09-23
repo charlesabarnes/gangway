@@ -21,7 +21,9 @@ import type { GangwayEvent, Host } from "../../../shared/src/domain.ts";
 const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const TOKEN = "gw_test_admin_token_0123456789";
 const tmps: string[] = [];
-afterEach(() => { for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), "gangway-events-"));
@@ -34,13 +36,22 @@ function setup() {
   const app = createApp({
     logger: new Logger("error", {}, () => {}),
     verifyToken: staticTokenVerifier(TOKEN),
-    v1: (api) => { eventRoutes(api, bus, { heartbeatMs: 40 }); hostRoutes(api, hosts); },
+    v1: (api) => {
+      eventRoutes(api, bus, { heartbeatMs: 40 });
+      hostRoutes(api, hosts);
+    },
   });
   const h = surfaceHandler(app, "api");
   const get = (path: string, headers: Record<string, string> = {}, signal?: AbortSignal) =>
-    Promise.resolve(h(new Request(`https://api.preview.localhost${path}`, {
-      headers: { authorization: `Bearer ${TOKEN}`, ...headers }, ...(signal ? { signal } : {}),
-    }), { clientIp: "::1" }));
+    Promise.resolve(
+      h(
+        new Request(`https://api.preview.localhost${path}`, {
+          headers: { authorization: `Bearer ${TOKEN}`, ...headers },
+          ...(signal ? { signal } : {}),
+        }),
+        { clientIp: "::1" },
+      ),
+    );
   return { dir, bus, events, hosts, get };
 }
 
@@ -59,8 +70,17 @@ async function readFrames(res: Response, count: number, wantComments = false) {
     while ((i = buf.indexOf("\n\n")) >= 0) {
       const raw = buf.slice(0, i);
       buf = buf.slice(i + 2);
-      if (raw.startsWith(":")) { comments++; continue; }
-      frames.push(Object.fromEntries(raw.split("\n").map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1).trim()])));
+      if (raw.startsWith(":")) {
+        comments++;
+        continue;
+      }
+      frames.push(
+        Object.fromEntries(
+          raw
+            .split("\n")
+            .map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1).trim()]),
+        ),
+      );
     }
   }
   await reader.cancel();
@@ -71,7 +91,9 @@ describe("EventBus", () => {
   test("publish persists, then fans out; a throwing listener does not stop the rest", () => {
     const { bus, events } = setup();
     const seen: string[] = [];
-    bus.subscribe(() => { throw new Error("bad client"); });
+    bus.subscribe(() => {
+      throw new Error("bad client");
+    });
     bus.subscribe((e) => seen.push(e.type));
     const e = bus.publish("preview.state", { state: "building" }, null);
     expect(e.seq).toBe(1);
@@ -130,7 +152,11 @@ describe("GET /v1/events", () => {
     expect(res.headers.get("cache-control")).toContain("no-transform");
     setTimeout(() => bus.publish("three", { n: 3 }), 10);
     const { frames } = await readFrames(res, 3);
-    expect(frames.map((f) => [f["id"], f["event"]])).toEqual([["1", "one"], ["2", "two"], ["3", "three"]]);
+    expect(frames.map((f) => [f["id"], f["event"]])).toEqual([
+      ["1", "one"],
+      ["2", "two"],
+      ["3", "three"],
+    ]);
     expect(JSON.parse(frames[2]!["data"]!)).toMatchObject({ n: 3, previewId: null });
 
     const resumed = await readFrames(await get("/v1/events", { "last-event-id": "2" }), 1);
@@ -142,7 +168,8 @@ describe("GET /v1/events", () => {
   test("an IDLE stream says something at once, so `onopen` does not wait for the first heartbeat", async () => {
     // No events, and a heartbeat far in the future: the only thing that can arrive is the greeting.
     const { dir: _dir, hosts: _hosts, ...t } = setup();
-    void _dir; void _hosts;
+    void _dir;
+    void _hosts;
     const started = performance.now();
     const res = await t.get("/v1/events");
     const reader = res.body!.getReader();
@@ -184,7 +211,12 @@ describe("hosts (T16)", () => {
     seedHosts([cfg()], hosts);
     hosts.setState("local", "unreachable", "tunnel down");
     const [again] = seedHosts([cfg({ name: "renamed", portRangeEnd: 31099 })], hosts);
-    expect(again).toMatchObject({ id: "local", name: "renamed", state: "unreachable", lastError: "tunnel down" });
+    expect(again).toMatchObject({
+      id: "local",
+      name: "renamed",
+      state: "unreachable",
+      lastError: "tunnel down",
+    });
     expect(again!.ports).toEqual({ rangeStart: 31000, rangeEnd: 31099 });
     expect(hosts.list().length).toBe(1);
   });
@@ -199,20 +231,45 @@ describe("hosts (T16)", () => {
     expect(JSON.parse(text).hosts[0]).toMatchObject({ id: "local", capabilities: ["preview"] });
   });
 
-  const host = (id: string, state: Host["state"], caps: Host["capabilities"] = ["preview"]): Host => ({
-    id, name: id, dockerHost: "x", expectName: null, capabilities: caps, publishBind: "127.0.0.1",
-    upstream: { dial: "direct", address: "127.0.0.1", proxy: null }, ports: { rangeStart: 1, rangeEnd: 2 },
-    state, lastError: null, lastSeenAt: null, createdAt: new Date(0),
+  const host = (
+    id: string,
+    state: Host["state"],
+    caps: Host["capabilities"] = ["preview"],
+  ): Host => ({
+    id,
+    name: id,
+    dockerHost: "x",
+    expectName: null,
+    capabilities: caps,
+    publishBind: "127.0.0.1",
+    upstream: { dial: "direct", address: "127.0.0.1", proxy: null },
+    ports: { rangeStart: 1, rangeEnd: 2 },
+    state,
+    lastError: null,
+    lastSeenAt: null,
+    createdAt: new Date(0),
   });
 
   test("placement", () => {
     expect(place({ capability: "preview" }, [host("local", "unknown")]).id).toBe("local");
-    expect(place({ capability: "preview" }, [host("a", "unknown"), host("b", "ready")]).id).toBe("b");
-    expect(place({ capability: "preview", hostId: "a" }, [host("a", "unknown"), host("b", "ready")]).id).toBe("a");
-    expect(() => place({ capability: "preview" }, [host("a", "unreachable"), host("b", "error")])).toThrow(/no reachable host/);
-    expect(() => place({ capability: "runner" }, [host("a", "ready")])).toThrow(/no reachable host/);
-    expect(() => place({ capability: "preview", hostId: "r" }, [host("r", "ready", ["runner"])])).toThrow(/lacks/);
-    expect(() => place({ capability: "preview", hostId: "zz" }, [host("a", "ready")])).toThrow(/does not exist/);
+    expect(place({ capability: "preview" }, [host("a", "unknown"), host("b", "ready")]).id).toBe(
+      "b",
+    );
+    expect(
+      place({ capability: "preview", hostId: "a" }, [host("a", "unknown"), host("b", "ready")]).id,
+    ).toBe("a");
+    expect(() =>
+      place({ capability: "preview" }, [host("a", "unreachable"), host("b", "error")]),
+    ).toThrow(/no reachable host/);
+    expect(() => place({ capability: "runner" }, [host("a", "ready")])).toThrow(
+      /no reachable host/,
+    );
+    expect(() =>
+      place({ capability: "preview", hostId: "r" }, [host("r", "ready", ["runner"])]),
+    ).toThrow(/lacks/);
+    expect(() => place({ capability: "preview", hostId: "zz" }, [host("a", "ready")])).toThrow(
+      /does not exist/,
+    );
   });
 });
 
@@ -223,7 +280,12 @@ describe("PreviewLogs", () => {
     const { dir } = setup();
     const logs = new PreviewLogs(dir, () => 42);
     logs.append(id, "build", "step 1\nstep 2\r\n\nprogress a\rprogress b\n");
-    expect(logs.read(id).map((l) => [l.n, l.line])).toEqual([[1, "step 1"], [2, "step 2"], [3, "progress a"], [4, "progress b"]]);
+    expect(logs.read(id).map((l) => [l.n, l.line])).toEqual([
+      [1, "step 1"],
+      [2, "step 2"],
+      [3, "progress a"],
+      [4, "progress b"],
+    ]);
     const reopened = new PreviewLogs(dir);
     reopened.append(id, "system", "after restart");
     expect(reopened.read(id, 4)).toMatchObject([{ n: 5, stream: "system", line: "after restart" }]);
@@ -232,7 +294,11 @@ describe("PreviewLogs", () => {
   test("redacts on the way in, clips absurd lines", () => {
     const { dir } = setup();
     const logs = new PreviewLogs(dir);
-    logs.append(id, "stderr", "fatal: https://x-access-token:ghs_abcdefghijklmnopqrstuvwx@github.com/a/b.git");
+    logs.append(
+      id,
+      "stderr",
+      "fatal: https://x-access-token:ghs_abcdefghijklmnopqrstuvwx@github.com/a/b.git",
+    );
     logs.append(id, "stdout", "x".repeat(20_000));
     const [a, b] = logs.read(id);
     expect(a!.line).not.toContain("ghs_");

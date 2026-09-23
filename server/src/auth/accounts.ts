@@ -15,7 +15,15 @@ import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
 import type { UsersRepo } from "../db/repos/users.ts";
 import type { Db } from "../db/types.ts";
-import { AppError, conflict, forbidden, notFound, rateLimited, unauthorized, unprocessable } from "../errors.ts";
+import {
+  AppError,
+  conflict,
+  forbidden,
+  notFound,
+  rateLimited,
+  unauthorized,
+  unprocessable,
+} from "../errors.ts";
 import { ulid } from "../util/ulid.ts";
 import type { Actor } from "./actor.ts";
 import type { LoginLimiter } from "./limiter.ts";
@@ -62,14 +70,18 @@ export class Accounts {
       if ((this.#blockedNoted.get(key) ?? 0) < now - BLOCKED_NOTE_EVERY_MS) {
         if (this.#blockedNoted.size > 10_000) this.#blockedNoted.clear();
         this.#blockedNoted.set(key, now);
-        audit.record(null, "auth.login.blocked", email, { new: { ip: meta.ip, reason: verdict.reason, retryAfterSec: verdict.retryAfterSec } });
+        audit.record(null, "auth.login.blocked", email, {
+          new: { ip: meta.ip, reason: verdict.reason, retryAfterSec: verdict.retryAfterSec },
+        });
       }
       throw rateLimited(verdict.retryAfterSec, "too many failed logins; try again later");
     }
 
     const user = users.getByEmail(email);
     const usable = user && !user.disabled ? users.credentials(user.id) : undefined;
-    const ok = usable ? await passwords.verify(password, usable) : await passwords.verifyDummy(password);
+    const ok = usable
+      ? await passwords.verify(password, usable)
+      : await passwords.verifyDummy(password);
     if (!user || !usable || !ok) {
       limiter.fail(meta.ip, email);
       audit.record(null, "auth.login.failed", email, { new: { ip: meta.ip } });
@@ -77,9 +89,21 @@ export class Accounts {
     }
 
     limiter.succeed(email);
-    if (passwords.needsRehash(usable.hash)) users.setPassword(user.id, await passwords.hash(password));
+    if (passwords.needsRehash(usable.hash))
+      users.setPassword(user.id, await passwords.hash(password));
     const { secret, session } = sessions.issue(user.id, meta);
-    audit.record({ kind: "user", userId: user.id, roleId: user.roleId, permissions: new Set(), sessionId: session.id }, "auth.login", user.id, { new: { ip: meta.ip } });
+    audit.record(
+      {
+        kind: "user",
+        userId: user.id,
+        roleId: user.roleId,
+        permissions: new Set(),
+        sessionId: session.id,
+      },
+      "auth.login",
+      user.id,
+      { new: { ip: meta.ip } },
+    );
     return { user, secret };
   }
 
@@ -95,7 +119,9 @@ export class Accounts {
       return users.create({ id: ulid(this.#now()), email, roleId: ADMIN_ROLE_ID, ...credentials });
     });
     const { secret } = sessions.issue(user.id, meta);
-    audit.record(null, "auth.setup", user.id, { new: { email, roleId: ADMIN_ROLE_ID, ip: meta.ip } });
+    audit.record(null, "auth.setup", user.id, {
+      new: { email, roleId: ADMIN_ROLE_ID, ip: meta.ip },
+    });
     return { user, secret };
   }
 
@@ -107,22 +133,39 @@ export class Accounts {
     return this.#d.users.get(id);
   }
 
-  async createUser(actor: Actor, input: { email: string; password: string; roleId: string }): Promise<User> {
+  async createUser(
+    actor: Actor,
+    input: { email: string; password: string; roleId: string },
+  ): Promise<User> {
     const { db, users, roles, passwords, audit } = this.#d;
     if (!roles.get(input.roleId)) throw unprocessable(`no such role: ${input.roleId}`);
     const credentials = await passwords.hash(input.password);
     const user = db.transaction(() => {
-      if (users.getByEmail(input.email)) throw conflict("an account with that email already exists");
-      return users.create({ id: ulid(this.#now()), email: input.email, roleId: input.roleId, ...credentials });
+      if (users.getByEmail(input.email))
+        throw conflict("an account with that email already exists");
+      return users.create({
+        id: ulid(this.#now()),
+        email: input.email,
+        roleId: input.roleId,
+        ...credentials,
+      });
     });
-    audit.record(actor, "user.created", user.id, { new: { email: user.email, roleId: user.roleId } });
+    audit.record(actor, "user.created", user.id, {
+      new: { email: user.email, roleId: user.roleId },
+    });
     return user;
   }
 
-  async updateUser(actor: Actor, id: string, patch: { roleId?: string; disabled?: boolean; password?: string }): Promise<User> {
+  async updateUser(
+    actor: Actor,
+    id: string,
+    patch: { roleId?: string; disabled?: boolean; password?: string },
+  ): Promise<User> {
     const { db, users, roles, passwords, sessions, audit } = this.#d;
-    if (patch.roleId !== undefined && !roles.get(patch.roleId)) throw unprocessable(`no such role: ${patch.roleId}`);
-    const credentials = patch.password === undefined ? undefined : await passwords.hash(patch.password);
+    if (patch.roleId !== undefined && !roles.get(patch.roleId))
+      throw unprocessable(`no such role: ${patch.roleId}`);
+    const credentials =
+      patch.password === undefined ? undefined : await passwords.hash(patch.password);
 
     const { before, after } = db.transaction(() => {
       const before = users.get(id);
@@ -130,12 +173,16 @@ export class Accounts {
       // "Who is left if THIS account stops being an enabled admin?" Asked inside the
       // transaction, so two admins demoting each other cannot both succeed.
       const isAdminNow = before.roleId === ADMIN_ROLE_ID && !before.disabled;
-      const stopsBeingOne = (patch.roleId !== undefined && patch.roleId !== ADMIN_ROLE_ID) || patch.disabled === true;
+      const stopsBeingOne =
+        (patch.roleId !== undefined && patch.roleId !== ADMIN_ROLE_ID) || patch.disabled === true;
       if (isAdminNow && stopsBeingOne && users.countActiveAdmins(id) === 0) {
         throw conflict("this is the last enabled admin; promote or enable another admin first");
       }
       if (credentials) users.setPassword(id, credentials);
-      const after = users.update(id, { ...(patch.roleId === undefined ? {} : { roleId: patch.roleId }), ...(patch.disabled === undefined ? {} : { disabled: patch.disabled }) })!;
+      const after = users.update(id, {
+        ...(patch.roleId === undefined ? {} : { roleId: patch.roleId }),
+        ...(patch.disabled === undefined ? {} : { disabled: patch.disabled }),
+      })!;
       return { before, after };
     });
 
@@ -147,15 +194,25 @@ export class Accounts {
     }
     audit.record(actor, "user.updated", id, {
       old: { roleId: before.roleId, disabled: before.disabled },
-      new: { roleId: after.roleId, disabled: after.disabled, ...(credentials ? { passwordReset: true } : {}) },
+      new: {
+        roleId: after.roleId,
+        disabled: after.disabled,
+        ...(credentials ? { passwordReset: true } : {}),
+      },
     });
     return after;
   }
 
   /** Session-authenticated users only. Every OTHER session ends; the one in hand survives. */
-  async changeOwnPassword(actor: Actor, current: string, next: string, meta: RequestMeta): Promise<void> {
+  async changeOwnPassword(
+    actor: Actor,
+    current: string,
+    next: string,
+    meta: RequestMeta,
+  ): Promise<void> {
     const { users, passwords, limiter, sessions, audit } = this.#d;
-    if (actor.kind !== "user") throw forbidden("only a logged-in user can change their own password");
+    if (actor.kind !== "user")
+      throw forbidden("only a logged-in user can change their own password");
     const user = users.get(actor.userId);
     const stored = user ? users.credentials(user.id) : undefined;
     if (!user || !stored) throw unauthorized();

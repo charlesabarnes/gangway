@@ -16,8 +16,12 @@ export class SingleFlight<T> {
     return p;
   }
 
-  get size() { return this.#inflight.size; }
-  has(key: string) { return this.#inflight.has(key); }
+  get size() {
+    return this.#inflight.size;
+  }
+  has(key: string) {
+    return this.#inflight.has(key);
+  }
 }
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -40,7 +44,10 @@ export function backoffDelay(attempt: number, o: BackoffOptions = {}): number {
   return Math.floor(rand() * Math.min(max, base * 2 ** attempt));
 }
 
-export async function retry<T>(fn: (attempt: number) => Promise<T>, o: BackoffOptions = {}): Promise<T> {
+export async function retry<T>(
+  fn: (attempt: number) => Promise<T>,
+  o: BackoffOptions = {},
+): Promise<T> {
   const attempts = o.attempts ?? 5;
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -63,7 +70,10 @@ export async function retry<T>(fn: (attempt: number) => Promise<T>, o: BackoffOp
  * Waits for `idle()` to hold, or for the deadline. Returns whether it drained. The
  * shutdown primitive: "let the work finish, but not forever".
  */
-export async function drain(idle: () => boolean, o: { timeoutMs: number; intervalMs?: number }): Promise<boolean> {
+export async function drain(
+  idle: () => boolean,
+  o: { timeoutMs: number; intervalMs?: number },
+): Promise<boolean> {
   const deadline = Date.now() + o.timeoutMs;
   for (;;) {
     if (idle()) return true;

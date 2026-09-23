@@ -11,7 +11,7 @@ describe("precedence: config ?? database ?? default", () => {
   test("default when nothing is set", () => {
     const { settings } = mk();
     const e = settings.effective(SETTINGS.surfacesMcp);
-    expect(e.value).toBe(false);          // MCP is opt-in (§10.5)
+    expect(e.value).toBe(false); // MCP is opt-in (§10.5)
     expect(e.source).toBe("default");
     expect(e.managedByConfig).toBe(false);
   });
@@ -74,7 +74,11 @@ describe("invalid values", () => {
 
 describe("loadConfig", () => {
   test("ports and addresses come from the environment", () => {
-    const c = loadConfig({ GANGWAY_LISTEN_PORT: "443", GANGWAY_PUBLIC_PORT: "443", GANGWAY_LISTEN_ADDRESS: "10.0.0.5" });
+    const c = loadConfig({
+      GANGWAY_LISTEN_PORT: "443",
+      GANGWAY_PUBLIC_PORT: "443",
+      GANGWAY_LISTEN_ADDRESS: "10.0.0.5",
+    });
     expect(c.listenPort).toBe(443);
     expect(c.publicPort).toBe(443);
     expect(c.listenAddress).toBe("10.0.0.5");
@@ -91,7 +95,10 @@ describe("loadConfig", () => {
   });
 
   test("surface env vars become config overrides and coerce booleans", () => {
-    const c = loadConfig({ GANGWAY_SURFACE_MCP: "false", GANGWAY_BASE_DOMAIN: "preview.example.com" });
+    const c = loadConfig({
+      GANGWAY_SURFACE_MCP: "false",
+      GANGWAY_BASE_DOMAIN: "preview.example.com",
+    });
     expect(c.overrides["surfaces.mcp"]).toBe(false);
     expect(c.overrides["baseDomain"]).toBe("preview.example.com");
 
@@ -121,15 +128,40 @@ describe("loadConfig", () => {
 describe("secrets in the view", () => {
   test("a secret is reported as set or not, never as its value; a plain setting keeps its value", () => {
     const { settings } = mk({ "github.appId": "12345" });
-    settings.set(SETTINGS.githubPrivateKey, "-----BEGIN RSA PRIVATE KEY-----\\nabc\\n-----END RSA PRIVATE KEY-----");
+    settings.set(
+      SETTINGS.githubPrivateKey,
+      "-----BEGIN RSA PRIVATE KEY-----\\nabc\\n-----END RSA PRIVATE KEY-----",
+    );
     const view = Object.fromEntries(settings.view().map((v) => [v.key, v]));
-    expect(view["github.privateKey"]).toMatchObject({ secret: true, value: null, set: true, source: "database" });
-    expect(view["github.webhookSecret"]).toMatchObject({ secret: true, value: null, set: false, source: "default" });
+    expect(view["github.privateKey"]).toMatchObject({
+      secret: true,
+      value: null,
+      set: true,
+      source: "database",
+    });
+    expect(view["github.webhookSecret"]).toMatchObject({
+      secret: true,
+      value: null,
+      set: false,
+      source: "default",
+    });
     expect(view["acme.cloudflare.apiToken"]).toMatchObject({ secret: true, value: null });
-    expect(view["github.appId"]).toMatchObject({ secret: false, value: "12345", set: true, source: "config", managedByConfig: true });
-    expect(view["templates.default.pr"]).toMatchObject({ secret: false, value: "default", set: true });
+    expect(view["github.appId"]).toMatchObject({
+      secret: false,
+      value: "12345",
+      set: true,
+      source: "config",
+      managedByConfig: true,
+    });
+    expect(view["templates.default.pr"]).toMatchObject({
+      secret: false,
+      value: "default",
+      set: true,
+    });
     // The value itself is stored with real newlines: an env-var PEM with literal \n is usable.
-    expect(settings.get(SETTINGS.githubPrivateKey)).toBe("-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----");
+    expect(settings.get(SETTINGS.githubPrivateKey)).toBe(
+      "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
+    );
     expect(JSON.stringify(settings.view())).not.toContain("abc");
   });
 });

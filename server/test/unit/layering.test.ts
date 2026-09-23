@@ -34,11 +34,15 @@ test("the scan actually sees the tree", () => {
 test("nothing below app/ imports app/", () => {
   const offenders = files
     .filter((f) => !f.rel.startsWith("app/") && f.rel !== "main.ts" && f.rel !== "boot.ts")
-    .flatMap((f) => f.imports.filter((i) => i.target.startsWith("app/")).map((i) => `${f.rel} -> ${i.spec}`));
+    .flatMap((f) =>
+      f.imports.filter((i) => i.target.startsWith("app/")).map((i) => `${f.rel} -> ${i.spec}`),
+    );
   expect(offenders).toEqual([]);
 });
 
 test("only db/sqlite.ts imports bun:sqlite", () => {
-  const offenders = files.filter((f) => f.rel !== "db/sqlite.ts" && f.imports.some((i) => i.spec === "bun:sqlite")).map((f) => f.rel);
+  const offenders = files
+    .filter((f) => f.rel !== "db/sqlite.ts" && f.imports.some((i) => i.spec === "bun:sqlite"))
+    .map((f) => f.rel);
   expect(offenders).toEqual([]);
 });

@@ -15,7 +15,9 @@ import { ALERT, AuthCard, FIELD, LABEL } from './auth-card';
 
       <form (submit)="submit($event)" novalidate class="space-y-5">
         @if (auth.unreachable()) {
-          <p [class]="alert" role="alert" data-testid="unreachable">Cannot reach the server. It may be restarting — try again in a moment.</p>
+          <p [class]="alert" role="alert" data-testid="unreachable">
+            Cannot reach the server. It may be restarting — try again in a moment.
+          </p>
         }
         @if (error(); as e) {
           <p [class]="alert" role="alert" data-testid="error">{{ e }}</p>
@@ -23,17 +25,48 @@ import { ALERT, AuthCard, FIELD, LABEL } from './auth-card';
 
         <div>
           <label for="email" [class]="label">Email</label>
-          <input id="email" name="email" type="email" autocomplete="username" required autofocus
-                 [class]="field" [value]="email()" (input)="email.set($any($event.target).value)" data-testid="email" />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="username"
+            required
+            autofocus
+            [class]="field"
+            [value]="email()"
+            (input)="email.set($any($event.target).value)"
+            data-testid="email"
+          />
         </div>
         <div>
           <label for="password" [class]="label">Password</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required
-                 [class]="field" [value]="password()" (input)="password.set($any($event.target).value)" data-testid="password" />
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            [class]="field"
+            [value]="password()"
+            (input)="password.set($any($event.target).value)"
+            data-testid="password"
+          />
         </div>
 
-        <button appBtn type="submit" class="w-full" [disabled]="busy() || lockedFor() > 0" data-testid="submit">
-          @if (lockedFor() > 0) { Try again in {{ countdown() }} } @else if (busy()) { Logging in… } @else { Log in }
+        <button
+          appBtn
+          type="submit"
+          class="w-full"
+          [disabled]="busy() || lockedFor() > 0"
+          data-testid="submit"
+        >
+          @if (lockedFor() > 0) {
+            Try again in {{ countdown() }}
+          } @else if (busy()) {
+            Logging in…
+          } @else {
+            Log in
+          }
         </button>
       </form>
     </app-auth-card>
@@ -69,7 +102,10 @@ export class Login {
   protected async submit(e: Event): Promise<void> {
     e.preventDefault();
     if (this.busy() || this.lockedFor() > 0) return;
-    if (this.email().trim() === '' || this.password() === '') { this.error.set('Enter your email and password.'); return; }
+    if (this.email().trim() === '' || this.password() === '') {
+      this.error.set('Enter your email and password.');
+      return;
+    }
 
     this.busy.set(true);
     this.error.set(null);
@@ -77,7 +113,8 @@ export class Login {
       await this.auth.login(this.email().trim(), this.password());
       const to = safeReturnUrl(this.#route.snapshot.queryParamMap.get('returnUrl'));
       // Sent here by a private preview: go back through the server's gate, not the SPA router.
-      if (isServerReturn(to)) this.#hardNavigate(to); else await this.#router.navigateByUrl(to);
+      if (isServerReturn(to)) this.#hardNavigate(to);
+      else await this.#router.navigateByUrl(to);
     } catch (err) {
       const p = toProblem(err);
       this.password.set('');
@@ -89,7 +126,11 @@ export class Login {
         // disabled account. So does this.
         this.error.set('Wrong email or password.');
       } else {
-        this.error.set(p.requestId ? `${p.title}: ${p.detail} (request ${p.requestId})` : `${p.title}: ${p.detail}`);
+        this.error.set(
+          p.requestId
+            ? `${p.title}: ${p.detail} (request ${p.requestId})`
+            : `${p.title}: ${p.detail}`,
+        );
       }
     } finally {
       this.busy.set(false);
@@ -101,7 +142,10 @@ export class Login {
     this.lockedFor.set(Math.ceil(seconds));
     this.#timer = setInterval(() => {
       this.lockedFor.update((s) => Math.max(0, s - 1));
-      if (this.lockedFor() === 0) { this.#stop(); this.error.set(null); }
+      if (this.lockedFor() === 0) {
+        this.#stop();
+        this.error.set(null);
+      }
     }, 1000);
   }
 

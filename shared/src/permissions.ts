@@ -11,33 +11,101 @@
  * Ids are `<feature>.<verb>`. Never rename one: grants reference it.
  */
 export const PERMISSIONS = [
-  { id: "previews.read", feature: "previews", description: "List previews and see their detail, URLs and builds" },
+  {
+    id: "previews.read",
+    feature: "previews",
+    description: "List previews and see their detail, URLs and builds",
+  },
   { id: "previews.deploy", feature: "previews", description: "Deploy a new preview" },
   { id: "previews.destroy", feature: "previews", description: "Destroy any preview" },
-  { id: "previews.update", feature: "previews", description: "Change a preview's uploaded source and rebuild it at the same URL" },
-  { id: "previews.update_own", feature: "previews", description: "Rebuild previews you deployed, at the same URL" },
-  { id: "previews.data", feature: "previews", description: "Browse and query a preview's add-on databases (every query is audited)" },
-  { id: "previews.view_private", feature: "previews", description: "Open previews whose visibility is private" },
-  { id: "previews.skip_password", feature: "previews", description: "Open password-protected previews by being signed in, without the password" },
-  { id: "logs.read", feature: "logs", description: "Read and follow preview build and runtime logs" },
+  {
+    id: "previews.update",
+    feature: "previews",
+    description: "Change a preview's uploaded source and rebuild it at the same URL",
+  },
+  {
+    id: "previews.update_own",
+    feature: "previews",
+    description: "Rebuild previews you deployed, at the same URL",
+  },
+  {
+    id: "previews.data",
+    feature: "previews",
+    description: "Browse and query a preview's add-on databases (every query is audited)",
+  },
+  {
+    id: "previews.view_private",
+    feature: "previews",
+    description: "Open previews whose visibility is private",
+  },
+  {
+    id: "previews.skip_password",
+    feature: "previews",
+    description: "Open password-protected previews by being signed in, without the password",
+  },
+  {
+    id: "logs.read",
+    feature: "logs",
+    description: "Read and follow preview build and runtime logs",
+  },
   { id: "events.read", feature: "events", description: "Follow the global state stream" },
-  { id: "hosts.read", feature: "hosts", description: "See registered Docker hosts and their state" },
+  {
+    id: "hosts.read",
+    feature: "hosts",
+    description: "See registered Docker hosts and their state",
+  },
   { id: "hosts.manage", feature: "hosts", description: "Register, edit and remove Docker hosts" },
-  { id: "tokens.manage_own", feature: "tokens", description: "Create and revoke your own API tokens" },
-  { id: "tokens.manage_all", feature: "tokens", description: "See and revoke every user's API tokens" },
+  {
+    id: "tokens.manage_own",
+    feature: "tokens",
+    description: "Create and revoke your own API tokens",
+  },
+  {
+    id: "tokens.manage_all",
+    feature: "tokens",
+    description: "See and revoke every user's API tokens",
+  },
   { id: "users.read", feature: "users", description: "See accounts and their roles" },
-  { id: "users.manage", feature: "users", description: "Create, disable and re-role accounts; reset passwords" },
-  { id: "roles.read", feature: "roles", description: "See roles and the permissions each one grants" },
+  {
+    id: "users.manage",
+    feature: "users",
+    description: "Create, disable and re-role accounts; reset passwords",
+  },
+  {
+    id: "roles.read",
+    feature: "roles",
+    description: "See roles and the permissions each one grants",
+  },
   { id: "roles.manage", feature: "roles", description: "Change which permissions a role grants" },
   { id: "audit.read", feature: "audit", description: "Read the audit log" },
   { id: "settings.read", feature: "settings", description: "See server settings" },
   { id: "settings.write", feature: "settings", description: "Change server settings" },
-  { id: "surfaces.manage", feature: "settings", description: "Enable and disable the UI and MCP surfaces" },
+  {
+    id: "surfaces.manage",
+    feature: "settings",
+    description: "Enable and disable the UI and MCP surfaces",
+  },
   { id: "github.manage", feature: "github", description: "Connect the GitHub App" },
-  { id: "repos.manage", feature: "repos", description: "Tune a repository: its slug, template, overrides and fork policy" },
-  { id: "repos.secrets", feature: "repos", description: "Set secrets, global and per repository (values are never shown)" },
-  { id: "templates.manage", feature: "templates", description: "Create, edit and delete templates" },
-  { id: "apps.read", feature: "apps", description: "See the system app catalog and what is installed" },
+  {
+    id: "repos.manage",
+    feature: "repos",
+    description: "Tune a repository: its slug, template, overrides and fork policy",
+  },
+  {
+    id: "repos.secrets",
+    feature: "repos",
+    description: "Set secrets, global and per repository (values are never shown)",
+  },
+  {
+    id: "templates.manage",
+    feature: "templates",
+    description: "Create, edit and delete templates",
+  },
+  {
+    id: "apps.read",
+    feature: "apps",
+    description: "See the system app catalog and what is installed",
+  },
   { id: "apps.install", feature: "apps", description: "Install and uninstall system apps" },
   { id: "jobs.claim", feature: "jobs", description: "Create and claim ephemeral jobs" },
 ] as const satisfies readonly { id: string; feature: string; description: string }[];
@@ -81,7 +149,18 @@ export const ADMIN_ROLE_ID: BuiltinRole = "admin";
  * operator's. The migrations insert exactly this (0003, and 0010 for `update_own`), and a
  * test holds the two together.
  */
-export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<BuiltinRole, "admin">, readonly Permission[]> = {
-  member: [...READ, "previews.deploy", "previews.destroy", "previews.update_own", "previews.view_private", "previews.skip_password", "tokens.manage_own"],
+export const DEFAULT_ROLE_PERMISSIONS: Record<
+  Exclude<BuiltinRole, "admin">,
+  readonly Permission[]
+> = {
+  member: [
+    ...READ,
+    "previews.deploy",
+    "previews.destroy",
+    "previews.update_own",
+    "previews.view_private",
+    "previews.skip_password",
+    "tokens.manage_own",
+  ],
   viewer: [...READ, "previews.view_private", "previews.skip_password"],
 };

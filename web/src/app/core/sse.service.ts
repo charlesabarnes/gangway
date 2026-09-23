@@ -13,13 +13,19 @@ export type EventSourceLike = {
   close(): void;
 };
 
-export const EVENT_SOURCE_FACTORY = new InjectionToken<(url: string) => EventSourceLike>('EVENT_SOURCE_FACTORY', {
-  providedIn: 'root',
-  factory: () => (url: string) => new EventSource(url),
-});
+export const EVENT_SOURCE_FACTORY = new InjectionToken<(url: string) => EventSourceLike>(
+  'EVENT_SOURCE_FACTORY',
+  {
+    providedIn: 'root',
+    factory: () => (url: string) => new EventSource(url),
+  },
+);
 
 /** 0..1. Injected so specs get exact delays. */
-export const SSE_JITTER = new InjectionToken<() => number>('SSE_JITTER', { providedIn: 'root', factory: () => Math.random });
+export const SSE_JITTER = new InjectionToken<() => number>('SSE_JITTER', {
+  providedIn: 'root',
+  factory: () => Math.random,
+});
 
 export type SseStatus = 'connecting' | 'live' | 'reconnecting' | 'paused' | 'closed';
 export type SseMessage<T> = { type: string; data: T; id: string };
@@ -59,7 +65,12 @@ export class SseService {
    * `types` must be listed: a NAMED event never reaches `onmessage`, and gangway names
    * every event. Malformed JSON is dropped, not thrown -- one bad frame must not end a stream.
    */
-  open<T>(url: string, types: readonly string[], onMessage: (m: SseMessage<T>) => void, o: { after?: string | number } = {}): SseHandle {
+  open<T>(
+    url: string,
+    types: readonly string[],
+    onMessage: (m: SseMessage<T>) => void,
+    o: { after?: string | number } = {},
+  ): SseHandle {
     const status = signal<SseStatus>('connecting');
     let source: EventSourceLike | null = null;
     // The cursor is an OPTION, never part of `url`: a reconnect appends its own `after`, and
@@ -70,22 +81,42 @@ export class SseService {
     let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
     let done = false;
 
-    const drop = () => { source?.close(); source = null; };
-    const clearRetry = () => { if (retry) clearTimeout(retry); retry = null; };
+    const drop = () => {
+      source?.close();
+      source = null;
+    };
+    const clearRetry = () => {
+      if (retry) clearTimeout(retry);
+      retry = null;
+    };
 
     const connect = () => {
       if (done) return;
       drop();
-      const at = lastId === '' ? url : `${url}${url.includes('?') ? '&' : '?'}after=${encodeURIComponent(lastId)}`;
+      const at =
+        lastId === ''
+          ? url
+          : `${url}${url.includes('?') ? '&' : '?'}after=${encodeURIComponent(lastId)}`;
       const s = (source = this.#factory(at));
-      s.onopen = () => { if (s === source) { failures = 0; status.set('live'); } };
-      s.onerror = () => { if (s === source) void failed(); };
+      s.onopen = () => {
+        if (s === source) {
+          failures = 0;
+          status.set('live');
+        }
+      };
+      s.onerror = () => {
+        if (s === source) void failed();
+      };
       for (const type of types) {
         s.addEventListener(type, (e) => {
           if (s !== source) return;
           if (e.lastEventId) lastId = e.lastEventId;
           let data: T;
-          try { data = JSON.parse(String(e.data)) as T; } catch { return; }
+          try {
+            data = JSON.parse(String(e.data)) as T;
+          } catch {
+            return;
+          }
           onMessage({ type, data, id: e.lastEventId });
         });
       }
@@ -100,7 +131,9 @@ export class SseService {
         close();
         this.#auth.clear();
         const at = this.#router.url;
-        void this.#router.navigate(['/login'], { queryParams: at === '/' ? {} : { returnUrl: at } });
+        void this.#router.navigate(['/login'], {
+          queryParams: at === '/' ? {} : { returnUrl: at },
+        });
         return;
       }
       if (done || status() === 'paused') return;
@@ -112,11 +145,23 @@ export class SseService {
     const onVisibility = () => {
       if (done) return;
       if (this.#doc.visibilityState === 'hidden') {
-        hiddenTimer ??= setTimeout(() => { hiddenTimer = null; clearRetry(); drop(); status.set('paused'); }, HIDDEN_GRACE_MS);
+        hiddenTimer ??= setTimeout(() => {
+          hiddenTimer = null;
+          clearRetry();
+          drop();
+          status.set('paused');
+        }, HIDDEN_GRACE_MS);
         return;
       }
-      if (hiddenTimer) { clearTimeout(hiddenTimer); hiddenTimer = null; }
-      if (status() === 'paused') { status.set('connecting'); failures = 0; connect(); }
+      if (hiddenTimer) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = null;
+      }
+      if (status() === 'paused') {
+        status.set('connecting');
+        failures = 0;
+        connect();
+      }
     };
 
     const close = () => {

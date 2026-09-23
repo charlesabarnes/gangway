@@ -45,7 +45,10 @@ export type AuthDeps = {
  * checked when the browser sends it -- a sibling preview is `same-site`, never
  * `same-origin` -- and `Origin` must match exactly. A missing Origin is a no.
  */
-export function isSameOrigin(c: Context<AppEnv>, originFor: NonNullable<AuthDeps["originFor"]>): boolean {
+export function isSameOrigin(
+  c: Context<AppEnv>,
+  originFor: NonNullable<AuthDeps["originFor"]>,
+): boolean {
   const site = c.req.header("sec-fetch-site");
   if (site !== undefined && site !== "same-origin") return false;
   const origin = c.req.header("origin");
@@ -85,7 +88,10 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
     // ADR-0014: a workflow run is a credential for ONE route. Anywhere else it is nobody --
     // a leaked token from a PR's CI must not list previews, read logs or deploy an image.
     if (actor.kind === "workflow" && !WORKFLOW_PATH.test(c.req.path)) {
-      return problemResponse(c, forbidden("a workflow token may only deploy and tear down its own project's pull requests"));
+      return problemResponse(
+        c,
+        forbidden("a workflow token may only deploy and tear down its own project's pull requests"),
+      );
     }
     c.set("actor", actor);
     return next();
@@ -103,10 +109,14 @@ export const PERMISSION_GUARD = Symbol("gangway.permission");
  * checked again below with the row in hand -- `previews.update_own` or `previews.update`,
  * and the service decides whose preview it is (ADR-0021). The route is marked with the first.
  */
-export function requirePermission(permission: Permission, ...alternatives: Permission[]): MiddlewareHandler<AppEnv> {
+export function requirePermission(
+  permission: Permission,
+  ...alternatives: Permission[]
+): MiddlewareHandler<AppEnv> {
   const guard: MiddlewareHandler<AppEnv> = async (c, next) => {
     const actor = c.get("actor");
-    if (![permission, ...alternatives].some((p) => can(actor, p))) return problemResponse(c, forbidden(`requires the "${permission}" permission`));
+    if (![permission, ...alternatives].some((p) => can(actor, p)))
+      return problemResponse(c, forbidden(`requires the "${permission}" permission`));
     return next();
   };
   return Object.assign(guard, { [PERMISSION_GUARD]: permission });
@@ -117,7 +127,14 @@ export function requirePermission(permission: Permission, ...alternatives: Permi
  * cookie never has to be re-sent as the expiry slides.
  */
 export function setSessionCookie(c: Context<AppEnv>, secret: string, maxAgeSec: number): void {
-  setCookie(c, SESSION_COOKIE, secret, { prefix: "host", path: "/", httpOnly: true, secure: true, sameSite: "Lax", maxAge: maxAgeSec });
+  setCookie(c, SESSION_COOKIE, secret, {
+    prefix: "host",
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+    maxAge: maxAgeSec,
+  });
 }
 
 export function clearSessionCookie(c: Context<AppEnv>): void {

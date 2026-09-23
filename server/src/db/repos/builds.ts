@@ -13,11 +13,24 @@ export type Build = {
   exitCode: number | null;
 };
 
-type Row = { id: string; preview_id: string; service: string | null; state: BuildState; started_at: number; finished_at: number | null; exit_code: number | null };
+type Row = {
+  id: string;
+  preview_id: string;
+  service: string | null;
+  state: BuildState;
+  started_at: number;
+  finished_at: number | null;
+  exit_code: number | null;
+};
 
 const toBuild = (r: Row): Build => ({
-  id: r.id, previewId: r.preview_id, service: r.service, state: r.state,
-  startedAt: new Date(r.started_at), finishedAt: r.finished_at === null ? null : new Date(r.finished_at), exitCode: r.exit_code,
+  id: r.id,
+  previewId: r.preview_id,
+  service: r.service,
+  state: r.state,
+  startedAt: new Date(r.started_at),
+  finishedAt: r.finished_at === null ? null : new Date(r.finished_at),
+  exitCode: r.exit_code,
 });
 
 /**
@@ -49,11 +62,19 @@ export class BuildsRepo {
   }
 
   forPreview(previewId: string): Build[] {
-    return this.#db.query<Row>("SELECT id, preview_id, service, state, started_at, finished_at, exit_code FROM builds WHERE preview_id = $p ORDER BY started_at, id", { p: previewId }).map(toBuild);
+    return this.#db
+      .query<Row>(
+        "SELECT id, preview_id, service, state, started_at, finished_at, exit_code FROM builds WHERE preview_id = $p ORDER BY started_at, id",
+        { p: previewId },
+      )
+      .map(toBuild);
   }
 
   /** Boot: a build cannot outlive the process that ran it. */
   cancelRunning(): number {
-    return this.#db.run("UPDATE builds SET state = 'cancelled', finished_at = $now WHERE state = 'running'", { now: this.#now() }).changes;
+    return this.#db.run(
+      "UPDATE builds SET state = 'cancelled', finished_at = $now WHERE state = 'running'",
+      { now: this.#now() },
+    ).changes;
   }
 }

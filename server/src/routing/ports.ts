@@ -16,7 +16,10 @@ export type PortRange = { rangeStart: number; rangeEnd: number };
 
 export class PortExhausted extends AppError {
   constructor(host: string, range: PortRange) {
-    super("unavailable", `no free upstream port on ${host} in ${range.rangeStart}-${range.rangeEnd}`);
+    super(
+      "unavailable",
+      `no free upstream port on ${host} in ${range.rangeStart}-${range.rangeEnd}`,
+    );
     this.name = "PortExhausted";
   }
 }
@@ -34,7 +37,12 @@ export function allocatePort(range: PortRange, used: ReadonlySet<number>, host =
 }
 
 /** Allocates several distinct ports at once, for a multi-service stack. */
-export function allocatePorts(range: PortRange, used: ReadonlySet<number>, count: number, host = "host"): number[] {
+export function allocatePorts(
+  range: PortRange,
+  used: ReadonlySet<number>,
+  count: number,
+  host = "host",
+): number[] {
   const taken = new Set(used);
   const out: number[] = [];
   for (let i = 0; i < count; i++) {

@@ -14,7 +14,13 @@ export const MANIFEST_STATE_TTL_MS = 10 * 60_000;
 /** What `pull_request` + `issue_comment` and the six REST calls need, and nothing more. */
 // `issues: read` is what the issue_comment EVENT needs (GitHub refuses the manifest without
 // it, whatever the docs say); commenting on a PR is covered by pull_requests: write.
-export const APP_PERMISSIONS = { contents: "read", metadata: "read", issues: "read", pull_requests: "write", deployments: "write" } as const;
+export const APP_PERMISSIONS = {
+  contents: "read",
+  metadata: "read",
+  issues: "read",
+  pull_requests: "write",
+  deployments: "write",
+} as const;
 export const APP_EVENTS = ["pull_request", "issue_comment"] as const;
 
 export type Manifest = {
@@ -28,7 +34,11 @@ export type Manifest = {
   description: string;
 };
 
-export function buildManifest(o: { baseDomain: string; appOrigin: string; hooksOrigin: string }): Manifest {
+export function buildManifest(o: {
+  baseDomain: string;
+  appOrigin: string;
+  hooksOrigin: string;
+}): Manifest {
   return {
     name: `gangway ${o.baseDomain}`.slice(0, 34),
     url: o.appOrigin,

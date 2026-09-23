@@ -1,24 +1,33 @@
 import { describe, expect, test } from "bun:test";
 import {
-  RESERVED_LABELS, checkLabel, isValidLabel, normalizeHost, labelUnder,
-  fqdn, slugify, buildLabel, type LabelRejection,
+  RESERVED_LABELS,
+  checkLabel,
+  isValidLabel,
+  normalizeHost,
+  labelUnder,
+  fqdn,
+  slugify,
+  buildLabel,
+  type LabelRejection,
 } from "../src/hostname.ts";
 
 const BASE = "preview.example.com";
 
 describe("normalizeHost", () => {
   const cases: [string | null | undefined, string | null][] = [
-    ["Foo.Preview.Example.COM", "foo.preview.example.com"],   // uppercase
-    ["foo.preview.example.com.", "foo.preview.example.com"],  // trailing dot
+    ["Foo.Preview.Example.COM", "foo.preview.example.com"], // uppercase
+    ["foo.preview.example.com.", "foo.preview.example.com"], // trailing dot
     ["foo.preview.example.com:8443", "foo.preview.example.com"], // port
-    ["  foo.preview.example.com  ", "foo.preview.example.com"],  // whitespace
+    ["  foo.preview.example.com  ", "foo.preview.example.com"], // whitespace
     ["FOO.preview.example.com.:443", "foo.preview.example.com"], // all three
-    ["[::1]:8443", "[::1]"],                                   // IPv6 literal
-    ["", null], [null, null], [undefined, null],
-    ["foo_bar.preview.example.com", null],                     // underscore
-    ["xn--e1afmkfd.example.com", "xn--e1afmkfd.example.com"],   // punycode is fine
-    ["föö.example.com", null],                                 // raw IDN rejected
-    ["a".repeat(254), null],                                   // over 253
+    ["[::1]:8443", "[::1]"], // IPv6 literal
+    ["", null],
+    [null, null],
+    [undefined, null],
+    ["foo_bar.preview.example.com", null], // underscore
+    ["xn--e1afmkfd.example.com", "xn--e1afmkfd.example.com"], // punycode is fine
+    ["föö.example.com", null], // raw IDN rejected
+    ["a".repeat(254), null], // over 253
   ];
   for (const [input, want] of cases) {
     test(`${JSON.stringify(input)} -> ${JSON.stringify(want)}`, () => {
@@ -126,11 +135,17 @@ describe("buildLabel", () => {
     expect(r.ok && r.label).toBe("my-app-web");
   });
   test("single-service stacks drop the service segment", () => {
-    const r = buildLabel({ kind: "pr", repo: "acme", number: 1 }, { service: "web", isSingleService: true });
+    const r = buildLabel(
+      { kind: "pr", repo: "acme", number: 1 },
+      { service: "web", isSingleService: true },
+    );
     expect(r.ok && r.label).toBe("acme-pr-1");
   });
   test("the primary service drops the service segment", () => {
-    const r = buildLabel({ kind: "pr", repo: "acme", number: 1 }, { service: "web", isPrimary: true });
+    const r = buildLabel(
+      { kind: "pr", repo: "acme", number: 1 },
+      { service: "web", isPrimary: true },
+    );
     expect(r.ok && r.label).toBe("acme-pr-1");
   });
   test("rejects rather than silently truncating an over-long label", () => {

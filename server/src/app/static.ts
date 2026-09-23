@@ -34,7 +34,11 @@ export async function serveStatic(req: Request, o: StaticOptions): Promise<Respo
 
   const file = Bun.file(target);
   if (target !== root && hasExtension && (await file.exists())) {
-    return respond(req, file, HASHED.test(pathname) ? "public, max-age=31536000, immutable" : "no-cache");
+    return respond(
+      req,
+      file,
+      HASHED.test(pathname) ? "public, max-age=31536000, immutable" : "no-cache",
+    );
   }
   // A path with an extension that does not exist is a missing asset, not a client route.
   if (hasExtension) return null;

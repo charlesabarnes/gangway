@@ -6,7 +6,14 @@
  * the fallback is a config flag, not a project.
  */
 import { Database } from "bun:sqlite";
-import { applyPragmas, compareVersion, MIN_SQLITE_VERSION, type Db, type OpenOptions, type Params } from "./types.ts";
+import {
+  applyPragmas,
+  compareVersion,
+  MIN_SQLITE_VERSION,
+  type Db,
+  type OpenOptions,
+  type Params,
+} from "./types.ts";
 
 class BunDb implements Db {
   readonly driver = "bun" as const;
@@ -18,7 +25,9 @@ class BunDb implements Db {
     this.sqliteVersion = String((db.query("select sqlite_version() as v").get() as any).v);
   }
 
-  exec(sql: string) { this.#db.exec(sql); }
+  exec(sql: string) {
+    this.#db.exec(sql);
+  }
   query<T>(sql: string, params?: Params): T[] {
     return (params ? this.#db.query(sql).all(params as any) : this.#db.query(sql).all()) as T[];
   }
@@ -32,11 +41,15 @@ class BunDb implements Db {
     const r = params ? this.#db.query(sql).run(params as any) : this.#db.query(sql).run();
     return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) };
   }
-  transaction<T>(fn: () => T): T { return this.#db.transaction(fn)(); }
+  transaction<T>(fn: () => T): T {
+    return this.#db.transaction(fn)();
+  }
   pragma<T>(statement: string): T | undefined {
     return (this.#db.query(statement).get() ?? undefined) as T | undefined;
   }
-  close() { this.#db.close(); }
+  close() {
+    this.#db.close();
+  }
 }
 
 export function openDatabase(o: OpenOptions): { db: Db; journalMode: string } {
@@ -48,7 +61,7 @@ export function openDatabase(o: OpenOptions): { db: Db; journalMode: string } {
   if (!compareVersion(db.sqliteVersion, MIN_SQLITE_VERSION)) {
     throw new Error(
       `SQLite ${db.sqliteVersion} is older than the required ${MIN_SQLITE_VERSION.join(".")}. ` +
-      `Note bun:sqlite links the system SQLite on macOS and a bundled one on Linux.`,
+        `Note bun:sqlite links the system SQLite on macOS and a bundled one on Linux.`,
     );
   }
   const { journalMode } = applyPragmas(db, o);

@@ -1,5 +1,10 @@
 import type { Hono } from "hono";
-import { EnvPatchSchema, ProjectCreateSchema, ProjectPatchSchema, PullDeploySchema } from "../../../../shared/src/api.ts";
+import {
+  EnvPatchSchema,
+  ProjectCreateSchema,
+  ProjectPatchSchema,
+  PullDeploySchema,
+} from "../../../../shared/src/api.ts";
 import { slugify } from "../../../../shared/src/hostname.ts";
 import type { Preview, Project } from "../../../../shared/src/domain.ts";
 import type { AuditSink } from "../../audit/audit.ts";
@@ -41,18 +46,27 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (!p) throw notFound(`no such project: ${ref}`);
     return p;
   };
-  const json = async (c: { req: { json(): Promise<unknown> } }) => c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+  const json = async (c: { req: { json(): Promise<unknown> } }) =>
+    c.req.json().catch(() => {
+      throw badRequest("the request body is not JSON");
+    });
   const checkTemplate = (id: string | null | undefined) => {
-    if (id !== undefined && id !== null && !d.templates?.get(id)) throw unprocessable(`no such template: ${id}`, { templateId: id });
+    if (id !== undefined && id !== null && !d.templates?.get(id))
+      throw unprocessable(`no such template: ${id}`, { templateId: id });
   };
   const checkRepository = (full: string, self?: string) => {
     const taken = projects.getByFullName("github", full);
-    if (taken && taken.id !== self) throw conflict(`${full} is already project "${taken.slug}"`, { takenBy: taken.slug });
+    if (taken && taken.id !== self)
+      throw conflict(`${full} is already project "${taken.slug}"`, { takenBy: taken.slug });
   };
 
-  api.get("/projects", requirePermission("previews.read"), (c) => c.json({ projects: projects.list() }));
+  api.get("/projects", requirePermission("previews.read"), (c) =>
+    c.json({ projects: projects.list() }),
+  );
 
-  api.get("/projects/:ref", requirePermission("previews.read"), (c) => c.json({ project: find(c.req.param("ref")) }));
+  api.get("/projects/:ref", requirePermission("previews.read"), (c) =>
+    c.json({ project: find(c.req.param("ref")) }),
+  );
 
   api.post("/projects", requirePermission("repos.manage"), async (c) => {
     const req = ProjectCreateSchema.parse(await json(c));
@@ -62,9 +76,12 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (req.repository) checkRepository(req.repository);
     checkTemplate(req.templateId);
     const project = projects.create({
-      id: ulid(), name: req.name, slug,
+      id: ulid(),
+      name: req.name,
+      slug,
       ...(req.repository ? { forge: "github" as const, fullName: req.repository } : {}),
-      prTrigger: req.prTrigger ?? "workflow", templateId: req.templateId ?? null,
+      prTrigger: req.prTrigger ?? "workflow",
+      templateId: req.templateId ?? null,
     });
     audit.record(c.get("actor"), "project.created", project.id, { old: null, new: pick(project) });
     return c.json({ project }, 201);
@@ -73,19 +90,29 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
     const before = find(c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await json(c));
-    if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null) throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
+    if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null)
+      throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
     checkTemplate(patch.templateId);
     if (patch.slug !== undefined && patch.slug !== before.slug) {
       const taken = projects.getBySlug(patch.slug);
-      if (taken) throw conflict(`slug "${patch.slug}" is taken by project "${taken.name}"`, { takenBy: taken.slug });
+      if (taken)
+        throw conflict(`slug "${patch.slug}" is taken by project "${taken.name}"`, {
+          takenBy: taken.slug,
+        });
     }
     if (repository !== undefined && repository !== before.fullName) {
       if (repository !== null) checkRepository(repository, before.id);
       projects.setRepository(before.id, repository === null ? null : "github", repository);
     }
     // Enabling clears the reason it was disabled for; the operator has resolved it.
-    const after = projects.update(before.id, { ...patch, ...(patch.enabled === true ? { disabledReason: null } : {}) })!;
-    audit.record(c.get("actor"), "project.updated", before.id, { old: pick(before), new: pick(after) });
+    const after = projects.update(before.id, {
+      ...patch,
+      ...(patch.enabled === true ? { disabledReason: null } : {}),
+    })!;
+    audit.record(c.get("actor"), "project.updated", before.id, {
+      old: pick(before),
+      new: pick(after),
+    });
     return c.json({ project: after });
   });
 
@@ -113,7 +140,8 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.get("/projects/:ref/workflow", requirePermission("previews.read"), (c) => {
     const project = find(c.req.param("ref"));
     const port = Number(c.req.query("port") ?? 3000);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) throw unprocessable("port must be 1-65535");
+    if (!Number.isInteger(port) || port < 1 || port > 65535)
+      throw unprocessable("port must be 1-65535");
     c.header("content-type", "text/yaml; charset=utf-8");
     c.header("x-gangway-path", WORKFLOW_PATH_IN_REPO);
     return c.body(workflowFor(project, d.apiOrigin?.() ?? "", port));
@@ -122,11 +150,13 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   /* ---- ADR-0014: a pull request's preview, from its workflow (or a person, by hand) */
 
   api.put("/projects/:ref/pulls/:n", requirePermission("previews.deploy"), async (c) => {
-    if (!d.pulls || !d.wire) throw notFound("pull request previews are not available on this server");
+    if (!d.pulls || !d.wire)
+      throw notFound("pull request previews are not available on this server");
     const n = pullNumber(c.req.param("n"));
     const req = PullDeploySchema.parse(await json(c));
     const out = await d.pulls.deploy(c.req.param("ref"), n, req, c.get("actor"));
-    if (out.action === "unchanged") return c.json({ preview: d.wire(out.preview), unchanged: true });
+    if (out.action === "unchanged")
+      return c.json({ preview: d.wire(out.preview), unchanged: true });
     if (c.req.query("wait") === "true") {
       const final = await out.result.done;
       return c.json({ preview: d.wire(final) }, final.state === "awake" ? 201 : 502);
@@ -143,11 +173,22 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
 function pullNumber(s: string): number {
   const n = Number(s);
-  if (!Number.isInteger(n) || n < 1) throw badRequest("a pull request number is a positive integer");
+  if (!Number.isInteger(n) || n < 1)
+    throw badRequest("a pull request number is a positive integer");
   return n;
 }
 
 const pick = (p: Project) => ({
-  name: p.name, slug: p.slug, repository: p.fullName, prTrigger: p.prTrigger, enabled: p.enabled, templateId: p.templateId,
-  visibility: p.visibility, ttl: p.ttl, forks: p.forks, drafts: p.drafts, prClearance: p.prClearance, forkClearance: p.forkClearance,
+  name: p.name,
+  slug: p.slug,
+  repository: p.fullName,
+  prTrigger: p.prTrigger,
+  enabled: p.enabled,
+  templateId: p.templateId,
+  visibility: p.visibility,
+  ttl: p.ttl,
+  forks: p.forks,
+  drafts: p.drafts,
+  prClearance: p.prClearance,
+  forkClearance: p.forkClearance,
 });

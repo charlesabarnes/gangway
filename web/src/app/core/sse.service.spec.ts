@@ -14,14 +14,21 @@ function setup() {
   FakeEventSource.reset();
   TestBed.configureTestingModule({
     providers: [
-      provideRouter([{ path: 'login', component: Blank }, { path: 'previews/:id', component: Blank }]),
-      provideHttpClient(), provideHttpClientTesting(),
+      provideRouter([
+        { path: 'login', component: Blank },
+        { path: 'previews/:id', component: Blank },
+      ]),
+      provideHttpClient(),
+      provideHttpClientTesting(),
       { provide: EVENT_SOURCE_FACTORY, useValue: (url: string) => new FakeEventSource(url) },
       { provide: SSE_JITTER, useValue: () => 0 },
     ],
   });
   const got: SseMessage<{ n: number }>[] = [];
-  const open = (url = '/v1/events') => TestBed.inject(SseService).open<{ n: number }>(url, ['preview.state', 'reset'], (m) => got.push(m));
+  const open = (url = '/v1/events') =>
+    TestBed.inject(SseService).open<{ n: number }>(url, ['preview.state', 'reset'], (m) =>
+      got.push(m),
+    );
   return { got, open, http: TestBed.inject(HttpTestingController) };
 }
 
@@ -32,7 +39,10 @@ const hide = (state: 'hidden' | 'visible') => {
 
 describe('SseService', () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => { hide('visible'); vi.useRealTimers(); });
+  afterEach(() => {
+    hide('visible');
+    vi.useRealTimers();
+  });
 
   it('delivers NAMED events, parsed, with their ids -- onmessage would never fire for them', () => {
     const t = setup();
@@ -43,7 +53,10 @@ describe('SseService', () => {
     expect(FakeEventSource.last.listensTo('preview.state')).toBe(true);
     FakeEventSource.last.emit('preview.state', { n: 1 }, '41');
     FakeEventSource.last.emit('reset', { n: 2 }, '42');
-    expect(t.got).toEqual([{ type: 'preview.state', data: { n: 1 }, id: '41' }, { type: 'reset', data: { n: 2 }, id: '42' }]);
+    expect(t.got).toEqual([
+      { type: 'preview.state', data: { n: 1 }, id: '41' },
+      { type: 'reset', data: { n: 2 }, id: '42' },
+    ]);
   });
 
   it('one malformed frame is dropped; the stream carries on', () => {
@@ -104,7 +117,9 @@ describe('SseService', () => {
       const before = FakeEventSource.instances.length;
       FakeEventSource.last.fail();
       await vi.advanceTimersByTimeAsync(0);
-      t.http.match('/v1/auth/session').forEach((r) => r.flush({ authenticated: true, setupRequired: false, permissions: [] }));
+      t.http
+        .match('/v1/auth/session')
+        .forEach((r) => r.flush({ authenticated: true, setupRequired: false, permissions: [] }));
       await vi.advanceTimersByTimeAsync(expected - 1);
       expect(FakeEventSource.instances.length).toBe(before);
       await vi.advanceTimersByTimeAsync(1);

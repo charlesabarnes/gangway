@@ -106,8 +106,17 @@ export const upArgv = (base: Base, args: string[] = []): string[] =>
  * operator's own containers may share -- stays.
  * Without it every build leaves an image on the host forever.
  */
-export const downArgv = (base: Base, args: string[] = [], rmi: "local" | "all" = "local", o: { volumes?: boolean } = {}): string[] =>
-  composeArgv({ ...base, command: "down", args: [...(o.volumes === false ? [] : ["-v"]), "--remove-orphans", "--rmi", rmi, ...args] });
+export const downArgv = (
+  base: Base,
+  args: string[] = [],
+  rmi: "local" | "all" = "local",
+  o: { volumes?: boolean } = {},
+): string[] =>
+  composeArgv({
+    ...base,
+    command: "down",
+    args: [...(o.volumes === false ? [] : ["-v"]), "--remove-orphans", "--rmi", rmi, ...args],
+  });
 
 /** §5 step 4 streams build progress to SSE; `plain` is the only parseable progress mode. */
 export const buildArgv = (base: Base, services: string[] = [], args: string[] = []): string[] =>
@@ -162,9 +171,25 @@ export const NEUTRALISED_ENV = [
  * daemon, to get through a proxy.
  */
 export const INHERITED_ENV = [
-  "PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR",
-  "SSH_AUTH_SOCK", "DOCKER_CONFIG", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
-  "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+  "XDG_CONFIG_HOME",
+  "XDG_RUNTIME_DIR",
+  "SSH_AUTH_SOCK",
+  "DOCKER_CONFIG",
+  "DOCKER_TLS_VERIFY",
+  "DOCKER_CERT_PATH",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
 ] as const;
 
 export type ComposeEnvInput = {
@@ -219,7 +244,10 @@ type Spawned = {
   signalCode: string | null;
 };
 
-export type Spawner = (argv: string[], opts: { cwd?: string; env: Record<string, string> }) => Spawned;
+export type Spawner = (
+  argv: string[],
+  opts: { cwd?: string; env: Record<string, string> },
+) => Spawned;
 
 const bunSpawner: Spawner = (argv, opts) => {
   const proc = Bun.spawn({
@@ -235,7 +263,9 @@ const bunSpawner: Spawner = (argv, opts) => {
     stderr: proc.stderr as unknown as ReadableStream<Uint8Array> | null,
     exited: proc.exited,
     kill: () => proc.kill(),
-    get signalCode() { return proc.signalCode; },
+    get signalCode() {
+      return proc.signalCode;
+    },
   };
 };
 
@@ -277,7 +307,10 @@ async function* merge<T>(sources: AsyncIterator<T>[]): AsyncGenerator<T> {
   type Settled = { index: number; result: IteratorResult<T> };
   const pending = new Map<number, Promise<Settled>>();
   sources.forEach((it, index) => {
-    pending.set(index, it.next().then((result) => ({ index, result })));
+    pending.set(
+      index,
+      it.next().then((result) => ({ index, result })),
+    );
   });
   while (pending.size > 0) {
     const { index, result } = await Promise.race(pending.values());
@@ -287,7 +320,10 @@ async function* merge<T>(sources: AsyncIterator<T>[]): AsyncGenerator<T> {
     }
     yield result.value;
     const it = sources[index]!;
-    pending.set(index, it.next().then((r) => ({ index, result: r })));
+    pending.set(
+      index,
+      it.next().then((r) => ({ index, result: r })),
+    );
   }
 }
 
@@ -338,7 +374,10 @@ export async function composeCapture(
   let signal: string | null = null;
   for await (const ev of runCompose(argv, opts, spawner)) {
     if (ev.type === "line") (ev.stream === "stdout" ? out : err).push(ev.line);
-    else { code = ev.code; signal = ev.signal; }
+    else {
+      code = ev.code;
+      signal = ev.signal;
+    }
   }
   return { code, stdout: out.join("\n"), stderr: err.join("\n"), signal };
 }
@@ -365,18 +404,27 @@ export function parseComposePs(stdout: string): ComposePsEntry[] {
     try {
       const arr: unknown = JSON.parse(text);
       if (Array.isArray(arr)) rows.push(...arr);
-    } catch { /* fall through to NDJSON */ }
+    } catch {
+      /* fall through to NDJSON */
+    }
   }
   if (rows.length === 0) {
     for (const line of text.split("\n")) {
       const t = line.trim();
       if (t === "" || !t.startsWith("{")) continue;
-      try { rows.push(JSON.parse(t)); } catch { /* a stray log line, not a row */ }
+      try {
+        rows.push(JSON.parse(t));
+      } catch {
+        /* a stray log line, not a row */
+      }
     }
   }
-  return rows.filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
+  return rows
+    .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
     .map((r) => {
-      const pubs = Array.isArray(r["Publishers"]) ? (r["Publishers"] as Record<string, unknown>[]) : [];
+      const pubs = Array.isArray(r["Publishers"])
+        ? (r["Publishers"] as Record<string, unknown>[])
+        : [];
       return {
         name: typeof r["Name"] === "string" ? r["Name"] : "",
         service: typeof r["Service"] === "string" ? r["Service"] : "",

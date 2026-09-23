@@ -4,7 +4,12 @@ import { SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
-import { chainVerifiers, staticTokenVerifier, tokenActor, type Actor } from "../../src/auth/actor.ts";
+import {
+  chainVerifiers,
+  staticTokenVerifier,
+  tokenActor,
+  type Actor,
+} from "../../src/auth/actor.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
 import { Logger } from "../../src/logger.ts";
 import { META, PASSWORD, setupAccounts } from "../helpers/accounts.ts";
@@ -19,7 +24,10 @@ async function make() {
   const adaActor = s.sessions.resolve(secret)!.actor;
   const person = async (email: string, roleId: string): Promise<{ id: string; actor: Actor }> => {
     const u = await s.accounts.createUser(adaActor, { email, password: PASSWORD, roleId });
-    return { id: u.id, actor: s.sessions.resolve((await s.accounts.login(email, PASSWORD, META)).secret)!.actor };
+    return {
+      id: u.id,
+      actor: s.sessions.resolve((await s.accounts.login(email, PASSWORD, META)).secret)!.actor,
+    };
   };
   return { ...s, tokens, ada, adaActor, person };
 }
@@ -29,7 +37,14 @@ describe("minting", () => {
     const t = await make();
     const { token, secret } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["deploy"] });
     expect(secret).toMatch(/^gw_[A-Za-z0-9_-]{43}$/);
-    expect(token).toMatchObject({ name: "ci", scopes: ["deploy"], userId: t.ada.id, prefix: secret.slice(0, 11), expiresAt: null, revokedAt: null });
+    expect(token).toMatchObject({
+      name: "ci",
+      scopes: ["deploy"],
+      userId: t.ada.id,
+      prefix: secret.slice(0, 11),
+      expiresAt: null,
+      revokedAt: null,
+    });
     expect(JSON.stringify(token)).not.toContain(secret);
     expect(JSON.stringify(t.db.query("SELECT * FROM api_tokens"))).not.toContain(secret);
     expect(JSON.stringify(t.auditRepo.page({ limit: 50 }))).not.toContain(secret.slice(11));
@@ -38,9 +53,15 @@ describe("minting", () => {
   test("a scope is refused unless the role covers its WHOLE bundle", async () => {
     const t = await make();
     const bob = await t.person("bob@example.com", "member");
-    expect(t.tokens.mint(bob.actor, { name: "ok", scopes: ["read", "deploy"] }).token.scopes).toEqual(["read", "deploy"]);
-    expect(() => t.tokens.mint(bob.actor, { name: "nope", scopes: ["admin"] })).toThrow(/does not cover the "admin" scope/);
-    try { t.tokens.mint(bob.actor, { name: "nope", scopes: ["admin"] }); } catch (e) {
+    expect(
+      t.tokens.mint(bob.actor, { name: "ok", scopes: ["read", "deploy"] }).token.scopes,
+    ).toEqual(["read", "deploy"]);
+    expect(() => t.tokens.mint(bob.actor, { name: "nope", scopes: ["admin"] })).toThrow(
+      /does not cover the "admin" scope/,
+    );
+    try {
+      t.tokens.mint(bob.actor, { name: "nope", scopes: ["admin"] });
+    } catch (e) {
       expect(e).toMatchObject({ status: 422, detail: { scope: "admin" } });
       expect((e as { detail: { missing: string[] } }).detail.missing).toContain("users.manage");
     }
@@ -51,21 +72,31 @@ describe("minting", () => {
     const { secret } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["admin"] });
     const asToken = (await t.tokens.verify(secret))!;
     expect(asToken.permissions.has("tokens.manage_own")).toBe(true); // it HAS the permission...
-    expect(() => t.tokens.mint(asToken, { name: "child", scopes: ["read"] })).toThrow(/cannot create API tokens/); // ...and still may not
+    expect(() => t.tokens.mint(asToken, { name: "child", scopes: ["read"] })).toThrow(
+      /cannot create API tokens/,
+    ); // ...and still may not
   });
 
   test("the env admin token mints OWNERLESS tokens, with any scope", async () => {
     const t = await make();
     const { token, secret } = t.tokens.mint(ENV, { name: "bootstrap-ci", scopes: ["admin"] });
     expect(token.userId).toBeNull();
-    expect((await t.tokens.verify(secret))!).toMatchObject({ kind: "token", tokenId: token.id, scopes: ["admin"] });
+    expect((await t.tokens.verify(secret))!).toMatchObject({
+      kind: "token",
+      tokenId: token.id,
+      scopes: ["admin"],
+    });
     expect("userId" in (await t.tokens.verify(secret))!).toBe(false);
   });
 
   test("expiresIn is a duration; nonsense is a 422", async () => {
     const t = await make();
-    expect(t.tokens.mint(t.adaActor, { name: "short", scopes: ["read"], expiresIn: "90d" }).token.expiresAt).toEqual(new Date(t.clock.t + 90 * DAY));
-    for (const expiresIn of ["soon", "", "-1d", "0s"]) expect(() => t.tokens.mint(t.adaActor, { name: "x", scopes: ["read"], expiresIn })).toThrow();
+    expect(
+      t.tokens.mint(t.adaActor, { name: "short", scopes: ["read"], expiresIn: "90d" }).token
+        .expiresAt,
+    ).toEqual(new Date(t.clock.t + 90 * DAY));
+    for (const expiresIn of ["soon", "", "-1d", "0s"])
+      expect(() => t.tokens.mint(t.adaActor, { name: "x", scopes: ["read"], expiresIn })).toThrow();
   });
 });
 
@@ -74,7 +105,12 @@ describe("verifying", () => {
     const t = await make();
     const { secret, token } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["deploy"] });
     const actor = (await t.tokens.verify(secret))!;
-    expect(actor).toMatchObject({ kind: "token", tokenId: token.id, scopes: ["deploy"], userId: t.ada.id });
+    expect(actor).toMatchObject({
+      kind: "token",
+      tokenId: token.id,
+      scopes: ["deploy"],
+      userId: t.ada.id,
+    });
     expect([...actor.permissions].sort()).toEqual([...SCOPE_PERMISSIONS.deploy].sort());
   });
 
@@ -82,8 +118,18 @@ describe("verifying", () => {
     const t = await make();
     let reads = 0;
     const { findActiveByHash } = t.tokensRepo;
-    t.tokensRepo.findActiveByHash = function (...a) { reads++; return findActiveByHash.apply(this, a); };
-    for (const junk of ["", "gw_short", "Bearer x", "gw_e2e_admin_token_0123456789abcdef", "x".repeat(100_000)]) expect(await t.tokens.verify(junk)).toBeNull();
+    t.tokensRepo.findActiveByHash = function (...a) {
+      reads++;
+      return findActiveByHash.apply(this, a);
+    };
+    for (const junk of [
+      "",
+      "gw_short",
+      "Bearer x",
+      "gw_e2e_admin_token_0123456789abcdef",
+      "x".repeat(100_000),
+    ])
+      expect(await t.tokens.verify(junk)).toBeNull();
     expect(reads).toBe(0);
     expect(await t.tokens.verify(`gw_${"A".repeat(43)}`)).toBeNull(); // right shape, no such token: one read
     expect(reads).toBe(1);
@@ -150,9 +196,14 @@ describe("verifying", () => {
   test("the chain: a database token, then the env token, then nobody", async () => {
     const t = await make();
     const { secret, token } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["read"] });
-    const verify = chainVerifiers(t.tokens.verify, staticTokenVerifier("gw_env_admin_token_0123456789abcdef"));
+    const verify = chainVerifiers(
+      t.tokens.verify,
+      staticTokenVerifier("gw_env_admin_token_0123456789abcdef"),
+    );
     expect(await verify(secret)).toMatchObject({ tokenId: token.id });
-    expect(await verify("gw_env_admin_token_0123456789abcdef")).toMatchObject({ tokenId: "env:admin" });
+    expect(await verify("gw_env_admin_token_0123456789abcdef")).toMatchObject({
+      tokenId: "env:admin",
+    });
     expect(await verify("gw_nobody")).toBeNull();
   });
 });
@@ -167,8 +218,18 @@ describe("listing and revoking", () => {
 
     expect(t.tokens.list(bob.actor).map((x) => x.name)).toEqual(["bobs"]);
     expect(() => t.tokens.list(bob.actor, { all: true })).toThrow(/tokens.manage_all/);
-    expect(t.tokens.list(t.adaActor, { all: true }).map((x) => x.name).sort()).toEqual(["bobs", "carols"]);
-    expect(t.tokens.list(ENV).map((x) => x.name).sort()).toEqual(["bobs", "carols"]);
+    expect(
+      t.tokens
+        .list(t.adaActor, { all: true })
+        .map((x) => x.name)
+        .sort(),
+    ).toEqual(["bobs", "carols"]);
+    expect(
+      t.tokens
+        .list(ENV)
+        .map((x) => x.name)
+        .sort(),
+    ).toEqual(["bobs", "carols"]);
 
     expect(() => t.tokens.revoke(carol.actor, bobs.id)).toThrow(/no such token/);
     expect(() => t.tokens.revoke(carol.actor, "does-not-exist")).toThrow(/no such token/);
@@ -190,25 +251,41 @@ describe("/v1/tokens", () => {
   const http = (tokens: Tokens, actor: Actor) => {
     const api = new Hono<AppEnv>();
     api.onError(errorHandler(new Logger("error", {}, () => {})));
-    api.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", actor); return next(); });
+    api.use(async (c, next) => {
+      c.set("requestId", "r");
+      c.set("actor", actor);
+      return next();
+    });
     tokenRoutes(api, tokens);
     return (path: string, init?: RequestInit) => api.request(path, init);
   };
-  const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
+  const post = (body: unknown): RequestInit => ({
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+  });
 
   test("POST is the only response that ever contains the secret", async () => {
     const t = await make();
     const call = http(t.tokens, t.adaActor);
-    const made = await call("/tokens", post({ name: " ci ", scopes: ["deploy"], expiresIn: "30d" }));
+    const made = await call(
+      "/tokens",
+      post({ name: " ci ", scopes: ["deploy"], expiresIn: "30d" }),
+    );
     expect(made.status).toBe(201);
     expect(made.headers.get("cache-control")).toBe("no-store");
-    const { secret, token } = await made.json() as { secret: string; token: { id: string; name: string } };
+    const { secret, token } = (await made.json()) as {
+      secret: string;
+      token: { id: string; name: string };
+    };
     expect(token.name).toBe("ci");
 
     const listed = await (await call("/tokens")).text();
     expect(listed).toContain(token.id);
     expect(listed).not.toContain(secret);
-    expect(await (await call(`/tokens/${token.id}`, { method: "DELETE" })).text()).not.toContain(secret);
+    expect(await (await call(`/tokens/${token.id}`, { method: "DELETE" })).text()).not.toContain(
+      secret,
+    );
   });
 
   test("a viewer has no tokens.manage_own: 403. Bad input: 422", async () => {

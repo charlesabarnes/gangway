@@ -102,10 +102,15 @@ async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
   const name = entry.header.name ?? "";
 
   // Cheap string checks first: a hostile name should never reach the filesystem layer.
-  if (name.includes("\u0000")) throw rejectTarball("invalid_path", "entry path contains a NUL byte", name);
+  if (name.includes("\u0000"))
+    throw rejectTarball("invalid_path", "entry path contains a NUL byte", name);
   if (name.length === 0) throw rejectTarball("invalid_path", "entry path is empty");
   if (Buffer.byteLength(name) > ctx.limits.maxPathBytes) {
-    throw rejectTarball("path_too_long", `entry path exceeds ${ctx.limits.maxPathBytes} bytes`, name);
+    throw rejectTarball(
+      "path_too_long",
+      `entry path exceeds ${ctx.limits.maxPathBytes} bytes`,
+      name,
+    );
   }
   if (name.startsWith("/") || /^[A-Za-z]:[\\/]/.test(name)) {
     throw rejectTarball("absolute_path", "entry path is absolute", name);
@@ -120,13 +125,15 @@ async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
 
   // "./" and "" after normalisation mean the archive root, which already exists.
   if (segments.length === 0) {
-    if (type !== "directory") throw rejectTarball("invalid_path", "entry path resolves to the root", name);
+    if (type !== "directory")
+      throw rejectTarball("invalid_path", "entry path resolves to the root", name);
     ctx.result.directories++;
     return;
   }
 
   const target = resolveWithin(ctx.dest, segments.join("/"));
-  if (target === undefined) throw rejectTarball("path_escape", "entry path escapes the destination", name);
+  if (target === undefined)
+    throw rejectTarball("path_escape", "entry path escapes the destination", name);
 
   switch (type) {
     case "directory":
@@ -165,7 +172,11 @@ async function writeFileEntry(ctx: Context, entry: TarEntry, target: string): Pr
     for await (const chunk of entry as AsyncIterable<Uint8Array>) {
       bytes += chunk.byteLength;
       if (bytes > ctx.limits.maxFileBytes) {
-        throw rejectTarball("file_too_large", `file exceeds ${ctx.limits.maxFileBytes} bytes`, entry.header.name);
+        throw rejectTarball(
+          "file_too_large",
+          `file exceeds ${ctx.limits.maxFileBytes} bytes`,
+          entry.header.name,
+        );
       }
       await handle.write(chunk);
     }
@@ -183,7 +194,11 @@ async function writeLinkEntry(
 ): Promise<void> {
   const linkname = entry.header.linkname ?? "";
   if (linkname.length === 0 || linkname.includes("\u0000")) {
-    throw rejectTarball("invalid_path", "link target is empty or contains a NUL byte", entry.header.name);
+    throw rejectTarball(
+      "invalid_path",
+      "link target is empty or contains a NUL byte",
+      entry.header.name,
+    );
   }
 
   // A hardlink target is relative to the archive root; a symlink target is relative to the
@@ -191,7 +206,11 @@ async function writeLinkEntry(
   const base = type === "link" ? ctx.dest : path.dirname(target);
   const resolvedTarget = path.isAbsolute(linkname) ? linkname : path.resolve(base, linkname);
   if (!containedIn(ctx.dest, resolvedTarget)) {
-    throw rejectTarball("link_escape", `${type} target escapes the destination`, `${entry.header.name} -> ${linkname}`);
+    throw rejectTarball(
+      "link_escape",
+      `${type} target escapes the destination`,
+      `${entry.header.name} -> ${linkname}`,
+    );
   }
 
   await ensureDir(ctx, path.dirname(target));
@@ -225,10 +244,18 @@ async function ensureDir(ctx: Context, dir: string): Promise<void> {
 
     const st = await lstat(current);
     if (st.isSymbolicLink()) {
-      throw rejectTarball("path_escape", "path component is a symlink", path.relative(ctx.dest, current));
+      throw rejectTarball(
+        "path_escape",
+        "path component is a symlink",
+        path.relative(ctx.dest, current),
+      );
     }
     if (!st.isDirectory()) {
-      throw rejectTarball("duplicate_entry", "path component is not a directory", path.relative(ctx.dest, current));
+      throw rejectTarball(
+        "duplicate_entry",
+        "path component is not a directory",
+        path.relative(ctx.dest, current),
+      );
     }
 
     await chmod(current, DIR_MODE);
@@ -287,7 +314,10 @@ async function* iterate(source: TarballSource): AsyncGenerator<Uint8Array> {
   for await (const chunk of source as AsyncIterable<Uint8Array>) yield chunk;
 }
 
-async function* prepend(head: Uint8Array, rest: AsyncGenerator<Uint8Array>): AsyncGenerator<Uint8Array> {
+async function* prepend(
+  head: Uint8Array,
+  rest: AsyncGenerator<Uint8Array>,
+): AsyncGenerator<Uint8Array> {
   yield head;
   yield* rest;
 }

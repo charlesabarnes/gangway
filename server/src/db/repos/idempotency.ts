@@ -1,8 +1,20 @@
 import type { Db } from "../types.ts";
 
-export type IdempotencyRecord = { key: string; ownerId: string; previewId: string | null; requestHash: string; createdAt: number };
+export type IdempotencyRecord = {
+  key: string;
+  ownerId: string;
+  previewId: string | null;
+  requestHash: string;
+  createdAt: number;
+};
 
-type Row = { key: string; token_id: string; preview_id: string | null; request_hash: string; created_at: number };
+type Row = {
+  key: string;
+  token_id: string;
+  preview_id: string | null;
+  request_hash: string;
+  created_at: number;
+};
 
 /**
  * §10.1/§10.2: which preview a caller-supplied key already produced. Scoped per PRINCIPAL
@@ -20,8 +32,19 @@ export class IdempotencyRepo {
   }
 
   get(key: string, ownerId: string): IdempotencyRecord | undefined {
-    const r = this.#db.get<Row>("SELECT key, token_id, preview_id, request_hash, created_at FROM idempotency_keys WHERE key = $key AND token_id = $t", { key, t: ownerId });
-    return r ? { key: r.key, ownerId: r.token_id, previewId: r.preview_id, requestHash: r.request_hash, createdAt: r.created_at } : undefined;
+    const r = this.#db.get<Row>(
+      "SELECT key, token_id, preview_id, request_hash, created_at FROM idempotency_keys WHERE key = $key AND token_id = $t",
+      { key, t: ownerId },
+    );
+    return r
+      ? {
+          key: r.key,
+          ownerId: r.token_id,
+          previewId: r.preview_id,
+          requestHash: r.request_hash,
+          createdAt: r.created_at,
+        }
+      : undefined;
   }
 
   /** Upsert: a key whose preview is gone is free to mean something new. */
@@ -36,6 +59,7 @@ export class IdempotencyRepo {
   }
 
   purge(before: number): number {
-    return this.#db.run("DELETE FROM idempotency_keys WHERE created_at < $before", { before }).changes;
+    return this.#db.run("DELETE FROM idempotency_keys WHERE created_at < $before", { before })
+      .changes;
   }
 }

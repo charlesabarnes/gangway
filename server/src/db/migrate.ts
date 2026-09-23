@@ -30,7 +30,9 @@ export function loadMigrations(dir: string): Migration[] {
     if (!m) throw new Error(`migration filename "${file}" must match NNNN_lower_snake.sql`);
     const sql = readFileSync(join(dir, file), "utf8");
     if (/PRAGMA\s+journal_mode/i.test(sql)) {
-      throw new Error(`migration ${file} sets journal_mode; that belongs in the open sequence, not a migration`);
+      throw new Error(
+        `migration ${file} sets journal_mode; that belongs in the open sequence, not a migration`,
+      );
     }
     out.push({ version: Number.parseInt(m[1]!, 10), name: m[2]!, sql, checksum: checksum(sql) });
   }
@@ -60,7 +62,9 @@ export type MigrateResult = { applied: number[]; alreadyApplied: number[]; journ
 export function migrate(db: Db, dir: string, now: () => number = Date.now): MigrateResult {
   ensureTable(db);
   const migrations = loadMigrations(dir);
-  const applied = db.query<AppliedRow>("SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version");
+  const applied = db.query<AppliedRow>(
+    "SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version",
+  );
   const byVersion = new Map(applied.map((r) => [r.version, r]));
 
   // Drift: an applied migration whose file has since changed.
@@ -70,14 +74,14 @@ export function migrate(db: Db, dir: string, now: () => number = Date.now): Migr
       // The database is ahead of the code -- a downgrade. Refuse rather than guess.
       throw new Error(
         `database has migration ${row.version} (${row.name}) applied but no such file exists; ` +
-        `this build is older than the database. Refusing to run.`,
+          `this build is older than the database. Refusing to run.`,
       );
     }
     if (file.checksum !== row.checksum) {
       throw new Error(
         `migration ${String(row.version).padStart(4, "0")}_${row.name}.sql has changed since it was applied ` +
-        `(recorded ${row.checksum.slice(0, 12)}, file ${file.checksum.slice(0, 12)}). ` +
-        `Edit a new migration instead.`,
+          `(recorded ${row.checksum.slice(0, 12)}, file ${file.checksum.slice(0, 12)}). ` +
+          `Edit a new migration instead.`,
       );
     }
   }
@@ -97,7 +101,9 @@ export function migrate(db: Db, dir: string, now: () => number = Date.now): Migr
         );
         const violations = db.query<Record<string, unknown>>("PRAGMA foreign_key_check");
         if (violations.length > 0) {
-          throw new Error(`migration ${m.version} left ${violations.length} foreign key violation(s)`);
+          throw new Error(
+            `migration ${m.version} left ${violations.length} foreign key violation(s)`,
+          );
         }
       });
       appliedNow.push(m.version);

@@ -4,7 +4,17 @@
  */
 import { labelUnder, normalizeHost, RESERVED_LABELS } from "../../../shared/src/hostname.ts";
 import type { RouteEntry, RouteTable } from "../routing/table.ts";
-import { badGatewayPage, buildingPage, busyPage, failedPage, misdirectedPage, payloadTooLargePage, unknownPage, upstreamTimeoutPage, wakingPage } from "./errorpages.ts";
+import {
+  badGatewayPage,
+  buildingPage,
+  busyPage,
+  failedPage,
+  misdirectedPage,
+  payloadTooLargePage,
+  unknownPage,
+  upstreamTimeoutPage,
+  wakingPage,
+} from "./errorpages.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
 import { release, tryAcquire, type Limits } from "./limits.ts";
 import { isBodyTooLarge, isTimeout, type Upstream } from "./upstream.ts";
@@ -12,7 +22,10 @@ import { isBodyTooLarge, isTimeout, type Upstream } from "./upstream.ts";
 /** The surfaces a reserved label can route to. */
 export type Surface = "app" | "api" | "mcp" | "hooks" | "registry" | "www";
 
-export type SurfaceHandler = (req: Request, ctx: { clientIp: string }) => Response | Promise<Response>;
+export type SurfaceHandler = (
+  req: Request,
+  ctx: { clientIp: string },
+) => Response | Promise<Response>;
 
 export type DispatchDeps = {
   baseDomain: () => string;
@@ -31,7 +44,11 @@ export type DispatchDeps = {
    * Visibility and password gate (§8.3, ADR-0023). Returning a Response short-circuits
    * before the upstream. A promise only for the password form's POST.
    */
-  visibilityGate?: (entry: RouteEntry, req: Request, clientIp?: string) => Response | Promise<Response> | null;
+  visibilityGate?: (
+    entry: RouteEntry,
+    req: Request,
+    clientIp?: string,
+  ) => Response | Promise<Response> | null;
   logTailFor?: (previewId: string) => string[];
   logUrlFor?: (previewId: string) => string | undefined;
   clientIpFor: (req: Request) => string;
@@ -85,7 +102,11 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
     case "starting":
       return buildingPage(host, d.logUrlFor?.(entry.previewId));
     case "failed":
-      return failedPage(host, d.logTailFor?.(entry.previewId) ?? [], d.logUrlFor?.(entry.previewId));
+      return failedPage(
+        host,
+        d.logTailFor?.(entry.previewId) ?? [],
+        d.logUrlFor?.(entry.previewId),
+      );
     case "asleep": {
       if (!d.wake) return wakingPage(host);
       const instead = await d.wake(entry, req);

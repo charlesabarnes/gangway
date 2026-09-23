@@ -156,14 +156,26 @@ export function parseLabels(
 
   const str = (key: string): string => {
     const v = bag[key];
-    if (v === undefined) { missing.push(key); return ""; }
-    if (v === "") { invalid.push(key); return ""; }
+    if (v === undefined) {
+      missing.push(key);
+      return "";
+    }
+    if (v === "") {
+      invalid.push(key);
+      return "";
+    }
     return v;
   };
   const port = (key: string): number => {
     const v = bag[key];
-    if (v === undefined) { missing.push(key); return 0; }
-    if (!PORT_RE.test(v) || !isPort(Number(v))) { invalid.push(key); return 0; }
+    if (v === undefined) {
+      missing.push(key);
+      return 0;
+    }
+    if (!PORT_RE.test(v) || !isPort(Number(v))) {
+      invalid.push(key);
+      return 0;
+    }
     return Number(v);
   };
 
@@ -206,8 +218,19 @@ export function parseLabels(
   return {
     ok: true,
     labels: {
-      instance, env, previewId, project, service, hostId, hostname,
-      port: portValue, containerPort, upstreamHost, visibility, primary, createdAt,
+      instance,
+      env,
+      previewId,
+      project,
+      service,
+      hostId,
+      hostname,
+      port: portValue,
+      containerPort,
+      upstreamHost,
+      visibility,
+      primary,
+      createdAt,
     },
   };
 }

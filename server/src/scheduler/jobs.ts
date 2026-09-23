@@ -7,7 +7,12 @@ import type { Logger } from "../logger.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { destroy } from "../previews/destroy.ts";
 
-export type SweepReport = { expired: number; destroyed: string[]; skipped: string[]; failed: string[] };
+export type SweepReport = {
+  expired: number;
+  destroyed: string[];
+  skipped: string[];
+  failed: string[];
+};
 
 /**
  * TTL sweep: destroy what has outlived `ttl_expires_at`. Goes through the same `destroy`
@@ -18,7 +23,11 @@ export type SweepReport = { expired: number; destroyed: string[]; skipped: strin
  * would turn every expired preview into an error. It stays expired; the next sweep after
  * the reconciler sees the host again takes it.
  */
-export async function sweepExpired(ctx: PreviewContext, logger: Logger, signal?: AbortSignal): Promise<SweepReport> {
+export async function sweepExpired(
+  ctx: PreviewContext,
+  logger: Logger,
+  signal?: AbortSignal,
+): Promise<SweepReport> {
   const expired = ctx.previews.expired(ctx.now());
   const report: SweepReport = { expired: expired.length, destroyed: [], skipped: [], failed: [] };
   const actor = systemActor("ttl-sweep");
@@ -35,11 +44,19 @@ export async function sweepExpired(ctx: PreviewContext, logger: Logger, signal?:
     } catch (err) {
       // One stuck preview must not shield the ones behind it.
       report.failed.push(p.id);
-      logger.warn("ttl sweep could not destroy a preview", { previewId: p.id, project: p.project, err });
+      logger.warn("ttl sweep could not destroy a preview", {
+        previewId: p.id,
+        project: p.project,
+        err,
+      });
     }
   }
   if (report.destroyed.length || report.failed.length) {
-    logger.info("ttl sweep", { destroyed: report.destroyed.length, failed: report.failed.length, skipped: report.skipped.length });
+    logger.info("ttl sweep", {
+      destroyed: report.destroyed.length,
+      failed: report.failed.length,
+      skipped: report.skipped.length,
+    });
   }
   return report;
 }

@@ -31,7 +31,13 @@ describe("Passwords", () => {
   test("a stored value that does not parse is simply wrong -- it never throws", async () => {
     const p = fast();
     const good = await p.hash("a perfectly fine password");
-    for (const hash of ["", "plaintext", "scrypt$ln=10,r=8,p=1$", "bcrypt$ln=10,r=8,p=1$AAAA", good.hash.slice(0, -8)]) {
+    for (const hash of [
+      "",
+      "plaintext",
+      "scrypt$ln=10,r=8,p=1$",
+      "bcrypt$ln=10,r=8,p=1$AAAA",
+      good.hash.slice(0, -8),
+    ]) {
       expect(await p.verify("a perfectly fine password", { hash, salt: good.salt })).toBe(false);
     }
   });
@@ -42,7 +48,12 @@ describe("Passwords", () => {
     const started = performance.now();
     // ln=31 would be a 274 GiB derivation; ln=4 a trivially cheap one. Neither is run.
     for (const ln of ["31", "4", "99"]) {
-      expect(await p.verify("a perfectly fine password", { ...good, hash: good.hash.replace("ln=10", `ln=${ln}`) })).toBe(false);
+      expect(
+        await p.verify("a perfectly fine password", {
+          ...good,
+          hash: good.hash.replace("ln=10", `ln=${ln}`),
+        }),
+      ).toBe(false);
     }
     expect(performance.now() - started).toBeLessThan(50);
   });
@@ -71,9 +82,17 @@ describe("Passwords", () => {
 
   test("hashing does not block the event loop: this process is also a proxy", async () => {
     const p = new Passwords();
-    let worst = 0, last = performance.now();
-    const probe = setInterval(() => { const t = performance.now(); worst = Math.max(worst, t - last - 5); last = t; }, 5);
-    await Promise.all([p.hash("first of two at production cost"), p.hash("second of two at production cost")]);
+    let worst = 0,
+      last = performance.now();
+    const probe = setInterval(() => {
+      const t = performance.now();
+      worst = Math.max(worst, t - last - 5);
+      last = t;
+    }, 5);
+    await Promise.all([
+      p.hash("first of two at production cost"),
+      p.hash("second of two at production cost"),
+    ]);
     clearInterval(probe);
     // Measured on Bun 1.4.2: ~1 ms of lag with the async scrypt, ~48 ms with scryptSync.
     // The bound sits between them, so swapping in the sync call FAILS this test.
@@ -82,12 +101,19 @@ describe("Passwords", () => {
 
   test("at most `concurrency` run at once; the queue is bounded and overflow is a 429", async () => {
     const p = fast({ concurrency: 1, maxQueue: 2 });
-    const results = await Promise.allSettled(Array.from({ length: 5 }, (_, i) => p.hash(`password number ${i} here`)));
+    const results = await Promise.allSettled(
+      Array.from({ length: 5 }, (_, i) => p.hash(`password number ${i} here`)),
+    );
     const ok = results.filter((r) => r.status === "fulfilled");
     const refused = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
     expect(ok).toHaveLength(3); // one running + two queued
     expect(refused).toHaveLength(2);
-    for (const r of refused) expect(r.reason).toMatchObject({ code: "rate_limited", status: 429, headers: { "retry-after": "2" } });
+    for (const r of refused)
+      expect(r.reason).toMatchObject({
+        code: "rate_limited",
+        status: 429,
+        headers: { "retry-after": "2" },
+      });
     // ...and the slots come back: the next caller is served.
     expect((await p.hash("after the storm passes")).hash).toStartWith("scrypt$");
   });

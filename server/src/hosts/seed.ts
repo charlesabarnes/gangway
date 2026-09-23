@@ -16,7 +16,11 @@ export function seedHosts(configured: readonly HostConfig[], repo: HostsRepo): H
       expectName: h.expectName ?? null,
       capabilities: h.capabilities,
       publishBind: h.publishBind,
-      upstream: { dial: h.upstreamDial, address: h.upstreamAddress, proxy: h.upstreamProxy ?? null },
+      upstream: {
+        dial: h.upstreamDial,
+        address: h.upstreamAddress,
+        proxy: h.upstreamProxy ?? null,
+      },
       ports: { rangeStart: h.portRangeStart, rangeEnd: h.portRangeEnd },
     }),
   );

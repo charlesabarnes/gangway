@@ -31,7 +31,11 @@ export type PreviewTimings = {
   pollIntervalMs: number;
 };
 
-export const DEFAULT_TIMINGS: PreviewTimings = { startTimeoutMs: 180_000, probeTimeoutMs: 60_000, pollIntervalMs: 1_000 };
+export const DEFAULT_TIMINGS: PreviewTimings = {
+  startTimeoutMs: 180_000,
+  probeTimeoutMs: 60_000,
+  pollIntervalMs: 1_000,
+};
 
 export type PreviewContext = {
   instance: string;
@@ -69,7 +73,8 @@ export type PreviewContext = {
    * The secrets a preview receives at a clearance (ADR-0012): the global map, plus the
    * repository's when it has one. Absent: no `.env` is written.
    */
-  secretsFor?: ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
+  secretsFor?:
+    ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
   /**
    * An add-on's password for a preview (ADR-0017): derived, so the sidecar's config is the
    * same on every rebuild and compose never recreates the database. Absent: add-ons are refused.

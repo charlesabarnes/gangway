@@ -17,7 +17,10 @@ module.exports = defineConfig([
     processor: angular.processInlineTemplates,
     rules: {
       '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       // No-op callbacks are deliberate (swallowed errors, stub handlers in specs).
       '@typescript-eslint/no-empty-function': 'off',
       // The log viewer strips ANSI escapes and control characters by regex.

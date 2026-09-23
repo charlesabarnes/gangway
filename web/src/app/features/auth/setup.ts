@@ -16,44 +16,94 @@ const MIN_PASSWORD = 12;
   imports: [AuthCard, Btn],
   template: `
     <app-auth-card heading="Create the first admin">
-      <span lede>Nobody has an account yet. This one can do everything, including making the others.</span>
+      <span lede
+        >Nobody has an account yet. This one can do everything, including making the others.</span
+      >
 
       @if (!token) {
         <div [class]="alert" role="alert" data-testid="no-token">
           <p class="font-medium">This page needs the setup link.</p>
-          <p class="mt-1">gangway printed a one-time URL when it started. Find it in the server's output —
-            <code class="font-mono text-xs">docker logs gangway</code> — and open that instead.</p>
+          <p class="mt-1">
+            gangway printed a one-time URL when it started. Find it in the server's output —
+            <code class="font-mono text-xs">docker logs gangway</code> — and open that instead.
+          </p>
         </div>
       } @else {
         <form (submit)="submit($event)" novalidate class="space-y-5">
           @if (error(); as e) {
             <div [class]="alert" role="alert" data-testid="error">
               <p>{{ e.message }}</p>
-              @if (e.hint) { <p class="mt-1 text-xs opacity-80">{{ e.hint }}</p> }
+              @if (e.hint) {
+                <p class="mt-1 text-xs opacity-80">{{ e.hint }}</p>
+              }
             </div>
           }
 
           <div>
             <label for="email" [class]="label">Email</label>
-            <input id="email" name="email" type="email" autocomplete="username" required autofocus
-                   [class]="field" [value]="email()" (input)="email.set($any($event.target).value)" data-testid="email" />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              required
+              autofocus
+              [class]="field"
+              [value]="email()"
+              (input)="email.set($any($event.target).value)"
+              data-testid="email"
+            />
           </div>
           <div>
             <label for="password" [class]="label">Password</label>
-            <input id="password" name="password" type="password" autocomplete="new-password" required aria-describedby="pw-hint"
-                   [class]="field" [value]="password()" (input)="password.set($any($event.target).value)" data-testid="password" />
-            <p id="pw-hint" class="mt-1.5 text-xs" [class]="tooShort() ? 'text-amber-700 dark:text-amber-400' : 'text-neutral-500'">
-              At least {{ min }} characters. Length is the only rule — a few unrelated words works well.
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              required
+              aria-describedby="pw-hint"
+              [class]="field"
+              [value]="password()"
+              (input)="password.set($any($event.target).value)"
+              data-testid="password"
+            />
+            <p
+              id="pw-hint"
+              class="mt-1.5 text-xs"
+              [class]="tooShort() ? 'text-amber-700 dark:text-amber-400' : 'text-neutral-500'"
+            >
+              At least {{ min }} characters. Length is the only rule — a few unrelated words works
+              well.
             </p>
           </div>
           <div>
             <label for="confirm" [class]="label">Password, again</label>
-            <input id="confirm" name="confirm" type="password" autocomplete="new-password" required
-                   [class]="field" [value]="confirm()" (input)="confirm.set($any($event.target).value)" data-testid="confirm" />
-            @if (mismatch()) { <p class="mt-1.5 text-xs text-amber-700 dark:text-amber-400" data-testid="mismatch">These do not match yet.</p> }
+            <input
+              id="confirm"
+              name="confirm"
+              type="password"
+              autocomplete="new-password"
+              required
+              [class]="field"
+              [value]="confirm()"
+              (input)="confirm.set($any($event.target).value)"
+              data-testid="confirm"
+            />
+            @if (mismatch()) {
+              <p class="mt-1.5 text-xs text-amber-700 dark:text-amber-400" data-testid="mismatch">
+                These do not match yet.
+              </p>
+            }
           </div>
 
-          <button appBtn type="submit" class="w-full" [disabled]="busy() || !ready()" data-testid="submit">
+          <button
+            appBtn
+            type="submit"
+            class="w-full"
+            [disabled]="busy() || !ready()"
+            data-testid="submit"
+          >
             {{ busy() ? 'Creating…' : 'Create admin and log in' }}
           </button>
         </form>
@@ -77,9 +127,18 @@ export class Setup {
   protected readonly busy = signal(false);
   protected readonly error = signal<{ message: string; hint?: string } | null>(null);
 
-  protected readonly tooShort = computed(() => this.password() !== '' && this.password().length < MIN_PASSWORD);
-  protected readonly mismatch = computed(() => this.confirm() !== '' && this.confirm() !== this.password());
-  protected readonly ready = computed(() => this.email().trim() !== '' && this.password().length >= MIN_PASSWORD && this.confirm() === this.password());
+  protected readonly tooShort = computed(
+    () => this.password() !== '' && this.password().length < MIN_PASSWORD,
+  );
+  protected readonly mismatch = computed(
+    () => this.confirm() !== '' && this.confirm() !== this.password(),
+  );
+  protected readonly ready = computed(
+    () =>
+      this.email().trim() !== '' &&
+      this.password().length >= MIN_PASSWORD &&
+      this.confirm() === this.password(),
+  );
 
   protected async submit(e: Event): Promise<void> {
     e.preventDefault();
@@ -92,13 +151,24 @@ export class Setup {
     } catch (err) {
       const p = toProblem(err);
       if (p.status === 403) {
-        this.error.set({ message: 'That setup link is not valid.', hint: 'A new link is printed every time gangway starts; an older one stops working. Use the most recent one in the server output.' });
+        this.error.set({
+          message: 'That setup link is not valid.',
+          hint: 'A new link is printed every time gangway starts; an older one stops working. Use the most recent one in the server output.',
+        });
       } else if (p.status === 404) {
-        this.error.set({ message: 'Setup has already been completed.', hint: 'An admin account exists. Log in instead.' });
+        this.error.set({
+          message: 'Setup has already been completed.',
+          hint: 'An admin account exists. Log in instead.',
+        });
       } else if (p.status === 422) {
-        this.error.set({ message: p.issues.map((i) => `${i.path}: ${i.message}`).join('; ') || p.detail });
+        this.error.set({
+          message: p.issues.map((i) => `${i.path}: ${i.message}`).join('; ') || p.detail,
+        });
       } else {
-        this.error.set({ message: `${p.title}: ${p.detail}`, ...(p.requestId ? { hint: `request ${p.requestId}` } : {}) });
+        this.error.set({
+          message: `${p.title}: ${p.detail}`,
+          ...(p.requestId ? { hint: `request ${p.requestId}` } : {}),
+        });
       }
     } finally {
       this.busy.set(false);

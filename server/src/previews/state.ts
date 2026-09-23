@@ -26,7 +26,8 @@ const LEGAL: Record<PreviewState, readonly PreviewState[]> = {
   destroyed: [],
 };
 
-export const canTransition = (from: PreviewState, to: PreviewState): boolean => LEGAL[from].includes(to);
+export const canTransition = (from: PreviewState, to: PreviewState): boolean =>
+  LEGAL[from].includes(to);
 
 export class PreviewStates {
   readonly #previews: PreviewsRepo;
@@ -43,12 +44,18 @@ export class PreviewStates {
     const current = this.#previews.get(id);
     if (!current) throw notFound(`no such preview: ${id}`);
     if (!canTransition(current.state, to)) {
-      throw new AppError("conflict", `preview is ${current.state}; cannot become ${to}`, { state: current.state });
+      throw new AppError("conflict", `preview is ${current.state}; cannot become ${to}`, {
+        state: current.state,
+      });
     }
     // Synchronous, no await between the three: no request can observe them disagreeing.
     this.#previews.setState(id, to, error);
     this.#table.setState(id, to);
-    this.#bus.publish("preview.state", { state: to, from: current.state, ...(error ? { error } : {}) }, id);
+    this.#bus.publish(
+      "preview.state",
+      { state: to, from: current.state, ...(error ? { error } : {}) },
+      id,
+    );
     return this.#previews.get(id)!;
   }
 }

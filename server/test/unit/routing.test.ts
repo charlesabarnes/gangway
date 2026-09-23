@@ -6,11 +6,19 @@ import { openDatabase } from "../../src/db/sqlite.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { HostsRepo, PreviewsRepo, RoutesRepo } from "../../src/db/repos/index.ts";
 import { RouteTable } from "../../src/routing/table.ts";
-import { allocatePort, allocatePorts, assertInRange, isInRange, PortExhausted } from "../../src/routing/ports.ts";
+import {
+  allocatePort,
+  allocatePorts,
+  assertInRange,
+  isInRange,
+  PortExhausted,
+} from "../../src/routing/ports.ts";
 
 const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const tmps: string[] = [];
-afterEach(() => { for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 const RANGE = { rangeStart: 31000, rangeEnd: 31004 };
 
@@ -40,7 +48,9 @@ describe("port allocator", () => {
     expect(isInRange(31000, RANGE)).toBe(true);
     expect(isInRange(30999, RANGE)).toBe(false);
     expect(isInRange(31005, RANGE)).toBe(false);
-    expect(() => assertInRange(55433, RANGE, "docker-host")).toThrow(/outside host docker-host's pool/);
+    expect(() => assertInRange(55433, RANGE, "docker-host")).toThrow(
+      /outside host docker-host's pool/,
+    );
     expect(() => assertInRange(31002, RANGE)).not.toThrow();
   });
 
@@ -59,25 +69,42 @@ describe("RouteTable", () => {
     migrate(db, MIGRATIONS);
     const now = () => 1_700_000_000_000;
     new HostsRepo(db, now).upsert({
-      id: "local", name: "local", dockerHost: "unix:///x", expectName: null,
-      capabilities: ["preview"], publishBind: "127.0.0.1",
+      id: "local",
+      name: "local",
+      dockerHost: "unix:///x",
+      expectName: null,
+      capabilities: ["preview"],
+      publishBind: "127.0.0.1",
       upstream: { dial: "direct", address: "127.0.0.1", proxy: null },
       ports: { rangeStart: 31000, rangeEnd: 31499 },
     });
     const previews = new PreviewsRepo(db, now);
-    previews.create({ id: "p1", project: "gw-1", hostId: "local", state: "building",
-      source: { kind: "image", image: "nginx" }, visibility: "public" });
+    previews.create({
+      id: "p1",
+      project: "gw-1",
+      hostId: "local",
+      state: "building",
+      source: { kind: "image", image: "nginx" },
+      visibility: "public",
+    });
     const routes = new RoutesRepo(db, now);
     return { db, routes, previews, table: new RouteTable(routes) };
   };
 
   const seed = (hostname: string, port: number, service = "web", previewId = "p1") => ({
     route: {
-      hostname, previewId, service, containerPort: 3000,
-      upstream: { host: "127.0.0.1", port }, primary: service === "web",
+      hostname,
+      previewId,
+      service,
+      containerPort: 3000,
+      upstream: { host: "127.0.0.1", port },
+      primary: service === "web",
       createdAt: new Date(0),
     },
-    hostId: "local", project: "gw-1", visibility: "public" as const, state: "building" as const,
+    hostId: "local",
+    project: "gw-1",
+    visibility: "public" as const,
+    state: "building" as const,
   });
 
   test("apply writes through to SQLite and memory", () => {

@@ -8,8 +8,17 @@
  * types. Change either side alone and a test fails.
  */
 
-export type PreviewState = 'building' | 'starting' | 'awake' | 'asleep' | 'failed' | 'destroying' | 'destroyed';
-export const PREVIEW_STATES: readonly PreviewState[] = ['building', 'starting', 'awake', 'asleep', 'failed', 'destroying', 'destroyed'];
+export type PreviewState =
+  'building' | 'starting' | 'awake' | 'asleep' | 'failed' | 'destroying' | 'destroyed';
+export const PREVIEW_STATES: readonly PreviewState[] = [
+  'building',
+  'starting',
+  'awake',
+  'asleep',
+  'failed',
+  'destroying',
+  'destroyed',
+];
 
 export type Visibility = 'public' | 'unlisted' | 'private';
 export const VISIBILITIES: readonly Visibility[] = ['public', 'unlisted', 'private'];
@@ -28,7 +37,8 @@ export type PreviewUrl = { service: string; url: string; primary: boolean };
 
 /** ADR-0023: `inherit` follows Settings -> Preview passwords; `set` / `generated` are the preview's own. */
 export type PasswordMode = 'inherit' | 'none' | 'set' | 'generated';
-export type PasswordChoice = { mode: 'inherit' } | { mode: 'none' } | { mode: 'generate' } | { mode: 'set'; value: string };
+export type PasswordChoice =
+  { mode: 'inherit' } | { mode: 'none' } | { mode: 'generate' } | { mode: 'set'; value: string };
 /** ADR-0023: off = the password for everyone; on = signed in OR the password; only = signed in, no password. */
 export type PasswordLogin = 'inherit' | 'on' | 'off' | 'only';
 /** Who can open a preview right now, with every default resolved by the server. */
@@ -72,12 +82,26 @@ export type Preview = {
 /** `seq` is the event cursor to follow `/v1/events` from -- read by the server BEFORE the list. */
 export type PreviewList = { seq: number; previews: Preview[] };
 
-export type PreviewEvent = { seq: number; type: string; at: string; state?: PreviewState; from?: PreviewState; error?: string; phase?: RedeployPhase; buildId?: string; by?: string };
+export type PreviewEvent = {
+  seq: number;
+  type: string;
+  at: string;
+  state?: PreviewState;
+  from?: PreviewState;
+  error?: string;
+  phase?: RedeployPhase;
+  buildId?: string;
+  by?: string;
+};
 
 export type Build = {
-  id: string; previewId: string; service: string | null;
+  id: string;
+  previewId: string;
+  service: string | null;
   state: 'running' | 'succeeded' | 'failed' | 'cancelled';
-  startedAt: string; finishedAt: string | null; exitCode: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+  exitCode: number | null;
 };
 
 export type LogStream = 'system' | 'build' | 'seed' | 'stdout' | 'stderr';
@@ -88,10 +112,31 @@ export type LogLine = { n: number; at: string; stream: LogStream; line: string }
 export type StreamEvent =
   | { type: 'preview.created'; previewId: string; at: string }
   | { type: 'preview.adopted'; previewId: string; at: string }
-  | { type: 'preview.state'; previewId: string; at: string; state: PreviewState; from: PreviewState; error?: string }
-  | { type: 'preview.redeploy'; previewId: string; at: string; phase: RedeployPhase; buildId: string; by: string; error?: string }
+  | {
+      type: 'preview.state';
+      previewId: string;
+      at: string;
+      state: PreviewState;
+      from: PreviewState;
+      error?: string;
+    }
+  | {
+      type: 'preview.redeploy';
+      previewId: string;
+      at: string;
+      phase: RedeployPhase;
+      buildId: string;
+      by: string;
+      error?: string;
+    }
   | { type: 'reset'; at: string };
-export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'preview.state', 'preview.redeploy', 'reset'] as const;
+export const STREAM_EVENT_TYPES = [
+  'preview.created',
+  'preview.adopted',
+  'preview.state',
+  'preview.redeploy',
+  'reset',
+] as const;
 
 /**
  * Permissions are what the UI gates on -- never a role name, because which role holds what
@@ -99,18 +144,47 @@ export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'previe
  * `fixtures/permissions.json`.
  */
 export const PERMISSIONS = [
-  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.update_own', 'previews.data', 'previews.view_private', 'previews.skip_password',
-  'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
-  'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
-  'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.manage', 'repos.secrets', 'templates.manage',
-  'apps.read', 'apps.install', 'jobs.claim',
+  'previews.read',
+  'previews.deploy',
+  'previews.destroy',
+  'previews.update',
+  'previews.update_own',
+  'previews.data',
+  'previews.view_private',
+  'previews.skip_password',
+  'logs.read',
+  'events.read',
+  'hosts.read',
+  'hosts.manage',
+  'tokens.manage_own',
+  'tokens.manage_all',
+  'users.read',
+  'users.manage',
+  'roles.read',
+  'roles.manage',
+  'audit.read',
+  'settings.read',
+  'settings.write',
+  'surfaces.manage',
+  'github.manage',
+  'repos.manage',
+  'repos.secrets',
+  'templates.manage',
+  'apps.read',
+  'apps.install',
+  'jobs.claim',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 export type Scope = 'read' | 'deploy' | 'update' | 'admin';
 export const SCOPES: readonly Scope[] = ['read', 'deploy', 'update', 'admin'];
 
-const READ_BUNDLE: readonly Permission[] = ['previews.read', 'logs.read', 'events.read', 'hosts.read'];
+const READ_BUNDLE: readonly Permission[] = [
+  'previews.read',
+  'logs.read',
+  'events.read',
+  'hosts.read',
+];
 /**
  * What each token scope grants. The server refuses to mint a scope the role does not fully
  * cover (a do-nothing "admin" token would turn real the day its owner was promoted), so
@@ -128,21 +202,41 @@ export type SessionUser = { id: string; email: string; role: { id: string; name:
 /** `GET /v1/auth/session` is always 200; this is its whole range. */
 export type SessionInfo =
   | { authenticated: false; setupRequired: boolean }
-  | { authenticated: true; setupRequired: false; user?: SessionUser; token?: { id: string; scopes: Scope[] }; permissions: Permission[] };
+  | {
+      authenticated: true;
+      setupRequired: false;
+      user?: SessionUser;
+      token?: { id: string; scopes: Scope[] };
+      permissions: Permission[];
+    };
 
 export type LoginResponse = { user: SessionUser; permissions: Permission[] };
 
 export type ApiToken = {
-  id: string; name: string; prefix: string; scopes: Scope[]; userId: string | null; appName: string | null;
-  expiresAt: string | null; lastUsedAt: string | null; revokedAt: string | null; createdAt: string;
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: Scope[];
+  userId: string | null;
+  appName: string | null;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
 };
 
 /* ---- Phase 3: GitHub and repositories (ADR-0011) */
 
 /** `GET /v1/github`: connected or not, and where to go next. Never a secret. */
 export type GitHubStatus = {
-  configured: boolean; appId: string; appSlug: string; appUrl: string | null; installUrl: string | null;
-  webhookUrl: string; missing: string[]; managedByConfig: boolean;
+  configured: boolean;
+  appId: string;
+  appSlug: string;
+  appUrl: string | null;
+  installUrl: string | null;
+  webhookUrl: string;
+  missing: string[];
+  managedByConfig: boolean;
 };
 
 /** `GET /v1/github/manifest`: what the browser posts to GitHub as a form, and the state GitHub echoes back. */
@@ -169,12 +263,48 @@ export const PR_TRIGGERS: readonly PrTrigger[] = ['workflow', 'webhook'];
  * override it (null: the template's).
  */
 export type Project = {
-  id: string; name: string; slug: string; forge: 'github' | null; fullName: string | null; installationId: string; prTrigger: PrTrigger;
-  enabled: boolean; disabledReason: string | null; templateId: string | null; visibility: Visibility | null; ttl: string | null;
-  forks: ForkPolicy; drafts: boolean; prClearance: Clearance | null; forkClearance: Clearance; createdAt: string; updatedAt: string;
+  id: string;
+  name: string;
+  slug: string;
+  forge: 'github' | null;
+  fullName: string | null;
+  installationId: string;
+  prTrigger: PrTrigger;
+  enabled: boolean;
+  disabledReason: string | null;
+  templateId: string | null;
+  visibility: Visibility | null;
+  ttl: string | null;
+  forks: ForkPolicy;
+  drafts: boolean;
+  prClearance: Clearance | null;
+  forkClearance: Clearance;
+  createdAt: string;
+  updatedAt: string;
 };
-export type ProjectPatch = Partial<Pick<Project, 'name' | 'slug' | 'prTrigger' | 'enabled' | 'templateId' | 'visibility' | 'ttl' | 'forks' | 'drafts' | 'prClearance' | 'forkClearance'>> & { repository?: string | null };
-export type ProjectCreate = { name: string; slug?: string; repository?: string; prTrigger?: PrTrigger; templateId?: string | null };
+export type ProjectPatch = Partial<
+  Pick<
+    Project,
+    | 'name'
+    | 'slug'
+    | 'prTrigger'
+    | 'enabled'
+    | 'templateId'
+    | 'visibility'
+    | 'ttl'
+    | 'forks'
+    | 'drafts'
+    | 'prClearance'
+    | 'forkClearance'
+  >
+> & { repository?: string | null };
+export type ProjectCreate = {
+  name: string;
+  slug?: string;
+  repository?: string;
+  prTrigger?: PrTrigger;
+  templateId?: string | null;
+};
 /** `GET /v1/github/repositories`: where the App is installed. */
 export type InstalledRepository = { fullName: string; installationId: string; private: boolean };
 
@@ -182,11 +312,24 @@ export type InstalledRepository = { fullName: string; installationId: string; pr
 
 /** A named preview policy. `default` is built in. */
 export type Template = {
-  id: string; name: string; description: string; builtin: boolean;
-  visibility: Visibility; ttl: string | null; idleAfter: string; clearance: Clearance; hostId: string | null;
-  createdAt: string; updatedAt: string;
+  id: string;
+  name: string;
+  description: string;
+  builtin: boolean;
+  visibility: Visibility;
+  ttl: string | null;
+  idleAfter: string;
+  clearance: Clearance;
+  hostId: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
-export type TemplatePatch = Partial<Pick<Template, 'name' | 'description' | 'visibility' | 'ttl' | 'idleAfter' | 'clearance' | 'hostId'>>;
+export type TemplatePatch = Partial<
+  Pick<
+    Template,
+    'name' | 'description' | 'visibility' | 'ttl' | 'idleAfter' | 'clearance' | 'hostId'
+  >
+>;
 export type TemplateCreate = TemplatePatch & { id: string; name: string };
 
 /** The deploy triggers a default template is set for: `templates.default.<trigger>` in settings. */
@@ -194,13 +337,25 @@ export type Trigger = 'pr' | 'api' | 'manual';
 export const TRIGGERS: readonly Trigger[] = ['pr', 'api', 'manual'];
 
 /** One row of `GET /v1/settings`. A secret's value is never sent, only whether one is set. */
-export type SettingView = { key: string; value: unknown; source: 'config' | 'database' | 'default'; managedByConfig: boolean; secret: boolean; set: boolean };
+export type SettingView = {
+  key: string;
+  value: unknown;
+  source: 'config' | 'database' | 'default';
+  managedByConfig: boolean;
+  secret: boolean;
+  set: boolean;
+};
 
 /* ---- Surfaces (§10.5) */
 
 export type SurfaceState = { enabled: boolean; managedByConfig: boolean };
 /** `GET|PUT /v1/surfaces`. `reenableUi` is the exact curl the disable dialog shows. */
-export type Surfaces = { ui: SurfaceState; mcp: SurfaceState & { url: string }; adminTokenExists: boolean; reenableUi: string };
+export type Surfaces = {
+  ui: SurfaceState;
+  mcp: SurfaceState & { url: string };
+  adminTokenExists: boolean;
+  reenableUi: string;
+};
 /** `GET /v1/capabilities`: what is live, for anyone who can see previews. */
 export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: string };
 /** The server checks it: turning the UI off without it is a 422. */
@@ -224,20 +379,41 @@ export type ConsentRequest = {
 };
 /** A connected agent. The tokens are never sent. */
 export type OAuthGrant = {
-  id: string; userId: string; clientId: string; clientName: string; redirectUri: string; scopes: OAuthScope[];
-  createdAt: string; lastUsedAt: string | null; expiresAt: string; revokedAt: string | null;
+  id: string;
+  userId: string;
+  clientId: string;
+  clientName: string;
+  redirectUri: string;
+  scopes: OAuthScope[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
 };
 
 /* ---- Runtimes and editable previews (ADR-0015) */
 
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';
-export const RUNTIME_IDS: readonly RuntimeId[] = ['static', 'node', 'bun', 'deno', 'workerd', 'python', 'php'];
+export const RUNTIME_IDS: readonly RuntimeId[] = [
+  'static',
+  'node',
+  'bun',
+  'deno',
+  'workerd',
+  'python',
+  'php',
+];
 /** `own`: the upload brings its own compose file or Dockerfile. */
 export type Detected = RuntimeId | 'own';
 
 /** One entry of `GET /v1/runtimes`: a way to build a folder with no Dockerfile. */
 export type Runtime = {
-  id: RuntimeId; name: string; language: string; description: string; image: string; port: number;
+  id: RuntimeId;
+  name: string;
+  language: string;
+  description: string;
+  image: string;
+  port: number;
   /** What a new preview of this runtime starts with: path -> text. */
   starter: Record<string, string>;
   /** The versions `gangway.yml` may ask for (ADR-0016). */
@@ -246,7 +422,12 @@ export type Runtime = {
 /** Root-level marker files; the first rule with any marker present wins, else `static`. */
 export type DetectionRule = { runtime: Detected; markers: string[] };
 /** `planFiles`: whose CONTENTS `POST /v1/runtimes/plan` wants (root and one level down); the rest are only named. */
-export type RuntimeList = { runtimes: Runtime[]; detection: DetectionRule[]; planFiles: string[]; addons: AddonInfo[] };
+export type RuntimeList = {
+  runtimes: Runtime[];
+  detection: DetectionRule[];
+  planFiles: string[];
+  addons: AddonInfo[];
+};
 
 /* ---- Add-ons (ADR-0017): throwaway databases beside a preview */
 
@@ -255,7 +436,14 @@ export const ADDON_IDS: readonly AddonId[] = ['postgres', 'mysql', 'redis'];
 /** What a preview runs, at the major it was created with. */
 export type AddonChoice = { id: AddonId; version: string };
 /** One entry of `GET /v1/runtimes` `addons`. `env`: the variables the app receives. */
-export type AddonInfo = { id: AddonId; name: string; description: string; versions: string[]; defaultVersion: string; env: string[] };
+export type AddonInfo = {
+  id: AddonId;
+  name: string;
+  description: string;
+  versions: string[];
+  defaultVersion: string;
+  env: string[];
+};
 
 /* ---- The data browser (ADR-0018): needs `previews.data` */
 
@@ -263,7 +451,13 @@ export type AddonInfo = { id: AddonId; name: string; description: string; versio
 export type PreviewAddon = AddonChoice & { name: string; service: string; env: string[] };
 export type DataTable = { schema: string; name: string };
 /** A query's answer. A cell is null for SQL NULL. `message`: what the database said on stderr (notices). */
-export type DataResult = { columns: string[]; rows: (string | null)[][]; truncated: boolean; message: string | null; ms: number };
+export type DataResult = {
+  columns: string[];
+  rows: (string | null)[][];
+  truncated: boolean;
+  message: string | null;
+  ms: number;
+};
 export type RedisKeys = { cursor: string; keys: string[] };
 export type RedisKey = { type: string; ttl: string; value: DataResult };
 
@@ -275,12 +469,23 @@ export type PlanReason = { level: 'info' | 'warn' | 'error'; found: string; then
 /** A gangway.yml problem at a dotted key path ('' for the file as a whole). */
 export type PlanIssue = { path: string; message: string };
 export type AppPlan = {
-  kind: 'own' | 'runtime'; runtime: RuntimeId | null; version: string | null; image: string | null;
+  kind: 'own' | 'runtime';
+  runtime: RuntimeId | null;
+  version: string | null;
+  image: string | null;
   /** The app's directory within the upload; '' is its root. */
   root: string;
-  install: Command | null; build: Command | null; start: Command | null; release: Command | null;
-  serve: { kind: 'server' } | { kind: 'static'; output: string | null | false; fallback: 'spa' | '404' | 'listing' };
-  docroot: string; entry: string | null; port: number | null; health: string | null;
+  install: Command | null;
+  build: Command | null;
+  start: Command | null;
+  release: Command | null;
+  serve:
+    | { kind: 'server' }
+    | { kind: 'static'; output: string | null | false; fallback: 'spa' | '404' | 'listing' };
+  docroot: string;
+  entry: string | null;
+  port: number | null;
+  health: string | null;
   env: Record<string, string>;
   stack: { ttl?: string; visibility?: Visibility; idle?: string; seed?: string };
   configFile: string | null;
@@ -292,14 +497,27 @@ export type AppPlan = {
   issues: PlanIssue[];
 };
 /** `POST /v1/runtimes/plan`. */
-export type PlanRequest = { paths: string[]; files: Record<string, string>; runtime?: Detected | 'auto'; addons?: AddonId[] };
+export type PlanRequest = {
+  paths: string[];
+  files: Record<string, string>;
+  runtime?: Detected | 'auto';
+  addons?: AddonId[];
+};
 
 /** `GET /v1/previews/:id/source`. `text` is absent on a binary or too-large file: listed, not editable. */
 export type SourceFile = { path: string; size: number; text?: string };
-export type PreviewSourceFiles = { runtime: RuntimeId | null; files: SourceFile[]; truncated: boolean };
+export type PreviewSourceFiles = {
+  runtime: RuntimeId | null;
+  files: SourceFile[];
+  truncated: boolean;
+};
 
 /** `PATCH /v1/previews/:id/source`: text sets a file, null deletes it. */
-export type SourcePatch = { files: Record<string, string | null>; runtime?: Detected; addons?: AddonId[] };
+export type SourcePatch = {
+  files: Record<string, string | null>;
+  runtime?: Detected;
+  addons?: AddonId[];
+};
 
 export type RedeployPhase = 'started' | 'succeeded' | 'failed';
 /** 202 from PATCH/PUT `…/source` (with `preview`). */

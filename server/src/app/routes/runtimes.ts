@@ -15,17 +15,41 @@ import { badRequest } from "../../errors.ts";
 
 export function runtimeRoutes(api: Hono<AppEnv>): void {
   const body = {
-    runtimes: RUNTIMES.map(({ id, name, language, description, image, port, starter, versions }) => ({ id, name, language, description, image, port, starter, versions: Object.keys(versions) })),
+    runtimes: RUNTIMES.map(
+      ({ id, name, language, description, image, port, starter, versions }) => ({
+        id,
+        name,
+        language,
+        description,
+        image,
+        port,
+        starter,
+        versions: Object.keys(versions),
+      }),
+    ),
     detection: DETECTION,
     planFiles: PLAN_FILES,
     // ADR-0017: what can sit beside an app. Images are shown; hints stay server-side.
-    addons: ADDONS.map(({ id, name, description, versions, defaultVersion, env }) => ({ id, name, description, versions: Object.keys(versions), defaultVersion, env })),
+    addons: ADDONS.map(({ id, name, description, versions, defaultVersion, env }) => ({
+      id,
+      name,
+      description,
+      versions: Object.keys(versions),
+      defaultVersion,
+      env,
+    })),
   };
   api.get("/runtimes", requirePermission("previews.read"), (c) => c.json(body));
 
   api.post("/runtimes/plan", requirePermission("previews.read"), async (c) => {
-    const req = PlanRequestSchema.parse(await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); }));
-    return c.json(planApp({ paths: req.paths, files: req.files, runtime: req.runtime, addons: req.addons }));
+    const req = PlanRequestSchema.parse(
+      await c.req.json().catch(() => {
+        throw badRequest("the request body is not JSON");
+      }),
+    );
+    return c.json(
+      planApp({ paths: req.paths, files: req.files, runtime: req.runtime, addons: req.addons }),
+    );
   });
 }
 
@@ -35,5 +59,7 @@ export function runtimeRoutes(api: Hono<AppEnv>): void {
  */
 export function schemaRoutes(pub: Hono<AppEnv>): void {
   const schema = gangwayJsonSchema();
-  pub.get("/schema/gangway.yml", (c) => c.json(schema, 200, { "cache-control": "public, max-age=3600" }));
+  pub.get("/schema/gangway.yml", (c) =>
+    c.json(schema, 200, { "cache-control": "public, max-age=3600" }),
+  );
 }

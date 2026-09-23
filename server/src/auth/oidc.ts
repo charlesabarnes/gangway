@@ -9,7 +9,12 @@
  * `owner/name`. What the run may DO is decided elsewhere: its actor reaches only
  * `/v1/projects/:ref/pulls/:n`, for the project whose repository the claim names.
  */
-import { createPublicKey, verify as verifySignature, type JsonWebKey, type KeyObject } from "node:crypto";
+import {
+  createPublicKey,
+  verify as verifySignature,
+  type JsonWebKey,
+  type KeyObject,
+} from "node:crypto";
 import type { Logger } from "../logger.ts";
 
 export const GITHUB_ACTIONS_ISSUER = "https://token.actions.githubusercontent.com";
@@ -80,8 +85,13 @@ export class GitHubOidc {
       if (typeof repository !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(repository)) return null;
       const str = (k: string) => (typeof claims[k] === "string" ? (claims[k] as string) : "");
       return {
-        repository, repositoryId: str("repository_id"), eventName: str("event_name"), ref: str("ref"),
-        sha: str("sha"), runId: str("run_id"), actor: str("actor"),
+        repository,
+        repositoryId: str("repository_id"),
+        eventName: str("event_name"),
+        ref: str("ref"),
+        sha: str("sha"),
+        runId: str("run_id"),
+        actor: str("actor"),
       };
     } catch (e) {
       this.#o.logger?.warn("an OIDC token could not be checked", { err: e });
@@ -93,7 +103,8 @@ export class GitHubOidc {
   async #key(kid: string): Promise<KeyObject | undefined> {
     const now = this.#o.now();
     const stale = now - this.#fetchedAt > CACHE_MS;
-    if (stale || (!this.#keys.has(kid) && now - this.#fetchedAt > REFETCH_FLOOR_MS)) await this.#refresh();
+    if (stale || (!this.#keys.has(kid) && now - this.#fetchedAt > REFETCH_FLOOR_MS))
+      await this.#refresh();
     return this.#keys.get(kid);
   }
 
@@ -104,7 +115,15 @@ export class GitHubOidc {
         if (!res.ok) throw new Error(`jwks answered ${res.status}`);
         const { keys } = (await res.json()) as { keys?: Jwk[] };
         const next = new Map<string, KeyObject>();
-        for (const k of keys ?? []) if (k.kid && k.kty === "RSA") next.set(k.kid, createPublicKey({ key: k as import("node:crypto").JsonWebKeyInput["key"], format: "jwk" }));
+        for (const k of keys ?? [])
+          if (k.kid && k.kty === "RSA")
+            next.set(
+              k.kid,
+              createPublicKey({
+                key: k as import("node:crypto").JsonWebKeyInput["key"],
+                format: "jwk",
+              }),
+            );
         this.#keys = next;
         this.#fetchedAt = this.#o.now();
       } catch (e) {

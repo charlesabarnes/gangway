@@ -40,19 +40,28 @@ export type McpSurfaceDeps = {
    * points at it, and an OAuth grant missing a scope gets a step-up 403. Unavailable (the
    * UI is off, so there is no consent page): bearer tokens only, and nothing advertises OAuth.
    */
-  oauth?: {
-    available: () => boolean;
-    /** `https://mcp.<base>` */
-    resource: () => string;
-    resourceMetadata: () => Record<string, unknown>;
-  } | undefined;
+  oauth?:
+    | {
+        available: () => boolean;
+        /** `https://mcp.<base>` */
+        resource: () => string;
+        resourceMetadata: () => Record<string, unknown>;
+      }
+    | undefined;
 };
 
 const SCOPE_FOR: Record<Permission, Scope | undefined> = Object.fromEntries(
-  (["read", "deploy", "update"] as const).flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const)).reverse(),
+  (["read", "deploy", "update"] as const)
+    .flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const))
+    .reverse(),
 ) as Record<Permission, Scope | undefined>;
 /** What a step-up asks for: the scope, and the ones it goes with, so re-consenting loses nothing. */
-const STEP_UP_SCOPES: Record<Scope, string> = { read: "read", deploy: "read deploy", update: "read deploy update", admin: "admin" };
+const STEP_UP_SCOPES: Record<Scope, string> = {
+  read: "read",
+  deploy: "read deploy",
+  update: "read deploy update",
+  admin: "admin",
+};
 
 type Live = { abort: AbortController };
 
@@ -70,27 +79,49 @@ export class McpSurface {
         if (!extra) throw new Error("an MCP request reached the factory without an actor");
         return d.tools.server({ actor: extra.actor, signal: extra.signal });
       },
-      { responseMode: "sse", keepAliveMs: 15_000, onerror: (err) => d.logger.warn("mcp request rejected", { err: err.message }) },
+      {
+        responseMode: "sse",
+        keepAliveMs: 15_000,
+        onerror: (err) => d.logger.warn("mcp request rejected", { err: err.message }),
+      },
     );
 
     const app = new Hono<AppEnv>();
-    app.use(async (c, next) => { c.set("requestId", ulid()); await next(); });
+    app.use(async (c, next) => {
+      c.set("requestId", ulid());
+      await next();
+    });
     app.onError(errorHandler(d.logger));
     // RFC 9728. The resource has no path, so the root well-known URL is the one (and a
     // client that appends the empty path gets it too).
     app.get("/.well-known/oauth-protected-resource", (c) => this.#prm(c));
     app.get("/.well-known/oauth-protected-resource/", (c) => this.#prm(c));
-    app.on(["GET", "DELETE"], "/", () => new Response("Method not allowed.", { status: 405, headers: { allow: "POST" } }));
+    app.on(
+      ["GET", "DELETE"],
+      "/",
+      () => new Response("Method not allowed.", { status: 405, headers: { allow: "POST" } }),
+    );
     app.post("/", (c) => this.#serve(c.req.raw, c));
     // Upload by reference (ADR-0021): the URL is the credential -- the agent's shell sends it,
     // and its MCP client, not the shell, holds the bearer. Still no browsers.
     if (d.uploads) {
       const uploads = d.uploads;
       app.put("/uploads/:id", async (c) => {
-        if (c.req.header("origin") !== undefined) return problemResponse(c, forbidden("browser requests are not accepted on the MCP surface"));
+        if (c.req.header("origin") !== undefined)
+          return problemResponse(
+            c,
+            forbidden("browser requests are not accepted on the MCP surface"),
+          );
         const declared = Number(c.req.header("content-length"));
-        const got = await uploads.receive(c.req.param("id"), c.req.raw.body, Number.isFinite(declared) && declared > 0 ? declared : undefined);
-        return c.text(`received ${got.bytes} bytes, sha256 ${got.sha256}\nnow call deploy with upload: "${c.req.param("id")}"\n`, 201);
+        const got = await uploads.receive(
+          c.req.param("id"),
+          c.req.raw.body,
+          Number.isFinite(declared) && declared > 0 ? declared : undefined,
+        );
+        return c.text(
+          `received ${got.bytes} bytes, sha256 ${got.sha256}\nnow call deploy with upload: "${c.req.param("id")}"\n`,
+          201,
+        );
       });
     }
     app.all("*", (c) => problemResponse(c, notFound(`no such resource: ${c.req.path}`)));
@@ -118,7 +149,9 @@ export class McpSurface {
 
   #prm(c: Context<AppEnv>): Response {
     if (!this.#oauthOn()) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
-    return c.json(this.#d.oauth!.resourceMetadata(), 200, { "cache-control": "public, max-age=300" });
+    return c.json(this.#d.oauth!.resourceMetadata(), 200, {
+      "cache-control": "public, max-age=300",
+    });
   }
 
   #challenge(extra = ""): string {
@@ -134,7 +167,11 @@ export class McpSurface {
   async #stepUp(req: Request, actor: Actor): Promise<Scope | null> {
     if (!isOAuthActor(actor)) return null;
     let body: unknown;
-    try { body = await req.clone().json(); } catch { return null; }
+    try {
+      body = await req.clone().json();
+    } catch {
+      return null;
+    }
     const msg = body as { method?: unknown; params?: { name?: unknown; arguments?: unknown } };
     if (msg?.method !== "tools/call" || typeof msg.params?.name !== "string") return null;
     const permission = this.#d.tools.missingFor(actor, msg.params.name, msg.params.arguments);
@@ -146,7 +183,8 @@ export class McpSurface {
   }
 
   async #serve(req: Request, c: Context<AppEnv>): Promise<Response> {
-    if (req.headers.has("origin")) return problemResponse(c, forbidden("browser requests are not accepted on the MCP surface"));
+    if (req.headers.has("origin"))
+      return problemResponse(c, forbidden("browser requests are not accepted on the MCP surface"));
 
     const header = req.headers.get("authorization");
     const presented = header ? BEARER.exec(header)?.[1] : undefined;
@@ -156,46 +194,85 @@ export class McpSurface {
     }
     const missing = await this.#stepUp(req, actor);
     if (missing) {
-      return problemResponse(c, forbidden(`this connection was not granted the "${missing}" scope`), {
-        "www-authenticate": this.#challenge().replace(/, scope="[^"]*"/, "") + `, error="insufficient_scope", scope="${STEP_UP_SCOPES[missing]}"`,
-      });
+      return problemResponse(
+        c,
+        forbidden(`this connection was not granted the "${missing}" scope`),
+        {
+          "www-authenticate":
+            this.#challenge().replace(/, scope="[^"]*"/, "") +
+            `, error="insufficient_scope", scope="${STEP_UP_SCOPES[missing]}"`,
+        },
+      );
     }
 
     const live: Live = { abort: new AbortController() };
     this.#live.add(live);
     let res: Response;
     try {
-      res = await this.#mcp.fetch(req, { authInfo: { token: "[redacted]", clientId: "gangway", scopes: [], extra: { actor, signal: live.abort.signal } } });
+      res = await this.#mcp.fetch(req, {
+        authInfo: {
+          token: "[redacted]",
+          clientId: "gangway",
+          scopes: [],
+          extra: { actor, signal: live.abort.signal },
+        },
+      });
     } catch (err) {
       this.#live.delete(live);
       throw err;
     }
-    if (!res.body) { this.#live.delete(live); return res; }
-    return new Response(this.#droppable(res.body, live), { status: res.status, headers: res.headers });
+    if (!res.body) {
+      this.#live.delete(live);
+      return res;
+    }
+    return new Response(this.#droppable(res.body, live), {
+      status: res.status,
+      headers: res.headers,
+    });
   }
 
   /** The SDK's stream, ended by us when MCP is switched off. */
   #droppable(body: ReadableStream<Uint8Array>, live: Live): ReadableStream<Uint8Array> {
     const reader = body.getReader();
-    const done = () => { this.#live.delete(live); };
+    const done = () => {
+      this.#live.delete(live);
+    };
     return new ReadableStream<Uint8Array>({
       start: (controller) => {
-        live.abort.signal.addEventListener("abort", () => {
-          done();
-          reader.cancel("the MCP surface was switched off").catch(() => {});
-          try { controller.error(new Error("the MCP surface was switched off")); } catch { /* already closed */ }
-        }, { once: true });
+        live.abort.signal.addEventListener(
+          "abort",
+          () => {
+            done();
+            reader.cancel("the MCP surface was switched off").catch(() => {});
+            try {
+              controller.error(new Error("the MCP surface was switched off"));
+            } catch {
+              /* already closed */
+            }
+          },
+          { once: true },
+        );
       },
       pull: async (controller) => {
         try {
           const { done: end, value } = await reader.read();
-          if (end) { done(); controller.close(); } else controller.enqueue(value);
+          if (end) {
+            done();
+            controller.close();
+          } else controller.enqueue(value);
         } catch (err) {
           done();
-          try { controller.error(err); } catch { /* already errored */ }
+          try {
+            controller.error(err);
+          } catch {
+            /* already errored */
+          }
         }
       },
-      cancel: (reason) => { done(); return reader.cancel(reason); },
+      cancel: (reason) => {
+        done();
+        return reader.cancel(reason);
+      },
     });
   }
 }

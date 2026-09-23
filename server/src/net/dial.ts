@@ -51,8 +51,13 @@ export function parseSocksProxy(url: string): DialTarget {
 function connectTcp(target: DialTarget, timeoutMs: number): Promise<net.Socket> {
   return new Promise((resolve, reject) => {
     const socket = net.connect({ host: target.host, port: target.port });
-    const onError = (e: Error) => { socket.destroy(); reject(e); };
-    socket.setTimeout(timeoutMs, () => onError(new Error(`connect timeout to ${target.host}:${target.port}`)));
+    const onError = (e: Error) => {
+      socket.destroy();
+      reject(e);
+    };
+    socket.setTimeout(timeoutMs, () =>
+      onError(new Error(`connect timeout to ${target.host}:${target.port}`)),
+    );
     socket.once("error", onError);
     socket.once("connect", () => {
       socket.setTimeout(0);
@@ -79,7 +84,12 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
 
   const pump = () => {
     if (!waiter) return;
-    if (failure) { const w = waiter; waiter = null; w.reject(failure); return; }
+    if (failure) {
+      const w = waiter;
+      waiter = null;
+      w.reject(failure);
+      return;
+    }
     if (buffered.length < waiter.n) return;
     const w = waiter;
     waiter = null;
@@ -87,9 +97,16 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
     buffered = buffered.subarray(w.n);
     w.resolve(out);
   };
-  const fail = (e: Error) => { failure ??= e; socket.destroy(); pump(); };
+  const fail = (e: Error) => {
+    failure ??= e;
+    socket.destroy();
+    pump();
+  };
 
-  const onData = (d: Buffer) => { buffered = Buffer.concat([buffered, d]); pump(); };
+  const onData = (d: Buffer) => {
+    buffered = Buffer.concat([buffered, d]);
+    pump();
+  };
   const onError = (e: Error) => fail(e);
   const onEnd = () => fail(new Error("SOCKS proxy closed the connection"));
   const timer = setTimeout(() => fail(new Error("SOCKS handshake timeout")), timeoutMs);
@@ -99,7 +116,10 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
 
   return {
     read(n: number): Promise<Buffer> {
-      return new Promise((resolve, reject) => { waiter = { n, resolve, reject }; pump(); });
+      return new Promise((resolve, reject) => {
+        waiter = { n, resolve, reject };
+        pump();
+      });
     },
     /** Hands the socket over. The caller attaches its own listeners in the same tick. */
     release(): void {
@@ -114,7 +134,11 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
   };
 }
 
-async function socks5Connect(proxy: DialTarget, target: DialTarget, timeoutMs: number): Promise<net.Socket> {
+async function socks5Connect(
+  proxy: DialTarget,
+  target: DialTarget,
+  timeoutMs: number,
+): Promise<net.Socket> {
   const socket = await connectTcp(proxy, timeoutMs);
   const reader = handshakeReader(socket, timeoutMs);
 
@@ -156,12 +180,14 @@ async function socks5Connect(proxy: DialTarget, target: DialTarget, timeoutMs: n
   const reply = await reader.read(4);
   if (reply[1] !== 0x00) {
     socket.destroy();
-    throw new Error(`SOCKS CONNECT to ${target.host}:${target.port} failed: ${SOCKS_ERRORS[reply[1]!] ?? `code ${reply[1]}`}`);
+    throw new Error(
+      `SOCKS CONNECT to ${target.host}:${target.port} failed: ${SOCKS_ERRORS[reply[1]!] ?? `code ${reply[1]}`}`,
+    );
   }
   // Consume the bound address so the stream starts at the tunnelled payload.
   const boundAtyp = reply[3];
-  const len = boundAtyp === ATYP_IPV4 ? 4 : boundAtyp === ATYP_IPV6 ? 16
-    : (await reader.read(1))[0]!;
+  const len =
+    boundAtyp === ATYP_IPV4 ? 4 : boundAtyp === ATYP_IPV6 ? 16 : (await reader.read(1))[0]!;
   await reader.read(len + 2);
   reader.release();
   return socket;

@@ -9,13 +9,21 @@ import { Passwords } from "../../src/auth/password.ts";
 import { RolePermissions } from "../../src/auth/roles.ts";
 import { Sessions } from "../../src/auth/sessions.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { AuditRepo, RolesRepo, SessionsRepo, TokensRepo, UsersRepo } from "../../src/db/repos/index.ts";
+import {
+  AuditRepo,
+  RolesRepo,
+  SessionsRepo,
+  TokensRepo,
+  UsersRepo,
+} from "../../src/db/repos/index.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import { Logger } from "../../src/logger.ts";
 
 const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const tmps: string[] = [];
-afterEach(() => { for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 export const META = { ip: "203.0.113.7", userAgent: "test-agent" };
 export const PASSWORD = "correct horse battery staple";
@@ -38,11 +46,37 @@ export function setupAccounts() {
   const sessions = new Sessions(sessionsRepo, roles, now);
   const passwords = new Passwords({ ln: 10 });
   const limiter = new LoginLimiter({}, now);
-  const accounts = new Accounts({ db, users, roles: rolesRepo, sessions, passwords, limiter, audit, now });
-  const actions = () => auditRepo.page({ limit: 200 }).entries.map((e) => e.action).reverse();
+  const accounts = new Accounts({
+    db,
+    users,
+    roles: rolesRepo,
+    sessions,
+    passwords,
+    limiter,
+    audit,
+    now,
+  });
+  const actions = () =>
+    auditRepo
+      .page({ limit: 200 })
+      .entries.map((e) => e.action)
+      .reverse();
 
   return {
-    db, clock, now, users, rolesRepo, roles, sessionsRepo, sessions, auditRepo, audit, passwords, limiter, accounts, actions,
+    db,
+    clock,
+    now,
+    users,
+    rolesRepo,
+    roles,
+    sessionsRepo,
+    sessions,
+    auditRepo,
+    audit,
+    passwords,
+    limiter,
+    accounts,
+    actions,
     tokensRepo: new TokensRepo(db, now),
     /** The first admin, made the way production makes it. */
     admin: () => accounts.setupFirstAdmin("ada@example.com", PASSWORD, META),

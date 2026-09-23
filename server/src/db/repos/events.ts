@@ -15,13 +15,19 @@ export class EventsRepo {
     this.#now = now;
   }
 
-  append(type: string, payload: Record<string, unknown> = {}, previewId: string | null = null): GangwayEvent {
+  append(
+    type: string,
+    payload: Record<string, unknown> = {},
+    previewId: string | null = null,
+  ): GangwayEvent {
     const r = this.#db.run(
       `INSERT INTO events (preview_id, type, payload_json, created_at)
        VALUES ($p, $type, $payload, $now)`,
       { p: previewId, type, payload: JSON.stringify(payload), now: this.#now() },
     );
-    const row = this.#db.get<EventRow>("SELECT * FROM events WHERE seq = $s", { s: r.lastInsertRowid });
+    const row = this.#db.get<EventRow>("SELECT * FROM events WHERE seq = $s", {
+      s: r.lastInsertRowid,
+    });
     return rowToEvent(row!);
   }
 
@@ -39,10 +45,13 @@ export class EventsRepo {
   }
 
   forPreview(previewId: string, limit = 200): GangwayEvent[] {
-    return this.#db.query<EventRow>(
-      "SELECT * FROM events WHERE preview_id = $p ORDER BY seq DESC LIMIT $limit",
-      { p: previewId, limit },
-    ).map(rowToEvent).reverse();
+    return this.#db
+      .query<EventRow>(
+        "SELECT * FROM events WHERE preview_id = $p ORDER BY seq DESC LIMIT $limit",
+        { p: previewId, limit },
+      )
+      .map(rowToEvent)
+      .reverse();
   }
 
   /** Retention (§15.4): streaming is cheap, storage after teardown is a product decision. */

@@ -27,13 +27,27 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
   const repos = new ProjectsRepo(s.db, s.now);
   const conversions: string[] = [];
   const app = new GitHubApp({
-    credentials: () => ({ appId: "", privateKey: "" }), baseUrl: "https://api.github.test", log: new Logger("error", {}, () => {}),
+    credentials: () => ({ appId: "", privateKey: "" }),
+    baseUrl: "https://api.github.test",
+    log: new Logger("error", {}, () => {}),
     fetch: async (url, init) => {
       const m = /\/app-manifests\/([^/]+)\/conversions$/.exec(url);
       if (m && init?.method === "POST") {
         conversions.push(m[1]!);
-        if (o.conversion === 404) return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
-        return new Response(JSON.stringify({ id: 777, slug: "gangway-preview", client_id: "Iv1.abc", client_secret: "cs_secret", webhook_secret: "wh_secret", pem: "-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n", html_url: "https://github.com/apps/gangway-preview" }), { status: 201 });
+        if (o.conversion === 404)
+          return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
+        return new Response(
+          JSON.stringify({
+            id: 777,
+            slug: "gangway-preview",
+            client_id: "Iv1.abc",
+            client_secret: "cs_secret",
+            webhook_secret: "wh_secret",
+            pem: "-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n",
+            html_url: "https://github.com/apps/gangway-preview",
+          }),
+          { status: 201 },
+        );
       }
       return new Response("{}", { status: 404 });
     },
@@ -47,26 +61,74 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
     originFor: (host: string) => `https://${host}`,
   };
   const hono = createApp({
-    ...auth, logger: new Logger("error", {}, () => {}),
+    ...auth,
+    logger: new Logger("error", {}, () => {}),
     v1: (api) => {
-      const secrets = new Secrets(repos, new MemorySettingsStore(), new SecretBox(randomBytes(32)), s.audit);
+      const secrets = new Secrets(
+        repos,
+        new MemorySettingsStore(),
+        new SecretBox(randomBytes(32)),
+        s.audit,
+      );
       projectRoutes(api, { projects: repos, audit: s.audit, secrets });
       secretRoutes(api, secrets);
-      githubRoutes(api, { app, settings, states, audit: s.audit, baseDomain: () => "preview.localhost", originFor: (l) => `https://${l}.preview.localhost:8443` });
+      githubRoutes(api, {
+        app,
+        settings,
+        states,
+        audit: s.audit,
+        baseDomain: () => "preview.localhost",
+        originFor: (l) => `https://${l}.preview.localhost:8443`,
+      });
     },
-    publicV1: (pub) => authRoutes(pub, { auth, accounts: s.accounts, bootstrap: new Bootstrap(() => s.users.count()), roles: s.roles, sessionMaxAgeSec: 60 }),
+    publicV1: (pub) =>
+      authRoutes(pub, {
+        auth,
+        accounts: s.accounts,
+        bootstrap: new Bootstrap(() => s.users.count()),
+        roles: s.roles,
+        sessionMaxAgeSec: 60,
+      }),
   });
   const handle = surfaceHandler(hono, "app");
   const call = (path: string, init: RequestInit & { json?: unknown; as?: string } = {}) => {
     const headers = new Headers(init.headers);
-    headers.set("host", HOST); headers.set("origin", `https://${HOST}`);
-    if (init.as?.startsWith("gw_")) headers.set("authorization", `Bearer ${init.as}`); else if (init.as) headers.set("cookie", init.as);
+    headers.set("host", HOST);
+    headers.set("origin", `https://${HOST}`);
+    if (init.as?.startsWith("gw_")) headers.set("authorization", `Bearer ${init.as}`);
+    else if (init.as) headers.set("cookie", init.as);
     if (init.json !== undefined) headers.set("content-type", "application/json");
-    return Promise.resolve(handle(new Request(`https://${HOST}${path}`, { ...init, headers, ...(init.json === undefined ? {} : { body: JSON.stringify(init.json) }) }), { clientIp: "203.0.113.7" }));
+    return Promise.resolve(
+      handle(
+        new Request(`https://${HOST}${path}`, {
+          ...init,
+          headers,
+          ...(init.json === undefined ? {} : { body: JSON.stringify(init.json) }),
+        }),
+        { clientIp: "203.0.113.7" },
+      ),
+    );
   };
   await s.admin();
-  const ada = (await call("/v1/auth/login", { method: "POST", json: { email: "ada@example.com", password: PASSWORD } })).headers.get("set-cookie")!.split(";")[0]!;
-  return { s, settings, repos, call, ada, conversions, advance: (ms: number) => { clock += ms; } };
+  const ada = (
+    await call("/v1/auth/login", {
+      method: "POST",
+      json: { email: "ada@example.com", password: PASSWORD },
+    })
+  ).headers
+    .get("set-cookie")!
+    .split(";")[0]!;
+  return {
+    s,
+    settings,
+    repos,
+    call,
+    ada,
+    conversions,
+    advance: (ms: number) => {
+      clock += ms;
+    },
+  };
 }
 
 describe("/v1/github", () => {
@@ -75,8 +137,14 @@ describe("/v1/github", () => {
     const res = await call("/v1/github", { as: ada });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      configured: false, appId: "", appSlug: "", appUrl: null, installUrl: null,
-      webhookUrl: "https://hooks.preview.localhost:8443/github", missing: ["github.appId", "github.privateKey", "github.webhookSecret"], managedByConfig: false,
+      configured: false,
+      appId: "",
+      appSlug: "",
+      appUrl: null,
+      installUrl: null,
+      webhookUrl: "https://hooks.preview.localhost:8443/github",
+      missing: ["github.appId", "github.privateKey", "github.webhookSecret"],
+      managedByConfig: false,
     });
   });
 
@@ -87,43 +155,106 @@ describe("/v1/github", () => {
     const { action, manifest, state } = (await m.json()) as any;
     expect(action).toBe(`https://github.com/settings/apps/new?state=${encodeURIComponent(state)}`);
     expect(manifest).toMatchObject({
-      url: "https://app.preview.localhost:8443", redirect_url: "https://app.preview.localhost:8443/github/callback",
-      hook_attributes: { url: "https://hooks.preview.localhost:8443/github", active: true }, public: false,
-      default_permissions: { contents: "read", metadata: "read", issues: "read", pull_requests: "write", deployments: "write" }, default_events: ["pull_request", "issue_comment"],
+      url: "https://app.preview.localhost:8443",
+      redirect_url: "https://app.preview.localhost:8443/github/callback",
+      hook_attributes: { url: "https://hooks.preview.localhost:8443/github", active: true },
+      public: false,
+      default_permissions: {
+        contents: "read",
+        metadata: "read",
+        issues: "read",
+        pull_requests: "write",
+        deployments: "write",
+      },
+      default_events: ["pull_request", "issue_comment"],
     });
 
-    const ex = await t.call("/v1/github/manifest/exchange", { method: "POST", as: t.ada, json: { code: "one-time-code", state } });
+    const ex = await t.call("/v1/github/manifest/exchange", {
+      method: "POST",
+      as: t.ada,
+      json: { code: "one-time-code", state },
+    });
     expect(ex.status).toBe(201);
     const status = (await ex.json()) as any;
-    expect(status).toMatchObject({ configured: true, appId: "777", appSlug: "gangway-preview", installUrl: "https://github.com/apps/gangway-preview/installations/new", missing: [] });
+    expect(status).toMatchObject({
+      configured: true,
+      appId: "777",
+      appSlug: "gangway-preview",
+      installUrl: "https://github.com/apps/gangway-preview/installations/new",
+      missing: [],
+    });
     expect(JSON.stringify(status)).not.toMatch(/cs_secret|wh_secret|BEGIN RSA/);
     expect(t.conversions).toEqual(["one-time-code"]);
     expect(t.settings.get(SETTINGS.githubPrivateKey)).toContain("BEGIN RSA PRIVATE KEY");
     expect(t.settings.get(SETTINGS.githubWebhookSecret)).toBe("wh_secret");
     const entry = t.s.auditRepo.page({ limit: 1 }).entries[0]!;
-    expect(entry).toMatchObject({ action: "github.connected", target: "777", new: { slug: "gangway-preview", privateKey: "[redacted]", webhookSecret: "[redacted]" } });
+    expect(entry).toMatchObject({
+      action: "github.connected",
+      target: "777",
+      new: { slug: "gangway-preview", privateKey: "[redacted]", webhookSecret: "[redacted]" },
+    });
     expect(JSON.stringify(entry)).not.toMatch(/cs_secret|wh_secret/);
 
     // The state was consumed.
-    expect((await t.call("/v1/github/manifest/exchange", { method: "POST", as: t.ada, json: { code: "again", state } })).status).toBe(422);
+    expect(
+      (
+        await t.call("/v1/github/manifest/exchange", {
+          method: "POST",
+          as: t.ada,
+          json: { code: "again", state },
+        })
+      ).status,
+    ).toBe(422);
   });
 
   test("an unknown or expired state is 422 and GitHub is never called; a used code is 422 too", async () => {
     const t = await make({ conversion: 404 });
-    expect((await t.call("/v1/github/manifest/exchange", { method: "POST", as: t.ada, json: { code: "c", state: "made-up" } })).status).toBe(422);
+    expect(
+      (
+        await t.call("/v1/github/manifest/exchange", {
+          method: "POST",
+          as: t.ada,
+          json: { code: "c", state: "made-up" },
+        })
+      ).status,
+    ).toBe(422);
     expect(t.conversions).toEqual([]);
     const { state } = (await (await t.call("/v1/github/manifest", { as: t.ada })).json()) as any;
     t.advance(11 * 60_000);
-    expect((await t.call("/v1/github/manifest/exchange", { method: "POST", as: t.ada, json: { code: "c", state } })).status).toBe(422);
+    expect(
+      (
+        await t.call("/v1/github/manifest/exchange", {
+          method: "POST",
+          as: t.ada,
+          json: { code: "c", state },
+        })
+      ).status,
+    ).toBe(422);
     expect(t.conversions).toEqual([]);
-    const { state: fresh } = (await (await t.call("/v1/github/manifest", { as: t.ada })).json()) as any;
-    expect((await t.call("/v1/github/manifest/exchange", { method: "POST", as: t.ada, json: { code: "used", state: fresh } })).status).toBe(422);
+    const { state: fresh } = (await (
+      await t.call("/v1/github/manifest", { as: t.ada })
+    ).json()) as any;
+    expect(
+      (
+        await t.call("/v1/github/manifest/exchange", {
+          method: "POST",
+          as: t.ada,
+          json: { code: "used", state: fresh },
+        })
+      ).status,
+    ).toBe(422);
     expect(t.conversions).toEqual(["used"]);
   });
 
   test("with the App pinned from the environment the manifest flow is a 409 and status says managedByConfig", async () => {
-    const t = await make({ overrides: { "github.appId": "1", "github.privateKey": "k", "github.webhookSecret": "s" } });
-    expect((await (await t.call("/v1/github", { as: t.ada })).json() as any)).toMatchObject({ configured: true, managedByConfig: true, missing: [] });
+    const t = await make({
+      overrides: { "github.appId": "1", "github.privateKey": "k", "github.webhookSecret": "s" },
+    });
+    expect((await (await t.call("/v1/github", { as: t.ada })).json()) as any).toMatchObject({
+      configured: true,
+      managedByConfig: true,
+      missing: [],
+    });
     expect((await t.call("/v1/github/manifest", { as: t.ada })).status).toBe(409);
   });
 });

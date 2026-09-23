@@ -9,7 +9,8 @@ import { SourcePanel } from './source-panel';
 
 const ID = '01SOURCE000000000000000000';
 const SRC: PreviewSourceFiles = {
-  runtime: 'bun', truncated: false,
+  runtime: 'bun',
+  truncated: false,
   files: [
     { path: 'index.ts', size: 30, text: 'export default { fetch() {} };\n' },
     { path: 'lib/util.ts', size: 12, text: 'export {};\n' },
@@ -17,17 +18,29 @@ const SRC: PreviewSourceFiles = {
   ],
 };
 
-async function open(o: { uploaded?: boolean; permissions?: Permission[]; source?: PreviewSourceFiles | 404 } = {}) {
+async function open(
+  o: { uploaded?: boolean; permissions?: Permission[]; source?: PreviewSourceFiles | 404 } = {},
+) {
   // The CodeMirror chunk is not what these specs are about: keep the @defer block closed.
   TestBed.configureTestingModule({ deferBlockBehavior: DeferBlockBehavior.Manual });
   const r = await render(SourcePanel, { inputs: { previewId: ID, uploaded: o.uploaded ?? true } });
   const loading = TestBed.inject(AuthService).refresh();
-  r.http.expectOne('/v1/auth/session').flush({ authenticated: true, setupRequired: false, permissions: o.permissions ?? ['previews.read', 'previews.update'] });
+  r.http
+    .expectOne('/v1/auth/session')
+    .flush({
+      authenticated: true,
+      setupRequired: false,
+      permissions: o.permissions ?? ['previews.read', 'previews.update'],
+    });
   await loading;
   await r.settle();
   if (o.uploaded !== false) {
     const req = r.http.expectOne(`/v1/previews/${ID}/source`);
-    if (o.source === 404) req.flush({ title: 'not found', detail: 'nothing kept' }, { status: 404, statusText: 'Not Found' });
+    if (o.source === 404)
+      req.flush(
+        { title: 'not found', detail: 'nothing kept' },
+        { status: 404, statusText: 'Not Found' },
+      );
     else req.flush(o.source ?? SRC);
     await r.settle();
   }
@@ -70,17 +83,23 @@ describe('SourcePanel', () => {
     panel.edit('src/new.ts', 'export const x = 1;\n');
     panel.remove('lib/util.ts');
     await r.settle();
-    expect(r.allByTestId('file').map((f) => f.dataset['path'])).toEqual(['index.ts', 'logo.png', 'src/new.ts']);
+    expect(r.allByTestId('file').map((f) => f.dataset['path'])).toEqual([
+      'index.ts',
+      'logo.png',
+      'src/new.ts',
+    ]);
 
     r.byTestId('save')!.click();
     await r.settle();
     const req = r.http.expectOne(`/v1/previews/${ID}/source`);
     expect(req.request.method).toBe('PATCH');
-    expect(req.request.body).toEqual({ files: {
-      'index.ts': 'export default { fetch() { return new Response("2"); } };\n',
-      'src/new.ts': 'export const x = 1;\n',
-      'lib/util.ts': null,
-    } });
+    expect(req.request.body).toEqual({
+      files: {
+        'index.ts': 'export default { fetch() { return new Response("2"); } };\n',
+        'src/new.ts': 'export const x = 1;\n',
+        'lib/util.ts': null,
+      },
+    });
     req.flush(contract.redeployAccepted, { status: 202, statusText: 'Accepted' });
     await r.settle();
     // Saved is the new baseline: nothing left to save, and the rebuild is under way.
@@ -106,7 +125,12 @@ describe('SourcePanel', () => {
     await r.settle();
     r.byTestId('save')!.click();
     await r.settle();
-    r.http.expectOne(`/v1/previews/${ID}/source`).flush({ title: 'unprocessable', detail: 'the new source exposes different services' }, { status: 422, statusText: 'x' });
+    r.http
+      .expectOne(`/v1/previews/${ID}/source`)
+      .flush(
+        { title: 'unprocessable', detail: 'the new source exposes different services' },
+        { status: 422, statusText: 'x' },
+      );
     await r.until(() => r.byTestId('source-error') !== null, 'error');
     expect(r.text('source-error')).toContain('different services');
     expect(r.fixture.componentInstance.changes()).toEqual({ 'index.ts': 'broken' });
@@ -115,14 +139,24 @@ describe('SourcePanel', () => {
   it('replacing files PUTs a gzipped tar with the current runtime, then reloads the source', async () => {
     const r = await open();
     r.http.expectOne('/v1/runtimes').flush(contract.runtimeList);
-    const done = r.fixture.componentInstance.replace(finish([{ path: 'site/index.html', data: strToU8('<p>new</p>') }]));
+    const done = r.fixture.componentInstance.replace(
+      finish([{ path: 'site/index.html', data: strToU8('<p>new</p>') }]),
+    );
     await r.settle();
-    const put = r.http.expectOne((q) => q.url.startsWith(`/v1/previews/${ID}/source`) && q.method === 'PUT');
+    const put = r.http.expectOne(
+      (q) => q.url.startsWith(`/v1/previews/${ID}/source`) && q.method === 'PUT',
+    );
     expect(put.request.urlWithParams).toBe(`/v1/previews/${ID}/source?runtime=bun`);
     expect(put.request.headers.get('content-type')).toBe('application/gzip');
     put.flush(contract.redeployAccepted, { status: 202, statusText: 'Accepted' });
     await r.settle();
-    r.http.expectOne(`/v1/previews/${ID}/source`).flush({ runtime: 'bun', truncated: false, files: [{ path: 'index.html', size: 10, text: '<p>new</p>' }] });
+    r.http
+      .expectOne(`/v1/previews/${ID}/source`)
+      .flush({
+        runtime: 'bun',
+        truncated: false,
+        files: [{ path: 'index.html', size: 10, text: '<p>new</p>' }],
+      });
     await done;
     await r.settle();
     expect(r.allByTestId('file').map((f) => f.dataset['path'])).toEqual(['index.html']);

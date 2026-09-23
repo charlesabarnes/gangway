@@ -5,7 +5,13 @@
  */
 import { escapeHtml } from "../util/html.ts";
 
-type PageOpts = { title: string; heading: string; body: string; refreshSeconds?: number; status: number };
+type PageOpts = {
+  title: string;
+  heading: string;
+  body: string;
+  refreshSeconds?: number;
+  status: number;
+};
 
 function page(o: PageOpts): Response {
   const html = `<!doctype html>
@@ -35,7 +41,11 @@ a{color:inherit}
     status: o.status,
     // gangway's own pages are served on preview hostnames, unlisted ones included (§8.3):
     // "building", "failed" and "not found" are not things to index under somebody's URL.
-    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" },
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-robots-tag": "noindex, nofollow",
+    },
   });
 }
 

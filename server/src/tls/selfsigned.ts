@@ -47,7 +47,10 @@ export async function createCa(commonName = "gangway development CA"): Promise<D
     keys,
     extensions: [
       new x509.BasicConstraintsExtension(true, 1, true),
-      new x509.KeyUsagesExtension(x509.KeyUsageFlags.keyCertSign | x509.KeyUsageFlags.cRLSign, true),
+      new x509.KeyUsagesExtension(
+        x509.KeyUsageFlags.keyCertSign | x509.KeyUsageFlags.cRLSign,
+        true,
+      ),
     ],
   });
   return { certPem: cert.toString("pem"), keyPem: await exportKey(keys.privateKey) };
@@ -72,19 +75,20 @@ export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<
     extensions: [
       new x509.BasicConstraintsExtension(false, undefined, true),
       new x509.KeyUsagesExtension(
-        x509.KeyUsageFlags.digitalSignature | x509.KeyUsageFlags.keyEncipherment, true),
+        x509.KeyUsageFlags.digitalSignature | x509.KeyUsageFlags.keyEncipherment,
+        true,
+      ),
       new x509.ExtendedKeyUsageExtension(["1.3.6.1.5.5.7.3.1"], false), // serverAuth
       new x509.SubjectAlternativeNameExtension(
-        sans.map((v) => ({ type: "dns" as const, value: v }))),
+        sans.map((v) => ({ type: "dns" as const, value: v })),
+      ),
     ],
   });
 
   // Normalise: @peculiar/x509's PEM has no trailing newline, so a naive concat yields
   // "-----END CERTIFICATE----------BEGIN CERTIFICATE-----" and OpenSSL rejects the chain
   // with BAD_END_LINE.
-  const chain = [cert.toString("pem"), ca.certPem]
-    .map((p) => p.trimEnd() + "\n")
-    .join("");
+  const chain = [cert.toString("pem"), ca.certPem].map((p) => p.trimEnd() + "\n").join("");
 
   return {
     serverName: sans[0]!,
@@ -106,7 +110,10 @@ export async function loadOrCreateCa(stateDir: string): Promise<{ ca: DevCa; caP
   const certPath = join(dir, "ca.pem");
   const keyPath = join(dir, "ca-key.pem");
   if (existsSync(certPath) && existsSync(keyPath)) {
-    return { ca: { certPem: readFileSync(certPath, "utf8"), keyPem: readFileSync(keyPath, "utf8") }, caPath: certPath };
+    return {
+      ca: { certPem: readFileSync(certPath, "utf8"), keyPem: readFileSync(keyPath, "utf8") },
+      caPath: certPath,
+    };
   }
   mkdirSync(dir, { recursive: true });
   const ca = await createCa();

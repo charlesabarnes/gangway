@@ -69,14 +69,19 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
   });
 
   // Unauthenticated by design: an orchestrator's healthcheck has no token.
-  app.get("/healthz", (c) => d.draining?.()
-    ? c.json({ ok: false, draining: true }, 503)
-    : c.json({ ok: true, ...(d.health?.() ?? {}) }));
+  app.get("/healthz", (c) =>
+    d.draining?.()
+      ? c.json({ ok: false, draining: true }, 503)
+      : c.json({ ok: true, ...(d.health?.() ?? {}) }),
+  );
 
   // Work accepted now would be cut off seconds later. Say so, and say when to come back.
   app.use(async (c, next) => {
     if (!d.draining?.()) return next();
-    return problemResponse(c, new AppError("unavailable", "gangway is shutting down"), { "retry-after": "5", connection: "close" });
+    return problemResponse(c, new AppError("unavailable", "gangway is shutting down"), {
+      "retry-after": "5",
+      connection: "close",
+    });
   });
 
   d.root?.(app);
