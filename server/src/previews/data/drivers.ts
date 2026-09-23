@@ -22,7 +22,7 @@ export type Table = { schema: string; name: string };
 
 /** Hard limits, shared with the service. */
 export const MAX_ROWS = 1000;
-export const STATEMENT_TIMEOUT_S = 15;
+const STATEMENT_TIMEOUT_S = 15;
 
 /* ------------------------------------------------------------------ argv */
 
@@ -207,7 +207,7 @@ const REDIS_NEVER = new Set([
   "FUNCTION",
 ]);
 
-export function redisArgv(text: string): string[] {
+function redisArgv(text: string): string[] {
   const argv = tokenize(text);
   if (argv.length === 0) throw new Error("no command");
   if (argv.length > 256) throw new Error("too many arguments");
@@ -293,7 +293,7 @@ export function parseBatch(text: string): { columns: string[]; rows: Cell[][] } 
 }
 
 /** redis-cli's non-tty output: one line per value. Shown as a one-column table. */
-export function parseRedis(text: string): { columns: string[]; rows: Cell[][] } {
+function parseRedis(text: string): { columns: string[]; rows: Cell[][] } {
   const lines = text.split("\n");
   if (lines.at(-1) === "") lines.pop();
   return { columns: ["value"], rows: lines.map((l) => [l]) };

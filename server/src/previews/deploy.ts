@@ -41,13 +41,12 @@ import {
   runArgv,
   upArgv,
 } from "../docker/compose.ts";
-import { AppError, conflict, errorMessage } from "../errors.ts";
+import { AppError, conflict, errorMessage, unprocessable } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { allocatePorts } from "../routing/ports.ts";
 import { place } from "../scheduler/placement.ts";
 import { sleep } from "../util/async.ts";
-import { idleMs } from "../settings.ts";
-import { parseDuration } from "../util/duration.ts";
+import { idleMs, parseDuration } from "../util/duration.ts";
 import { ulid } from "../util/ulid.ts";
 import { parse as parseYaml } from "yaml";
 import {
@@ -171,9 +170,6 @@ export type DeployResult = {
    */
   plan?: AppPlan | undefined;
 };
-
-const unprocessable = (m: string, d?: Record<string, unknown>) =>
-  new AppError("unprocessable", m, d);
 
 /** A placeholder `-p` for the config passes, which run before the real name is known. */
 export const PLAN_PROJECT = "gw-plan";
@@ -743,7 +739,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
   if (generatedPassword) logGenerated(ctx, id, generatedPassword);
   // After the rows exist: a rejected deploy made nothing, so there is nothing to have done.
-  ctx.audit?.record(input.actor, "preview.deploy", id, {
+  ctx.audit.record(input.actor, "preview.deploy", id, {
     new: {
       project: preview.project,
       visibility,
@@ -837,12 +833,12 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     const toBuild = r.model.services.filter((s) => s.hasBuild).map((s) => s.name);
     if (toBuild.length > 0) {
       const buildId = ulid(ctx.now());
-      ctx.builds?.start({ id: buildId, previewId: id, services: toBuild });
+      ctx.builds.start({ id: buildId, previewId: id, services: toBuild });
       try {
         await step("build", buildArgv(base, toBuild), "build");
-        ctx.builds?.finish(buildId, "succeeded", 0);
+        ctx.builds.finish(buildId, "succeeded", 0);
       } catch (e) {
-        ctx.builds?.finish(
+        ctx.builds.finish(
           buildId,
           r.signal.aborted ? "cancelled" : "failed",
           e instanceof StepFailed ? e.exitCode : null,
@@ -953,7 +949,7 @@ export function stepper(
 }
 
 /** The seed hook as `{ service, command }`, the primary route's service filling in. */
-export function seedFor(
+function seedFor(
   model: ComposeModel,
   routes: PlannedRoute[],
 ): { service: string; command: string } | null {

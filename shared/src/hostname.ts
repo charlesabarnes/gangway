@@ -28,9 +28,9 @@ export const RESERVED_LABELS: ReadonlySet<string> = new Set([
 ]);
 
 /** A single DNS label: 1-63 chars, a-z 0-9 and hyphen, never leading or trailing hyphen. */
-export const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-export const MAX_LABEL_LENGTH = 63;
+const MAX_LABEL_LENGTH = 63;
 
 export type LabelRejection = "empty" | "too-long" | "contains-dot" | "malformed" | "reserved";
 

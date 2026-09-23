@@ -23,11 +23,11 @@ import type {
 } from "@gangway/shared/domain";
 import type { Scope } from "@gangway/shared/permissions";
 
-export const toDate = (n: number | null | undefined): Date | null =>
+const toDate = (n: number | null | undefined): Date | null =>
   n === null || n === undefined ? null : new Date(n);
 export const fromDate = (d: Date | null | undefined): number | null =>
   d === null || d === undefined ? null : d.getTime();
-export const bool = (n: number): boolean => n === 1;
+const bool = (n: number): boolean => n === 1;
 export const num = (b: boolean): number => (b ? 1 : 0);
 
 export type HostRow = {

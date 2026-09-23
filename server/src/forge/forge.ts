@@ -49,7 +49,7 @@ export type PullRequest = {
 export type Association = "owner" | "member" | "collaborator" | "other";
 
 export type PreviewCommand = "deploy" | "redeploy" | "destroy" | "status" | "secrets";
-export const PREVIEW_COMMANDS: readonly PreviewCommand[] = [
+const PREVIEW_COMMANDS: readonly PreviewCommand[] = [
   "deploy",
   "redeploy",
   "destroy",

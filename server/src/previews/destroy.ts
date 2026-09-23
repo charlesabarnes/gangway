@@ -41,7 +41,7 @@ export async function destroy(
   ctx.logs.append(previewId, "system", `destroying (requested by ${actorId(actor)})`);
   // The TTL sweep comes through here too, as `system:ttl-sweep`, so an expired preview is
   // audited as well.
-  ctx.audit?.record(actor, "preview.destroy", previewId, {
+  ctx.audit.record(actor, "preview.destroy", previewId, {
     old: { project: preview.project, state: preview.state, hostId: preview.hostId },
   });
   return teardown(ctx, preview, host);

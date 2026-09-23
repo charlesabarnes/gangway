@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { actorId, type Actor } from "../auth/actor.ts";
 import { AppError, conflict, notFound, unprocessable } from "../errors.ts";
 
-export const UPLOAD_TTL_MS = 15 * 60_000;
+const UPLOAD_TTL_MS = 15 * 60_000;
 export const MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
 const MAX_PER_OWNER = 10;
 const MAX_PENDING = 100;

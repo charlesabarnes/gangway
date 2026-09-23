@@ -16,7 +16,7 @@ import { ADDON_IDS } from "./addons.ts";
 import { RUNTIME_IDS } from "./runtimes.ts";
 
 export const GANGWAY_FILES = ["gangway.yml", "gangway.yaml"] as const;
-export const MAX_GANGWAY_FILE_BYTES = 64 * 1024;
+const MAX_GANGWAY_FILE_BYTES = 64 * 1024;
 
 /**
  * A path inside the upload, as it lands in a generated file: ordinary path characters only,
@@ -55,7 +55,7 @@ const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const duration = (what: string) =>
   z.string().refine((s) => parseDuration(s) !== null, `expected a duration like ${what}`);
 
-export const GangwayFileSchema = z.strictObject({
+const GangwayFileSchema = z.strictObject({
   /** For editors that read it; ignored. */
   $schema: z.string().optional(),
   /** Which runtime builds it. Omitted: detected from the files. */

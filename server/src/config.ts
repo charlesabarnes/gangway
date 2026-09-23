@@ -28,7 +28,7 @@ export const HostConfigSchema = z.object({
 });
 export type HostConfig = z.infer<typeof HostConfigSchema>;
 
-export const ConfigSchema = z.object({
+const ConfigSchema = z.object({
   /**
    * Written into every container label. Two gangway installations can share one
    * daemon; these are how each tells its containers from the other's.

@@ -144,7 +144,7 @@ export function isBodyTooLarge(e: unknown): boolean {
   return e instanceof BodyTooLarge || String((e as Error)?.message ?? "").includes("BodyTooLarge");
 }
 
-export class UpstreamTimeout extends Error {
+class UpstreamTimeout extends Error {
   constructor() {
     super("UPSTREAM_TIMEOUT");
     this.name = "UpstreamTimeout";

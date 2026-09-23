@@ -164,7 +164,7 @@ export function previewRoutes(
   /** One row per build attempt. The output is in the log, on the `build` stream. */
   api.get("/previews/:id/builds", requirePermission("previews.read"), (c) => {
     const p = find(c.req.param("id"));
-    return c.json({ builds: ctx.builds?.forPreview(p.id) ?? [] });
+    return c.json({ builds: ctx.builds.forPreview(p.id) ?? [] });
   });
 
   /** The kept upload, for the editor. 404 when nothing is kept (git, image, PR previews). */

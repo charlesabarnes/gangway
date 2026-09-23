@@ -87,7 +87,7 @@ import { PolicyResolver } from "./previews/policy.ts";
 import { Pulls } from "./projects/pulls.ts";
 import { GitHubOidc } from "./auth/oidc.ts";
 import { TRIGGERS, type Trigger } from "@gangway/shared/domain";
-import { deploy, urlsFor } from "./previews/deploy.ts";
+import { deploy, urlsFor, type DeploySource } from "./previews/deploy.ts";
 import { destroy } from "./previews/destroy.ts";
 import { IdempotentDeploys } from "./previews/idempotent.ts";
 import { PreviewLogs } from "./previews/logs.ts";
@@ -146,6 +146,19 @@ export type Running = {
 };
 
 const MIGRATIONS = resolve(import.meta.dir, "../migrations");
+
+function repoFullName(source: DeploySource): string | null {
+  switch (source.kind) {
+    case "pr":
+      return source.repo;
+    case "pushed":
+      return source.pr.repo;
+    case "git":
+      return githubFullName(source.repo);
+    default:
+      return null;
+  }
+}
 
 export async function boot(config: Config, o: BootOverrides = {}): Promise<Running> {
   const logger = o.logger ?? new Logger(config.logLevel);
@@ -233,26 +246,17 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
      name, a git deploy by the name in its clone URL; images and tarballs have none. */
   const projects = new ProjectsRepo(db);
   const templates = new TemplatesRepo(db);
-  const triggerDefault = (t: Trigger) =>
-    settings.get(
-      t === "pr"
-        ? SETTINGS.templatePr
-        : t === "api"
-          ? SETTINGS.templateApi
-          : SETTINGS.templateManual,
-    );
+  const templateSetting = {
+    pr: SETTINGS.templatePr,
+    api: SETTINGS.templateApi,
+    manual: SETTINGS.templateManual,
+  } as const;
+  const triggerDefault = (t: Trigger) => settings.get(templateSetting[t]);
   const policy = new PolicyResolver({
     templates,
     project: (ref) => projects.find(ref),
     projectForSource: (source) => {
-      const full =
-        source.kind === "pr"
-          ? source.repo
-          : source.kind === "pushed"
-            ? source.pr.repo
-            : source.kind === "git"
-              ? githubFullName(source.repo)
-              : null;
+      const full = repoFullName(source);
       return full ? projects.getByFullName("github", full) : undefined;
     },
     defaultFor: triggerDefault,
@@ -586,12 +590,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   }
 
   /* ---- the listener */
-  const surfaceEnabled = (s: Surface): boolean =>
-    s === "app"
-      ? settings.get(SETTINGS.surfacesUi)
-      : s === "mcp"
-        ? settings.get(SETTINGS.surfacesMcp)
-        : true;
+  const surfaceEnabled = (s: Surface): boolean => {
+    if (s === "app") return settings.get(SETTINGS.surfacesUi);
+    if (s === "mcp") return settings.get(SETTINGS.surfacesMcp);
+    return true;
+  };
   const origin = (label: string) =>
     publicOriginFor(label ? `${label}.${baseDomain()}` : baseDomain(), ctx.origin);
 

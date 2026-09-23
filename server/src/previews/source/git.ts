@@ -18,7 +18,7 @@ import { rejectClone } from "./types.ts";
 /** Only hosts we mint tokens for. A preview must not be able to point us at an intranet. */
 export const DEFAULT_ALLOWED_HOSTS = ["github.com"] as const;
 
-export const DEFAULT_CLONE_TIMEOUT_MS = 120_000;
+const DEFAULT_CLONE_TIMEOUT_MS = 120_000;
 
 /** What GitHub expects in the username field when the password is an installation token. */
 const TOKEN_USERNAME = "x-access-token";

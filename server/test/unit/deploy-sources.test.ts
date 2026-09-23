@@ -40,7 +40,7 @@ describe("tarball source", () => {
     expect(res.urls.map((u) => u.url)).toEqual(["https://site.preview.localhost:8443/"]);
     expect((await res.done).state).toBe("awake");
     expect(s.fake).toMatchObject({ builds: 1, ups: 1 });
-    expect(s.ctx.builds!.forPreview(res.preview.id)).toMatchObject([
+    expect(s.ctx.builds.forPreview(res.preview.id)).toMatchObject([
       { service: "web", state: "succeeded", exitCode: 0 },
     ]);
     const log = s.ctx.logs.read(res.preview.id).map((l) => `${l.stream}: ${l.line}`);
@@ -82,7 +82,7 @@ describe("tarball source", () => {
       },
     });
     expect(await res.done).toMatchObject({ state: "failed", error: "compose build exited 17" });
-    expect(s.ctx.builds!.forPreview(res.preview.id)).toMatchObject([
+    expect(s.ctx.builds.forPreview(res.preview.id)).toMatchObject([
       { state: "failed", exitCode: 17 },
     ]);
     expect(s.fake.ups).toBe(0);

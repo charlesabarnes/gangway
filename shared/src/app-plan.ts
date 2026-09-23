@@ -121,7 +121,7 @@ export type AppPlan = {
 
 export const cmdText = (c: Command): string =>
   typeof c === "string" ? c : c.map(shellQuote).join(" ");
-export const shellQuote = (s: string): string =>
+const shellQuote = (s: string): string =>
   /^[A-Za-z0-9_./:=@%+,-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 
 /** The first error, as the message a refusal carries. */
@@ -191,7 +191,7 @@ const scriptsOf = (pkg: Json | null): Record<string, string> =>
   ) as Record<string, string>;
 
 /** `web: gunicorn app:app` -> { web: "gunicorn app:app" }. */
-export function parseProcfile(text: string): Record<string, string> {
+function parseProcfile(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of text.split(/\r?\n/)) {
     const m = /^([A-Za-z0-9_-]+):\s*(.+?)\s*$/.exec(line);

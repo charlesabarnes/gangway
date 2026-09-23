@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { addonById, type AddonChoice, type AddonId } from "@gangway/shared/addons";
 import type { Preview } from "@gangway/shared/domain";
 import type { Actor } from "../../auth/actor.ts";
-import { AppError, conflict, notFound } from "../../errors.ts";
+import { AppError, conflict, notFound, unprocessable } from "../../errors.ts";
 import type { PreviewContext } from "../context.ts";
 import {
   MAX_ROWS,
@@ -23,12 +23,10 @@ import {
   type Table,
 } from "./drivers.ts";
 
-export const WALL_CLOCK_MS = 20_000;
-export const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
+const WALL_CLOCK_MS = 20_000;
+const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 export const MAX_GLOBAL = 4;
-export const MAX_QUERY_CHARS = 64 * 1024;
-
-const unprocessable = (m: string) => new AppError("unprocessable", m);
+const MAX_QUERY_CHARS = 64 * 1024;
 
 export type AddonView = AddonChoice & { name: string; service: string; env: readonly string[] };
 export type TimedResult = QueryResult & { ms: number };
@@ -271,7 +269,7 @@ export class DataBrowser {
       // What was asked, and how it went -- never what came back. Not `key`: redact() hides a
       // field of that name.
       if (kind === "query" || kind === "rows") {
-        ctx.audit?.record(actor, "preview.data.query", previewId, {
+        ctx.audit.record(actor, "preview.data.query", previewId, {
           new: {
             addon,
             kind,

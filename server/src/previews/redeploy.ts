@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import type { Host, Preview, PreviewSource } from "@gangway/shared/domain";
 import { actorId, mayRebuild, type Actor } from "../auth/actor.ts";
 import { buildArgv, composeArgv, psArgv, runArgv, upArgv } from "../docker/compose.ts";
-import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors.ts";
+import { AppError, conflict, forbidden, notFound, errorMessage, unprocessable } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { ulid } from "../util/ulid.ts";
 import { addonServices } from "./addons.ts";
@@ -75,11 +75,8 @@ export type RedeployResult = {
   plan?: AppPlan | undefined;
 };
 
-const unprocessable = (m: string, d?: Record<string, unknown>) =>
-  new AppError("unprocessable", m, d);
-
 /** Said the same way by REST and MCP. */
-export const REBUILD_REFUSAL =
+const REBUILD_REFUSAL =
   'this preview was deployed by someone else: "previews.update_own" covers only your own, and rebuilding any preview needs "previews.update" (the `update` scope for a token or an agent)';
 
 /**
@@ -260,7 +257,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   }
 
   ctx.bus.publish("preview.redeploy", { phase: "started", buildId, by: actorId(input.actor) }, id);
-  ctx.audit?.record(input.actor, "preview.redeploy", id, {
+  ctx.audit.record(input.actor, "preview.redeploy", id, {
     new: {
       project: preview.project,
       change: input.change.kind,
@@ -351,12 +348,12 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
     const before = await imageIds(ctx, host, base, wd.srcDir);
     const toBuild = r.model.services.filter((s) => s.hasBuild).map((s) => s.name);
     if (toBuild.length > 0) {
-      ctx.builds?.start({ id: buildId, previewId: id, services: toBuild });
+      ctx.builds.start({ id: buildId, previewId: id, services: toBuild });
       try {
         await step("build", buildArgv(base, toBuild), "build");
-        ctx.builds?.finish(buildId, "succeeded", 0);
+        ctx.builds.finish(buildId, "succeeded", 0);
       } catch (e) {
-        ctx.builds?.finish(
+        ctx.builds.finish(
           buildId,
           r.signal.aborted ? "cancelled" : "failed",
           e instanceof StepFailed ? e.exitCode : null,

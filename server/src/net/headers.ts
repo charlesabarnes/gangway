@@ -3,7 +3,7 @@
  */
 import { stripGangwayCookies } from "./gate.ts";
 
-export const HOP_BY_HOP = new Set([
+const HOP_BY_HOP = new Set([
   "connection",
   "keep-alive",
   "transfer-encoding",
@@ -15,7 +15,7 @@ export const HOP_BY_HOP = new Set([
 ]);
 
 /** Removes hop-by-hop headers, including any the Connection header names. */
-export function stripHopByHop(h: Headers): void {
+function stripHopByHop(h: Headers): void {
   const named =
     h
       .get("connection")

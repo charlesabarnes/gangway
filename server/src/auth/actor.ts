@@ -70,7 +70,7 @@ export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor => 
  */
 export const systemActor = (job: string): Actor => tokenActor(`system:${job}`, ["admin"]);
 
-export const FORGE_PERMISSIONS: readonly Permission[] = [
+const FORGE_PERMISSIONS: readonly Permission[] = [
   "previews.deploy",
   "previews.destroy",
   "previews.read",
@@ -85,7 +85,7 @@ export const forgeActor = (forge: ForgeId, login: string): Actor => ({
 });
 
 /** Fixed, like a forge's: what a workflow may do inside the one route it can reach. */
-export const WORKFLOW_PERMISSIONS: readonly Permission[] = [
+const WORKFLOW_PERMISSIONS: readonly Permission[] = [
   "previews.deploy",
   "previews.destroy",
   "previews.read",

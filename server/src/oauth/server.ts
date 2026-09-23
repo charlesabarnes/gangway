@@ -26,18 +26,18 @@ import {
 import { sha256 } from "../util/hash.ts";
 
 /** What OAuth may grant. Never `admin`: an agent should not hold the keys to the server. */
-export const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
+const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
 export type OAuthScope = (typeof OAUTH_SCOPES)[number];
 /**
  * Scopes for a request that names none. Not `update`: `deploy` already rebuilds your own.
  * All three are advertised, so a client that asks for every `scopes_supported` gets `update`
  * offered on its first consent, where the page pre-ticks what the role covers.
  */
-export const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
+const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
 
 export const ACCESS_TTL_MS = 3_600_000;
 export const REFRESH_IDLE_MS = 30 * 86_400_000;
-export const GRANT_ABSOLUTE_MS = 90 * 86_400_000;
+const GRANT_ABSOLUTE_MS = 90 * 86_400_000;
 /** A rotated-away refresh token back this soon is the client racing itself: refuse, not revoke. */
 export const REFRESH_REUSE_GRACE_MS = 60_000;
 const PENDING_TTL_MS = 10 * 60_000;
@@ -567,6 +567,6 @@ export class OAuthServer {
 }
 
 /** An OAuth actor's tokenId is `oauth:<grantId>`, in the audit log and the MCP step-up. */
-export const OAUTH_TOKEN_PREFIX = "oauth:";
+const OAUTH_TOKEN_PREFIX = "oauth:";
 export const isOAuthActor = (a: Actor): a is Extract<Actor, { kind: "token" }> =>
   a.kind === "token" && a.tokenId.startsWith(OAUTH_TOKEN_PREFIX);

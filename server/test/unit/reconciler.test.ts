@@ -6,7 +6,15 @@ import type { Route } from "@gangway/shared/domain";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
 import { HostConfigSchema } from "../../src/config.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { EventsRepo, HostsRepo, PreviewsRepo, RoutesRepo } from "../../src/db/repos/index.ts";
+import { Audit } from "../../src/audit/audit.ts";
+import {
+  AuditRepo,
+  BuildsRepo,
+  EventsRepo,
+  HostsRepo,
+  PreviewsRepo,
+  RoutesRepo,
+} from "../../src/db/repos/index.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import type { ContainerSummary, DockerInfo, ListOptions } from "../../src/docker/client.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
@@ -118,6 +126,8 @@ function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
     now: Date.now,
     inflight: new Map(),
     teardowns: new Set(),
+    builds: new BuildsRepo(db),
+    audit: new Audit(new AuditRepo(db), new Logger("error", {}, () => {})),
   };
   const lines: string[] = [];
   const reconciler = new Reconciler({

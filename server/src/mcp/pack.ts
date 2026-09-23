@@ -9,7 +9,7 @@ import { pack } from "tar-stream";
 import { unprocessable } from "../errors.ts";
 import { checkEditPath } from "../previews/redeploy.ts";
 
-export const MAX_FILES = 1000;
+const MAX_FILES = 1000;
 export const MAX_BYTES = 2 * 1024 * 1024;
 
 /** Rejects what an upload may not hold, before anything is written anywhere. */

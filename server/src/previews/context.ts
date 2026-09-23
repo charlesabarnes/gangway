@@ -63,12 +63,10 @@ export type PreviewContext = {
   /** Teardowns running in this process. With `inflight`, the reconciler's do-not-touch list. */
   teardowns: Set<string>;
   docker?: string | undefined;
-  /** Build history. Optional so a context without it (older tests) still deploys. */
-  builds?: BuildsRepo | undefined;
+  builds: BuildsRepo;
   /** False when `private` previews could not be opened: the UI (and its login page) is off. */
   privateAvailable?: (() => boolean) | undefined;
-  /** Audit log. Optional for the same reason; boot always supplies it. */
-  audit?: AuditSink | undefined;
+  audit: AuditSink;
   /**
    * The secrets a preview receives at a clearance: the global map, plus the
    * repository's when it has one. Absent: no `.env` is written.

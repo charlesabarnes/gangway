@@ -34,7 +34,7 @@ export function problemResponse(
   });
 }
 
-export function toAppError(e: unknown): AppError | null {
+function toAppError(e: unknown): AppError | null {
   if (e instanceof AppError) return e;
   if (e instanceof ZodError) {
     return new AppError("unprocessable", "request validation failed", {

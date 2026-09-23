@@ -35,7 +35,7 @@ const envMap = z
 
 const containerPort = z.number().int().min(1).max(65535);
 
-export const DeploySourceSchema = z.discriminatedUnion("kind", [
+const DeploySourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("image"),
     image: imageRef,
@@ -186,7 +186,7 @@ export const PREVIEW_PASSWORD_MAX = 1024;
  * A preview's password. `inherit` (the default) follows Settings; `none` opens it;
  * `set` takes a value; `generate` has gangway make one and print it in the preview's log.
  */
-export const PasswordChoiceSchema = z.discriminatedUnion("mode", [
+const PasswordChoiceSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("inherit") }),
   z.strictObject({ mode: z.literal("none") }),
   z.strictObject({ mode: z.literal("generate") }),
@@ -197,7 +197,7 @@ export const PasswordChoiceSchema = z.discriminatedUnion("mode", [
 ]);
 export type PasswordChoice = z.infer<typeof PasswordChoiceSchema>;
 
-export const PasswordLoginSchema = z.enum(["inherit", "on", "off", "only"]);
+const PasswordLoginSchema = z.enum(["inherit", "on", "off", "only"]);
 
 /**
  * `PUT /v1/previews/:id/password`: the password, whether a gangway login gets past it, or

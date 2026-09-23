@@ -12,7 +12,7 @@ import type { Preview } from "@gangway/shared/domain";
 import { psArgv, startArgv, stopArgv } from "../docker/compose.ts";
 import { AppError, errorMessage } from "../errors.ts";
 import { type Logger, redactString } from "../logger.ts";
-import { idleMs } from "../settings.ts";
+import { idleMs } from "../util/duration.ts";
 import { SingleFlight } from "../util/async.ts";
 import type { PreviewContext } from "./context.ts";
 import { StepFailed, waitAnswering, waitHealthy, type WaitTarget } from "./deploy.ts";

@@ -347,7 +347,7 @@ describe("rebuilding in place", () => {
       preview: { state: "awake" },
     });
     expect((await s.sources.list(p.id)).files[0]!.text).toBe("broken");
-    expect(s.ctx.builds!.forPreview(p.id).map((b) => b.state)).toContain("failed");
+    expect(s.ctx.builds.forPreview(p.id).map((b) => b.state)).toContain("failed");
   });
 
   test("a failed preview recovers with the next save", async () => {

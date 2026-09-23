@@ -40,18 +40,18 @@ export type ToolName = keyof typeof TOOL_PERMISSIONS;
  * `previews.update` for any preview, `previews.update_own` for one this credential's owner
  * deployed.
  */
-export const REDEPLOY_PERMISSION: Permission = "previews.update";
-export const REDEPLOY_OWN_PERMISSION: Permission = "previews.update_own";
+const REDEPLOY_PERMISSION: Permission = "previews.update";
+const REDEPLOY_OWN_PERMISSION: Permission = "previews.update_own";
 
-export const DEFAULT_WAIT_S = 240;
-export const MAX_WAIT_S = 600;
+const DEFAULT_WAIT_S = 240;
+const MAX_WAIT_S = 600;
 const FAIL_TAIL = 20;
 const MAX_CHECKS = 20;
 const MANIFEST_SHOWN = 40;
 const PLAN_REASONS_SHOWN = 8;
 
 /** Refused before the tool starts. */
-export class MissingPermission extends Error {
+class MissingPermission extends Error {
   readonly permission: Permission;
   constructor(permission: Permission, why?: string) {
     super(`this credential lacks the "${permission}" permission${why ? `: ${why}` : ""}`);
@@ -87,7 +87,7 @@ function inTime(ms: number): string {
   return h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
-export function describePreview(ctx: PreviewContext, p: Preview): string {
+function describePreview(ctx: PreviewContext, p: Preview): string {
   const urls = urlsFor(ctx, p.id).map((u) => u.url);
   const parts = [`${nameOf(ctx, p)}: ${p.state}`];
   if (urls.length > 0) parts.push(urls.join(" "));
@@ -121,7 +121,7 @@ export function refusalDetail(detail: Record<string, unknown> | undefined): stri
 }
 
 /** How an upload was read, in the words the New screen uses. */
-export function describePlan(plan: AppPlan): string {
+function describePlan(plan: AppPlan): string {
   const what =
     plan.kind === "own"
       ? "the upload's own compose file or Dockerfile"

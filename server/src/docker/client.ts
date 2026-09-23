@@ -104,7 +104,7 @@ export type DockerClient = {
  * `DOCKER_HOST` grammar, as dockerode wants it. A bare path is accepted because
  * `/var/run/docker.sock` is what people actually type.
  */
-export function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
+function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
   const s = dockerHost.trim();
   if (s === "") throw badRequest("dockerHost is empty");
   if (s.startsWith("/") || s.startsWith("./")) return { socketPath: s };
@@ -389,7 +389,7 @@ export async function* parseEventStream(
   if (last) yield last;
 }
 
-export function parseEventLine(line: string): DockerEvent | null {
+function parseEventLine(line: string): DockerEvent | null {
   if (line === "") return null;
   let raw: Record<string, unknown>;
   try {
@@ -413,7 +413,7 @@ export function parseEventLine(line: string): DockerEvent | null {
 
 export type HostConnection = Pick<Host, "id" | "dockerHost" | "expectName">;
 
-export function createDockerClient(
+function createDockerClient(
   host: Pick<Host, "id" | "dockerHost">,
   opts: DockerClientOptions = {},
 ): DockerClient {

@@ -85,7 +85,7 @@ export function zoneCandidates(name: string): string[] {
 }
 
 /** Walks up from `name` until a level answers NS, i.e. the closest enclosing zone. */
-export async function findZone(name: string, dns: DnsQueries): Promise<string> {
+async function findZone(name: string, dns: DnsQueries): Promise<string> {
   for (const candidate of zoneCandidates(name)) {
     const ns = await dns.resolveNs(candidate).catch(() => [] as string[]);
     if (ns.length > 0) return candidate;

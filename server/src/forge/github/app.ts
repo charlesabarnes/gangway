@@ -13,7 +13,7 @@ import { AppError, internal } from "../../errors.ts";
 import { Logger } from "../../logger.ts";
 import { SingleFlight } from "../../util/async.ts";
 
-export const GITHUB_API = "https://api.github.com";
+const GITHUB_API = "https://api.github.com";
 const API_VERSION = "2022-11-28";
 /** GitHub rejects a JWT issued "in the future"; a minute of clock skew is its own advice. */
 const JWT_SKEW_S = 60;

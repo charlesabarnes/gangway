@@ -13,11 +13,9 @@
 import { lstat, readdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
-import { AppError } from "../../errors.ts";
+import { unprocessable } from "../../errors.ts";
+import { obj } from "../../util/json.ts";
 import { containedIn } from "./types.ts";
-
-const unprocessable = (m: string, d?: Record<string, unknown>) =>
-  new AppError("unprocessable", m, d);
 
 export const COMPOSE_FILENAMES = [
   "compose.yaml",
@@ -50,8 +48,6 @@ export async function assertNoEscapingSymlinks(root: string, maxEntries = 200_00
   await walk(root);
 }
 
-const obj = (v: unknown): Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const list = (v: unknown): unknown[] =>
   Array.isArray(v) ? v : v === undefined || v === null ? [] : [v];
 

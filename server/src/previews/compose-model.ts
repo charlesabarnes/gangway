@@ -24,17 +24,15 @@ import { publicOriginFor, type PublicOrigin } from "@gangway/shared/url";
 import { containedIn } from "./source/types.ts";
 import type { RenderedAddons } from "./addons.ts";
 import { buildLabels, LABEL, labelsFromRoute, type LabelContext } from "../docker/labels.ts";
-import { AppError } from "../errors.ts";
+import { unprocessable } from "../errors.ts";
 import { parseDuration } from "../util/duration.ts";
-
-const unprocessable = (m: string, d?: Record<string, unknown>) =>
-  new AppError("unprocessable", m, d);
+import { obj, type Json } from "../util/json.ts";
 
 /* ------------------------------------------------------------------ x-gangway */
 
 const portNumber = z.number().int().min(1).max(65535);
 
-export const ServiceExtensionSchema = z.strictObject({
+const ServiceExtensionSchema = z.strictObject({
   expose: z.boolean().optional(),
   subdomain: z.string().min(1).max(40).optional(),
   primary: z.boolean().optional(),
@@ -52,7 +50,7 @@ export const ServiceExtensionSchema = z.strictObject({
 });
 export type ServiceExtension = z.infer<typeof ServiceExtensionSchema>;
 
-export const StackExtensionSchema = z.strictObject({
+const StackExtensionSchema = z.strictObject({
   ttl: z
     .string()
     .refine((s) => parseDuration(s) !== null, "expected a duration like 12h or 7d")
@@ -109,9 +107,6 @@ export type ComposeModel = {
   violations: string[];
 };
 
-type Json = Record<string, unknown>;
-const obj = (v: unknown): Json =>
-  typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Json) : {};
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 function parseExtension<T>(schema: z.ZodType<T>, raw: unknown, where: string): T {

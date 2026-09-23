@@ -5,7 +5,15 @@ import { join } from "node:path";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
 import { HostConfigSchema } from "../../src/config.ts";
 import { migrate } from "../../src/db/migrate.ts";
-import { EventsRepo, HostsRepo, PreviewsRepo, RoutesRepo } from "../../src/db/repos/index.ts";
+import { Audit } from "../../src/audit/audit.ts";
+import {
+  AuditRepo,
+  BuildsRepo,
+  EventsRepo,
+  HostsRepo,
+  PreviewsRepo,
+  RoutesRepo,
+} from "../../src/db/repos/index.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
 import { parseLabels } from "../../src/docker/labels.ts";
@@ -143,6 +151,8 @@ function setup(script: Script = {}) {
     now: Date.now,
     inflight: new Map(),
     teardowns: new Set(),
+    builds: new BuildsRepo(db),
+    audit: new Audit(new AuditRepo(db), new Logger("error", {}, () => {})),
   };
   const input = (o: Partial<DeployInput> = {}): DeployInput => ({
     actor: ACTOR,

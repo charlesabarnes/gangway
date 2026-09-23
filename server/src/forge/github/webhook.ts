@@ -129,7 +129,7 @@ export function pullRequestOf(p: GhPullRequest | undefined, repo: ForgeRepo): Pu
   };
 }
 
-export function associationOf(raw: string | undefined): Association {
+function associationOf(raw: string | undefined): Association {
   switch (raw) {
     case "OWNER":
       return "owner";

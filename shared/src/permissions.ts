@@ -138,8 +138,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
 };
 
 /** The three roles every install starts with. `admin` holds everything, always, in code. */
-export const BUILTIN_ROLES = ["admin", "member", "viewer"] as const;
-export type BuiltinRole = (typeof BUILTIN_ROLES)[number];
+export type BuiltinRole = "admin" | "member" | "viewer";
 export const ADMIN_ROLE_ID: BuiltinRole = "admin";
 
 /**

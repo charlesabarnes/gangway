@@ -159,7 +159,7 @@ export async function setPreviewPassword(
     }[input.login];
     ctx.logs.append(before.id, "system", `who can open it: ${said} (by ${by})`);
   }
-  ctx.audit?.record(input.actor, "preview.password", before.id, {
+  ctx.audit.record(input.actor, "preview.password", before.id, {
     old: { mode: before.password, login: before.passwordLogin },
     new: {
       mode: resolved?.stored.mode ?? before.password,

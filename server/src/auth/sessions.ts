@@ -26,7 +26,7 @@ export type SessionTimings = {
   touchEveryMs: number;
 };
 
-export const DEFAULT_SESSION_TIMINGS: SessionTimings = {
+const DEFAULT_SESSION_TIMINGS: SessionTimings = {
   idleMs: 7 * DAY,
   absoluteMs: 30 * DAY,
   touchEveryMs: 5 * MIN,

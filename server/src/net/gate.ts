@@ -21,7 +21,7 @@ export const PASSWORD_COOKIE = "__Host-gw_pw";
 const PASSWORD_PATH = "/__gangway/password";
 /** The form's body is one password and one path: anything bigger is not the form. */
 const MAX_FORM_BYTES = 8 * 1024;
-export const GATE_PREFIX = "/__gangway/";
+const GATE_PREFIX = "/__gangway/";
 const AUTH_PATH = "/__gangway/auth";
 
 export type GateOptions = {

@@ -92,7 +92,7 @@ function make() {
       previewRoutes(api, s.ctx, new IdempotentDeploys(s.ctx, new IdempotencyRepo(s.db)));
       projectRoutes(api, {
         projects,
-        audit: s.ctx.audit!,
+        audit: s.ctx.audit,
         secrets,
         templates,
         pulls,

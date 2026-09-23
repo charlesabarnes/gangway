@@ -14,7 +14,7 @@ import type { Outcome, PrPreviews } from "./pr-previews.ts";
 import { errorMessage } from "../errors.ts";
 
 /** A pull_request delivery is tens of KB; this is headroom, not a ceiling to design for. */
-export const MAX_WEBHOOK_BYTES = 2 * 1024 * 1024;
+const MAX_WEBHOOK_BYTES = 2 * 1024 * 1024;
 const REMEMBERED_DELIVERIES = 2048;
 
 export type HooksDeps = {

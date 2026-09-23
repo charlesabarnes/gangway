@@ -34,12 +34,12 @@ import { containedIn, DIR_MODE, FILE_MODE } from "./source/types.ts";
 export type RuntimeChoice = PlanChoice;
 
 /** Pinned alongside the images in the catalogue: a bump is a deliberate, tested change. */
-export const WORKERD_VERSION = "1.20260922.1";
-export const ESBUILD_VERSION = "0.28.2";
+const WORKERD_VERSION = "1.20260922.1";
+const ESBUILD_VERSION = "0.28.2";
 /** workerd refuses a date later than its own release; this one is before it. */
-export const WORKERD_COMPAT_DATE = "2026-09-01";
+const WORKERD_COMPAT_DATE = "2026-09-01";
 /** PHP's composer, copied out of its official image when an upload has a composer.json. */
-export const COMPOSER_IMAGE = "composer:2";
+const COMPOSER_IMAGE = "composer:2";
 
 /** Directories the plan never needs to see: they are not the app, and can be huge. */
 const SKIP_DIRS = new Set([
@@ -53,7 +53,7 @@ const SKIP_DIRS = new Set([
 const MAX_WALK = 20_000;
 
 /** Every file under `dir`, relative and forward-slashed, bounded. Symlinks are not followed. */
-export async function listPaths(dir: string): Promise<string[]> {
+async function listPaths(dir: string): Promise<string[]> {
   const out: string[] = [];
   const walk = async (abs: string, rel: string): Promise<void> => {
     const entries = await readdir(abs, { withFileTypes: true }).catch(() => []);

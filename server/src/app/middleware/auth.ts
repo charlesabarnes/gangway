@@ -93,7 +93,7 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
 }
 
 /** The only path a workflow actor reaches. The route checks the project is its repository's. */
-export const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
+const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
 
 /** Marks the middleware so a test can prove no `/v1` route was registered without one. */
 export const PERMISSION_GUARD = Symbol("gangway.permission");

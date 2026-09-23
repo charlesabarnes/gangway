@@ -15,9 +15,9 @@ import { sha256 } from "../../util/hash.ts";
 
 const MODE = 0o700;
 /** Larger files are listed, not inlined: the editor is for source, not assets. */
-export const MAX_INLINE_BYTES = 512 * 1024;
+const MAX_INLINE_BYTES = 512 * 1024;
 /** Past this many entries the listing stops and says so. */
-export const MAX_LISTED = 2_000;
+const MAX_LISTED = 2_000;
 /** The directory gangway writes its generated build files to; never kept, never editable. */
 export const GENERATED_DIR = ".gangway";
 

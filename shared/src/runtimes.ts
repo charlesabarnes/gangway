@@ -10,9 +10,6 @@
 
 export const RUNTIME_IDS = ["static", "node", "bun", "deno", "workerd", "python", "php"] as const;
 export type RuntimeId = (typeof RUNTIME_IDS)[number];
-export const isRuntimeId = (s: string): s is RuntimeId =>
-  (RUNTIME_IDS as readonly string[]).includes(s);
-
 export type Runtime = {
   id: RuntimeId;
   name: string;

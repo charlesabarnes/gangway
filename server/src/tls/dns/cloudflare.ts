@@ -17,7 +17,7 @@ import {
   type DnsQueries,
 } from "./provider.ts";
 
-export const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
+const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 
 /** Narrower than `typeof fetch` so a plain function can be injected in tests. */
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;

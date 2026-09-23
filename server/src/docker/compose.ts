@@ -13,10 +13,10 @@
  */
 import { badRequest } from "../errors.ts";
 
-export const DEFAULT_DOCKER_BIN = "docker";
+const DEFAULT_DOCKER_BIN = "docker";
 
 /** Compose's own project-name rule. Anything else it would mangle or reject. */
-export const PROJECT_NAME_RE = /^[a-z0-9][a-z0-9_-]*$/;
+const PROJECT_NAME_RE = /^[a-z0-9][a-z0-9_-]*$/;
 
 export type ComposeSpec = {
   /** `-p` — namespaces containers, network and volumes; `down -v` removes all of it. */
@@ -163,7 +163,7 @@ export const NEUTRALISED_ENV = [
  * needs: to find its plugins and ssh, to read registry auth, to reach a TLS or SSH
  * daemon, to get through a proxy.
  */
-export const INHERITED_ENV = [
+const INHERITED_ENV = [
   "PATH",
   "HOME",
   "USER",

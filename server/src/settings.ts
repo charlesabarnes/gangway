@@ -9,13 +9,6 @@
  * labelled *managed by config* rather than silently failing when clicked.
  */
 import { z } from "zod";
-import { parseDuration } from "./util/duration.ts";
-
-/** A template's `idleAfter` / `x-gangway.idle` as milliseconds; 0 means never. */
-export function idleMs(text: string): number {
-  if (text === "never" || text === "0") return 0;
-  return parseDuration(text) ?? 0;
-}
 
 export type SettingSource = "config" | "database" | "default";
 

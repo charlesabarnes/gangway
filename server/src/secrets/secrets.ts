@@ -19,8 +19,8 @@ import type { SettingsStore } from "../settings.ts";
 import type { SecretBox } from "./box.ts";
 
 export const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-export const MAX_ENV_ENTRIES = 100;
-export const MAX_ENV_VALUE_BYTES = 16 * 1024;
+const MAX_ENV_ENTRIES = 100;
+const MAX_ENV_VALUE_BYTES = 16 * 1024;
 const GLOBAL_KEY = "secrets.global";
 
 export type SecretEntry = { value: string; level: SecretLevel };
@@ -37,7 +37,7 @@ export type SecretChange = {
 type Backend = { read(): string | null; write(sealed: string | null): void };
 
 /** One sealed map: the global one, or a repository's. */
-export class SecretMap {
+class SecretMap {
   readonly #backend: Backend;
   readonly #box: SecretBox;
   readonly #audit: { sink: AuditSink | undefined; action: AuditAction; target: string | null };
