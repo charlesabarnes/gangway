@@ -8,7 +8,8 @@ import { type Logger, redactString } from "../logger.ts";
 import { idleMs } from "../util/duration.ts";
 import { SingleFlight } from "../util/async.ts";
 import type { PreviewContext } from "./context.ts";
-import { StepFailed, waitAnswering, waitHealthy, type WaitTarget } from "./deploy.ts";
+import { StepFailed } from "./steps.ts";
+import { waitAnswering, waitHealthy, type WaitTarget } from "./wait.ts";
 
 export type IdleReport = {
   candidates: number;

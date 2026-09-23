@@ -83,9 +83,7 @@ export async function extractTarball(
   }
 }
 
-async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
-  const name = entry.header.name ?? "";
-
+function entrySegments(ctx: Context, name: string): string[] {
   if (name.includes("\u0000"))
     throw rejectTarball("invalid_path", "entry path contains a NUL byte", name);
   if (name.length === 0) throw rejectTarball("invalid_path", "entry path is empty");
@@ -104,7 +102,12 @@ async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
   if (segments.some((s) => s === "..")) {
     throw rejectTarball("path_traversal", "entry path contains a '..' segment", name);
   }
+  return segments;
+}
 
+async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
+  const name = entry.header.name ?? "";
+  const segments = entrySegments(ctx, name);
   const type = entry.header.type ?? "file";
 
   if (segments.length === 0) {

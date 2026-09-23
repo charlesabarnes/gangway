@@ -14,6 +14,102 @@ export type RenderedAddons = {
 // Healthchecks use TCP to 127.0.0.1: during initdb the images run a socket-only server that looks ready too early.
 const every = { interval: "1s", timeout: "3s", retries: 180, start_period: "90s" };
 
+type Sidecar = {
+  base: Record<string, unknown>;
+  service: string;
+  port: number;
+  pw: string;
+  volume: string;
+  primarySql: boolean;
+};
+
+type SidecarOut = { service: Record<string, unknown>; env: Record<string, string> };
+
+function postgres(s: Sidecar): SidecarOut {
+  const url = `postgres://${ADDON_USER}:${s.pw}@${s.service}:${s.port}/${ADDON_USER}`;
+  return {
+    service: {
+      ...s.base,
+      environment: {
+        POSTGRES_USER: ADDON_USER,
+        POSTGRES_PASSWORD: s.pw,
+        POSTGRES_DB: ADDON_USER,
+      },
+      // Postgres 18 keeps PGDATA in a versioned directory under this mount point.
+      volumes: [{ type: "volume", source: s.volume, target: "/var/lib/postgresql" }],
+      healthcheck: {
+        test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", ADDON_USER, "-d", ADDON_USER],
+        ...every,
+      },
+    },
+    env: {
+      ...(s.primarySql ? { DATABASE_URL: url } : {}),
+      POSTGRES_URL: url,
+      PGHOST: s.service,
+      PGPORT: String(s.port),
+      PGUSER: ADDON_USER,
+      PGPASSWORD: s.pw,
+      PGDATABASE: ADDON_USER,
+    },
+  };
+}
+
+function mysql(s: Sidecar): SidecarOut {
+  const url = `mysql://${ADDON_USER}:${s.pw}@${s.service}:${s.port}/${ADDON_USER}`;
+  return {
+    service: {
+      ...s.base,
+      environment: {
+        MYSQL_ROOT_PASSWORD: s.pw,
+        MYSQL_DATABASE: ADDON_USER,
+        MYSQL_USER: ADDON_USER,
+        MYSQL_PASSWORD: s.pw,
+      },
+      volumes: [{ type: "volume", source: s.volume, target: "/var/lib/mysql" }],
+      healthcheck: {
+        test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"],
+        ...every,
+      },
+    },
+    env: {
+      ...(s.primarySql ? { DATABASE_URL: url } : {}),
+      MYSQL_URL: url,
+      MYSQL_HOST: s.service,
+      MYSQL_PORT: String(s.port),
+      MYSQL_USER: ADDON_USER,
+      MYSQL_PASSWORD: s.pw,
+      MYSQL_DATABASE: ADDON_USER,
+    },
+  };
+}
+
+function redis(s: Sidecar): SidecarOut {
+  return {
+    service: {
+      ...s.base,
+      environment: { REDIS_PASSWORD: s.pw },
+      // $$ is compose's escape for a literal $, so the shell reads the variable.
+      command: ["sh", "-c", 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'],
+      volumes: [{ type: "volume", source: s.volume, target: "/data" }],
+      healthcheck: {
+        test: [
+          "CMD-SHELL",
+          'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
+        ],
+        ...every,
+      },
+    },
+    env: {
+      REDIS_URL: `redis://:${s.pw}@${s.service}:${s.port}/0`,
+      REDIS_HOST: s.service,
+      REDIS_PORT: String(s.port),
+      REDIS_PASSWORD: s.pw,
+    },
+  };
+}
+
+const SIDECARS: Record<AddonId, (s: Sidecar) => SidecarOut> = { postgres, mysql, redis };
+
 export function renderAddons(
   choices: readonly AddonChoice[],
   password: (id: AddonId) => string,
@@ -48,90 +144,16 @@ export function renderAddons(
       out.files[`${a.service}.Dockerfile.dockerignore`] = `*\n!${sqlSeed}\n`;
     }
     const base = { ...source, restart: "unless-stopped", stop_grace_period: "20s" };
-
-    switch (c.id) {
-      case "postgres": {
-        const url = `postgres://${ADDON_USER}:${pw}@${a.service}:${a.port}/${ADDON_USER}`;
-        out.services[a.service] = {
-          ...base,
-          environment: {
-            POSTGRES_USER: ADDON_USER,
-            POSTGRES_PASSWORD: pw,
-            POSTGRES_DB: ADDON_USER,
-          },
-          // Postgres 18 keeps PGDATA in a versioned directory under this mount point.
-          volumes: [{ type: "volume", source: volume, target: "/var/lib/postgresql" }],
-          healthcheck: {
-            test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", ADDON_USER, "-d", ADDON_USER],
-            ...every,
-          },
-        };
-        Object.assign(out.appEnv, {
-          ...(firstSql === c.id ? { DATABASE_URL: url } : {}),
-          POSTGRES_URL: url,
-          PGHOST: a.service,
-          PGPORT: String(a.port),
-          PGUSER: ADDON_USER,
-          PGPASSWORD: pw,
-          PGDATABASE: ADDON_USER,
-        });
-        break;
-      }
-      case "mysql": {
-        const url = `mysql://${ADDON_USER}:${pw}@${a.service}:${a.port}/${ADDON_USER}`;
-        out.services[a.service] = {
-          ...base,
-          environment: {
-            MYSQL_ROOT_PASSWORD: pw,
-            MYSQL_DATABASE: ADDON_USER,
-            MYSQL_USER: ADDON_USER,
-            MYSQL_PASSWORD: pw,
-          },
-          volumes: [{ type: "volume", source: volume, target: "/var/lib/mysql" }],
-          healthcheck: {
-            test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"],
-            ...every,
-          },
-        };
-        Object.assign(out.appEnv, {
-          ...(firstSql === c.id ? { DATABASE_URL: url } : {}),
-          MYSQL_URL: url,
-          MYSQL_HOST: a.service,
-          MYSQL_PORT: String(a.port),
-          MYSQL_USER: ADDON_USER,
-          MYSQL_PASSWORD: pw,
-          MYSQL_DATABASE: ADDON_USER,
-        });
-        break;
-      }
-      case "redis": {
-        out.services[a.service] = {
-          ...base,
-          environment: { REDIS_PASSWORD: pw },
-          // $$ is compose's escape for a literal $, so the shell reads the variable.
-          command: [
-            "sh",
-            "-c",
-            'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"',
-          ],
-          volumes: [{ type: "volume", source: volume, target: "/data" }],
-          healthcheck: {
-            test: [
-              "CMD-SHELL",
-              'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG',
-            ],
-            ...every,
-          },
-        };
-        Object.assign(out.appEnv, {
-          REDIS_URL: `redis://:${pw}@${a.service}:${a.port}/0`,
-          REDIS_HOST: a.service,
-          REDIS_PORT: String(a.port),
-          REDIS_PASSWORD: pw,
-        });
-        break;
-      }
-    }
+    const rendered = SIDECARS[c.id]({
+      base,
+      service: a.service,
+      port: a.port,
+      pw,
+      volume,
+      primarySql: firstSql === c.id,
+    });
+    out.services[a.service] = rendered.service;
+    Object.assign(out.appEnv, rendered.env);
   }
   return out;
 }

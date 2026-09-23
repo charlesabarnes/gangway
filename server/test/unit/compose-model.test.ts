@@ -2,12 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { parse as parseYaml } from "yaml";
 import {
   buildStack,
-  composeForImage,
   parseComposeModel,
-  planRoutes,
-  selectExposed,
   type ComposeModel,
 } from "../../src/previews/compose-model.ts";
+import { composeForImage } from "../../src/previews/compose-generate.ts";
+import { planRoutes, selectExposed } from "../../src/previews/compose-routes.ts";
 import { parseLabels } from "../../src/docker/labels.ts";
 import { parseDuration } from "../../src/util/duration.ts";
 
