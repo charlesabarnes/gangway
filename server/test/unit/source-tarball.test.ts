@@ -105,6 +105,22 @@ describe("extractTarball happy path", () => {
     expect(result.files).toBe(1);
   });
 
+  test("accepts gzip padded with zeros to a 10240-byte record, as macOS bsdtar writes to a pipe (`tar -czf - . | curl`)", async () => {
+    const dest = await scratch();
+    const compressed = new Uint8Array(await new Response(gzip(await tarBytes([{ header: { name: "a.txt" }, body: "padded" }]))).arrayBuffer());
+    const padded = new Uint8Array(10240);
+    padded.set(compressed);
+    expect((await extractTarball(padded, dest)).files).toBe(1);
+    expect(await readFile(path.join(dest, "a.txt"), "utf8")).toBe("padded");
+  });
+
+  test("a corrupt gzip stream is still the archive's fault", async () => {
+    const dest = await scratch();
+    const compressed = new Uint8Array(await new Response(gzip(await tarBytes([{ header: { name: "a.txt" }, body: "x".repeat(4000) }]))).arrayBuffer());
+    compressed.fill(0x55, 12, 40);
+    await expectReject(() => extractTarball(compressed, dest), "malformed_archive");
+  });
+
   test("creates the destination directory if it does not exist", async () => {
     const parent = await scratch();
     const dest = path.join(parent, "does", "not", "exist");

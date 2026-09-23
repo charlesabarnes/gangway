@@ -9,6 +9,8 @@
  */
 import { chmod, lstat, mkdir, open, realpath, symlink, link } from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { createGunzip } from "node:zlib";
 import { extract, type Extract, type ExtractEvents } from "tar-stream";
 
 /** tar-stream exports the entry stream only through its event map. */
@@ -259,8 +261,19 @@ async function* decompressed(source: TarballSource): AsyncGenerator<Uint8Array> 
   const head = first.value;
   const all = prepend(head, bytes);
   if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
-    const inflated = toReadable(all).pipeThrough(gunzip());
-    yield* inflated as unknown as AsyncIterable<Uint8Array>;
+    // node:zlib, not DecompressionStream: macOS's bsdtar pads what it writes to a pipe with
+    // zeros to a 10240-byte record AFTER the gzip stream (`tar -czf - . | curl`), and
+    // DecompressionStream fails that as "inflate failed" where zlib stops at the member's end.
+    const src = Readable.from(all);
+    const gz = createGunzip();
+    src.on("error", (e) => gz.destroy(e));
+    src.pipe(gz);
+    try {
+      for await (const chunk of gz) yield chunk as Uint8Array;
+    } finally {
+      src.destroy();
+      gz.destroy();
+    }
     return;
   }
   yield* all;
@@ -277,25 +290,6 @@ async function* iterate(source: TarballSource): AsyncGenerator<Uint8Array> {
 async function* prepend(head: Uint8Array, rest: AsyncGenerator<Uint8Array>): AsyncGenerator<Uint8Array> {
   yield head;
   yield* rest;
-}
-
-/** The DOM lib types DecompressionStream over BufferSource; we only ever feed it bytes. */
-function gunzip(): ReadableWritablePair<Uint8Array, Uint8Array> {
-  return new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>;
-}
-
-function toReadable(it: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
-  const iterator = it[Symbol.asyncIterator]();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const next = await iterator.next();
-      if (next.done) controller.close();
-      else controller.enqueue(next.value);
-    },
-    async cancel(reason) {
-      await iterator.return?.(reason);
-    },
-  });
 }
 
 function isErrno(err: unknown, code: string): boolean {
