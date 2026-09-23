@@ -125,187 +125,177 @@ const completeLabels = (l: ScannedLabels): CompleteLabels | null => {
 const reachabilityOf = (r: HostReachability): ((hostId: string) => boolean) =>
   typeof r === "boolean" ? () => r : (hostId) => r.get(hostId) ?? false;
 
-export const diff = (input: DiffInput): Action[] => {
-  const { now } = input;
-  const liveBuilds = input.liveBuilds ?? new Set<string>();
-  const reachable = reachabilityOf(input.hostReachable);
+type Pass = {
+  now: number;
+  liveBuilds: ReadonlySet<string>;
+  reachable: (hostId: string) => boolean;
+  previewsById: ReadonlyMap<string, Preview>;
+  routesByHostname: ReadonlyMap<string, Route>;
+  containersByHostname: ReadonlyMap<string, ScannedContainer[]>;
+  claimed: Set<string>;
+  matched: Set<string>;
+  settled: Set<string>;
+};
 
-  const leave = (
-    reason: LeaveAloneReason,
-    where: { hostname?: string | null; containerId?: string | null } = {},
-  ): Action => ({
+export const diff = (input: DiffInput): Action[] => {
+  const routes = [...input.dbRoutes].sort((a, b) => byString(a.hostname, b.hostname));
+  const containers = [...input.containers].sort((a, b) => byString(a.id, b.id));
+  const pass: Pass = {
+    now: input.now,
+    liveBuilds: input.liveBuilds ?? new Set<string>(),
+    reachable: reachabilityOf(input.hostReachable),
+    previewsById: new Map<string, Preview>(input.previews.map((p) => [p.id, p])),
+    routesByHostname: new Map<string, Route>(input.dbRoutes.map((r) => [r.hostname, r])),
+    containersByHostname: byHostname(containers),
+    claimed: new Set<string>(),
+    matched: new Set<string>(),
+    settled: new Set<string>(),
+  };
+
+  const actions: Action[] = [];
+  for (const route of routes) {
+    const action = routeAction(pass, route);
+    if (action) actions.push(action);
+  }
+  for (const c of containers) {
+    const action = containerAction(pass, c);
+    if (action) actions.push(action);
+  }
+  return actions;
+};
+
+function byString(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
+function byHostname(containers: readonly ScannedContainer[]): Map<string, ScannedContainer[]> {
+  const out = new Map<string, ScannedContainer[]>();
+  for (const c of containers) {
+    const h = c.labels.hostname;
+    if (h === undefined) continue;
+    const bucket = out.get(h);
+    if (bucket) bucket.push(c);
+    else out.set(h, [c]);
+  }
+  return out;
+}
+
+function leave(
+  at: number,
+  reason: LeaveAloneReason,
+  where: { hostname?: string | null; containerId?: string | null } = {},
+): Action {
+  return {
     kind: "LeaveAlone",
-    at: now,
+    at,
     reason,
     hostname: where.hostname ?? null,
     containerId: where.containerId ?? null,
     warn: WARNING_REASONS.has(reason),
-  });
+  };
+}
 
-  const routes = [...input.dbRoutes].sort((a, b) =>
-    a.hostname < b.hostname ? -1 : a.hostname > b.hostname ? 1 : 0,
+function routeAction(p: Pass, route: Route): Action | null {
+  const preview = p.previewsById.get(route.previewId);
+  if (!preview) return leave(p.now, "unknown-preview", { hostname: route.hostname });
+  if (!p.reachable(preview.hostId)) {
+    // An unreachable host is not an empty host: decide nothing from missing containers.
+    return leave(p.now, "host-unreachable", { hostname: route.hostname });
+  }
+
+  // Same hostname under a different preview is a collision, not a match.
+  const candidate = (p.containersByHostname.get(route.hostname) ?? []).find(
+    (c) => c.state === "running" && c.labels.previewId === route.previewId,
   );
-  const containers = [...input.containers].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-
-  const previewsById = new Map<string, Preview>(input.previews.map((p) => [p.id, p]));
-  const routesByHostname = new Map<string, Route>(input.dbRoutes.map((r) => [r.hostname, r]));
-
-  const containersByHostname = new Map<string, ScannedContainer[]>();
-  for (const c of containers) {
-    const h = c.labels.hostname;
-    if (h === undefined) continue;
-    const bucket = containersByHostname.get(h);
-    if (bucket) bucket.push(c);
-    else containersByHostname.set(h, [c]);
+  if (candidate) {
+    p.matched.add(candidate.id);
+    return upstreamAction(p.now, route, candidate);
   }
 
-  const actions: Action[] = [];
-  const claimed = new Set<string>();
-  const matched = new Set<string>();
-  const settled = new Set<string>();
+  if (p.settled.has(preview.id)) return null;
+  return missingContainerAction(p, route, preview);
+}
 
-  for (const route of routes) {
-    const preview = previewsById.get(route.previewId);
-    if (!preview) {
-      actions.push(leave("unknown-preview", { hostname: route.hostname }));
-      continue;
-    }
-    if (!reachable(preview.hostId)) {
-      // An unreachable host is not an empty host: decide nothing from missing containers.
-      actions.push(leave("host-unreachable", { hostname: route.hostname }));
-      continue;
-    }
+function upstreamAction(now: number, route: Route, candidate: ScannedContainer): Action {
+  const where = { hostname: route.hostname, containerId: candidate.id };
+  if (candidate.publishedPort === null) return leave(now, "container-port-unknown", where);
+  if (
+    candidate.publishedPort === route.upstream.port &&
+    candidate.upstreamHost === route.upstream.host
+  )
+    return leave(now, "in-sync", where);
+  return {
+    kind: "UpdateUpstream",
+    at: now,
+    hostname: route.hostname,
+    previewId: route.previewId,
+    containerId: candidate.id,
+    from: { host: route.upstream.host, port: route.upstream.port },
+    to: { host: candidate.upstreamHost, port: candidate.publishedPort },
+  };
+}
 
-    // Same hostname under a different preview is a collision, not a match.
-    const candidate = (containersByHostname.get(route.hostname) ?? []).find(
-      (c) => c.state === "running" && c.labels.previewId === route.previewId,
-    );
-
-    if (candidate) {
-      matched.add(candidate.id);
-      if (candidate.publishedPort === null) {
-        actions.push(
-          leave("container-port-unknown", { hostname: route.hostname, containerId: candidate.id }),
-        );
-      } else if (
-        candidate.publishedPort === route.upstream.port &&
-        candidate.upstreamHost === route.upstream.host
-      ) {
-        actions.push(leave("in-sync", { hostname: route.hostname, containerId: candidate.id }));
-      } else {
-        actions.push({
-          kind: "UpdateUpstream",
-          at: now,
-          hostname: route.hostname,
-          previewId: route.previewId,
-          containerId: candidate.id,
-          from: { host: route.upstream.host, port: route.upstream.port },
-          to: { host: candidate.upstreamHost, port: candidate.publishedPort },
-        });
-      }
-      continue;
-    }
-
-    if (settled.has(preview.id)) continue;
-
-    if (preview.state === "building") {
-      if (liveBuilds.has(preview.id)) {
-        actions.push(leave("build-in-flight", { hostname: route.hostname }));
-      } else {
-        settled.add(preview.id);
-        actions.push({
-          kind: "MarkFailed",
-          at: now,
-          previewId: preview.id,
-          error: "build did not survive a gangway restart: no container and no live build",
-        });
-      }
-      continue;
-    }
-    if (preview.state === "asleep") {
-      actions.push(leave("already-asleep", { hostname: route.hostname }));
-      continue;
-    }
-    if (
-      preview.state === "failed" ||
-      preview.state === "destroying" ||
-      preview.state === "destroyed"
-    ) {
-      actions.push(leave("preview-inactive", { hostname: route.hostname }));
-      continue;
-    }
-    settled.add(preview.id);
-    actions.push({ kind: "MarkAsleep", at: now, previewId: preview.id });
+function missingContainerAction(p: Pass, route: Route, preview: Preview): Action {
+  const where = { hostname: route.hostname };
+  switch (preview.state) {
+    case "building":
+      if (p.liveBuilds.has(preview.id)) return leave(p.now, "build-in-flight", where);
+      p.settled.add(preview.id);
+      return {
+        kind: "MarkFailed",
+        at: p.now,
+        previewId: preview.id,
+        error: "build did not survive a gangway restart: no container and no live build",
+      };
+    case "asleep":
+      return leave(p.now, "already-asleep", where);
+    case "failed":
+    case "destroying":
+    case "destroyed":
+      return leave(p.now, "preview-inactive", where);
+    default:
+      p.settled.add(preview.id);
+      return { kind: "MarkAsleep", at: p.now, previewId: preview.id };
   }
+}
 
-  for (const c of containers) {
-    const labelHostname = c.labels.hostname ?? null;
+function containerAction(p: Pass, c: ScannedContainer): Action | null {
+  const labelHostname = c.labels.hostname ?? null;
+  const where = { hostname: labelHostname, containerId: c.id };
+  if (!p.reachable(c.hostId)) return leave(p.now, "host-unreachable", where);
+  if (p.matched.has(c.id)) return null;
+  if ((c.labels.version ?? GANGWAY_LABEL_VERSION) > GANGWAY_LABEL_VERSION)
+    return leave(p.now, "newer-gangway", where);
+  if (c.state !== "running") return leave(p.now, "container-exited", where);
 
-    if (!reachable(c.hostId)) {
-      actions.push(leave("host-unreachable", { hostname: labelHostname, containerId: c.id }));
-      continue;
-    }
-    if (matched.has(c.id)) continue;
+  const labels = completeLabels(c.labels);
+  if (!labels) return stopOrphan(p.now, c, labelHostname, "incomplete-labels");
+  if (p.routesByHostname.has(labels.hostname) || p.claimed.has(labels.hostname))
+    return stopOrphan(p.now, c, labels.hostname, "hostname-conflict");
+  if (c.publishedPort === null) return stopOrphan(p.now, c, labels.hostname, "unroutable");
 
-    if ((c.labels.version ?? GANGWAY_LABEL_VERSION) > GANGWAY_LABEL_VERSION) {
-      actions.push(leave("newer-gangway", { hostname: labelHostname, containerId: c.id }));
-      continue;
-    }
-    if (c.state !== "running") {
-      actions.push(leave("container-exited", { hostname: labelHostname, containerId: c.id }));
-      continue;
-    }
+  p.claimed.add(labels.hostname);
+  return {
+    kind: "AdoptRoute",
+    at: p.now,
+    containerId: c.id,
+    hostId: c.hostId,
+    hostname: labels.hostname,
+    previewId: labels.previewId,
+    service: labels.service,
+    containerPort: labels.containerPort,
+    upstream: { host: c.upstreamHost, port: c.publishedPort },
+    primary: labels.primary,
+    visibility: labels.visibility,
+  };
+}
 
-    const labels = completeLabels(c.labels);
-    if (!labels) {
-      actions.push({
-        kind: "StopOrphan",
-        at: now,
-        containerId: c.id,
-        hostId: c.hostId,
-        hostname: labelHostname,
-        reason: "incomplete-labels",
-      });
-      continue;
-    }
-    if (routesByHostname.has(labels.hostname) || claimed.has(labels.hostname)) {
-      actions.push({
-        kind: "StopOrphan",
-        at: now,
-        containerId: c.id,
-        hostId: c.hostId,
-        hostname: labels.hostname,
-        reason: "hostname-conflict",
-      });
-      continue;
-    }
-    if (c.publishedPort === null) {
-      actions.push({
-        kind: "StopOrphan",
-        at: now,
-        containerId: c.id,
-        hostId: c.hostId,
-        hostname: labels.hostname,
-        reason: "unroutable",
-      });
-      continue;
-    }
-
-    claimed.add(labels.hostname);
-    actions.push({
-      kind: "AdoptRoute",
-      at: now,
-      containerId: c.id,
-      hostId: c.hostId,
-      hostname: labels.hostname,
-      previewId: labels.previewId,
-      service: labels.service,
-      containerPort: labels.containerPort,
-      upstream: { host: c.upstreamHost, port: c.publishedPort },
-      primary: labels.primary,
-      visibility: labels.visibility,
-    });
-  }
-
-  return actions;
-};
+function stopOrphan(
+  at: number,
+  c: ScannedContainer,
+  hostname: string | null,
+  reason: StopOrphanReason,
+): Action {
+  return { kind: "StopOrphan", at, containerId: c.id, hostId: c.hostId, hostname, reason };
+}

@@ -24,37 +24,11 @@ export function settingsRoutes(
     const { values } = SetSettingsSchema.parse(body);
     const actor = c.get("actor");
 
-    const writes: { key: string; value: unknown; secret: boolean; old: unknown }[] = [];
-    for (const [key, raw] of Object.entries(values)) {
-      const def = SETTINGS_BY_KEY.get(key);
-      if (!def) throw unprocessable(`"${key}" is not a setting`, { key });
-      // The lockout guard lives on /v1/surfaces; this route must not bypass it.
-      if (key.startsWith("surfaces."))
-        throw conflict(`"${key}" is changed through PUT /v1/surfaces`, { key });
-      if (key.startsWith("previews.password."))
-        throw conflict(`"${key}" is changed through PUT /v1/settings/preview-password`, { key });
-      if (settings.isManagedByConfig(key))
-        throw conflict(`"${key}" is managed by config and cannot be changed at runtime`, { key });
-      const parsed = def.schema.safeParse(raw);
-      if (!parsed.success)
-        throw unprocessable(`"${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`, { key });
-      if (
-        key.startsWith("templates.default.") &&
-        templates &&
-        !templates.get(parsed.data as string)
-      )
-        throw unprocessable(`"${key}": no such template: ${String(parsed.data)}`, { key });
-      writes.push({
-        key,
-        value: parsed.data,
-        secret: def.secret,
-        old: settings.effective(def).value,
-      });
-    }
+    const writes = Object.entries(values).map(([key, raw]) =>
+      validateWrite(settings, templates, key, raw),
+    );
     for (const w of writes) settings.set(SETTINGS_BY_KEY.get(w.key)!, w.value);
 
-    const shown = (w: (typeof writes)[number], v: unknown) =>
-      w.secret ? (v === "" ? "[unset]" : "[set]") : v;
     audit.record(actor, "settings.changed", null, {
       old: Object.fromEntries(writes.map((w) => [w.key, shown(w, w.old)])),
       new: Object.fromEntries(writes.map((w) => [w.key, shown(w, w.value)])),
@@ -91,19 +65,49 @@ export function settingsRoutes(
     }
     settings.set(SETTINGS.previewPasswordMode, mode);
     if (login !== undefined) settings.set(SETTINGS.previewPasswordLogin, login);
+    const hadShown = had === null ? "[unset]" : "[set]";
     audit.record(c.get("actor"), "settings.changed", null, {
       old: {
         [SETTINGS.previewPasswordLogin.key]: oldLogin,
         [SETTINGS.previewPasswordMode.key]: old,
-        [SETTINGS.previewPasswordShared.key]: had === null ? "[unset]" : "[set]",
+        [SETTINGS.previewPasswordShared.key]: hadShown,
       },
       new: {
         [SETTINGS.previewPasswordLogin.key]: login ?? oldLogin,
         [SETTINGS.previewPasswordMode.key]: mode,
-        [SETTINGS.previewPasswordShared.key]:
-          value !== undefined ? "[changed]" : had === null ? "[unset]" : "[set]",
+        [SETTINGS.previewPasswordShared.key]: value !== undefined ? "[changed]" : hadShown,
       },
     });
     return c.json({ settings: settings.view() });
   });
+}
+
+type SettingWrite = { key: string; value: unknown; secret: boolean; old: unknown };
+
+function validateWrite(
+  settings: Settings,
+  templates: Pick<TemplatesRepo, "get"> | undefined,
+  key: string,
+  raw: unknown,
+): SettingWrite {
+  const def = SETTINGS_BY_KEY.get(key);
+  if (!def) throw unprocessable(`"${key}" is not a setting`, { key });
+  // The lockout guard lives on /v1/surfaces; this route must not bypass it.
+  if (key.startsWith("surfaces."))
+    throw conflict(`"${key}" is changed through PUT /v1/surfaces`, { key });
+  if (key.startsWith("previews.password."))
+    throw conflict(`"${key}" is changed through PUT /v1/settings/preview-password`, { key });
+  if (settings.isManagedByConfig(key))
+    throw conflict(`"${key}" is managed by config and cannot be changed at runtime`, { key });
+  const parsed = def.schema.safeParse(raw);
+  if (!parsed.success)
+    throw unprocessable(`"${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`, { key });
+  if (key.startsWith("templates.default.") && templates && !templates.get(parsed.data as string))
+    throw unprocessable(`"${key}": no such template: ${String(parsed.data)}`, { key });
+  return { key, value: parsed.data, secret: def.secret, old: settings.effective(def).value };
+}
+
+function shown(w: SettingWrite, v: unknown): unknown {
+  if (!w.secret) return v;
+  return v === "" ? "[unset]" : "[set]";
 }
