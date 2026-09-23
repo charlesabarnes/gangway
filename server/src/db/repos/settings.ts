@@ -38,9 +38,7 @@ export class SqliteSettingsStore implements SettingsStore {
     )) {
       try {
         out[r.key] = JSON.parse(r.value_json);
-      } catch {
-        // skip a corrupt row
-      }
+      } catch {}
     }
     return out;
   }

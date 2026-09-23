@@ -4,7 +4,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["web/**", "state/**", "docs/**", "**/dist/**", "eslint.config.js"] },
+  { ignores: ["web/**", "state/**", "docs/**", ".claude/**", "**/dist/**", "eslint.config.js"] },
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {
@@ -14,6 +14,7 @@ export default tseslint.config(
     },
     rules: {
       "no-duplicate-imports": "error",
+      "no-empty": ["error", { allowEmptyCatch: true }],
       "max-lines": ["warn", { max: 400, skipBlankLines: true, skipComments: true }],
       "max-lines-per-function": ["warn", { max: 80, skipBlankLines: true, skipComments: true }],
       complexity: ["warn", 20],

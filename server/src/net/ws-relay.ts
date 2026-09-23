@@ -35,23 +35,17 @@ export const wsRelay = {
     upstream.onmessage = (ev) => {
       try {
         ws.send(ev.data as string | ArrayBuffer);
-      } catch {
-        // client gone
-      }
+      } catch {}
     };
     upstream.onclose = (ev) => {
       try {
         ws.close(ev.code === 1005 ? 1000 : ev.code, ev.reason);
-      } catch {
-        // already closed
-      }
+      } catch {}
     };
     upstream.onerror = () => {
       try {
         ws.close(1011, "upstream error");
-      } catch {
-        // already closed
-      }
+      } catch {}
     };
   },
 
@@ -76,9 +70,7 @@ export const wsRelay = {
     const out = code === 1005 || code === 1006 ? 1000 : code;
     try {
       relay.upstream.close(out, reason);
-    } catch {
-      // already closed
-    }
+    } catch {}
     relays.delete(ws);
   },
 };

@@ -8,9 +8,7 @@ export function readJson(text: string | undefined, name: string, reasons: Reason
   try {
     const v = JSON.parse(name.endsWith("c") ? text.replace(/^\s*\/\/.*$/gm, "") : text) as unknown;
     if (v && typeof v === "object" && !Array.isArray(v)) return v as Json;
-  } catch {
-    // reported below
-  }
+  } catch {}
   reasons.push({
     level: "error",
     found: `${name} is not valid JSON`,

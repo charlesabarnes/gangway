@@ -79,16 +79,12 @@ export class NodeHttpUpstream implements Upstream {
               cres.on("end", () => {
                 try {
                   c.close();
-                } catch {
-                  // already closed
-                }
+                } catch {}
               });
               cres.on("error", (e) => {
                 try {
                   c.error(e);
-                } catch {
-                  // already errored
-                }
+                } catch {}
               });
             },
             cancel() {

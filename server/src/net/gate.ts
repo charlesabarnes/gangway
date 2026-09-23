@@ -64,9 +64,7 @@ function foreignOrigin(req: Request, hostname: string): boolean {
   let host = "";
   try {
     host = new URL(origin).hostname;
-  } catch {
-    // unparseable: refused below
-  }
+  } catch {}
   return host !== hostname;
 }
 

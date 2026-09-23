@@ -309,9 +309,7 @@ export function parseComposePs(stdout: string): ComposePsEntry[] {
     try {
       const arr: unknown = JSON.parse(text);
       if (Array.isArray(arr)) rows.push(...(arr as unknown[]));
-    } catch {
-      // fall through to NDJSON
-    }
+    } catch {}
   }
   if (rows.length === 0) {
     for (const line of text.split("\n")) {
@@ -319,9 +317,7 @@ export function parseComposePs(stdout: string): ComposePsEntry[] {
       if (t === "" || !t.startsWith("{")) continue;
       try {
         rows.push(JSON.parse(t));
-      } catch {
-        // a stray log line, not a row
-      }
+      } catch {}
     }
   }
   return rows

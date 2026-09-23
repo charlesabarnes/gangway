@@ -210,9 +210,7 @@ export class McpSurface {
             reader.cancel("the MCP surface was switched off").catch(() => {});
             try {
               controller.error(new Error("the MCP surface was switched off"));
-            } catch {
-              // already closed
-            }
+            } catch {}
           },
           { once: true },
         );
@@ -228,9 +226,7 @@ export class McpSurface {
           done();
           try {
             controller.error(err);
-          } catch {
-            // already errored
-          }
+          } catch {}
         }
       },
       cancel: (reason) => {

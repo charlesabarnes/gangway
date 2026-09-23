@@ -2,6 +2,7 @@ web/
 state/
 docs/
 spec.md
+.claude/
 bun.lock
 # Applied migrations are checksummed: never reformat them.
 server/migrations/

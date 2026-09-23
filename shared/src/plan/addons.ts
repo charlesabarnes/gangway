@@ -106,9 +106,7 @@ function npmDependencies(pkgText: string | undefined): Set<string> {
     const pkg = JSON.parse(pkgText) as Record<string, unknown>;
     for (const k of ["dependencies", "devDependencies"])
       for (const d of Object.keys(pkg[k] ?? {})) npm.add(d);
-  } catch {
-    // the runtime's own read reports it
-  }
+  } catch {}
   return npm;
 }
 
@@ -130,8 +128,6 @@ function composerDependencies(composerText: string | undefined): Set<string> {
       (JSON.parse(composerText ?? "{}") as Record<string, unknown>)["require"] ?? {},
     ))
       composer.add(d);
-  } catch {
-    // unreadable composer.json: no suggestions from it
-  }
+  } catch {}
   return composer;
 }
