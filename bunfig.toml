@@ -3,4 +3,4 @@ preload = ["./server/test/setup.ts"]
 timeout = 30000
 # web/ is an Angular project with its own runner (vitest, via `ng test`). Bun must not
 # try to run its specs: they need the Angular compiler and fail without it.
-pathIgnorePatterns = ["web/**", "spike/**"]
+pathIgnorePatterns = ["web/**"]
