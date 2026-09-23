@@ -235,11 +235,12 @@ describe('source labels', () => {
 });
 
 describe('PreviewList: passwords (ADR-0023)', () => {
-  it('a lock on the rows behind a password, saying when being signed in skips it', async () => {
-    const r = await open({ previews: [p('open'), p('locked', { password: 'set', passwordActive: true }), p('mine', { password: 'generated', passwordActive: true, signedInSkipsPassword: true })] });
+  it('a lock on the protected rows, naming who can open them', async () => {
+    const r = await open({ previews: [p('open'), p('locked', { password: 'set', access: 'password' }), p('mine', { password: 'generated', access: 'either' }), p('team', { passwordLogin: 'only', access: 'signed-in' })] });
     const badge = (id: string) => r.fixture.nativeElement.querySelector(`[data-id="${id}"] [data-testid="password-badge"]`)?.textContent?.trim() ?? null;
     expect(badge(p('open').id)).toBeNull();
     expect(badge(p('locked').id)).toBe('Password');
-    expect(badge(p('mine').id)).toBe('Password · you skip it');
+    expect(badge(p('mine').id)).toBe('Password or gangway login');
+    expect(badge(p('team').id)).toBe('Gangway users');
   });
 });

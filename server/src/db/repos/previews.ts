@@ -49,15 +49,15 @@ export class PreviewsRepo {
     this.#db.run(
       `INSERT INTO previews (id, project, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner,
-                             password_mode, password_hash, password_salt, password_login, created_at, updated_at)
+                             password_mode, password_hash, password_salt, password_login, signed_in_only, created_at, updated_at)
        VALUES ($id, $project, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner,
-               $pwMode, $pwHash, $pwSalt, $pwLogin, $now, $now)`,
+               $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $now, $now)`,
       {
         id: p.id, project: p.project, host_id: p.hostId, kind: p.kind ?? "preview",
         state: p.state, source_kind, source_json, visibility: p.visibility,
         ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, projectId: p.projectId ?? null, owner: p.owner ?? null,
-        pwMode: p.password?.mode ?? "inherit", pwHash: p.password?.secret?.hash ?? null, pwSalt: p.password?.secret?.salt ?? null, pwLogin: p.passwordLogin ?? "inherit", now,
+        pwMode: p.password?.mode ?? "inherit", pwHash: p.password?.secret?.hash ?? null, pwSalt: p.password?.secret?.salt ?? null, pwLogin: p.passwordLogin === "only" || p.passwordLogin === undefined ? "inherit" : p.passwordLogin, only: p.passwordLogin === "only" ? 1 : 0, now,
       },
     );
     return this.get(p.id)!;
@@ -89,8 +89,10 @@ export class PreviewsRepo {
     );
   }
 
+  /** `only` is its own column (migration 0013); anything else clears it and sets the rule. */
   setPasswordLogin(id: string, login: PasswordLogin): void {
-    this.#db.run("UPDATE previews SET password_login = $login, updated_at = $now WHERE id = $id", { id, login, now: this.#now() });
+    if (login === "only") this.#db.run("UPDATE previews SET signed_in_only = 1, updated_at = $now WHERE id = $id", { id, now: this.#now() });
+    else this.#db.run("UPDATE previews SET signed_in_only = 0, password_login = $login, updated_at = $now WHERE id = $id", { id, login, now: this.#now() });
   }
 
   getByProject(project: string): Preview | undefined {

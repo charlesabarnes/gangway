@@ -410,12 +410,25 @@ test("ADR-0023: a password preview whose login rule is on lets a signed-in user 
 
   // 6. The server-wide switch starts OFF: an `inherit` preview asks everyone until it is turned on.
   const inherited = await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: "inherit" }) });
-  expect(((await inherited.json()) as { preview: Record<string, unknown> }).preview).toMatchObject({ passwordActive: true, signedInSkipsPassword: false });
+  expect(((await inherited.json()) as { preview: Record<string, unknown> }).preview).toMatchObject({ access: "password" });
   expect((await raw(SHARED, "/cookie")).status).toBe(401);
   await client(running)("api.preview.localhost", "/v1/settings/preview-password", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "off", login: true }) });
   expect((await raw(SHARED, "/cookie")).status).toBe(302);
   const now = await client(running)("api.preview.localhost", `/v1/previews/${id}`);
-  expect(((await now.json()) as { preview: Record<string, unknown> }).preview).toMatchObject({ passwordActive: true, signedInSkipsPassword: true });
+  expect(((await now.json()) as { preview: Record<string, unknown> }).preview).toMatchObject({ access: "either" });
+
+  // 7. Only people signed in: a stranger is sent to LOG IN (not the form), the admin walks in.
+  const only = await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: "only" }) });
+  expect(((await only.json()) as { preview: Record<string, unknown> }).preview).toMatchObject({ passwordLogin: "only", access: "signed-in" });
+  const toLogin = await raw(APP, `${toGate.pathname}${toGate.search}`);
+  expect(toLogin.headers.get("location")).toStartWith("/login?returnUrl=");
+  const adminIn = await raw(APP, `${toGate.pathname}${toGate.search}`, { headers: { cookie: session } });
+  const adminTicket = new URL(adminIn.headers.get("location")!);
+  expect(adminTicket.pathname).toBe("/__gangway/auth");
+  const adminCookie = (await raw(SHARED, `${adminTicket.pathname}${adminTicket.search}`)).headers.get("set-cookie")!.split(";")[0]!;
+  expect((await raw(SHARED, "/cookie", { headers: { cookie: adminCookie } })).status).toBe(200);
+  // ...and the password no longer opens it.
+  expect((await raw(SHARED, "/__gangway/password", { method: "POST", headers: { origin: `https://${SHARED}:${port}`, "content-type": "application/x-www-form-urlencoded" }, body: "password=pw&to=/" })).status).toBe(404);
 }, 30_000);
 
 test("T53: the hooks surface is dispatched -- a signed delivery is 202'd on hooks.<base>, an unsigned one 401'd, and nothing else answers there", async () => {

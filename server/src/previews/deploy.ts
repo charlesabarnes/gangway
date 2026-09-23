@@ -375,7 +375,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     visibility = input.visibility ?? owner?.visibility ?? model.x.visibility ?? template.visibility;
     // A private preview is opened by logging in to the UI (net/gate.ts). With the UI switched
     // off there is no login page to send anyone to: say so now, not with a dead link later.
-    if (visibility === "private" && ctx.privateAvailable?.() === false) {
+    if ((visibility === "private" || input.passwordLogin === "only") && ctx.privateAvailable?.() === false) {
       throw unprocessable("private previews need the web UI, which is switched off (surfaces.ui); use unlisted instead");
     }
 

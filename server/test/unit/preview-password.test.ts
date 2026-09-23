@@ -16,7 +16,7 @@ import { Passwords } from "../../src/auth/password.ts";
 import { Logger } from "../../src/logger.ts";
 import { PASSWORD_COOKIE, PreviewGate, stripGangwayCookies } from "../../src/net/gate.ts";
 import { deploy } from "../../src/previews/deploy.ts";
-import { generatePassword, passwordState } from "../../src/previews/password.ts";
+import { generatePassword, previewAccess } from "../../src/previews/password.ts";
 import type { DefaultPasswordMode } from "../../../shared/src/domain.ts";
 import type { EntryPassword, RouteEntry } from "../../src/routing/table.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
@@ -224,20 +224,67 @@ describe("signed in instead of the password", () => {
   });
 });
 
-describe("what the UI is told: is a password in effect, and does a login skip it", () => {
+describe("who can open it, as the UI is told", () => {
   const deps = (o: { mode?: DefaultPasswordMode; shared?: boolean; login?: boolean } = {}) =>
     ({ passwords, defaultMode: () => o.mode ?? "off", sharedSet: () => o.shared ?? false, loginDefault: () => o.login ?? false });
-  test("its own password is always in effect; a login skips it only when told to", () => {
-    expect(passwordState(deps(), { password: "set", passwordLogin: "inherit" })).toEqual({ passwordActive: true, signedInSkipsPassword: false });
-    expect(passwordState(deps({ login: true }), { password: "generated", passwordLogin: "inherit" })).toEqual({ passwordActive: true, signedInSkipsPassword: true });
-    expect(passwordState(deps({ login: true }), { password: "set", passwordLogin: "off" })).toEqual({ passwordActive: true, signedInSkipsPassword: false });
-    expect(passwordState(deps(), { password: "set", passwordLogin: "on" })).toEqual({ passwordActive: true, signedInSkipsPassword: true });
+  const pub = { visibility: "unlisted" as const };
+  test("a password of its own means the password, for everyone, unless the login rule says either", () => {
+    expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "inherit" })).toBe("password");
+    expect(previewAccess(deps({ login: true }), { ...pub, password: "generated", passwordLogin: "inherit" })).toBe("either");
+    expect(previewAccess(deps({ login: true }), { ...pub, password: "set", passwordLogin: "off" })).toBe("password");
+    expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "on" })).toBe("either");
   });
-  test("inherit is in effect only while the default is shared AND a shared password exists; none never is", () => {
-    expect(passwordState(deps({ mode: "shared", shared: true }), { password: "inherit", passwordLogin: "inherit" }).passwordActive).toBe(true);
-    expect(passwordState(deps({ mode: "shared", shared: false }), { password: "inherit", passwordLogin: "inherit" }).passwordActive).toBe(false);
-    expect(passwordState(deps({ mode: "generated", shared: true }), { password: "inherit", passwordLogin: "inherit" }).passwordActive).toBe(false);
-    expect(passwordState(deps({ mode: "shared", shared: true, login: true }), { password: "none", passwordLogin: "on" })).toEqual({ passwordActive: false, signedInSkipsPassword: false });
+  test("only: signed-in people, whatever the password", () => {
+    expect(previewAccess(deps(), { ...pub, password: "set", passwordLogin: "only" })).toBe("signed-in");
+    expect(previewAccess(deps(), { ...pub, password: "none", passwordLogin: "only" })).toBe("signed-in");
+  });
+  test("inherit is a password only while the default is shared AND one is set; none is open", () => {
+    expect(previewAccess(deps({ mode: "shared", shared: true }), { ...pub, password: "inherit", passwordLogin: "inherit" })).toBe("password");
+    expect(previewAccess(deps({ mode: "shared", shared: false }), { ...pub, password: "inherit", passwordLogin: "inherit" })).toBe("open");
+    expect(previewAccess(deps({ mode: "generated", shared: true }), { ...pub, password: "inherit", passwordLogin: "inherit" })).toBe("open");
+    expect(previewAccess(deps({ mode: "shared", shared: true }), { ...pub, password: "none", passwordLogin: "on" })).toBe("open");
+  });
+  test("private visibility is signed-in, plus the password unless a login skips it", () => {
+    expect(previewAccess(deps(), { visibility: "private", password: "none", passwordLogin: "inherit" })).toBe("signed-in");
+    expect(previewAccess(deps(), { visibility: "private", password: "set", passwordLogin: "off" })).toBe("signed-in+password");
+    expect(previewAccess(deps(), { visibility: "private", password: "set", passwordLogin: "on" })).toBe("signed-in");
+  });
+});
+
+describe("only people signed in to gangway (passwordLogin only)", () => {
+  test("the gate treats it as private: a bounce to app to log in, never the password form, and the password does not open it", async () => {
+    const gate = new PreviewGate({ key: randomBytes(32), appOrigin: () => "https://app.preview.example.dev", passwords });
+    const e = entry({ mode: "own", ...(await passwords.hash("pw")) }, { passwordLogin: "only" });
+    const res = gate.handle(e, new Request(`https://${HOST}/x`, { headers: { "sec-fetch-mode": "navigate" } })) as Response;
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toContain("/v1/auth/gate");
+    expect(gate.gateable(e)).toEqual({ private: true, passwordSkippable: false });
+    const post = await gate.handle(e, new Request(`https://${HOST}/__gangway/password`, { method: "POST", headers: { origin: `https://${HOST}`, "content-type": "application/x-www-form-urlencoded" }, body: "password=pw&to=/" }));
+    expect(post!.status).toBe(404);
+    const cookie = gate.handle(e, new Request(`https://${HOST}/__gangway/auth?ticket=${encodeURIComponent(gate.issueTicket(e))}&to=/`)) as Response;
+    expect(gate.check(e, new Request(`https://${HOST}/`, { headers: { cookie: cookie.headers.get("set-cookie")!.split(";")[0]! } }))).toBeNull();
+  });
+
+  test("stored in its own column: switching away and back keeps the password and the earlier rule", async () => {
+    const t = withPasswords();
+    const { preview, done } = await deploy(t.ctx, { actor: ACTOR, name: "only", visibility: "public", source: t.image, password: { mode: "set", value: "pw" }, passwordLogin: "only" });
+    await done;
+    expect(preview.passwordLogin).toBe("only");
+    expect(t.table.forPreview(preview.id)[0]!.passwordLogin).toBe("only");
+    t.previews.setPasswordLogin(preview.id, "on");
+    expect(t.previews.get(preview.id)!.passwordLogin).toBe("on");
+    t.previews.setPasswordLogin(preview.id, "only");
+    t.previews.setPasswordLogin(preview.id, "off");
+    expect(t.previews.get(preview.id)!.passwordLogin).toBe("off");
+    expect(t.previews.passwordOf(preview.id).mode).toBe("set");
+  });
+
+  test("refused with the web UI off: there would be no login page", async () => {
+    const t = withPasswords();
+    t.ctx.privateAvailable = () => false;
+    const p = await t.deployed("x");
+    const { setPreviewPassword } = await import("../../src/previews/password.ts");
+    await expect(setPreviewPassword(t.ctx, { actor: ACTOR, previewId: p.id, login: "only" })).rejects.toThrow(/web UI/);
   });
 });
 

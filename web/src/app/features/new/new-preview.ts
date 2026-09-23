@@ -165,19 +165,20 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
             <label class="text-xs text-neutral-500 sm:col-span-2">Template<select [class]="field" (change)="template.set($any($event.target).value)" data-testid="template">
               <option value="">the default for manual deploys</option>
               @for (t of templates(); track t.id) { <option [value]="t.id">{{ t.name }}</option> }</select></label>
-            <label class="text-xs text-neutral-500 sm:col-span-2">Password<select [class]="field" (change)="passwordMode.set($any($event.target).value)" data-testid="password-mode">
+            <label class="text-xs text-neutral-500 sm:col-span-3">Who can open it<select [class]="field" (change)="who.set($any($event.target).value)" data-testid="who">
               <option value="">the server default</option>
-              <option value="none">none: open to anyone with the link</option>
-              <option value="generate">generate one (shown only in the log)</option>
-              <option value="set">choose one…</option></select></label>
-            @if (passwordMode() !== 'none') {
-              <label class="text-xs text-neutral-500 sm:col-span-3">Signed in to gangway<select [class]="field" (change)="passwordLogin.set($any($event.target).value)" data-testid="password-login">
-                <option value="">the server default</option>
-                <option value="on">skips the password (personal use)</option>
-                <option value="off">still needs the password (sharing)</option></select></label>
-            }
-            @if (passwordMode() === 'set') {
-              <label class="text-xs text-neutral-500 sm:col-span-3">Preview password<input [class]="field" type="password" autocomplete="new-password" placeholder="any length" [value]="passwordValue()" (input)="passwordValue.set($any($event.target).value)" data-testid="password-value" /></label>
+              <option value="open">anyone with the link</option>
+              <option value="password">anyone with the password</option>
+              <option value="signed-in">people signed in to gangway</option>
+              <option value="either">people signed in to gangway, or anyone with the password</option></select></label>
+            @if (who() === 'password' || who() === 'either') {
+              <label class="text-xs text-neutral-500 sm:col-span-2">Password<select [class]="field" (change)="passwordSource.set($any($event.target).value)" data-testid="password-source">
+                <option value="generate">generate one (shown only in the log)</option>
+                <option value="set">choose one…</option>
+                <option value="shared">the server's shared password</option></select></label>
+              @if (passwordSource() === 'set') {
+                <label class="text-xs text-neutral-500 sm:col-span-3">Preview password<input [class]="field" type="password" autocomplete="new-password" placeholder="any length" [value]="passwordValue()" (input)="passwordValue.set($any($event.target).value)" data-testid="password-value" /></label>
+              }
             }
           </div>
         </details>
@@ -274,10 +275,10 @@ export class NewPreview {
   protected readonly name = signal('');
   protected readonly visibility = signal('');
   protected readonly ttl = signal('');
-  /** ADR-0023: '' inherits the server default; a chosen password goes in a header, never the URL. */
-  protected readonly passwordMode = signal<'' | 'none' | 'generate' | 'set'>('');
+  /** ADR-0023: who can open it ('' is the server default); a chosen password goes in a header, never the URL. */
+  protected readonly who = signal<'' | 'open' | 'password' | 'signed-in' | 'either'>('');
+  protected readonly passwordSource = signal<'generate' | 'set' | 'shared'>('generate');
   protected readonly passwordValue = signal('');
-  protected readonly passwordLogin = signal<'' | 'on' | 'off'>('');
   protected readonly project = signal('');
   protected readonly template = signal('');
   protected readonly namePlaceholder = computed(() => this.upload() ? 'from the upload' : 'automatic, e.g. bun-k3x9');
@@ -401,8 +402,10 @@ export class NewPreview {
   }
 
   async #post(body: Blob, runtime: Detected | 'auto'): Promise<void> {
-    const pwMode = this.passwordMode();
-    if (pwMode === 'set' && this.passwordValue() === '') {
+    const who = this.who();
+    const needsPassword = who === 'password' || who === 'either';
+    const src = needsPassword ? this.passwordSource() : null;
+    if (src === 'set' && this.passwordValue() === '') {
       this.error.set({ status: 422, title: 'No password', detail: 'Type the preview password, or pick another option.', requestId: null, retryAfter: null, issues: [] });
       return;
     }
@@ -412,11 +415,12 @@ export class NewPreview {
     const query = deployQuery({
       runtime, name: this.name().trim(), visibility: this.visibility(), ttl: this.ttl().trim(),
       project: this.project(), template: this.template(), addons: this.#addonsParam(),
-      password: pwMode === 'set' ? '' : pwMode,
-      passwordLogin: pwMode === 'none' ? '' : this.passwordLogin(),
+      // open and signed-in take no password; generate rides the query; a chosen one the header.
+      password: who === 'open' || who === 'signed-in' ? 'none' : src === 'generate' ? 'generate' : '',
+      passwordLogin: { '': '', open: '', password: 'off', 'signed-in': 'only', either: 'on' }[who],
     });
     const headers: Record<string, string> = { 'content-type': 'application/gzip' };
-    if (pwMode === 'set') headers['gangway-preview-password'] = this.passwordValue();
+    if (src === 'set') headers['gangway-preview-password'] = this.passwordValue();
     try {
       const res = await firstValueFrom(this.#http.post<{ preview: Preview }>(`/v1/previews${query}`, body, {
         headers, reportProgress: true, observe: 'events',

@@ -32,7 +32,7 @@ import { displayName, sourceLabel } from './source-label';
           <h1 class="text-2xl font-semibold tracking-tight" data-testid="title">{{ name() }}</h1>
           <app-state-badge [state]="p.state" />
           <span class="rounded-full border border-neutral-300 px-2 py-0.5 text-xs text-neutral-500 dark:border-neutral-700" data-testid="visibility">{{ p.visibility }}</span>
-          @if (p.state !== 'destroyed') { <app-password-badge [active]="p.passwordActive" [skips]="p.signedInSkipsPassword" /> }
+          @if (p.state !== 'destroyed') { <app-password-badge [access]="p.access" /> }
           @if (canDestroy() && p.state !== 'destroying' && p.state !== 'destroyed') {
             <button appBtn variant="danger" type="button" class="ml-auto" (click)="dialog().open()" data-testid="destroy">Destroy</button>
           }

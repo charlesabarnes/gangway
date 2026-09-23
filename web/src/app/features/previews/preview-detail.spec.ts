@@ -189,47 +189,58 @@ describe('PreviewDetail', () => {
   });
 });
 
-describe('PreviewDetail: password (ADR-0023)', () => {
-  it('shows the mode, never a password; a change is one PUT and the page follows the answer', async () => {
-    const r = await open({ permissions: ['previews.read', 'previews.update_own', 'logs.read', 'events.read'] });
+describe('PreviewDetail: who can open it (ADR-0023)', () => {
+  const pick = async (r: Awaited<ReturnType<typeof open>>, id: string, v: string) => { const el = r.byTestId(id) as HTMLSelectElement; el.value = v; el.dispatchEvent(new Event('change')); await r.settle(); };
+  const member: Permission[] = ['previews.read', 'previews.update_own', 'logs.read', 'events.read'];
+
+  it('open: no badge, and choosing the password generates one by default', async () => {
+    const r = await open({ permissions: member });
     await answerHistory(r);
-    expect(r.text('password-current')).toContain('the server default');
     expect(r.byTestId('password-badge')).toBeNull();
-    expect(r.text('password-effect')).toContain('Open to anyone');
-    const choice = r.byTestId('password-choice') as HTMLSelectElement;
-    choice.value = 'generate'; choice.dispatchEvent(new Event('change'));
-    await r.settle();
+    expect(r.text('password-effect')).toContain('Anyone with the link');
+    expect((r.byTestId('password-save') as HTMLButtonElement).disabled).toBe(true);
+    await pick(r, 'who', 'password');
     (r.byTestId('password-save') as HTMLButtonElement).click();
     await r.settle();
     const req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
-    expect(req.request.body).toEqual({ password: { mode: 'generate' } });
-    req.flush({ preview: { ...base, password: 'generated', passwordActive: true, updatedAt: '2026-09-23T00:00:00.000Z' } });
+    expect(req.request.body).toEqual({ login: 'off', password: { mode: 'generate' } });
+    req.flush({ preview: { ...base, password: 'generated', passwordLogin: 'off', access: 'password', updatedAt: '2026-09-23T00:00:00.000Z' } });
     await r.settle();
     await answerHistory(r);
-    expect(r.text('password-current')).toContain('generated password (in the log)');
     expect(r.text('password-badge')).toBe('Password');
     expect(r.text('password-effect')).toContain('including people signed in to gangway');
   });
 
-  it('who skips the password is its own one-click change', async () => {
-    const r = await open({ permissions: ['previews.read', 'previews.update_own', 'logs.read', 'events.read'] });
+  it('with a password of its own, switching to signed-in or either keeps it', async () => {
+    const r = await open({ permissions: member, preview: { ...base, password: 'set', passwordLogin: 'off', access: 'password' } });
     await answerHistory(r);
-    const login = r.byTestId('login-choice') as HTMLSelectElement;
-    login.value = 'on'; login.dispatchEvent(new Event('change'));
+    await pick(r, 'who', 'either');
+    expect((r.byTestId('password-source') as HTMLSelectElement).value).toBe('keep');
+    (r.byTestId('password-save') as HTMLButtonElement).click();
     await r.settle();
-    const req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
+    let req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
     expect(req.request.body).toEqual({ login: 'on' });
-    req.flush({ preview: { ...base, password: 'set', passwordActive: true, passwordLogin: 'on', signedInSkipsPassword: true, updatedAt: '2026-09-23T00:00:01.000Z' } });
+    req.flush({ preview: { ...base, password: 'set', passwordLogin: 'on', access: 'either', updatedAt: '2026-09-23T00:00:01.000Z' } });
     await r.settle();
     await answerHistory(r);
-    expect(r.text('password-badge')).toBe('Password · you skip it');
+    expect(r.text('password-badge')).toBe('Password or gangway login');
     expect(r.text('password-effect')).toContain('private window');
+
+    await pick(r, 'who', 'signed-in');
+    (r.byTestId('password-save') as HTMLButtonElement).click();
+    await r.settle();
+    req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
+    expect(req.request.body).toEqual({ login: 'only' });
+    req.flush({ preview: { ...base, password: 'set', passwordLogin: 'only', access: 'signed-in', updatedAt: '2026-09-23T00:00:02.000Z' } });
+    await r.settle();
+    await answerHistory(r);
+    expect(r.text('password-badge')).toBe('Gangway users');
   });
 
-  it('without an update permission there is nothing to change', async () => {
-    const r = await open();
+  it('without an update permission it only says who can open it', async () => {
+    const r = await open({ preview: { ...base, password: 'set', access: 'password' } });
     await answerHistory(r);
-    expect(r.text('password-current')).toContain('the server default');
-    expect(r.byTestId('password-choice')).toBeNull();
+    expect(r.text('password-effect')).toContain('Everyone is asked');
+    expect(r.byTestId('who')).toBeNull();
   });
 });

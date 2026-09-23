@@ -38,7 +38,7 @@ import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor
 import { Bootstrap } from "./auth/bootstrap.ts";
 import { LoginLimiter } from "./auth/limiter.ts";
 import { Passwords } from "./auth/password.ts";
-import { entryPassword, passwordState } from "./previews/password.ts";
+import { entryPassword, previewAccess } from "./previews/password.ts";
 import { RolePermissions } from "./auth/roles.ts";
 import { Sessions } from "./auth/sessions.ts";
 import { Tokens } from "./auth/tokens.ts";
@@ -371,7 +371,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       });
       projectRoutes(api, {
         projects, audit, secrets, templates, pulls, apiOrigin,
-        wire: (p) => ({ ...p, ...passwordState(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
+        wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
       });
       templateRoutes(api, { templates, hosts, audit, namedByTrigger: (id) => TRIGGERS.filter((t) => triggerDefault(t) === id) });
       secretRoutes(api, secrets);

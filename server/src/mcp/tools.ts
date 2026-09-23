@@ -161,7 +161,7 @@ const DeployArgs = z.object({
   ttl: z.string().max(16).optional().describe("How long it lives, e.g. 2h or 7d. Defaults to the server's."),
   template: z.string().optional().describe("A named server policy (visibility, ttl, host)."),
   project: z.string().optional().describe("A project slug to file the preview under."),
-  passwordLogin: z.enum(["inherit", "on", "off"]).optional().describe("With a password: on lets people signed in to gangway past it (personal use); off asks everyone (sharing); inherit follows the server."),
+  passwordLogin: z.enum(["inherit", "on", "off", "only"]).optional().describe("Who can open it. off: anyone with the password; on: people signed in to gangway, or anyone with the password; only: only people signed in to gangway (no password); inherit follows the server."),
   password: z.enum(["inherit", "none", "generate"]).optional().describe("Put it behind a password: generate makes one and prints it ONLY in the preview's log (read it with logs); none leaves it open; inherit (the default) follows the server's setting."),
   addons: z.array(z.string()).optional().describe("Throwaway databases, e.g. [\"postgres\"], [\"redis@8\"]. Their URLs arrive as env vars (DATABASE_URL, REDIS_URL)."),
   idempotencyKey: z.string().min(1).max(200).optional().describe("Retry with the same key and you get the same preview, not a second one. Omitted, an identical request counts as a retry."),

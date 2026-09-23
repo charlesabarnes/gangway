@@ -80,7 +80,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
                   <tr [class.opacity-50]="p.state === 'destroyed'" data-testid="row" [attr.data-id]="p.id">
                     <td class="px-4 py-3">
                       <a [routerLink]="['/previews', p.id]" class="font-medium hover:text-accent" data-testid="name">{{ name(p) }}</a>
-                      @if (p.state !== 'destroyed') { <app-password-badge class="ml-2 align-middle" [active]="p.passwordActive" [skips]="p.signedInSkipsPassword" /> }
+                      @if (p.state !== 'destroyed') { <app-password-badge class="ml-2 align-middle" [access]="p.access" /> }
                       @if (url(p); as u) {
                         <a [href]="u" target="_blank" rel="noopener noreferrer" class="mt-0.5 block max-w-xs truncate font-mono text-xs text-neutral-500 hover:text-accent" data-testid="url">{{ host(u) }} ↗</a>
                       }

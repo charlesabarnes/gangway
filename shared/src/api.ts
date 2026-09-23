@@ -81,7 +81,7 @@ export const TarballDeployQuerySchema = z.object({
   addons: addonQuery.optional(),
   /** ADR-0023: `inherit`, `none` or `generate`. A chosen password rides in PREVIEW_PASSWORD_HEADER. */
   password: z.enum(["inherit", "none", "generate"]).optional(),
-  passwordLogin: z.enum(["inherit", "on", "off"]).optional(),
+  passwordLogin: z.enum(["inherit", "on", "off", "only"]).optional(),
 });
 
 const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
@@ -130,7 +130,7 @@ export const PasswordChoiceSchema = z.discriminatedUnion("mode", [
 ]);
 export type PasswordChoice = z.infer<typeof PasswordChoiceSchema>;
 
-export const PasswordLoginSchema = z.enum(["inherit", "on", "off"]);
+export const PasswordLoginSchema = z.enum(["inherit", "on", "off", "only"]);
 
 /**
  * `PUT /v1/previews/:id/password`: the password, whether a gangway login gets past it, or

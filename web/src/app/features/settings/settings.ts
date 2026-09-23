@@ -131,9 +131,9 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
           </div>
           <label class="mt-3 flex items-center gap-2 text-sm">
             <input type="checkbox" [checked]="pwLoginDraft()" [disabled]="!canWriteSettings() || pwManaged()" (change)="pwLoginDraft.set($any($event.target).checked)" data-testid="password-login" />
-            People signed in to gangway skip the password
+            People signed in to gangway can use their login instead of the password
           </label>
-          <p class="mt-1 text-xs text-neutral-500">For every preview with a password, its own or the shared one, unless the preview says otherwise. Off: everyone is asked, you included.</p>
+          <p class="mt-1 text-xs text-neutral-500">The default for every preview with a password, its own or the shared one. Off: everyone is asked, you included. Each preview can still choose under "Who can open it": the password, people signed in to gangway, or either.</p>
           <p class="mt-2 text-xs text-neutral-500" data-testid="password-help">
             @switch (pwDraft()) {
               @case ('shared') { Every preview that follows the default asks for this password. Changing it signs everyone out of those previews. }

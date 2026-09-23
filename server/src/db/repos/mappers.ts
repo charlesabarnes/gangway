@@ -52,6 +52,7 @@ export type PreviewRow = {
   project_id?: string | null;
   password_mode?: string | null;
   password_login?: string | null;
+  signed_in_only?: number | null;
 };
 
 export function rowToPreview(r: PreviewRow): Preview {
@@ -69,7 +70,7 @@ export function rowToPreview(r: PreviewRow): Preview {
     templateId: r.template_id ?? null,
     projectId: r.project_id ?? null,
     password: (r.password_mode ?? "inherit") as Preview["password"],
-    passwordLogin: (r.password_login ?? "inherit") as Preview["passwordLogin"],
+    passwordLogin: r.signed_in_only ? "only" : (r.password_login ?? "inherit") as Preview["passwordLogin"],
     lastSeenAt: toDate(r.last_seen_at),
     error: r.error,
     createdAt: new Date(r.created_at),

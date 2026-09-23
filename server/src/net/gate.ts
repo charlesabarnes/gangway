@@ -172,11 +172,12 @@ export class PreviewGate {
    * password a gangway login gets past. Anything else, and the gate is not an open redirect.
    */
   gateable(entry: RouteEntry): { private: boolean; passwordSkippable: boolean } {
-    return { private: entry.visibility === "private", passwordSkippable: this.#secretFor(entry) !== null && this.#loginSkips(entry) };
+    return { private: isPrivate(entry), passwordSkippable: this.#secretFor(entry) !== null && this.#loginSkips(entry) };
   }
 
-  /** The password this preview is behind right now, or null when it is open. */
+  /** The password this preview is behind right now, or null when it is open (or login-only). */
   #secretFor(entry: RouteEntry): Secret | null {
+    if (entry.passwordLogin === "only") return null;
     const pw: EntryPassword = entry.password ?? { mode: "inherit" };
     const raw = pw.mode === "own" ? pw : pw.mode === "inherit" ? this.#o.sharedPassword() : null;
     if (!raw) return null;
@@ -275,10 +276,11 @@ export class PreviewGate {
   readonly check = (entry: RouteEntry, req: Request): Response | null => {
     // The hot path: a public preview with no password, an ordinary path. No URL parse, no HMAC.
     const secret = this.#secretFor(entry);
-    if (entry.visibility !== "private" && secret === null && !req.url.includes("/__gangway")) return null;
+    const priv = isPrivate(entry);
+    if (!priv && secret === null && !req.url.includes("/__gangway")) return null;
     const url = new URL(req.url);
 
-    const gate = entry.visibility === "private" || secret !== null ? this.#gateCookie(req, entry) : { valid: false, skip: false };
+    const gate = priv || secret !== null ? this.#gateCookie(req, entry) : { valid: false, skip: false };
     const loginSkips = secret !== null && this.#loginSkips(entry);
 
     if (url.pathname.startsWith(GATE_PREFIX) || url.pathname === GATE_PREFIX.slice(0, -1)) {
@@ -288,7 +290,7 @@ export class PreviewGate {
         return passwordPage(entry.hostname, safePath(url.searchParams.get("to")), null, 401);
       }
       // The form's POST goes through `handle`; anything else at this path is a 404 like the rest.
-      if ((entry.visibility !== "private" && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET") return plain(404, "not found");
+      if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET") return plain(404, "not found");
       const ticket = this.#redeem(url.searchParams.get("ticket") ?? "", entry);
       if (!ticket) {
         return plain(403, "This sign-in link has expired or was already used. Open the preview again to get a new one.");
@@ -312,7 +314,7 @@ export class PreviewGate {
     const navigation = (req.method === "GET" || req.method === "HEAD") && !req.headers.has("upgrade") && (mode === null || mode === "navigate");
     const back = safePath(`${url.pathname}${url.search}`);
 
-    if (entry.visibility !== "private" || gate.valid) {
+    if (!priv || gate.valid) {
       // Signed in (or not private): the password, if there is one, comes next.
       if (secret === null || this.#hasPasswordCookie(req, entry, secret.fp)) return null;
       if (loginSkips && gate.skip) return null;
@@ -333,6 +335,11 @@ export class PreviewGate {
     target.searchParams.set("to", to);
     return target.toString();
   }
+}
+
+/** Private visibility, or login-only access (ADR-0023): a gangway login is the only way in. */
+function isPrivate(entry: RouteEntry): boolean {
+  return entry.visibility === "private" || entry.passwordLogin === "only";
 }
 
 function redirect(location: string): Response {

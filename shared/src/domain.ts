@@ -50,11 +50,23 @@ export type PasswordMode = "inherit" | "none" | "set" | "generated";
 export const PASSWORD_MODES: readonly PasswordMode[] = ["inherit", "none", "set", "generated"];
 
 /**
- * ADR-0023: does being signed in to gangway (with `previews.skip_password`) let you past a
- * preview's password? `inherit` follows the server-wide switch.
+ * ADR-0023: what a gangway login does for a preview with a password. `off`: nothing, the
+ * password is asked of everyone. `on`: either one opens it (signed-in users skip the
+ * password). `only`: ONLY a login opens it, and no password is asked for. `inherit`
+ * follows the server-wide switch (on or off).
  */
-export type PasswordLogin = "inherit" | "on" | "off";
-export const PASSWORD_LOGINS: readonly PasswordLogin[] = ["inherit", "on", "off"];
+export type PasswordLogin = "inherit" | "on" | "off" | "only";
+export const PASSWORD_LOGINS: readonly PasswordLogin[] = ["inherit", "on", "off", "only"];
+
+/**
+ * Who can open a preview right now, every default resolved (ADR-0023). What the UI shows.
+ *   open                 anyone with the link
+ *   password             anyone with the password -- signed in or not
+ *   signed-in            people signed in to gangway (a login-only or private preview)
+ *   either               signed in, or the password
+ *   signed-in+password   private AND a password that a login does not skip
+ */
+export type PreviewAccess = "open" | "password" | "signed-in" | "either" | "signed-in+password";
 
 /** The server-wide default (ADR-0023): off, one shared password, or one generated per new preview. */
 export type DefaultPasswordMode = "off" | "shared" | "generated";

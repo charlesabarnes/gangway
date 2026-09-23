@@ -29,8 +29,10 @@ export type PreviewUrl = { service: string; url: string; primary: boolean };
 /** ADR-0023: `inherit` follows Settings -> Preview passwords; `set` / `generated` are the preview's own. */
 export type PasswordMode = 'inherit' | 'none' | 'set' | 'generated';
 export type PasswordChoice = { mode: 'inherit' } | { mode: 'none' } | { mode: 'generate' } | { mode: 'set'; value: string };
-/** ADR-0023: does a signed-in gangway user (with `previews.skip_password`) get past the password? */
-export type PasswordLogin = 'inherit' | 'on' | 'off';
+/** ADR-0023: off = the password for everyone; on = signed in OR the password; only = signed in, no password. */
+export type PasswordLogin = 'inherit' | 'on' | 'off' | 'only';
+/** Who can open a preview right now, with every default resolved by the server. */
+export type PreviewAccess = 'open' | 'password' | 'signed-in' | 'either' | 'signed-in+password';
 /** `PUT /v1/previews/:id/password`: what is left out is kept. */
 export type PasswordChange = { password?: PasswordChoice; login?: PasswordLogin };
 /** The server-wide default: off, one shared password, or one generated per new preview. */
@@ -57,10 +59,8 @@ export type Preview = {
   password: PasswordMode;
   /** ADR-0023: whether a signed-in gangway user skips that password. */
   passwordLogin: PasswordLogin;
-  /** Behind a password right now, with `inherit` resolved against Settings by the server. */
-  passwordActive: boolean;
-  /** ...and being signed in to gangway (with `previews.skip_password`) gets past it. */
-  signedInSkipsPassword: boolean;
+  /** Who can open it right now (ADR-0023), resolved by the server. */
+  access: PreviewAccess;
   lastSeenAt: string | null;
   error: string | null;
   createdAt: string;

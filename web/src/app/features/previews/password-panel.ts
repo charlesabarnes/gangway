@@ -1,63 +1,71 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
-import type { PasswordChoice, PasswordLogin, PasswordMode, Preview } from '../../core/api.types';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import type { PasswordChange, PasswordChoice, PasswordLogin, Preview, PreviewAccess } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import type { ProblemError } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
 
-/** What each stored mode means, in the words the page shows. */
-export const PASSWORD_LABELS: Record<PasswordMode, string> = {
-  inherit: 'the server default',
-  none: 'none: open to anyone with the link',
-  set: 'its own password',
-  generated: 'a generated password (in the log)',
+/** The choices, in the order they are offered. */
+export type Who = 'open' | 'password' | 'signed-in' | 'either';
+export const WHO_LABELS: Record<Who, string> = {
+  open: 'Anyone with the link',
+  password: 'Anyone with the password',
+  'signed-in': 'People signed in to gangway',
+  either: 'People signed in to gangway, or anyone with the password',
 };
+const WHO_LOGIN: Record<Who, PasswordLogin> = { open: 'off', password: 'off', 'signed-in': 'only', either: 'on' };
 
-export const LOGIN_LABELS: Record<PasswordLogin, string> = {
-  inherit: 'as the server default says',
-  on: 'skip the password',
-  off: 'need the password too',
+/** Where the password comes from, when the choice needs one. */
+type Source = 'keep' | 'generate' | 'set' | 'shared';
+
+/** What a visitor gets, in a sentence, for what the server says is in effect. */
+export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
+  open: 'Anyone with the link can open it.',
+  password: 'Everyone is asked for the password, including people signed in to gangway.',
+  'signed-in': 'Only people signed in to gangway can open it. Anyone else is sent to log in.',
+  either: 'People signed in to gangway go straight in; anyone else is asked for the password. Open it in a private window to see what visitors see.',
+  'signed-in+password': 'A private preview: sign in to gangway, then enter the password.',
 };
-
-type Choice = PasswordChoice['mode'];
 
 /**
- * ADR-0023: a running preview's password. Changing it takes effect on the next request and
- * signs out everyone who entered the old one. A generated password is printed ONLY in the
- * preview's log below; this panel never shows it.
+ * ADR-0023: who can open a running preview. One choice -- the link, the password, a gangway
+ * login, or either -- and, when the choice needs a password, where it comes from. Takes
+ * effect on the next request; a new password signs out everyone who used the old one. A
+ * generated password is printed ONLY in the preview's log below; this panel never shows it.
  */
 @Component({
   selector: 'app-password-panel',
   imports: [Btn],
   template: `
-    <h2 class="mt-10 text-sm font-medium text-neutral-500">Password</h2>
+    <h2 class="mt-10 text-sm font-medium text-neutral-500">Who can open it</h2>
     <div class="mt-2 rounded-lg border border-neutral-200 px-4 py-3 text-sm dark:border-neutral-800" data-testid="password-panel">
-      <p data-testid="password-current">Now: <span class="font-medium">{{ label() }}</span></p>
-      <p class="mt-1 text-neutral-600 dark:text-neutral-400" data-testid="password-effect">{{ effect() }}</p>
+      <p data-testid="password-effect">{{ effect() }}</p>
       @if (canChange()) {
-        <label class="mt-3 block max-w-sm text-xs text-neutral-500">Should people signed in to gangway skip it?
-          <select [class]="field" [disabled]="busy()" (change)="saveLogin($any($event.target).value)" data-testid="login-choice">
-            @for (l of logins; track l) { <option [value]="l" [selected]="l === preview().passwordLogin">{{ loginOptions[l] }}</option> }
-          </select>
-        </label>
         <form class="mt-3 flex flex-wrap items-end gap-3" (submit)="$event.preventDefault(); save()">
-          <label class="text-xs text-neutral-500">Change to
-            <select [class]="field" [value]="choice()" (change)="choice.set($any($event.target).value)" data-testid="password-choice">
-              <option value="set">a password I choose</option>
-              <option value="generate">a new generated password</option>
-              <option value="inherit">the server default</option>
-              <option value="none">none: open it</option>
+          <label class="min-w-64 text-xs text-neutral-500">Who can open it
+            <select [class]="field" (change)="who.set($any($event.target).value)" data-testid="who">
+              @for (w of whos; track w) { <option [value]="w" [selected]="w === who()">{{ whoLabels[w] }}</option> }
             </select>
           </label>
-          @if (choice() === 'set') {
-            <label class="min-w-48 flex-1 text-xs text-neutral-500">Password
-              <input [class]="field" type="password" autocomplete="new-password" placeholder="any length" [value]="value()" (input)="value.set($any($event.target).value)" data-testid="password-input" />
+          @if (needsPassword()) {
+            <label class="text-xs text-neutral-500">Password
+              <select [class]="field" (change)="source.set($any($event.target).value)" data-testid="password-source">
+                @if (hasOwn()) { <option value="keep" [selected]="source() === 'keep'">keep the current one</option> }
+                <option value="generate" [selected]="source() === 'generate'">generate a new one (shown in the log)</option>
+                <option value="set" [selected]="source() === 'set'">choose one…</option>
+                <option value="shared" [selected]="source() === 'shared'">the server's shared password</option>
+              </select>
             </label>
+            @if (source() === 'set') {
+              <label class="min-w-48 flex-1 text-xs text-neutral-500">New password
+                <input [class]="field" type="password" autocomplete="new-password" placeholder="any length" [value]="value()" (input)="value.set($any($event.target).value)" data-testid="password-input" />
+              </label>
+            }
           }
-          <button appBtn type="submit" [disabled]="busy() || (choice() === 'set' && value() === '')" data-testid="password-save">{{ busy() ? 'Saving…' : 'Save' }}</button>
+          <button appBtn type="submit" [disabled]="busy() || !changed() || (needsPassword() && source() === 'set' && value() === '')" data-testid="password-save">{{ busy() ? 'Saving…' : 'Save' }}</button>
         </form>
-        @if (choice() === 'generate') {
+        @if (needsPassword() && source() === 'generate') {
           <p class="mt-2 text-xs text-neutral-500">The new password appears once, in the log below. Anyone who entered the old one has to enter the new one.</p>
         }
       }
@@ -72,53 +80,61 @@ export class PasswordPanel {
   readonly #toasts = inject(ToastService);
 
   protected readonly field = 'mt-1 block w-full rounded-md border border-neutral-300 bg-transparent px-2.5 py-1.5 text-sm dark:border-neutral-700';
-  protected readonly choice = signal<Choice>('set');
+  protected readonly whos: Who[] = ['open', 'password', 'signed-in', 'either'];
+  protected readonly whoLabels = WHO_LABELS;
+
+  protected readonly who = signal<Who>('open');
+  protected readonly source = signal<Source>('generate');
   protected readonly value = signal('');
   protected readonly busy = signal(false);
 
-  protected readonly label = computed(() => PASSWORD_LABELS[this.preview().password ?? 'inherit']);
-  /** What actually happens to a visitor, with `inherit` already resolved by the server. */
-  protected readonly effect = computed(() => {
-    const p = this.preview();
-    if (!p.passwordActive) {
-      return p.password === 'inherit' ? 'Open to anyone with the link: the server default has no password right now.' : 'Open to anyone with the link.';
-    }
-    return p.signedInSkipsPassword
-      ? 'Visitors are asked for the password. People signed in to gangway go straight in, so you will not see the form. Open it in a private window to see what visitors see.'
-      : 'Everyone is asked for the password, including people signed in to gangway.';
-  });
-  protected readonly logins: PasswordLogin[] = ['inherit', 'on', 'off'];
-  protected readonly loginOptions: Record<PasswordLogin, string> = {
-    inherit: 'follow the server default', on: 'skip the password (personal use)', off: 'need the password too (sharing)',
-  };
+  /** The preview's own password (set or generated), which "keep" keeps. */
+  protected readonly hasOwn = computed(() => ['set', 'generated'].includes(this.preview().password));
+  protected readonly needsPassword = computed(() => this.who() === 'password' || this.who() === 'either');
+  protected readonly effect = computed(() => ACCESS_EFFECT[this.preview().access ?? 'open']);
   /** The server decides whose preview is whose; either permission may be enough. */
   protected readonly canChange = computed(() => this.#auth.can('previews.update') || this.#auth.can('previews.update_own'));
+  protected readonly changed = computed(() => this.who() !== whoOf(this.preview().access) || (this.needsPassword() && this.source() !== 'keep'));
+
+  constructor() {
+    // Follow the preview: after a save, or when it changes elsewhere, the form shows what is in effect.
+    effect(() => {
+      const p = this.preview();
+      untracked(() => {
+        this.who.set(whoOf(p.access));
+        this.source.set(['set', 'generated'].includes(p.password) ? 'keep' : p.password === 'inherit' && (p.access === 'password' || p.access === 'either') ? 'shared' : 'generate');
+      });
+    });
+  }
 
   protected async save(): Promise<void> {
-    const mode = this.choice();
-    const choice: PasswordChoice = mode === 'set' ? { mode, value: this.value() } : { mode };
+    const who = this.who();
+    const change: PasswordChange = { login: WHO_LOGIN[who] };
+    if (who === 'open') change.password = { mode: 'none' };
+    else if (this.needsPassword()) {
+      const src = this.source();
+      const choice: PasswordChoice | undefined = src === 'generate' ? { mode: 'generate' } : src === 'set' ? { mode: 'set', value: this.value() } : src === 'shared' ? { mode: 'inherit' } : undefined;
+      if (choice) change.password = choice;
+    }
     this.busy.set(true);
     try {
-      await this.#store.setPassword(this.preview().id, { password: choice });
+      await this.#store.setPassword(this.preview().id, change);
       this.value.set('');
-      this.#toasts.info('Password updated', mode === 'generate' ? 'The new password is in the log.' : PASSWORD_LABELS[mode === 'set' ? 'set' : mode]);
+      this.#toasts.info('Saved', change.password?.mode === 'generate' ? `${WHO_LABELS[who]}. The new password is in the log.` : WHO_LABELS[who]);
     } catch (e) {
-      this.#toasts.problem('Could not change the password', e as ProblemError);
+      this.#toasts.problem('Could not change who can open it', e as ProblemError);
     } finally {
       this.busy.set(false);
     }
   }
+}
 
-  protected async saveLogin(login: PasswordLogin): Promise<void> {
-    if (login === this.preview().passwordLogin) return;
-    this.busy.set(true);
-    try {
-      await this.#store.setPassword(this.preview().id, { login });
-      this.#toasts.info('Saved', `People signed in to gangway: ${LOGIN_LABELS[login]}`);
-    } catch (e) {
-      this.#toasts.problem('Could not change who skips the password', e as ProblemError);
-    } finally {
-      this.busy.set(false);
-    }
+/** The choice that produces what is in effect. A private preview reads as signed-in. */
+function whoOf(access: PreviewAccess | undefined): Who {
+  switch (access) {
+    case 'password': return 'password';
+    case 'either': return 'either';
+    case 'signed-in': case 'signed-in+password': return 'signed-in';
+    default: return 'open';
   }
 }
