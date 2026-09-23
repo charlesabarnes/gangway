@@ -1,7 +1,3 @@
-/**
- * The PR lifecycle against a fake forge and a fake preview service, with a real
- * repos table. Every rule in pr-previews.ts has a case here.
- */
 import { describe, expect, test } from "bun:test";
 import { AppError } from "../../src/errors.ts";
 import { ProjectsRepo } from "../../src/db/repos/projects.ts";
@@ -60,7 +56,7 @@ const command = (
 });
 
 describe("a pull request opens", () => {
-  test("deploys the head as a `pr` source with a credential, filed under the project, and tells the forge twice", async () => {
+  test("deploys the head as a `pr` source under the project and tells the forge twice", async () => {
     const t = make();
     const out = await t.service.handle(updated());
     expect(out).toMatchObject({ action: "deployed", name: "web-app-pr-123" });
@@ -80,9 +76,8 @@ describe("a pull request opens", () => {
       },
     });
     expect(t.deploys[0]!.visibility).toBeUndefined(); // the server default
-    // Told the forge as soon as the preview row existed.
     expect([...t.comments.values()][0]).toContain("🚧 Building preview for `aaaaaaa`");
-    // The server default is unlisted: the URL carries the unguessable suffix, and is found again by source, not name.
+    // Unlisted by default: the URL carries the unguessable suffix.
     expect([...t.comments.values()][0]).toContain(
       "https://web-app-pr-123-p1x.preview.example.com/",
     );
@@ -104,7 +99,7 @@ describe("a pull request opens", () => {
     });
   });
 
-  test("a failed build is reported as failed, with the error, and the deployment marked failure", async () => {
+  test("a failed build is reported with its error and marks the deployment failed", async () => {
     const t = make();
     const out = await t.service.handle(updated());
     if (out.action !== "deployed") throw new Error();
@@ -115,7 +110,7 @@ describe("a pull request opens", () => {
     expect(t.deployments[0]!.statuses.at(-1)).toMatchObject({ state: "failure" });
   });
 
-  test("a plan refused before any preview exists is SAID on the PR, with compose's stderr, and is a `refused` outcome", async () => {
+  test("a plan refused before any preview exists is reported on the PR as `refused`", async () => {
     const t = make();
     t.previews.deploy = async () => {
       throw new AppError("unprocessable", "the compose file is not valid", {
@@ -130,7 +125,7 @@ describe("a pull request opens", () => {
     expect(body).toContain("bind mounts are not allowed");
     expect(body).not.toContain("level=warning"); // compose's interpolation noise is not the reason
     expect(t.deployments).toEqual([]);
-    // Not a crash: a 500 from the pipeline still is.
+    // A 500 from the pipeline is still a crash.
     t.previews.deploy = async () => {
       throw new AppError("internal", "boom");
     };
@@ -149,7 +144,7 @@ describe("a pull request opens", () => {
 });
 
 describe("the head moves", () => {
-  test("the same head already building or awake is a no-op; a new head destroys then redeploys, keeping the ONE comment", async () => {
+  test("the same head is a no-op; a new head redeploys, keeping the one comment", async () => {
     const t = make();
     const first = await t.service.handle(updated());
     if (first.action !== "deployed") throw new Error();
@@ -175,7 +170,7 @@ describe("the head moves", () => {
     expect(t.previews.forgeRefs("P2")).toEqual({ commentId: 1, deploymentId: 501 });
   });
 
-  test("a failed preview at the same head IS retried on the next push of the same sha", async () => {
+  test("a failed preview is retried on the next push of the same sha", async () => {
     const t = make();
     const first = await t.service.handle(updated());
     if (first.action !== "deployed") throw new Error();
@@ -215,7 +210,7 @@ describe("closing", () => {
 });
 
 describe("forks and drafts", () => {
-  test("a fork's PR is ignored under `ask` (the default) and `never`; deployed PUBLIC under `auto`", async () => {
+  test("a fork's PR is ignored under `ask` and `never`, and deployed public under `auto`", async () => {
     const t = make();
     const fork = pull({ fromFork: true });
     expect(await t.service.handle(updated(fork))).toMatchObject({
@@ -234,7 +229,7 @@ describe("forks and drafts", () => {
     expect(t.deploys[0]!.visibility).toBe("public");
   });
 
-  test("secrets: a same-repo PR is deployed at the repo's prClearance, a fork's at forkClearance (none: an EMPTY env, explicitly)", async () => {
+  test("same-repo PRs get prClearance secrets, forks forkClearance; none is an empty env", async () => {
     const t = make();
     const asked: string[] = [];
     const withSecrets = new PrPreviews({
@@ -262,7 +257,7 @@ describe("forks and drafts", () => {
     expect([...t.comments.values()].at(-1)).toContain("Secrets: **low**");
   });
 
-  test("`/preview secrets high` redeploys THIS pull request at that level, and the level sticks across pushes; a later policy change does not touch it", async () => {
+  test("`/preview secrets high` redeploys at a level that outlasts pushes and policy", async () => {
     const t = make({ prs: { 123: pull() } });
     const svc = new PrPreviews({
       forge: t.forge,
@@ -290,10 +285,8 @@ describe("forks and drafts", () => {
     const pushed = await svc.handle(updated(pull({ headSha: "b".repeat(40) }), "synchronize"));
     expect(pushed).toMatchObject({ action: "deployed", previewId: "P3" });
     expect(t.deploys[2]).toMatchObject({ secretLevel: "high" });
-    // A brand-new PR follows the (now lower) policy.
     await svc.handle(updated(pull({ number: 200 })));
     expect(t.deploys[3]).toMatchObject({ secretLevel: "low" });
-    // And a contributor cannot raise anything.
     expect(
       await svc.handle({
         ...command("deploy", "other"),
@@ -316,7 +309,7 @@ describe("forks and drafts", () => {
     });
   });
 
-  test("`/preview deploy` from a collaborator builds a fork PR, public; from a contributor it is silently ignored", async () => {
+  test("`/preview deploy` builds a fork PR for a collaborator and ignores a contributor", async () => {
     const fork = pull({ fromFork: true, headSha: "c".repeat(40) });
     const t = make({ prs: { 123: fork } });
     expect(await t.service.handle(command("deploy", "other"))).toMatchObject({
@@ -336,7 +329,7 @@ describe("forks and drafts", () => {
     });
   });
 
-  test("`/preview deploy` on a fork under `never` answers the maintainer and builds nothing", async () => {
+  test("`/preview deploy` on a fork under `never` answers and builds nothing", async () => {
     const t = make({ prs: { 123: pull({ fromFork: true }) } });
     t.repos.update(t.repos.getByFullName("github", "acme/web-app")!.id, { forks: "never" });
     expect(await t.service.handle(command("deploy", "owner"))).toEqual({
@@ -349,7 +342,7 @@ describe("forks and drafts", () => {
 });
 
 describe("/preview commands", () => {
-  test("status with no preview says so; status with one reports its state and URL in the SAME comment", async () => {
+  test("status reports no preview, or the state and URL in the sticky comment", async () => {
     const t = make({ prs: { 123: pull() } });
     expect(await t.service.handle(command("status"))).toEqual({
       action: "commented",
@@ -393,7 +386,7 @@ describe("/preview commands", () => {
 });
 
 describe("projects", () => {
-  test("a repository that is no project is ignored and nothing is made; `/preview` there is ignored too", async () => {
+  test("a repository that is no project is ignored, `/preview` included", async () => {
     const t = make({ project: false, prs: { 123: pull() } });
     expect(await t.service.handle(updated())).toMatchObject({
       action: "ignored",
@@ -405,7 +398,7 @@ describe("projects", () => {
     expect(t.comments.size).toBe(0);
   });
 
-  test("a project that takes pull requests by workflow is left to its workflow: the webhook never makes a second preview", async () => {
+  test("a project that takes pull requests by workflow gets no webhook preview", async () => {
     const t = make({ prs: { 123: pull() } });
     t.repos.update("PRJ", { prTrigger: "workflow" });
     expect(await t.service.handle(updated())).toMatchObject({
@@ -416,7 +409,7 @@ describe("projects", () => {
     expect(t.deploys).toHaveLength(0);
   });
 
-  test("an installation id that moved is updated on the row; a disabled repository stays disabled", async () => {
+  test("a moved installation id is saved; a disabled repository stays disabled", async () => {
     const t = make();
     const row = t.repos.getByFullName("github", "acme/web-app")!;
     t.repos.update(row.id, { enabled: false, disabledReason: "paused" });

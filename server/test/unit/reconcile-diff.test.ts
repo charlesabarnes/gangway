@@ -1,386 +1,26 @@
 import { describe, expect, test } from "bun:test";
 import type { Preview, PreviewState, Route, Visibility } from "@gangway/shared/domain";
 import {
-  GANGWAY_LABEL_VERSION,
   diff,
   isMutating,
   type Action,
   type DiffInput,
   type ScannedContainer,
-  type ScannedLabels,
 } from "../../src/reconcile/diff.ts";
-
-const NOW = 1_700_000_000_000;
-const HOST = "h1";
-
-const mkPreview = (
-  id: string,
-  state: PreviewState = "awake",
-  over: Partial<Preview> = {},
-): Preview => ({
-  id,
-  project: `gw-${id}`,
-  hostId: HOST,
-  kind: "preview",
-  state,
-  source: { kind: "manual", userId: "u1" },
-  visibility: "public",
-  ttlExpiresAt: null,
-  idleAfterMs: null,
-  secretLevel: null,
-  templateId: null,
-  projectId: null,
-  password: "inherit",
-  passwordLogin: "inherit",
-  lastSeenAt: null,
-  error: null,
-  createdAt: new Date(NOW),
-  updatedAt: new Date(NOW),
-  destroyedAt: null,
-  ...over,
-});
-
-const mkRoute = (
-  hostname: string,
-  previewId: string,
-  port: number,
-  over: Partial<Route> = {},
-): Route => ({
-  hostname,
-  previewId,
-  service: "web",
-  containerPort: 3000,
-  upstream: { host: "10.0.0.2", port },
-  primary: true,
-  createdAt: new Date(NOW),
-  ...over,
-});
-
-const mkContainer = (
-  id: string,
-  labels: ScannedLabels,
-  over: Partial<ScannedContainer> = {},
-): ScannedContainer => ({
-  id,
-  hostId: HOST,
-  upstreamHost: "10.0.0.2",
-  publishedPort: 40000,
-  state: "running",
-  labels,
-  ...over,
-});
-
-const fullLabels = (
-  previewId: string,
-  hostname: string,
-  over: Partial<ScannedLabels> = {},
-): ScannedLabels => ({
-  previewId,
-  hostname,
-  service: "web",
-  containerPort: 3000,
-  visibility: "public",
-  primary: true,
-  version: GANGWAY_LABEL_VERSION,
-  ...over,
-});
-
-const mkInput = (o: Partial<DiffInput> = {}): DiffInput => ({
-  dbRoutes: [],
-  previews: [],
-  containers: [],
-  hostReachable: true,
-  now: NOW,
-  ...o,
-});
-
-const kinds = (a: readonly Action[]): string[] => a.map((x) => x.kind);
-const only = (a: readonly Action[], kind: Action["kind"]): Action => {
-  const hit = a.filter((x) => x.kind === kind);
-  expect(hit).toHaveLength(1);
-  return hit[0]!;
-};
-
-// --------------------------------------------------------------------------------------------
-// The case table: one entry per situation the reconciler must decide.
-// --------------------------------------------------------------------------------------------
-
-type Case = readonly [name: string, input: DiffInput, assert: (a: Action[]) => void];
-
-const CASES: readonly Case[] = [
-  [
-    "route exists + container running on the recorded port -> verify and continue, restart nothing",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1")],
-      containers: [mkContainer("c1", fullLabels("p1", "a.example.com"), { publishedPort: 40000 })],
-    }),
-    (a) => {
-      expect(kinds(a)).toEqual(["LeaveAlone"]);
-      expect(a[0]).toMatchObject({ kind: "LeaveAlone", reason: "in-sync", warn: false });
-      expect(a.some(isMutating)).toBe(false);
-    },
-  ],
-  [
-    "route exists + container running on a DIFFERENT port -> UpdateUpstream",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1")],
-      containers: [mkContainer("c1", fullLabels("p1", "a.example.com"), { publishedPort: 40777 })],
-    }),
-    (a) => {
-      expect(a).toEqual([
-        {
-          kind: "UpdateUpstream",
-          at: NOW,
-          hostname: "a.example.com",
-          previewId: "p1",
-          containerId: "c1",
-          from: { host: "10.0.0.2", port: 40000 },
-          to: { host: "10.0.0.2", port: 40777 },
-        },
-      ]);
-    },
-  ],
-  [
-    "route exists + no container -> MarkAsleep, never a start",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1")],
-    }),
-    (a) => expect(a).toEqual([{ kind: "MarkAsleep", at: NOW, previewId: "p1" }]),
-  ],
-  [
-    "route exists + container EXITED -> MarkAsleep, and the dead container is not an orphan",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1")],
-      containers: [mkContainer("c1", fullLabels("p1", "a.example.com"), { state: "exited" })],
-    }),
-    (a) => {
-      expect(kinds(a)).toEqual(["MarkAsleep", "LeaveAlone"]);
-      expect(a[1]).toMatchObject({ reason: "container-exited" });
-    },
-  ],
-  [
-    "no route + running + complete labels + hostname unclaimed -> AdoptRoute from labels",
-    mkInput({
-      containers: [
-        mkContainer("c1", fullLabels("p9", "new.example.com"), { publishedPort: 40123 }),
-      ],
-    }),
-    (a) => {
-      expect(a).toEqual([
-        {
-          kind: "AdoptRoute",
-          at: NOW,
-          containerId: "c1",
-          hostId: HOST,
-          hostname: "new.example.com",
-          previewId: "p9",
-          service: "web",
-          containerPort: 3000,
-          upstream: { host: "10.0.0.2", port: 40123 },
-          primary: true,
-          visibility: "public",
-        },
-      ]);
-    },
-  ],
-  [
-    "no route + running + labels incomplete -> StopOrphan",
-    mkInput({
-      containers: [
-        mkContainer("c1", { previewId: "p9", hostname: "x.example.com" }), // no service/port
-        mkContainer("c2", { hostname: "y.example.com", service: "web", containerPort: 3000 }), // no preview id
-        mkContainer("c3", fullLabels("p9", "z.example.com", { containerPort: 0 })), // unparseable port
-      ],
-    }),
-    (a) => {
-      expect(kinds(a)).toEqual(["StopOrphan", "StopOrphan", "StopOrphan"]);
-      for (const x of a) expect(x).toMatchObject({ reason: "incomplete-labels" });
-    },
-  ],
-  [
-    "no route + running + gangway.version HIGHER than ours -> LeaveAlone and warn",
-    mkInput({
-      containers: [
-        mkContainer(
-          "c1",
-          fullLabels("p9", "new.example.com", { version: GANGWAY_LABEL_VERSION + 1 }),
-        ),
-      ],
-    }),
-    (a) => {
-      expect(a).toEqual([
-        {
-          kind: "LeaveAlone",
-          at: NOW,
-          reason: "newer-gangway",
-          hostname: "new.example.com",
-          containerId: "c1",
-          warn: true,
-        },
-      ]);
-    },
-  ],
-  [
-    "a newer gangway's container is left alone even when its labels are garbage",
-    mkInput({ containers: [mkContainer("c1", { version: 99 })] }),
-    (a) => expect(a).toMatchObject([{ kind: "LeaveAlone", reason: "newer-gangway" }]),
-  ],
-  [
-    "preview in `building` + no container + no live build -> MarkFailed",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1", "building")],
-    }),
-    (a) => {
-      expect(only(a, "MarkFailed")).toMatchObject({ kind: "MarkFailed", previewId: "p1" });
-      expect(kinds(a)).toEqual(["MarkFailed"]);
-    },
-  ],
-  [
-    "preview in `building` WITH a live build -> left alone; reconciliation raced a real build",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1", "building")],
-      liveBuilds: new Set(["p1"]),
-    }),
-    (a) => {
-      expect(a.some(isMutating)).toBe(false);
-      expect(a[0]).toMatchObject({ reason: "build-in-flight" });
-    },
-  ],
-  [
-    "two sources claim one hostname -> StopOrphan the container, SQLite wins",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1")],
-      containers: [mkContainer("c-intruder", fullLabels("p2", "a.example.com"))],
-    }),
-    (a) => {
-      // The route's own preview still has nothing running, so it also goes to sleep.
-      expect(kinds(a).sort()).toEqual(["MarkAsleep", "StopOrphan"]);
-      expect(only(a, "StopOrphan")).toMatchObject({
-        kind: "StopOrphan",
-        containerId: "c-intruder",
-        hostname: "a.example.com",
-        reason: "hostname-conflict",
-      });
-    },
-  ],
-  [
-    "two unclaimed containers claim one hostname -> first adopted, the rest stopped",
-    mkInput({
-      containers: [
-        mkContainer("c1", fullLabels("p1", "dup.example.com")),
-        mkContainer("c2", fullLabels("p2", "dup.example.com")),
-      ],
-    }),
-    (a) => {
-      expect(kinds(a)).toEqual(["AdoptRoute", "StopOrphan"]);
-      expect(a[0]).toMatchObject({ containerId: "c1" });
-      expect(a[1]).toMatchObject({ containerId: "c2", reason: "hostname-conflict" });
-    },
-  ],
-  [
-    "route exists + HOST UNREACHABLE -> no action, no state change",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000), mkRoute("b.example.com", "p2", 40001)],
-      previews: [mkPreview("p1"), mkPreview("p2", "building")],
-      hostReachable: false,
-    }),
-    (a) => {
-      expect(a.some(isMutating)).toBe(false);
-      for (const x of a)
-        expect(x).toMatchObject({ kind: "LeaveAlone", reason: "host-unreachable" });
-    },
-  ],
-  [
-    "a running container with complete labels but no published port -> StopOrphan, it cannot serve its hostname",
-    mkInput({
-      containers: [mkContainer("c1", fullLabels("p9", "new.example.com"), { publishedPort: null })],
-    }),
-    (a) => expect(a).toMatchObject([{ kind: "StopOrphan", reason: "unroutable" }]),
-  ],
-  [
-    "an already-asleep preview is not re-slept",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1", "asleep")],
-    }),
-    (a) => expect(a).toMatchObject([{ kind: "LeaveAlone", reason: "already-asleep", warn: false }]),
-  ],
-  [
-    "terminal previews are never revived or re-written",
-    mkInput({
-      dbRoutes: [
-        mkRoute("a.example.com", "p1", 40000),
-        mkRoute("b.example.com", "p2", 40001),
-        mkRoute("c.example.com", "p3", 40002),
-      ],
-      previews: [
-        mkPreview("p1", "failed"),
-        mkPreview("p2", "destroying"),
-        mkPreview("p3", "destroyed"),
-      ],
-    }),
-    (a) => {
-      expect(a.some(isMutating)).toBe(false);
-      for (const x of a) expect(x).toMatchObject({ reason: "preview-inactive" });
-    },
-  ],
-  [
-    "a route whose preview row is missing is reported, not repaired",
-    mkInput({ dbRoutes: [mkRoute("a.example.com", "ghost", 40000)] }),
-    (a) => expect(a).toMatchObject([{ kind: "LeaveAlone", reason: "unknown-preview", warn: true }]),
-  ],
-  [
-    "our container is running but the daemon reports no published port -> warn, change nothing",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1")],
-      containers: [mkContainer("c1", fullLabels("p1", "a.example.com"), { publishedPort: null })],
-    }),
-    (a) => {
-      expect(a.some(isMutating)).toBe(false);
-      expect(a[0]).toMatchObject({ reason: "container-port-unknown", warn: true });
-    },
-  ],
-  [
-    "a preview whose host moved -> UpdateUpstream rewrites the address too, not just the port",
-    mkInput({
-      dbRoutes: [mkRoute("a.example.com", "p1", 40000)],
-      previews: [mkPreview("p1")],
-      containers: [
-        mkContainer("c1", fullLabels("p1", "a.example.com"), { upstreamHost: "10.0.0.9" }),
-      ],
-    }),
-    (a) =>
-      expect(a).toMatchObject([{ kind: "UpdateUpstream", to: { host: "10.0.0.9", port: 40000 } }]),
-  ],
-  [
-    "a preview with several routes is put to sleep exactly once",
-    mkInput({
-      dbRoutes: [
-        mkRoute("a.example.com", "p1", 40000),
-        mkRoute("b.example.com", "p1", 40001, { service: "api" }),
-      ],
-      previews: [mkPreview("p1")],
-    }),
-    (a) => expect(a).toEqual([{ kind: "MarkAsleep", at: NOW, previewId: "p1" }]),
-  ],
-  ["empty input -> no actions", mkInput(), (a) => expect(a).toEqual([])],
-];
+import { CASES } from "../helpers/reconcile-cases.ts";
+import {
+  fullLabels,
+  HOST,
+  mkContainer,
+  mkInput,
+  mkPreview,
+  mkRoute,
+  NOW,
+} from "../helpers/reconcile-diff.ts";
 
 describe("the case table", () => {
   for (const [name, input, assert] of CASES) test(name, () => assert(diff(input)));
 });
-
-// --------------------------------------------------------------------------------------------
-// The rule that matters most.
-// --------------------------------------------------------------------------------------------
 
 describe("an unreachable host is not an empty host", () => {
   const populated = (hostReachable: DiffInput["hostReachable"]): DiffInput =>
@@ -400,12 +40,11 @@ describe("an unreachable host is not an empty host", () => {
     expect(a.filter(isMutating)).toEqual([]);
   });
 
-  test("the SAME input with the host reachable is full of them -- the difference is knowledge, not data", () => {
+  test("the same input with the host reachable mutates every preview", () => {
     expect(diff(populated(true)).filter(isMutating).length).toBe(20);
   });
 
   test("a host absent from the reachability map defaults to unreachable", () => {
-    // "I could not ask" is the safe default; an empty map must never read as "everything is gone".
     const a = diff(populated(new Map()));
     expect(a.filter(isMutating)).toEqual([]);
   });
@@ -440,10 +79,6 @@ describe("an unreachable host is not an empty host", () => {
   });
 });
 
-// --------------------------------------------------------------------------------------------
-// Scale and determinism.
-// --------------------------------------------------------------------------------------------
-
 const consistentState = (n: number): DiffInput => {
   const dbRoutes: Route[] = [];
   const previews: Preview[] = [];
@@ -468,7 +103,7 @@ const shuffle = <T>(xs: readonly T[], rand: () => number): T[] => {
   return out;
 };
 
-// Deterministic PRNG: a property test that cannot be replayed is not a test.
+// Seeded, so a failing property test can be replayed.
 const mulberry32 =
   (seed: number): (() => number) =>
   () => {
@@ -499,8 +134,7 @@ describe("scale", () => {
   });
 
   test("stays linear: 20k routes and containers finish well inside a boot budget", () => {
-    // A quadratic pass over this input is ~4e8 comparisons and would blow the bound by orders
-    // of magnitude. Reconciliation runs on every boot and on every host reconnect.
+    // A quadratic pass here is ~4e8 comparisons and would blow the bound by orders of magnitude.
     const big = consistentState(20_000);
     const started = performance.now();
     const a = diff(big);
@@ -510,11 +144,7 @@ describe("scale", () => {
   });
 });
 
-// --------------------------------------------------------------------------------------------
-// Idempotence: apply the diff, diff again, and nothing should be left to do.
-// --------------------------------------------------------------------------------------------
-
-/** A deliberately naive applier -- it only has to be faithful to what each action promises. */
+/** A deliberately naive applier: it only has to be faithful to what each action promises. */
 const apply = (input: DiffInput, actions: readonly Action[]): DiffInput => {
   const routes = new Map(input.dbRoutes.map((r) => [r.hostname, { ...r }]));
   const previews = new Map(input.previews.map((p) => [p.id, { ...p }]));
@@ -629,8 +259,6 @@ describe("idempotence", () => {
     const after = apply(before, first);
     const second = diff(after);
     expect(second.filter(isMutating)).toEqual([]);
-
-    // ...and a third pass changes nothing either, so the fixed point is real.
     expect(diff(apply(after, second))).toEqual(second);
   });
 
