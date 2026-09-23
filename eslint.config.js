@@ -14,6 +14,10 @@ export default tseslint.config(
     },
     rules: {
       "no-duplicate-imports": "error",
+      "max-lines": ["warn", { max: 400, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["warn", { max: 80, skipBlankLines: true, skipComments: true }],
+      complexity: ["warn", 20],
+      "max-depth": ["warn", 4],
       // Async methods often implement an interface without awaiting anything themselves.
       "@typescript-eslint/require-await": "off",
       // Sanitizers match control characters on purpose.
@@ -29,6 +33,9 @@ export default tseslint.config(
     // Tests read untyped JSON responses and poke at internals on purpose.
     files: ["**/test/**"],
     rules: {
+      "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": "off",
+      complexity: "off",
       // bun types `expect(p).rejects.*` as void, but it must be awaited.
       "@typescript-eslint/await-thenable": "off",
       "@typescript-eslint/no-explicit-any": "off",

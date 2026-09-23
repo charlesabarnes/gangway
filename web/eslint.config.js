@@ -17,6 +17,9 @@ module.exports = defineConfig([
     processor: angular.processInlineTemplates,
     rules: {
       '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
+      complexity: ['warn', 20],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
@@ -41,6 +44,13 @@ module.exports = defineConfig([
           style: 'kebab-case',
         },
       ],
+    },
+  },
+  {
+    files: ['**/*.spec.ts'],
+    rules: {
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': 'off',
     },
   },
   {
