@@ -7,18 +7,17 @@ Ship what Claude would normally make as an artifact to a real HTTPS URL on your 
 
 ## Install
 
-From a clone of this repository:
+One line in a terminal, with your server's MCP URL:
 
+```sh
+claude plugin marketplace add charlesabarnes/gangway && claude plugin install gangway@gangway --config mcp_url=https://mcp.preview.example.com/
 ```
-/plugin marketplace add /path/to/gangway
-/plugin install gangway@gangway
-```
 
-When prompted, enter your MCP URL, for example `https://mcp.preview.example.com/`. Then run `/mcp` and sign in to `gangway`. That is OAuth against your server's consent page.
+Or inside Claude Code: `/plugin marketplace add charlesabarnes/gangway`, then `/plugin install gangway@gangway`, which asks for the URL. Either way, run `/mcp` afterwards and sign in to `gangway` (OAuth, on your server's consent page). Update later with `claude plugin marketplace update gangway`.
 
-To try it without installing: `claude --plugin-dir ./plugin/gangway`.
+To try a local checkout without installing: `claude --plugin-dir ./plugin/gangway`.
 
-If you already added gangway as a user-level MCP server, remove one of the two copies, or you will see every tool twice.
+If you already added gangway as a user-level MCP server, remove it (`claude mcp remove gangway`), or you will see every tool twice.
 
 ## Needs
 
