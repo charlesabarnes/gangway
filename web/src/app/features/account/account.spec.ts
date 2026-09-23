@@ -74,11 +74,10 @@ const submit = async (r: Rendered<unknown>, form: string) => {
 describe('Account', () => {
   beforeAll(installDialogPolyfill);
 
-  it('shows who you are and what your role may do, grouped by feature -- from PERMISSIONS, not the role name', async () => {
-    const r = await open({ role: 'release-manager' }); // a custom role the UI has never heard of
+  it('shows who you are and your permissions by feature, whatever the role is called', async () => {
+    const r = await open({ role: 'release-manager' });
     expect(r.text('identity')).toContain('ada@example.com');
     expect(r.text('identity')).toContain('release-manager');
-    // <dt>/<dd> pairs; the gap between them is CSS, so read them as pairs.
     const granted = Object.fromEntries(
       Array.from(r.byTestId('permissions')!.querySelectorAll('div')).map((d) => [
         d.querySelector('dt')!.textContent,
@@ -94,7 +93,7 @@ describe('Account', () => {
     });
   });
 
-  it('the token section appears, WITH its list, if the permission is granted while the page is open', async () => {
+  it('the token section and its list appear when the permission is granted later', async () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.byTestId('token-form')).toBeNull();
     const again = TestBed.inject(AuthService).refresh();
@@ -116,7 +115,7 @@ describe('Account', () => {
   });
 
   describe('connected agents', () => {
-    it('lists each by name and publisher; disconnecting asks first, then DELETEs it', async () => {
+    it('lists each by name and publisher, and disconnecting asks first', async () => {
       const r = await open({ grants: [grant()] });
       expect(r.text('grants')).toContain('Claude');
       expect(r.text('grants')).toContain('claude.ai');
@@ -135,7 +134,7 @@ describe('Account', () => {
       expect(r.byTestId('no-grants')).not.toBeNull();
     });
 
-    it('none: says how an agent connects', async () => {
+    it('with none, says how an agent connects', async () => {
       const r = await open();
       expect(r.text('no-grants')).toContain('connects from its own side');
     });
@@ -157,10 +156,10 @@ describe('Account', () => {
       expect((r.byTestId('scope-admin') as HTMLInputElement).disabled).toBe(false);
     });
 
-    it('creates a token and shows the secret ONCE, with a warning, then forgets it', async () => {
+    it('creates a token and shows the secret once, with a warning, then forgets it', async () => {
       const r = await open();
       const create = () => r.byTestId('create-token') as HTMLButtonElement;
-      expect(create().disabled).toBe(true); // no name, no scope
+      expect(create().disabled).toBe(true);
       type(r, 'token-name', '  github-actions ');
       await check(r, 'scope-deploy');
       expect(create().disabled).toBe(false);
@@ -184,7 +183,7 @@ describe('Account', () => {
       expect(r.text('secret')).toBe('gw_THE_SECRET_VALUE_0123456789abcdefghijklmnop');
       expect(r.text('minted')).toContain('will not be shown again');
       expect(r.allByTestId('token')).toHaveLength(1);
-      expect(r.byTestId('tokens')!.textContent).not.toContain('THE_SECRET'); // the list only ever has the prefix
+      expect(r.byTestId('tokens')!.textContent).not.toContain('THE_SECRET');
       expect((r.byTestId('token-name') as HTMLInputElement).value).toBe('');
 
       (r.byTestId('done') as HTMLElement).click();
@@ -206,7 +205,7 @@ describe('Account', () => {
       req.flush({ token: token(), secret: 'gw_x' });
     });
 
-    it("a refusal shows the server's reason and RE-ASKS permissions: the role changed under this tab", async () => {
+    it("a refusal shows the server's reason and asks for permissions again", async () => {
       const r = await open();
       type(r, 'token-name', 'ci');
       await check(r, 'scope-deploy');
@@ -234,7 +233,7 @@ describe('Account', () => {
       expect((r.byTestId('scope-deploy') as HTMLInputElement).disabled).toBe(true);
     });
 
-    it('lists tokens by prefix with last-used and expiry; revoking asks first, then greys the row', async () => {
+    it('lists tokens by prefix with last use and expiry; revoking asks first', async () => {
       const r = await open({
         tokens: [
           token({ id: 't1', name: 'ci', lastUsedAt: null, expiresAt: null }),
@@ -269,7 +268,7 @@ describe('Account', () => {
       type(r, 'again', again);
     };
 
-    it('stays off until the new one is long enough and typed twice; then posts, clears, and says other sessions ended', async () => {
+    it('posts a new password once it is long enough and typed twice, then clears', async () => {
       const r = await open();
       const button = () => r.byTestId('change-password') as HTMLButtonElement;
       fill(r, 'my old password', 'short');
@@ -294,7 +293,7 @@ describe('Account', () => {
       expect((r.byTestId('current') as HTMLInputElement).value).toBe('');
     });
 
-    it('a wrong current password, and a lockout, each say what happened', async () => {
+    it('says when the current password is wrong or the account is locked out', async () => {
       const r = await open();
       fill(r, 'not my password', 'a brand new password');
       await r.settle();

@@ -1,4 +1,3 @@
-/** Which template a deploy follows: the request, the repository, the trigger; and what the pipeline does with it. */
 import { describe, expect, test } from "bun:test";
 import { AppError } from "../../src/errors.ts";
 import { Logger } from "../../src/logger.ts";
@@ -28,7 +27,7 @@ const PR = {
 } as const;
 
 describe("triggerOf", () => {
-  test("a PR source is `pr` whoever sent it; a session user is `manual`; a token is `api`", () => {
+  test("a PR source is `pr` from anyone, a session user `manual`, and a token `api`", () => {
     expect(triggerOf(PR as never, FORGE as never)).toBe("pr");
     expect(triggerOf(IMAGE as never, USER as never)).toBe("manual");
     expect(triggerOf(IMAGE as never, ACTOR)).toBe("api");
@@ -61,7 +60,7 @@ describe("PolicyResolver", () => {
     return { s, templates, repos, defaults, policy, lines };
   };
 
-  test("the request's template wins; an unknown one is a 422, not a silent fallback", () => {
+  test("the request's template wins, and an unknown one is a 422 rather than a fallback", () => {
     const { policy } = setup();
     expect(policy.resolve({ source: IMAGE, actor: ACTOR, template: "staging" }).template.id).toBe(
       "staging",
@@ -71,8 +70,8 @@ describe("PolicyResolver", () => {
     );
   });
 
-  test("else the repository's; else the trigger's default; a stale default falls back to `default` and is logged once", () => {
-    const { policy, repos, defaults, lines } = setup();
+  test("uses the trigger's default unless the repository names a template", () => {
+    const { policy, repos } = setup();
     expect(policy.resolve({ source: IMAGE, actor: ACTOR }).template.id).toBe("ci");
     expect(policy.resolve({ source: IMAGE, actor: USER as never }).template.id).toBe("default");
     const repo = repos.create({
@@ -91,14 +90,17 @@ describe("PolicyResolver", () => {
     });
     repos.update(repo.id, { templateId: "staging" });
     expect(policy.resolve({ source: PR, actor: FORGE as never }).template.id).toBe("staging");
+  });
 
+  test("a stale trigger default falls back to `default` and is logged once", () => {
+    const { policy, defaults, lines } = setup();
     defaults["api"] = "gone";
     expect(policy.resolve({ source: IMAGE, actor: ACTOR }).template.id).toBe("default");
     expect(policy.resolve({ source: IMAGE, actor: ACTOR }).template.id).toBe("default");
     expect(lines.filter((l) => l.includes("template not found"))).toHaveLength(1);
   });
 
-  test("a project named by the request wins over the source's, by id or slug; an unknown one is a 422", () => {
+  test("a project named by id or slug wins over the source's; an unknown one is a 422", () => {
     const { policy, repos } = setup();
     repos.create({
       id: "r1",
@@ -123,7 +125,6 @@ describe("PolicyResolver", () => {
 });
 
 describe("deploy follows the template", () => {
-  /** A policy with one template and, optionally, one repository -- what the resolver would hand back. */
   const withRepo = (fields: Partial<Template>, repo?: Partial<Project>): Policy => {
     const base = fixedPolicy(fields);
     const full: Project | undefined = repo && {
@@ -150,7 +151,7 @@ describe("deploy follows the template", () => {
     return { resolve: (i) => ({ ...base.resolve(i), project: full }), default: base.default };
   };
 
-  test("visibility, ttl, idle, clearance and placement come from the template; the row records which one", async () => {
+  test("takes visibility, ttl, idle, clearance and host from the template it records", async () => {
     const s = setupPreviewContext();
     s.ctx.policy = withRepo({
       id: "staging",
@@ -178,7 +179,7 @@ describe("deploy follows the template", () => {
     expect(asked).toEqual([[null, "high"]]);
   });
 
-  test("the repository's overrides sit on top of the template, and the request on top of those", async () => {
+  test("the repository overrides the template, and the request overrides both", async () => {
     const s = setupPreviewContext();
     new ProjectsRepo(s.db).create({
       id: "r1",
@@ -186,7 +187,7 @@ describe("deploy follows the template", () => {
       slug: "web",
       forge: "github",
       fullName: "acme/web",
-    }); // the preview's project_id references it
+    });
     s.ctx.policy = withRepo(
       { visibility: "public", ttl: "7d", clearance: "standard" },
       { visibility: "private", ttl: "2h", prClearance: "low" },
@@ -199,7 +200,7 @@ describe("deploy follows the template", () => {
     const a = await (await deploy(s.ctx, { actor: ACTOR, name: "over", source: IMAGE })).done;
     expect(a).toMatchObject({ visibility: "private", secretLevel: "low", projectId: "r1" });
     expect(a.ttlExpiresAt!.getTime() - s.ctx.now()).toBeLessThanOrEqual(2 * 3_600_000);
-    expect(asked).toEqual([["r1", "low"]]); // the repository's secrets, at the override's clearance
+    expect(asked).toEqual([["r1", "low"]]);
     const b = await (
       await deploy(s.ctx, {
         actor: ACTOR,
@@ -213,13 +214,12 @@ describe("deploy follows the template", () => {
     expect(b).toMatchObject({ visibility: "public", ttlExpiresAt: null, secretLevel: "none" });
   });
 
-  test("a template naming a host that is gone: placed by the scheduler, with a warning, not refused", async () => {
+  test("a template naming a missing host is placed by the scheduler, not refused", async () => {
     const s = setupPreviewContext();
     s.ctx.policy = withRepo({ hostId: "mars" });
     const p = await (await deploy(s.ctx, { actor: ACTOR, name: "stale", source: IMAGE })).done;
     expect(p.state).toBe("awake");
     expect(p.hostId).toBe("local");
-    // An explicit request for a bad host is still refused: that one is a typo, not a stale row.
     await expect(
       deploy(s.ctx, { actor: ACTOR, name: "typo", source: IMAGE, hostId: "mars" }),
     ).rejects.toThrow(/does not exist/);

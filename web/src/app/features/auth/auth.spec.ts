@@ -50,7 +50,7 @@ describe('Login', () => {
     expect(TestBed.inject(Router).url).toBe('/previews/01ABC');
   });
 
-  it("sent here by a PRIVATE PREVIEW: after login it goes back through the server's gate with a real navigation, not the SPA router", async () => {
+  it("returns to a private preview's gate with a real navigation, not the router", async () => {
     const went: string[] = [];
     const gate = '/v1/auth/gate?host=shop.preview.example.dev&to=%2Forders%2F42';
     const r = await render(Login, {
@@ -68,7 +68,7 @@ describe('Login', () => {
       .flush({ user: USER, permissions: ['previews.view_private'] });
     await r.until(() => went.length > 0, 'the hard navigation');
     expect(went).toEqual([gate]);
-    expect(TestBed.inject(Router).url).toBe('/'); // the router was not asked
+    expect(TestBed.inject(Router).url).toBe('/');
   });
 
   it('never follows a returnUrl off this origin', async () => {
@@ -82,7 +82,7 @@ describe('Login', () => {
     expect(TestBed.inject(Router).url).toBe('/');
   });
 
-  it('a 401 says one thing -- the same thing the server says for every kind of failure -- and clears the password', async () => {
+  it('a 401 shows the one message for every failure and clears the password', async () => {
     const r = await open();
     type(r, 'email', 'ada@example.com');
     type(r, 'password', 'not the password');
@@ -99,8 +99,8 @@ describe('Login', () => {
     expect((r.byTestId('email') as HTMLInputElement).value).toBe('ada@example.com');
   });
 
-  it('a lockout disables the button and counts down from Retry-After, then lets you try again', async () => {
-    // Only the countdown's interval is faked: the test helpers wait on real timeouts.
+  it('a lockout disables the button and counts down from Retry-After', async () => {
+    // Only intervals are faked because the render helpers wait on real timeouts.
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     try {
       const r = await open();
@@ -122,7 +122,6 @@ describe('Login', () => {
       r.fixture.detectChanges();
       expect(r.text('submit')).toBe('Try again in 59s');
 
-      // Submitting while locked asks the server nothing.
       type(r, 'password', 'y');
       await submit(r);
       r.http.expectNone('/v1/auth/login');
@@ -144,7 +143,7 @@ describe('Login', () => {
     expect(r.text('error')).toBe('Enter your email and password.');
   });
 
-  it('an unexpected failure shows the request id, which is what to quote when asking why', async () => {
+  it('an unexpected failure shows the request id', async () => {
     const r = await open();
     type(r, 'email', 'ada@example.com');
     type(r, 'password', 'x');
@@ -201,7 +200,7 @@ describe('Setup', () => {
     expect(TestBed.inject(Router).url).toBe('/');
   });
 
-  it('the button stays off until the password is long enough AND typed the same twice', async () => {
+  it('the button stays off until the password is long enough and typed twice', async () => {
     const r = await open();
     const button = () => r.byTestId('submit') as HTMLButtonElement;
     fill(r, 'short', 'short');
@@ -217,7 +216,7 @@ describe('Setup', () => {
     expect(r.byTestId('mismatch')).toBeNull();
   });
 
-  it('a dead link (403) explains that every restart prints a new one', async () => {
+  it('a dead setup link explains that every restart prints a new one', async () => {
     const r = await open();
     fill(r);
     await r.settle();
@@ -230,7 +229,7 @@ describe('Setup', () => {
     expect(r.text('error')).toContain('every time gangway starts');
   });
 
-  it('already set up (404), and a server-side validation failure (422), each say what happened', async () => {
+  it('says when setup is already done, and shows server-side validation failures', async () => {
     const r = await open();
     fill(r);
     await r.settle();
@@ -252,7 +251,7 @@ describe('Setup', () => {
     expect(r.text('error')).toBe('email: Invalid email');
   });
 
-  it('password managers are told these are NEW passwords', async () => {
+  it('password managers are told these are new passwords', async () => {
     const r = await open();
     expect(r.byTestId('password')!.getAttribute('autocomplete')).toBe('new-password');
     expect(r.byTestId('confirm')!.getAttribute('autocomplete')).toBe('new-password');

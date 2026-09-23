@@ -41,11 +41,7 @@ import {
   type Visibility,
 } from './api.types';
 
-/**
- * The UI's half of the wire contract. The server's test suite asserts that its real output
- * matches `contract.json`; this asserts that file satisfies the types written here. The
- * assignments below are the test -- they fail at compile time, which `ng test` runs.
- */
+// The typed assignments below are the test: they fail to compile if contract.json drifts.
 describe('the /v1 wire contract', () => {
   it('the fixture satisfies the hand-written types', () => {
     const preview: Preview = contract.preview as Preview;
@@ -58,7 +54,6 @@ describe('the /v1 wire contract', () => {
     const github: GitHubStatus = contract.githubStatus as GitHubStatus;
     const repo: Project = contract.project as Project;
 
-    // Every key the server sends is one the type knows, and the other way round.
     const keys = (o: object) => Object.keys(o).sort();
     const PREVIEW_KEYS: (keyof Preview)[] = [
       'id',
@@ -220,12 +215,10 @@ describe('the /v1 wire contract', () => {
     expect([...ADDON_IDS]).toEqual(contract.addonIds);
     expect(keys(list.runtimes[0]!)).toEqual([...RUNTIME_KEYS].sort());
     expect(keys(list.detection[0]!)).toEqual(['markers', 'runtime']);
-    // The data browser's answer, and a preview's add-ons.
     const result: DataResult = contract.dataResult as DataResult;
     expect(keys(result)).toEqual(['columns', 'message', 'ms', 'rows', 'truncated']);
     const addon: PreviewAddon = (contract.previewAddons as PreviewAddon[])[0]!;
     expect(keys(addon)).toEqual(['env', 'id', 'name', 'service', 'version']);
-    // The plan, as the New screen reads it.
     const plan: AppPlan = contract.appPlan as AppPlan;
     const PLAN_KEYS: (keyof AppPlan)[] = [
       'kind',

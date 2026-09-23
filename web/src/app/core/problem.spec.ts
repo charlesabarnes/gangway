@@ -49,7 +49,7 @@ describe('toProblem', () => {
     expect(p.requestId).toBeNull();
   });
 
-  it("a proxy's bare 502/503 is a restart; gangway's OWN 503 keeps its words", () => {
+  it("a proxy's bare 502 is a restart, while gangway's own 503 keeps its words", () => {
     expect(
       toProblem(new HttpErrorResponse({ status: 502, error: '<html>Bad Gateway</html>' })).title,
     ).toBe('gangway is restarting');

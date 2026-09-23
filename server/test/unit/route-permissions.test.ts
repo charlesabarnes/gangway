@@ -1,8 +1,3 @@
-/**
- * Every `/v1` route names the permission it needs. "Any authenticated actor" is not a
- * policy: a viewer-scoped credential would inherit whatever a new route forgot to guard.
- * Registration needs no working dependencies -- handlers are never called here.
- */
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { isPermission } from "@gangway/shared/permissions";

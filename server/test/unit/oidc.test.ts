@@ -1,4 +1,3 @@
-/** GitHub Actions OIDC: real RS256 tokens against a key set served by a fake fetch. */
 import { describe, expect, test } from "bun:test";
 import { createSign, generateKeyPairSync, type KeyObject } from "node:crypto";
 import { GITHUB_ACTIONS_ISSUER, GitHubOidc } from "../../src/auth/oidc.ts";
@@ -72,7 +71,7 @@ function setup() {
 }
 
 describe("GitHubOidc", () => {
-  test("a genuine token gives the run's claims; the key set is fetched once and cached", async () => {
+  test("a genuine token gives the run's claims and the key set is cached", async () => {
     const t = setup();
     const c = await t.oidc.verify(sign(t.a, claims()));
     expect(c).toEqual({
@@ -88,19 +87,25 @@ describe("GitHubOidc", () => {
     expect(t.fetches).toEqual([`${GITHUB_ACTIONS_ISSUER}/.well-known/jwks`]);
   });
 
-  test("refused: another audience, another issuer, expired, not yet valid, a bad repository claim, alg none, a forged signature", async () => {
+  test.each([
+    ["another audience", claims({ aud: "https://api.elsewhere.example" })],
+    ["another issuer", claims({ iss: "https://evil.example" })],
+    ["an expiry in the past", claims({ exp: NOW / 1000 - 120 })],
+    ["a not-before in the future", claims({ nbf: NOW / 1000 + 600 })],
+    ["a bad repository claim", claims({ repository: "../../etc" })],
+  ])("refuses a token with %s", async (_, c) => {
     const t = setup();
-    const other = keypair("k1"); // same kid, different key: a forgery
-    expect(
-      await t.oidc.verify(sign(t.a, claims({ aud: "https://api.elsewhere.example" }))),
-    ).toBeNull();
-    expect(await t.oidc.verify(sign(t.a, claims({ iss: "https://evil.example" })))).toBeNull();
-    expect(await t.oidc.verify(sign(t.a, claims({ exp: NOW / 1000 - 120 })))).toBeNull();
-    expect(await t.oidc.verify(sign(t.a, claims({ nbf: NOW / 1000 + 600 })))).toBeNull();
-    expect(await t.oidc.verify(sign(t.a, claims({ repository: "../../etc" })))).toBeNull();
+    expect(await t.oidc.verify(sign(t.a, c))).toBeNull();
+  });
+
+  test("refuses alg none and a signature from another key with the same kid", async () => {
+    const t = setup();
     expect(await t.oidc.verify(sign(t.a, claims(), { alg: "none" }))).toBeNull();
-    expect(await t.oidc.verify(sign(other, claims()))).toBeNull();
-    // An audience list that includes ours is fine.
+    expect(await t.oidc.verify(sign(keypair("k1"), claims()))).toBeNull();
+  });
+
+  test("accepts an audience list that includes ours", async () => {
+    const t = setup();
     expect(await t.oidc.verify(sign(t.a, claims({ aud: ["x", AUD] })))).not.toBeNull();
   });
 
@@ -114,19 +119,19 @@ describe("GitHubOidc", () => {
     expect(t.fetches).toEqual([]);
   });
 
-  test("a key GitHub rotated in is picked up by refetching -- at most once a minute", async () => {
+  test("picks up a rotated key by refetching, at most once a minute", async () => {
     const t = setup();
     await t.oidc.verify(sign(t.a, claims()));
     const b = keypair("k2");
     t.served.keys.push(b.jwk);
     t.advance(30_000);
-    expect(await t.oidc.verify(sign(b, claims()))).toBeNull(); // within the floor: no refetch yet
+    expect(await t.oidc.verify(sign(b, claims()))).toBeNull();
     t.advance(31_000);
     expect(await t.oidc.verify(sign(b, claims()))).not.toBeNull();
     expect(t.fetches).toHaveLength(2);
   });
 
-  test("workflowActor: the PR number comes from the ref; a push has none", () => {
+  test("workflowActor takes the PR number from the ref, and a push has none", () => {
     expect(
       workflowActor({
         repository: "acme/web-app",

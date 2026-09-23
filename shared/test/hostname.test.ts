@@ -14,26 +14,23 @@ import {
 const BASE = "preview.example.com";
 
 describe("normalizeHost", () => {
-  const cases: [string | null | undefined, string | null][] = [
-    ["Foo.Preview.Example.COM", "foo.preview.example.com"], // uppercase
-    ["foo.preview.example.com.", "foo.preview.example.com"], // trailing dot
-    ["foo.preview.example.com:8443", "foo.preview.example.com"], // port
-    ["  foo.preview.example.com  ", "foo.preview.example.com"], // whitespace
-    ["FOO.preview.example.com.:443", "foo.preview.example.com"], // all three
-    ["[::1]:8443", "[::1]"], // IPv6 literal
+  test.each<[string | null | undefined, string | null]>([
+    ["Foo.Preview.Example.COM", "foo.preview.example.com"],
+    ["foo.preview.example.com.", "foo.preview.example.com"],
+    ["foo.preview.example.com:8443", "foo.preview.example.com"],
+    ["  foo.preview.example.com  ", "foo.preview.example.com"],
+    ["FOO.preview.example.com.:443", "foo.preview.example.com"],
+    ["[::1]:8443", "[::1]"],
     ["", null],
     [null, null],
     [undefined, null],
-    ["foo_bar.preview.example.com", null], // underscore
-    ["xn--e1afmkfd.example.com", "xn--e1afmkfd.example.com"], // punycode is fine
-    ["föö.example.com", null], // raw IDN rejected
-    ["a".repeat(254), null], // over 253
-  ];
-  for (const [input, want] of cases) {
-    test(`${JSON.stringify(input)} -> ${JSON.stringify(want)}`, () => {
-      expect(normalizeHost(input)).toBe(want);
-    });
-  }
+    ["foo_bar.preview.example.com", null],
+    ["xn--e1afmkfd.example.com", "xn--e1afmkfd.example.com"],
+    ["föö.example.com", null],
+    ["a".repeat(254), null],
+  ])("%j -> %j", (input, want) => {
+    expect(normalizeHost(input)).toBe(want);
+  });
 });
 
 describe("checkLabel", () => {
@@ -50,15 +47,13 @@ describe("checkLabel", () => {
   });
 
   test("a PR on a repo literally named `api` cannot hijack the control plane", () => {
-    // The bare repo label collides and must be refused...
     expect(checkLabel("api").ok).toBe(false);
-    // ...but the PR-scoped label is distinct and therefore fine.
     const built = buildLabel({ kind: "pr", repo: "api", number: 7 });
     expect(built.ok).toBe(true);
     if (built.ok) expect(built.label).toBe("api-pr-7");
   });
 
-  const bad: [string, LabelRejection][] = [
+  test.each<[string, LabelRejection]>([
     ["", "empty"],
     ["-lead", "malformed"],
     ["trail-", "malformed"],
@@ -68,14 +63,11 @@ describe("checkLabel", () => {
     ["a.b", "contains-dot"],
     ["..", "contains-dot"],
     ["a".repeat(64), "too-long"],
-  ];
-  for (const [label, reason] of bad) {
-    test(`rejects ${JSON.stringify(label)} (${reason})`, () => {
-      const r = checkLabel(label);
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.reason).toBe(reason);
-    });
-  }
+  ])("rejects %j as %s", (label, reason) => {
+    const r = checkLabel(label);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe(reason);
+  });
 
   test("63 chars is allowed, 64 is not", () => {
     expect(isValidLabel("a".repeat(63))).toBe(true);
@@ -83,8 +75,6 @@ describe("checkLabel", () => {
   });
 
   test("a dot is reported as a dot, not as generic malformation", () => {
-    // This distinction matters: it is the one-wildcard-label rule, and the error
-    // text has to explain why `api.acme-pr-1` cannot work.
     const r = checkLabel("api.acme-pr-1");
     expect(r.ok).toBe(false);
     if (!r.ok) {
@@ -101,7 +91,7 @@ describe("labelUnder", () => {
   test("the apex itself yields the empty label", () => {
     expect(labelUnder(BASE, BASE)).toBe("");
   });
-  test("multi-label subdomains are refused (no wildcard covers them)", () => {
+  test("multi-label subdomains are refused", () => {
     expect(labelUnder("api.acme-pr-1.preview.example.com", BASE)).toBeNull();
   });
   test("foreign domains are refused", () => {
@@ -126,27 +116,29 @@ describe("slugify", () => {
 });
 
 describe("buildLabel", () => {
-  test("PR scheme", () => {
-    const r = buildLabel({ kind: "pr", repo: "acme", number: 123 }, { service: "api" });
-    expect(r.ok && r.label).toBe("acme-pr-123-api");
-  });
-  test("slug scheme", () => {
-    const r = buildLabel({ kind: "slug", slug: "My App" }, { service: "web" });
-    expect(r.ok && r.label).toBe("my-app-web");
-  });
-  test("single-service stacks drop the service segment", () => {
-    const r = buildLabel(
+  test.each([
+    [
+      "the PR scheme",
+      { kind: "pr", repo: "acme", number: 123 },
+      { service: "api" },
+      "acme-pr-123-api",
+    ],
+    ["the slug scheme", { kind: "slug", slug: "My App" }, { service: "web" }, "my-app-web"],
+    [
+      "a single-service stack",
       { kind: "pr", repo: "acme", number: 1 },
       { service: "web", isSingleService: true },
-    );
-    expect(r.ok && r.label).toBe("acme-pr-1");
-  });
-  test("the primary service drops the service segment", () => {
-    const r = buildLabel(
+      "acme-pr-1",
+    ],
+    [
+      "the primary service",
       { kind: "pr", repo: "acme", number: 1 },
       { service: "web", isPrimary: true },
-    );
-    expect(r.ok && r.label).toBe("acme-pr-1");
+      "acme-pr-1",
+    ],
+  ] as const)("%s", (_, source, opts, label) => {
+    const r = buildLabel(source, opts);
+    expect(r.ok && r.label).toBe(label);
   });
   test("rejects rather than silently truncating an over-long label", () => {
     const r = buildLabel({ kind: "pr", repo: "a".repeat(70), number: 1 }, { service: "api" });

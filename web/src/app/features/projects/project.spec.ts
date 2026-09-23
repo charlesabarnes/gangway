@@ -76,7 +76,7 @@ const choose = async (r: Rendered<unknown>, id: string, v: string) => {
 describe('Project', () => {
   beforeAll(installDialogPolyfill);
 
-  it("previews tab: only this project's; empty, it points at the workflow", async () => {
+  it("the previews tab lists only this project's previews", async () => {
     const r = await open({
       previews: [
         {
@@ -95,12 +95,12 @@ describe('Project', () => {
     expect(r.allByTestId('tab-workflow')).toHaveLength(1);
   });
 
-  it('previews tab, empty: it points at the workflow', async () => {
+  it('an empty previews tab points at the workflow', async () => {
     const r = await open();
     expect(r.text('no-previews')).toContain('the workflow');
   });
 
-  it('workflow tab: the file for this project, re-fetched when the port changes', async () => {
+  it("the workflow tab shows this project's file, refetched when the port changes", async () => {
     const r = await open({ tab: 'workflow' });
     const req = r.http.expectOne(`/v1/projects/${P.id}/workflow?port=3000`);
     expect(req.request.responseType).toBe('text');
@@ -116,24 +116,24 @@ describe('Project', () => {
     expect(r.text('yaml')).toContain('8080');
   });
 
-  it('a webhook project: no Workflow tab; forks and drafts are its to set', async () => {
+  it('a webhook project has no Workflow tab but sets its own forks and drafts', async () => {
     const r = await open({ project: project({ prTrigger: 'webhook' }), tab: 'settings' });
     expect(r.byTestId('tab-workflow')).toBeNull();
     expect(r.byTestId('forks')).not.toBeNull();
   });
 
-  it('a project with no repository: no Workflow tab, no trigger to choose', async () => {
+  it('a project with no repository has no Workflow tab and no trigger', async () => {
     const r = await open({ project: project({ forge: null, fullName: null }), tab: 'settings' });
     expect(r.byTestId('tab-workflow')).toBeNull();
     expect(r.byTestId('trigger')).toBeNull();
   });
 
-  it('a workflow project has no fork settings: GitHub gives fork runs no token', async () => {
+  it('a workflow project has no fork settings, since fork runs get no token', async () => {
     const r = await open({ tab: 'settings' });
     expect(r.byTestId('forks')).toBeNull();
   });
 
-  it('settings: a PATCH of only what changed; "the template\'s" is null; a changed slug moves the URL', async () => {
+  it('settings PATCH only what changed, and a changed slug moves the URL', async () => {
     const r = await open({ tab: 'settings' });
     expect((r.byTestId('save') as HTMLButtonElement).disabled).toBe(true);
     await choose(r, 'template', 'ci');
@@ -142,7 +142,8 @@ describe('Project', () => {
     slug.value = 'store';
     slug.dispatchEvent(new Event('input'));
     await r.settle();
-    await choose(r, 'visibility', ''); // back to the template's: equal to the saved null, so not sent
+    // Back to the template's visibility, which equals the saved null, so it is not sent.
+    await choose(r, 'visibility', '');
     r.byTestId('settings')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await r.settle();
     const req = r.http.expectOne({ method: 'PATCH', url: `/v1/projects/${P.id}` });
@@ -177,7 +178,7 @@ describe('Project', () => {
     expect(r.text('secrets')).toContain('API_KEY');
   });
 
-  it('without repos.manage or repos.secrets: previews only', async () => {
+  it('without repos.manage or repos.secrets only previews show', async () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.byTestId('tab-settings')).toBeNull();
     expect(r.byTestId('tab-secrets')).toBeNull();

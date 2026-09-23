@@ -68,7 +68,7 @@ async function open(
       { provide: SSE_JITTER, useValue: () => 0 },
     ],
   });
-  // The fixtures are dated around now; relative times must be read against it, not the wall clock.
+  // The fixtures are dated around NOW, so relative times read against it.
   TestBed.inject(Clock).set(NOW);
   const auth = TestBed.inject(AuthService);
   const loading = auth.refresh();
@@ -92,7 +92,7 @@ const click = async (r: Rendered<unknown>, id: string, within?: HTMLElement) => 
 describe('PreviewList', () => {
   beforeAll(installDialogPolyfill);
 
-  it('lists previews newest first with name, host, state in WORDS, source, expiry and age', async () => {
+  it('lists previews newest first with name, host, state, source, expiry and age', async () => {
     const r = await open();
     expect(names(r)).toEqual(['delta', 'charlie', 'bravo', 'alpha']);
     const row = r.allByTestId('row')[1]!;
@@ -105,7 +105,7 @@ describe('PreviewList', () => {
     expect(r.text('count')).toBe('4');
   });
 
-  it('the name goes to the detail page; the URL opens the preview in a new tab, safely', async () => {
+  it('the name links to the detail page and the URL opens safely in a new tab', async () => {
     const r = await open();
     expect(r.allByTestId('name')[3]!.getAttribute('href')).toBe(`/previews/${ALL[0]!.id}`);
     const link = r.allByTestId('url')[3]!;
@@ -113,7 +113,7 @@ describe('PreviewList', () => {
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
   });
 
-  it('a row appears WITHOUT a refresh when a deploy happens, and walks through its states', async () => {
+  it('a row appears without a refresh when a deploy happens, and follows its states', async () => {
     const r = await open({ previews: [] });
     expect(r.text('empty')).toContain('No previews yet');
     expect(r.text('curl')).toContain('/v1/previews');
@@ -135,7 +135,7 @@ describe('PreviewList', () => {
   });
 
   describe('filters', () => {
-    it('state chips (building covers starting), source, and search combine', async () => {
+    it('state chips, source and search combine, with building covering starting', async () => {
       const r = await open();
       await click(r, 'chip-building');
       expect(names(r)).toEqual(['charlie']);
@@ -157,10 +157,10 @@ describe('PreviewList', () => {
       search.value = 'ACME/shop';
       search.dispatchEvent(new Event('input'));
       await r.settle();
-      expect(names(r)).toEqual(['bravo']); // matches the source, not just the name
+      expect(names(r)).toEqual(['bravo']);
     });
 
-    it('live in the URL, so a filtered view survives a reload and can be shared', async () => {
+    it('are written to the URL, so a filtered view survives a reload', async () => {
       const r = await open();
       const router = TestBed.inject(Router);
       const navigate = vi.spyOn(router, 'navigate');
@@ -174,7 +174,7 @@ describe('PreviewList', () => {
       );
     });
 
-    it('...and are read back from it, ignoring anything that is not a real filter', async () => {
+    it('are read back from the URL, ignoring anything that is not a real filter', async () => {
       const r = await open({ query: { state: 'asleep,banana', source: 'pr', q: 'shop' } });
       expect(names(r)).toEqual(['bravo']);
       expect(r.byTestId('chip-asleep')!.getAttribute('aria-pressed')).toBe('true');
@@ -198,17 +198,17 @@ describe('PreviewList', () => {
       await r.settle();
       expect(names(r)).toContain('gone');
       const gone = r.allByTestId('row').find((row) => row.textContent?.includes('gone'))!;
-      expect(gone.querySelector('[data-testid="expires"]')!.textContent?.trim()).toBe('—'); // not "in 6 d"
+      expect(gone.querySelector('[data-testid="expires"]')!.textContent?.trim()).toBe('—');
     });
   });
 
   describe('destroy', () => {
-    it('is not offered to someone whose role lacks previews.destroy -- whatever that role is called', async () => {
+    it('is not offered to a role without previews.destroy', async () => {
       const r = await open({ permissions: ['previews.read'] });
       expect(r.allByTestId('destroy')).toHaveLength(0);
     });
 
-    it('asks first, with focus on CANCEL; cancelling asks the server nothing', async () => {
+    it('asks first with focus on Cancel, and cancelling asks the server nothing', async () => {
       const r = await open();
       await click(r, 'destroy', r.allByTestId('row')[3]!);
       expect(r.byTestId('confirm')!.hasAttribute('open')).toBe(true);
@@ -219,7 +219,7 @@ describe('PreviewList', () => {
       expect(r.allByTestId('row')[3]!.textContent).toContain('awake');
     });
 
-    it('confirmed: the row says destroying at once, and offers no second Destroy', async () => {
+    it('once confirmed the row says destroying at once and offers no second Destroy', async () => {
       const r = await open();
       await click(r, 'destroy', r.allByTestId('row')[3]!);
       await click(r, 'confirm-ok');
@@ -233,7 +233,7 @@ describe('PreviewList', () => {
       expect(r.allByTestId('row')[3]!.textContent).toContain('destroyed');
     });
 
-    it('refused (the operator changed the role under an open tab): rolled back, a toast with the request id, and permissions re-asked', async () => {
+    it('a refusal rolls back, toasts the request id, and asks for permissions again', async () => {
       const r = await open();
       await click(r, 'destroy', r.allByTestId('row')[3]!);
       await click(r, 'confirm-ok');
@@ -254,11 +254,11 @@ describe('PreviewList', () => {
         .expectOne('/v1/auth/session')
         .flush({ authenticated: true, setupRequired: false, permissions: ['previews.read'] });
       await r.settle();
-      expect(r.allByTestId('destroy')).toHaveLength(0); // the button is gone now that the UI knows
+      expect(r.allByTestId('destroy')).toHaveLength(0);
     });
   });
 
-  it('a failed load says why, with the request id, instead of claiming there are no previews', async () => {
+  it('a failed load shows the request id rather than an empty list', async () => {
     FakeEventSource.reset();
     const r = await render(PreviewList, {
       providers: [
@@ -293,7 +293,7 @@ describe('source labels', () => {
     [{ kind: 'tarball', uploadId: 'u' }, 'uploaded archive'],
   ] as const)('%o -> %s', (source, want) => expect(sourceLabel(source)).toBe(want));
 
-  it('gw- is the Docker namespace, not part of the name; the primary URL wins', () => {
+  it('drops the gw- prefix from the name, and prefers the primary URL', () => {
     expect(displayName({ project: 'gw-hello' })).toBe('hello');
     expect(
       primaryUrl({
@@ -306,7 +306,7 @@ describe('source labels', () => {
     expect(primaryUrl({ urls: [] })).toBeNull();
   });
 
-  it('offers New preview (header and empty state) only to a role with previews.deploy', async () => {
+  it('offers New preview only to a role with previews.deploy', async () => {
     const without = await open({ previews: [] });
     expect(without.byTestId('new')).toBeNull();
     expect(without.byTestId('empty-new')).toBeNull();
@@ -318,7 +318,7 @@ describe('source labels', () => {
 });
 
 describe('PreviewList: passwords', () => {
-  it('a lock on the protected rows, naming who can open them', async () => {
+  it('marks protected rows with who can open them', async () => {
     const r = await open({
       previews: [
         p('open'),

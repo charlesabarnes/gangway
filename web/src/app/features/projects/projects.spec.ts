@@ -82,7 +82,7 @@ const type = (r: Rendered<unknown>, id: string, v: string) => {
 };
 
 describe('Projects', () => {
-  it('each project as a card: its repository and trigger, its template, its live previews; previews in no project listed below', async () => {
+  it('shows each project with its repository, template and live previews', async () => {
     const r = await open({
       projects: [
         project(),
@@ -111,7 +111,6 @@ describe('Projects', () => {
         }),
       ],
     });
-    expect(r.allByTestId('project')).toHaveLength(2);
     expect(r.allByTestId('source').map((e) => e.textContent?.trim())).toEqual([
       'acme/web-app · workflow',
       'no repository',
@@ -121,18 +120,18 @@ describe('Projects', () => {
       'CI',
     ]);
     expect(r.allByTestId('project')[0]!.textContent).toContain('web-app-pr-4-k7q2');
-    expect(r.allByTestId('project')[0]!.textContent).not.toContain('pr-1'); // destroyed is not live
+    expect(r.allByTestId('project')[0]!.textContent).not.toContain('pr-1');
     expect(r.text('loose')).toContain('gw-docker-host-scratch');
     expect(r.allByTestId('project')[0]!.getAttribute('href')).toBe('/projects/web-app');
   });
 
-  it('New project: an installed repository fills the name; workflow is the default; created, it opens on the Workflow tab', async () => {
+  it('a new project named from an installed repository opens on its Workflow tab', async () => {
     const r = await open({
       installed: [{ fullName: 'acme/store-admin', installationId: '1', private: true }],
     });
     (r.byTestId('new') as HTMLButtonElement).click();
     await r.settle();
-    expect(r.byTestId('create-trigger-workflow')).toBeNull(); // no repository yet: no trigger to choose
+    expect(r.byTestId('create-trigger-workflow')).toBeNull();
     type(r, 'create-repo', 'acme/store-admin');
     await r.settle();
     expect((r.byTestId('create-name') as HTMLInputElement).value).toBe('store-admin');
@@ -161,7 +160,7 @@ describe('Projects', () => {
     );
   });
 
-  it('a project with no repository sends no trigger; a refusal is shown in the form', async () => {
+  it('a project with no repository sends no trigger, and a refusal shows in the form', async () => {
     const r = await open();
     (r.byTestId('new') as HTMLButtonElement).click();
     await r.settle();
@@ -179,7 +178,7 @@ describe('Projects', () => {
     expect(r.text('create-error')).toContain('taken');
   });
 
-  it('without repos.manage: no New project, and the installed repositories are not asked for', async () => {
+  it('without repos.manage there is no New project and no repository lookup', async () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.byTestId('new')).toBeNull();
     expect(r.text('projects') ?? r.el.textContent).toContain('No projects yet');

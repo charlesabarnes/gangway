@@ -22,13 +22,13 @@ describe("Passwords", () => {
     expect(a.salt).not.toBe(b.salt);
   });
 
-  test("unicode is normalised: the same password typed two ways is the same password", async () => {
+  test("normalises unicode so the same password typed two ways matches", async () => {
     const p = fast();
     const stored = await p.hash("café-au-lait-please");
     expect(await p.verify("café-au-lait-please", stored)).toBe(true);
   });
 
-  test("a stored value that does not parse is simply wrong -- it never throws", async () => {
+  test("a stored value that does not parse is wrong rather than an error", async () => {
     const p = fast();
     const good = await p.hash("a perfectly fine password");
     for (const hash of [
@@ -46,7 +46,6 @@ describe("Passwords", () => {
     const p = fast();
     const good = await p.hash("a perfectly fine password");
     const started = performance.now();
-    // ln=31 would be a 274 GiB derivation; ln=4 a trivially cheap one. Neither is run.
     for (const ln of ["31", "4", "99"]) {
       expect(
         await p.verify("a perfectly fine password", {
@@ -63,7 +62,6 @@ describe("Passwords", () => {
     expect(fast().needsRehash(stored.hash)).toBe(false);
     expect(new Passwords({ ln: 11 }).needsRehash(stored.hash)).toBe(true);
     expect(fast().needsRehash("garbage")).toBe(true);
-    // ...and the old hash still verifies under the new policy, so the upgrade can happen at login.
     expect(await new Passwords({ ln: 11 }).verify("a perfectly fine password", stored)).toBe(true);
   });
 
@@ -73,14 +71,14 @@ describe("Passwords", () => {
     expect(await p.verifyDummy("anything at all")).toBe(false);
   });
 
-  test("PRODUCTION cost works: Node's default maxmem is exactly what N=2^15 needs, and would throw", async () => {
+  test("works at production cost, which needs more than the default maxmem", async () => {
     const p = new Passwords();
     const stored = await p.hash("the real parameters, once");
     expect(stored.hash).toStartWith("scrypt$ln=15,r=8,p=1$");
     expect(await p.verify("the real parameters, once", stored)).toBe(true);
   });
 
-  test("hashing does not block the event loop: this process is also a proxy", async () => {
+  test("hashing does not block the event loop", async () => {
     const p = new Passwords();
     let worst = 0,
       last = performance.now();
@@ -94,19 +92,18 @@ describe("Passwords", () => {
       p.hash("second of two at production cost"),
     ]);
     clearInterval(probe);
-    // The async scrypt lags ~1 ms, scryptSync ~48 ms. The bound sits between them, so
-    // swapping in the sync call fails this test.
+    // Async scrypt lags ~1 ms and scryptSync ~48 ms; the bound sits between them.
     expect(worst).toBeLessThan(20);
   });
 
-  test("at most `concurrency` run at once; the queue is bounded and overflow is a 429", async () => {
+  test("runs at most `concurrency` at once and refuses queue overflow with a 429", async () => {
     const p = fast({ concurrency: 1, maxQueue: 2 });
     const results = await Promise.allSettled(
       Array.from({ length: 5 }, (_, i) => p.hash(`password number ${i} here`)),
     );
     const ok = results.filter((r) => r.status === "fulfilled");
     const refused = results.filter((r) => r.status === "rejected");
-    expect(ok).toHaveLength(3); // one running + two queued
+    expect(ok).toHaveLength(3);
     expect(refused).toHaveLength(2);
     for (const r of refused)
       expect(r.reason).toMatchObject({
@@ -114,7 +111,6 @@ describe("Passwords", () => {
         status: 429,
         headers: { "retry-after": "2" },
       });
-    // ...and the slots come back: the next caller is served.
     expect((await p.hash("after the storm passes")).hash).toStartWith("scrypt$");
   });
 });

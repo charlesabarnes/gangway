@@ -1,10 +1,4 @@
-/**
- * The UI's types are hand-written (web/src/app/core/api.types.ts): what crosses the network
- * is JSON, and the server's domain types are not. This is the server's half of keeping them
- * honest. It asserts that real output has exactly the shape and literals recorded in
- * web/src/testing/fixtures/contract.json; the web project's spec asserts that file
- * satisfies its types. Rename a field or add a state on either side alone: a test fails.
- */
+// The server's half of the UI contract; web/src/app/core/api.types.spec.ts is the other.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -26,7 +20,7 @@ import { oauthRoutes } from "../../src/app/routes/oauth.ts";
 import { OAuthServer } from "../../src/oauth/server.ts";
 import { OAuthGrantsRepo } from "../../src/db/repos/oauth-grants.ts";
 import { createHash } from "node:crypto";
-import { staticTokenVerifier, tokenActor } from "../../src/auth/actor.ts";
+import { staticTokenVerifier } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
 import { ProjectsRepo } from "../../src/db/repos/projects.ts";
@@ -43,7 +37,7 @@ const contract = JSON.parse(
 ) as Record<string, unknown>;
 const quiet = silentLogger();
 
-/** Keys and value types, recursively; an array is the shape of its first element. Values do not matter. */
+// Keys and value types, recursively; an array is the shape of its first element.
 function shapeOf(v: unknown): unknown {
   if (v === null) return "null";
   if (Array.isArray(v)) return v.length === 0 ? [] : [shapeOf(v[0])];
@@ -64,7 +58,7 @@ describe("string unions the UI switches on", () => {
     expect(contract["scopes"]).toEqual([...SCOPES]);
   });
 
-  test("what each token scope grants: the UI greys out a scope the role does not cover, from this", () => {
+  test("what each token scope grants", () => {
     const sorted = (o: Record<string, readonly string[]>) =>
       Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
     expect(sorted(contract["scopePermissions"] as Record<string, string[]>)).toEqual(
@@ -117,12 +111,12 @@ describe("preview wire shapes", () => {
     await s.deployed("types");
     const published = new Set(s.ctx.bus.history(s.previews.list()[0]!.id).map((e) => e.type));
     for (const type of published) expect(contract["streamEventTypes"]).toContain(type);
-    expect(contract["streamEventTypes"]).toContain("reset"); // synthetic, from EventBus.follow
+    expect(contract["streamEventTypes"]).toContain("reset");
   });
 });
 
 describe("account wire shapes", () => {
-  test("session (anonymous and logged in), login, a token, and a problem", async () => {
+  test("an anonymous and a signed-in session, login, a token, and a problem", async () => {
     const s = setupAccounts();
     const tokens = new Tokens(s.tokensRepo, s.roles, s.audit, s.now);
     const auth = {
@@ -185,8 +179,6 @@ describe("account wire shapes", () => {
     ).json()) as { token: unknown };
     expect(shapeOf(minted.token)).toEqual(shapeOf(contract["token"]));
 
-    // A read-only token refused a write: the 403 the UI shows in a toast.
-    void tokenActor;
     const denied = await call("/v1/tokens", { headers: { authorization: "Bearer gw_nope" } });
     expect(Object.keys((await denied.json()) as object).sort()).toEqual(
       Object.keys(contract["problem"] as object).sort(),
@@ -283,7 +275,6 @@ describe("oauth wire shapes", () => {
       }),
     );
     const { grants } = (await (await api.request("/oauth/grants")).json()) as { grants: unknown[] };
-    // lastUsedAt is null until the first call, as in the fixture.
     expect(shapeOf(grants[0])).toEqual(shapeOf(contract["oauthGrant"]));
   });
 });
@@ -334,7 +325,6 @@ describe("github wire shapes", () => {
     );
     const { project } = (await (await app.request("/projects/r1")).json()) as { project: unknown };
     expect(shapeOf(project)).toEqual(shapeOf(contract["project"]));
-    // A project with no repository: forge and fullName are null, not absent.
     repos.create({ id: "r2", name: "whoami", slug: "whoami" });
     const bare = (
       (await (await app.request("/projects/whoami")).json()) as { project: Record<string, unknown> }
@@ -343,7 +333,6 @@ describe("github wire shapes", () => {
     expect(bare).toMatchObject({ forge: null, fullName: null });
     expect(contract["forkPolicies"]).toEqual(["ask", "auto", "never"]);
     expect(contract["clearances"]).toEqual([...CLEARANCES]);
-    // A template, and the triggers a default is set for.
     const { template } = (await (await app.request("/templates/default")).json()) as {
       template: unknown;
     };
@@ -353,11 +342,10 @@ describe("github wire shapes", () => {
 });
 
 describe("runtime wire shapes", () => {
-  test("the catalogue, a kept source, a redeploy event, an upload's source, and the runtime ids", async () => {
+  test("the catalogue, a plan, a kept source, a redeploy, and the runtime ids", async () => {
     const { SourceStore } = await import("../../src/previews/source/store.ts");
     const { runtimeRoutes } = await import("../../src/app/routes/runtimes.ts");
     const { deploy } = await import("../../src/previews/deploy.ts");
-    const { redeploy } = await import("../../src/previews/redeploy.ts");
     const { RUNTIME_IDS } = await import("@gangway/shared/runtimes");
     const { pack } = await import("tar-stream");
     const { gzipSync } = await import("node:zlib");
@@ -381,14 +369,13 @@ describe("runtime wire shapes", () => {
     };
     const want = contract["runtimeList"] as { runtimes: unknown[]; detection: unknown[] };
     expect(Object.keys(list).sort()).toEqual(Object.keys(want).sort());
-    // Starter maps differ per runtime; their values are strings -- compare the rest of the shape.
+    // Starter maps differ per runtime, so only their presence is compared.
     const noStarter = (r: unknown) => {
       const { starter, ...rest } = r as Record<string, unknown>;
       return shapeOf({ ...rest, starterIsObject: typeof starter === "object" });
     };
     expect(noStarter(list.runtimes[0])).toEqual(noStarter(want.runtimes[0]));
     expect(shapeOf(list.detection[0])).toEqual(shapeOf(want.detection[0]));
-    // The files a plan reads, and the plan itself, for a Vite app.
     expect((list as unknown as { planFiles: string[] }).planFiles).toEqual(
       (want as unknown as { planFiles: string[] }).planFiles,
     );
@@ -404,7 +391,6 @@ describe("runtime wire shapes", () => {
       })
     ).json();
     expect(planned).toEqual(contract["appPlan"]);
-    // The add-on catalogue the New screen offers.
     const addons = (list as unknown as { addons: unknown[] }).addons;
     expect(shapeOf(addons[0])).toEqual(
       shapeOf((want as unknown as { addons: unknown[] }).addons[0]),
@@ -438,7 +424,6 @@ describe("runtime wire shapes", () => {
     const done = (await accepted.json()) as Record<string, unknown>;
     const { preview: _p, ...rest } = done;
     expect(shapeOf(rest)).toEqual(shapeOf(contract["redeployDone"]));
-    void redeploy;
     const { events } = (await (await app.request(`/previews/${res.preview.id}/events`)).json()) as {
       events: { type: string; phase?: string }[];
     };

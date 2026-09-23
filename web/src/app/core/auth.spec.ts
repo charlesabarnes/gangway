@@ -38,11 +38,9 @@ function setup() {
   const http = TestBed.inject(HttpTestingController);
   const router = TestBed.inject(Router);
   const auth = TestBed.inject(AuthService);
-  /** Navigate, answer the session question if it is asked, and report where we ended up. */
   const go = async (url: string, session?: SessionInfo) => {
     const nav = router.navigateByUrl(url);
-    // The router reaches the guard a few turns after navigateByUrl returns; wait for the
-    // question to be asked rather than guessing how many.
+    // The guard asks a few turns after navigateByUrl returns, so poll rather than guess.
     for (let i = 0; session && i < 50; i++) {
       const [asked] = http.match('/v1/auth/session');
       if (asked) {
@@ -58,7 +56,7 @@ function setup() {
 }
 
 describe('AuthService', () => {
-  it('asks the server ONCE, however many callers want the answer at the same moment', async () => {
+  it('asks the server once, however many callers want the answer at the same moment', async () => {
     const { auth, http } = setup();
     const all = Promise.all([auth.ensureLoaded(), auth.ensureLoaded(), auth.ensureLoaded()]);
     http.expectOne('/v1/auth/session').flush(ADA);
@@ -88,7 +86,7 @@ describe('AuthService', () => {
     expect(auth.can('previews.destroy')).toBe(false);
   });
 
-  it('an unreachable server is "unknown", not "logged out": anonymous, with the reason kept', async () => {
+  it('an unreachable server leaves the user anonymous and flagged unreachable', async () => {
     const { auth, http } = setup();
     const p = auth.ensureLoaded();
     http.expectOne('/v1/auth/session').error(new ProgressEvent('error'));
@@ -97,7 +95,7 @@ describe('AuthService', () => {
     expect(auth.unreachable()).toBe(true);
   });
 
-  it('login and setup take the session from the response; logout clears it even if the request fails', async () => {
+  it('login takes the session from the response; logout clears it even on failure', async () => {
     const { auth, http } = setup();
     const login = auth.login('ada@example.com', 'a long enough passphrase');
     const req = http.expectOne('/v1/auth/login');
@@ -118,20 +116,20 @@ describe('AuthService', () => {
 });
 
 describe('guards', () => {
-  it('logged in: through', async () =>
+  it('lets a signed-in user through', async () =>
     expect(await setup().go('/previews', ADA)).toBe('/previews'));
 
-  it('anonymous: to login, remembering where you were going', async () => {
+  it('sends an anonymous user to login, remembering the page', async () => {
     expect(await setup().go('/previews/01ABC', ANON)).toBe('/login?returnUrl=%2Fpreviews%2F01ABC');
   });
 
-  it('first run: to setup, from anywhere -- including the login page', async () => {
+  it('sends every page to setup on first run, the login page too', async () => {
     expect(await setup().go('/previews', FIRST_RUN)).toBe('/setup');
     TestBed.resetTestingModule();
     expect(await setup().go('/login', FIRST_RUN)).toBe('/setup');
   });
 
-  it('the login page sends a logged-in person onward, to a SAFE returnUrl only', async () => {
+  it('the login page sends a signed-in user onward, to a safe returnUrl only', async () => {
     expect(await setup().go('/login?returnUrl=%2Fpreviews%2F01ABC', ADA)).toBe('/previews/01ABC');
     TestBed.resetTestingModule();
     expect(await setup().go('/login?returnUrl=%2F%2Fevil.example', ADA)).toBe('/previews');
@@ -180,7 +178,7 @@ describe('apiInterceptor', () => {
     expect(t.router.url).toBe('/login?returnUrl=%2Fpreviews%2F01ABC');
   });
 
-  it('a 401 from /v1/auth/login is the ANSWER (wrong password), not a lost session', async () => {
+  it('a 401 from /v1/auth/login is a wrong password, not a lost session', async () => {
     const t = await loggedInAt('/previews');
     t.client.post('/v1/auth/login', {}).subscribe({ error: () => {} });
     t.http
@@ -191,7 +189,7 @@ describe('apiInterceptor', () => {
     expect(t.router.url).toBe('/previews');
   });
 
-  it('a 403 is not a 401: you are still you, you just may not do that', async () => {
+  it('a 403 keeps the session', async () => {
     const t = await loggedInAt('/previews');
     t.client.delete('/v1/previews/x').subscribe({ error: () => {} });
     t.http
@@ -202,7 +200,7 @@ describe('apiInterceptor', () => {
     expect(t.router.url).toBe('/previews');
   });
 
-  it('adds no CSRF header: the server checks Origin, which the browser sends by itself', async () => {
+  it('adds no CSRF header, since the server checks Origin', async () => {
     const t = await loggedInAt('/previews');
     t.client.post('/v1/tokens', {}).subscribe();
     const req = t.http.expectOne('/v1/tokens');

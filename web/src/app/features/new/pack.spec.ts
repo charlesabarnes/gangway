@@ -18,7 +18,7 @@ import {
 const dec = new TextDecoder();
 const file = (path: string, text = path): UploadFile => ({ path, data: strToU8(text) });
 
-/** A minimal ustar reader, written from the format rather than from the writer. */
+// Written from the ustar format rather than from the writer under test.
 function readTar(
   tar: Uint8Array,
 ): { path: string; type: string; size: number; mode: number; text: string }[] {
@@ -28,7 +28,6 @@ function readTar(
     if (h.every((b) => b === 0)) break;
     const str = (o: number, n: number) => dec.decode(h.subarray(o, o + n)).replace(/\0.*$/s, '');
     const size = parseInt(str(124, 12), 8);
-    // The checksum: every header byte, with its own field read as spaces.
     let sum = 0;
     for (let i = 0; i < 512; i++) sum += i >= 148 && i < 156 ? 32 : h[i]!;
     expect(parseInt(str(148, 8), 8)).toBe(sum);
@@ -48,7 +47,7 @@ function readTar(
   return out;
 }
 
-/** The server's real rules, as `GET /v1/runtimes` sends them (shared/src/runtimes.ts DETECTION). */
+// shared/src/runtimes.ts DETECTION, as GET /v1/runtimes sends it.
 const RULES: DetectionRule[] = [
   {
     runtime: 'own',
@@ -70,7 +69,7 @@ const RULES: DetectionRule[] = [
 ];
 
 describe('packing an upload', () => {
-  it('writes a ustar archive a reader parses back: regular files only, checksums right', () => {
+  it('writes a ustar archive of regular files with correct checksums', () => {
     const tar = writeTar(
       [file('index.html', '<h1>hi</h1>'), file('assets/app.js', 'x'.repeat(700))],
       1_700_000_000,
@@ -106,7 +105,7 @@ describe('packing an upload', () => {
     });
   });
 
-  it('skips OS litter, VCS and dependencies', () => {
+  it('skips OS litter, version control and dependencies', () => {
     for (const p of [
       '__MACOSX/x',
       '.git/config',
@@ -126,7 +125,7 @@ describe('packing an upload', () => {
     expect(() => normalizePath('a/../../b')).toThrow(UploadError);
   });
 
-  it('strips ONE common root folder and remembers it as the name', () => {
+  it('strips one common root folder and remembers it as the name', () => {
     expect(stripCommonRoot([file('site/index.html'), file('site/css/a.css')])).toEqual({
       root: 'site',
       files: [file('index.html', 'site/index.html'), file('css/a.css', 'site/css/a.css')],
@@ -135,7 +134,7 @@ describe('packing an upload', () => {
     expect(stripCommonRoot([file('index.html')]).root).toBeNull();
   });
 
-  it('finish(): junk counted, root stripped, sorted, duplicates refused', () => {
+  it('finish() counts junk, strips the root, sorts, and refuses duplicates', () => {
     const c = finish([
       file('app/package.json'),
       file('app/node_modules/x/index.js'),
@@ -178,16 +177,20 @@ describe('packing an upload', () => {
     expect(c.name).toBe('api');
   });
 
-  it('detect() follows the server rules in order, and anything else is static', () => {
-    expect(detect(['Dockerfile', 'package.json'], RULES)).toBe('own');
-    expect(detect(['wrangler.toml', 'package.json', 'src/index.ts'], RULES)).toBe('workerd');
-    expect(detect(['bun.lock', 'package.json'], RULES)).toBe('bun');
-    expect(detect(['package.json', 'index.ts'], RULES)).toBe('node');
-    expect(detect(['main.py'], RULES)).toBe('python');
-    expect(detect(['index.php', 'style.css'], RULES)).toBe('php');
-    expect(detect(['index.ts'], RULES)).toBe('bun');
-    expect(detect(['index.html', 'app.js'], RULES)).toBe('static');
-    // The contract's example is the same shape.
+  it.each([
+    [['Dockerfile', 'package.json'], 'own'],
+    [['wrangler.toml', 'package.json', 'src/index.ts'], 'workerd'],
+    [['bun.lock', 'package.json'], 'bun'],
+    [['package.json', 'index.ts'], 'node'],
+    [['main.py'], 'python'],
+    [['index.php', 'style.css'], 'php'],
+    [['index.ts'], 'bun'],
+    [['index.html', 'app.js'], 'static'],
+  ])('detect(%j) follows the server rules in order: %s', (paths, runtime) => {
+    expect(detect(paths, RULES)).toBe(runtime);
+  });
+
+  it("detect() reads the contract's rules", () => {
     expect(detect(['compose.yaml'], contract.runtimeList.detection as DetectionRule[])).toBe('own');
   });
 });

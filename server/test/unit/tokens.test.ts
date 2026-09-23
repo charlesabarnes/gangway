@@ -50,7 +50,7 @@ describe("minting", () => {
     expect(JSON.stringify(t.auditRepo.page({ limit: 50 }))).not.toContain(secret.slice(11));
   });
 
-  test("a scope is refused unless the role covers its WHOLE bundle", async () => {
+  test("a scope is refused unless the role covers its whole bundle", async () => {
     const t = await make();
     const bob = await t.person("bob@example.com", "member");
     expect(
@@ -67,17 +67,17 @@ describe("minting", () => {
     }
   });
 
-  test("a database token can never mint: a leaked CI token must not issue itself a successor", async () => {
+  test("a database token can never mint another token", async () => {
     const t = await make();
     const { secret } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["admin"] });
     const asToken = (await t.tokens.verify(secret))!;
-    expect(asToken.permissions.has("tokens.manage_own")).toBe(true); // it has the permission...
+    expect(asToken.permissions.has("tokens.manage_own")).toBe(true);
     expect(() => t.tokens.mint(asToken, { name: "child", scopes: ["read"] })).toThrow(
       /cannot create API tokens/,
-    ); // ...and still may not
+    );
   });
 
-  test("the env admin token mints OWNERLESS tokens, with any scope", async () => {
+  test("the env admin token mints ownerless tokens with any scope", async () => {
     const t = await make();
     const { token, secret } = t.tokens.mint(ENV, { name: "bootstrap-ci", scopes: ["admin"] });
     expect(token.userId).toBeNull();
@@ -114,7 +114,7 @@ describe("verifying", () => {
     expect([...actor.permissions].sort()).toEqual([...SCOPE_PERMISSIONS.deploy].sort());
   });
 
-  test("anything not shaped like ours is refused WITHOUT a database read -- including the env token", async () => {
+  test("refuses a token not shaped like ours, the env token too, without a lookup", async () => {
     const t = await make();
     let reads = 0;
     const { findActiveByHash } = t.tokensRepo;
@@ -131,11 +131,11 @@ describe("verifying", () => {
     ])
       expect(await t.tokens.verify(junk)).toBeNull();
     expect(reads).toBe(0);
-    expect(await t.tokens.verify(`gw_${"A".repeat(43)}`)).toBeNull(); // right shape, no such token: one read
+    expect(await t.tokens.verify(`gw_${"A".repeat(43)}`)).toBeNull();
     expect(reads).toBe(1);
   });
 
-  test("demoting the owner shrinks their token on its next use; promoting them back restores it", async () => {
+  test("demoting the owner shrinks their token on next use, and promoting restores it", async () => {
     const t = await make();
     const bob = await t.person("bob@example.com", "admin");
     const { secret } = t.tokens.mint(bob.actor, { name: "bobs-admin", scopes: ["admin"] });
@@ -146,13 +146,13 @@ describe("verifying", () => {
     expect(clamped.permissions.has("users.manage")).toBe(false);
     expect(clamped.permissions.has("previews.deploy")).toBe(false);
     expect(clamped.permissions.has("previews.read")).toBe(true);
-    expect(clamped).toMatchObject({ scopes: ["admin"] }); // what it was minted with is still what it says
+    expect(clamped).toMatchObject({ scopes: ["admin"] });
 
     await t.accounts.updateUser(t.adaActor, bob.id, { roleId: "admin" });
     expect((await t.tokens.verify(secret))!.permissions.has("users.manage")).toBe(true);
   });
 
-  test("tightening a ROLE shrinks every token owned by someone in it", async () => {
+  test("tightening a role shrinks every token owned by someone in it", async () => {
     const t = await make();
     const bob = await t.person("bob@example.com", "member");
     const { secret } = t.tokens.mint(bob.actor, { name: "ci", scopes: ["deploy"] });
@@ -162,7 +162,7 @@ describe("verifying", () => {
     expect((await t.tokens.verify(secret))!.permissions.has("previews.deploy")).toBe(true);
   });
 
-  test("disabled owner, revoked, expired: all simply stop working", async () => {
+  test("a token stops working when expired, revoked, or its owner is disabled", async () => {
     const t = await make();
     const bob = await t.person("bob@example.com", "member");
     const a = t.tokens.mint(bob.actor, { name: "a", scopes: ["read"] });
@@ -193,7 +193,7 @@ describe("verifying", () => {
     expect(t.tokensRepo.get(token.id)!.lastUsedAt!.getTime()).toBe(first.getTime() + 61_000);
   });
 
-  test("the chain: a database token, then the env token, then nobody", async () => {
+  test("the verifier chain tries a database token, then the env token", async () => {
     const t = await make();
     const { secret, token } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["read"] });
     const verify = chainVerifiers(
@@ -209,7 +209,7 @@ describe("verifying", () => {
 });
 
 describe("listing and revoking", () => {
-  test("you see your own; `all` needs tokens.manage_all; someone else's id is a 404, not a 403", async () => {
+  test("lists your own, `all` needs tokens.manage_all, and another's id is a 404", async () => {
     const t = await make();
     const bob = await t.person("bob@example.com", "member");
     const carol = await t.person("carol@example.com", "member");
@@ -234,7 +234,7 @@ describe("listing and revoking", () => {
     expect(() => t.tokens.revoke(carol.actor, bobs.id)).toThrow(/no such token/);
     expect(() => t.tokens.revoke(carol.actor, "does-not-exist")).toThrow(/no such token/);
     expect(t.tokens.revoke(bob.actor, bobs.id).revokedAt).not.toBeNull();
-    expect(t.tokens.list(bob.actor)[0]!.revokedAt).not.toBeNull(); // still listed: the audit trail needs a name
+    expect(t.tokens.list(bob.actor)[0]!.revokedAt).not.toBeNull();
   });
 
   test("revoking twice is quiet, and recorded once", async () => {
@@ -288,7 +288,7 @@ describe("/v1/tokens", () => {
     );
   });
 
-  test("a viewer has no tokens.manage_own: 403. Bad input: 422", async () => {
+  test("a viewer is refused with 403, and bad input is a 422", async () => {
     const t = await make();
     const vic = await t.person("vic@example.com", "viewer");
     expect((await http(t.tokens, vic.actor)("/tokens")).status).toBe(403);

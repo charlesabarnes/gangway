@@ -116,7 +116,7 @@ describe('Settings: surfaces', () => {
     return r.http.expectOne({ method: 'PUT', url: '/v1/surfaces' });
   };
 
-  it('MCP off: one click turns it on with no ceremony, then the URL and the Claude Code line show', async () => {
+  it('one click turns MCP on, then shows its URL and the Claude Code command', async () => {
     const r = await open();
     expect(r.text('surface-mcp')).toContain('MCP is off');
     expect(r.byTestId('mcp-url')).toBeNull();
@@ -130,7 +130,7 @@ describe('Settings: surfaces', () => {
     );
   });
 
-  it('with no admin token the UI cannot be turned off, and the page says how to fix that', async () => {
+  it('without an admin token the UI cannot be turned off, and the page says why', async () => {
     const r = await open();
     expect((r.byTestId('ui-toggle') as HTMLButtonElement).disabled).toBe(true);
     expect(r.text('ui-needs-token')).toContain('admin scope');
@@ -186,7 +186,7 @@ describe('Settings: surfaces', () => {
 });
 
 describe('Settings: GitHub', () => {
-  it('connected: names the App, links to install, shows the webhook URL', async () => {
+  it('when connected, names the App and shows the install link and webhook URL', async () => {
     const r = await open();
     expect(r.text('status')).toContain('Connected as gangway-preview');
     expect((r.byTestId('install') as HTMLAnchorElement).href).toBe(
@@ -196,7 +196,7 @@ describe('Settings: GitHub', () => {
     expect(r.byTestId('connect')).toBeNull();
   });
 
-  it('not connected: the manifest flow starts from a button and posts the manifest to GitHub as a form', async () => {
+  it('when not connected, a button starts the manifest flow and posts it to GitHub', async () => {
     const r = await open({ status: NOT_CONNECTED });
     expect(r.text('status')).toContain('Not connected');
     let posted: ManifestStart | null = null;
@@ -219,7 +219,7 @@ describe('Settings: GitHub', () => {
     expect(posted).toEqual(start);
   });
 
-  it('pinned by config but incomplete: says what is missing instead of offering the flow', async () => {
+  it('when pinned by config but incomplete, says what is missing', async () => {
     const r = await open({
       status: status({
         configured: false,
@@ -241,7 +241,7 @@ describe('Settings: GitHub', () => {
 describe('Settings: default templates', () => {
   const two = [template(), template({ id: 'staging', name: 'Staging', builtin: false })];
 
-  it('one select per trigger, showing what settings say; a change is one PUT of that key', async () => {
+  it('shows one select per trigger, and a change PUTs only that key', async () => {
     const r = await open({
       templates: two,
       settings: [
@@ -392,7 +392,7 @@ describe('Settings: preview passwords', () => {
     },
   ];
 
-  it('a first shared password needs a value, is sent to its own route, and is never shown back', async () => {
+  it('a first shared password needs a value, has its own route, and is not shown back', async () => {
     const r = await open({ settings: pwSettings('off', false) });
     await choose(r, 'password-default', 'shared');
     expect((r.byTestId('password-save') as HTMLButtonElement).disabled).toBe(true);
@@ -407,7 +407,7 @@ describe('Settings: preview passwords', () => {
     r.http.verify();
   });
 
-  it('generated: no value, and the help says only new previews change', async () => {
+  it('a generated password needs no value, and only new previews change', async () => {
     const r = await open({ settings: pwSettings('shared', true) });
     await choose(r, 'password-default', 'generated');
     expect(r.text('password-help')).toContain('not changed');
@@ -419,12 +419,12 @@ describe('Settings: preview passwords', () => {
     await r.settle();
   });
 
-  it('the login switch shows even with no default password (it covers previews with their own), and starts off', async () => {
+  it('shows the login switch, off, even with no default password', async () => {
     const r = await open({ settings: pwSettings('off', false) });
     expect((r.byTestId('password-login') as HTMLInputElement).checked).toBe(false);
   });
 
-  it('the login switch alone is a change worth saving: signed-in users need the password too', async () => {
+  it('the login switch alone is a change worth saving', async () => {
     const r = await open({
       settings: [...pwSettings('shared', true), setting('previews.password.login', true)],
     });

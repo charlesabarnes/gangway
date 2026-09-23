@@ -21,7 +21,7 @@ const SRC: PreviewSourceFiles = {
 async function open(
   o: { uploaded?: boolean; permissions?: Permission[]; source?: PreviewSourceFiles | 404 } = {},
 ) {
-  // The CodeMirror chunk is not what these specs are about: keep the @defer block closed.
+  // Keeps the CodeMirror @defer block closed.
   TestBed.configureTestingModule({ deferBlockBehavior: DeferBlockBehavior.Manual });
   const r = await render(SourcePanel, { inputs: { previewId: ID, uploaded: o.uploaded ?? true } });
   const loading = TestBed.inject(AuthService).refresh();
@@ -52,7 +52,7 @@ describe('SourcePanel', () => {
     r.http.verify();
   });
 
-  it('hides quietly when nothing is kept (404)', async () => {
+  it('hides quietly when the server kept nothing', async () => {
     const r = await open({ source: 404 });
     expect(r.byTestId('source')).toBeNull();
     expect(r.byTestId('source-error')).toBeNull();
@@ -71,12 +71,12 @@ describe('SourcePanel', () => {
     expect((r.byTestId('save') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('a save sends ONLY what changed: edits as text, new files, deletions as null', async () => {
+  it('a save sends only what changed: edits and new files as text, deletions as null', async () => {
     const r = await open();
     r.http.expectOne('/v1/runtimes').flush(contract.runtimeList);
     const draft = r.fixture.componentInstance.draft;
     draft.edit('index.ts', 'export default { fetch() { return new Response("2"); } };\n');
-    draft.edit('lib/util.ts', 'export {};\n'); // the same text: not a change
+    draft.edit('lib/util.ts', 'export {};\n');
     draft.add('src/new.ts');
     draft.edit('src/new.ts', 'export const x = 1;\n');
     draft.remove('lib/util.ts');
@@ -100,7 +100,6 @@ describe('SourcePanel', () => {
     });
     req.flush(contract.redeployAccepted, { status: 202, statusText: 'Accepted' });
     await r.settle();
-    // Saved is the new baseline: nothing left to save, and the rebuild is under way.
     expect((r.byTestId('save') as HTMLButtonElement).disabled).toBe(true);
     expect(r.text('redeploy-status')).toContain('Rebuilding');
     expect(draft.changes()).toEqual({});
@@ -137,7 +136,7 @@ describe('SourcePanel', () => {
     expect(r.fixture.componentInstance.draft.changes()).toEqual({ 'index.ts': 'broken' });
   });
 
-  it('replacing files PUTs a gzipped tar with the current runtime, then reloads the source', async () => {
+  it('replacing files PUTs a gzipped tar with the current runtime, then reloads', async () => {
     const r = await open();
     r.http.expectOne('/v1/runtimes').flush(contract.runtimeList);
     const done = r.fixture.componentInstance.replace(
@@ -161,12 +160,12 @@ describe('SourcePanel', () => {
     expect(r.allByTestId('file').map((f) => f.dataset['path'])).toEqual(['index.html']);
   });
 
-  it('without previews.update: the source is shown, but nothing can be saved or replaced', async () => {
+  it('without previews.update the source is shown but cannot be saved or replaced', async () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.byTestId('source')).not.toBeNull();
     expect(r.byTestId('save')).toBeNull();
     expect(r.byTestId('replace')).toBeNull();
     expect(r.byTestId('new-path')).toBeNull();
-    r.http.verify(); // and no runtime list is fetched for a picker it cannot use
+    r.http.verify();
   });
 });

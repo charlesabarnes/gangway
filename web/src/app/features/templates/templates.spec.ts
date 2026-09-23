@@ -60,9 +60,8 @@ const inRow = (r: Rendered<unknown>, n: number, id: string) =>
 describe('Templates', () => {
   beforeAll(() => installDialogPolyfill());
 
-  it('read-only without templates.manage: each template as one line, the built-in one marked', async () => {
+  it('is read-only without templates.manage, one line per template, built-in marked', async () => {
     const r = await open({ permissions: ['previews.read'] });
-    expect(r.allByTestId('template')).toHaveLength(2);
     expect(r.allByTestId('builtin')).toHaveLength(1);
     expect(r.allByTestId('summary').map((e) => e.textContent?.trim())).toEqual([
       'unlisted · lives 7d · sleeps after 30m',
@@ -72,18 +71,18 @@ describe('Templates', () => {
     expect(r.byTestId('create')).toBeNull();
   });
 
-  it('edits are a draft per row and saved as a PATCH of only what changed; the built-in one is editable but has no delete', async () => {
+  it('edits a draft per row and PATCHes only what changed; the built-in has no delete', async () => {
     const r = await open();
     expect(inRow(r, 0, 'delete')).toBeNull();
     expect(inRow(r, 1, 'delete')).not.toBeNull();
     const save = () => inRow(r, 0, 'save') as HTMLButtonElement;
     expect(save().disabled).toBe(true);
-    type(r, 'ttl', ''); // the first row: TTL cleared means never expires
+    type(r, 'ttl', '');
     const idle = inRow(r, 0, 'idle') as HTMLInputElement;
     idle.value = 'never';
     idle.dispatchEvent(new Event('input'));
     await choose(r, 'clearance', 'high');
-    // The second row's name: must not leak into the first row's patch.
+    // An edit in the second row must not leak into the first row's patch.
     const other = inRow(r, 1, 'name') as HTMLInputElement;
     other.value = 'Other';
     other.dispatchEvent(new Event('input'));
@@ -100,7 +99,7 @@ describe('Templates', () => {
     expect(r.el.textContent).toContain('Saved Default');
   });
 
-  it('a 422 (a bad duration) is shown on that row', async () => {
+  it('shows a 422 for a bad duration on its row', async () => {
     const r = await open();
     type(r, 'ttl', 'soon');
     await r.settle();
@@ -119,7 +118,7 @@ describe('Templates', () => {
     expect(r.text('row-error')).toContain('not a duration');
   });
 
-  it('create: an id that is a slug and a name; the new template joins the list', async () => {
+  it('creates a template from a slug id and a name, adding it to the list', async () => {
     const r = await open();
     const btn = () => r.byTestId('new-save') as HTMLButtonElement;
     expect(btn().disabled).toBe(true);
@@ -144,7 +143,7 @@ describe('Templates', () => {
     expect((r.byTestId('new-id') as HTMLInputElement).value).toBe('');
   });
 
-  it('a taken id is said next to the form', async () => {
+  it('reports a taken id next to the form', async () => {
     const r = await open();
     type(r, 'new-id', 'staging');
     type(r, 'new-name', 'Again');
@@ -164,7 +163,7 @@ describe('Templates', () => {
     expect(r.text('create-error')).toContain('already exists');
   });
 
-  it('delete asks first; confirmed, it is a DELETE and the row goes; refused (a trigger default), it stays with a toast', async () => {
+  it('delete asks first, then removes the row, or keeps it with a toast if refused', async () => {
     const r = await open();
     (inRow(r, 1, 'delete') as HTMLButtonElement).click();
     await r.settle();

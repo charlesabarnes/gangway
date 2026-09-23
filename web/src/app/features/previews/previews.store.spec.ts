@@ -32,7 +32,6 @@ function setup() {
   const store = TestBed.inject(PreviewsStore);
   const http = TestBed.inject(HttpTestingController);
   const tick = () => vi.advanceTimersByTimeAsync(0);
-  /** connect(), answer the list, and open the stream. */
   const start = async (previews: Preview[], seq = 7) => {
     store.connect();
     http.expectOne('/v1/previews').flush({ seq, previews });
@@ -48,11 +47,11 @@ describe('PreviewsStore', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('fetches, then follows /v1/events FROM THE CURSOR THE LIST CAME WITH -- not from 0, not from "now"', async () => {
+  it('fetches, then follows /v1/events from the cursor the list came with', async () => {
     const t = setup();
     const source = await t.start([preview('01A'), preview('01B')], 42);
     expect(source.url).toBe('/v1/events?after=42');
-    expect(t.ids()).toEqual(['01B:awake', '01A:awake']); // newest first
+    expect(t.ids()).toEqual(['01B:awake', '01A:awake']);
     expect(t.store.status()).toBe('live');
   });
 
@@ -71,7 +70,7 @@ describe('PreviewsStore', () => {
     });
   });
 
-  it('an event OLDER than the row is ignored: a reconnect replays history onto a list that is already newer', async () => {
+  it('ignores an event older than the row, as a reconnect replays history', async () => {
     const t = setup();
     const source = await t.start([preview('01A', { state: 'awake', updatedAt: at(60) })]);
     source.emit(
@@ -82,7 +81,7 @@ describe('PreviewsStore', () => {
     expect(t.ids()).toEqual(['01A:awake']);
   });
 
-  it('created and adopted carry no preview, so it is fetched -- ONCE, however many events name it at once', async () => {
+  it('fetches a new preview once, however many events name it at once', async () => {
     const t = setup();
     const source = await t.start([]);
     source.emit('preview.created', { previewId: '01NEW', at: at(1) }, '8');
@@ -104,7 +103,7 @@ describe('PreviewsStore', () => {
     t.http.verify();
   });
 
-  it('`reset` means drop everything, refetch, and follow from the NEW cursor', async () => {
+  it('`reset` drops everything, refetches, and follows from the new cursor', async () => {
     const t = setup();
     const source = await t.start([preview('01A')], 7);
     source.emit('reset', { at: at(1), reason: 'backlog' }, '');
@@ -131,7 +130,7 @@ describe('PreviewsStore', () => {
     expect(t.ids()).toEqual(['01B:awake']);
   });
 
-  it('...unless destroyed previews were asked for, which refetches with includeDestroyed and keeps them', async () => {
+  it('keeps destroyed previews when asked for, refetching with includeDestroyed', async () => {
     const t = setup();
     await t.start([preview('01A')]);
     const on = t.store.setIncludeDestroyed(true);
@@ -143,10 +142,10 @@ describe('PreviewsStore', () => {
     expect(t.ids()).toEqual(['01A:awake', '010:destroyed']);
   });
 
-  it('two screens share one fetch and one stream; the stream closes when the LAST one leaves', async () => {
+  it('two screens share one fetch and stream, closed when the last one leaves', async () => {
     const t = setup();
     const source = await t.start([preview('01A')]);
-    t.store.connect(); // the detail page, while the list is still up
+    t.store.connect();
     t.http.expectNone('/v1/previews');
     expect(FakeEventSource.instances).toHaveLength(1);
     t.store.disconnect();
@@ -156,7 +155,7 @@ describe('PreviewsStore', () => {
     expect(t.store.status()).toBe('idle');
   });
 
-  it('load(id) brings one preview in for a deep link, and is undefined -- not a throw -- when it does not exist', async () => {
+  it('load(id) fetches one preview for a deep link, and is undefined if it is gone', async () => {
     const t = setup();
     const hit = t.store.load('01A');
     t.http.expectOne('/v1/previews/01A').flush({ preview: preview('01A') });
@@ -218,7 +217,7 @@ describe('PreviewsStore', () => {
       expect(t.ids()).toEqual(['01A:awake']);
     });
 
-    it('does NOT roll back over news that arrived meanwhile', async () => {
+    it('does not roll back over news that arrived meanwhile', async () => {
       const t = setup();
       const source = await t.start([preview('01A')]);
       const done = t.store.destroy('01A');

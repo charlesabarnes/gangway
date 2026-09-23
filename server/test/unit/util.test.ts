@@ -19,7 +19,7 @@ describe("ulid", () => {
   });
   test("rejects non-ulids", () => {
     expect(isUlid("nope")).toBe(false);
-    expect(isUlid("0000000000000000000000000I")).toBe(false); // I is not in Crockford base32
+    expect(isUlid("0000000000000000000000000I")).toBe(false);
   });
 });
 
@@ -58,7 +58,7 @@ describe("redaction", () => {
     expect(o.none).toBeNull();
   });
 
-  test("an AppError keeps its code and detail (redacted) -- compose's stderr lives there", () => {
+  test("keeps an AppError's code and redacted detail, where compose's stderr lives", () => {
     const o = redact(
       new AppError("unprocessable", "the compose file is not valid", {
         compose: "bad indent; token gw_abcdefghijklmnopqrstuvwxyz012345",
@@ -142,7 +142,7 @@ describe("SingleFlight", () => {
 
 describe("retry / backoff", () => {
   test("delay grows and is capped", () => {
-    const r = () => 1; // full jitter -> take the ceiling
+    const r = () => 1;
     expect(backoffDelay(0, { baseMs: 100, random: r })).toBe(100);
     expect(backoffDelay(3, { baseMs: 100, random: r })).toBe(800);
     expect(backoffDelay(20, { baseMs: 100, maxMs: 5000, random: r })).toBe(5000);

@@ -25,8 +25,8 @@ async function open(query: Record<string, string> = { request: 'req-1' }) {
   return { r, went };
 }
 
-describe('Connect (OAuth consent)', () => {
-  it('says who is asking and where the answer goes; approving posts the chosen scopes and leaves for the client', async () => {
+describe('Connect', () => {
+  it('shows who is asking, and approving posts the chosen scopes and leaves', async () => {
     const { r, went } = await open();
     r.http.expectOne('/v1/oauth/requests/req-1').flush({ request: request() });
     await r.settle();
@@ -36,7 +36,6 @@ describe('Connect (OAuth consent)', () => {
     expect((r.byTestId('scope-read') as HTMLInputElement).checked).toBe(true);
     expect((r.byTestId('scope-deploy') as HTMLInputElement).checked).toBe(true);
 
-    // Down to read only, then connect.
     (r.byTestId('scope-deploy') as HTMLInputElement).dispatchEvent(new Event('change'));
     await r.settle();
     (r.byTestId('approve') as HTMLButtonElement).click();

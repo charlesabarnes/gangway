@@ -44,7 +44,7 @@ describe('SseService', () => {
     vi.useRealTimers();
   });
 
-  it('delivers NAMED events, parsed, with their ids -- onmessage would never fire for them', () => {
+  it('delivers named events, parsed, with their ids', () => {
     const t = setup();
     const h = t.open();
     expect(h.status()).toBe('connecting');
@@ -59,7 +59,7 @@ describe('SseService', () => {
     ]);
   });
 
-  it('one malformed frame is dropped; the stream carries on', () => {
+  it('drops a malformed frame and carries on', () => {
     const t = setup();
     t.open();
     FakeEventSource.last.open();
@@ -68,7 +68,7 @@ describe('SseService', () => {
     expect(t.got.map((m) => m.data)).toEqual([{ n: 2 }]);
   });
 
-  it('on ANY error it closes the source itself and reopens from the last id -- it never trusts the native retry', async () => {
+  it('on any error it closes the source and reopens from the last id itself', async () => {
     const t = setup();
     const h = t.open();
     const first = FakeEventSource.last;
@@ -87,7 +87,7 @@ describe('SseService', () => {
     expect(h.status()).toBe('live');
   });
 
-  it('appends `after` with & when the URL already has a query (the log viewer sends ?tail=)', async () => {
+  it('appends `after` with & when the URL already has a query', async () => {
     const t = setup();
     t.open('/v1/previews/x/logs?tail=2000');
     FakeEventSource.last.open();
@@ -97,8 +97,8 @@ describe('SseService', () => {
     expect(FakeEventSource.last.url).toBe('/v1/previews/x/logs?tail=2000&after=977');
   });
 
-  it('starts from a given cursor, and a reconnect REPLACES it rather than sending two', async () => {
-    const t = setup();
+  it('starts from a given cursor, and a reconnect replaces it rather than adding one', async () => {
+    setup();
     TestBed.inject(SseService).open('/v1/events', ['preview.state'], () => {}, { after: 3 });
     expect(FakeEventSource.last.url).toBe('/v1/events?after=3');
     FakeEventSource.last.open();
@@ -106,13 +106,11 @@ describe('SseService', () => {
     FakeEventSource.last.fail();
     await vi.advanceTimersByTimeAsync(1000);
     expect(FakeEventSource.last.url).toBe('/v1/events?after=9');
-    void t;
   });
 
   it('backs off 1, 2, 5, 10, 15, 15 seconds; a successful open resets it', async () => {
     const t = setup();
     t.open();
-    const waits: number[] = [];
     for (const expected of [1000, 2000, 5000, 10_000, 15_000, 15_000]) {
       const before = FakeEventSource.instances.length;
       FakeEventSource.last.fail();
@@ -124,23 +122,21 @@ describe('SseService', () => {
       expect(FakeEventSource.instances.length).toBe(before);
       await vi.advanceTimersByTimeAsync(1);
       expect(FakeEventSource.instances.length).toBe(before + 1);
-      waits.push(expected);
     }
-    expect(waits).toHaveLength(6);
 
     FakeEventSource.last.open();
     FakeEventSource.last.fail();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(FakeEventSource.instances).toHaveLength(8); // back to the 1 s step
+    expect(FakeEventSource.instances).toHaveLength(8);
   });
 
-  it('after two failures it asks who we are: LOGGED OUT goes to login instead of retrying a 401 forever', async () => {
+  it('after two failures it asks who we are, and goes to login if signed out', async () => {
     const t = setup();
     await TestBed.inject(Router).navigateByUrl('/previews/01ABC');
     const h = t.open();
     FakeEventSource.last.fail();
     await vi.advanceTimersByTimeAsync(0);
-    t.http.expectNone('/v1/auth/session'); // the first failure is just a blip
+    t.http.expectNone('/v1/auth/session');
     await vi.advanceTimersByTimeAsync(1000);
 
     FakeEventSource.last.fail();
@@ -151,11 +147,11 @@ describe('SseService', () => {
     expect(h.status()).toBe('closed');
     expect(TestBed.inject(AuthService).authenticated()).toBe(false);
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(FakeEventSource.instances).toHaveLength(2); // and it stays closed
+    expect(FakeEventSource.instances).toHaveLength(2);
     expect(TestBed.inject(Router).url).toBe('/login?returnUrl=%2Fpreviews%2F01ABC');
   });
 
-  it('...but a server that is merely DOWN is a reason to keep trying, not to log out', async () => {
+  it('keeps trying, without logging out, when the server is down', async () => {
     const t = setup();
     const h = t.open();
     FakeEventSource.last.fail();
@@ -168,7 +164,7 @@ describe('SseService', () => {
     expect(FakeEventSource.instances).toHaveLength(3);
   });
 
-  it('close() stops everything: no reopen, and a late event from the old source is ignored', async () => {
+  it('close() stops reopening and ignores a late event from the old source', async () => {
     const t = setup();
     const h = t.open();
     const source = FakeEventSource.last;
@@ -182,7 +178,7 @@ describe('SseService', () => {
     expect(t.got).toEqual([]);
   });
 
-  it('a tab hidden for 30 s lets go of its connection, and takes it back from where it left off', async () => {
+  it('a tab hidden for 30 s drops its connection and resumes from where it left off', async () => {
     const t = setup();
     const h = t.open();
     FakeEventSource.last.open();
@@ -190,7 +186,7 @@ describe('SseService', () => {
 
     hide('hidden');
     await vi.advanceTimersByTimeAsync(29_000);
-    expect(h.status()).toBe('live'); // a quick glance at another tab costs nothing
+    expect(h.status()).toBe('live');
     await vi.advanceTimersByTimeAsync(1_000);
     expect(h.status()).toBe('paused');
     expect(FakeEventSource.last.closed).toBe(true);
