@@ -1,109 +1,24 @@
-import { randomBytes, createHmac } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { createApp, surfaceHandler } from "./app/app.ts";
-import { auditRoutes } from "./app/routes/audit.ts";
-import { authRoutes } from "./app/routes/auth.ts";
-import { roleRoutes } from "./app/routes/roles.ts";
-import { githubRoutes } from "./app/routes/github.ts";
-import { projectRoutes } from "./app/routes/projects.ts";
-import { surfaceRoutes } from "./app/routes/surfaces.ts";
-import { McpSurface } from "./app/mcp-surface.ts";
-import { oauthRootRoutes, oauthRoutes } from "./app/routes/oauth.ts";
-import { OAuthGrantsRepo } from "./db/repos/oauth-grants.ts";
-import { ClientMetadataStore } from "./oauth/client-metadata.ts";
-import { OAuthServer } from "./oauth/server.ts";
-import { Tools } from "./mcp/tools.ts";
-import { Uploads } from "./mcp/uploads.ts";
-import { settingsRoutes } from "./app/routes/settings.ts";
-import { templateRoutes } from "./app/routes/templates.ts";
-import { tokenRoutes } from "./app/routes/tokens.ts";
-import { userRoutes } from "./app/routes/users.ts";
-import { eventRoutes } from "./app/routes/events.ts";
-import { hostRoutes } from "./app/routes/hosts.ts";
-import { previewRoutes } from "./app/routes/previews.ts";
-import { runtimeRoutes, schemaRoutes } from "./app/routes/runtimes.ts";
-import { addonRoutes } from "./app/routes/addons.ts";
-import { DataBrowser } from "./previews/data/service.ts";
-import { Audit } from "./audit/audit.ts";
-import { Accounts } from "./auth/accounts.ts";
-import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor.ts";
-import { Bootstrap } from "./auth/bootstrap.ts";
-import { LoginLimiter } from "./auth/limiter.ts";
-import { Passwords } from "./auth/password.ts";
-import { entryPassword, previewAccess } from "./previews/password.ts";
-import { RolePermissions } from "./auth/roles.ts";
-import { Sessions } from "./auth/sessions.ts";
-import { Tokens } from "./auth/tokens.ts";
+import type { Host } from "@gangway/shared/domain";
 import type { Config } from "./config.ts";
-import { migrate } from "./db/migrate.ts";
-import {
-  AuditRepo,
-  BuildsRepo,
-  CertificatesRepo,
-  EventsRepo,
-  HostsRepo,
-  IdempotencyRepo,
-  PreviewsRepo,
-  ProjectsRepo,
-  RolesRepo,
-  RoutesRepo,
-  TemplatesRepo,
-  SessionsRepo,
-  SqliteSettingsStore,
-  TokensRepo,
-  UsersRepo,
-} from "./db/repos/index.ts";
-import { openDatabase } from "./db/sqlite.ts";
 import { DockerClients } from "./docker/client.ts";
-import { Reconciler, type ClientSource, type ReconcileReport } from "./reconcile/reconciler.ts";
-import { createComposeRunner, type ComposeRunner } from "./docker/runner.ts";
-import { EventBus } from "./events/bus.ts";
-import { GitHubApp } from "./forge/github/app.ts";
-import { GitHubForge } from "./forge/github/forge.ts";
-import { ManifestStates } from "./forge/github/manifest.ts";
-import { Hooks } from "./forge/hooks.ts";
-import { PrPreviews } from "./forge/pr-previews.ts";
-import { seedHosts } from "./hosts/seed.ts";
-import { flushLastSeen, sweepExpired } from "./scheduler/jobs.ts";
-import { Scheduler } from "./scheduler/scheduler.ts";
+import type { ComposeRunner } from "./docker/runner.ts";
 import { Logger } from "./logger.ts";
-import type { DispatchDeps, Surface } from "./net/dispatch.ts";
-import { DEFAULT_LIMITS } from "./net/limits.ts";
-import { PreviewGate, loadOrCreateGateKey, safePath } from "./net/gate.ts";
-import { clientIpOf, startListener, type RunningListener } from "./net/listener.ts";
-import { clientIpResolver } from "./net/trusted-proxy.ts";
-import { wakingPage } from "./net/error-pages.ts";
-import { NodeHttpUpstream, PerHostUpstream } from "./net/upstream.ts";
-import { DEFAULT_TIMINGS, type PreviewContext } from "./previews/context.ts";
-import { PolicyResolver } from "./previews/policy.ts";
-import { Pulls } from "./projects/pulls.ts";
-import { GitHubOidc } from "./auth/oidc.ts";
-import { TRIGGERS, type Trigger } from "@gangway/shared/domain";
-import { deploy, urlsFor, type DeploySource } from "./previews/deploy.ts";
-import { destroy } from "./previews/destroy.ts";
+import type { Surface } from "./net/dispatch.ts";
+import type { RunningListener } from "./net/listener.ts";
+import type { PreviewContext } from "./previews/context.ts";
 import { IdempotentDeploys } from "./previews/idempotent.ts";
-import { PreviewLogs } from "./previews/logs.ts";
-import { httpProbe, type RouteProbe } from "./previews/probe.ts";
-import { Workdirs } from "./previews/source/workdir.ts";
-import { SourceStore } from "./previews/source/store.ts";
-import { Waker, sweepIdle } from "./previews/sleep.ts";
-import { PreviewStates } from "./previews/state.ts";
-import { SecretBox, loadOrCreateSecretsKey } from "./secrets/box.ts";
-import { Secrets } from "./secrets/secrets.ts";
-import { secretRoutes } from "./app/routes/secrets.ts";
-import { githubFullName } from "./forge/github/webhook.ts";
-import { RouteTable } from "./routing/table.ts";
-import { SETTINGS, Settings } from "./settings.ts";
-import { drain, sleep } from "./util/async.ts";
-import { AcmeProvider, type AcmeConnect } from "./tls/acme.ts";
-import { CertStore } from "./tls/certstore.ts";
-import { CloudflareDnsProvider } from "./tls/dns/cloudflare.ts";
-import { ManualDnsProvider } from "./tls/dns/manual.ts";
-import type { DnsProvider } from "./tls/dns/provider.ts";
-import { FileProvider, SelfSignedProvider } from "./tls/provider.ts";
-import { normalizeHost } from "@gangway/shared/hostname";
-import { publicOriginFor } from "@gangway/shared/url";
+import type { RouteProbe } from "./previews/probe.ts";
+import type { ClientSource, ReconcileReport, Reconciler } from "./reconcile/reconciler.ts";
+import type { Scheduler } from "./scheduler/scheduler.ts";
+import { createPreviewContext } from "./boot/context.ts";
+import { openCore, type Core } from "./boot/core.ts";
+import { createForge } from "./boot/forge.ts";
+import { createHttp } from "./boot/http.ts";
+import { createIdentity, resolveAdminToken, type Identity } from "./boot/identity.ts";
+import { startReconciler, startScheduler } from "./boot/jobs.ts";
+import { startNetwork, surfaceEnabledBy } from "./boot/network.ts";
+import { createStop } from "./boot/shutdown.ts";
+import { resolveCertificates, type AcmeOverrides } from "./boot/tls.ts";
 
 export type BootOverrides = {
   logger?: Logger;
@@ -112,7 +27,7 @@ export type BootOverrides = {
   probe?: RouteProbe;
   timings?: Partial<PreviewContext["timings"]>;
   announce?: (text: string) => void;
-  acme?: { dns?: DnsProvider; connect?: AcmeConnect };
+  acme?: AcmeOverrides;
 };
 
 export type Running = {
@@ -128,578 +43,84 @@ export type Running = {
   stop(o?: { graceMs?: number }): Promise<void>;
 };
 
-const MIGRATIONS = resolve(import.meta.dir, "../migrations");
-
-function repoFullName(source: DeploySource): string | null {
-  switch (source.kind) {
-    case "pr":
-      return source.repo;
-    case "pushed":
-      return source.pr.repo;
-    case "git":
-      return githubFullName(source.repo);
-    default:
-      return null;
-  }
-}
-
 export async function boot(config: Config, o: BootOverrides = {}): Promise<Running> {
   const logger = o.logger ?? new Logger(config.logLevel);
   const announce = o.announce ?? ((t) => console.log(t));
-  const stateDir = resolve(config.stateDir);
-  mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-
-  const { db, journalMode } = openDatabase({
-    path: config.databasePath ?? join(stateDir, "gangway.db"),
-  });
-  const migrated = migrate(db, MIGRATIONS);
-  logger.info("database ready", { journalMode, applied: migrated.applied });
-
-  const hosts = new HostsRepo(db);
-  const previews = new PreviewsRepo(db);
-  const routes = new RoutesRepo(db);
-  const settingsStore = new SqliteSettingsStore(db);
-  const settings = new Settings(config.overrides, settingsStore);
-  const bus = new EventBus(new EventsRepo(db), (e) =>
-    logger.warn("event listener threw", { err: e }),
-  );
-  const table = new RouteTable(routes);
-  const states = new PreviewStates(previews, table, bus);
-  const baseDomain = () => settings.get(SETTINGS.baseDomain);
-  const auditRepo = new AuditRepo(db);
-  const audit = new Audit(auditRepo, logger.child({ mod: "audit" }));
-
-  const seeded = seedHosts(config.hosts, hosts);
-  for (const h of seeded) {
-    if (h.capabilities.includes("preview") && h.capabilities.includes("runner")) {
-      logger.warn(
-        "host declares both preview and runner capabilities: untrusted PR code would share a host with CI jobs",
-        { hostId: h.id },
-      );
-    }
-  }
-
-  const all = new Map(previews.list({ includeDestroyed: true }).map((p) => [p.id, p]));
-  table.hydrate(
-    routes.all().flatMap((route) => {
-      const p = all.get(route.previewId);
-      return p
-        ? [
-            {
-              route,
-              hostId: p.hostId,
-              project: p.project,
-              visibility: p.visibility,
-              state: p.state,
-              password: entryPassword(previews.passwordOf(p.id)),
-              passwordLogin: p.passwordLogin,
-            },
-          ]
-        : [];
-    }),
-  );
-  const workdirs = new Workdirs(stateDir);
-  await workdirs.prune();
-  const sources = new SourceStore(stateDir);
-  for (const id of await sources.ids()) {
-    const p = all.get(id);
-    if (!p || p.state === "destroyed") await sources.remove(id);
-  }
-
-  const builds = new BuildsRepo(db);
-  const orphanedBuilds = builds.cancelRunning();
-  if (orphanedBuilds > 0)
-    logger.info("marked builds interrupted by the last shutdown as cancelled", {
-      builds: orphanedBuilds,
-    });
+  const { core, seeded, workdirs, sources } = await openCore(config, logger);
 
   const dockerClients = new DockerClients();
-  const compose =
-    o.compose ??
-    createComposeRunner(dockerClients, (hostId, ok, err) =>
-      hosts.setState(hostId, ok ? "ready" : "unreachable", err),
-    );
-
-  const projects = new ProjectsRepo(db);
-  const templates = new TemplatesRepo(db);
-  const templateSetting = {
-    pr: SETTINGS.templatePr,
-    api: SETTINGS.templateApi,
-    manual: SETTINGS.templateManual,
-  } as const;
-  const triggerDefault = (t: Trigger) => settings.get(templateSetting[t]);
-  const policy = new PolicyResolver({
-    templates,
-    project: (ref) => projects.find(ref),
-    projectForSource: (source) => {
-      const full = repoFullName(source);
-      return full ? projects.getByFullName("github", full) : undefined;
-    },
-    defaultFor: triggerDefault,
-    logger: logger.child({ mod: "policy" }),
-  });
-
-  const previewPasswords = new Passwords({ ln: 14 });
-  const ctx: PreviewContext = {
-    instance: config.instanceId,
-    env: config.environment,
-    origin: { scheme: config.publicScheme, port: config.publicPort },
-    baseDomain,
-    policy,
-    hosts,
-    previews,
-    table,
-    states,
-    bus,
-    workdirs,
-    compose,
-    logs: new PreviewLogs(stateDir),
-    probe: o.probe ?? httpProbe,
-    logger: logger.child({ mod: "previews" }),
-    timings: { ...DEFAULT_TIMINGS, ...o.timings },
-    now: Date.now,
-    inflight: new Map(),
-    teardowns: new Set(),
-    builds,
-    audit,
-    sources,
-    privateAvailable: () => settings.get(SETTINGS.surfacesUi),
-    // A separate semaphore, so a burst of preview password forms never queues an operator's login.
-    passwords: {
-      passwords: previewPasswords,
-      defaultMode: () => settings.get(SETTINGS.previewPasswordMode),
-      sharedSet: () => settings.get(SETTINGS.previewPasswordShared) !== null,
-      loginDefault: () => settings.get(SETTINGS.previewPasswordLogin),
-    },
-  };
-
-  const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
-
-  const secretsKey = loadOrCreateSecretsKey(stateDir);
-  const secrets = new Secrets(projects, settingsStore, new SecretBox(secretsKey), audit);
-  // Derived, not stored: it must be the same on every rebuild or compose recreates the database.
-  ctx.addonSecret = (previewId, addon) =>
-    createHmac("sha256", secretsKey)
-      .update(`gangway-addon\0${previewId}\0${addon}`)
-      .digest("base64url")
-      .slice(0, 32);
-  ctx.secretsFor = (repoId, clearance) => secrets.valuesFor(repoId, clearance);
-  const githubApp = new GitHubApp({
-    credentials: () => ({
-      appId: settings.get(SETTINGS.githubAppId),
-      privateKey: settings.get(SETTINGS.githubPrivateKey),
-    }),
-    log: logger.child({ mod: "github" }),
-  });
-  const forge = new GitHubForge({
-    app: githubApp,
-    webhookSecret: () => settings.get(SETTINGS.githubWebhookSecret),
-  });
-  const prPreviews = new PrPreviews({
-    forge,
-    repos: projects,
-    instance: config.instanceId,
-    logger: logger.child({ mod: "pr" }),
-    policy,
-    secretsFor: (repo, clearance) => secrets.valuesFor(repo.id, clearance),
-    previews: {
-      deploy: (input) => deploy(ctx, input),
-      destroy: (id, actor) => destroy(ctx, id, actor),
-      findPullRequest: (repo, number) => ctx.previews.findPullRequest(repo, number),
-      urls: (id) => urlsFor(ctx, id),
-      forgeRefs: (id) => ctx.previews.forgeRefs(id),
-      setForgeRefs: (id, refs) => ctx.previews.setForgeRefs(id, refs),
-    },
-    logUrlFor: (id) =>
-      settings.get(SETTINGS.surfacesUi)
-        ? `${publicOriginFor(`app.${baseDomain()}`, ctx.origin)}/previews/${id}`
-        : undefined,
-  });
-  const hooks = new Hooks({ forge, service: prPreviews, logger: logger.child({ mod: "hooks" }) });
-
-  const users = new UsersRepo(db);
-  const rolesRepo = new RolesRepo(db);
-  const roles = new RolePermissions(rolesRepo, audit);
-  const sessions = new Sessions(new SessionsRepo(db), roles);
-  const mcpOrigin = () => publicOriginFor(`mcp.${baseDomain()}`, ctx.origin);
-  const oauthGrants = new OAuthGrantsRepo(db);
-  const oauth = new OAuthServer({
-    grants: oauthGrants,
-    clients: new ClientMetadataStore(),
-    roles,
-    audit,
-    issuer: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin),
-    resource: mcpOrigin,
-  });
-  const accounts = new Accounts({
-    db,
-    users,
-    roles: rolesRepo,
-    sessions,
-    audit,
-    passwords: new Passwords(),
-    limiter: new LoginLimiter(),
-    onCredentialsRevoked: (userId) => oauth.revokeAllFor(userId),
-  });
-  const tokensRepo = new TokensRepo(db);
-  const tokens = new Tokens(tokensRepo, roles, audit);
-  const bootstrap = new Bootstrap(() => users.count());
-
-  let adminToken = config.adminToken;
-  if (!adminToken) {
-    adminToken = `gw_${randomBytes(24).toString("base64url")}`;
-    announce(
-      `\n  No GANGWAY_ADMIN_TOKEN is set. Generated one for THIS RUN ONLY:\n\n    ${adminToken}\n`,
-    );
-  }
+  const previews = createPreviewContext(core, { workdirs, sources, dockerClients, overrides: o });
+  const { ctx } = previews;
+  const deploys = new IdempotentDeploys(ctx, core.repos.idempotency);
+  const forge = createForge(core, previews);
+  const identity = createIdentity(core);
+  const adminToken = resolveAdminToken(config.adminToken, announce);
 
   const shutdown = new AbortController();
-  const draining = () => shutdown.signal.aborted;
+  const signal = shutdown.signal;
+  const http = createHttp(core, { ...previews, ...forge, deploys, identity, adminToken, signal });
 
-  const gate = new PreviewGate({
-    key: loadOrCreateGateKey(settingsStore),
-    appOrigin: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin),
-    sharedPassword: () =>
-      settings.get(SETTINGS.previewPasswordMode) === "shared"
-        ? settings.get(SETTINGS.previewPasswordShared)
-        : null,
-    passwords: previewPasswords,
-    limiter: new LoginLimiter({ emailFree: 10 }),
-    loginDefault: () => settings.get(SETTINGS.previewPasswordLogin),
-    onPasswordFailure: (entry, clientIp, reason) =>
-      logger.warn("preview password refused", {
-        previewId: entry.previewId,
-        host: entry.hostname,
-        clientIp,
-        reason,
-      }),
-  });
+  const domains = [`*.${core.baseDomain()}`, core.baseDomain()];
+  const certs = await resolveCertificates(core, domains, o.acme);
+  const surfaceEnabled = surfaceEnabledBy(core.settings);
+  const { hooks } = forge;
+  const network = startNetwork({ ...core, ctx, surfaceEnabled, http, hooks, bundle: certs.bundle });
 
-  const apiOrigin = () => publicOriginFor(`api.${baseDomain()}`, ctx.origin);
-  const oidc = new GitHubOidc({ audience: apiOrigin, logger: logger.child({ mod: "oidc" }) });
-  const pulls = new Pulls({
-    projects,
-    previews: {
-      deploy: (input) => deploy(ctx, input),
-      destroy: (id, actor) => destroy(ctx, id, actor),
-      findPullRequest: (repo, number) => ctx.previews.findPullRequest(repo, number),
-    },
-  });
-
-  const auth = {
-    verifyToken: chainVerifiers(
-      tokens.verify,
-      staticTokenVerifier(adminToken),
-      async (presented) => {
-        const claims = await oidc.verify(presented);
-        return claims ? workflowActor(claims) : null;
-      },
-    ),
-    resolveSession: (secret: string) => sessions.resolve(secret)?.actor ?? null,
-    // From the public scheme and port, not the listener's: behind a reverse proxy they differ.
-    originFor: (host: string) => publicOriginFor(normalizeHost(host) ?? "", ctx.origin),
-  };
-  const uploads = new Uploads({
-    dir: join(stateDir, "uploads"),
-    url: (id) => `${mcpOrigin()}/uploads/${id}`,
-  });
-  const mcp = new McpSurface({
-    tools: new Tools({ ctx, deploys, uploads, logger: logger.child({ mod: "mcp" }) }),
-    uploads,
-    // OAuth access tokens are accepted only here; the /v1 chain does not know them.
-    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken), oauth.verify),
-    logger: logger.child({ mod: "mcp" }),
-    oauth: {
-      available: () => settings.get(SETTINGS.surfacesUi),
-      resource: mcpOrigin,
-      resourceMetadata: () => oauth.resourceMetadata(),
-    },
-  });
-  const mcpOn = () => settings.get(SETTINGS.surfacesMcp);
-
-  const staticDir = resolve(import.meta.dir, "../../web/dist/browser");
-  const app = createApp({
-    logger: logger.child({ mod: "app" }),
-    ...auth,
-    staticDir: existsSync(staticDir) ? staticDir : undefined,
-    health: () => ({ routes: table.size }),
-    draining,
-    root: (root) => oauthRootRoutes(root, { oauth, enabled: mcpOn }),
-    v1: (api) => {
-      hostRoutes(api, hosts);
-      eventRoutes(api, bus, { signal: shutdown.signal });
-      previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
-      runtimeRoutes(api);
-      addonRoutes(api, new DataBrowser(ctx));
-      auditRoutes(api, auditRepo);
-      tokenRoutes(api, tokens);
-      userRoutes(api, accounts);
-      roleRoutes(api, roles);
-      settingsRoutes(api, settings, audit, templates, (plain) => previewPasswords.hash(plain));
-      oauthRoutes(api, { oauth, enabled: mcpOn });
-      surfaceRoutes(api, {
-        settings,
-        audit,
-        apiOrigin,
-        hasActiveAdmin: () => tokensRepo.hasActiveAdmin(Date.now()),
-        mcpOrigin,
-        onMcpDisabled: () => mcp.dropAll(),
-      });
-      projectRoutes(api, {
-        projects,
-        audit,
-        secrets,
-        templates,
-        pulls,
-        apiOrigin,
-        wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
-      });
-      templateRoutes(api, {
-        templates,
-        hosts,
-        audit,
-        namedByTrigger: (id) => TRIGGERS.filter((t) => triggerDefault(t) === id),
-      });
-      secretRoutes(api, secrets);
-      githubRoutes(api, {
-        app: githubApp,
-        settings,
-        states: new ManifestStates(),
-        audit,
-        baseDomain,
-        originFor: (label) => publicOriginFor(`${label}.${baseDomain()}`, ctx.origin),
-      });
-    },
-    publicV1: (pub) => {
-      authRoutes(pub, {
-        auth,
-        accounts,
-        bootstrap,
-        roles,
-        sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000),
-        gate: {
-          lookup: (host) => table.lookup(host),
-          issueTicket: (e, o) => gate.issueTicket(e, o),
-          gateable: (host) => {
-            const e = table.lookup(host);
-            return e ? gate.gateable(e) : { private: false, passwordSkippable: false };
-          },
-          originFor: (host) => publicOriginFor(host, ctx.origin),
-          safePath,
-        },
-      });
-      schemaRoutes(pub);
-    },
-  });
-
-  const domains = [`*.${baseDomain()}`, baseDomain()];
-  let caPath: string | null = null;
-  let bundle;
-  let acmeProvider: AcmeProvider | null = null;
-  if (config.tlsMode === "file") {
-    if (!config.tlsCertPath || !config.tlsKeyPath)
-      throw new Error("tlsMode=file needs GANGWAY_TLS_CERT_PATH and GANGWAY_TLS_KEY_PATH");
-    bundle = await new FileProvider(config.tlsCertPath, config.tlsKeyPath).ensure(domains);
-  } else if (config.tlsMode === "acme") {
-    const tlsLog = logger.child({ mod: "tls" });
-    const token = settings.get(SETTINGS.cloudflareApiToken);
-    const zoneId = settings.get(SETTINGS.cloudflareZoneId);
-    acmeProvider = new AcmeProvider({
-      directoryUrl: settings.get(SETTINGS.acmeDirectoryUrl),
-      email: settings.get(SETTINGS.acmeEmail),
-      dns:
-        o.acme?.dns ??
-        (token
-          ? new CloudflareDnsProvider({
-              apiToken: token,
-              ...(zoneId ? { zoneId } : {}),
-              log: tlsLog,
-            })
-          : new ManualDnsProvider({ log: tlsLog })),
-      certs: new CertificatesRepo(db),
-      store: settingsStore,
-      logger: tlsLog,
-      ...(o.acme?.connect ? { connect: o.acme.connect } : {}),
-    });
-    // With nothing stored, the dev CA serves until cert-renew swaps in the first real one.
-    const stored = acmeProvider.load(domains);
-    if (stored) {
-      bundle = stored;
-    } else {
-      tlsLog.warn(
-        "no usable ACME certificate stored yet; serving the dev CA until the first order completes",
-        { domains },
-      );
-      const interim = await new SelfSignedProvider(stateDir).ensure(domains);
-      caPath = interim.caPath ?? null;
-      bundle = interim;
-    }
-  } else {
-    const selfSigned = await new SelfSignedProvider(stateDir).ensure(domains);
-    caPath = selfSigned.caPath ?? null;
-    bundle = selfSigned;
-  }
-
-  const surfaceEnabled = (s: Surface): boolean => {
-    if (s === "app") return settings.get(SETTINGS.surfacesUi);
-    if (s === "mcp") return settings.get(SETTINGS.surfacesMcp);
-    return true;
-  };
-  const origin = (label: string) =>
-    publicOriginFor(label ? `${label}.${baseDomain()}` : baseDomain(), ctx.origin);
-
-  // Throws at boot so a typo can't silently mean trust nobody.
-  const resolveClientIp = clientIpResolver(config.trustedProxies);
-  if (config.trustedProxies.length > 0)
-    logger.info("trusting X-Forwarded-For from reverse proxies", {
-      trustedProxies: config.trustedProxies,
-    });
-
-  const waker = new Waker(ctx, logger.child({ mod: "wake" }));
-  const deps: DispatchDeps = {
-    baseDomain,
-    table,
-    limits: DEFAULT_LIMITS,
-    surfaceEnabled,
-    visibilityGate: gate.handle,
-    wake: async (entry) => {
-      const woke = await Promise.race([
-        waker.wake(entry.previewId).then(
-          () => true,
-          () => false,
-        ),
-        sleep(config.wakeWaitMs).then(() => false),
-      ]);
-      return woke ? null : wakingPage(entry.hostname);
-    },
-    upstream: new PerHostUpstream((hostId) => {
-      const host = hosts.get(hostId);
-      return host
-        ? new NodeHttpUpstream({
-            dial: { dial: host.upstream.dial, proxy: host.upstream.proxy },
-            limits: DEFAULT_LIMITS,
-            timeoutMs: config.upstreamTimeoutMs,
-            publicPort: config.publicPort,
-          })
-        : null;
-    }),
-    handlers: {
-      app: surfaceHandler(app, "app"),
-      api: surfaceHandler(app, "api"),
-      hooks: hooks.handler(),
-      mcp: mcp.handler(),
-    },
-    logTailFor: (id) => ctx.logs.tail(id, 50),
-    clientIpFor: (req) => resolveClientIp(clientIpOf(req), req.headers.get("x-forwarded-for")),
-    onProxied: (entry) => table.touch(entry.hostname, Date.now()),
-  };
-
-  const certStore = new CertStore(bundle);
-  const listener = startListener({
-    hostname: config.listenAddress,
-    port: config.listenPort,
-    maxRequestBodySize: config.maxBodyBytes,
-    idleTimeout: 120,
-    certStore,
-    deps,
-    onError: (e) => logger.error("listener error", { err: e }),
-  });
-
-  const redirect =
-    config.listenHttpPort === null
-      ? null
-      : Bun.serve({
-          hostname: config.listenAddress,
-          port: config.listenHttpPort,
-          fetch(req) {
-            const u = new URL(req.url);
-            u.protocol = `${config.publicScheme}:`;
-            u.port = String(config.publicPort);
-            return Response.redirect(u.toString(), 308);
-          },
-        });
-
-  const reconciler = new Reconciler({
+  const reconciling = startReconciler(core, ctx, o.clients ?? dockerClients);
+  const { reconciler, reconciled } = reconciling;
+  const scheduler = startScheduler({
+    ...core,
+    ...reconciling,
     ctx,
-    routes,
-    clients: o.clients ?? dockerClients,
-    logger: logger.child({ mod: "reconcile" }),
-    orphans: config.reconcileOrphans,
-  });
-  const reconciled = reconciler.run().catch((e) => {
-    logger.error("boot reconciliation failed", { err: e });
-    return null;
+    deploys,
+    sessions: identity.sessions,
+    renewal: certs.acme && { acme: certs.acme, domains, ...network },
   });
 
-  // stop() waits for running jobs, so nothing touches the database after it closes.
-  const scheduler = new Scheduler({ logger: logger.child({ mod: "scheduler" }) });
-  scheduler.register({
-    name: "reconcile",
-    intervalMs: config.reconcileIntervalMs,
-    run: () => reconciler.run(),
+  const setupUrl = announceStartup({ core, identity, surfaceEnabled, announce, seeded, network });
+  const stop = createStop({
+    ...core,
+    shutdown,
+    network,
+    scheduler,
+    reconciled,
+    ctx,
+    hooks,
+    dockerClients,
   });
-  scheduler.register({
-    name: "ttl-sweep",
-    intervalMs: config.ttlSweepIntervalMs,
-    // The first sweep waits for the boot reconcile, which learns which hosts are reachable.
-    run: async (signal) => {
-      await reconciled;
-      await sweepExpired(ctx, logger.child({ mod: "ttl" }), signal);
-    },
-    initialDelayMs: 0,
-  });
-  scheduler.register({
-    name: "lastseen-flush",
-    intervalMs: config.lastSeenFlushIntervalMs,
-    run: () => flushLastSeen(ctx),
-  });
-  scheduler.register({
-    name: "idle-sleep",
-    intervalMs: config.idleSweepIntervalMs,
-    run: (signal) => sweepIdle(ctx, logger.child({ job: "idle-sleep" }), signal),
-  });
-  if (acmeProvider) {
-    const provider = acmeProvider;
-    certStore.onSwap(() => listener.swapCerts());
-    // Hourly because Let's Encrypt allows 5 failed validations per hour.
-    scheduler.register({
-      name: "cert-renew",
-      intervalMs: 3_600_000,
-      initialDelayMs: 0,
-      run: async (signal) => {
-        const next = await provider.renewIfDue(domains, signal);
-        if (next) await certStore.swap(next);
-      },
-    });
-  }
-  scheduler.register({
-    name: "idempotency-purge",
-    intervalMs: 3_600_000,
-    run: () => deploys.purge(),
-  });
-  scheduler.register({
-    name: "session-purge",
-    intervalMs: 3_600_000,
-    run: () => {
-      sessions.purge();
-    },
-  });
-  scheduler.register({
-    name: "oauth-purge",
-    intervalMs: 3_600_000,
-    run: () => {
-      oauthGrants.purge(Date.now() - 7 * 86_400_000);
-    },
-  });
-  scheduler.start();
+  let stopped: Promise<void> | null = null;
+  return {
+    listener: network.listener,
+    ctx,
+    adminToken,
+    setupUrl,
+    origin: core.origin,
+    caPath: certs.caPath,
+    reconciler,
+    scheduler,
+    reconciled,
+    stop: (o = {}) => (stopped ??= stop(o.graceMs ?? config.shutdownGraceMs)),
+  };
+}
 
+type StartupNotice = {
+  core: Core;
+  identity: Identity;
+  surfaceEnabled: (s: Surface) => boolean;
+  announce: (text: string) => void;
+  seeded: Host[];
+  network: { listener: RunningListener };
+};
+
+function announceStartup(d: StartupNotice): string | null {
+  const { config, logger, origin } = d.core;
   // Through announce, not the logger, which would redact the setup link.
-  const setupUrl = surfaceEnabled("app") ? bootstrap.url(origin("app")) : null;
+  const setupUrl = d.surfaceEnabled("app") ? d.identity.bootstrap.url(origin("app")) : null;
   if (setupUrl)
-    announce(
+    d.announce(
       `\n  No accounts exist yet. Create the first admin here (one use, this run only):\n\n    ${setupUrl}\n`,
     );
-  if (users.count() > 0 && config.trustedProxies.length === 0) {
+  if (d.core.repos.users.count() > 0 && config.trustedProxies.length === 0) {
     logger.warn(
       "accounts exist but GANGWAY_TRUSTED_PROXIES is empty; if a reverse proxy sits in front, login rate limits and audit IPs will all be the proxy's",
     );
@@ -707,57 +128,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   logger.info("listening", {
     address: config.listenAddress,
-    port: listener.port,
-    baseDomain: baseDomain(),
-    routes: table.size,
-    hosts: seeded.map((h) => h.id),
+    port: d.network.listener.port,
+    baseDomain: d.core.baseDomain(),
+    routes: d.core.table.size,
+    hosts: d.seeded.map((h) => h.id),
   });
-
-  let stopped: Promise<void> | null = null;
-  const stop = async (graceMs: number): Promise<void> => {
-    const began = Date.now();
-    shutdown.abort();
-    void redirect?.stop(true);
-    void listener.stop(false);
-
-    const left = () => Math.max(0, graceMs - (Date.now() - began));
-    await scheduler.stop(graceMs);
-    await reconciled;
-    const drained = await drain(
-      () => listener.pending().requests === 0 && ctx.inflight.size === 0 && hooks.inflight === 0,
-      { timeoutMs: left() },
-    );
-
-    // The next boot's reconciler rescues pipelines aborted here.
-    const cut = {
-      requests: listener.pending().requests,
-      webSockets: listener.pending().webSockets,
-      pipelines: ctx.inflight.size,
-    };
-    for (const { abort } of ctx.inflight.values()) abort.abort();
-    await Promise.allSettled([...ctx.inflight.values()].map((i) => i.done));
-    listener.stop(true);
-
-    try {
-      flushLastSeen(ctx);
-    } catch (e) {
-      logger.warn("final lastSeen flush failed", { err: e });
-    }
-    dockerClients.closeAll();
-    logger.info("stopped", { drained, ms: Date.now() - began, ...(drained ? {} : { cut }) });
-    db.close();
-  };
-
-  return {
-    listener,
-    ctx,
-    adminToken,
-    setupUrl,
-    origin,
-    caPath,
-    reconciler,
-    scheduler,
-    reconciled,
-    stop: (o = {}) => (stopped ??= stop(o.graceMs ?? config.shutdownGraceMs)),
-  };
+  return setupUrl;
 }
