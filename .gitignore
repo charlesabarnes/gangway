@@ -7,3 +7,6 @@ dist/
 state/
 spike/node_modules/
 state/
+
+# The local resume file: kept on disk, never committed.
+docs/STATUS.md
