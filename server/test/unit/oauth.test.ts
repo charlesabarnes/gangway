@@ -21,7 +21,9 @@ import {
 import { ACCESS_TTL_MS, OAuthServer, REFRESH_IDLE_MS } from "../../src/oauth/server.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
-import { setupPreviewContext } from "../helpers/preview-context.ts";
+import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { SourceStore } from "../../src/previews/source/store.ts";
+import { dirname } from "node:path";
 
 const quiet = new Logger("error", {}, () => {});
 const CLAUDE = "https://claude.ai/oauth/claude-code-client-metadata";
@@ -121,7 +123,8 @@ async function setup() {
   };
   /** Straight through to a code, as a user would click. */
   const code = async (actor: typeof ada = ada, scopes?: string[]) => {
-    const out = await oauth.authorize(authorizeQuery());
+    // The request asks for what will be granted, when that is more than the default.
+    const out = await oauth.authorize(authorizeQuery(scopes?.includes("update") ? { scope: scopes.join(" ") } : {}));
     if (out.kind !== "consent") throw new Error(JSON.stringify(out));
     const { redirect } = oauth.decide(actor, out.requestId, { approve: true, ...(scopes ? { scopes } : {}) });
     return new URL(redirect).searchParams.get("code")!;
@@ -354,7 +357,7 @@ describe("the flow over HTTP, as claude.ai drives it", () => {
     expect(denied.status).toBe(401);
     expect(denied.headers.get("www-authenticate")).toBe(`Bearer resource_metadata="${RESOURCE}/.well-known/oauth-protected-resource", scope="read deploy"`);
     const prm = await (await h.call(h.mcpH, "mcp.preview.localhost:8443", "/.well-known/oauth-protected-resource")).json();
-    expect(prm).toMatchObject({ resource: RESOURCE, authorization_servers: [ISSUER], scopes_supported: ["read", "deploy"] });
+    expect(prm).toMatchObject({ resource: RESOURCE, authorization_servers: [ISSUER], scopes_supported: ["read", "deploy", "update"] });
     // 2. The authorization server describes itself.
     const as = await (await h.call(h.appH, h.HOST, "/.well-known/oauth-authorization-server")).json() as Record<string, unknown>;
     expect(as).toMatchObject({ issuer: ISSUER, authorization_endpoint: `${ISSUER}/oauth/authorize`, token_endpoint: `${ISSUER}/oauth/token`, code_challenge_methods_supported: ["S256"], client_id_metadata_document_supported: true, token_endpoint_auth_methods_supported: ["none"] });
@@ -394,6 +397,28 @@ describe("the flow over HTTP, as claude.ai drives it", () => {
     expect(res.status).toBe(403);
     expect(res.headers.get("www-authenticate")).toBe(`Bearer resource_metadata="${RESOURCE}/.well-known/oauth-protected-resource", error="insufficient_scope", scope="read deploy"`);
     expect((await h.toolCall(t.access_token, "status", {})).status).toBe(200);
+  });
+
+  test("ADR-0021: a deploy grant rebuilds its own preview; someone else's steps up to update, and an update grant may", async () => {
+    const h = await http();
+    h.p.ctx.sources = new SourceStore(dirname(h.p.ctx.workdirs.root));
+    const t = h.exchange(await h.code(h.ada, ["read", "deploy"]));
+    expect(await (await h.toolCall(t.access_token, "deploy", { files: { "index.html": "v1" }, name: "mine", visibility: "public" })).text()).toContain("ready:");
+    const mine = await h.toolCall(t.access_token, "deploy", { preview: "mine", files: { "index.html": "v2" } });
+    expect(mine.status).toBe(200);
+    expect(await mine.text()).toContain("(rebuilt)");
+
+    // Deployed by another principal: the grant's deploy scope does not reach it.
+    const tools = new Tools({ ctx: h.p.ctx, deploys: new IdempotentDeploys(h.p.ctx, new IdempotencyRepo(h.p.db, h.p.ctx.now)), logger: quiet });
+    await tools.deploy({ actor: ACTOR, signal: new AbortController().signal }, { files: { "index.html": "theirs" }, name: "theirs", visibility: "public" });
+    const theirs = await h.toolCall(t.access_token, "deploy", { preview: "theirs", files: { "index.html": "x" } });
+    expect(theirs.status).toBe(403);
+    expect(theirs.headers.get("www-authenticate")).toBe(`Bearer resource_metadata="${RESOURCE}/.well-known/oauth-protected-resource", error="insufficient_scope", scope="read deploy update"`);
+
+    const u = h.exchange(await h.code(h.ada, ["read", "deploy", "update"]));
+    const ok = await h.toolCall(u.access_token, "deploy", { preview: "theirs", files: { "index.html": "x" } });
+    expect(ok.status).toBe(200);
+    expect(await ok.text()).toContain("(rebuilt)");
   });
 
   test("token endpoint errors are RFC 6749 JSON; a client secret is refused; JSON bodies are refused", async () => {

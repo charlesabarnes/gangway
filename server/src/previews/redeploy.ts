@@ -18,9 +18,9 @@ import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Host, Preview, PreviewSource } from "../../../shared/src/domain.ts";
-import { actorId, type Actor } from "../auth/actor.ts";
+import { actorId, mayRebuild, type Actor } from "../auth/actor.ts";
 import { buildArgv, composeArgv, psArgv, runArgv, upArgv } from "../docker/compose.ts";
-import { AppError, conflict, notFound } from "../errors.ts";
+import { AppError, conflict, forbidden, notFound } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { ulid } from "../util/ulid.ts";
 import { addonServices } from "./addons.ts";
@@ -28,7 +28,7 @@ import { buildStack, selectExposed, type PlannedRoute } from "./compose-model.ts
 import type { PreviewContext } from "./context.ts";
 import { healthOf, PLAN_PROJECT, prepareUpload, readModel, releaseFor, salvage, STACK_FILE, StepFailed, stepper, waitAnswering, waitHealthy, type WaitTarget } from "./deploy.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
-import type { AddonRequest } from "../../../shared/src/app-plan.ts";
+import type { AddonRequest, AppPlan } from "../../../shared/src/app-plan.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import { DIR_MODE, FILE_MODE, resolveWithin } from "./source/types.ts";
@@ -47,9 +47,12 @@ export type RedeployInput = {
 };
 
 export type RedeployOutcome = { preview: Preview; buildId: string; outcome: "succeeded" | "failed"; error?: string };
-export type RedeployResult = { preview: Preview; buildId: string; done: Promise<RedeployOutcome> };
+export type RedeployResult = { preview: Preview; buildId: string; done: Promise<RedeployOutcome>; plan?: AppPlan | undefined };
 
 const unprocessable = (m: string, d?: Record<string, unknown>) => new AppError("unprocessable", m, d);
+
+/** Said the same way by REST and MCP. */
+export const REBUILD_REFUSAL = 'this preview was deployed by someone else: "previews.update_own" covers only your own, and rebuilding any preview needs "previews.update" (the `update` scope for a token or an agent)';
 
 /** Paths an edit may name: relative, forward-slashed, no `..`, nothing in a `.gangway/` (at any depth: a nested app's root has one). */
 export function checkEditPath(p: string): string {
@@ -99,6 +102,9 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const id = input.previewId;
   const current = ctx.previews.get(id);
   if (!current || current.state === "destroyed") throw notFound(`no such preview: ${id}`);
+  // ADR-0021: one check for every adapter. The routes and tools only knew the actor may
+  // rebuild SOMETHING; whose preview this is needs the row.
+  if (!mayRebuild(input.actor, ctx.previews.ownerOf(id))) throw forbidden(REBUILD_REFUSAL);
   if (current.source.kind !== "tarball" || !ctx.sources || !(await ctx.sources.has(id))) {
     throw conflict("only an uploaded preview can be rebuilt from a new source; this one keeps none");
   }
@@ -121,6 +127,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const wd = await ctx.workdirs.create(buildId).catch((e) => { ctx.inflight.delete(id); throw e; });
   const source = preview.source as Extract<PreviewSource, { kind: "tarball" }>;
   const routes = routesOf(ctx, id);
+  let appPlan: AppPlan | undefined;
   let plan: { resolved: unknown; model: Awaited<ReturnType<typeof readModel>>["model"]; runtime: PreviewSource; addonServices: string[] };
   try {
     if (routes.length === 0) throw conflict("the preview has no routes to rebuild behind");
@@ -156,6 +163,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     const next: PreviewSource = { kind: "tarball", uploadId: source.uploadId, ...(up.runtime ? { runtime: up.runtime } : {}), ...(up.plan.addons.length ? { addons: up.plan.addons } : {}) };
     if (JSON.stringify(next) !== JSON.stringify(source)) ctx.previews.setSource(id, next);
     plan = { resolved, model, runtime: next, addonServices: addonServices(up.plan.addons) };
+    appPlan = up.plan;
   } catch (e) {
     await wd.cleanup();
     ctx.inflight.delete(id);
@@ -172,7 +180,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     .then((o) => settle(o), (e: unknown) => settle({ preview: ctx.previews.get(id) ?? preview, buildId, outcome: "failed", error: String(e) }))
     .finally(() => { ctx.inflight.delete(id); });
 
-  return { preview: ctx.previews.get(id)!, buildId, done };
+  return { preview: ctx.previews.get(id)!, buildId, done, plan: appPlan };
 }
 
 type RunInput = {

@@ -15,6 +15,7 @@ export const PERMISSIONS = [
   { id: "previews.deploy", feature: "previews", description: "Deploy a new preview" },
   { id: "previews.destroy", feature: "previews", description: "Destroy any preview" },
   { id: "previews.update", feature: "previews", description: "Change a preview's uploaded source and rebuild it at the same URL" },
+  { id: "previews.update_own", feature: "previews", description: "Rebuild previews you deployed, at the same URL" },
   { id: "previews.data", feature: "previews", description: "Browse and query a preview's add-on databases (every query is audited)" },
   { id: "previews.view_private", feature: "previews", description: "Open previews whose visibility is private" },
   { id: "logs.read", feature: "logs", description: "Read and follow preview build and runtime logs" },
@@ -49,18 +50,23 @@ export const isPermission = (s: string): s is Permission => KNOWN.has(s);
 
 /**
  * §8.2 token scopes. A scope is a fixed BUNDLE of permissions, so a token stays a
- * three-word thing to reason about while enforcement stays fine-grained. A user-owned
+ * few-word thing to reason about while enforcement stays fine-grained. A user-owned
  * token never exceeds its owner: the effective set is the bundle INTERSECTED with the
  * owner's role, at verify time.
+ *
+ * ADR-0021: `deploy` carries `previews.update_own` (an agent iterates on what it made);
+ * `update` is `previews.update` alone -- rebuild ANY preview -- added to the others, never
+ * useful by itself.
  */
-export const SCOPES = ["read", "deploy", "admin"] as const;
+export const SCOPES = ["read", "deploy", "update", "admin"] as const;
 export type Scope = (typeof SCOPES)[number];
 
 const READ: readonly Permission[] = ["previews.read", "logs.read", "events.read", "hosts.read"];
 
 export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   read: READ,
-  deploy: [...READ, "previews.deploy", "previews.destroy"],
+  deploy: [...READ, "previews.deploy", "previews.destroy", "previews.update_own"],
+  update: ["previews.update"],
   admin: ALL_PERMISSIONS,
 };
 
@@ -71,9 +77,10 @@ export const ADMIN_ROLE_ID: BuiltinRole = "admin";
 
 /**
  * What `member` and `viewer` are SEEDED with (§8.1). Defaults only -- the matrix is the
- * operator's. The 0003 migration inserts exactly this, and a test holds the two together.
+ * operator's. The migrations insert exactly this (0003, and 0010 for `update_own`), and a
+ * test holds the two together.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<BuiltinRole, "admin">, readonly Permission[]> = {
-  member: [...READ, "previews.deploy", "previews.destroy", "previews.view_private", "tokens.manage_own"],
+  member: [...READ, "previews.deploy", "previews.destroy", "previews.update_own", "previews.view_private", "tokens.manage_own"],
   viewer: [...READ, "previews.view_private"],
 };

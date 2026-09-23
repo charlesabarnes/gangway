@@ -15,7 +15,7 @@
 import { createMcpHandler, type McpHttpHandler } from "@modelcontextprotocol/server";
 import { Hono, type Context } from "hono";
 import { SCOPE_PERMISSIONS, type Permission, type Scope } from "../../../shared/src/permissions.ts";
-import { can, type Actor, type TokenVerifier } from "../auth/actor.ts";
+import type { Actor, TokenVerifier } from "../auth/actor.ts";
 import { isOAuthActor } from "../oauth/server.ts";
 import type { AppEnv } from "./env.ts";
 import { errorHandler, problemResponse } from "./problem.ts";
@@ -23,12 +23,15 @@ import { forbidden, notFound, unauthorized } from "../errors.ts";
 import type { Logger } from "../logger.ts";
 import type { SurfaceHandler } from "../net/dispatch.ts";
 import { ulid } from "../util/ulid.ts";
-import { TOOL_PERMISSIONS, type Tools } from "../mcp/tools.ts";
+import type { Tools } from "../mcp/tools.ts";
+import type { Uploads } from "../mcp/uploads.ts";
 
 const BEARER = /^Bearer\s+(\S+)$/i;
 
 export type McpSurfaceDeps = {
   tools: Tools;
+  /** ADR-0021: where `PUT /uploads/:id` lands. Absent: that route is a 404, like any unknown path. */
+  uploads?: Uploads | undefined;
   /** gw_ tokens, the env token, and (ADR-0020) OAuth access tokens -- which nothing else accepts. */
   verifyToken: TokenVerifier;
   logger: Logger;
@@ -46,8 +49,10 @@ export type McpSurfaceDeps = {
 };
 
 const SCOPE_FOR: Record<Permission, Scope | undefined> = Object.fromEntries(
-  (["read", "deploy"] as const).flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const)).reverse(),
+  (["read", "deploy", "update"] as const).flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const)).reverse(),
 ) as Record<Permission, Scope | undefined>;
+/** What a step-up asks for: the scope, and the ones it goes with, so re-consenting loses nothing. */
+const STEP_UP_SCOPES: Record<Scope, string> = { read: "read", deploy: "read deploy", update: "read deploy update", admin: "admin" };
 
 type Live = { abort: AbortController };
 
@@ -77,6 +82,17 @@ export class McpSurface {
     app.get("/.well-known/oauth-protected-resource/", (c) => this.#prm(c));
     app.on(["GET", "DELETE"], "/", () => new Response("Method not allowed.", { status: 405, headers: { allow: "POST" } }));
     app.post("/", (c) => this.#serve(c.req.raw, c));
+    // Upload by reference (ADR-0021): the URL is the credential -- the agent's shell sends it,
+    // and its MCP client, not the shell, holds the bearer. Still no browsers.
+    if (d.uploads) {
+      const uploads = d.uploads;
+      app.put("/uploads/:id", async (c) => {
+        if (c.req.header("origin") !== undefined) return problemResponse(c, forbidden("browser requests are not accepted on the MCP surface"));
+        const declared = Number(c.req.header("content-length"));
+        const got = await uploads.receive(c.req.param("id"), c.req.raw.body, Number.isFinite(declared) && declared > 0 ? declared : undefined);
+        return c.text(`received ${got.bytes} bytes, sha256 ${got.sha256}\nnow call deploy with upload: "${c.req.param("id")}"\n`, 201);
+      });
+    }
     app.all("*", (c) => problemResponse(c, notFound(`no such resource: ${c.req.path}`)));
     this.#app = app;
   }
@@ -119,11 +135,14 @@ export class McpSurface {
     if (!isOAuthActor(actor)) return null;
     let body: unknown;
     try { body = await req.clone().json(); } catch { return null; }
-    const msg = body as { method?: unknown; params?: { name?: unknown } };
+    const msg = body as { method?: unknown; params?: { name?: unknown; arguments?: unknown } };
     if (msg?.method !== "tools/call" || typeof msg.params?.name !== "string") return null;
-    const permission = (TOOL_PERMISSIONS as Record<string, Permission>)[msg.params.name];
-    if (!permission || can(actor, permission)) return null;
-    return SCOPE_FOR[permission] ?? null;
+    const permission = this.#d.tools.missingFor(actor, msg.params.name, msg.params.arguments);
+    const scope = permission ? SCOPE_FOR[permission] : undefined;
+    // Already granted, and still not enough: the ROLE is what lacks it, and asking the person
+    // again would loop. The tool's own refusal says so instead.
+    if (!scope || actor.scopes.includes(scope)) return null;
+    return scope;
   }
 
   async #serve(req: Request, c: Context<AppEnv>): Promise<Response> {
@@ -138,7 +157,7 @@ export class McpSurface {
     const missing = await this.#stepUp(req, actor);
     if (missing) {
       return problemResponse(c, forbidden(`this connection was not granted the "${missing}" scope`), {
-        "www-authenticate": this.#challenge().replace(/, scope="[^"]*"/, "") + `, error="insufficient_scope", scope="${missing === "deploy" ? "read deploy" : missing}"`,
+        "www-authenticate": this.#challenge().replace(/, scope="[^"]*"/, "") + `, error="insufficient_scope", scope="${STEP_UP_SCOPES[missing]}"`,
       });
     }
 

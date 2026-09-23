@@ -7,6 +7,7 @@
  * gangway put there. A replacement is swapped in with renames: a crash leaves the old tree
  * or the new one (possibly as `<id>.old`), never half of each.
  */
+import { createHash } from "node:crypto";
 import { cp, lstat, mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { badRequest } from "../../errors.ts";
@@ -94,6 +95,29 @@ export class SourceStore {
     };
     await walk(root);
     return { files, truncated };
+  }
+
+  /**
+   * ADR-0021: what is really deployed, file by file -- sha256 over the bytes gangway kept, so
+   * a caller can check them against what it meant to send (`shasum -a 256`). Sorted like `list`.
+   */
+  async manifest(previewId: string): Promise<{ files: { path: string; bytes: number; sha256: string }[]; truncated: boolean }> {
+    const root = this.dirFor(previewId);
+    const out: { path: string; bytes: number; sha256: string }[] = [];
+    let truncated = false;
+    const walk = async (dir: string): Promise<void> => {
+      const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+      for (const e of entries) {
+        if (out.length >= MAX_LISTED) { truncated = true; return; }
+        const abs = path.join(dir, e.name);
+        if (e.isDirectory()) { await walk(abs); continue; }
+        if (!e.isFile()) continue;
+        const bytes = await readFile(abs);
+        out.push({ path: path.relative(root, abs).split(path.sep).join("/"), bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
+      }
+    };
+    await walk(root);
+    return { files: out, truncated };
   }
 }
 

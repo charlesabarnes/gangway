@@ -16,7 +16,7 @@ import type { EventBus } from "../events/bus.ts";
 import type { Logger } from "../logger.ts";
 import type { RouteTable } from "../routing/table.ts";
 import type { PreviewLogs } from "./logs.ts";
-import type { RouteProbe } from "./probe.ts";
+import type { RouteProbe, StatusProbe } from "./probe.ts";
 import type { Workdirs } from "./source/workdir.ts";
 import type { SourceStore } from "./source/store.ts";
 import type { Policy } from "./policy.ts";
@@ -48,6 +48,8 @@ export type PreviewContext = {
   workdirs: Workdirs;
   compose: ComposeRunner;
   probe: RouteProbe;
+  /** ADR-0021: one GET's status, for `deploy`'s `check` paths. Absent: `httpStatus`. */
+  statusProbe?: StatusProbe | undefined;
   logger: Logger;
   timings: PreviewTimings;
   now: () => number;

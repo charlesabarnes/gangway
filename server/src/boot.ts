@@ -21,6 +21,7 @@ import { OAuthGrantsRepo } from "./db/repos/oauth-grants.ts";
 import { ClientMetadataStore } from "./oauth/client-metadata.ts";
 import { OAuthServer } from "./oauth/server.ts";
 import { Tools } from "./mcp/tools.ts";
+import { Uploads } from "./mcp/uploads.ts";
 import { settingsRoutes } from "./app/routes/settings.ts";
 import { templateRoutes } from "./app/routes/templates.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
@@ -313,8 +314,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     originFor: (host: string) => publicOriginFor(normalizeHost(host) ?? "", ctx.origin),
   };
   /* ---- §10.2 the MCP surface (ADR-0019): bearer only. A workflow's OIDC token is not in its chain. */
+  // ADR-0021: an agent's shell PUTs a tarball here, and `deploy` builds exactly those bytes.
+  const uploads = new Uploads({ dir: join(stateDir, "uploads"), url: (id) => `${mcpOrigin()}/uploads/${id}` });
   const mcp = new McpSurface({
-    tools: new Tools({ ctx, deploys, logger: logger.child({ mod: "mcp" }) }),
+    tools: new Tools({ ctx, deploys, uploads, logger: logger.child({ mod: "mcp" }) }),
+    uploads,
     // OAuth access tokens are good HERE and nowhere else: `/v1`'s chain does not know them.
     verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken), oauth.verify),
     logger: logger.child({ mod: "mcp" }),

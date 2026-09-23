@@ -14,7 +14,8 @@ const FIELD = 'mt-1.5 block w-full rounded-md border border-neutral-300 bg-white
 const LABEL = 'block text-sm font-medium text-neutral-800 dark:text-neutral-200';
 const SCOPE_HELP: Record<Scope, string> = {
   read: 'See previews, logs, events and hosts.',
-  deploy: 'Everything in read, plus deploy and destroy previews. What CI needs.',
+  deploy: 'Everything in read, plus deploy and destroy previews, and rebuild the ones you deployed. What CI needs.',
+  update: 'Rebuild any preview in place, not only your own. Add it to deploy.',
   admin: 'Everything, including users, roles and settings.',
 };
 const EXPIRY = [{ value: '', label: 'never' }, { value: '30d', label: '30 days' }, { value: '90d', label: '90 days' }, { value: '365d', label: '1 year' }];

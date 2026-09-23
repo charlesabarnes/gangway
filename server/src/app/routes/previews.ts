@@ -116,13 +116,13 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     return c.json({ preview: wire(res.preview), buildId: res.buildId }, 202);
   };
 
-  api.patch("/previews/:id/source", requirePermission("previews.update"), async (c) => {
+  api.patch("/previews/:id/source", requirePermission("previews.update_own", "previews.update"), async (c) => {
     const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
     const { files, runtime, addons } = SourceEditSchema.parse(body);
     return rebuild(c, { kind: "edit", files }, runtime, addons);
   });
 
-  api.put("/previews/:id/source", requirePermission("previews.update"), async (c) => {
+  api.put("/previews/:id/source", requirePermission("previews.update_own", "previews.update"), async (c) => {
     const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
     if (!isTarball(contentType)) throw badRequest(`send the new source as a tar or tar.gz body (${TARBALL_CONTENT_TYPES.join(", ")})`);
     const { runtime, addons } = SourceReplaceQuerySchema.parse(c.req.query());

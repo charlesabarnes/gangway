@@ -76,6 +76,25 @@ export const can = (actor: Actor, needed: Permission): boolean => actor.permissi
 export const actorId = (a: Actor): string =>
   a.kind === "user" ? `user:${a.userId}` : a.kind === "forge" ? `${a.forge}:${a.login}` : a.kind === "workflow" ? `actions:${a.repository}#${a.runId}` : a.tokenId;
 
+/**
+ * ADR-0021: who a preview belongs to. A person behind the credential -- a session, their
+ * API token, their OAuth grant -- is `user:<id>`, so an agent that reconnects (a new grant)
+ * still owns what it made. An ownerless token is itself; gangway's own jobs, a forge and a
+ * workflow own nothing.
+ */
+export function principalOf(a: Actor): string | null {
+  if (a.kind === "user") return `user:${a.userId}`;
+  if (a.kind !== "token") return null;
+  if (a.userId !== undefined) return `user:${a.userId}`;
+  return a.tokenId.startsWith("system:") ? null : a.tokenId;
+}
+
+/** Rebuild in place (ADR-0015): any preview with `previews.update`, your own with `previews.update_own`. */
+export function mayRebuild(a: Actor, owner: string | null): boolean {
+  if (can(a, "previews.update")) return true;
+  return can(a, "previews.update_own") && owner !== null && owner === principalOf(a);
+}
+
 /** The `audit.actor_type` / `actor_id` pair. */
 export function auditActor(a: Actor): { type: "user" | "token" | "system" | "github"; id: string } {
   if (a.kind === "user") return { type: "user", id: a.userId };

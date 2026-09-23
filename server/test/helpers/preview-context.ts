@@ -53,6 +53,8 @@ export function setupPreviewContext() {
     stacks: [] as Record<string, unknown>[],
     /** Every argv the fake saw, in order. */
     all: [] as string[][],
+    /** What `compose logs` prints: the containers' own output. */
+    runtimeLog: "",
   };
   const compose: ComposeRunner = {
     async *stream(argv, _host, o): AsyncGenerator<ComposeEvent> {
@@ -102,7 +104,7 @@ export function setupPreviewContext() {
       }
       if (cmd === undefined && argv.includes("build")) fake.builds++;
       const stdout = cmd === "config" ? await Bun.file(argv[argv.indexOf("--file") + 1]!).text()
-        : cmd === "ps" ? JSON.stringify({ Service: "web", State: fake.psState }) : "";
+        : cmd === "ps" ? JSON.stringify({ Service: "web", State: fake.psState }) : cmd === "logs" ? fake.runtimeLog : "";
       return { code: 0, stdout, stderr: "", signal: null };
     },
   };

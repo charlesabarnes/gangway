@@ -118,6 +118,7 @@
   "scopes": [
     "read",
     "deploy",
+    "update",
     "admin"
   ],
   "streamEventTypes": [
@@ -132,6 +133,7 @@
     "previews.deploy",
     "previews.destroy",
     "previews.update",
+    "previews.update_own",
     "previews.data",
     "previews.view_private",
     "logs.read",
@@ -169,13 +171,18 @@
       "events.read",
       "hosts.read",
       "previews.deploy",
-      "previews.destroy"
+      "previews.destroy",
+      "previews.update_own"
+    ],
+    "update": [
+      "previews.update"
     ],
     "admin": [
       "previews.read",
       "previews.deploy",
       "previews.destroy",
       "previews.update",
+      "previews.update_own",
       "previews.data",
       "previews.view_private",
       "logs.read",
@@ -408,7 +415,7 @@
       {
         "level": "info",
         "found": "a build script and nothing to start",
-        "then": "serves the build's output (dist/, build/, out/ \u2026) with nginx"
+        "then": "serves the build's output (dist/, build/, out/ …) with nginx"
       }
     ],
     "issues": [],
@@ -499,7 +506,11 @@
         "events.read",
         "hosts.read",
         "previews.deploy",
-        "previews.destroy"
+        "previews.destroy",
+        "previews.update_own"
+      ],
+      "update": [
+        "previews.update"
       ]
     },
     "expiresAt": "2026-09-22T12:10:00.000Z"

@@ -11,7 +11,7 @@ import { Account } from './account';
 @Component({ imports: [Account, Toasts], template: '<app-account /><app-toasts />' })
 class Host {}
 
-const MEMBER: Permission[] = ['previews.read', 'logs.read', 'events.read', 'hosts.read', 'previews.deploy', 'previews.destroy', 'previews.view_private', 'tokens.manage_own'];
+const MEMBER: Permission[] = ['previews.read', 'logs.read', 'events.read', 'hosts.read', 'previews.deploy', 'previews.destroy', 'previews.update_own', 'previews.view_private', 'tokens.manage_own'];
 const token = (over: Partial<ApiToken> = {}): ApiToken => ({ ...(contract.token as ApiToken), ...over });
 
 const grant = (over: Partial<OAuthGrant> = {}): OAuthGrant => ({ ...(contract.oauthGrant as OAuthGrant), ...over });
@@ -43,7 +43,7 @@ describe('Account', () => {
     expect(r.text('identity')).toContain('release-manager');
     // <dt>/<dd> pairs; the gap between them is CSS, so read them as pairs.
     const granted = Object.fromEntries(Array.from(r.byTestId('permissions')!.querySelectorAll('div')).map((d) => [d.querySelector('dt')!.textContent, d.querySelector('dd')!.textContent]));
-    expect(granted).toEqual({ events: 'read', hosts: 'read', logs: 'read', previews: 'deploy, destroy, read, view private', tokens: 'manage own' });
+    expect(granted).toEqual({ events: 'read', hosts: 'read', logs: 'read', previews: 'deploy, destroy, read, update own, view private', tokens: 'manage own' });
   });
 
   it('the token section appears, WITH its list, if the permission is granted while the page is open', async () => {
@@ -91,6 +91,8 @@ describe('Account', () => {
       const r = await open();
       expect((r.byTestId('scope-read') as HTMLInputElement).disabled).toBe(false);
       expect((r.byTestId('scope-deploy') as HTMLInputElement).disabled).toBe(false);
+      // ADR-0021: rebuilding ANY preview is previews.update, which a member does not hold.
+      expect((r.byTestId('scope-update') as HTMLInputElement).disabled).toBe(true);
       expect((r.byTestId('scope-admin') as HTMLInputElement).disabled).toBe(true);
       expect(r.byTestId('token-form')!.textContent).toContain('Your role does not cover this.');
     });

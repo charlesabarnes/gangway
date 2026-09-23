@@ -81,7 +81,7 @@ export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'previe
  * `fixtures/permissions.json`.
  */
 export const PERMISSIONS = [
-  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.data', 'previews.view_private',
+  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.update_own', 'previews.data', 'previews.view_private',
   'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
   'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
   'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.manage', 'repos.secrets', 'templates.manage',
@@ -89,8 +89,8 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type Scope = 'read' | 'deploy' | 'admin';
-export const SCOPES: readonly Scope[] = ['read', 'deploy', 'admin'];
+export type Scope = 'read' | 'deploy' | 'update' | 'admin';
+export const SCOPES: readonly Scope[] = ['read', 'deploy', 'update', 'admin'];
 
 const READ_BUNDLE: readonly Permission[] = ['previews.read', 'logs.read', 'events.read', 'hosts.read'];
 /**
@@ -100,7 +100,8 @@ const READ_BUNDLE: readonly Permission[] = ['previews.read', 'logs.read', 'event
  */
 export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   read: READ_BUNDLE,
-  deploy: [...READ_BUNDLE, 'previews.deploy', 'previews.destroy'],
+  deploy: [...READ_BUNDLE, 'previews.deploy', 'previews.destroy', 'previews.update_own'],
+  update: ['previews.update'],
   admin: PERMISSIONS,
 };
 
@@ -189,7 +190,7 @@ export const DISABLE_UI_PHRASE = 'disable the UI';
 
 /* ---- OAuth for MCP clients (ADR-0020) */
 
-export type OAuthScope = 'read' | 'deploy';
+export type OAuthScope = 'read' | 'deploy' | 'update';
 /** `GET /v1/oauth/requests/:id`: what the consent page shows. */
 export type ConsentRequest = {
   id: string;

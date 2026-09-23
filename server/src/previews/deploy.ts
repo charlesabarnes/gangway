@@ -22,7 +22,7 @@ import { join, relative, sep } from "node:path";
 import { projectNameFor, type Clearance, type Host, type Preview, type PreviewSource, type Route, type Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
-import { actorId, type Actor } from "../auth/actor.ts";
+import { actorId, principalOf, type Actor } from "../auth/actor.ts";
 import { buildArgv, composeArgv, downArgv, parseComposePs, psArgv, runArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
 import { AppError, conflict } from "../errors.ts";
 import { redactString } from "../logger.ts";
@@ -101,6 +101,8 @@ export type DeployResult = {
   urls: PreviewUrl[];
   /** Settles when the pipeline does. Resolves with the final preview -- awake OR failed. */
   done: Promise<Preview>;
+  /** An upload's plan (ADR-0016): what was found and what runs, for an agent to read back. Absent otherwise. */
+  plan?: AppPlan | undefined;
 };
 
 const unprocessable = (m: string, d?: Record<string, unknown>) => new AppError("unprocessable", m, d);
@@ -140,6 +142,7 @@ type Materialized = {
   source: PreviewSource; composeFile: string; dockerConfig?: string;
   /** An upload as it arrived, to keep once the preview exists (ADR-0015). */
   pristine?: string | null; runtime?: RuntimeId | null;
+  plan?: AppPlan;
 };
 
 /**
@@ -207,7 +210,7 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
     const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port, { addons: source.addons });
     return {
       source: { kind: "tarball", uploadId: id, ...(up.runtime ? { runtime: up.runtime } : {}), ...(up.plan.addons.length ? { addons: up.plan.addons } : {}) },
-      composeFile: up.composeFile, pristine: up.pristine, runtime: up.runtime,
+      composeFile: up.composeFile, pristine: up.pristine, runtime: up.runtime, plan: up.plan,
     };
   }
 
@@ -346,11 +349,13 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let dockerConfig: string | undefined;
   let pristine: string | null = null;
   let runtimeUsed: RuntimeId | null = null;
+  let appPlan: AppPlan | undefined;
   try {
     // The clearance: asked for, else the project's override, else the template's (ADR-0012, ADR-0013).
     const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
     const env = input.env !== undefined ? input.env : secretLevel === "none" ? {} : ctx.secretsFor?.(owner?.id ?? null, secretLevel);
-    const { source, composeFile, dockerConfig: login, pristine: kept, runtime } = await writeSource(ctx, id, input.source, env, wd);
+    const { source, composeFile, dockerConfig: login, pristine: kept, runtime, plan } = await writeSource(ctx, id, input.source, env, wd);
+    appPlan = plan;
     dockerConfig = login;
     pristine = kept ?? null;
     runtimeUsed = runtime ?? null;
@@ -397,7 +402,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     preview = ctx.previews.create({
       id, project, hostId: host.id, state: "building", source, visibility,
       ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
-      secretLevel, templateId: template.id, projectId: owner?.id ?? null,
+      secretLevel, templateId: template.id, projectId: owner?.id ?? null, owner: principalOf(input.actor),
     });
     try {
       for (const route of routes) {
@@ -434,7 +439,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     .finally(() => { ctx.inflight.delete(id); });
   ctx.inflight.set(id, { abort, done });
 
-  return { preview, urls, done };
+  return { preview, urls, done, plan: appPlan };
 }
 
 /* ------------------------------------------------------------------ run */

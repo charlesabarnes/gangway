@@ -23,8 +23,13 @@ import { ulid } from "../util/ulid.ts";
 import { ClientMetadataError, redirectAllowed, type ClientMetadataStore } from "./client-metadata.ts";
 
 /** What OAuth may grant. Never `admin`: an agent holding the keys to the server is not a feature. */
-export const OAUTH_SCOPES = ["read", "deploy"] as const satisfies readonly Scope[];
+export const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
 export type OAuthScope = (typeof OAUTH_SCOPES)[number];
+/**
+ * A request that names no scope. Not `update` (ADR-0021): rebuilding ANY preview is asked
+ * for on purpose, by a step-up, never granted in passing; `deploy` already rebuilds your own.
+ */
+export const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
 
 export const ACCESS_TTL_MS = 3_600_000;
 export const REFRESH_IDLE_MS = 30 * 86_400_000;
@@ -189,7 +194,7 @@ export class OAuthServer {
     const asked = (one("scope") ?? "").split(" ").filter((s) => s !== "" && s !== "offline_access");
     const unknown = asked.filter((s) => !(OAUTH_SCOPES as readonly string[]).includes(s));
     if (unknown.length > 0) return fail("invalid_scope", `unknown scope: ${unknown.join(" ")}; gangway grants ${OAUTH_SCOPES.join(", ")}`);
-    const scopes = (asked.length === 0 ? [...OAUTH_SCOPES] : [...new Set(asked)]) as OAuthScope[];
+    const scopes = (asked.length === 0 ? [...DEFAULT_OAUTH_SCOPES] : [...new Set(asked)]) as OAuthScope[];
 
     if (this.#pending.size >= MAX_PENDING) return fail("server_error", "too many authorizations in progress; try again shortly");
     const id = randomBytes(24).toString("base64url");
@@ -224,7 +229,7 @@ export class OAuthServer {
       id, client: { id: p.clientId, name: p.clientName, host: new URL(p.clientId).host },
       redirectUri: p.redirectUri, redirectHost: new URL(p.redirectUri).host, resource: p.resource,
       requested: p.scopes, grantable: this.#grantable(actor, p.scopes),
-      scopePermissions: { read: SCOPE_PERMISSIONS.read, deploy: SCOPE_PERMISSIONS.deploy },
+      scopePermissions: { read: SCOPE_PERMISSIONS.read, deploy: SCOPE_PERMISSIONS.deploy, update: SCOPE_PERMISSIONS.update },
       expiresAt: new Date(p.expiresAt),
     };
   }
@@ -373,4 +378,4 @@ export class OAuthServer {
 
 /** `oauth:<grantId>`: how an OAuth actor's tokenId reads, in the audit log and in the MCP surface's step-up. */
 export const OAUTH_TOKEN_PREFIX = "oauth:";
-export const isOAuthActor = (a: Actor) => a.kind === "token" && a.tokenId.startsWith(OAUTH_TOKEN_PREFIX);
+export const isOAuthActor = (a: Actor): a is Extract<Actor, { kind: "token" }> => a.kind === "token" && a.tokenId.startsWith(OAUTH_TOKEN_PREFIX);

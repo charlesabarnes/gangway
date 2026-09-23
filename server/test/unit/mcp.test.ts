@@ -11,12 +11,14 @@ import { IdempotencyRepo } from "../../src/db/repos/index.ts";
 import { Logger } from "../../src/logger.ts";
 import { checkFiles, packFiles } from "../../src/mcp/pack.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
-import { TOOL_PERMISSIONS, Tools, type CallScope } from "../../src/mcp/tools.ts";
+import { refusalDetail, TOOL_PERMISSIONS, Tools, type CallScope } from "../../src/mcp/tools.ts";
+import type { AppError } from "../../src/errors.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { extractTarball } from "../../src/previews/source/tarball.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { mkdtempSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -120,7 +122,7 @@ describe("the tools", () => {
 
   test("bad input is refused before anything starts", async () => {
     const s = setup();
-    await expect(s.tools.deploy(s.scope(), {})).rejects.toThrow("exactly one of files, image or git");
+    await expect(s.tools.deploy(s.scope(), {})).rejects.toThrow("exactly one of files, upload, image or git");
     await expect(s.tools.deploy(s.scope(), { image: "nginx" })).rejects.toThrow("needs port");
     await expect(s.tools.deploy(s.scope(), { image: "nginx", port: 80, addons: ["postgres"] })).rejects.toThrow("addons go with files");
     await expect(s.tools.deploy(s.scope(), { files: { a: "" }, addons: ["mongo"] })).rejects.toThrow();
@@ -139,6 +141,78 @@ describe("the tools", () => {
 
     const deployOnly = tokenActor("t-deploy", ["deploy"]) as Actor;
     await expect(s.tools.deploy(s.scope(deployOnly), { preview: "site", files: { "x.html": "" } })).rejects.toThrow('lacks the "previews.update" permission');
+  });
+
+  test("ADR-0021: the deploy scope rebuilds what its person deployed -- through any of their credentials -- and nothing else", async () => {
+    const s = setup();
+    const own = (tokenId: string, userId: string) => ({ ...tokenActor(tokenId, ["deploy"]), userId }) as Actor;
+    const adaCi = own("t-ci", "ada"), adaAgent = own("oauth:g1", "ada"), bob = own("t-bob", "bob");
+    await s.tools.deploy(s.scope(adaCi), { files: { "index.html": "v1" }, name: "ada-site", visibility: "public" });
+    expect(s.ctx.previews.ownerOf(resolvePreview(s.ctx, "ada-site").id)).toBe("user:ada");
+    // Another credential of the same person: an agent that reconnected still owns it.
+    expect(await s.tools.deploy(s.scope(adaAgent), { preview: "ada-site", files: { "index.html": "v2" } })).toContain("(rebuilt)");
+    await expect(s.tools.deploy(s.scope(bob), { preview: "ada-site", files: { "index.html": "v3" } })).rejects.toThrow("was deployed by someone else");
+    expect(s.tools.missingFor(bob, "deploy", { preview: "ada-site" })).toBe("previews.update");
+    expect(s.tools.missingFor(adaAgent, "deploy", { preview: "ada-site" })).toBeNull();
+    expect(s.tools.missingFor(READ_ONLY, "deploy", { files: {} })).toBe("previews.deploy");
+    // A read token has neither.
+    await expect(s.tools.deploy(s.scope(READ_ONLY), { preview: "ada-site", files: { "a": "" } })).rejects.toThrow('"previews.deploy"');
+  });
+
+  test("ADR-0021: a preview with no owner (a PR, a row from before 0010) is rebuilt only with previews.update", async () => {
+    const s = setup();
+    await s.tools.deploy(s.scope(), { files: { "index.html": "v1" }, name: "old", visibility: "public" });
+    const id = resolvePreview(s.ctx, "old").id;
+    s.db.run("UPDATE previews SET owner = NULL WHERE id = $id", { id });
+    const ada = { ...tokenActor("t-ada", ["deploy"]), userId: "ada" } as Actor;
+    await expect(s.tools.deploy(s.scope(ada), { preview: "old", files: { "a.html": "" } })).rejects.toThrow("someone else");
+    expect(await s.tools.deploy(s.scope(), { preview: "old", files: { "a.html": "" } })).toContain("(rebuilt)");
+  });
+
+  test("logs: the pipeline AND what the containers print, scrubbed; one service or one section on request", async () => {
+    const s = setup();
+    s.ctx.addonSecret = () => "s3cret-derived-password";
+    await s.tools.deploy(s.scope(), { files: { "index.ts": "Bun.serve({fetch(){return new Response('hi')}})" }, name: "shop-api", visibility: "public", addons: ["postgres"] });
+    s.fake.runtimeLog = "web-1       | listening on :3000\nweb-1       | DATABASE_URL=postgres://app:s3cret-derived-password@postgres:5432/app\n";
+    const all = await s.tools.logs(s.scope(), "shop-api", 20);
+    expect(all).toContain("pipeline (build, start, gangway):");
+    expect(all).toContain("runtime (what the containers print):\nweb-1       | listening on :3000");
+    expect(all).not.toContain("s3cret-derived-password");
+    expect(all).toContain("[redacted]");
+
+    const web = await s.tools.logs(s.scope(), "shop-api", 5, { service: "web" });
+    expect(web).not.toContain("pipeline");
+    expect(web).toContain("web only");
+    expect(s.fake.all.at(-1)).toEqual(expect.arrayContaining(["logs", "--tail", "5", "web"]));
+    expect(await s.tools.logs(s.scope(), "shop-api", 5, { source: "pipeline" })).not.toContain("runtime (");
+    await expect(s.tools.logs(s.scope(), "shop-api", 5, { service: "web; rm -rf /" })).resolves.toContain("is not a service name");
+
+    await s.tools.destroy(s.scope(), "shop-api");
+  });
+
+  test("ADR-0021: ready says how the upload was read, hashes what is deployed, and GETs the paths asked for", async () => {
+    const s = setup();
+    const asked: string[] = [];
+    s.ctx.statusProbe = async (route, _host, path) => { asked.push(`${route.hostname}${path}`); return path === "/" ? 200 : 404; };
+    const html = "<h1>hi</h1>";
+    const out = await s.tools.deploy(s.scope(), { files: { "index.html": html }, name: "rich", visibility: "public", check: ["/", "/nope"] });
+    expect(out).toMatch(/plan: static [\d.]+ — the files are served by nginx\n  no marker file -> looks like Static site/);
+    expect(out).toContain(`${createHash("sha256").update(html).digest("hex").slice(0, 12)}        11  index.html`);
+    expect(out).toContain("checked: / 200 · /nope 404");
+    expect(asked).toEqual(["rich.preview.localhost/", "rich.preview.localhost/nope"]);
+    // A rebuild reports the same way, from the new files.
+    const again = await s.tools.deploy(s.scope(), { preview: "rich", files: { "index.html": "v2" }, check: ["/"] });
+    expect(again).toContain(`${createHash("sha256").update("v2").digest("hex").slice(0, 12)}         2  index.html`);
+    expect(again).toContain("checked: / 200");
+  });
+
+  test("a plan that cannot run says why, reason by reason", async () => {
+    const s = setup();
+    const err = await s.tools.deploy(s.scope(), { files: { "package.json": "{}" }, name: "noentry", visibility: "public" }).catch((e: unknown) => e) as AppError;
+    expect(err.code).toBe("unprocessable");
+    const said = refusalDetail(err.detail);
+    expect(said).toContain("package.json -> ");
+    expect(said.split("\n").length).toBeGreaterThan(1);
   });
 
   test("names: an unlisted preview answers to its stem; two matches is an error that lists both", async () => {

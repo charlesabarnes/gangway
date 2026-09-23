@@ -109,7 +109,7 @@ describe('the /v1 wire contract', () => {
 
   it('every string union the UI switches on lists exactly what the server sends', () => {
     const visibilities: Visibility[] = ['public', 'unlisted', 'private'];
-    const scopes: Scope[] = ['read', 'deploy', 'admin'];
+    const scopes: Scope[] = ['read', 'deploy', 'update', 'admin'];
     expect([...PREVIEW_STATES]).toEqual(contract.previewStates);
     expect([...LOG_STREAMS]).toEqual(contract.logStreams);
     expect([...STREAM_EVENT_TYPES]).toEqual(contract.streamEventTypes);

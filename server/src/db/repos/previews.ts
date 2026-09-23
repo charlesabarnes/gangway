@@ -15,6 +15,8 @@ export type CreatePreview = {
   secretLevel?: Clearance | null;
   templateId?: string | null;
   projectId?: string | null;
+  /** ADR-0021: who deployed it (`principalOf` in auth/actor.ts). Not on `Preview`: only `previews.update_own` asks. */
+  owner?: string | null;
 };
 
 export type PreviewFilter = {
@@ -39,13 +41,13 @@ export class PreviewsRepo {
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
       `INSERT INTO previews (id, project, host_id, kind, state, source_kind, source_json,
-                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, created_at, updated_at)
+                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, created_at, updated_at)
        VALUES ($id, $project, $host_id, $kind, $state, $source_kind, $source_json,
-               $visibility, $ttl, $idle, $level, $template, $projectId, $now, $now)`,
+               $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $now, $now)`,
       {
         id: p.id, project: p.project, host_id: p.hostId, kind: p.kind ?? "preview",
         state: p.state, source_kind, source_json, visibility: p.visibility,
-        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, projectId: p.projectId ?? null, now,
+        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, projectId: p.projectId ?? null, owner: p.owner ?? null, now,
       },
     );
     return this.get(p.id)!;
@@ -54,6 +56,11 @@ export class PreviewsRepo {
   get(id: string): Preview | undefined {
     const r = this.#db.get<PreviewRow>("SELECT * FROM previews WHERE id = $id", { id });
     return r ? rowToPreview(r) : undefined;
+  }
+
+  /** ADR-0021: who deployed it, or null (a PR, a workflow, a row from before 0010). */
+  ownerOf(id: string): string | null {
+    return this.#db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = $id", { id })?.owner ?? null;
   }
 
   getByProject(project: string): Preview | undefined {

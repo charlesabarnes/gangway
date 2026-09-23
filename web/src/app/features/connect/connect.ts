@@ -9,7 +9,8 @@ import { Btn } from '../../ui/button';
 
 const SCOPE_HELP: Record<OAuthScope, string> = {
   read: 'See previews, their state and their logs.',
-  deploy: 'Also deploy new previews and destroy them.',
+  deploy: 'Also deploy new previews, destroy them, and rebuild the ones you deployed.',
+  update: 'Also rebuild any preview in place, including ones other people deployed.',
 };
 
 /**

@@ -43,3 +43,39 @@ export const httpProbe: RouteProbe = async (route, host, healthPath) => {
     socket.write(`GET ${healthPath ?? "/"} HTTP/1.1\r\nHost: ${route.hostname}\r\nUser-Agent: gangway-probe\r\nConnection: close\r\n\r\n`);
   });
 };
+
+/** A path a caller may ask to have checked: absolute, printable, no spaces or CR/LF to smuggle a header. */
+export const CHECK_PATH = /^\/[\x21-\x7e]{0,199}$/;
+
+export type StatusProbe = (route: Pick<Route, "upstream" | "hostname">, host: Pick<Host, "upstream">, path: string) => Promise<number | null>;
+
+/**
+ * ADR-0021: the status line one GET of `path` gets, through the same dial as the proxy --
+ * so a deploy can say "/ 200, /api/health 200, /missing 404" instead of an agent curling
+ * each one after. Null: nothing answered in time.
+ */
+export const httpStatus: StatusProbe = async (route, host, path) => {
+  if (!CHECK_PATH.test(path)) return null;
+  let socket;
+  try {
+    socket = await dialUpstream(route.upstream, { dial: host.upstream.dial, proxy: host.upstream.proxy, timeoutMs: 3_000 });
+  } catch {
+    return null;
+  }
+  return new Promise<number | null>((resolve) => {
+    const finish = (s: number | null) => { socket.destroy(); resolve(s); };
+    const timer = setTimeout(() => finish(null), 5_000);
+    let head = "";
+    socket.on("data", (chunk: Buffer) => {
+      head += chunk.toString("latin1");
+      if (head.length >= 12 || !head.startsWith("HTTP/".slice(0, head.length))) {
+        clearTimeout(timer);
+        const m = /^HTTP\/\d(?:\.\d)? (\d{3})/.exec(head);
+        finish(m ? Number(m[1]) : null);
+      }
+    });
+    socket.on("error", () => { clearTimeout(timer); finish(null); });
+    socket.on("close", () => { clearTimeout(timer); finish(null); });
+    socket.write(`GET ${path} HTTP/1.1\r\nHost: ${route.hostname}\r\nUser-Agent: gangway-check\r\nConnection: close\r\n\r\n`);
+  });
+};

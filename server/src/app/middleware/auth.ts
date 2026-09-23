@@ -98,9 +98,15 @@ export const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
 /** Marks the middleware so a test can prove no `/v1` route was registered without one. */
 export const PERMISSION_GUARD = Symbol("gangway.permission");
 
-export function requirePermission(permission: Permission): MiddlewareHandler<AppEnv> {
+/**
+ * `alternatives`: a broader permission that also lets the actor in, where the narrow one is
+ * checked again below with the row in hand -- `previews.update_own` or `previews.update`,
+ * and the service decides whose preview it is (ADR-0021). The route is marked with the first.
+ */
+export function requirePermission(permission: Permission, ...alternatives: Permission[]): MiddlewareHandler<AppEnv> {
   const guard: MiddlewareHandler<AppEnv> = async (c, next) => {
-    if (!can(c.get("actor"), permission)) return problemResponse(c, forbidden(`requires the "${permission}" permission`));
+    const actor = c.get("actor");
+    if (![permission, ...alternatives].some((p) => can(actor, p))) return problemResponse(c, forbidden(`requires the "${permission}" permission`));
     return next();
   };
   return Object.assign(guard, { [PERMISSION_GUARD]: permission });
