@@ -7,7 +7,12 @@ import { dirname, join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { Hono } from "hono";
 import { pack } from "tar-stream";
-import { DETECTION, RUNTIMES, detectRuntime } from "../../../shared/src/runtimes.ts";
+import {
+  DETECTION,
+  RUNTIMES,
+  detectRuntime,
+  type RuntimeId,
+} from "../../../shared/src/runtimes.ts";
 import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
@@ -23,7 +28,6 @@ import {
   writeRuntime,
   type RuntimeChoice,
 } from "../../src/previews/runtimes.ts";
-import type { RuntimeId } from "../../../shared/src/runtimes.ts";
 import { asText, SourceStore } from "../../src/previews/source/store.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
@@ -590,7 +594,7 @@ describe("ADR-0016: conventions, gangway.yml, scripts", () => {
     );
     expect(
       Bun.spawnSync(["sh", "-n"], {
-        stdin: new TextEncoder().encode(r.files["collect-static.sh"]!),
+        stdin: new TextEncoder().encode(r.files["collect-static.sh"]),
       }).exitCode,
     ).toBe(0);
     rmSync(dir, { recursive: true });

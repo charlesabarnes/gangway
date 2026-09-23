@@ -97,7 +97,7 @@ export function startListener(o: ListenerOptions): RunningListener {
     },
   });
 
-  let server = Bun.serve<WsData>(serveOptions() as never);
+  let server = Bun.serve<WsData>(serveOptions());
 
   return {
     get port() {
@@ -119,8 +119,8 @@ export function startListener(o: ListenerOptions): RunningListener {
      */
     swapCerts() {
       const old = server;
-      server = Bun.serve<WsData>(serveOptions() as never);
-      old.stop(false);
+      server = Bun.serve<WsData>(serveOptions());
+      void old.stop(false);
     },
 
     /** In-flight HTTP requests (streams included) and open WebSockets, for the shutdown drain. */

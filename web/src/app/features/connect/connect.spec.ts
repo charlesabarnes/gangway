@@ -80,15 +80,13 @@ describe('Connect (ADR-0020 consent)', () => {
 
   it('an expired request says so; no request in the link says so without asking', async () => {
     const { r } = await open();
-    r.http
-      .expectOne('/v1/oauth/requests/req-1')
-      .flush(
-        {
-          title: 'not found',
-          detail: 'this authorization request has expired or was already answered',
-        },
-        { status: 404, statusText: 'x' },
-      );
+    r.http.expectOne('/v1/oauth/requests/req-1').flush(
+      {
+        title: 'not found',
+        detail: 'this authorization request has expired or was already answered',
+      },
+      { status: 404, statusText: 'x' },
+    );
     await r.until(() => r.byTestId('error') !== null, 'the error');
     expect(r.text('error')).toContain('expired');
 

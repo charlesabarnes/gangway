@@ -19,8 +19,7 @@ import type { Logger } from "../logger.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { destroy } from "../previews/destroy.ts";
 import { urlsFor, type DeploySource } from "../previews/deploy.ts";
-import type { IdempotentDeploys } from "../previews/idempotent.ts";
-import { requestHash } from "../previews/idempotent.ts";
+import { type IdempotentDeploys, requestHash } from "../previews/idempotent.ts";
 import { redeploy, type RedeployInput } from "../previews/redeploy.ts";
 import type { Taken, Uploads } from "./uploads.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
@@ -416,7 +415,7 @@ export class Tools {
     if (!can(actor, base)) return base;
     const ref = tool === "deploy" ? (args as { preview?: unknown } | null)?.preview : undefined;
     if (typeof ref !== "string" || can(actor, REDEPLOY_PERMISSION)) return null;
-    let owner: string | null = null;
+    let owner: string | null;
     try {
       owner = this.#d.ctx.previews.ownerOf(resolvePreview(this.#d.ctx, ref).id);
     } catch {

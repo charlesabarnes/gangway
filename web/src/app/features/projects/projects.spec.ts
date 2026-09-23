@@ -53,14 +53,12 @@ async function open(
     ],
   });
   const loading = TestBed.inject(AuthService).refresh();
-  r.http
-    .expectOne('/v1/auth/session')
-    .flush({
-      authenticated: true,
-      setupRequired: false,
-      user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
-      permissions: perms,
-    });
+  r.http.expectOne('/v1/auth/session').flush({
+    authenticated: true,
+    setupRequired: false,
+    user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
+    permissions: perms,
+  });
   await loading;
   await r.settle();
   r.http.expectOne('/v1/projects').flush({ projects: o.projects ?? [] });

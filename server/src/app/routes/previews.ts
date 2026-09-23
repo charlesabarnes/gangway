@@ -18,6 +18,7 @@ import {
   TarballDeployQuerySchema,
 } from "../../../../shared/src/api.ts";
 import { badRequest, forbidden, notFound, unprocessable } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { PreviewContext } from "../../previews/context.ts";
 import { urlsFor, type DeployInput } from "../../previews/deploy.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
@@ -100,9 +101,7 @@ export function previewRoutes(
         },
       };
     } else {
-      const body = await c.req.json().catch(() => {
-        throw badRequest("the request body is not JSON");
-      });
+      const body = await readJson(c);
       const { project, ...parsed } = DeployRequestSchema.parse(body);
       req = { ...parsed, ...(project ? { projectId: project } : {}) };
     }
@@ -224,9 +223,7 @@ export function previewRoutes(
     "/previews/:id/source",
     requirePermission("previews.update_own", "previews.update"),
     async (c) => {
-      const body = await c.req.json().catch(() => {
-        throw badRequest("the request body is not JSON");
-      });
+      const body = await readJson(c);
       const { files, runtime, addons } = SourceEditSchema.parse(body);
       return rebuild(c, { kind: "edit", files }, runtime, addons);
     },
@@ -263,9 +260,7 @@ export function previewRoutes(
         throw forbidden(
           'this preview was deployed by someone else: "previews.update_own" covers only your own, and changing any preview\'s password needs "previews.update"',
         );
-      const body = await c.req.json().catch(() => {
-        throw badRequest("the request body is not JSON");
-      });
+      const body = await readJson(c);
       const { password, login } = PreviewPasswordChangeSchema.parse(body);
       return c.json({
         preview: wire(

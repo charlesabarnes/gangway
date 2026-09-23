@@ -123,15 +123,13 @@ describe("Secrets: two scopes, one shape", () => {
 
   test("the global map reaches a preview with no repository too, and a repository's entry wins on a name", () => {
     const { repo, secrets, store, audited } = setup();
-    secrets
-      .global()
-      .update(null, {
-        set: {
-          SHARED: "global",
-          ONLY_GLOBAL: { value: "g", level: "low" },
-          TOP: { value: "t", level: "high" },
-        },
-      });
+    secrets.global().update(null, {
+      set: {
+        SHARED: "global",
+        ONLY_GLOBAL: { value: "g", level: "low" },
+        TOP: { value: "t", level: "high" },
+      },
+    });
     secrets.project(repo.id).update(null, { set: { SHARED: "repo" } });
     expect(store.get("secrets.global")).toMatch(/^v1\./);
     expect(audited.at(-2)).toMatchObject({ action: "secrets.changed", target: null });

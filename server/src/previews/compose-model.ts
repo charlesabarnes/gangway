@@ -405,7 +405,7 @@ function asMap(v: unknown): Record<string, unknown> {
 }
 
 export function buildStack(i: StackInput): string {
-  const doc = structuredClone(obj(i.resolved)) as Json;
+  const doc = structuredClone(obj(i.resolved));
   const previewId = i.routes[0]?.previewId ?? "";
   // Ownership without `gangway.managed`: enough to find and remove everything a preview
   // created, deliberately NOT enough to look like a route. `managed=true` promises the

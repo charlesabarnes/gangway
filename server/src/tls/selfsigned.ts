@@ -15,7 +15,7 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CertMaterial } from "./types.ts";
 
-x509.cryptoProvider.set(globalThis.crypto as Crypto);
+x509.cryptoProvider.set(globalThis.crypto);
 
 const ALG = { name: "ECDSA", namedCurve: "P-256", hash: "SHA-256" } as const;
 const SIGN = { name: "ECDSA", hash: "SHA-256" } as const;

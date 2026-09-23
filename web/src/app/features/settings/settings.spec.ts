@@ -66,14 +66,12 @@ async function open(
   const r = await render(Host);
   const perms = o.permissions ?? [...PERMISSIONS];
   const loading = TestBed.inject(AuthService).refresh();
-  r.http
-    .expectOne('/v1/auth/session')
-    .flush({
-      authenticated: true,
-      setupRequired: false,
-      user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
-      permissions: perms,
-    });
+  r.http.expectOne('/v1/auth/session').flush({
+    authenticated: true,
+    setupRequired: false,
+    user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
+    permissions: perms,
+  });
   await loading;
   await r.settle();
   if (perms.includes('surfaces.manage'))
@@ -83,15 +81,13 @@ async function open(
   else r.http.expectNone('/v1/github');
   if (perms.includes('settings.read')) {
     r.http.expectOne('/v1/templates').flush({ templates: o.templates ?? [template()] });
-    r.http
-      .expectOne('/v1/settings')
-      .flush({
-        settings: o.settings ?? [
-          setting('templates.default.pr', 'default'),
-          setting('templates.default.api', 'default'),
-          setting('templates.default.manual', 'default'),
-        ],
-      });
+    r.http.expectOne('/v1/settings').flush({
+      settings: o.settings ?? [
+        setting('templates.default.pr', 'default'),
+        setting('templates.default.api', 'default'),
+        setting('templates.default.manual', 'default'),
+      ],
+    });
   } else {
     r.http.expectNone('/v1/templates');
     r.http.expectNone('/v1/settings');
@@ -285,17 +281,15 @@ describe('Settings: default templates (ADR-0013)', () => {
   it('a refused PUT keeps the old value and toasts', async () => {
     const r = await open({ templates: two });
     await choose(r, 'default-api', 'staging');
-    r.http
-      .expectOne({ method: 'PUT', url: '/v1/settings' })
-      .flush(
-        {
-          type: 'about:blank',
-          title: 'Unprocessable',
-          status: 422,
-          detail: 'no such template: staging',
-        },
-        { status: 422, statusText: 'Unprocessable' },
-      );
+    r.http.expectOne({ method: 'PUT', url: '/v1/settings' }).flush(
+      {
+        type: 'about:blank',
+        title: 'Unprocessable',
+        status: 422,
+        detail: 'no such template: staging',
+      },
+      { status: 422, statusText: 'Unprocessable' },
+    );
     await r.until(() => (r.el.textContent ?? '').includes('Could not change the default'), 'toast');
     expect(r.el.textContent).toContain('no such template');
   });
@@ -357,17 +351,15 @@ describe('GitHubCallback', () => {
 
   it('a refused exchange stays put and says why', async () => {
     const r = await render(GitHubCallback, { providers: [route({ code: 'used', state: 'old' })] });
-    r.http
-      .expectOne({ method: 'POST', url: '/v1/github/manifest/exchange' })
-      .flush(
-        {
-          type: 'about:blank',
-          title: 'Unprocessable',
-          status: 422,
-          detail: 'the manifest state is unknown or expired; start again',
-        },
-        { status: 422, statusText: 'Unprocessable' },
-      );
+    r.http.expectOne({ method: 'POST', url: '/v1/github/manifest/exchange' }).flush(
+      {
+        type: 'about:blank',
+        title: 'Unprocessable',
+        status: 422,
+        detail: 'the manifest state is unknown or expired; start again',
+      },
+      { status: 422, statusText: 'Unprocessable' },
+    );
     await r.until(() => r.byTestId('error') !== null, 'error');
     expect(r.text('error')).toContain('start again');
   });

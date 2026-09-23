@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 import { EnvPatchSchema } from "../../../../shared/src/api.ts";
-import { badRequest } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -16,9 +16,7 @@ export function secretRoutes(api: Hono<AppEnv>, secrets: Secrets): void {
   );
 
   api.patch("/secrets", requirePermission("repos.secrets"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const patch = EnvPatchSchema.parse(body);
     return c.json({ secrets: secrets.global().update(c.get("actor"), patch) });
   });

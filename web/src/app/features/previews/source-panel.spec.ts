@@ -25,13 +25,11 @@ async function open(
   TestBed.configureTestingModule({ deferBlockBehavior: DeferBlockBehavior.Manual });
   const r = await render(SourcePanel, { inputs: { previewId: ID, uploaded: o.uploaded ?? true } });
   const loading = TestBed.inject(AuthService).refresh();
-  r.http
-    .expectOne('/v1/auth/session')
-    .flush({
-      authenticated: true,
-      setupRequired: false,
-      permissions: o.permissions ?? ['previews.read', 'previews.update'],
-    });
+  r.http.expectOne('/v1/auth/session').flush({
+    authenticated: true,
+    setupRequired: false,
+    permissions: o.permissions ?? ['previews.read', 'previews.update'],
+  });
   await loading;
   await r.settle();
   if (o.uploaded !== false) {
@@ -150,13 +148,11 @@ describe('SourcePanel', () => {
     expect(put.request.headers.get('content-type')).toBe('application/gzip');
     put.flush(contract.redeployAccepted, { status: 202, statusText: 'Accepted' });
     await r.settle();
-    r.http
-      .expectOne(`/v1/previews/${ID}/source`)
-      .flush({
-        runtime: 'bun',
-        truncated: false,
-        files: [{ path: 'index.html', size: 10, text: '<p>new</p>' }],
-      });
+    r.http.expectOne(`/v1/previews/${ID}/source`).flush({
+      runtime: 'bun',
+      truncated: false,
+      files: [{ path: 'index.html', size: 10, text: '<p>new</p>' }],
+    });
     await done;
     await r.settle();
     expect(r.allByTestId('file').map((f) => f.dataset['path'])).toEqual(['index.html']);

@@ -18,7 +18,8 @@ import type { Accounts, RequestMeta } from "../../auth/accounts.ts";
 import type { Actor } from "../../auth/actor.ts";
 import type { Bootstrap } from "../../auth/bootstrap.ts";
 import type { RolePermissions } from "../../auth/roles.ts";
-import { badRequest, forbidden, notFound, unauthorized } from "../../errors.ts";
+import { forbidden, notFound, unauthorized } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import {
   clearSessionCookie,
@@ -59,10 +60,6 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     ip: c.env.clientIp,
     userAgent: c.req.header("user-agent") ?? null,
   });
-  const json = async (c: Context<AppEnv>) =>
-    c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
 
   /** Sessions belong to the `app` hostname, where the cookie is host-only. Elsewhere these do not exist. */
   const appOnly = (c: Context<AppEnv>) => {
@@ -124,7 +121,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   pub.post("/auth/login", async (c) => {
     appOnly(c);
     refuseForeignOrigin(c);
-    const { email, password } = LoginRequestSchema.parse(await json(c));
+    const { email, password } = LoginRequestSchema.parse(await readJson(c));
     const { user, secret } = await d.accounts.login(email, password, meta(c));
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
     c.header("cache-control", "no-store");
@@ -136,7 +133,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     appOnly(c);
     if (!d.bootstrap.pending) throw notFound("no such resource: /v1/auth/setup");
     refuseForeignOrigin(c);
-    const { token, email, password } = SetupRequestSchema.parse(await json(c));
+    const { token, email, password } = SetupRequestSchema.parse(await readJson(c));
     if (!d.bootstrap.check(token))
       throw forbidden("that setup link is not valid; the current one is in the server's output");
     const { user, secret } = await d.accounts.setupFirstAdmin(email, password, meta(c));
@@ -220,7 +217,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 
   pub.post("/auth/password", async (c) => {
     const actor = await required(c);
-    const { current, next } = ChangePasswordSchema.parse(await json(c));
+    const { current, next } = ChangePasswordSchema.parse(await readJson(c));
     await d.accounts.changeOwnPassword(actor, current, next, meta(c));
     return c.body(null, 204);
   });

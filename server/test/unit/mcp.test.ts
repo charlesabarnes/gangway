@@ -4,7 +4,7 @@
  * protocol eras.
  */
 import { describe, expect, test } from "bun:test";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { McpSurface } from "../../src/app/mcp-surface.ts";
 import { staticTokenVerifier, tokenActor, type Actor } from "../../src/auth/actor.ts";
 import { IdempotencyRepo } from "../../src/db/repos/index.ts";
@@ -21,10 +21,9 @@ import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 const quiet = new Logger("error", {}, () => {});
-const READ_ONLY = tokenActor("t-read", ["read"]) as Actor;
+const READ_ONLY = tokenActor("t-read", ["read"]);
 
 function setup() {
   const s = setupPreviewContext();
@@ -204,7 +203,7 @@ describe("the tools", () => {
       "index.html",
     ]);
 
-    const deployOnly = tokenActor("t-deploy", ["deploy"]) as Actor;
+    const deployOnly = tokenActor("t-deploy", ["deploy"]);
     await expect(
       s.tools.deploy(s.scope(deployOnly), { preview: "site", files: { "x.html": "" } }),
     ).rejects.toThrow('lacks the "previews.update" permission');
@@ -306,7 +305,7 @@ describe("the tools", () => {
       check: ["/", "/nope"],
     });
     expect(out).toMatch(
-      /plan: static [\d.]+ — the files are served by nginx\n  no marker file -> looks like Static site/,
+      /plan: static [\d.]+ — the files are served by nginx\n {2}no marker file -> looks like Static site/,
     );
     expect(out).toContain(
       `${createHash("sha256").update(html).digest("hex").slice(0, 12)}        11  index.html`,

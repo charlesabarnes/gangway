@@ -317,7 +317,7 @@ export class PreviewGate {
         verdict.retryAfterSec,
       );
     }
-    let ok = false;
+    let ok: boolean;
     try {
       ok = given !== "" && given.length <= 1024 && (await this.#o.passwords.verify(given, secret));
     } catch {
@@ -436,7 +436,7 @@ async function readForm(req: Request): Promise<URLSearchParams | null> {
   const declared = Number(req.headers.get("content-length") ?? "0");
   if (declared > MAX_FORM_BYTES) return null;
   if (!req.body) return new URLSearchParams();
-  const reader = req.body.getReader();
+  const reader = (req.body as ReadableStream<Uint8Array>).getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {

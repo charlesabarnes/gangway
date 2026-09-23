@@ -52,7 +52,7 @@ function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
   /** The fake daemon. Tests mutate these directly. */
   const daemon = {
     containers: [] as ContainerSummary[],
-    info: REMOTE_HOST as DockerInfo,
+    info: REMOTE_HOST,
     down: false,
     lists: [] as ListOptions[],
     stopped: [] as string[],

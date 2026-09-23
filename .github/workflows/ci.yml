@@ -1,7 +1,5 @@
-# Typecheck + unit tests + web build. NO Docker: the suite fakes the compose runner and the
-# daemon (and was checked to pass with no `docker` on PATH). What this cannot prove is on
-# purpose not attempted here -- see "A green fake proves nothing about the CLI" in
-# docs/STATUS.md. Live verification runs against a real host, by hand.
+# Typecheck, lint, format and unit tests, plus the web build. No Docker: the suite fakes the
+# compose runner and the daemon. Anything that needs a real Docker host is checked by hand.
 name: ci
 
 on:
@@ -26,8 +24,10 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
-      # Bun strips types without checking them. This gate is the one that keeps the project honest.
+      # Bun strips types without checking them, so typecheck is the gate that catches type errors.
       - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run format:check
       - run: bun test
 
   web:
@@ -41,6 +41,10 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+        working-directory: web
+      - run: npm run lint
+        working-directory: web
+      - run: npm run format:check
         working-directory: web
       - run: npm run build
         working-directory: web

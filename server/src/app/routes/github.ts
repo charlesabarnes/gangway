@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
 import { ManifestExchangeSchema } from "../../../../shared/src/api.ts";
 import type { AuditSink } from "../../audit/audit.ts";
-import { badRequest, conflict, unprocessable } from "../../errors.ts";
+import { conflict, unprocessable } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { GitHubApp } from "../../forge/github/app.ts";
 import { buildManifest, type ManifestStates } from "../../forge/github/manifest.ts";
 import { SETTINGS, type Settings } from "../../settings.ts";
@@ -87,9 +88,7 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
 
   /** GitHub sent the browser back with `code` and `state`; the code becomes the credentials. */
   api.post("/github/manifest/exchange", requirePermission("github.manage"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const { code, state } = ManifestExchangeSchema.parse(body);
     if (!d.states.consume(state))
       throw unprocessable("the manifest state is unknown or expired; start again");

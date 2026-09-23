@@ -27,6 +27,7 @@ import {
   type PreviewSource,
   type Route,
   type Visibility,
+  type PasswordLogin,
 } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
@@ -39,7 +40,6 @@ import {
   psArgv,
   runArgv,
   upArgv,
-  type ComposeSpec,
 } from "../docker/compose.ts";
 import { AppError, conflict } from "../errors.ts";
 import { redactString } from "../logger.ts";
@@ -81,7 +81,6 @@ import { renderAddons, type RenderedAddons } from "./addons.ts";
 import { DIR_MODE, FILE_MODE } from "./source/types.ts";
 import type { RuntimeId } from "../../../shared/src/runtimes.ts";
 import type { PasswordChoice } from "../../../shared/src/api.ts";
-import type { PasswordLogin } from "../../../shared/src/domain.ts";
 import { entryPassword, logGenerated, resolvePassword } from "./password.ts";
 
 export type DeploySource =
@@ -588,8 +587,8 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let routes: PlannedRoute[];
   let visibility: Visibility;
   let dockerConfig: string | undefined;
-  let pristine: string | null = null;
-  let runtimeUsed: RuntimeId | null = null;
+  let pristine: string | null;
+  let runtimeUsed: RuntimeId | null;
   let appPlan: AppPlan | undefined;
   let generatedPassword: string | undefined;
   try {

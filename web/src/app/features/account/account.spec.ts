@@ -37,18 +37,16 @@ async function open(
 ) {
   const r = await render(Host);
   const loading = TestBed.inject(AuthService).refresh();
-  r.http
-    .expectOne('/v1/auth/session')
-    .flush({
-      authenticated: true,
-      setupRequired: false,
-      user: {
-        id: 'u1',
-        email: 'ada@example.com',
-        role: { id: o.role ?? 'member', name: o.role ?? 'member' },
-      },
-      permissions: o.permissions ?? MEMBER,
-    });
+  r.http.expectOne('/v1/auth/session').flush({
+    authenticated: true,
+    setupRequired: false,
+    user: {
+      id: 'u1',
+      email: 'ada@example.com',
+      role: { id: o.role ?? 'member', name: o.role ?? 'member' },
+    },
+    permissions: o.permissions ?? MEMBER,
+  });
   await loading;
   await r.settle();
   if ((o.permissions ?? MEMBER).includes('tokens.manage_own')) {
@@ -221,19 +219,17 @@ describe('Account', () => {
         );
       await r.until(() => r.byTestId('token-error') !== null, 'the token error');
       expect(r.text('token-error')).toBe('your role does not cover the "deploy" scope');
-      r.http
-        .expectOne('/v1/auth/session')
-        .flush({
-          authenticated: true,
-          setupRequired: false,
-          permissions: [
-            'previews.read',
-            'logs.read',
-            'events.read',
-            'hosts.read',
-            'tokens.manage_own',
-          ],
-        });
+      r.http.expectOne('/v1/auth/session').flush({
+        authenticated: true,
+        setupRequired: false,
+        permissions: [
+          'previews.read',
+          'logs.read',
+          'events.read',
+          'hosts.read',
+          'tokens.manage_own',
+        ],
+      });
       await r.settle();
       expect((r.byTestId('scope-deploy') as HTMLInputElement).disabled).toBe(true);
     });

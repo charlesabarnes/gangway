@@ -38,7 +38,7 @@ export const wsRelay = {
 
     // Frames can arrive before the upstream finishes connecting; buffer, then flush.
     upstream.onopen = () => {
-      for (const m of relay.pending) upstream.send(m as string);
+      for (const m of relay.pending) upstream.send(m);
       relay.pending.length = 0;
     };
     upstream.onmessage = (ev) => {
@@ -73,7 +73,7 @@ export const wsRelay = {
         ? msg
         : msg.buffer.slice(msg.byteOffset, msg.byteOffset + msg.byteLength);
     if (relay.upstream.readyState === WebSocket.OPEN) {
-      relay.upstream.send(payload as string);
+      relay.upstream.send(payload);
     } else {
       relay.pending.push(payload as string | ArrayBuffer);
     }

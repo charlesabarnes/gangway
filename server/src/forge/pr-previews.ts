@@ -13,7 +13,7 @@
  *   - the forge is told AFTER the preview exists and again when it settles; a forge
  *     call failing never fails the deploy
  */
-import type { Clearance, Project, RepoProject } from "../../../shared/src/domain.ts";
+import type { Clearance, RepoProject, Preview } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
@@ -21,8 +21,6 @@ import type { ProjectsRepo } from "../db/repos/projects.ts";
 import type { Logger } from "../logger.ts";
 import type { DeployInput, DeployResult, DeploySource, PreviewUrl } from "../previews/deploy.ts";
 import type { Policy } from "../previews/policy.ts";
-import type { Preview } from "../../../shared/src/domain.ts";
-import { ulid } from "../util/ulid.ts";
 import type { Association, Forge, ForgeEvent, ForgeRepo, PullRequest } from "./forge.ts";
 
 /** `<slug>-pr-<n>-<service>` has to fit a 63-character DNS label; this leaves room. */

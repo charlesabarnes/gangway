@@ -237,16 +237,14 @@ describe('PreviewList', () => {
       const r = await open();
       await click(r, 'destroy', r.allByTestId('row')[3]!);
       await click(r, 'confirm-ok');
-      r.http
-        .expectOne(`/v1/previews/${ALL[0]!.id}`)
-        .flush(
-          {
-            title: 'forbidden',
-            detail: 'requires the "previews.destroy" permission',
-            requestId: '01REQ',
-          },
-          { status: 403, statusText: 'x' },
-        );
+      r.http.expectOne(`/v1/previews/${ALL[0]!.id}`).flush(
+        {
+          title: 'forbidden',
+          detail: 'requires the "previews.destroy" permission',
+          requestId: '01REQ',
+        },
+        { status: 403, statusText: 'x' },
+      );
       await r.until(() => r.byTestId('toast') !== null, 'the error toast');
       expect(r.allByTestId('row')[3]!.textContent).toContain('awake');
       expect(r.text('toast')).toContain('Could not destroy alpha');

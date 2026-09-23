@@ -216,7 +216,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   listener?.stop(true);
-  upstream?.stop(true);
+  void upstream?.stop(true);
 });
 
 describe("headers (§6.4)", () => {
@@ -350,7 +350,7 @@ describe("streaming and limits", () => {
     while (Date.now() - t0 < 11_000) {
       const { done, value } = await reader.read();
       if (done) break;
-      ticks += (new TextDecoder().decode(value!).match(/data: /g) ?? []).length;
+      ticks += (new TextDecoder().decode(value).match(/data: /g) ?? []).length;
     }
     void reader.cancel();
     expect(ticks).toBeGreaterThan(20);
@@ -396,7 +396,7 @@ describe("WebSocket relay (§6.4 -- fails silently when wrong)", () => {
       protocols: ["gangway-v1"],
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },
-    } as never);
+    });
     ws.binaryType = "arraybuffer";
 
     const opened = await new Promise<boolean>((res) => {

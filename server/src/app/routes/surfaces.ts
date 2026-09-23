@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
 import { DISABLE_UI_PHRASE, SetSurfacesSchema } from "../../../../shared/src/api.ts";
 import type { AuditSink } from "../../audit/audit.ts";
-import { badRequest, conflict, unprocessable } from "../../errors.ts";
+import { conflict, unprocessable } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import { SETTINGS, type SettingDef, type Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -60,9 +61,7 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
   api.get("/surfaces", requirePermission("surfaces.manage"), (c) => c.json({ surfaces: view() }));
 
   api.put("/surfaces", requirePermission("surfaces.manage"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const req = SetSurfacesSchema.parse(body);
 
     // Validate everything before writing anything.

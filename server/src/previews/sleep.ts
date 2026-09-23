@@ -11,8 +11,7 @@ import { join } from "node:path";
 import type { Preview } from "../../../shared/src/domain.ts";
 import { psArgv, startArgv, stopArgv } from "../docker/compose.ts";
 import { AppError } from "../errors.ts";
-import type { Logger } from "../logger.ts";
-import { redactString } from "../logger.ts";
+import { type Logger, redactString } from "../logger.ts";
 import { idleMs } from "../settings.ts";
 import { SingleFlight } from "../util/async.ts";
 import type { PreviewContext } from "./context.ts";
@@ -145,14 +144,12 @@ export class Waker {
     if (host.state === "unreachable")
       throw new AppError("conflict", `host ${host.id} is unreachable`);
 
-    const routes = ctx.table
-      .forPreview(previewId)
-      .map((e) => ({
-        service: e.service,
-        hostname: e.hostname,
-        containerPort: e.containerPort,
-        upstream: { host: e.upstreamHost, port: e.upstreamPort },
-      }));
+    const routes = ctx.table.forPreview(previewId).map((e) => ({
+      service: e.service,
+      hostname: e.hostname,
+      containerPort: e.containerPort,
+      upstream: { host: e.upstreamHost, port: e.upstreamPort },
+    }));
     const base = { project: preview.project, files: [], docker: ctx.docker };
     const empty = await mkdtemp(join(tmpdir(), "gangway-wake-"));
     const abort = new AbortController();

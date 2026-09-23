@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import { CreateUserSchema, UpdateUserSchema } from "../../../../shared/src/api.ts";
 import type { Accounts } from "../../auth/accounts.ts";
-import { badRequest } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
@@ -15,9 +15,7 @@ export function userRoutes(api: Hono<AppEnv>, accounts: Accounts): void {
   );
 
   api.post("/users", requirePermission("users.manage"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     return c.json(
       { user: await accounts.createUser(c.get("actor"), CreateUserSchema.parse(body)) },
       201,
@@ -25,9 +23,7 @@ export function userRoutes(api: Hono<AppEnv>, accounts: Accounts): void {
   });
 
   api.patch("/users/:id", requirePermission("users.manage"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const { roleId, disabled, password } = UpdateUserSchema.parse(body);
     const user = await accounts.updateUser(c.get("actor"), c.req.param("id"), {
       ...(roleId === undefined ? {} : { roleId }),

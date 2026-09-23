@@ -5,7 +5,7 @@
  * runs against both drivers, so a Bun-specific assumption fails a test rather than
  * discovering itself during a migration off Bun.
  */
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import {
   applyPragmas,
   compareVersion,
@@ -15,6 +15,9 @@ import {
   type Params,
 } from "./types.ts";
 
+// node:sqlite takes no booleans; SQLite stores them as 0/1 either way.
+type SqlParams = Record<string, SQLInputValue>;
+
 class NodeDb implements Db {
   readonly driver = "node" as const;
   readonly sqliteVersion: string;
@@ -22,7 +25,9 @@ class NodeDb implements Db {
 
   constructor(db: DatabaseSync) {
     this.#db = db;
-    this.sqliteVersion = String((db.prepare("select sqlite_version() as v").get() as any).v);
+    this.sqliteVersion = String(
+      (db.prepare("select sqlite_version() as v").get() as { v: string }).v,
+    );
   }
 
   #prep(sql: string) {
@@ -37,14 +42,14 @@ class NodeDb implements Db {
     this.#db.exec(sql);
   }
   query<T>(sql: string, params?: Params): T[] {
-    return (params ? this.#prep(sql).all(params as any) : this.#prep(sql).all()) as T[];
+    return (params ? this.#prep(sql).all(params as SqlParams) : this.#prep(sql).all()) as T[];
   }
   get<T>(sql: string, params?: Params): T | undefined {
-    const r = params ? this.#prep(sql).get(params as any) : this.#prep(sql).get();
+    const r = params ? this.#prep(sql).get(params as SqlParams) : this.#prep(sql).get();
     return (r ?? undefined) as T | undefined;
   }
   run(sql: string, params?: Params) {
-    const r = params ? this.#prep(sql).run(params as any) : this.#prep(sql).run();
+    const r = params ? this.#prep(sql).run(params as SqlParams) : this.#prep(sql).run();
     return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) };
   }
   transaction<T>(fn: () => T): T {
@@ -56,7 +61,9 @@ class NodeDb implements Db {
     } catch (e) {
       try {
         this.#db.exec("ROLLBACK");
-      } catch {}
+      } catch {
+        // Nothing to roll back: the failure ended the transaction already.
+      }
       throw e;
     }
   }

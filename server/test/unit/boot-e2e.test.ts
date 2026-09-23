@@ -113,7 +113,7 @@ async function start(
           }),
         );
       if (argv.includes("stop")) {
-        fixtures.get(project(argv))?.stop(true);
+        void fixtures.get(project(argv))?.stop(true);
         fixtures.delete(project(argv));
         stopped.add(project(argv));
       }
@@ -122,7 +122,7 @@ async function start(
         stopped.delete(project(argv));
       }
       if (argv.includes("down")) {
-        fixtures.get(project(argv))?.stop(true);
+        void fixtures.get(project(argv))?.stop(true);
         fixtures.delete(project(argv));
         containers.delete(project(argv));
         starters.delete(project(argv));
@@ -162,7 +162,7 @@ async function start(
   });
   cleanups.push(async () => {
     await running.stop();
-    for (const f of fixtures.values()) f.stop(true);
+    for (const f of fixtures.values()) void f.stop(true);
   });
   return Object.assign(running, { daemon: containers });
 }

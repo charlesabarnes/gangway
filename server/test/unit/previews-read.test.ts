@@ -9,7 +9,7 @@ import { errorHandler } from "../../src/app/problem.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenActor, type Actor } from "../../src/auth/actor.ts";
 import { Logger } from "../../src/logger.ts";
-import { PreviewLogs } from "../../src/previews/logs.ts";
+import { type PreviewLogs } from "../../src/previews/logs.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 

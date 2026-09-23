@@ -191,7 +191,7 @@ describe("/v1/projects", () => {
       forge: "github",
       fullName: "acme/web-app",
     });
-    let res = await t.call("/v1/projects/web", {
+    const res = await t.call("/v1/projects/web", {
       method: "PATCH",
       json: {
         name: "Web",

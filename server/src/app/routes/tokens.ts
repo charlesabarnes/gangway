@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import { CreateTokenSchema } from "../../../../shared/src/api.ts";
 import type { Tokens } from "../../auth/tokens.ts";
-import { badRequest } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
@@ -13,9 +13,7 @@ export function tokenRoutes(api: Hono<AppEnv>, tokens: Tokens): void {
 
   /** The only response that ever contains the secret. */
   api.post("/tokens", requirePermission("tokens.manage_own"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const { token, secret } = tokens.mint(c.get("actor"), CreateTokenSchema.parse(body));
     c.header("cache-control", "no-store");
     return c.json({ token, secret }, 201);

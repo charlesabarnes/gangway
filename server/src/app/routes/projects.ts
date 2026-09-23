@@ -11,6 +11,7 @@ import type { AuditSink } from "../../audit/audit.ts";
 import type { ProjectsRepo } from "../../db/repos/projects.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { PreviewUrl } from "../../previews/deploy.ts";
 import type { Pulls } from "../../projects/pulls.ts";
 import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../../projects/workflow.ts";
@@ -46,10 +47,6 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (!p) throw notFound(`no such project: ${ref}`);
     return p;
   };
-  const json = async (c: { req: { json(): Promise<unknown> } }) =>
-    c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
   const checkTemplate = (id: string | null | undefined) => {
     if (id !== undefined && id !== null && !d.templates?.get(id))
       throw unprocessable(`no such template: ${id}`, { templateId: id });
@@ -69,7 +66,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   );
 
   api.post("/projects", requirePermission("repos.manage"), async (c) => {
-    const req = ProjectCreateSchema.parse(await json(c));
+    const req = ProjectCreateSchema.parse(await readJson(c));
     const slug = req.slug ?? slugify(req.name).slice(0, MAX_SLUG).replace(/-+$/, "");
     if (!slug) throw unprocessable("the name has no usable characters for a slug; give one");
     if (projects.getBySlug(slug)) throw conflict(`slug "${slug}" is taken`, { slug });
@@ -89,7 +86,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
     const before = find(c.req.param("ref"));
-    const { repository, ...patch } = ProjectPatchSchema.parse(await json(c));
+    const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
     if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null)
       throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
     checkTemplate(patch.templateId);
@@ -132,7 +129,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.patch("/projects/:ref/env", requirePermission("repos.secrets"), async (c) => {
     const project = find(c.req.param("ref"));
     if (!d.secrets) throw notFound("secrets are not available on this server");
-    const patch = EnvPatchSchema.parse(await json(c));
+    const patch = EnvPatchSchema.parse(await readJson(c));
     return c.json({ secrets: d.secrets.project(project.id).update(c.get("actor"), patch) });
   });
 
@@ -153,7 +150,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (!d.pulls || !d.wire)
       throw notFound("pull request previews are not available on this server");
     const n = pullNumber(c.req.param("n"));
-    const req = PullDeploySchema.parse(await json(c));
+    const req = PullDeploySchema.parse(await readJson(c));
     const out = await d.pulls.deploy(c.req.param("ref"), n, req, c.get("actor"));
     if (out.action === "unchanged")
       return c.json({ preview: d.wire(out.preview), unchanged: true });

@@ -40,7 +40,7 @@ export type SettingView = {
   source: SettingSource;
   managedByConfig: boolean;
   secret: boolean;
-  value: unknown | null;
+  value: unknown;
   set: boolean;
 };
 
@@ -115,7 +115,7 @@ export type SettingKey = (typeof SETTINGS)[keyof typeof SETTINGS]["key"];
 
 /** The database side. Kept as an interface so unit tests need no SQLite. */
 export interface SettingsStore {
-  get(key: string): unknown | undefined;
+  get(key: string): unknown;
   set(key: string, value: unknown): void;
   all(): Record<string, unknown>;
 }
@@ -197,6 +197,8 @@ export class Settings {
   /** `GET /v1/settings` and the Settings screen: secrets reported as set or not, never as values. */
   view(): SettingView[] {
     return Object.values(SETTINGS).map((d) => {
+      // TypeScript 7 needs the widening; the TypeScript 6 that ESLint runs does not.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const e = this.effective(d as SettingDef<unknown>);
       const set = e.value !== "" && e.value !== null && e.value !== undefined;
       return {

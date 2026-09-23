@@ -52,7 +52,7 @@ describe("writes", () => {
     const { settings } = mk();
     settings.set(SETTINGS.templatePr, "staging");
     expect(settings.get(SETTINGS.templatePr)).toBe("staging");
-    expect(() => settings.set(SETTINGS.templatePr, "Not A Slug" as never)).toThrow();
+    expect(() => settings.set(SETTINGS.templatePr, "Not A Slug")).toThrow();
   });
 });
 

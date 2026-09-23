@@ -1,6 +1,6 @@
 import type { Host, HostState } from "../../../../shared/src/domain.ts";
 import type { Db } from "../types.ts";
-import { fromDate, rowToHost, type HostRow } from "./mappers.ts";
+import { rowToHost, type HostRow } from "./mappers.ts";
 
 export type HostInput = Omit<Host, "createdAt" | "lastSeenAt" | "lastError" | "state"> &
   Partial<Pick<Host, "state" | "lastError" | "lastSeenAt">>;

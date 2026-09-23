@@ -11,7 +11,7 @@ export class SqliteSettingsStore implements SettingsStore {
     this.#now = now;
   }
 
-  get(key: string): unknown | undefined {
+  get(key: string): unknown {
     const r = this.#db.get<{ value_json: string }>(
       "SELECT value_json FROM settings WHERE key = $key",
       { key },

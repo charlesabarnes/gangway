@@ -14,6 +14,10 @@ export default tseslint.config(
     },
     rules: {
       "no-duplicate-imports": "error",
+      // Async methods often implement an interface without awaiting anything themselves.
+      "@typescript-eslint/require-await": "off",
+      // Sanitizers match control characters on purpose.
+      "no-control-regex": "off",
       "@typescript-eslint/consistent-type-imports": ["error", { fixStyle: "inline-type-imports" }],
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -35,6 +39,12 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-return": "off",
       "@typescript-eslint/require-await": "off",
       "@typescript-eslint/unbound-method": "off",
+      "@typescript-eslint/no-base-to-string": "off",
+      "@typescript-eslint/restrict-template-expressions": "off",
+      // Fake sockets take async event handlers.
+      "@typescript-eslint/no-misused-promises": "off",
+      // Generated CommonJS is compiled to prove it parses.
+      "@typescript-eslint/no-implied-eval": "off",
     },
   },
   prettier,

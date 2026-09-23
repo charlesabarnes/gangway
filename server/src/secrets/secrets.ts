@@ -110,7 +110,7 @@ export class SecretMap {
         throw unprocessable(`"${k}": level must be one of ${SECRET_LEVELS.join(", ")}`, {
           name: k,
         });
-      current[k] = { ...current[k]!, level };
+      current[k] = { ...current[k], level };
     }
     for (const k of change.unset ?? []) delete current[k];
     const names = Object.keys(current).sort();

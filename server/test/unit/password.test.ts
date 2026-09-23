@@ -105,7 +105,7 @@ describe("Passwords", () => {
       Array.from({ length: 5 }, (_, i) => p.hash(`password number ${i} here`)),
     );
     const ok = results.filter((r) => r.status === "fulfilled");
-    const refused = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+    const refused = results.filter((r) => r.status === "rejected");
     expect(ok).toHaveLength(3); // one running + two queued
     expect(refused).toHaveLength(2);
     for (const r of refused)

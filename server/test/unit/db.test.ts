@@ -504,7 +504,6 @@ describe("migration loader", () => {
 });
 
 describe("migration safety", () => {
-  const scratch = () => open2(join(tmp(), "g.db"));
   const open2 = (p: string) => openBun({ path: p }).db;
   const withFiles = (files: Record<string, string>) => {
     const d = join(tmp(), "m");

@@ -107,7 +107,7 @@ const safeLookup: typeof dnsLookup = ((
 ) => {
   dnsLookup(hostname, { all: true }, (err, addresses) => {
     if (err) return callback(err, "", 0);
-    const list = addresses as LookupAddress[];
+    const list = addresses;
     const bad = list.find((a) => !isPublicAddress(a.address));
     if (list.length === 0 || bad) {
       return callback(

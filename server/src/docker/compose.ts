@@ -259,8 +259,8 @@ const bunSpawner: Spawner = (argv, opts) => {
     stderr: "pipe",
   });
   return {
-    stdout: proc.stdout as unknown as ReadableStream<Uint8Array> | null,
-    stderr: proc.stderr as unknown as ReadableStream<Uint8Array> | null,
+    stdout: proc.stdout,
+    stderr: proc.stderr,
     exited: proc.exited,
     kill: () => proc.kill(),
     get signalCode() {
@@ -403,7 +403,7 @@ export function parseComposePs(stdout: string): ComposePsEntry[] {
   if (text.startsWith("[")) {
     try {
       const arr: unknown = JSON.parse(text);
-      if (Array.isArray(arr)) rows.push(...arr);
+      if (Array.isArray(arr)) rows.push(...(arr as unknown[]));
     } catch {
       /* fall through to NDJSON */
     }

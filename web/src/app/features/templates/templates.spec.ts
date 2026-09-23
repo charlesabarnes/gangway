@@ -30,14 +30,12 @@ async function open(o: { permissions?: Permission[]; templates?: Template[] } = 
   const r = await render(Host);
   const perms = o.permissions ?? [...PERMISSIONS];
   const loading = TestBed.inject(AuthService).refresh();
-  r.http
-    .expectOne('/v1/auth/session')
-    .flush({
-      authenticated: true,
-      setupRequired: false,
-      user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
-      permissions: perms,
-    });
+  r.http.expectOne('/v1/auth/session').flush({
+    authenticated: true,
+    setupRequired: false,
+    user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
+    permissions: perms,
+  });
   await loading;
   await r.settle();
   r.http.expectOne('/v1/templates').flush({ templates: o.templates ?? [template(), STAGING] });
@@ -108,17 +106,15 @@ describe('Templates', () => {
     await r.settle();
     r.byTestId('form-default')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await r.settle();
-    r.http
-      .expectOne({ method: 'PATCH', url: '/v1/templates/default' })
-      .flush(
-        {
-          type: 'about:blank',
-          title: 'Unprocessable',
-          status: 422,
-          detail: 'ttl "soon" is not a duration like 12h or 7d',
-        },
-        { status: 422, statusText: 'Unprocessable' },
-      );
+    r.http.expectOne({ method: 'PATCH', url: '/v1/templates/default' }).flush(
+      {
+        type: 'about:blank',
+        title: 'Unprocessable',
+        status: 422,
+        detail: 'ttl "soon" is not a duration like 12h or 7d',
+      },
+      { status: 422, statusText: 'Unprocessable' },
+    );
     await r.until(() => r.byTestId('row-error') !== null, 'row error');
     expect(r.text('row-error')).toContain('not a duration');
   });
@@ -155,17 +151,15 @@ describe('Templates', () => {
     await r.settle();
     r.byTestId('create')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await r.settle();
-    r.http
-      .expectOne({ method: 'POST', url: '/v1/templates' })
-      .flush(
-        {
-          type: 'about:blank',
-          title: 'Conflict',
-          status: 409,
-          detail: 'template "staging" already exists',
-        },
-        { status: 409, statusText: 'Conflict' },
-      );
+    r.http.expectOne({ method: 'POST', url: '/v1/templates' }).flush(
+      {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: 'template "staging" already exists',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
     await r.until(() => r.byTestId('create-error') !== null, 'error');
     expect(r.text('create-error')).toContain('already exists');
   });
@@ -179,17 +173,15 @@ describe('Templates', () => {
     expect(dialog.textContent).toContain('Delete Staging?');
     dialog.close('confirm');
     await r.settle();
-    r.http
-      .expectOne({ method: 'DELETE', url: '/v1/templates/staging' })
-      .flush(
-        {
-          type: 'about:blank',
-          title: 'Conflict',
-          status: 409,
-          detail: '"staging" is the default template for api; point those elsewhere first',
-        },
-        { status: 409, statusText: 'Conflict' },
-      );
+    r.http.expectOne({ method: 'DELETE', url: '/v1/templates/staging' }).flush(
+      {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: '"staging" is the default template for api; point those elsewhere first',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
     await r.until(() => (r.el.textContent ?? '').includes('Could not delete Staging'), 'toast');
     expect(r.allByTestId('template')).toHaveLength(2);
 

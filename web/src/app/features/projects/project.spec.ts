@@ -47,14 +47,12 @@ async function open(
   });
   if (o.tab) await TestBed.inject(Router).navigate([], { queryParams: { tab: o.tab } });
   const loading = TestBed.inject(AuthService).refresh();
-  r.http
-    .expectOne('/v1/auth/session')
-    .flush({
-      authenticated: true,
-      setupRequired: false,
-      user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
-      permissions: perms,
-    });
+  r.http.expectOne('/v1/auth/session').flush({
+    authenticated: true,
+    setupRequired: false,
+    user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } },
+    permissions: perms,
+  });
   await loading;
   await r.settle();
   r.http.expectOne('/v1/projects/web-app').flush({ project: o.project ?? project() });
@@ -194,17 +192,15 @@ describe('Project', () => {
         { provide: SSE_JITTER, useValue: () => 0 },
       ],
     });
-    r.http
-      .expectOne('/v1/projects/web-app')
-      .flush(
-        {
-          type: 'about:blank',
-          title: 'Not Found',
-          status: 404,
-          detail: 'no such project: web-app',
-        },
-        { status: 404, statusText: 'Not Found' },
-      );
+    r.http.expectOne('/v1/projects/web-app').flush(
+      {
+        type: 'about:blank',
+        title: 'Not Found',
+        status: 404,
+        detail: 'no such project: web-app',
+      },
+      { status: 404, statusText: 'Not Found' },
+    );
     r.http.expectOne('/v1/templates').flush({ templates: [] });
     await r.until(() => r.byTestId('missing') !== null, 'missing');
   });

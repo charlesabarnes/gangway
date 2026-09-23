@@ -133,7 +133,7 @@ export class NodeHttpUpstream implements Upstream {
             for (;;) {
               const { done, value } = await reader.read();
               if (done) break;
-              if (!creq.write(value!)) await new Promise((r) => creq.once("drain", r));
+              if (!creq.write(value)) await new Promise((r) => creq.once("drain", r));
             }
             creq.end();
           } catch (e) {

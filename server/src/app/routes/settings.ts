@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
 import { DefaultPasswordSchema, SetSettingsSchema } from "../../../../shared/src/api.ts";
 import type { AuditSink } from "../../audit/audit.ts";
-import { badRequest, conflict, unprocessable } from "../../errors.ts";
+import { conflict, unprocessable } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { SETTINGS, SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
@@ -29,9 +30,7 @@ export function settingsRoutes(
   );
 
   api.put("/settings", requirePermission("settings.write"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const { values } = SetSettingsSchema.parse(body);
     const actor = c.get("actor");
 
@@ -82,9 +81,7 @@ export function settingsRoutes(
    * `shared` keeps the old one); `generated`, each NEW preview gets its own, in its log.
    */
   api.put("/settings/preview-password", requirePermission("settings.write"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const { mode, value, login } = DefaultPasswordSchema.parse(body);
     for (const d of [
       SETTINGS.previewPasswordMode,

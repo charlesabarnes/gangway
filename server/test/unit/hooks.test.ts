@@ -1,6 +1,6 @@
 /** The hooks surface: the signature is the authentication, and 202 comes before the work. */
 import { describe, expect, test } from "bun:test";
-import type { Forge, ForgeEvent } from "../../src/forge/forge.ts";
+import type { ForgeEvent } from "../../src/forge/forge.ts";
 import { GitHubForge } from "../../src/forge/github/forge.ts";
 import { signPayload } from "../../src/forge/github/webhook.ts";
 import { Hooks } from "../../src/forge/hooks.ts";
@@ -45,7 +45,7 @@ function make(o: { secret?: string; slow?: boolean; fail?: boolean } = {}) {
   } as unknown as PrPreviews;
   const outcomes: [string, Outcome][] = [];
   const hooks = new Hooks({
-    forge: forge as Forge,
+    forge: forge,
     service,
     logger: new Logger("error", {}, () => {}),
     onOutcome: (id, out) => outcomes.push([id, out]),

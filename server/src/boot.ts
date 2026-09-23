@@ -5,7 +5,7 @@
  * Order matters and follows §11: load routes and SERVE IMMEDIATELY -- nothing here waits
  * on a Docker daemon, so an unreachable host delays no request.
  */
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHmac } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createApp, surfaceHandler } from "./app/app.ts";
@@ -97,7 +97,6 @@ import { SourceStore } from "./previews/source/store.ts";
 import { Waker, sweepIdle } from "./previews/sleep.ts";
 import { PreviewStates } from "./previews/state.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "./secrets/box.ts";
-import { createHmac } from "node:crypto";
 import { Secrets } from "./secrets/secrets.ts";
 import { secretRoutes } from "./app/routes/secrets.ts";
 import { githubFullName } from "./forge/github/webhook.ts";
@@ -781,8 +780,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     //    end (their clients resume by Last-Event-ID). No new connections either -- but
     //    requests on connections that already exist, previews above all, are still served.
     shutdown.abort();
-    redirect?.stop(true);
-    listener.stop(false);
+    void redirect?.stop(true);
+    void listener.stop(false);
 
     // 2. Let what is running finish: scheduled jobs, requests, deploys. One shared deadline.
     const left = () => Math.max(0, graceMs - (Date.now() - began));

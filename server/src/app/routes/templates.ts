@@ -4,7 +4,8 @@ import type { Template } from "../../../../shared/src/domain.ts";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { HostsRepo } from "../../db/repos/hosts.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
-import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
+import { conflict, notFound, unprocessable } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import { parseDuration } from "../../util/duration.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -34,9 +35,7 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
   });
 
   api.post("/templates", requirePermission("templates.manage"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const req = TemplateCreateSchema.parse(body);
     check(req, d.hosts);
     if (d.templates.get(req.id))
@@ -50,9 +49,7 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
     const id = c.req.param("id");
     const before = d.templates.get(id);
     if (!before) throw notFound(`no such template: ${id}`);
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const patch = TemplatePatchSchema.parse(body);
     check(patch, d.hosts);
     const after = d.templates.update(id, patch)!;

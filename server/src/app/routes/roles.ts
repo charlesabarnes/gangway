@@ -2,7 +2,7 @@ import type { Hono } from "hono";
 import { SetRolePermissionsSchema } from "../../../../shared/src/api.ts";
 import { PERMISSIONS } from "../../../../shared/src/permissions.ts";
 import type { RolePermissions } from "../../auth/roles.ts";
-import { badRequest } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
@@ -21,9 +21,7 @@ export function roleRoutes(api: Hono<AppEnv>, roles: RolePermissions): void {
   );
 
   api.put("/roles/:id/permissions", requirePermission("roles.manage"), async (c) => {
-    const body = await c.req.json().catch(() => {
-      throw badRequest("the request body is not JSON");
-    });
+    const body = await readJson(c);
     const { permissions } = SetRolePermissionsSchema.parse(body);
     roles.set(c.req.param("id"), permissions, c.get("actor"));
     return c.json({ role: roles.roles().find((r) => r.id === c.req.param("id")) });

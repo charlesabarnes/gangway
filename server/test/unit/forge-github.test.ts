@@ -224,7 +224,7 @@ describe("the signature", () => {
 /* ------------------------------------------------------------------ the App, against a fake GitHub */
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-const PEM = privateKey.export({ type: "pkcs1", format: "pem" }) as string;
+const PEM = privateKey.export({ type: "pkcs1", format: "pem" });
 const BASE = "https://api.github.test";
 
 type Call = { method: string; path: string; auth: string | null; body: any };

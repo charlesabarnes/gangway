@@ -25,7 +25,8 @@ export type Job = {
   jitter?: number;
   /** Delay before the first run. Default: one (jittered) interval. */
   initialDelayMs?: number;
-  run(signal: AbortSignal): unknown | Promise<unknown>;
+  /** May return a promise; the scheduler awaits it. */
+  run(signal: AbortSignal): unknown;
 };
 
 export type JobStatus = {
@@ -140,14 +141,14 @@ export class Scheduler {
       e.timer = null;
     }
     this.#abort.abort();
-    const running = [...this.#jobs.values()].filter((e) => e.current);
-    const settled = Promise.allSettled(running.map((e) => e.current));
+    const running = [...this.#jobs.values()].filter((e) => e.current !== null);
+    const settled = Promise.allSettled(running.map((e) => e.current).filter((p) => p !== null));
     const deadline: { timer: TimerHandle | null } = { timer: null };
     this.#stopping = Promise.race([
       settled.then(() => {}),
       new Promise<void>((resolve) => {
         deadline.timer = this.#setTimer(() => {
-          const late = running.filter((e) => e.current).map((e) => e.job.name);
+          const late = running.filter((e) => e.current !== null).map((e) => e.job.name);
           if (late.length)
             this.#o.logger.warn("scheduler stopped with jobs still running", {
               jobs: late,
@@ -185,7 +186,7 @@ export class Scheduler {
       try {
         // Yield first, so `current` is assigned before a synchronous job can finish:
         // otherwise the `finally` below clears it and the assignment then resurrects it.
-        await null;
+        await Promise.resolve();
         await e.job.run(this.#abort.signal);
         s.lastError = null;
       } catch (err) {

@@ -68,11 +68,7 @@ async function expectReject(
 }
 
 const gzip = (b: Uint8Array): ReadableStream<Uint8Array> =>
-  new Blob([b])
-    .stream()
-    .pipeThrough(
-      new CompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
-    );
+  new Blob([b]).stream().pipeThrough(new CompressionStream("gzip"));
 
 describe("containment guard", () => {
   // The bug this whole module exists to avoid: a prefix match is not a path match.

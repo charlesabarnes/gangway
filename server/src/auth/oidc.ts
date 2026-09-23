@@ -13,6 +13,7 @@ import {
   createPublicKey,
   verify as verifySignature,
   type JsonWebKey,
+  type JsonWebKeyInput,
   type KeyObject,
 } from "node:crypto";
 import type { Logger } from "../logger.ts";
@@ -83,7 +84,7 @@ export class GitHubOidc {
 
       const repository = claims["repository"];
       if (typeof repository !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(repository)) return null;
-      const str = (k: string) => (typeof claims[k] === "string" ? (claims[k] as string) : "");
+      const str = (k: string) => (typeof claims[k] === "string" ? claims[k] : "");
       return {
         repository,
         repositoryId: str("repository_id"),
@@ -120,7 +121,7 @@ export class GitHubOidc {
             next.set(
               k.kid,
               createPublicKey({
-                key: k as import("node:crypto").JsonWebKeyInput["key"],
+                key: k as JsonWebKeyInput["key"],
                 format: "jwk",
               }),
             );

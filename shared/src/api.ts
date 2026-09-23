@@ -388,7 +388,7 @@ export const PullDeploySchema = z.strictObject({
     .string()
     .min(3)
     .max(512)
-    .regex(/^[a-z0-9][a-z0-9._\/:@-]*$/i, "not an image reference"),
+    .regex(/^[a-z0-9][a-z0-9._/:@-]*$/i, "not an image reference"),
   port: z.number().int().min(1).max(65535),
   sha: z.string().regex(/^[0-9a-f]{7,64}$/, "a commit sha"),
   registry: z

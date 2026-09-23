@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { dispatch, type DispatchDeps, type Surface } from "../../src/net/dispatch.ts";
 import { DEFAULT_LIMITS } from "../../src/net/limits.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
-import type { PreviewState, Visibility } from "../../../shared/src/domain.ts";
+import type { PreviewState } from "../../../shared/src/domain.ts";
 
 const BASE = "preview.example.com";
 

@@ -632,7 +632,7 @@ describe("PUT /v1/previews/:id/password", () => {
     const plain = /: ([a-z0-9-]{19})$/.exec(lines[0]!)![1]!;
     expect(JSON.stringify(t.previews.get(p.id))).not.toContain(plain);
 
-    res = await t.put(p.id, { password: { mode: "none" } });
+    await t.put(p.id, { password: { mode: "none" } });
     expect(t.table.forPreview(p.id)[0]!.password).toEqual({ mode: "none" });
     const audit = t.db.query<{ action: string; new_json: string }>(
       "SELECT action, new_json FROM audit WHERE action = 'preview.password' ORDER BY seq",
@@ -678,7 +678,7 @@ describe("PUT /v1/settings/preview-password", () => {
         record: (...a: unknown[]) => {
           records.push(a);
         },
-      } as never,
+      },
       undefined,
       (p) => passwords.hash(p),
     );

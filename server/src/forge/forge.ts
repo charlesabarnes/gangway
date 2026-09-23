@@ -10,7 +10,7 @@
  * not get to answer them differently.
  */
 
-import type { ForgeId } from "../../../shared/src/domain.ts";
+import { type ForgeId, CLEARANCES, type Clearance } from "../../../shared/src/domain.ts";
 
 export type { ForgeId };
 
@@ -47,8 +47,6 @@ export type PullRequest = {
  * having had a PR merged once is not a say over what runs on the Docker host.
  */
 export type Association = "owner" | "member" | "collaborator" | "other";
-
-import { CLEARANCES, type Clearance } from "../../../shared/src/domain.ts";
 
 export type PreviewCommand = "deploy" | "redeploy" | "destroy" | "status" | "secrets";
 export const PREVIEW_COMMANDS: readonly PreviewCommand[] = [

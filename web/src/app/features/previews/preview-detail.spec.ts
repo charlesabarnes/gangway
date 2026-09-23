@@ -49,18 +49,11 @@ async function open(
     ],
   });
   const loading = TestBed.inject(AuthService).refresh();
-  r.http
-    .expectOne('/v1/auth/session')
-    .flush({
-      authenticated: true,
-      setupRequired: false,
-      permissions: o.permissions ?? [
-        'previews.read',
-        'previews.destroy',
-        'logs.read',
-        'events.read',
-      ],
-    });
+  r.http.expectOne('/v1/auth/session').flush({
+    authenticated: true,
+    setupRequired: false,
+    permissions: o.permissions ?? ['previews.read', 'previews.destroy', 'logs.read', 'events.read'],
+  });
   await loading;
 
   // Nothing is asked about this ONE preview until the list has answered.
@@ -273,16 +266,14 @@ describe('PreviewDetail', () => {
       await r.settle();
       (r.byTestId('confirm-ok') as HTMLElement).click();
       await r.settle();
-      r.http
-        .expectOne(`/v1/previews/${ID}`)
-        .flush(
-          {
-            title: 'conflict',
-            detail: 'this preview is already being destroyed',
-            requestId: '01REQ',
-          },
-          { status: 409, statusText: 'x' },
-        );
+      r.http.expectOne(`/v1/previews/${ID}`).flush(
+        {
+          title: 'conflict',
+          detail: 'this preview is already being destroyed',
+          requestId: '01REQ',
+        },
+        { status: 409, statusText: 'x' },
+      );
       await r.until(() => r.byTestId('toast') !== null, 'the error toast');
       expect(r.text('toast')).toContain('already being destroyed');
       expect(r.text('toast')).toContain('01REQ');

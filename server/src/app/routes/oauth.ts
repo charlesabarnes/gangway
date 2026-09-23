@@ -15,11 +15,11 @@
  */
 import type { Hono } from "hono";
 import { z } from "zod";
-import { badRequest, notFound } from "../../errors.ts";
+import { notFound } from "../../errors.ts";
 import { OAuthError, type OAuthServer } from "../../oauth/server.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
-import { problemResponse } from "../problem.ts";
+import { problemResponse, readJson } from "../problem.ts";
 
 export type OAuthRouteDeps = {
   oauth: OAuthServer;
@@ -147,11 +147,7 @@ export function oauthRoutes(api: Hono<AppEnv>, d: OAuthRouteDeps): void {
 
   api.post("/oauth/requests/:id", requirePermission("tokens.manage_own"), async (c) => {
     guard();
-    const body = DecideSchema.parse(
-      await c.req.json().catch(() => {
-        throw badRequest("the request body is not JSON");
-      }),
-    );
+    const body = DecideSchema.parse(await readJson(c));
     return c.json(d.oauth.decide(c.get("actor"), c.req.param("id"), body));
   });
 

@@ -22,23 +22,25 @@ class BunDb implements Db {
 
   constructor(db: Database) {
     this.#db = db;
-    this.sqliteVersion = String((db.query("select sqlite_version() as v").get() as any).v);
+    this.sqliteVersion = String(
+      (db.query("select sqlite_version() as v").get() as { v: string }).v,
+    );
   }
 
   exec(sql: string) {
     this.#db.exec(sql);
   }
   query<T>(sql: string, params?: Params): T[] {
-    return (params ? this.#db.query(sql).all(params as any) : this.#db.query(sql).all()) as T[];
+    return (params ? this.#db.query(sql).all(params) : this.#db.query(sql).all()) as T[];
   }
   get<T>(sql: string, params?: Params): T | undefined {
     // bun:sqlite returns null for "no row"; node:sqlite returns undefined.
     // Normalise here so callers see one contract across drivers.
-    const r = params ? this.#db.query(sql).get(params as any) : this.#db.query(sql).get();
+    const r = params ? this.#db.query(sql).get(params) : this.#db.query(sql).get();
     return (r ?? undefined) as T | undefined;
   }
   run(sql: string, params?: Params) {
-    const r = params ? this.#db.query(sql).run(params as any) : this.#db.query(sql).run();
+    const r = params ? this.#db.query(sql).run(params) : this.#db.query(sql).run();
     return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) };
   }
   transaction<T>(fn: () => T): T {

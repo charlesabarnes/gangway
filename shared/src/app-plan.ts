@@ -736,7 +736,7 @@ export function planApp(input: PlanInput): AppPlan {
         serveBuilt(
           "",
           isDev
-            ? `"start" is a dev server (${start!.trim().split(/\s+/)[0]}) and there is a build`
+            ? `"start" is a dev server (${start.trim().split(/\s+/)[0]}) and there is a build`
             : "a build script and nothing to start",
         );
         break;
@@ -841,7 +841,7 @@ function suggestAddons(plan: AppPlan, text: (n: string) => string | undefined): 
     try {
       const pkg = JSON.parse(pkgText) as Record<string, unknown>;
       for (const k of ["dependencies", "devDependencies"])
-        for (const d of Object.keys((pkg[k] ?? {}) as object)) npm.add(d);
+        for (const d of Object.keys(pkg[k] ?? {})) npm.add(d);
     } catch {
       /* reported by the runtime's own read */
     }
@@ -856,8 +856,7 @@ function suggestAddons(plan: AppPlan, text: (n: string) => string | undefined): 
   const composer = new Set<string>();
   try {
     for (const d of Object.keys(
-      ((JSON.parse(text("composer.json") ?? "{}") as Record<string, unknown>)["require"] ??
-        {}) as object,
+      (JSON.parse(text("composer.json") ?? "{}") as Record<string, unknown>)["require"] ?? {},
     ))
       composer.add(d);
   } catch {

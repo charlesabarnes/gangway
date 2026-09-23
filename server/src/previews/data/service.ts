@@ -121,7 +121,7 @@ export class DataBrowser {
       stream: `XRANGE ${k} - + COUNT 50`,
     };
     const value = read[type]
-      ? await this.#run(actor, previewId, "redis", read[type]!, false, "key")
+      ? await this.#run(actor, previewId, "redis", read[type], false, "key")
       : { columns: ["value"], rows: [], truncated: false, message: null, ms: 0 };
     return { type, ttl, value };
   }

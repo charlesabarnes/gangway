@@ -153,8 +153,7 @@ type NodeReadableLike = {
   destroy?: (err?: Error) => void;
 };
 
-const asIterable = (s: unknown): AsyncIterable<Uint8Array> =>
-  s as unknown as AsyncIterable<Uint8Array>;
+const asIterable = (s: unknown): AsyncIterable<Uint8Array> => s as AsyncIterable<Uint8Array>;
 
 const DEMUX_HEADER = 8;
 
@@ -268,7 +267,7 @@ class DockerodeClient implements DockerClient {
   }
 
   async inspectContainer(id: string): Promise<InspectJson> {
-    return (await this.#docker.getContainer(id).inspect()) as InspectJson;
+    return await this.#docker.getContainer(id).inspect();
   }
 
   async stopContainer(id: string, timeoutSeconds = 10): Promise<void> {
@@ -282,35 +281,36 @@ class DockerodeClient implements DockerClient {
   }
 
   containerLogs(id: string, opts: LogOptions = {}): AsyncIterable<LogLine> {
-    const self = this;
-    return {
-      async *[Symbol.asyncIterator]() {
-        const stream = (await self.#docker.getContainer(id).logs({
-          stdout: true,
-          stderr: true,
-          follow: opts.follow ?? false,
-          timestamps: opts.timestamps ?? false,
-          ...(opts.tail === undefined ? {} : { tail: opts.tail }),
-          ...(opts.since === undefined ? {} : { since: Math.floor(opts.since.getTime() / 1000) }),
-        } as never)) as unknown as NodeReadableLike;
-        yield* self.#consume(stream, opts.signal, (chunks) =>
-          toLogLines(demultiplex(chunks), opts.timestamps ?? false),
-        );
-      },
-    };
+    return { [Symbol.asyncIterator]: () => this.#containerLogs(id, opts) };
+  }
+
+  async *#containerLogs(id: string, opts: LogOptions): AsyncGenerator<LogLine> {
+    const container = this.#docker.getContainer(id);
+    // dockerode's overloads key the return type on `follow`; both are a stream here.
+    const logs = container.logs.bind(container) as (o: object) => Promise<unknown>;
+    const stream = (await logs({
+      stdout: true,
+      stderr: true,
+      follow: opts.follow ?? false,
+      timestamps: opts.timestamps ?? false,
+      ...(opts.tail === undefined ? {} : { tail: opts.tail }),
+      ...(opts.since === undefined ? {} : { since: Math.floor(opts.since.getTime() / 1000) }),
+    })) as NodeReadableLike;
+    yield* this.#consume(stream, opts.signal, (chunks) =>
+      toLogLines(demultiplex(chunks), opts.timestamps ?? false),
+    );
   }
 
   events(opts: EventOptions = {}): AsyncIterable<DockerEvent> {
-    const self = this;
-    return {
-      async *[Symbol.asyncIterator]() {
-        const stream = (await self.#docker.getEvents({
-          ...(opts.since === undefined ? {} : { since: Math.floor(opts.since.getTime() / 1000) }),
-          ...(opts.filters === undefined ? {} : { filters: JSON.stringify(opts.filters) }),
-        } as never)) as unknown as NodeReadableLike;
-        yield* self.#consume(stream, opts.signal, parseEventStream);
-      },
-    };
+    return { [Symbol.asyncIterator]: () => this.#events(opts) };
+  }
+
+  async *#events(opts: EventOptions): AsyncGenerator<DockerEvent> {
+    const stream = (await this.#docker.getEvents({
+      ...(opts.since === undefined ? {} : { since: Math.floor(opts.since.getTime() / 1000) }),
+      ...(opts.filters === undefined ? {} : { filters: JSON.stringify(opts.filters) }),
+    })) as unknown as NodeReadableLike;
+    yield* this.#consume(stream, opts.signal, parseEventStream);
   }
 
   async *#consume<T>(

@@ -46,13 +46,11 @@ export class RolePermissions {
   }
 
   roles(): (Role & { permissions: Permission[]; editable: boolean })[] {
-    return this.#repo
-      .list()
-      .map((r) => ({
-        ...r,
-        permissions: [...this.for(r.id)].sort(),
-        editable: r.id !== ADMIN_ROLE_ID,
-      }));
+    return this.#repo.list().map((r) => ({
+      ...r,
+      permissions: [...this.for(r.id)].sort(),
+      editable: r.id !== ADMIN_ROLE_ID,
+    }));
   }
 
   /**

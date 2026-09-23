@@ -149,7 +149,6 @@ function fakeDns(
       return state.rounds;
     },
     async resolveNs(zone: string) {
-      state.rounds = state.rounds; // zone is recorded by callers that care
       return [`ns1.${zone}`, `ns2.${zone}`];
     },
     async resolveAddresses(host: string) {
@@ -161,7 +160,7 @@ function fakeDns(
       if (a instanceof Error) throw a;
       return a;
     },
-  } as DnsQueries & { rounds: number };
+  };
 }
 
 describe("zone candidates", () => {

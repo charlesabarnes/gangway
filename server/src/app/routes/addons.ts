@@ -7,6 +7,7 @@ import type { Hono } from "hono";
 import { z } from "zod";
 import { ADDON_IDS, type AddonId } from "../../../../shared/src/addons.ts";
 import { badRequest, notFound } from "../../errors.ts";
+import { readJson } from "../problem.ts";
 import type { DataBrowser } from "../../previews/data/service.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -76,11 +77,7 @@ export function addonRoutes(api: Hono<AppEnv>, data: DataBrowser): void {
   });
 
   api.post("/previews/:id/addons/:addon/query", requirePermission("previews.data"), async (c) => {
-    const body = QueryBody.parse(
-      await c.req.json().catch(() => {
-        throw badRequest("the request body is not JSON");
-      }),
-    );
+    const body = QueryBody.parse(await readJson(c));
     return c.json(
       await data.query(
         c.get("actor"),

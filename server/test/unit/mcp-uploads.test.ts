@@ -120,7 +120,7 @@ describe("upload by reference", () => {
       s.tools.deploy(s.scope(), { upload: s.idOf(offer), name: "early" }),
     ).rejects.toThrow("nothing has been sent");
     await s.put(s.urlOf(offer), (await packFiles({ "index.html": "x" })).archive);
-    const stranger = tokenActor("t-other", ["deploy"]) as Actor;
+    const stranger = tokenActor("t-other", ["deploy"]);
     await expect(
       s.tools.deploy(s.scope(stranger), { upload: s.idOf(offer), name: "stolen" }),
     ).rejects.toMatchObject({ code: "not_found" });
@@ -150,7 +150,7 @@ describe("upload by reference", () => {
       404,
     );
     await expect(
-      s.tools.deploy(s.scope(tokenActor("t-r", ["read"]) as Actor), { upload: "new" }),
+      s.tools.deploy(s.scope(tokenActor("t-r", ["read"])), { upload: "new" }),
     ).rejects.toThrow('"previews.deploy"');
   });
 

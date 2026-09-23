@@ -4,7 +4,7 @@
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
-import { AppError, type ErrorCode } from "../errors.ts";
+import { AppError, badRequest, type ErrorCode } from "../errors.ts";
 import type { Logger } from "../logger.ts";
 import type { AppEnv } from "./env.ts";
 
@@ -64,4 +64,11 @@ export function errorHandler(logger: Logger) {
       : new AppError("internal", "internal error");
     return problemResponse(c, shown);
   };
+}
+
+/** The request body as JSON, or a 400 if it is not JSON. Callers validate the shape. */
+export function readJson(c: { req: { json(): Promise<unknown> } }): Promise<unknown> {
+  return c.req.json().catch(() => {
+    throw badRequest("the request body is not JSON");
+  });
 }

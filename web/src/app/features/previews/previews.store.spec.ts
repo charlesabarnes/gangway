@@ -202,16 +202,14 @@ describe('PreviewsStore', () => {
       const t = setup();
       await t.start([preview('01A')]);
       const done = t.store.destroy('01A');
-      t.http
-        .expectOne('/v1/previews/01A')
-        .flush(
-          {
-            title: 'forbidden',
-            detail: 'requires the "previews.destroy" permission',
-            requestId: '01REQ',
-          },
-          { status: 403, statusText: 'x' },
-        );
+      t.http.expectOne('/v1/previews/01A').flush(
+        {
+          title: 'forbidden',
+          detail: 'requires the "previews.destroy" permission',
+          requestId: '01REQ',
+        },
+        { status: 403, statusText: 'x' },
+      );
       await expect(done).rejects.toMatchObject({
         status: 403,
         requestId: '01REQ',
