@@ -199,6 +199,18 @@ export const SetSettingsSchema = z.strictObject({
 });
 export type SetSettingsRequest = z.infer<typeof SetSettingsSchema>;
 
+/**
+ * `PUT /v1/surfaces` (§10.5). Turning the UI off is the one-way door, so it carries a typed
+ * phrase the SERVER checks: the ceremony is not a client-side courtesy.
+ */
+export const DISABLE_UI_PHRASE = "disable the UI";
+export const SetSurfacesSchema = z.strictObject({
+  ui: z.boolean().optional(),
+  mcp: z.boolean().optional(),
+  confirm: z.string().max(100).optional(),
+}).refine((v) => v.ui !== undefined || v.mcp !== undefined, "name ui, mcp, or both");
+export type SetSurfacesRequest = z.infer<typeof SetSurfacesSchema>;
+
 /** `POST /v1/github/manifest/exchange`: what GitHub sent the browser back with. */
 export const ManifestExchangeSchema = z.strictObject({
   code: z.string().min(1).max(200),

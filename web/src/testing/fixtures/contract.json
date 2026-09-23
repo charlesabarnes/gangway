@@ -446,5 +446,26 @@
         "DATABASE_URL"
       ]
     }
-  ]
+  ],
+  "surfaces": {
+    "ui": {
+      "enabled": true,
+      "managedByConfig": false
+    },
+    "mcp": {
+      "enabled": false,
+      "managedByConfig": false,
+      "url": "https://mcp.preview.localhost:8443"
+    },
+    "adminTokenExists": false,
+    "reenableUi": "curl -X PUT https://api.preview.localhost:8443/v1/surfaces -H \"Authorization: Bearer <admin token>\" -H \"content-type: application/json\" -d '{\"ui\":true}'"
+  },
+  "capabilities": {
+    "surfaces": {
+      "ui": true,
+      "mcp": false
+    },
+    "mcpUrl": "https://mcp.preview.localhost:8443"
+  },
+  "disableUiPhrase": "disable the UI"
 }

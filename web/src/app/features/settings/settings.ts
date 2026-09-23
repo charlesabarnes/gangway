@@ -1,10 +1,12 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { TRIGGERS, type GitHubStatus, type ManifestStart, type SecretListing, type SettingView, type Template, type Trigger } from '../../core/api.types';
+import { DISABLE_UI_PHRASE, TRIGGERS, type GitHubStatus, type Surfaces, type ManifestStart, type SecretListing, type SettingView, type Template, type Trigger } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
+import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { ToastService } from '../../ui/toast';
 import { SecretsEditor } from '../secrets/secrets-editor';
 
@@ -16,16 +18,53 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
 };
 
 /**
- * Settings (§10.5, ADR-0013): the GitHub App connection, which template each trigger
- * deploys with, and the secrets every preview may receive. Each section is gated on its
+ * Settings (§10.5, ADR-0013): the UI and MCP surfaces, the GitHub App connection, which
+ * template each trigger deploys with, and the secrets every preview may receive. Each section is gated on its
  * own permission; the page is reachable with any of them.
  */
 @Component({
   selector: 'app-settings',
-  imports: [Btn, SecretsEditor],
+  imports: [Btn, ConfirmDialog, RouterLink, SecretsEditor],
   template: `
     <section class="mx-auto max-w-4xl px-6 py-10">
       <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
+
+      @if (canSurfaces()) {
+        <h2 class="mt-8 text-base font-semibold">Surfaces</h2>
+        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">What answers besides the previews themselves. A surface that is off is a 404, as if it were never there.</p>
+        <div class="mt-3 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800" data-testid="surfaces">
+          @if (surfaces(); as sf) {
+            <div class="flex flex-wrap items-start justify-between gap-3 p-5" data-testid="surface-mcp">
+              <div class="min-w-0 flex-1">
+                <p class="flex items-center gap-2 font-medium"><span class="size-2 rounded-full" [class]="sf.mcp.enabled ? 'bg-emerald-500' : 'bg-neutral-400'" aria-hidden="true"></span>MCP {{ sf.mcp.enabled ? 'is on' : 'is off' }}</p>
+                <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Lets an agent deploy, check, read logs and destroy with four tools. It is one more public way in, so it starts off.</p>
+                @if (sf.mcp.enabled) {
+                  <p class="mt-3 text-sm">URL: <code class="font-mono" data-testid="mcp-url">{{ sf.mcp.url }}</code></p>
+                  <p class="mt-2 text-xs text-neutral-500">Claude Code, with an API token that has the deploy scope:</p>
+                  <pre class="mt-1 overflow-x-auto rounded-md bg-neutral-100 p-2 font-mono text-xs dark:bg-neutral-800" data-testid="mcp-snippet">claude mcp add --transport http gangway {{ sf.mcp.url }} --header "Authorization: Bearer gw_…"</pre>
+                }
+              </div>
+              @if (sf.mcp.managedByConfig) { <span class="text-xs text-neutral-500" data-testid="mcp-managed">managed by config</span> }
+              @else { <button appBtn [variant]="sf.mcp.enabled ? 'ghost' : 'primary'" type="button" [disabled]="saving() !== null" (click)="setMcp(!sf.mcp.enabled)" data-testid="mcp-toggle">{{ sf.mcp.enabled ? 'Turn off' : 'Turn on' }}</button> }
+            </div>
+            <div class="flex flex-wrap items-start justify-between gap-3 p-5" data-testid="surface-ui">
+              <div class="min-w-0 flex-1">
+                <p class="flex items-center gap-2 font-medium"><span class="size-2 rounded-full bg-emerald-500" aria-hidden="true"></span>The web UI is on</p>
+                <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">This page. Turned off, it can only come back through the API with an admin-scoped token.</p>
+                @if (!sf.ui.managedByConfig && !sf.adminTokenExists) {
+                  <p class="mt-2 text-sm text-amber-700 dark:text-amber-400" data-testid="ui-needs-token">To turn it off, first <a routerLink="/account" class="underline underline-offset-2">create an API token with the admin scope</a>: it is the way back in.</p>
+                }
+              </div>
+              @if (sf.ui.managedByConfig) { <span class="text-xs text-neutral-500" data-testid="ui-managed">managed by config</span> }
+              @else { <button appBtn variant="ghost" type="button" [disabled]="saving() !== null || !sf.adminTokenExists" (click)="disableUiDialog().open()" data-testid="ui-toggle">Turn off</button> }
+            </div>
+            <app-confirm-dialog #uiDialog heading="Turn the web UI off?" confirmLabel="Turn the UI off" [phrase]="phrase" (confirmed)="disableUi()">
+              <p>This page and every other will answer 404, and private previews will stop opening. Only this brings it back, with an admin-scoped API token:</p>
+              <pre class="mt-2 overflow-x-auto rounded-md bg-neutral-100 p-2 font-mono text-xs text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" data-testid="reenable-curl">{{ sf.reenableUi }}</pre>
+            </app-confirm-dialog>
+          } @else { <p class="p-5 text-sm text-neutral-500">Loading…</p> }
+        </div>
+      }
 
       @if (canManage()) {
         <h2 class="mt-8 text-base font-semibold">GitHub</h2>
@@ -90,6 +129,10 @@ export class SettingsPage {
   protected readonly triggers = TRIGGERS;
   protected readonly triggerLabel = TRIGGER_LABEL;
 
+  protected readonly phrase = DISABLE_UI_PHRASE;
+  protected readonly canSurfaces = computed(() => this.auth.can('surfaces.manage'));
+  protected readonly surfaces = signal<Surfaces | null>(null);
+  protected readonly disableUiDialog = viewChild.required<ConfirmDialog>('uiDialog');
   protected readonly canManage = computed(() => this.auth.can('github.manage'));
   protected readonly canSecrets = computed(() => this.auth.can('repos.secrets'));
   protected readonly canReadSettings = computed(() => this.auth.can('settings.read'));
@@ -101,15 +144,45 @@ export class SettingsPage {
   protected readonly globalSecrets = signal<SecretListing[]>([]);
   protected readonly globalLoaded = signal(false);
   protected readonly busy = signal(false);
-  protected readonly saving = signal<Trigger | null>(null);
+  protected readonly saving = signal<Trigger | 'surfaces' | null>(null);
   protected readonly error = signal<string | null>(null);
 
   constructor() {
     // Each section is gated on a permission that arrives with the session, possibly after
     // this page did; an effect asks once it is there (and again if it is granted later).
+    effect(() => { if (this.canSurfaces()) untracked(() => void this.#loadSurfaces()); });
     effect(() => { if (this.canManage()) untracked(() => void this.#loadStatus()); });
     effect(() => { if (this.canReadSettings()) untracked(() => void this.#loadDefaults()); });
     effect(() => { if (this.canSecrets()) untracked(() => void this.#loadGlobal()); });
+  }
+
+  async #loadSurfaces(): Promise<void> {
+    try { this.surfaces.set((await firstValueFrom(this.#http.get<{ surfaces: Surfaces }>('/v1/surfaces'))).surfaces); }
+    catch (e) { this.#toasts.problem('Could not load the surfaces', toProblem(e)); }
+  }
+
+  async #putSurfaces(body: { ui?: boolean; mcp?: boolean; confirm?: string }, done: string): Promise<boolean> {
+    if (this.saving()) return false;
+    this.saving.set('surfaces');
+    try {
+      this.surfaces.set((await firstValueFrom(this.#http.put<{ surfaces: Surfaces }>('/v1/surfaces', body))).surfaces);
+      this.#toasts.info(done);
+      return true;
+    } catch (e) {
+      this.#toasts.problem('Could not change the surface', toProblem(e));
+      return false;
+    } finally {
+      this.saving.set(null);
+    }
+  }
+
+  protected setMcp(on: boolean): Promise<boolean> {
+    return this.#putSurfaces({ mcp: on }, on ? 'MCP is on' : 'MCP is off; open agent sessions were dropped');
+  }
+
+  /** After this the UI is gone: the next request from this page is a 404. Say so and stay put. */
+  protected disableUi(): Promise<boolean> {
+    return this.#putSurfaces({ ui: false, confirm: DISABLE_UI_PHRASE }, 'The web UI is off. Use the curl you were shown to bring it back.');
   }
 
   async #loadStatus(): Promise<void> {
@@ -145,7 +218,7 @@ export class SettingsPage {
   }
 
   protected async setDefault(trigger: Trigger, id: string): Promise<void> {
-    if (this.saving() || id === this.defaults()[trigger]) return;
+    if (this.saving() !== null || id === this.defaults()[trigger]) return;
     this.saving.set(trigger);
     try {
       await firstValueFrom(this.#http.put('/v1/settings', { values: { [`templates.default.${trigger}`]: id } }));

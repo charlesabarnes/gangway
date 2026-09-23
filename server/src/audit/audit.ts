@@ -21,7 +21,7 @@ export type AuditAction =
   | "auth.setup" | "auth.login" | "auth.login.failed" | "auth.login.blocked" | "auth.logout" | "auth.password.changed"
   | "user.created" | "user.updated"
   | "role.permissions.changed"
-  | "settings.changed"
+  | "settings.changed" | "surface.changed"
   | "github.connected" | "repo.updated" | "repo.deleted" | "repo.env.changed" | "secrets.changed"
   | "project.created" | "project.updated" | "project.deleted" | "project.env.changed"
   | "template.created" | "template.updated" | "template.deleted"

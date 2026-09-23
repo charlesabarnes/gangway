@@ -2,12 +2,15 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import contract from '../../../testing/fixtures/contract.json';
+import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
 import { render, type Rendered } from '../../../testing/render';
-import { PERMISSIONS, type GitHubStatus, type ManifestStart, type Permission, type SettingView, type Template } from '../../core/api.types';
+import { PERMISSIONS, type GitHubStatus, type ManifestStart, type Permission, type SettingView, type Surfaces, type Template } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { Toasts } from '../../ui/toast';
 import { GitHubCallback } from './github-callback';
 import { SettingsPage } from './settings';
+
+installDialogPolyfill();
 
 @Component({ imports: [SettingsPage, Toasts], template: '<app-settings /><app-toasts />' })
 class Host {}
@@ -17,13 +20,17 @@ const template = (over: Partial<Template> = {}): Template => ({ ...(contract.tem
 const NOT_CONNECTED = status({ configured: false, appId: '', appSlug: '', appUrl: null, installUrl: null, missing: ['github.appId', 'github.privateKey', 'github.webhookSecret'] });
 const setting = (key: string, value: unknown, managedByConfig = false): SettingView => ({ key, value, source: managedByConfig ? 'config' : 'database', managedByConfig, secret: false, set: true });
 
-async function open(o: { permissions?: Permission[]; status?: GitHubStatus; templates?: Template[]; settings?: SettingView[]; globalNames?: string[] } = {}) {
+const surfaces = (over: Partial<Surfaces> = {}): Surfaces => ({ ...(contract.surfaces as Surfaces), ...over });
+
+async function open(o: { permissions?: Permission[]; status?: GitHubStatus; templates?: Template[]; settings?: SettingView[]; globalNames?: string[]; surfaces?: Surfaces } = {}) {
   const r = await render(Host);
   const perms = o.permissions ?? [...PERMISSIONS];
   const loading = TestBed.inject(AuthService).refresh();
   r.http.expectOne('/v1/auth/session').flush({ authenticated: true, setupRequired: false, user: { id: 'u1', email: 'ada@example.com', role: { id: 'admin', name: 'admin' } }, permissions: perms });
   await loading;
   await r.settle();
+  if (perms.includes('surfaces.manage')) r.http.expectOne('/v1/surfaces').flush({ surfaces: o.surfaces ?? surfaces() });
+  else r.http.expectNone('/v1/surfaces');
   if (perms.includes('github.manage')) r.http.expectOne('/v1/github').flush(o.status ?? status());
   else r.http.expectNone('/v1/github');
   if (perms.includes('settings.read')) {
@@ -37,6 +44,60 @@ async function open(o: { permissions?: Permission[]; status?: GitHubStatus; temp
 }
 
 const choose = async (r: Rendered<unknown>, id: string, v: string) => { const s = r.byTestId(id) as HTMLSelectElement; s.value = v; s.dispatchEvent(new Event('change')); await r.settle(); };
+
+describe('Settings: surfaces (§10.5)', () => {
+  const put = async (r: Rendered<unknown>, testId: string) => { (r.byTestId(testId) as HTMLButtonElement).click(); await r.settle(); return r.http.expectOne({ method: 'PUT', url: '/v1/surfaces' }); };
+
+  it('MCP off: one click turns it on with no ceremony, then the URL and the Claude Code line show', async () => {
+    const r = await open();
+    expect(r.text('surface-mcp')).toContain('MCP is off');
+    expect(r.byTestId('mcp-url')).toBeNull();
+    const req = await put(r, 'mcp-toggle');
+    expect(req.request.body).toEqual({ mcp: true });
+    req.flush({ surfaces: surfaces({ mcp: { ...surfaces().mcp, enabled: true } }) });
+    await r.settle();
+    expect(r.text('mcp-url')).toBe('https://mcp.preview.localhost:8443');
+    expect(r.text('mcp-snippet')).toContain('claude mcp add --transport http gangway https://mcp.preview.localhost:8443');
+  });
+
+  it('with no admin token the UI cannot be turned off, and the page says how to fix that', async () => {
+    const r = await open();
+    expect((r.byTestId('ui-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect(r.text('ui-needs-token')).toContain('admin scope');
+  });
+
+  it('turning the UI off shows the re-enable curl and needs the phrase typed exactly', async () => {
+    const r = await open({ surfaces: surfaces({ adminTokenExists: true }) });
+    (r.byTestId('ui-toggle') as HTMLButtonElement).click(); await r.settle();
+    expect(r.text('reenable-curl')).toContain(`-d '{"ui":true}'`);
+    const ok = r.byTestId('confirm-ok') as HTMLButtonElement;
+    const phrase = r.byTestId('confirm-phrase') as HTMLInputElement;
+    expect(ok.disabled).toBe(true);
+    phrase.value = 'disable the ui'; phrase.dispatchEvent(new Event('input')); await r.settle();
+    expect(ok.disabled).toBe(true);
+    phrase.value = 'disable the UI'; phrase.dispatchEvent(new Event('input')); await r.settle();
+    expect(ok.disabled).toBe(false);
+    ok.click(); await r.settle();
+    const req = r.http.expectOne({ method: 'PUT', url: '/v1/surfaces' });
+    expect(req.request.body).toEqual({ ui: false, confirm: 'disable the UI' });
+    req.flush({ surfaces: surfaces({ adminTokenExists: true, ui: { enabled: false, managedByConfig: false } }) });
+    await r.settle();
+    expect(r.el.textContent).toContain('The web UI is off');
+  });
+
+  it('a surface pinned in config has no button and says so', async () => {
+    const r = await open({ surfaces: surfaces({ ui: { enabled: true, managedByConfig: true }, mcp: { ...surfaces().mcp, managedByConfig: true } }) });
+    expect(r.byTestId('ui-toggle')).toBeNull();
+    expect(r.byTestId('mcp-toggle')).toBeNull();
+    expect(r.text('ui-managed')).toBe('managed by config');
+    expect(r.text('mcp-managed')).toBe('managed by config');
+  });
+
+  it('without surfaces.manage there is no card and no request', async () => {
+    const r = await open({ permissions: ['settings.read'] });
+    expect(r.byTestId('surfaces')).toBeNull();
+  });
+});
 
 describe('Settings: GitHub', () => {
   it('connected: names the App, links to install, shows the webhook URL', async () => {

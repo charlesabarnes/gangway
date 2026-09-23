@@ -1,8 +1,7 @@
 import type { Hono } from "hono";
 import { SetSettingsSchema } from "../../../../shared/src/api.ts";
 import type { AuditSink } from "../../audit/audit.ts";
-import { can } from "../../auth/actor.ts";
-import { badRequest, conflict, forbidden, unprocessable } from "../../errors.ts";
+import { badRequest, conflict, unprocessable } from "../../errors.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
@@ -14,8 +13,8 @@ import { requirePermission } from "../middleware/auth.ts";
  * each value through its own schema. A key pinned in config is a 409: the API must not
  * pretend to change what the config will keep overriding.
  *
- * `surfaces.*` need `surfaces.manage` on top of `settings.write` -- switching the UI off
- * is its own authority in the catalogue.
+ * `surfaces.*` are refused here: they change only through `PUT /v1/surfaces`, which holds
+ * the lockout guard and its own permission (`surfaces.manage`).
  */
 export function settingsRoutes(api: Hono<AppEnv>, settings: Settings, audit: AuditSink, templates?: Pick<TemplatesRepo, "get">): void {
   api.get("/settings", requirePermission("settings.read"), (c) => c.json({ settings: settings.view() }));
@@ -30,7 +29,8 @@ export function settingsRoutes(api: Hono<AppEnv>, settings: Settings, audit: Aud
     for (const [key, raw] of Object.entries(values)) {
       const def = SETTINGS_BY_KEY.get(key);
       if (!def) throw unprocessable(`"${key}" is not a setting`, { key });
-      if (key.startsWith("surfaces.") && !can(actor, "surfaces.manage")) throw forbidden(`changing "${key}" needs surfaces.manage`);
+      // §10.5.1: the lockout guard lives on /v1/surfaces; this door must not go round it.
+      if (key.startsWith("surfaces.")) throw conflict(`"${key}" is changed through PUT /v1/surfaces`, { key });
       if (settings.isManagedByConfig(key)) throw conflict(`"${key}" is managed by config and cannot be changed at runtime`, { key });
       const parsed = def.schema.safeParse(raw);
       if (!parsed.success) throw unprocessable(`"${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`, { key });

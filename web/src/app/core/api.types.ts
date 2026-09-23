@@ -177,6 +177,16 @@ export const TRIGGERS: readonly Trigger[] = ['pr', 'api', 'manual'];
 /** One row of `GET /v1/settings`. A secret's value is never sent, only whether one is set. */
 export type SettingView = { key: string; value: unknown; source: 'config' | 'database' | 'default'; managedByConfig: boolean; secret: boolean; set: boolean };
 
+/* ---- Surfaces (§10.5) */
+
+export type SurfaceState = { enabled: boolean; managedByConfig: boolean };
+/** `GET|PUT /v1/surfaces`. `reenableUi` is the exact curl the disable dialog shows. */
+export type Surfaces = { ui: SurfaceState; mcp: SurfaceState & { url: string }; adminTokenExists: boolean; reenableUi: string };
+/** `GET /v1/capabilities`: what is live, for anyone who can see previews. */
+export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: string };
+/** The server checks it: turning the UI off without it is a 422. */
+export const DISABLE_UI_PHRASE = 'disable the UI';
+
 /* ---- Runtimes and editable previews (ADR-0015) */
 
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';

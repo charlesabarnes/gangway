@@ -9,7 +9,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
-import { PREVIEW_STATE_VALUES, VISIBILITY_VALUES } from "../../../shared/src/api.ts";
+import { DISABLE_UI_PHRASE, PREVIEW_STATE_VALUES, VISIBILITY_VALUES } from "../../../shared/src/api.ts";
 import { CLEARANCES, TRIGGERS } from "../../../shared/src/domain.ts";
 import { ALL_PERMISSIONS, SCOPES, SCOPE_PERMISSIONS } from "../../../shared/src/permissions.ts";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
@@ -21,6 +21,7 @@ import { projectRoutes } from "../../src/app/routes/projects.ts";
 import { templateRoutes } from "../../src/app/routes/templates.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
+import { surfaceRoutes } from "../../src/app/routes/surfaces.ts";
 import { staticTokenVerifier, tokenActor } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
@@ -123,6 +124,21 @@ describe("account wire shapes", () => {
     void tokenActor;
     const denied = await call("/v1/tokens", { headers: { authorization: "Bearer gw_nope" } });
     expect(Object.keys(await denied.json() as object).sort()).toEqual(Object.keys(contract["problem"] as object).sort());
+  });
+});
+
+describe("surface wire shapes (§10.5)", () => {
+  test("GET /v1/surfaces, GET /v1/capabilities, and the phrase", async () => {
+    const settings = new Settings({}, new MemorySettingsStore());
+    const api = new Hono<AppEnv>();
+    api.onError(errorHandler(quiet));
+    api.use(async (c, next) => { c.set("actor", ACTOR); await next(); });
+    surfaceRoutes(api, { settings, audit: { record() {} }, hasActiveAdmin: () => false, apiOrigin: () => "https://api.preview.localhost:8443", mcpOrigin: () => "https://mcp.preview.localhost:8443" });
+    const { surfaces } = (await (await api.request("/surfaces")).json()) as { surfaces: unknown };
+    expect(shapeOf(surfaces)).toEqual(shapeOf(contract["surfaces"]));
+    expect(surfaces).toEqual(contract["surfaces"]);
+    expect(shapeOf(await (await api.request("/capabilities")).json())).toEqual(shapeOf(contract["capabilities"]));
+    expect(contract["disableUiPhrase"]).toBe(DISABLE_UI_PHRASE);
   });
 });
 

@@ -3,6 +3,7 @@ import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
   CLEARANCES, FORK_POLICIES, PR_TRIGGERS, RUNTIME_IDS, TRIGGERS, type Template,
   type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type AppPlan, type AddonInfo, ADDON_IDS, type DataResult, type PreviewAddon, type SourceFile, type StreamEvent,
+  type Surfaces, type Capabilities, DISABLE_UI_PHRASE,
   type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Project, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
@@ -43,6 +44,16 @@ describe('the /v1 wire contract', () => {
     expect(event.type).toBe('preview.state');
     expect(anonymous.authenticated).toBe(false);
     expect(user.authenticated && user.user?.role.id).toBe('admin');
+  });
+
+  it('surfaces and capabilities (§10.5)', () => {
+    const keys = (o: object) => Object.keys(o).sort();
+    const surfaces: Surfaces = contract.surfaces as Surfaces;
+    const caps: Capabilities = contract.capabilities as Capabilities;
+    expect(keys(surfaces)).toEqual(['adminTokenExists', 'mcp', 'reenableUi', 'ui']);
+    expect(keys(surfaces.mcp)).toEqual(['enabled', 'managedByConfig', 'url']);
+    expect(keys(caps)).toEqual(['mcpUrl', 'surfaces']);
+    expect(contract.disableUiPhrase).toBe(DISABLE_UI_PHRASE);
   });
 
   it('runtimes, a kept source and a redeploy (ADR-0015)', () => {

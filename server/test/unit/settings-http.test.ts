@@ -1,6 +1,6 @@
 /**
  * /v1/settings through the real app (ADR-0011): secrets never come back, a config-pinned
- * key is refused, a PUT is whole-or-nothing, and surfaces need their own permission.
+ * key is refused, a PUT is whole-or-nothing, and surfaces are not changed here.
  */
 import { describe, expect, test } from "bun:test";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
@@ -81,16 +81,11 @@ describe("/v1/settings", () => {
     expect(res.status).toBe(422);
   });
 
-  test("the env admin token may write; a member with settings.write but not surfaces.manage is refused on surfaces.*", async () => {
-    const { call, s, login } = await make();
-    expect((await call("/v1/settings", { method: "PUT", as: ENV_TOKEN, json: { values: { "surfaces.mcp": true } } })).status).toBe(200);
-
-    s.roles.set("member", ["settings.read", "settings.write"], null);
-    await s.accounts.createUser({ kind: "token", tokenId: "system:test", scopes: ["admin"], permissions: new Set(["users.manage"]) } as never, { email: "bob@example.com", password: PASSWORD, roleId: "member" });
-    const bob = await login("bob@example.com");
-    expect((await call("/v1/settings", { method: "PUT", as: bob, json: { values: { "acme.email": "bob@example.com" } } })).status).toBe(200);
-    const refused = await call("/v1/settings", { method: "PUT", as: bob, json: { values: { "surfaces.ui": false } } });
-    expect(refused.status).toBe(403);
-    expect((await call("/v1/settings", { as: bob })).status).toBe(200);
+  test("the env admin token may write; surfaces.* are refused here, even to it: they go through /v1/surfaces", async () => {
+    const { call } = await make();
+    expect((await call("/v1/settings", { method: "PUT", as: ENV_TOKEN, json: { values: { "acme.email": "ops@example.com" } } })).status).toBe(200);
+    const refused = await call("/v1/settings", { method: "PUT", as: ENV_TOKEN, json: { values: { "surfaces.ui": false } } });
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { detail: string }).detail).toContain("/v1/surfaces");
   });
 });

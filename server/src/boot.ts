@@ -14,6 +14,7 @@ import { authRoutes } from "./app/routes/auth.ts";
 import { roleRoutes } from "./app/routes/roles.ts";
 import { githubRoutes } from "./app/routes/github.ts";
 import { projectRoutes } from "./app/routes/projects.ts";
+import { surfaceRoutes } from "./app/routes/surfaces.ts";
 import { settingsRoutes } from "./app/routes/settings.ts";
 import { templateRoutes } from "./app/routes/templates.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
@@ -250,7 +251,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     db, users, roles: rolesRepo, sessions, audit,
     passwords: new Passwords(), limiter: new LoginLimiter(),
   });
-  const tokens = new Tokens(new TokensRepo(db), roles, audit);
+  const tokensRepo = new TokensRepo(db);
+  const tokens = new Tokens(tokensRepo, roles, audit);
   const bootstrap = new Bootstrap(() => users.count());
 
   /* ---- headless bootstrap (§8.1): the env token works whether or not anyone has an account */
@@ -314,6 +316,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       userRoutes(api, accounts);
       roleRoutes(api, roles);
       settingsRoutes(api, settings, audit, templates);
+      surfaceRoutes(api, {
+        settings, audit, apiOrigin,
+        hasActiveAdmin: () => tokensRepo.hasActiveAdmin(Date.now()),
+        mcpOrigin: () => publicOriginFor(`mcp.${baseDomain()}`, ctx.origin),
+      });
       projectRoutes(api, {
         projects, audit, secrets, templates, pulls, apiOrigin,
         wire: (p) => ({ ...p, urls: urlsFor(ctx, p.id) }),
