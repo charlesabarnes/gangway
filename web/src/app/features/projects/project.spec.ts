@@ -47,7 +47,7 @@ describe('Project', () => {
   beforeAll(installDialogPolyfill);
 
   it('previews tab: only this project\'s; empty, it points at the workflow', async () => {
-    const r = await open({ previews: [{ ...(contract.preview as Preview), id: 'A', project: 'gw-tower-web-app-pr-4-k7q2', projectId: P.id, source: { kind: 'pr', repo: 'acme/web-app', number: 4, sha: 'a' } }, { ...(contract.preview as Preview), id: 'B', projectId: null }] });
+    const r = await open({ previews: [{ ...(contract.preview as Preview), id: 'A', project: 'gw-docker-host-web-app-pr-4-k7q2', projectId: P.id, source: { kind: 'pr', repo: 'acme/web-app', number: 4, sha: 'a' } }, { ...(contract.preview as Preview), id: 'B', projectId: null }] });
     expect(r.allByTestId('preview')).toHaveLength(1);
     expect(r.text('preview')).toContain('web-app-pr-4-k7q2');
     expect(r.text('preview')).toContain('#4');

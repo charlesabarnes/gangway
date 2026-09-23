@@ -103,9 +103,9 @@ describe("SOCKS5 dial", () => {
   test("a hostname is sent as a DOMAIN address, for the proxy to resolve on the far side", async () => {
     const port = await echoServer();
     const proxy = await socksProxy({ chunking: "whole" });
-    const s = await dialUpstream({ host: "tower.internal", port }, { dial: "socks5", proxy: proxy.url, timeoutMs: 1_000 });
+    const s = await dialUpstream({ host: "docker-host.internal", port }, { dial: "socks5", proxy: proxy.url, timeoutMs: 1_000 });
     closers.push(() => s.destroy());
-    expect(proxy.requests).toEqual([{ atyp: 0x03, host: "tower.internal", port }]);
+    expect(proxy.requests).toEqual([{ atyp: 0x03, host: "docker-host.internal", port }]);
   });
 
   test("bytes that arrive glued to the reply belong to the tunnel and are not lost", async () => {
@@ -144,7 +144,7 @@ describe("SOCKS5 dial", () => {
 
   test("parseSocksProxy", () => {
     expect(parseSocksProxy("socks5://127.0.0.1:1080")).toEqual({ host: "127.0.0.1", port: 1080 });
-    expect(parseSocksProxy("socks5h://tower")).toEqual({ host: "tower", port: 1080 });
+    expect(parseSocksProxy("socks5h://docker-host")).toEqual({ host: "docker-host", port: 1080 });
     expect(() => parseSocksProxy("http://127.0.0.1:1080")).toThrow(/unsupported/);
   });
 });

@@ -119,7 +119,7 @@ export const TRIGGERS: readonly Trigger[] = ["pr", "api", "manual"];
 /**
  * How a project's pull requests reach gangway (ADR-0014): a GitHub Actions `workflow` in
  * the repository builds the image and calls in with an OIDC token, or the GitHub App's
- * `webhook` has tower clone and build. Never both -- that would be two previews per PR.
+ * `webhook` has gangway clone and build it. Never both -- that would be two previews per PR.
  */
 export type PrTrigger = "workflow" | "webhook";
 export const PR_TRIGGERS: readonly PrTrigger[] = ["workflow", "webhook"];
@@ -317,7 +317,7 @@ export const PREVIEW_ACTIVE_STATES: readonly PreviewState[] = [
 export const isActive = (s: PreviewState): boolean => PREVIEW_ACTIVE_STATES.includes(s);
 
 /**
- * The compose project name for a preview: `gw-<instance>-<slug>`, e.g. `gw-tower-acme-pr-123`.
+ * The compose project name for a preview: `gw-<instance>-<slug>`, e.g. `gw-main-acme-pr-123`.
  *
  * The instance is IN the name, always, and not only for non-production. Two gangway
  * installations can drive one daemon (a laptop's dev run and the standing container on the

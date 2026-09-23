@@ -200,7 +200,7 @@ export class PrPreviews {
       });
     } catch (e) {
       // Refused before a preview existed: no row, no deployment, and -- unless said here --
-      // no word to the author. Found on tower: a policy refusal was silence on the PR.
+      // no word to the author. A policy refusal would otherwise be silence on the PR.
       if (!(e instanceof AppError) || e.status >= 500) throw e;
       const why = this.#refusal(e);
       await this.#say(pr, refs.commentId, `### ❌ Preview refused for \`${pr.headSha.slice(0, 7)}\`\n\n${why}\n\n\`/preview redeploy\` after a fix.`);

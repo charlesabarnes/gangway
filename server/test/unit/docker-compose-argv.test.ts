@@ -130,30 +130,30 @@ describe("composeEnv", () => {
   };
 
   test("DOCKER_HOST comes from the host record, not the ambient environment", () => {
-    const env = composeEnv({ dockerHost: "ssh://root@tower" }, ambient);
-    expect(env["DOCKER_HOST"]).toBe("ssh://root@tower");
+    const env = composeEnv({ dockerHost: "ssh://root@docker-host" }, ambient);
+    expect(env["DOCKER_HOST"]).toBe("ssh://root@docker-host");
   });
 
   test("DOCKER_CONTEXT is set to the empty string, not merely left out", () => {
-    const env = composeEnv({ dockerHost: "ssh://root@tower" }, ambient);
+    const env = composeEnv({ dockerHost: "ssh://root@docker-host" }, ambient);
     expect(env["DOCKER_CONTEXT"]).toBe("");
     expect(Object.hasOwn(env, "DOCKER_CONTEXT")).toBe(true);
   });
 
   test("an inherited DOCKER_CONTEXT cannot survive in any form", () => {
     for (const ctx of ["desktop-linux", "default", "", "colima"]) {
-      expect(composeEnv({ dockerHost: "tcp://tower:2375" }, { DOCKER_CONTEXT: ctx })["DOCKER_CONTEXT"])
+      expect(composeEnv({ dockerHost: "tcp://docker-host:2375" }, { DOCKER_CONTEXT: ctx })["DOCKER_CONTEXT"])
         .toBe("");
     }
   });
 
   test("ambient COMPOSE_* variables are neutralised, since we pass the explicit flags", () => {
-    const env = composeEnv({ dockerHost: "ssh://root@tower" }, ambient);
+    const env = composeEnv({ dockerHost: "ssh://root@docker-host" }, ambient);
     for (const k of NEUTRALISED_ENV) expect(env[k]).toBe("");
   });
 
   test("only what the docker CLI needs is inherited: the compose file is the SUBMITTER'S, and compose interpolates ${VAR} from this", () => {
-    const env = composeEnv({ dockerHost: "ssh://root@tower" }, {
+    const env = composeEnv({ dockerHost: "ssh://root@docker-host" }, {
       ...ambient, HOME: "/root", SSH_AUTH_SOCK: "/tmp/agent", GANGWAY_ADMIN_TOKEN: "gw_secret", GANGWAY_CF_API_TOKEN: "cf_secret", AWS_SECRET_ACCESS_KEY: "aws",
     });
     expect(env).toMatchObject({ PATH: "/usr/bin", HOME: "/root", SSH_AUTH_SOCK: "/tmp/agent" });
@@ -165,11 +165,11 @@ describe("composeEnv", () => {
 
   test("extra variables reach compose interpolation but cannot redirect the daemon", () => {
     const env = composeEnv({
-      dockerHost: "ssh://root@tower",
+      dockerHost: "ssh://root@docker-host",
       extra: { GW_TAG: "pr-123", DOCKER_HOST: "unix:///var/run/docker.sock", DOCKER_CONTEXT: "desktop-linux" },
     }, ambient);
     expect(env["GW_TAG"]).toBe("pr-123");
-    expect(env["DOCKER_HOST"]).toBe("ssh://root@tower");
+    expect(env["DOCKER_HOST"]).toBe("ssh://root@docker-host");
     expect(env["DOCKER_CONTEXT"]).toBe("");
   });
 });
@@ -216,7 +216,7 @@ describe("runCompose", () => {
       stderr: async function* () { yield "time=... level=warning\n"; },
       code: 0,
     });
-    for await (const ev of runCompose(upArgv(base), { dockerHost: "ssh://root@tower" }, spawner)) {
+    for await (const ev of runCompose(upArgv(base), { dockerHost: "ssh://root@docker-host" }, spawner)) {
       events.push(ev);
     }
     expect(events.filter((e) => e.type === "line")).toHaveLength(2);
@@ -240,7 +240,7 @@ describe("runCompose", () => {
     });
 
     const seen: string[] = [];
-    for await (const ev of runCompose(buildArgv(base), { dockerHost: "ssh://root@tower" }, spawner)) {
+    for await (const ev of runCompose(buildArgv(base), { dockerHost: "ssh://root@docker-host" }, spawner)) {
       if (ev.type !== "line") continue;
       seen.push(ev.line);
       if (seen.length === 1) release();
@@ -259,7 +259,7 @@ describe("runCompose", () => {
     });
 
     const order: string[] = [];
-    for await (const ev of runCompose(psArgv(base), { dockerHost: "ssh://root@tower" }, spawner)) {
+    for await (const ev of runCompose(psArgv(base), { dockerHost: "ssh://root@docker-host" }, spawner)) {
       if (ev.type !== "line") continue;
       order.push(`${ev.stream}:${ev.line}`);
       if (order.length === 1) step1();
@@ -289,10 +289,10 @@ describe("runCompose", () => {
     let captured: Record<string, string> = {};
     const spawner = fakeSpawner({ onSpawn: (_argv, env) => { captured = env; } });
     await composeCapture(upArgv(base), {
-      dockerHost: "ssh://root@tower",
+      dockerHost: "ssh://root@docker-host",
       baseEnv: { DOCKER_CONTEXT: "desktop-linux", DOCKER_HOST: "unix:///var/run/docker.sock" },
     }, spawner);
-    expect(captured["DOCKER_HOST"]).toBe("ssh://root@tower");
+    expect(captured["DOCKER_HOST"]).toBe("ssh://root@docker-host");
     expect(captured["DOCKER_CONTEXT"]).toBe("");
   });
 
@@ -300,7 +300,7 @@ describe("runCompose", () => {
     let spawned = false;
     const spawner = fakeSpawner({ onSpawn: () => { spawned = true; } });
     const run = runCompose(upArgv(base), {
-      dockerHost: "ssh://root@tower",
+      dockerHost: "ssh://root@docker-host",
       preflight: async () => { throw new Error("refusing to use a Docker Desktop daemon"); },
     }, spawner);
     await expect(run.next()).rejects.toThrow(/Docker Desktop/);

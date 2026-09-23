@@ -17,7 +17,8 @@ stands in for Tokens.
 
 ## Running it against a real server
 
-Start gangway (repo root; see `docs/STATUS.md` for the tunnel to tower):
+Start gangway from the repo root. With Docker on another machine, copy
+`scripts/dev.example.json` to `scripts/dev.json`, edit it, and run `bun run tunnel` first:
 
 ```bash
 GANGWAY_CONFIG=scripts/dev.json GANGWAY_ADMIN_TOKEN=gw_dev_$(openssl rand -hex 16) bun server/src/main.ts

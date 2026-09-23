@@ -1,19 +1,19 @@
 /**
  * tls/acme.ts against a REAL ACME server: Pebble (Let's Encrypt's test CA) plus its
- * challenge DNS server, both on tower. The unit test proves the sequencing against a
- * fake; this proves the protocol -- nonces, JWS, order finalization, a real chain -- and
+ * challenge DNS server, both on a Docker host reachable over SSH as $DOCKER_HOST_SSH. The
+ * unit test proves the sequencing against a fake; this proves the protocol -- nonces, JWS, order finalization, a real chain -- and
  * then the part no unit test can: gangway boots on the dev CA, the `cert-renew` job
  * obtains the certificate, and the LISTENER starts presenting it without a restart.
  *
- *   ssh tower 'docker run --rm -d --name gw-acme-challtestsrv \
+ *   ssh $DOCKER_HOST_SSH 'docker run --rm -d --name gw-acme-challtestsrv \
  *       -p 127.0.0.1:31900:14000 -p 127.0.0.1:31901:8055 ghcr.io/letsencrypt/pebble-challtestsrv:latest \
  *       -http01 "" -https01 "" -tlsalpn01 "" -doh "" -dnsserver ":8053" -management ":8055"'
- *   ssh tower 'docker run --rm -d --name gw-acme-pebble --network container:gw-acme-challtestsrv \
+ *   ssh $DOCKER_HOST_SSH 'docker run --rm -d --name gw-acme-pebble --network container:gw-acme-challtestsrv \
  *       -e PEBBLE_VA_NOSLEEP=1 ghcr.io/letsencrypt/pebble:latest \
  *       -config test/config/pebble-config.json -dnsserver 127.0.0.1:8053 -strict'
- *   ssh -N -L 31900:127.0.0.1:31900 -L 31901:127.0.0.1:31901 tower &
+ *   ssh -N -L 31900:127.0.0.1:31900 -L 31901:127.0.0.1:31901 $DOCKER_HOST_SSH &
  *   NODE_TLS_REJECT_UNAUTHORIZED=0 bun scripts/acme-pebble-check.ts
- *   ssh tower 'docker stop gw-acme-pebble gw-acme-challtestsrv'
+ *   ssh $DOCKER_HOST_SSH 'docker stop gw-acme-pebble gw-acme-challtestsrv'
  *
  * Pebble's own API certificate comes from a throwaway CA, hence NODE_TLS_REJECT_UNAUTHORIZED
  * -- for this script only. Pebble deliberately rejects ~5% of nonces, so a pass here also

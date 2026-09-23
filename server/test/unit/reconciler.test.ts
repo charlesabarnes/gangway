@@ -30,7 +30,7 @@ const ACTOR = staticTokenVerifier("x")("x") as Actor;
 const tmps: string[] = [];
 afterEach(() => { for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true }); });
 
-const TOWER: DockerInfo = { Name: "Tower", OperatingSystem: "Unraid OS 7.2 x86_64" };
+const REMOTE_HOST: DockerInfo = { Name: "Docker-Host", OperatingSystem: "Debian GNU/Linux 12 (bookworm)" };
 
 function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "gangway-reconcile-"));
@@ -38,7 +38,7 @@ function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
   const { db } = openDatabase({ path: join(dir, "g.db") });
   migrate(db, MIGRATIONS);
   const hosts = new HostsRepo(db);
-  seedHosts([HostConfigSchema.parse({ expectName: "Tower" })], hosts);
+  seedHosts([HostConfigSchema.parse({ expectName: "Docker-Host" })], hosts);
   const previews = new PreviewsRepo(db);
   const routes = new RoutesRepo(db);
   const table = new RouteTable(routes);
@@ -47,7 +47,7 @@ function setup(o: { orphans?: "stop" | "report"; hangUp?: boolean } = {}) {
   /** The fake daemon. Tests mutate these directly. */
   const daemon = {
     containers: [] as ContainerSummary[],
-    info: TOWER as DockerInfo,
+    info: REMOTE_HOST as DockerInfo,
     down: false,
     lists: [] as ListOptions[],
     stopped: [] as string[],

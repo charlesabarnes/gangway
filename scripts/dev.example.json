@@ -1,0 +1,15 @@
+{
+  "instanceId": "dev",
+  "hosts": [{
+    "id": "local",
+    "name": "docker-host",
+    "dockerHost": "tcp://127.0.0.1:23750",
+    "expectName": "docker-host",
+    "publishBind": "127.0.0.1",
+    "upstreamDial": "socks5",
+    "upstreamProxy": "socks5://127.0.0.1:1080",
+    "upstreamAddress": "127.0.0.1",
+    "portRangeStart": 31500,
+    "portRangeEnd": 31599
+  }]
+}

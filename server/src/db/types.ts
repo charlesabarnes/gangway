@@ -16,7 +16,7 @@ export interface Db {
 
 export type OpenOptions = {
   path: string;
-  /** TRUNCATE is the fallback if WAL misbehaves on a FUSE filesystem such as Unraid shfs. */
+  /** TRUNCATE is the fallback if WAL misbehaves on a FUSE filesystem. */
   journalMode?: "WAL" | "TRUNCATE";
   busyTimeoutMs?: number;
   readonly?: boolean;

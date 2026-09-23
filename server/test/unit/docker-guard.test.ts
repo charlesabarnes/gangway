@@ -21,9 +21,9 @@ const DESKTOP_VERSIONED: DockerInfo = {
   ServerVersion: "27.5.1",
 };
 
-const TOWER: DockerInfo = {
-  Name: "tower",
-  OperatingSystem: "Slackware 15.0 x86_64",
+const REMOTE_HOST: DockerInfo = {
+  Name: "docker-host",
+  OperatingSystem: "Debian GNU/Linux 12 (bookworm)",
   OSType: "linux",
   ServerVersion: "27.3.1",
   Architecture: "x86_64",
@@ -61,7 +61,7 @@ describe("Docker Desktop detection", () => {
   });
 
   test("real Linux daemons are not mistaken for Desktop", () => {
-    expect(looksLikeDockerDesktop(TOWER)).toBe(false);
+    expect(looksLikeDockerDesktop(REMOTE_HOST)).toBe(false);
     expect(looksLikeDockerDesktop(OTHER_LINUX)).toBe(false);
     expect(looksLikeDockerDesktop({})).toBe(false);
     expect(looksLikeDockerDesktop({ OperatingSystem: "Docker Engine - Community" })).toBe(false);
@@ -92,7 +92,7 @@ describe("refusing Docker Desktop", () => {
   });
 
   test("a remote daemon passes with no expectName", () => {
-    expect(assertRemoteDaemon(TOWER, null, EMPTY)).toEqual({ ok: true, name: "tower" });
+    expect(assertRemoteDaemon(REMOTE_HOST, null, EMPTY)).toEqual({ ok: true, name: "docker-host" });
     expect(assertRemoteDaemon(OTHER_LINUX, undefined, EMPTY)).toEqual({
       ok: true, name: "preview-host-2",
     });
@@ -121,21 +121,21 @@ describe("the escape hatch", () => {
   });
 
   test("it does NOT open the name check — wrong remote is never benign", () => {
-    expect(() => assertRemoteDaemon(DESKTOP_MAC, "tower", ALLOWED)).toThrow(/wrong daemon/);
+    expect(() => assertRemoteDaemon(DESKTOP_MAC, "docker-host", ALLOWED)).toThrow(/wrong daemon/);
   });
 });
 
 describe("expectName", () => {
   test("a match passes", () => {
-    expect(assertRemoteDaemon(TOWER, "tower", EMPTY)).toEqual({ ok: true, name: "tower" });
+    expect(assertRemoteDaemon(REMOTE_HOST, "docker-host", EMPTY)).toEqual({ ok: true, name: "docker-host" });
   });
 
   test("a mismatch throws with reason name-mismatch", () => {
-    const r = checkDaemon(OTHER_LINUX, "tower", EMPTY);
+    const r = checkDaemon(OTHER_LINUX, "docker-host", EMPTY);
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("unreachable");
     expect(r.error.reason).toBe("name-mismatch");
-    expect(r.error.detail).toMatchObject({ name: "preview-host-2", expectName: "tower" });
+    expect(r.error.detail).toMatchObject({ name: "preview-host-2", expectName: "docker-host" });
   });
 
   test("null, undefined and empty expectName all mean unchecked", () => {
@@ -145,34 +145,34 @@ describe("expectName", () => {
   });
 
   test("a daemon with no Name fails a set expectName rather than passing", () => {
-    const r = checkDaemon({ OperatingSystem: "Ubuntu 24.04" }, "tower", EMPTY);
+    const r = checkDaemon({ OperatingSystem: "Ubuntu 24.04" }, "docker-host", EMPTY);
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error("unreachable");
     expect(r.error.reason).toBe("name-mismatch");
   });
 
   test("matching is exact — no trimming, no case folding", () => {
-    expect(checkDaemon({ Name: "Tower", OperatingSystem: "Ubuntu" }, "tower", EMPTY).ok).toBe(false);
-    expect(checkDaemon({ Name: "tower ", OperatingSystem: "Ubuntu" }, "tower", EMPTY).ok).toBe(false);
+    expect(checkDaemon({ Name: "Docker-Host", OperatingSystem: "Ubuntu" }, "docker-host", EMPTY).ok).toBe(false);
+    expect(checkDaemon({ Name: "docker-host ", OperatingSystem: "Ubuntu" }, "docker-host", EMPTY).ok).toBe(false);
   });
 });
 
-/* The scenario the guard exists for, end to end: DOCKER_HOST is set to tower but
+/* The scenario the guard exists for, end to end: DOCKER_HOST is set to docker-host but
    DOCKER_CONTEXT=desktop-linux quietly wins, so `docker info` answers from the laptop.
    Without this check the next call creates containers there and reports success. */
 describe("the actual accident", () => {
   test("DOCKER_CONTEXT beating DOCKER_HOST is caught by both checks", () => {
-    const host = { id: "tower", expectName: "tower" };
+    const host = { id: "docker-host", expectName: "docker-host" };
     expect(() => assertHostDaemon(host, DESKTOP_MAC, EMPTY)).toThrow(DockerGuardError);
   });
 
   test("the desktop reason is reported first, because that is the headline", () => {
     let err: DockerGuardError | undefined;
-    try { assertHostDaemon({ id: "tower", expectName: "tower" }, DESKTOP_MAC, EMPTY); }
+    try { assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, DESKTOP_MAC, EMPTY); }
     catch (e) { err = e as DockerGuardError; }
     expect(err?.reason).toBe("docker-desktop");
-    expect(err?.message).toContain("host tower");
-    expect(err?.detail?.["hostId"]).toBe("tower");
+    expect(err?.message).toContain("host docker-host");
+    expect(err?.detail?.["hostId"]).toBe("docker-host");
   });
 
   test("guard errors carry an HTTP status, so they surface as problem+json", () => {
@@ -182,15 +182,15 @@ describe("the actual accident", () => {
     expect(r.error.toProblem()["detail"]).toContain("Docker Desktop");
   });
 
-  test("a correctly configured tower host passes cleanly", () => {
-    expect(assertHostDaemon({ id: "tower", expectName: "tower" }, TOWER, EMPTY))
-      .toEqual({ ok: true, name: "tower" });
+  test("a correctly configured docker-host host passes cleanly", () => {
+    expect(assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, REMOTE_HOST, EMPTY))
+      .toEqual({ ok: true, name: "docker-host" });
   });
 });
 
 describe("describeDaemon", () => {
   test("one line, no credentials", () => {
-    expect(describeDaemon(TOWER)).toBe("tower / Slackware 15.0 x86_64 / docker 27.3.1 / x86_64");
+    expect(describeDaemon(REMOTE_HOST)).toBe("docker-host / Debian GNU/Linux 12 (bookworm) / docker 27.3.1 / x86_64");
   });
 
   test("survives an empty payload", () => {

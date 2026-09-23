@@ -265,14 +265,14 @@ for (const [name, open] of DRIVERS) {
         const a = open({ path });
         migrate(a.db, upTo7);
         a.db.run("INSERT INTO hosts (id, name, docker_host, capabilities, publish_bind, upstream_dial, upstream_address, port_range_start, port_range_end, created_at) VALUES ('local', 'local', 'unix:///x', '[\"preview\"]', '127.0.0.1', 'direct', '127.0.0.1', 31000, 31099, 1)");
-        a.db.run("INSERT INTO repos (id, forge, full_name, installation_id, slug, pr_clearance, fork_clearance, visibility, template_id, env_ciphertext, created_at, updated_at) VALUES ('r1', 'github', 'charlesabarnes/store-admin', '42', 'store-admin', 'high', 'none', 'private', 'default', 'sealed', 1, 1)");
-        a.db.run("INSERT INTO previews (id, project, host_id, state, source_kind, source_json, visibility, created_at, updated_at) VALUES ('p1', 'gw-t-store-admin-pr-4', 'local', 'awake', 'pr', '{\"repo\":\"charlesabarnes/store-admin\",\"number\":4,\"sha\":\"a\"}', 'unlisted', 1, 1), ('p2', 'gw-t-whoami', 'local', 'awake', 'image', '{\"image\":\"x\"}', 'public', 1, 1)");
+        a.db.run("INSERT INTO repos (id, forge, full_name, installation_id, slug, pr_clearance, fork_clearance, visibility, template_id, env_ciphertext, created_at, updated_at) VALUES ('r1', 'github', 'acme/store-admin', '42', 'store-admin', 'high', 'none', 'private', 'default', 'sealed', 1, 1)");
+        a.db.run("INSERT INTO previews (id, project, host_id, state, source_kind, source_json, visibility, created_at, updated_at) VALUES ('p1', 'gw-t-store-admin-pr-4', 'local', 'awake', 'pr', '{\"repo\":\"acme/store-admin\",\"number\":4,\"sha\":\"a\"}', 'unlisted', 1, 1), ('p2', 'gw-t-whoami', 'local', 'awake', 'image', '{\"image\":\"x\"}', 'public', 1, 1)");
         a.db.close();
 
         const b = open({ path });
         expect(migrate(b.db, MIGRATIONS).applied).toEqual([8, 9, 10, 11, 12, 13]);
         expect(b.db.get<Record<string, unknown>>("SELECT id, name, slug, forge, full_name, installation_id, pr_trigger, template_id, visibility, pr_clearance, env_ciphertext FROM projects")).toEqual({
-          id: "r1", name: "store-admin", slug: "store-admin", forge: "github", full_name: "charlesabarnes/store-admin", installation_id: "42",
+          id: "r1", name: "store-admin", slug: "store-admin", forge: "github", full_name: "acme/store-admin", installation_id: "42",
           pr_trigger: "webhook", template_id: "default", visibility: "private", pr_clearance: "high", env_ciphertext: "sealed",
         });
         expect(b.db.query<Record<string, unknown>>("SELECT id, project_id FROM previews ORDER BY id")).toEqual([{ id: "p1", project_id: "r1" }, { id: "p2", project_id: null }]);

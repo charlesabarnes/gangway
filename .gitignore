@@ -9,3 +9,6 @@ state/
 # Local-only design notes: kept on disk, never committed.
 docs/
 spec.md
+
+# Your own dev host config; start from scripts/dev.example.json.
+scripts/dev.json

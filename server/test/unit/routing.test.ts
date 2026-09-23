@@ -32,7 +32,7 @@ describe("port allocator", () => {
 
   test("throws rather than drifting outside the pool when exhausted", () => {
     const full = new Set([31000, 31001, 31002, 31003, 31004]);
-    expect(() => allocatePort(RANGE, full, "tower")).toThrow(PortExhausted);
+    expect(() => allocatePort(RANGE, full, "docker-host")).toThrow(PortExhausted);
     expect(() => allocatePorts(RANGE, new Set(), 6)).toThrow(PortExhausted);
   });
 
@@ -40,12 +40,12 @@ describe("port allocator", () => {
     expect(isInRange(31000, RANGE)).toBe(true);
     expect(isInRange(30999, RANGE)).toBe(false);
     expect(isInRange(31005, RANGE)).toBe(false);
-    expect(() => assertInRange(55433, RANGE, "tower")).toThrow(/outside host tower's pool/);
+    expect(() => assertInRange(55433, RANGE, "docker-host")).toThrow(/outside host docker-host's pool/);
     expect(() => assertInRange(31002, RANGE)).not.toThrow();
   });
 
   test("the pool sits below the kernel ephemeral floor", () => {
-    // tower's ephemeral range starts at 32768; an allocation above it could collide
+    // docker-host's ephemeral range starts at 32768; an allocation above it could collide
     // with a port the kernel hands to an unrelated process.
     expect(RANGE.rangeEnd).toBeLessThan(32768);
   });

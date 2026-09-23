@@ -223,10 +223,10 @@ describe("PerHostUpstream (T36)", () => {
     });
     const req = new Request("https://x.preview.example.com/");
     const via = async (hostId: string) => (await per.fetch(req, entry({ hostId }), { clientIp: "::1" })).text();
-    expect(await via("tower")).toBe("via tower");
+    expect(await via("docker-host")).toBe("via docker-host");
     expect(await via("laptop")).toBe("via laptop");
-    expect(await via("tower")).toBe("via tower");
-    expect(made).toEqual(["tower", "laptop"]);
+    expect(await via("docker-host")).toBe("via docker-host");
+    expect(made).toEqual(["docker-host", "laptop"]);
     await expect(per.fetch(req, entry({ hostId: "gone" }), { clientIp: "::1" })).rejects.toThrow("no such host: gone");
   });
 });

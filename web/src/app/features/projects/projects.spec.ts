@@ -47,9 +47,9 @@ describe('Projects', () => {
     const r = await open({
       projects: [project(), project({ id: 'P2', name: 'whoami', slug: 'whoami', forge: null, fullName: null, templateId: 'ci' })],
       previews: [
-        preview({ id: 'A', project: 'gw-tower-web-app-pr-4-k7q2', projectId: contract.project.id, state: 'awake' }),
-        preview({ id: 'B', project: 'gw-tower-scratch', projectId: null, state: 'asleep' }),
-        preview({ id: 'C', project: 'gw-tower-web-app-pr-1', projectId: contract.project.id, state: 'destroyed' }),
+        preview({ id: 'A', project: 'gw-docker-host-web-app-pr-4-k7q2', projectId: contract.project.id, state: 'awake' }),
+        preview({ id: 'B', project: 'gw-docker-host-scratch', projectId: null, state: 'asleep' }),
+        preview({ id: 'C', project: 'gw-docker-host-web-app-pr-1', projectId: contract.project.id, state: 'destroyed' }),
       ],
     });
     expect(r.allByTestId('project')).toHaveLength(2);
@@ -57,21 +57,21 @@ describe('Projects', () => {
     expect(r.allByTestId('template-chip').map((e) => e.textContent?.trim())).toEqual(['default template', 'CI']);
     expect(r.allByTestId('project')[0]!.textContent).toContain('web-app-pr-4-k7q2');
     expect(r.allByTestId('project')[0]!.textContent).not.toContain('pr-1'); // destroyed is not live
-    expect(r.text('loose')).toContain('gw-tower-scratch');
+    expect(r.text('loose')).toContain('gw-docker-host-scratch');
     expect(r.allByTestId('project')[0]!.getAttribute('href')).toBe('/projects/web-app');
   });
 
   it('New project: an installed repository fills the name; workflow is the default; created, it opens on the Workflow tab', async () => {
-    const r = await open({ installed: [{ fullName: 'charlesabarnes/store-admin', installationId: '1', private: true }] });
+    const r = await open({ installed: [{ fullName: 'acme/store-admin', installationId: '1', private: true }] });
     (r.byTestId('new') as HTMLButtonElement).click(); await r.settle();
     expect(r.byTestId('create-trigger-workflow')).toBeNull(); // no repository yet: no trigger to choose
-    type(r, 'create-repo', 'charlesabarnes/store-admin'); await r.settle();
+    type(r, 'create-repo', 'acme/store-admin'); await r.settle();
     expect((r.byTestId('create-name') as HTMLInputElement).value).toBe('store-admin');
     expect((r.byTestId('create-trigger-workflow') as HTMLInputElement).checked).toBe(true);
     r.byTestId('create')!.dispatchEvent(new Event('submit', { cancelable: true })); await r.settle();
     const req = r.http.expectOne({ method: 'POST', url: '/v1/projects' });
-    expect(req.request.body).toEqual({ name: 'store-admin', repository: 'charlesabarnes/store-admin', prTrigger: 'workflow' });
-    req.flush({ project: project({ name: 'store-admin', slug: 'store-admin', fullName: 'charlesabarnes/store-admin' }) }, { status: 201, statusText: 'Created' });
+    expect(req.request.body).toEqual({ name: 'store-admin', repository: 'acme/store-admin', prTrigger: 'workflow' });
+    req.flush({ project: project({ name: 'store-admin', slug: 'store-admin', fullName: 'acme/store-admin' }) }, { status: 201, statusText: 'Created' });
     await r.until(() => TestBed.inject(Router).url === '/projects/store-admin?tab=workflow', 'navigation');
   });
 

@@ -12,7 +12,7 @@ import { TemplatesPage } from './templates';
 class Host {}
 
 const template = (over: Partial<Template> = {}): Template => ({ ...(contract.template as Template), ...over });
-const STAGING = template({ id: 'staging', name: 'Staging', builtin: false, visibility: 'private', ttl: null, idleAfter: 'never', clearance: 'high', hostId: 'tower' });
+const STAGING = template({ id: 'staging', name: 'Staging', builtin: false, visibility: 'private', ttl: null, idleAfter: 'never', clearance: 'high', hostId: 'docker-host' });
 
 async function open(o: { permissions?: Permission[]; templates?: Template[] } = {}) {
   const r = await render(Host);
@@ -37,7 +37,7 @@ describe('Templates', () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.allByTestId('template')).toHaveLength(2);
     expect(r.allByTestId('builtin')).toHaveLength(1);
-    expect(r.allByTestId('summary').map((e) => e.textContent?.trim())).toEqual(['unlisted · lives 7d · sleeps after 30m', 'private · never expires · never sleeps · host tower']);
+    expect(r.allByTestId('summary').map((e) => e.textContent?.trim())).toEqual(['unlisted · lives 7d · sleeps after 30m', 'private · never expires · never sleeps · host docker-host']);
     expect(r.byTestId('save')).toBeNull();
     expect(r.byTestId('create')).toBeNull();
   });

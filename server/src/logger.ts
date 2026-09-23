@@ -43,7 +43,7 @@ export function redact(value: unknown, depth = 0): unknown {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (value instanceof Error) {
     // An AppError's `code` and `detail` are the part worth reading -- `compose config`'s
-    // stderr lives there. Found on tower: "the compose file is not valid", and nothing else.
+    // stderr lives there; without them the log says only "the compose file is not valid".
     const extra = value as Error & { code?: unknown; detail?: unknown };
     return {
       name: value.name, message: redactString(value.message), stack: value.stack ? redactString(value.stack) : undefined,

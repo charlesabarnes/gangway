@@ -155,7 +155,7 @@ describe("portDrift (§11 row 1: verify port, continue)", () => {
 
 const labels: GangwayLabels = {
   instance: "gw-main", env: "prod", previewId: "01HQ0000000000000000000000",
-  project: "gw-acme-pr-123", service: "api", hostId: "tower",
+  project: "gw-acme-pr-123", service: "api", hostId: "docker-host",
   hostname: "acme-pr-123-api.preview.example.com", port: 31042, containerPort: 8080,
   upstreamHost: "10.0.0.4", visibility: "unlisted", primary: true,
   createdAt: new Date("2026-02-03T04:05:06.007Z"),
@@ -198,12 +198,12 @@ describe("scanning a daemon for our containers", () => {
     const foreign = summary({ id: "f00d", labels: { "org.opencontainers.image.title": "plex" } });
 
     const client = {
-      hostId: "tower",
+      hostId: "docker-host",
       listContainers: async () => [good, future, broken, foreign],
     };
     const scan = await scanManaged(client);
 
-    expect(scan.hostId).toBe("tower");
+    expect(scan.hostId).toBe("docker-host");
     expect(scan.managed.map((m) => m.id)).toEqual(["c0ffee"]);
     expect(scan.unusable.map((u) => u.failure.reason).sort())
       .toEqual(["future-version", "malformed", "not-managed"]);
@@ -214,7 +214,7 @@ describe("scanning a daemon for our containers", () => {
   test("the scan asks the daemon to filter, and includes stopped containers", async () => {
     let seen: unknown;
     await scanManaged({
-      hostId: "tower",
+      hostId: "docker-host",
       listContainers: async (opts) => { seen = opts; return []; },
     });
     // A stopped container still owns its published-port allocation (ADR-0004).

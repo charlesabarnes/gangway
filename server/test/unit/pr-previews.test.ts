@@ -172,7 +172,7 @@ describe("a pull request opens", () => {
     const body = [...t.comments.values()][0]!;
     expect(body).toContain("❌ Preview refused for `aaaaaaa`");
     expect(body).toContain("bind mounts are not allowed");
-    expect(body).not.toContain("level=warning"); // compose's interpolation noise, seen on tower, is not the reason
+    expect(body).not.toContain("level=warning"); // compose's interpolation noise is not the reason
     expect(t.deployments).toEqual([]);
     // Not a crash: a 500 from the pipeline still is.
     t.previews.deploy = async () => { throw new AppError("internal", "boom"); };

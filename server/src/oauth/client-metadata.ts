@@ -6,7 +6,7 @@
  * Fetching a URL a stranger chose is server-side request forgery waiting to happen, so:
  *  - https on 443 only, no credentials in the URL, a path required (the spec's rules);
  *  - the address is checked AT CONNECT TIME by the socket's own `lookup`, so a DNS answer
- *    that changes between a check and the connect (rebinding) cannot reach tower's LAN,
+ *    that changes between a check and the connect (rebinding) cannot reach the host's LAN,
  *    loopback, the docker bridge or a metadata service;
  *  - no redirects, 5 s, 64 KiB, JSON;
  *  - the document's `client_id` must equal the URL, byte for byte.

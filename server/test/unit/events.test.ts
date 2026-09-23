@@ -191,7 +191,7 @@ describe("hosts (T16)", () => {
 
   test("GET /v1/hosts lists them and never leaks credentials in a connection string", async () => {
     const { hosts, get } = setup();
-    seedHosts([cfg({ dockerHost: "ssh://root:hunter2hunter2@tower" })], hosts);
+    seedHosts([cfg({ dockerHost: "ssh://root:hunter2hunter2@docker-host" })], hosts);
     const res = await get("/v1/hosts");
     const text = await res.text();
     expect(res.status).toBe(200);

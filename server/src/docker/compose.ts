@@ -102,8 +102,8 @@ export const upArgv = (base: Base, args: string[] = []): string[] =>
  * `--rmi local` removes the images compose BUILT for the project and nothing else. `all`
  * is for a preview whose image was pushed for it alone, one tag per commit (ADR-0014):
  * pulled, so `local` would leave one image on the host for every push.
- * Verified on tower, file-less: a built `gw-x-web:latest` goes; a pulled
- * `traefik/whoami:v1.10` -- which the operator's own containers may share -- stays.
+ * So a built `gw-x-web:latest` goes, while a pulled `traefik/whoami:v1.10` -- which the
+ * operator's own containers may share -- stays.
  * Without it every build leaves an image on the host forever.
  */
 export const downArgv = (base: Base, args: string[] = [], rmi: "local" | "all" = "local", o: { volumes?: boolean } = {}): string[] =>

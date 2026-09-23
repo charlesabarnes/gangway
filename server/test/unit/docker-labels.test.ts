@@ -26,11 +26,11 @@ function generate(rand: () => number): GangwayLabels {
     previewId: word().toUpperCase().padEnd(26, "Z"),
     project: `gw-${word()}-pr-${Math.floor(rand() * 9999)}`,
     service: pick(["api", "web", "worker", "db"]),
-    hostId: pick(["local", "tower", "preview-host-2"]),
+    hostId: pick(["local", "docker-host", "preview-host-2"]),
     hostname: `${word()}.preview.example.com`,
     port: 31000 + Math.floor(rand() * 500),
     containerPort: 1 + Math.floor(rand() * 65535),
-    upstreamHost: pick(["127.0.0.1", "10.0.0.4", "tower.lan"]),
+    upstreamHost: pick(["127.0.0.1", "10.0.0.4", "docker-host.lan"]),
     visibility: pick(VISIBILITIES),
     primary: rand() < 0.5,
     createdAt: new Date(Math.floor(rand() * 1.7e12)),
@@ -43,7 +43,7 @@ const sample: GangwayLabels = {
   previewId: "01HQ0000000000000000000000",
   project: "gw-acme-pr-123",
   service: "api",
-  hostId: "tower",
+  hostId: "docker-host",
   hostname: "acme-pr-123-api.preview.example.com",
   port: 31042,
   containerPort: 8080,
@@ -109,7 +109,7 @@ describe("§4.1: the label set alone reconstructs a Route", () => {
     };
     const ctx = {
       instance: "gw-main", env: "prod", project: "gw-acme-pr-123",
-      hostId: "tower", visibility: "unlisted" as Visibility,
+      hostId: "docker-host", visibility: "unlisted" as Visibility,
     };
 
     // The reconciler's inputs: a bag of strings off the daemon. No DB, no host record.
