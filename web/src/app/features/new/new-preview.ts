@@ -33,7 +33,7 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
         <p class="mt-6 text-sm text-neutral-600 dark:text-neutral-400" data-testid="no-permission">Your role cannot deploy previews. Ask an administrator for <code class="font-mono text-xs">previews.deploy</code>.</p>
       } @else {
         <h2 class="mt-8 text-sm font-medium text-neutral-500">Start from a runtime</h2>
-        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">A hello-world you can edit in the browser. Saving rebuilds it at the same URL.</p>
+        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Start with a small example, or drop in your own files below. You can edit them in the browser.</p>
         <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="runtimes">
           @for (r of runtimes(); track r.id) {
             @let look = looks[r.id];
@@ -61,23 +61,10 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
           } @empty {
             <li class="text-sm text-neutral-500" data-testid="runtimes-loading">{{ runtimesError() ?? 'Loading runtimes…' }}</li>
           }
-          @if (runtimes().length > 0) {
-            <li>
-              <label class="group flex h-full w-full cursor-pointer items-start gap-3 rounded-xl border border-dashed border-neutral-300 p-4 text-left transition hover:border-accent hover:bg-accent/5 dark:border-neutral-700" data-testid="starter-upload">
-                <span class="grid size-11 shrink-0 place-items-center rounded-lg bg-neutral-100 text-xl text-neutral-500 dark:bg-neutral-800" aria-hidden="true">↑</span>
-                <span class="min-w-0 flex-1">
-                  <span class="font-medium">Your own files</span>
-                  <span class="mt-0.5 block text-xs text-neutral-600 dark:text-neutral-400">A folder or a .zip — the runtime is worked out for you</span>
-                </span>
-                <input type="file" webkitdirectory class="sr-only" (change)="picked($event)" />
-              </label>
-            </li>
-          }
         </ul>
 
-        <h2 class="mt-10 text-sm font-medium text-neutral-500">Or upload files</h2>
         <div (dragover)="over($event)" (dragleave)="dragging.set(false)" (drop)="dropped($event)" data-testid="dropzone"
-             class="mt-3 rounded-lg border-2 border-dashed px-6 py-10 text-center transition"
+             class="mt-6 rounded-lg border-2 border-dashed px-6 py-10 text-center transition"
              [class]="dragging() ? 'border-accent bg-accent/5' : 'border-neutral-300 dark:border-neutral-700'">
           @if (upload(); as u) {
             <p class="font-medium" data-testid="summary">{{ u.files.length }} file{{ u.files.length === 1 ? '' : 's' }}, {{ size(u.totalBytes) }}@if (u.skipped) { <span class="font-normal text-neutral-500"> ({{ u.skipped }} skipped: .git, node_modules, OS files)</span> }</p>
@@ -119,8 +106,16 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
               <button appBtn variant="ghost" type="button" (click)="clear()" [disabled]="busy()" data-testid="clear">Clear</button>
             </div>
           } @else {
-            <p class="font-medium">Drop files, a folder or a .zip here</p>
-            <p class="mt-1 text-sm text-neutral-500">A compose file or Dockerfile at the root is used as it is; anything else is built by a runtime, picked from what is there. A <code class="font-mono text-xs">gangway.yml</code> can say how to start it.</p>
+            <p class="font-medium">Drop a folder, files or a .zip</p>
+            <p class="mt-1 text-sm text-neutral-500">We pick the runtime for you.
+              <span class="group relative ml-1 inline-block">
+                <span class="cursor-help border-b border-dotted border-neutral-400 text-neutral-600 outline-none dark:text-neutral-400" tabindex="0" aria-describedby="gangway-yml-tip" data-testid="gangway-yml-hint">Want more control?</span>
+                <span id="gangway-yml-tip" role="tooltip" data-testid="gangway-yml-tip"
+                      class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-72 -translate-x-1/2 rounded-md bg-neutral-900 px-3 py-2 text-left text-xs leading-relaxed text-neutral-100 opacity-0 shadow-lg transition group-focus-within:opacity-100 group-hover:opacity-100 dark:bg-neutral-100 dark:text-neutral-900">
+                  Add a <code class="font-mono">gangway.yml</code> to set the start command, build step, runtime version or databases. A Dockerfile or compose file is used as is.
+                </span>
+              </span>
+            </p>
             <div class="mt-4 flex justify-center gap-3">
               <label class="cursor-pointer rounded-md border border-neutral-300 px-3.5 py-2 text-sm font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">
                 Choose files<input type="file" multiple class="sr-only" (change)="picked($event)" data-testid="pick-files" />
@@ -135,7 +130,7 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
         @if (addons().length > 0) {
           <fieldset class="mt-6 rounded-lg border border-neutral-200 px-4 py-3 dark:border-neutral-800" data-testid="addons">
             <legend class="px-1 text-sm font-medium text-neutral-600 dark:text-neutral-400">Databases</legend>
-            <p class="text-xs text-neutral-500">Throwaway, beside the app: kept across saves and sleeps, gone when the preview is. The app is told where in its environment.</p>
+            <p class="text-xs text-neutral-500">Temporary databases for this preview. They keep their data between saves and are removed with the preview.</p>
             <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">
               @for (a of addons(); track a.id) {
                 @let look = addonLooks[a.id];
