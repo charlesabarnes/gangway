@@ -76,10 +76,10 @@ export class OAuthGrantsRepo {
     return r ? toRecord(r) : undefined;
   }
 
-  /** A refresh token that was already rotated away: replay. */
-  findByPreviousRefresh(hash: string): OAuthGrant | undefined {
-    const r = this.#db.get<GrantRow>(`SELECT ${COLUMNS} FROM oauth_grants WHERE prev_refresh_hash = $hash`, { hash });
-    return r ? toGrant(r) : undefined;
+  /** A refresh token that was already rotated away, and when that rotation happened. */
+  findByPreviousRefresh(hash: string): { grant: OAuthGrant; rotatedAt: number | null } | undefined {
+    const r = this.#db.get<GrantRow & { rotated_at: number | null }>(`SELECT ${COLUMNS}, rotated_at FROM oauth_grants WHERE prev_refresh_hash = $hash`, { hash });
+    return r ? { grant: toGrant(r), rotatedAt: r.rotated_at } : undefined;
   }
 
   /**
@@ -89,7 +89,7 @@ export class OAuthGrantsRepo {
   rotate(id: string, from: string, next: { accessHash: string; accessExpiresAt: number; refreshHash: string; refreshExpiresAt: number }): boolean {
     return this.#db.run(
       `UPDATE oauth_grants SET access_hash = $ah, access_expires_at = $aexp, prev_refresh_hash = refresh_hash, refresh_hash = $rh,
-                               refresh_expires_at = $rexp, last_used_at = $now
+                               refresh_expires_at = $rexp, last_used_at = $now, rotated_at = $now
         WHERE id = $id AND refresh_hash = $from AND revoked_at IS NULL`,
       { id, from, ah: next.accessHash, aexp: next.accessExpiresAt, rh: next.refreshHash, rexp: next.refreshExpiresAt, now: this.#now() },
     ).changes > 0;

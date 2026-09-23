@@ -36,6 +36,8 @@ export const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
 export const ACCESS_TTL_MS = 3_600_000;
 export const REFRESH_IDLE_MS = 30 * 86_400_000;
 export const GRANT_ABSOLUTE_MS = 90 * 86_400_000;
+/** A rotated-away refresh token back this soon is the client racing itself: refused, not revoked. */
+export const REFRESH_REUSE_GRACE_MS = 60_000;
 const PENDING_TTL_MS = 10 * 60_000;
 const CODE_TTL_MS = 60_000;
 const MAX_PENDING = 1_000;
@@ -313,10 +315,13 @@ export class OAuthServer {
     const rec = this.#d.grants.findByRefresh(hash);
     if (!rec) {
       const replayed = this.#d.grants.findByPreviousRefresh(hash);
-      if (replayed && replayed.revokedAt === null && this.#d.grants.revoke(replayed.id)) {
+      // Within the grace window it is two refreshes in flight with one token (or a retry after
+      // a lost answer): the loser is refused and the winner's tokens stand.
+      const racing = replayed?.rotatedAt != null && this.#now() - replayed.rotatedAt < REFRESH_REUSE_GRACE_MS;
+      if (replayed && !racing && replayed.grant.revokedAt === null && this.#d.grants.revoke(replayed.grant.id)) {
         // OAuth 2.1 §4.3.1: a rotated-away refresh token came back. One of the two holders is
         // not the client; there is no telling which, so neither keeps the grant.
-        this.#d.audit.record(null, "oauth.grant.revoked", replayed.id, { new: { reason: "refresh token replayed", client: replayed.clientId } });
+        this.#d.audit.record(null, "oauth.grant.revoked", replayed.grant.id, { new: { reason: "refresh token replayed", client: replayed.grant.clientId } });
       }
       throw new OAuthError("invalid_grant", "the refresh token is not valid");
     }

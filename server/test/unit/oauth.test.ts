@@ -18,7 +18,7 @@ import { Tools } from "../../src/mcp/tools.ts";
 import {
   checkClientIdUrl, ClientMetadataError, ClientMetadataStore, fetchDocument, isPublicAddress, parseDocument, redirectAllowed, type Fetched,
 } from "../../src/oauth/client-metadata.ts";
-import { ACCESS_TTL_MS, OAuthServer, REFRESH_IDLE_MS } from "../../src/oauth/server.ts";
+import { ACCESS_TTL_MS, OAuthServer, REFRESH_IDLE_MS, REFRESH_REUSE_GRACE_MS } from "../../src/oauth/server.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
@@ -261,10 +261,27 @@ describe("tokens", () => {
     expect(await s.oauth.verify(first.access_token)).toBeNull();
     expect(await s.oauth.verify(second.access_token)).not.toBeNull();
 
+    s.clock.t += REFRESH_REUSE_GRACE_MS;
     expect(() => s.refresh(first.refresh_token)).toThrow("not valid");
     expect(await s.oauth.verify(second.access_token)).toBeNull();
     expect(() => s.refresh(second.refresh_token)).toThrow("not valid");
     expect(s.actions().filter((a) => a === "oauth.grant.revoked")).toHaveLength(1);
+  });
+
+  test("a rotated-away refresh token back within the grace window is refused, not revoked", async () => {
+    const s = await setup();
+    const first = s.exchange(await s.code());
+    const second = s.refresh(first.refresh_token);
+    s.clock.t += REFRESH_REUSE_GRACE_MS - 1;
+    expect(() => s.refresh(first.refresh_token)).toThrow("not valid");
+    expect(await s.oauth.verify(second.access_token)).not.toBeNull();
+    expect(s.actions()).not.toContain("oauth.grant.revoked");
+
+    // The winner carries on, and its rotation opens a new window for its own token only.
+    const third = s.refresh(second.refresh_token);
+    expect(await s.oauth.verify(third.access_token)).not.toBeNull();
+    expect(() => s.refresh(first.refresh_token)).toThrow("not valid");
+    expect(await s.oauth.verify(third.access_token)).not.toBeNull();
   });
 
   test("refresh cannot widen, cannot outlive 30 idle days, and follows the account", async () => {
