@@ -55,6 +55,8 @@ describe('NewPreview', () => {
     const r = await open();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     expect(r.allByTestId('starter-bun')).toHaveLength(1);
+    // Every card carries its runtime's mark, so they can be told apart at a glance.
+    for (const id of ['static', 'bun', 'node']) expect(r.byTestId(`starter-${id}`)!.querySelector('svg path')!.getAttribute('d')!.length).toBeGreaterThan(20);
     r.byTestId('starter-bun')!.click();
     await r.settle();
 
@@ -80,9 +82,7 @@ describe('NewPreview', () => {
     expect(r.text('detected')).toBe('Looks like: Node.js');
     expect((r.byTestId('name') as HTMLInputElement).value).toBe('api');
 
-    const select = r.byTestId('runtime-select') as HTMLSelectElement;
-    select.value = 'own';
-    select.dispatchEvent(new Event('change'));
+    r.byTestId('choice-own')!.click();
     const ttl = r.byTestId('ttl') as HTMLInputElement;
     ttl.value = '2h';
     ttl.dispatchEvent(new Event('input'));
@@ -149,9 +149,7 @@ describe('NewPreview', () => {
     await r.settle();
 
     // Choosing a runtime plans again; an error there disables Deploy.
-    const select = r.byTestId('runtime-select') as HTMLSelectElement;
-    select.value = 'bun';
-    select.dispatchEvent(new Event('change'));
+    r.byTestId('choice-bun')!.click();
     await r.settle();
     const again = r.http.expectOne('/v1/runtimes/plan');
     expect(again.request.body.runtime).toBe('bun');
