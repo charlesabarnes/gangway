@@ -8,7 +8,17 @@ export type DockerInfo = {
   Architecture?: string | undefined;
   NCPU?: number | undefined;
   MemTotal?: number | undefined;
+  // Podman's Docker-compatible /info adds this; Docker never sends it.
+  BuildahVersion?: string | undefined;
 };
+
+export type DaemonEngine = "docker" | "podman";
+
+export function daemonEngine(info: DockerInfo): DaemonEngine {
+  return typeof info.BuildahVersion === "string" && info.BuildahVersion !== ""
+    ? "podman"
+    : "docker";
+}
 
 export type GuardReason = "docker-desktop" | "name-mismatch";
 
@@ -25,12 +35,13 @@ export class DockerGuardError extends AppError {
 export type GuardOk = { ok: true; name: string | null };
 export type GuardResult = GuardOk | { ok: false; error: DockerGuardError };
 
-export const ALLOW_LOCAL_ENV = "GANGWAY_ALLOW_LOCAL_DOCKER";
+// Off by default: Docker Desktop is a fine daemon. A machine that must never run containers opts in.
+export const REFUSE_DESKTOP_ENV = "GANGWAY_REFUSE_DOCKER_DESKTOP";
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-export function localDockerAllowed(env: Env = process.env): boolean {
-  return env[ALLOW_LOCAL_ENV] === "1";
+export function desktopRefused(env: Env = process.env): boolean {
+  return env[REFUSE_DESKTOP_ENV] === "1";
 }
 
 // Also match Name, so a reworded OperatingSystem cannot disarm the guard.
@@ -46,20 +57,21 @@ export function checkDaemon(
   env: Env = process.env,
 ): GuardResult {
   const name = info.Name ?? null;
+  const expected = expectName !== undefined && expectName !== null && expectName !== "";
 
-  if (looksLikeDockerDesktop(info) && !localDockerAllowed(env)) {
+  if (desktopRefused(env) && looksLikeDockerDesktop(info)) {
     return {
       ok: false,
       error: new DockerGuardError(
         "docker-desktop",
         `refusing to use a Docker Desktop daemon (OperatingSystem=${JSON.stringify(info.OperatingSystem ?? null)}, Name=${JSON.stringify(name)}). ` +
-          `DOCKER_HOST is probably unset or beaten by DOCKER_CONTEXT. Set ${ALLOW_LOCAL_ENV}=1 if this is really what you want.`,
+          `${REFUSE_DESKTOP_ENV}=1 is set on this machine; point DOCKER_HOST at a remote daemon or unset it.`,
         { operatingSystem: info.OperatingSystem ?? null, name, expectName: expectName ?? null },
       ),
     };
   }
 
-  if (expectName !== undefined && expectName !== null && expectName !== "" && name !== expectName) {
+  if (expected && name !== expectName) {
     return {
       ok: false,
       error: new DockerGuardError(
@@ -106,7 +118,7 @@ export function describeDaemon(info: DockerInfo): string {
   const bits = [
     info.Name ?? "?",
     info.OperatingSystem ?? "?",
-    info.ServerVersion ? `docker ${info.ServerVersion}` : null,
+    info.ServerVersion ? `${daemonEngine(info)} ${info.ServerVersion}` : null,
     info.Architecture ?? null,
   ].filter((b): b is string => b !== null);
   return bits.join(" / ");

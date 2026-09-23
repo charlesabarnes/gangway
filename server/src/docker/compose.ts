@@ -1,3 +1,4 @@
+import type { DaemonEngine } from "./guard.ts";
 import { badRequest } from "../errors.ts";
 
 const DEFAULT_DOCKER_BIN = "docker";
@@ -148,6 +149,11 @@ export function composeEnv(
   return env;
 }
 
+// Podman serves the classic /build API but not BuildKit sessions, so compose must not try BuildKit or bake.
+export function engineEnv(engine: DaemonEngine): Record<string, string> {
+  return engine === "podman" ? { DOCKER_BUILDKIT: "0", COMPOSE_BAKE: "false" } : {};
+}
+
 export type ComposeEvent =
   | { type: "line"; stream: "stdout" | "stderr"; line: string }
   | { type: "exit"; code: number; signal: string | null };
@@ -157,7 +163,8 @@ export type ComposeRunOptions = {
   cwd?: string | undefined;
   env?: Record<string, string> | undefined;
   signal?: AbortSignal | undefined;
-  preflight?: (() => Promise<void>) | undefined;
+  // May return env the daemon needs, e.g. the classic builder for Podman. Explicit env wins.
+  preflight?: (() => Promise<Record<string, string> | void>) | undefined;
   baseEnv?: Readonly<Record<string, string | undefined>> | undefined;
 };
 
@@ -250,10 +257,13 @@ export async function* runCompose(
   opts: ComposeRunOptions,
   spawner: Spawner = bunSpawner,
 ): AsyncGenerator<ComposeEvent> {
-  await opts.preflight?.();
+  const daemonEnv = (await opts.preflight?.()) ?? {};
   opts.signal?.throwIfAborted();
 
-  const env = opts.env ?? composeEnv({ dockerHost: opts.dockerHost }, opts.baseEnv ?? process.env);
+  const env = {
+    ...daemonEnv,
+    ...(opts.env ?? composeEnv({ dockerHost: opts.dockerHost }, opts.baseEnv ?? process.env)),
+  };
   const proc = spawner(argv, { ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }), env });
 
   const abort = () => proc.kill();

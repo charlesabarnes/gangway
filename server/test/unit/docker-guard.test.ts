@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
-  ALLOW_LOCAL_ENV,
+  REFUSE_DESKTOP_ENV,
   DockerGuardError,
   assertHostDaemon,
   assertRemoteDaemon,
   checkDaemon,
+  daemonEngine,
   describeDaemon,
-  localDockerAllowed,
+  desktopRefused,
   looksLikeDockerDesktop,
   type DockerInfo,
 } from "../../src/docker/guard.ts";
@@ -43,8 +44,16 @@ const OTHER_LINUX: DockerInfo = {
   ServerVersion: "27.3.1",
 };
 
+const PODMAN: DockerInfo = {
+  Name: "podman-host",
+  OperatingSystem: "fedora",
+  OSType: "linux",
+  ServerVersion: "5.2.2",
+  BuildahVersion: "1.37.2",
+};
+
 const EMPTY: Record<string, string | undefined> = {};
-const ALLOWED: Record<string, string | undefined> = { [ALLOW_LOCAL_ENV]: "1" };
+const REFUSING: Record<string, string | undefined> = { [REFUSE_DESKTOP_ENV]: "1" };
 
 describe("Docker Desktop detection", () => {
   test.each([
@@ -79,60 +88,48 @@ describe("Docker Desktop detection", () => {
   });
 });
 
-describe("refusing Docker Desktop", () => {
-  test("assertRemoteDaemon throws on Desktop", () => {
-    expect(() => assertRemoteDaemon(DESKTOP_MAC, null, EMPTY)).toThrow(DockerGuardError);
-  });
-
-  test("the error says which daemon answered, so the cause is readable", () => {
-    let err: unknown;
-    try {
-      assertRemoteDaemon(DESKTOP_MAC, null, EMPTY);
-    } catch (e) {
-      err = e;
-    }
-    expect(err).toBeInstanceOf(DockerGuardError);
-    const g = err as DockerGuardError;
-    expect(g.reason).toBe("docker-desktop");
-    expect(g.message).toContain("Docker Desktop");
-    expect(g.message).toContain("DOCKER_CONTEXT");
-    expect(g.detail?.["name"]).toBe("docker-desktop");
-  });
-
-  test("a remote daemon passes with no expectName", () => {
-    expect(assertRemoteDaemon(REMOTE_HOST, null, EMPTY)).toEqual({ ok: true, name: "docker-host" });
-    expect(assertRemoteDaemon(OTHER_LINUX, undefined, EMPTY)).toEqual({
-      ok: true,
-      name: "preview-host-2",
-    });
-  });
-
-  test("an info payload with nothing in it is allowed through the Desktop check", () => {
-    // We cannot prove a daemon is remote; we can only refuse the ones we recognise.
-    expect(checkDaemon({}, null, EMPTY).ok).toBe(true);
-  });
-});
-
-describe("the escape hatch", () => {
-  test("GANGWAY_ALLOW_LOCAL_DOCKER=1 permits Desktop", () => {
-    expect(assertRemoteDaemon(DESKTOP_MAC, null, ALLOWED)).toEqual({
+describe("Docker Desktop by default", () => {
+  test("is an ordinary daemon", () => {
+    expect(assertRemoteDaemon(DESKTOP_MAC, null, EMPTY)).toEqual({
       ok: true,
       name: "docker-desktop",
     });
   });
 
-  test("only the literal 1 opens it", () => {
-    for (const v of ["true", "yes", "0", "", "01", " 1"]) {
-      expect(localDockerAllowed({ [ALLOW_LOCAL_ENV]: v })).toBe(false);
-      expect(() => assertRemoteDaemon(DESKTOP_MAC, null, { [ALLOW_LOCAL_ENV]: v })).toThrow(
-        DockerGuardError,
-      );
-    }
-    expect(localDockerAllowed({ [ALLOW_LOCAL_ENV]: "1" })).toBe(true);
+  test("still has to match a set expectName", () => {
+    expect(() => assertRemoteDaemon(DESKTOP_MAC, "docker-host", EMPTY)).toThrow(/wrong daemon/);
+  });
+});
+
+describe(`${REFUSE_DESKTOP_ENV}=1`, () => {
+  test("refuses Desktop and says why", () => {
+    const r = checkDaemon(DESKTOP_MAC, null, REFUSING);
+    if (r.ok) throw new Error("unreachable");
+    expect(r.error.reason).toBe("docker-desktop");
+    expect(r.error.message).toContain("Docker Desktop");
+    expect(r.error.message).toContain(REFUSE_DESKTOP_ENV);
+    expect(r.error.detail?.["name"]).toBe("docker-desktop");
   });
 
-  test("it does not open the name check; a wrong remote is never benign", () => {
-    expect(() => assertRemoteDaemon(DESKTOP_MAC, "docker-host", ALLOWED)).toThrow(/wrong daemon/);
+  test("refuses Desktop even when expectName names it", () => {
+    expect(() => assertRemoteDaemon(DESKTOP_MAC, "docker-desktop", REFUSING)).toThrow(
+      DockerGuardError,
+    );
+  });
+
+  test("lets remote daemons through", () => {
+    expect(assertRemoteDaemon(REMOTE_HOST, null, REFUSING)).toEqual({
+      ok: true,
+      name: "docker-host",
+    });
+    expect(checkDaemon({}, null, REFUSING).ok).toBe(true);
+  });
+
+  test("only the literal 1 turns it on", () => {
+    for (const v of ["true", "yes", "0", "", "01", " 1"]) {
+      expect(desktopRefused({ [REFUSE_DESKTOP_ENV]: v })).toBe(false);
+    }
+    expect(desktopRefused(REFUSING)).toBe(true);
   });
 });
 
@@ -177,15 +174,15 @@ describe("expectName", () => {
 
 // DOCKER_HOST names docker-host, but DOCKER_CONTEXT=desktop-linux quietly wins.
 describe("the actual accident", () => {
-  test("DOCKER_CONTEXT beating DOCKER_HOST is caught by both checks", () => {
+  test("expectName catches it with no env set", () => {
     const host = { id: "docker-host", expectName: "docker-host" };
-    expect(() => assertHostDaemon(host, DESKTOP_MAC, EMPTY)).toThrow(DockerGuardError);
+    expect(() => assertHostDaemon(host, DESKTOP_MAC, EMPTY)).toThrow(/wrong daemon/);
   });
 
-  test("the desktop reason is reported first, because that is the headline", () => {
+  test("with the env set, the desktop reason is reported first", () => {
     let err: DockerGuardError | undefined;
     try {
-      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, DESKTOP_MAC, EMPTY);
+      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, DESKTOP_MAC, REFUSING);
     } catch (e) {
       err = e as DockerGuardError;
     }
@@ -195,7 +192,7 @@ describe("the actual accident", () => {
   });
 
   test("guard errors carry an HTTP status, so they surface as problem+json", () => {
-    const r = checkDaemon(DESKTOP_MAC, null, EMPTY);
+    const r = checkDaemon(DESKTOP_MAC, null, REFUSING);
     if (r.ok) throw new Error("unreachable");
     expect(r.error.status).toBe(503);
     expect(r.error.toProblem()["detail"]).toContain("Docker Desktop");
@@ -203,8 +200,23 @@ describe("the actual accident", () => {
 
   test("a correctly configured docker-host host passes cleanly", () => {
     expect(
-      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, REMOTE_HOST, EMPTY),
+      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, REMOTE_HOST, REFUSING),
     ).toEqual({ ok: true, name: "docker-host" });
+  });
+});
+
+describe("daemonEngine", () => {
+  test("BuildahVersion means Podman", () => {
+    expect(daemonEngine(PODMAN)).toBe("podman");
+  });
+
+  test.each([
+    ["Docker Engine", REMOTE_HOST],
+    ["Docker Desktop", DESKTOP_MAC],
+    ["an empty BuildahVersion", { ...PODMAN, BuildahVersion: "" }],
+    ["an empty payload", {}],
+  ])("%s is docker", (_what, info) => {
+    expect(daemonEngine(info)).toBe("docker");
   });
 });
 
@@ -213,6 +225,10 @@ describe("describeDaemon", () => {
     expect(describeDaemon(REMOTE_HOST)).toBe(
       "docker-host / Debian GNU/Linux 12 (bookworm) / docker 27.3.1 / x86_64",
     );
+  });
+
+  test("names Podman", () => {
+    expect(describeDaemon(PODMAN)).toBe("podman-host / fedora / podman 5.2.2");
   });
 
   test("survives an empty payload", () => {

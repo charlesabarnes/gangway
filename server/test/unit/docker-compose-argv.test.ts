@@ -7,6 +7,7 @@ import {
   composeCapture,
   composeEnv,
   downArgv,
+  engineEnv,
   parseComposePs,
   psArgv,
   runArgv,
@@ -415,6 +416,26 @@ describe("runCompose", () => {
     );
     await expect(run.next()).rejects.toThrow(/Docker Desktop/);
     expect(spawned).toBe(false);
+  });
+
+  test("env returned by preflight reaches the child, under the guarded environment", async () => {
+    let captured: Record<string, string> = {};
+    const spawner = fakeSpawner({
+      onSpawn: (_argv, env) => {
+        captured = env;
+      },
+    });
+    await composeCapture(
+      upArgv(base),
+      {
+        dockerHost: "ssh://root@docker-host",
+        preflight: async () => ({ ...engineEnv("podman"), DOCKER_HOST: "unix:///elsewhere" }),
+      },
+      spawner,
+    );
+    expect(captured["DOCKER_BUILDKIT"]).toBe("0");
+    expect(captured["COMPOSE_BAKE"]).toBe("false");
+    expect(captured["DOCKER_HOST"]).toBe("ssh://root@docker-host");
   });
 
   test("composeCapture buffers for value-shaped output", async () => {

@@ -126,7 +126,7 @@ describe("rule 2: an unreachable host is not an empty host", () => {
     expect(s.previews.get(preview.id)!.state).toBe("awake");
     expect(s.hosts.get("local")).toMatchObject({
       state: "error",
-      lastError: expect.stringContaining("Docker Desktop"),
+      lastError: expect.stringContaining("wrong daemon"),
     });
   });
 });

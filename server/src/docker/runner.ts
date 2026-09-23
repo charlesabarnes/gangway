@@ -4,11 +4,12 @@ import { verifyDaemon, type DockerClients } from "./client.ts";
 import {
   composeCapture,
   composeEnv,
+  engineEnv,
   runCompose,
   type ComposeEvent,
   type ComposeResult,
 } from "./compose.ts";
-import { DockerGuardError } from "./guard.ts";
+import { DockerGuardError, daemonEngine } from "./guard.ts";
 
 export type ComposeTarget = Pick<Host, "id" | "dockerHost" | "expectName">;
 
@@ -29,8 +30,9 @@ export function createComposeRunner(
 ): ComposeRunner {
   const preflight = (host: ComposeTarget) => async () => {
     try {
-      await verifyDaemon(clients.for(host), host);
+      const { info } = await verifyDaemon(clients.for(host), host);
       onHostState?.(host.id, true, null);
+      return engineEnv(daemonEngine(info));
     } catch (e) {
       if (e instanceof DockerGuardError) throw e;
       const message = errorMessage(e);
