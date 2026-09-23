@@ -35,10 +35,10 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     let req: Omit<DeployInput, "actor">;
     if (isTarball(contentType)) {
       // The body is the archive, streamed straight into the extractor -- never buffered.
-      const { ttl, project, runtime, port, ...q } = TarballDeployQuerySchema.parse(c.req.query());
+      const { ttl, project, runtime, port, addons, ...q } = TarballDeployQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
       if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      req = { ...q, ...(project ? { projectId: project } : {}), ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port, runtime, digest: `len:${c.req.header("content-length") ?? "?"}` } };
+      req = { ...q, ...(project ? { projectId: project } : {}), ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port, runtime, addons, digest: `len:${c.req.header("content-length") ?? "?"}` } };
     } else {
       const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
       const { project, ...parsed } = DeployRequestSchema.parse(body);
@@ -102,13 +102,13 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
   api.get("/previews/:id/plan", requirePermission("previews.read"), async (c) => {
     const p = find(c.req.param("id"));
     if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) throw notFound("this preview keeps no source: only uploaded previews do");
-    return c.json(await planFromDisk(ctx.sources.dirFor(p.id), "auto", p.source.runtime ?? "own"));
+    return c.json(await planFromDisk(ctx.sources.dirFor(p.id), "auto", { previous: p.source.runtime ?? "own", previousAddons: p.source.addons }));
   });
 
   /** Rebuild in place from edits (JSON) or a whole new upload (tar.gz body). Same URL, same preview. */
-  const rebuild = async (c: Context<AppEnv, "/previews/:id">, change: RedeployInput["change"], runtime: RedeployInput["runtime"]) => {
+  const rebuild = async (c: Context<AppEnv, "/previews/:id">, change: RedeployInput["change"], runtime: RedeployInput["runtime"], addons?: RedeployInput["addons"]) => {
     const p = find(c.req.param("id"));
-    const res = await redeploy(ctx, { actor: c.get("actor"), previewId: p.id, change, runtime });
+    const res = await redeploy(ctx, { actor: c.get("actor"), previewId: p.id, change, runtime, addons });
     if (c.req.query("wait") === "true") {
       const o = await res.done;
       return c.json({ preview: wire(o.preview), buildId: o.buildId, outcome: o.outcome, ...(o.error ? { error: o.error } : {}) }, o.outcome === "succeeded" ? 200 : 502);
@@ -118,17 +118,17 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
 
   api.patch("/previews/:id/source", requirePermission("previews.update"), async (c) => {
     const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
-    const { files, runtime } = SourceEditSchema.parse(body);
-    return rebuild(c, { kind: "edit", files }, runtime);
+    const { files, runtime, addons } = SourceEditSchema.parse(body);
+    return rebuild(c, { kind: "edit", files }, runtime, addons);
   });
 
   api.put("/previews/:id/source", requirePermission("previews.update"), async (c) => {
     const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
     if (!isTarball(contentType)) throw badRequest(`send the new source as a tar or tar.gz body (${TARBALL_CONTENT_TYPES.join(", ")})`);
-    const { runtime } = SourceReplaceQuerySchema.parse(c.req.query());
+    const { runtime, addons } = SourceReplaceQuerySchema.parse(c.req.query());
     const archive = c.req.raw.body;
     if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-    return rebuild(c, { kind: "replace", archive }, runtime);
+    return rebuild(c, { kind: "replace", archive }, runtime, addons);
   });
 
   api.get("/previews/:id/logs", requirePermission("logs.read"), (c) => {

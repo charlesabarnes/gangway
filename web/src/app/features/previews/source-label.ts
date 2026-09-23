@@ -6,7 +6,11 @@ export function sourceLabel(s: PreviewSource): string {
     case 'pr': return `${s.repo}#${s.number}`;
     case 'git': return `${s.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '')}@${s.ref}`;
     case 'image': return s.image;
-    case 'tarball': return s.runtime ? `uploaded files · ${s.runtime}` : 'uploaded archive';
+    case 'tarball': {
+      const base = s.runtime ? `uploaded files · ${s.runtime}` : 'uploaded archive';
+      // ADR-0017: the throwaway databases beside it.
+      return s.addons?.length ? `${base} + ${s.addons.map((a) => `${a.id} ${a.version}`).join(', ')}` : base;
+    }
     case 'agent': return 'agent';
     case 'manual': return 'manual';
   }

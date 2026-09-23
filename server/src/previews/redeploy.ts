@@ -23,10 +23,12 @@ import { buildArgv, composeArgv, psArgv, runArgv, upArgv } from "../docker/compo
 import { AppError, conflict, notFound } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { ulid } from "../util/ulid.ts";
+import { addonServices } from "./addons.ts";
 import { buildStack, selectExposed, type PlannedRoute } from "./compose-model.ts";
 import type { PreviewContext } from "./context.ts";
 import { healthOf, PLAN_PROJECT, prepareUpload, readModel, releaseFor, salvage, STACK_FILE, StepFailed, stepper, waitAnswering, waitHealthy, type WaitTarget } from "./deploy.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
+import type { AddonRequest } from "../../../shared/src/app-plan.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import { DIR_MODE, FILE_MODE, resolveWithin } from "./source/types.ts";
@@ -40,6 +42,8 @@ export type RedeployInput = {
   change: { kind: "replace"; archive: TarballSource } | { kind: "edit"; files: SourceEdits };
   /** Omitted: the runtime the preview was built with. */
   runtime?: RuntimeChoice | undefined;
+  /** ADR-0017. Omitted: gangway.yml's, else the ones it has. `[]` removes them (their data stays until destroy). */
+  addons?: readonly AddonRequest[] | undefined;
 };
 
 export type RedeployOutcome = { preview: Preview; buildId: string; outcome: "succeeded" | "failed"; error?: string };
@@ -117,7 +121,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const wd = await ctx.workdirs.create(buildId).catch((e) => { ctx.inflight.delete(id); throw e; });
   const source = preview.source as Extract<PreviewSource, { kind: "tarball" }>;
   const routes = routesOf(ctx, id);
-  let plan: { resolved: unknown; model: Awaited<ReturnType<typeof readModel>>["model"]; runtime: PreviewSource };
+  let plan: { resolved: unknown; model: Awaited<ReturnType<typeof readModel>>["model"]; runtime: PreviewSource; addonServices: string[] };
   try {
     if (routes.length === 0) throw conflict("the preview has no routes to rebuild behind");
     if (input.change.kind === "replace") {
@@ -134,7 +138,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     // The port the preview already routes to: an own Dockerfile needs it, and a runtime
     // listens on it, so switching runtimes keeps the preview.
     const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
-    const up = await prepareUpload(ctx, id, wd, choice, env, port, source.runtime ?? "own");
+    const up = await prepareUpload(ctx, id, wd, choice, env, port, { previous: source.runtime ?? "own", addons: input.addons, previousAddons: source.addons });
     const { model, resolved } = await readModel(ctx, host, wd, up.composeFile);
 
     // The same services on the same ports, or it is a new preview: its routes, hostnames
@@ -149,9 +153,9 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
 
     // Accepted: this is the source now, whether or not it builds (ADR-0015).
     if (up.pristine) await ctx.sources.adopt(id, up.pristine);
-    const next: PreviewSource = { kind: "tarball", uploadId: source.uploadId, ...(up.runtime ? { runtime: up.runtime } : {}) };
-    if (next.runtime !== source.runtime) ctx.previews.setSource(id, next);
-    plan = { resolved, model, runtime: next };
+    const next: PreviewSource = { kind: "tarball", uploadId: source.uploadId, ...(up.runtime ? { runtime: up.runtime } : {}), ...(up.plan.addons.length ? { addons: up.plan.addons } : {}) };
+    if (JSON.stringify(next) !== JSON.stringify(source)) ctx.previews.setSource(id, next);
+    plan = { resolved, model, runtime: next, addonServices: addonServices(up.plan.addons) };
   } catch (e) {
     await wd.cleanup();
     ctx.inflight.delete(id);
@@ -175,6 +179,8 @@ type RunInput = {
   preview: Preview; host: Host; wd: Awaited<ReturnType<PreviewContext["workdirs"]["create"]>>;
   routes: PlannedRoute[]; buildId: string; signal: AbortSignal;
   resolved: unknown; model: Awaited<ReturnType<typeof readModel>>["model"];
+  /** ADR-0017: started (or left running) and healthy BEFORE the release, while the old app still serves. */
+  addonServices: string[];
 };
 
 async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
@@ -211,6 +217,13 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
         ctx.builds?.finish(buildId, r.signal.aborted ? "cancelled" : "failed", e instanceof StepFailed ? e.exitCode : null);
         throw e;
       }
+    }
+
+    // ADR-0017: the add-ons first, alone. Running ones are left as they are (same config,
+    // no recreate); a new one starts on its volume. The app is not touched yet.
+    if (r.addonServices.length > 0) {
+      await step("up (add-ons)", upArgv(base, ["--no-build", "--no-deps", ...r.addonServices]), "stdout");
+      await waitHealthy(ctx, { previewId: id, host, routes: [], signal: r.signal, ps: psArgv(base, ["--all", ...r.addonServices]), cwd: wd.srcDir });
     }
 
     // ADR-0016: the release runs against the NEW image while the old version still serves.

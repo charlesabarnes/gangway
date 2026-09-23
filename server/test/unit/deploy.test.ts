@@ -251,7 +251,8 @@ describe("deploy: run failures leave a `failed` preview that explains itself", (
     expect(s.calls.map((c) => c.cmd)).toEqual(["config", "up", "logs", "down"]);
     const down = s.calls.at(-1)!;
     expect(down.argv).not.toContain("--file");
-    expect(down.argv.slice(-5)).toEqual(["down", "-v", "--remove-orphans", "--rmi", "local"]);
+    // ADR-0017: a failed stack's containers go; its volumes (an add-on's data) stay until destroy.
+    expect(down.argv.slice(-4)).toEqual(["down", "--remove-orphans", "--rmi", "local"]);
     const tail = s.logs.tail(res.preview.id).join("\n");
     expect(tail).toContain("port is already allocated");
     expect(tail).toContain("EADDRINUSE");
@@ -281,8 +282,13 @@ describe("destroy", () => {
     const gone = await destroy(s.ctx, res.preview.id, ACTOR);
     expect(gone.state).toBe("destroyed");
     expect(gone.destroyedAt).not.toBeNull();
-    const down = s.calls.at(-1)!;
+    const down = s.calls.find((c) => c.argv.includes("down"))!;
     expect(down.argv).toEqual(["docker", "compose", "--project-name", "gw-default-web-app", "down", "-v", "--remove-orphans", "--rmi", "local"]);
+    // ADR-0017: then anything still labelled with the project, which a kept volume would be.
+    expect(s.calls.slice(-2).map((c) => c.argv)).toEqual([
+      ["docker", "volume", "ls", "--quiet", "--filter", "label=com.docker.compose.project=gw-default-web-app"],
+      ["docker", "image", "ls", "--quiet", "--filter", "dangling=true", "--filter", "label=com.docker.compose.project=gw-default-web-app"],
+    ]);
     expect(down.cwd).toContain("gangway-down-");
     expect(existsSync(down.cwd)).toBe(false);
     expect(s.table.size).toBe(0);

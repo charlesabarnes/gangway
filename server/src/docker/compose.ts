@@ -96,6 +96,9 @@ export const upArgv = (base: Base, args: string[] = []): string[] =>
 /** §7.1: teardown is `down -v`. Orphans are removed because a renamed service otherwise
  *  leaves a container holding its published port forever. */
 /**
+ * `volumes: false` (ADR-0017) keeps named volumes: a failed rebuild, or a rescue of an
+ * interrupted one, must not take an add-on's database with it. Only a DESTROY removes them.
+ *
  * `--rmi local` removes the images compose BUILT for the project and nothing else. `all`
  * is for a preview whose image was pushed for it alone, one tag per commit (ADR-0014):
  * pulled, so `local` would leave one image on the host for every push.
@@ -103,8 +106,8 @@ export const upArgv = (base: Base, args: string[] = []): string[] =>
  * `traefik/whoami:v1.10` -- which the operator's own containers may share -- stays.
  * Without it every build leaves an image on the host forever.
  */
-export const downArgv = (base: Base, args: string[] = [], rmi: "local" | "all" = "local"): string[] =>
-  composeArgv({ ...base, command: "down", args: ["-v", "--remove-orphans", "--rmi", rmi, ...args] });
+export const downArgv = (base: Base, args: string[] = [], rmi: "local" | "all" = "local", o: { volumes?: boolean } = {}): string[] =>
+  composeArgv({ ...base, command: "down", args: [...(o.volumes === false ? [] : ["-v"]), "--remove-orphans", "--rmi", rmi, ...args] });
 
 /** §5 step 4 streams build progress to SSE; `plain` is the only parseable progress mode. */
 export const buildArgv = (base: Base, services: string[] = [], args: string[] = []): string[] =>

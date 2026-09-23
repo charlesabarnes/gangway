@@ -20,6 +20,10 @@ const RUNTIMES: RuntimeList = {
   ],
   detection: [{ runtime: 'own', markers: ['Dockerfile'] }, { runtime: 'node', markers: ['package.json'] }, { runtime: 'bun', markers: ['index.ts'] }],
   planFiles: ['gangway.yml', 'package.json', 'Procfile'],
+  addons: [
+    { id: 'postgres', name: 'PostgreSQL', description: 'pg', versions: ['16', '17', '18'], defaultVersion: '18', env: ['DATABASE_URL'] },
+    { id: 'redis', name: 'Redis', description: 'redis', versions: ['8'], defaultVersion: '8', env: ['REDIS_URL'] },
+  ],
 };
 
 async function open(permissions: Permission[] = ['previews.read', 'previews.deploy']) {
@@ -159,5 +163,41 @@ describe('NewPreview', () => {
     // "Looks like" is still what auto found.
     expect(r.text('detected')).toBe('Looks like: Node.js');
     r.http.verify();
+  });
+
+  it('add-ons: suggestions arrive ticked and ride the query; unticking everything sends none; a starter takes them too', async () => {
+    const r = await open();
+    await r.fixture.componentInstance.accept(finish([{ path: 'package.json', data: strToU8('{"dependencies":{"pg":"8"}}') }, { path: 'server.js', data: strToU8('x') }]));
+    await r.settle();
+    r.http.expectOne('/v1/runtimes/plan').flush({ ...(contract.appPlan as AppPlan), suggested: [{ id: 'postgres', because: 'pg' }] });
+    await r.settle();
+    expect((r.byTestId('addon-postgres') as HTMLInputElement).checked).toBe(true);
+    expect((r.byTestId('addon-redis') as HTMLInputElement).checked).toBe(false);
+    expect(r.text('suggested-postgres')).toBe('uses pg');
+
+    r.byTestId('deploy')!.click();
+    await r.settle();
+    const first = r.http.expectOne((q) => q.url.startsWith('/v1/previews'));
+    expect(first.request.urlWithParams).toBe('/v1/previews?runtime=auto&addons=postgres');
+    first.flush({ title: 'x' }, { status: 500, statusText: 'x' });
+    await r.settle();
+
+    // Touching them re-plans with the choice, and an empty choice is said out loud.
+    (r.byTestId('addon-postgres') as HTMLInputElement).click();
+    await r.settle();
+    expect(r.http.expectOne('/v1/runtimes/plan').request.body.addons).toEqual([]);
+    r.byTestId('deploy')!.click();
+    await r.settle();
+    const second = r.http.expectOne((q) => q.url.startsWith('/v1/previews'));
+    expect(second.request.urlWithParams).toBe('/v1/previews?runtime=auto&addons=none');
+    second.flush({ title: 'x' }, { status: 500, statusText: 'x' });
+    await r.settle();
+
+    (r.byTestId('addon-redis') as HTMLInputElement).click();
+    await r.settle();
+    r.http.expectOne('/v1/runtimes/plan').flush(contract.appPlan);
+    r.byTestId('starter-bun')!.click();
+    await r.settle();
+    expect(r.http.expectOne((q) => q.url.startsWith('/v1/previews')).request.urlWithParams).toBe('/v1/previews?runtime=bun&addons=redis');
   });
 });

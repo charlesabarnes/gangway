@@ -108,6 +108,18 @@ describe("Waker", () => {
     expect(s.fake.starts).toHaveLength(1);
   });
 
+  test("a wake is IN FLIGHT while it runs, so the reconciler leaves its `starting` alone (found live with a slow Postgres add-on)", async () => {
+    const s = setupPreviewContext();
+    const p = await s.deployed("slow");
+    await sleepPreview(s.ctx, p.id, "idle");
+    let during = false as boolean;
+    const probe = s.ctx.probe;
+    s.ctx.probe = async (r, h, path) => { during = s.ctx.inflight.has(p.id); return probe(r, h, path); };
+    await new Waker(s.ctx, quiet).wake(p.id);
+    expect(during).toBe(true);
+    expect(s.ctx.inflight.has(p.id)).toBe(false);
+  });
+
   test("concurrent requests share ONE wake", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("crowd");

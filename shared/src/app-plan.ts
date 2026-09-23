@@ -10,6 +10,7 @@
  * (server/src/previews/runtimes.ts); nothing here touches a disk or a process.
  */
 import { GANGWAY_FILES, isRelPath, parseGangwayFile, type Command, type FileIssue, type GangwayFile } from "./gangway-file.ts";
+import { ADDONS, addonById, isSql, type AddonChoice, type AddonId } from "./addons.ts";
 import { DETECTION, detectRuntime, runtimeById, type Detected, type Runtime, type RuntimeId } from "./runtimes.ts";
 
 /** Files whose CONTENTS the plan reads, at the app root (or one directory down, for a nested app). */
@@ -35,7 +36,13 @@ export type PlanInput = {
    * saying what it wants.
    */
   previous?: Detected | undefined;
+  /** Add-ons asked for with the request (ADR-0017); given -- even empty -- it beats gangway.yml. */
+  addons?: readonly AddonRequest[] | undefined;
+  /** A rebuild's add-ons, kept unless the request or gangway.yml says otherwise. A major is never changed in place. */
+  previousAddons?: readonly AddonChoice[] | undefined;
 };
+
+export type AddonRequest = AddonId | { id: AddonId; version?: string | undefined };
 
 /** One line of "what was found, so what will happen". `error` means the plan cannot run. */
 export type Reason = { level: "info" | "warn" | "error"; found: string; then: string };
@@ -71,6 +78,12 @@ export type AppPlan = {
   stack: { ttl?: string; visibility?: "public" | "unlisted" | "private"; idle?: string; seed?: string };
   /** Which gangway.yml was read, if any. */
   configFile: string | null;
+  /** Throwaway databases beside the app (ADR-0017). */
+  addons: AddonChoice[];
+  /** Add-ons the dependencies point at, not chosen. The New screen pre-ticks them; the server never adds one. */
+  suggested: { id: AddonId; because: string }[];
+  /** A SQL file the first SQL add-on loads on its first start, relative to root. */
+  sqlSeed: string | null;
   reasons: Reason[];
   /** gangway.yml problems, by key path. Non-empty means the plan cannot run. */
   issues: FileIssue[];
@@ -167,6 +180,7 @@ export function planApp(input: PlanInput): AppPlan {
   const plan: AppPlan = {
     kind: "runtime", runtime: null, version: null, image: null, root: "", install: null, build: null, start: null, release: null,
     serve: { kind: "server" }, docroot: "", entry: null, port: null, health: null, env: {}, stack: {}, configFile: null, reasons, issues: [],
+    addons: [], suggested: [], sqlSeed: null,
   };
 
   // ---- the config file: at the upload root, else (below) at a nested app's root
@@ -205,6 +219,11 @@ export function planApp(input: PlanInput): AppPlan {
       reasons.push({ level: "info", found: "a Dockerfile", then: plan.port ? `builds it and routes to port ${plan.port}` : "builds it; say which port it listens on (`port:` in gangway.yml, or ?port=)" });
     } else {
       reasons.push({ level: "error", found: "no compose file or Dockerfile at the root", then: "choose a runtime to build it with instead" });
+    }
+    if (hasCompose) {
+      if ((input.addons?.length ?? 0) > 0) reasons.push({ level: "error", found: "add-ons with a compose file", then: "declare the database as a service in the compose file instead" });
+    } else if (rootPaths.has("Dockerfile")) {
+      resolveAddons(plan, input, cfg?.file ?? null, new Set(input.paths));
     }
     return plan;
   }
@@ -403,7 +422,70 @@ export function planApp(input: PlanInput): AppPlan {
   }
 
   if (file?.port !== undefined && plan.serve.kind === "static") reasons.push({ level: "info", found: `port: ${file.port}`, then: "nginx listens there" });
+  resolveAddons(plan, input, file, have);
+  if (plan.addons.length > 0 && plan.serve.kind === "static") reasons.push({ level: "warn", found: "add-ons on a static site", then: "nothing in a static site can connect to them" });
+  suggestAddons(plan, text);
   return plan;
+}
+
+/** Request > gangway.yml > the previous build's > none. A major is never changed in place. */
+function resolveAddons(plan: AppPlan, input: PlanInput, file: GangwayFile | null, have: Set<string>): void {
+  const asked = input.addons ?? file?.addons ?? input.previousAddons;
+  const from = input.addons !== undefined ? "asked for" : file?.addons !== undefined ? "addons: in gangway.yml" : "the previous build";
+  const out: AddonChoice[] = [];
+  for (const req of asked ?? []) {
+    const id = typeof req === "string" ? req : req.id;
+    const a = addonById(id);
+    const prev = input.previousAddons?.find((p) => p.id === id);
+    const wanted = typeof req === "string" ? undefined : req.version;
+    const version = wanted ?? prev?.version ?? a.defaultVersion;
+    if (a.versions[version] === undefined) {
+      if (file?.addons !== undefined && input.addons === undefined) plan.issues.push({ path: "addons", message: `${a.name} offers ${Object.keys(a.versions).join(", ")}` });
+      else plan.reasons.push({ level: "error", found: `${a.name} ${version}`, then: `${a.name} offers ${Object.keys(a.versions).join(", ")}` });
+      continue;
+    }
+    if (prev && prev.version !== version) {
+      plan.reasons.push({ level: "error", found: `${a.name} ${prev.version} -> ${version}`, then: "a new major version needs a new preview: its data directory would not start" });
+      continue;
+    }
+    out.push({ id, version });
+    plan.reasons.push({ level: "info", found: `${a.name} ${version} (${from})`, then: `a throwaway database beside the app; ${a.env[0]} in its environment; gone when the preview is` });
+  }
+  for (const p of input.previousAddons ?? []) {
+    if (!out.some((o) => o.id === p.id) && asked !== input.previousAddons) {
+      plan.reasons.push({ level: "warn", found: `${addonById(p.id).name} removed`, then: "its container goes; its data is kept until the preview is destroyed, and comes back if you add it again" });
+    }
+  }
+  plan.addons = out;
+  const sql = out.find((a) => isSql(a.id));
+  if (sql) {
+    plan.sqlSeed = addonById(sql.id).seedFiles.find((f) => have.has(f)) ?? null;
+    if (plan.sqlSeed) plan.reasons.push({ level: "info", found: plan.sqlSeed, then: `loaded into ${addonById(sql.id).name} on its first start only; later edits do not re-run it` });
+  }
+}
+
+/** Drivers in the dependencies that point at an add-on not already chosen. */
+function suggestAddons(plan: AppPlan, text: (n: string) => string | undefined): void {
+  const npm = new Set<string>();
+  const pkgText = text("package.json");
+  if (pkgText) {
+    try {
+      const pkg = JSON.parse(pkgText) as Record<string, unknown>;
+      for (const k of ["dependencies", "devDependencies"]) for (const d of Object.keys((pkg[k] ?? {}) as object)) npm.add(d);
+    } catch { /* reported by the runtime's own read */ }
+  }
+  const pip = new Set<string>();
+  for (const line of [text("requirements.txt") ?? "", text("pyproject.toml") ?? ""].join("\n").split("\n")) {
+    const m = /^\s*"?([A-Za-z0-9_.-]+)/.exec(line);
+    if (m) pip.add(m[1]!.toLowerCase());
+  }
+  const composer = new Set<string>();
+  try { for (const d of Object.keys(((JSON.parse(text("composer.json") ?? "{}") as Record<string, unknown>)["require"] ?? {}) as object)) composer.add(d); } catch { /* ignore */ }
+  for (const a of ADDONS) {
+    if (plan.addons.some((c) => c.id === a.id)) continue;
+    const hit = a.hints.npm.find((d) => npm.has(d)) ?? a.hints.pip.find((d) => pip.has(d)) ?? a.hints.composer.find((d) => composer.has(d));
+    if (hit) plan.suggested.push({ id: a.id, because: hit });
+  }
 }
 
 function stackOf(file: GangwayFile | null | undefined): AppPlan["stack"] {

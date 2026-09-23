@@ -69,6 +69,7 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   try {
     const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }, [], rmiFor(preview)), host, { cwd: empty });
     if (res.code !== 0) throw new Error(`compose down exited ${res.code}: ${res.stderr.slice(-500)}`);
+    await removeLeftovers(ctx, preview, host, empty);
   } catch (e) {
     const message = redactString(e instanceof Error ? e.message : String(e));
     ctx.logs.append(previewId, "system", `destroy FAILED: ${message}`);
@@ -93,13 +94,42 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
 export const rmiFor = (p: Preview): "local" | "all" => (p.source.kind === "pr" && p.source.image ? "all" : "local");
 
 /**
+ * A file-less `down -v` finds volumes through the project's CONTAINERS. After a failed
+ * rebuild kept an add-on's volume and removed its containers (ADR-0017), there are none to
+ * find it by -- so anything still labelled with the project goes by name: volumes, and
+ * untagged images compose built for it. The label is compose's own, and the project name
+ * is `gw-<instance>-...`: only ever ours.
+ */
+async function removeLeftovers(ctx: PreviewContext, preview: Preview, host: Host, cwd: string): Promise<void> {
+  const docker = ctx.docker ?? "docker";
+  const label = `label=com.docker.compose.project=${preview.project}`;
+  const listed = async (argv: string[]) => {
+    const res = await ctx.compose.capture(argv, host, { cwd });
+    return res.code === 0 ? res.stdout.split("\n").map((l) => l.trim()).filter((l) => /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(l)) : [];
+  };
+  const volumes = await listed([docker, "volume", "ls", "--quiet", "--filter", label]);
+  if (volumes.length > 0) {
+    const rm = await ctx.compose.capture([docker, "volume", "rm", ...volumes], host, { cwd });
+    if (rm.code !== 0) ctx.logger.warn("could not remove a destroyed preview's volumes", { previewId: preview.id, volumes, err: rm.stderr.slice(-300) });
+  }
+  // A rebuild that failed after `up` never got to remove the image it replaced; `--rmi local`
+  // only takes TAGGED images. Untagged ones that compose built for this project are ours.
+  const images = await listed([docker, "image", "ls", "--quiet", "--filter", "dangling=true", "--filter", label]);
+  if (images.length > 0) {
+    const rm = await ctx.compose.capture([docker, "image", "rm", ...new Set(images)], host, { cwd });
+    if (rm.code !== 0) ctx.logger.warn("could not remove a destroyed preview's untagged images", { previewId: preview.id, images, err: rm.stderr.slice(-300) });
+  }
+}
+
+/**
  * Best-effort `down` for a stack nobody is going to finish starting. Never throws: the
  * caller has already decided the preview's fate, and this only returns its resources.
  */
 export async function releaseStack(ctx: PreviewContext, preview: Preview, host: Host): Promise<boolean> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
   try {
-    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }, [], rmiFor(preview)), host, { cwd: empty });
+    // Containers and ports, not data (ADR-0017): the preview still exists, and its add-on's volume with it.
+    const res = await ctx.compose.capture(downArgv({ project: preview.project, files: [], docker: ctx.docker }, [], rmiFor(preview), { volumes: false }), host, { cwd: empty });
     return res.code === 0;
   } catch {
     return false;

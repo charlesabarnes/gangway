@@ -12,6 +12,7 @@
 import { parseDocument } from "yaml";
 import { z } from "zod";
 import { parseDuration } from "./duration.ts";
+import { ADDON_IDS } from "./addons.ts";
 import { RUNTIME_IDS } from "./runtimes.ts";
 
 export const GANGWAY_FILES = ["gangway.yml", "gangway.yaml"] as const;
@@ -64,6 +65,14 @@ export const GangwayFileSchema = z.strictObject({
   /** Non-secret environment, at build and at run. Secrets belong in the project's secrets, which win. */
   env: z.record(z.string().regex(ENV_NAME_RE, "not a valid variable name"), z.union([z.string(), z.number(), z.boolean()]).transform(String).pipe(z.string().max(4096)))
     .refine((e) => Object.keys(e).length <= 100, "at most 100 variables").optional(),
+  /**
+   * Throwaway databases beside the app (ADR-0017): `[postgres]`, or `[{ id: postgres, version: 17 }]`.
+   * Gone with the preview. `[]` removes them.
+   */
+  addons: z.array(z.union([
+    z.enum(ADDON_IDS),
+    z.strictObject({ id: z.enum(ADDON_IDS), version: z.union([z.string(), z.number()]).transform(String).optional() }),
+  ])).max(ADDON_IDS.length).refine((a) => new Set(a.map((x) => (typeof x === "string" ? x : x.id))).size === a.length, "each add-on at most once").optional(),
   /** Runs once after the first deploy is healthy (§7.3), in the app's container. */
   seed: z.string().min(1).max(8192).optional(),
   ttl: duration("12h or 7d").optional(),

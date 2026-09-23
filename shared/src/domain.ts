@@ -4,6 +4,7 @@
  * Timestamps are epoch milliseconds at the storage boundary and `Date` in the domain.
  * Repositories do the conversion so nothing above them handles raw integers.
  */
+import type { AddonChoice } from "./addons.ts";
 import type { RuntimeId } from "./runtimes.ts";
 import type { Scope } from "./permissions.ts";
 
@@ -133,7 +134,8 @@ export type PreviewSource =
   | { kind: "agent"; tokenId: string; idempotencyKey: string }
   | { kind: "image"; image: string }
   /** An upload (ADR-0015). `runtime`: built by that runtime; absent, the upload brought its own compose file or Dockerfile. */
-  | { kind: "tarball"; uploadId: string; runtime?: RuntimeId }
+  /** `addons` (ADR-0017): the throwaway databases beside it, each at the major it was created with. */
+  | { kind: "tarball"; uploadId: string; runtime?: RuntimeId; addons?: AddonChoice[] }
   | { kind: "git"; repo: string; ref: string };
 
 export type Preview = {

@@ -11,10 +11,12 @@
  */
 import { lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { planApp, planError, planFilePaths, MAX_PLAN_FILE_BYTES, STATIC_BUILD_OUTPUTS, type AppPlan, type PlanChoice } from "../../../shared/src/app-plan.ts";
+import { planApp, planError, planFilePaths, MAX_PLAN_FILE_BYTES, STATIC_BUILD_OUTPUTS, type AddonRequest, type AppPlan, type PlanChoice } from "../../../shared/src/app-plan.ts";
+import type { AddonChoice } from "../../../shared/src/addons.ts";
 import type { Command } from "../../../shared/src/gangway-file.ts";
 import { isRuntimeId, runtimeById, type Detected, type RuntimeId } from "../../../shared/src/runtimes.ts";
 import { AppError } from "../errors.ts";
+import type { RenderedAddons } from "./addons.ts";
 import { composeForRuntime } from "./compose-model.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { containedIn, DIR_MODE, FILE_MODE } from "./source/types.ts";
@@ -54,7 +56,9 @@ export async function listPaths(dir: string): Promise<string[]> {
 }
 
 /** The plan for an upload on disk: the same function the New screen calls through `/v1/runtimes/plan`. */
-export async function planFromDisk(srcDir: string, choice: RuntimeChoice, previous?: Detected): Promise<AppPlan> {
+export async function planFromDisk(
+  srcDir: string, choice: RuntimeChoice, opts: { previous?: Detected | undefined; addons?: readonly AddonRequest[] | undefined; previousAddons?: readonly AddonChoice[] | undefined } = {},
+): Promise<AppPlan> {
   const paths = await listPaths(srcDir);
   const files: Record<string, string> = {};
   for (const p of planFilePaths(paths)) {
@@ -63,7 +67,7 @@ export async function planFromDisk(srcDir: string, choice: RuntimeChoice, previo
     if (!st?.isFile() || st.size > MAX_PLAN_FILE_BYTES) continue;
     files[p] = await readFile(abs, "utf8");
   }
-  return planApp({ paths, files, runtime: choice, previous });
+  return planApp({ paths, files, runtime: choice, ...opts });
 }
 
 /** Refuses a plan that cannot run, with everything the UI needs to say why. */
@@ -331,10 +335,11 @@ const ALWAYS_BOUND = ["PUBLIC_URL", "GANGWAY_PREVIEW_ID"];
  * the secrets are the operator's.
  */
 export async function writeRuntime(
-  srcDir: string, plan: AppPlan, secrets: Record<string, string> | undefined, composePath: string, port?: number,
+  srcDir: string, plan: AppPlan, secrets: Record<string, string> | undefined, composePath: string, port?: number, sidecars?: RenderedAddons,
 ): Promise<{ composeFile: string; note: string }> {
   if (containedIn(srcDir, composePath)) throw new AppError("internal", "the runtime compose file must be outside the build context");
-  const env = { ...plan.env, ...(secrets ?? {}) };
+  // gangway.yml < the project's secrets < the add-ons' own addresses (ADR-0017).
+  const env = { ...plan.env, ...(secrets ?? {}), ...(sidecars?.appEnv ?? {}) };
   const bindings = [...new Set([...ALWAYS_BOUND, ...Object.keys(env)])].sort();
   const rendered = renderRuntime(plan, bindings, port);
   const context = plan.root ? path.join(srcDir, plan.root) : srcDir;
@@ -348,9 +353,9 @@ export async function writeRuntime(
   await writeFile(path.join(dir, "Dockerfile"), rendered.dockerfile, { mode: FILE_MODE });
   // The Dockerfile's own ignore file: the upload's .dockerignore, if any, is left alone.
   await writeFile(path.join(dir, "Dockerfile.dockerignore"), ".git\n**/node_modules\n.gangway/out\n", { mode: FILE_MODE });
-  for (const [name, body] of Object.entries(rendered.files)) await writeFile(path.join(dir, name), body, { mode: FILE_MODE });
+  for (const [name, body] of Object.entries({ ...rendered.files, ...(sidecars?.files ?? {}) })) await writeFile(path.join(dir, name), body, { mode: FILE_MODE });
   const listen = port ?? plan.port ?? runtimeById(plan.runtime!).port;
-  await writeFile(composePath, composeForRuntime({ port: listen, env, context: plan.root || ".", stack: stackX(plan), health: plan.health }), { mode: 0o600 });
+  await writeFile(composePath, composeForRuntime({ port: listen, env, context: plan.root || ".", stack: stackX(plan), health: plan.health, sidecars }), { mode: 0o600 });
   return { composeFile: path.relative(srcDir, composePath), note: rendered.note };
 }
 

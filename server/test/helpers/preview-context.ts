@@ -49,9 +49,17 @@ export function setupPreviewContext() {
     /** What each `up` was given: its extra env, and the registry login it could read at that moment. */
     upLogins: [] as { env: Record<string, string> | undefined; config: string | null }[],
     downArgvs: [] as string[][],
+    /** The stack file each `up` was given, parsed (ADR-0017 tests read the sidecars from it). */
+    stacks: [] as Record<string, unknown>[],
+    /** Every argv the fake saw, in order. */
+    all: [] as string[][],
   };
   const compose: ComposeRunner = {
     async *stream(argv, _host, o): AsyncGenerator<ComposeEvent> {
+      fake.all.push(argv);
+      if (argv.includes("up") && argv.includes("--file")) {
+        fake.stacks.push(JSON.parse(readFileSync(argv[argv.indexOf("--file") + 1]!, "utf8")) as Record<string, unknown>);
+      }
       if (argv.includes("up")) {
         const dir = o.env?.["DOCKER_CONFIG"];
         fake.upLogins.push({ env: o.env, config: dir ? readFileSync(join(dir, "config.json"), "utf8") : null });
@@ -70,6 +78,7 @@ export function setupPreviewContext() {
       }
       fake.ups++; yield { type: "exit", code: 0, signal: null }; },
     async capture(argv): Promise<ComposeResult> {
+      fake.all.push(argv);
       const cmd = argv.find((a) => ["config", "ps", "down", "logs", "stop", "start"].includes(a))!;
       const project = argv[argv.indexOf("--project-name") + 1] ?? "";
       if (cmd === "stop") { fake.stops.push(argv); return { code: fake.stopExit, stdout: "", stderr: fake.stopExit ? "cannot stop" : "", signal: null }; }
@@ -107,6 +116,7 @@ export function setupPreviewContext() {
     logger: new Logger("error", {}, () => {}), timings: { startTimeoutMs: 200, probeTimeoutMs: 200, pollIntervalMs: 5 },
     now: () => Date.now() + clock.offset, inflight: new Map(), teardowns: new Set(),
     builds: new BuildsRepo(db),
+    addonSecret: (previewId, addon) => `pw${previewId.slice(-10)}${addon}`.toLowerCase(),
     audit: new Audit(auditRepo, new Logger("error", {}, () => {})),
   };
   const lines: string[] = [];

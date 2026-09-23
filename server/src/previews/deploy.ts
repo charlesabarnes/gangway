@@ -43,7 +43,10 @@ import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { assertRunnable, planFromDisk, stackX, writeRuntime, type RuntimeChoice } from "./runtimes.ts";
-import type { AppPlan } from "../../../shared/src/app-plan.ts";
+import type { AddonRequest, AppPlan } from "../../../shared/src/app-plan.ts";
+import type { AddonChoice } from "../../../shared/src/addons.ts";
+import { renderAddons, type RenderedAddons } from "./addons.ts";
+import { DIR_MODE, FILE_MODE } from "./source/types.ts";
 import type { RuntimeId } from "../../../shared/src/runtimes.ts";
 
 export type DeploySource =
@@ -59,7 +62,7 @@ export type DeploySource =
    * A tar or tar.gz of the project. `runtime` (ADR-0015) builds it with a runtime, `auto`
    * detects one; absent or `own`, the upload brings its compose file (or Dockerfile).
    */
-  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined; runtime?: RuntimeChoice | undefined }
+  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined; runtime?: RuntimeChoice | undefined; addons?: readonly AddonRequest[] | undefined }
   /**
    * An image a workflow built and pushed for one commit of a pull request (ADR-0014).
    * `registry` logs in for this pull only: written to a DOCKER_CONFIG in the work
@@ -201,9 +204,9 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
   } else {
     const r = await extractTarball(source.archive, wd.srcDir);
     ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
-    const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port);
+    const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port, { addons: source.addons });
     return {
-      source: { kind: "tarball", uploadId: id, ...(up.runtime ? { runtime: up.runtime } : {}) },
+      source: { kind: "tarball", uploadId: id, ...(up.runtime ? { runtime: up.runtime } : {}), ...(up.plan.addons.length ? { addons: up.plan.addons } : {}) },
       composeFile: up.composeFile, pristine: up.pristine, runtime: up.runtime,
     };
   }
@@ -217,7 +220,9 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
  * A checkout or upload that brings its own compose file, or a Dockerfile and a port. An
  * upload's `gangway.yml` (ADR-0016) may name the port, env and policy for a lone Dockerfile.
  */
-async function ownStack(ctx: PreviewContext, id: string, srcDir: string, env: Record<string, string> | undefined, askedPort: number | undefined, plan: AppPlan | null): Promise<string> {
+async function ownStack(
+  ctx: PreviewContext, id: string, srcDir: string, env: Record<string, string> | undefined, askedPort: number | undefined, plan: AppPlan | null, sidecars?: RenderedAddons,
+): Promise<string> {
   if (env) {
     const n = await writeDotenv(srcDir, env);
     if (n > 0) ctx.logs.append(id, "system", `wrote .env with ${n} repository secret${n === 1 ? "" : "s"}`);
@@ -233,13 +238,22 @@ async function ownStack(ctx: PreviewContext, id: string, srcDir: string, env: Re
   if (port === undefined) {
     throw unprocessable("the source has a Dockerfile but no compose file, so `port` is required: the port the app listens on inside the container (`port:` in gangway.yml, or ?port=)");
   }
+  if (sidecars) {
+    await mkdir(join(srcDir, GENERATED_DIR), { recursive: true, mode: DIR_MODE });
+    for (const [name, body] of Object.entries(sidecars.files)) await writeFile(join(srcDir, GENERATED_DIR, name), body, { mode: FILE_MODE });
+  }
+  // A lone Dockerfile's env: gangway.yml's, then the add-ons'. Secrets reach it as the .env above.
+  const appEnv = { ...(plan?.env ?? {}), ...(sidecars?.appEnv ?? {}) };
   await writeFile(join(srcDir, COMPOSE_FILE), composeForDockerfile({
-    port, env: plan?.env, health: plan?.health, ...(plan ? { stack: stackX(plan) } : {}),
+    port, env: appEnv, health: plan?.health, sidecars, ...(plan ? { stack: stackX(plan) } : {}),
   }), { mode: 0o600 });
   return COMPOSE_FILE;
 }
 
 export type PreparedUpload = { composeFile: string; runtime: RuntimeId | null; pristine: string | null; plan: AppPlan };
+
+/** The options a plan takes beyond the files: what was asked for, and what a rebuild had. */
+export type PlanOptions = { previous?: RuntimeId | "own" | undefined; addons?: readonly AddonRequest[] | undefined; previousAddons?: readonly AddonChoice[] | undefined };
 
 /**
  * An upload on disk -> the compose file to read (ADR-0015). Deploy and redeploy both come
@@ -248,7 +262,7 @@ export type PreparedUpload = { composeFile: string; runtime: RuntimeId | null; p
  */
 export async function prepareUpload(
   ctx: PreviewContext, logId: string, wd: Workdir, choice: RuntimeChoice, env: Record<string, string> | undefined, port: number | undefined,
-  previous?: RuntimeId | "own",
+  opts: PlanOptions = {},
 ): Promise<PreparedUpload> {
   await assertNoEscapingSymlinks(wd.srcDir);
   let pristine: string | null = null;
@@ -261,16 +275,26 @@ export async function prepareUpload(
       filter: (src) => src === wd.srcDir || !relative(wd.srcDir, src).split(sep).includes(GENERATED_DIR),
     });
   }
-  const plan = await planFromDisk(wd.srcDir, choice, previous);
+  const plan = await planFromDisk(wd.srcDir, choice, opts);
   assertRunnable(plan);
   for (const r of plan.reasons) ctx.logs.append(logId, "system", `plan: ${r.level === "info" ? "" : `${r.level}: `}${r.found} -> ${r.then}`);
+  let sidecars: RenderedAddons | undefined;
+  if (plan.addons.length > 0) {
+    const secret = ctx.addonSecret;
+    if (!secret) throw new AppError("internal", "add-ons are not available: no key to derive their passwords from");
+    sidecars = renderAddons(plan.addons, (a) => secret(logId, a), plan.sqlSeed, plan.root || ".");
+    // Before anything that could print them: compose's own output, a seed, a release.
+    ctx.logs.mask(logId, sidecars.secrets);
+    const shadowed = Object.keys(sidecars.appEnv).filter((k) => env?.[k] !== undefined || plan.env[k] !== undefined);
+    if (shadowed.length > 0) ctx.logs.append(logId, "system", `add-ons set ${shadowed.join(", ")}, replacing the value${shadowed.length === 1 ? "" : "s"} from secrets or gangway.yml`);
+  }
   if (plan.kind === "own") {
     if (choice === "auto") ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
-    return { composeFile: await ownStack(ctx, logId, wd.srcDir, env, port, plan), runtime: null, pristine, plan };
+    return { composeFile: await ownStack(ctx, logId, wd.srcDir, env, port, plan, sidecars), runtime: null, pristine, plan };
   }
   const runtime = plan.runtime!;
   // `port`, if given, overrides the runtime's own: a rebuild keeps the preview's.
-  const { composeFile, note } = await writeRuntime(wd.srcDir, plan, env, join(wd.dir, "runtime.compose.yaml"), port);
+  const { composeFile, note } = await writeRuntime(wd.srcDir, plan, env, join(wd.dir, "runtime.compose.yaml"), port, sidecars);
   ctx.logs.append(logId, "system", `${choice === "auto" ? "detected " : ""}runtime ${runtime}: ${note}`);
   const secrets = Object.keys(env ?? {}).length;
   if (secrets > 0) ctx.logs.append(logId, "system", `passing ${secrets} secret(s) to the container as environment`);
@@ -616,7 +640,8 @@ export async function salvage(ctx: PreviewContext, r: Pick<RunInput, "preview" |
       r.host, { cwd: empty },
     );
     if (logs.stdout) ctx.logs.append(r.preview.id, "stdout", logs.stdout);
-    await ctx.compose.capture(downArgv({ project: r.preview.project, files: [], docker: ctx.docker }, [], rmiFor(r.preview)), r.host, { cwd: empty });
+    // Volumes stay (ADR-0017): a failed rebuild must not take the add-on's data. Destroy removes them.
+    await ctx.compose.capture(downArgv({ project: r.preview.project, files: [], docker: ctx.docker }, [], rmiFor(r.preview), { volumes: false }), r.host, { cwd: empty });
   } catch (e) {
     ctx.logger.warn("could not tear down a failed stack; the reconciler will", { previewId: r.preview.id, err: e });
   } finally {

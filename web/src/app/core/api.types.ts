@@ -20,7 +20,7 @@ export type PreviewSource =
   | { kind: 'agent'; tokenId: string; idempotencyKey: string }
   | { kind: 'image'; image: string }
   /** `runtime` absent: the upload brought its own compose file or Dockerfile (ADR-0015). */
-  | { kind: 'tarball'; uploadId: string; runtime?: RuntimeId }
+  | { kind: 'tarball'; uploadId: string; runtime?: RuntimeId; addons?: AddonChoice[] }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];
 
@@ -195,7 +195,16 @@ export type Runtime = {
 /** Root-level marker files; the first rule with any marker present wins, else `static`. */
 export type DetectionRule = { runtime: Detected; markers: string[] };
 /** `planFiles`: whose CONTENTS `POST /v1/runtimes/plan` wants (root and one level down); the rest are only named. */
-export type RuntimeList = { runtimes: Runtime[]; detection: DetectionRule[]; planFiles: string[] };
+export type RuntimeList = { runtimes: Runtime[]; detection: DetectionRule[]; planFiles: string[]; addons: AddonInfo[] };
+
+/* ---- Add-ons (ADR-0017): throwaway databases beside a preview */
+
+export type AddonId = 'postgres' | 'mysql' | 'redis';
+export const ADDON_IDS: readonly AddonId[] = ['postgres', 'mysql', 'redis'];
+/** What a preview runs, at the major it was created with. */
+export type AddonChoice = { id: AddonId; version: string };
+/** One entry of `GET /v1/runtimes` `addons`. `env`: the variables the app receives. */
+export type AddonInfo = { id: AddonId; name: string; description: string; versions: string[]; defaultVersion: string; env: string[] };
 
 /* ---- The app plan (ADR-0016): what the server will do with an upload, and why */
 
@@ -214,18 +223,22 @@ export type AppPlan = {
   env: Record<string, string>;
   stack: { ttl?: string; visibility?: Visibility; idle?: string; seed?: string };
   configFile: string | null;
+  addons: AddonChoice[];
+  /** Add-ons the dependencies point at; the New screen pre-ticks them. */
+  suggested: { id: AddonId; because: string }[];
+  sqlSeed: string | null;
   reasons: PlanReason[];
   issues: PlanIssue[];
 };
 /** `POST /v1/runtimes/plan`. */
-export type PlanRequest = { paths: string[]; files: Record<string, string>; runtime?: Detected | 'auto' };
+export type PlanRequest = { paths: string[]; files: Record<string, string>; runtime?: Detected | 'auto'; addons?: AddonId[] };
 
 /** `GET /v1/previews/:id/source`. `text` is absent on a binary or too-large file: listed, not editable. */
 export type SourceFile = { path: string; size: number; text?: string };
 export type PreviewSourceFiles = { runtime: RuntimeId | null; files: SourceFile[]; truncated: boolean };
 
 /** `PATCH /v1/previews/:id/source`: text sets a file, null deletes it. */
-export type SourcePatch = { files: Record<string, string | null>; runtime?: Detected };
+export type SourcePatch = { files: Record<string, string | null>; runtime?: Detected; addons?: AddonId[] };
 
 export type RedeployPhase = 'started' | 'succeeded' | 'failed';
 /** 202 from PATCH/PUT `…/source` (with `preview`). */

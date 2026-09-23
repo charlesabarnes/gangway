@@ -2,7 +2,7 @@ import { HttpClient, HttpEventType } from '@angular/common/http';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom, last, tap } from 'rxjs';
-import { VISIBILITIES, type AppPlan, type Command, type Detected, type Preview, type Project, type Runtime, type RuntimeList, type Template } from '../../core/api.types';
+import { VISIBILITIES, type AddonId, type AddonInfo, type AppPlan, type Command, type Detected, type Preview, type Project, type Runtime, type RuntimeList, type Template } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem, type ProblemError } from '../../core/problem';
 import { Btn } from '../../ui/button';
@@ -97,6 +97,24 @@ export const OWN_LABEL = 'Own Dockerfile / compose';
           }
         </div>
 
+        @if (addons().length > 0) {
+          <fieldset class="mt-6 rounded-lg border border-neutral-200 px-4 py-3 dark:border-neutral-800" data-testid="addons">
+            <legend class="px-1 text-sm font-medium text-neutral-600 dark:text-neutral-400">Databases</legend>
+            <p class="text-xs text-neutral-500">Throwaway, beside the app: kept across saves and sleeps, gone when the preview is. The app is told where in its environment.</p>
+            <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+              @for (a of addons(); track a.id) {
+                <label class="flex items-start gap-2 text-sm" [title]="a.description">
+                  <input type="checkbox" class="mt-0.5" [checked]="addonChecks().includes(a.id)" (change)="toggleAddon(a.id, $any($event.target).checked)" [attr.data-testid]="'addon-' + a.id" />
+                  <span>{{ a.name }} <span class="text-xs text-neutral-500">{{ a.defaultVersion }}</span>
+                    @if (suggestedBecause(a.id); as why) { <span class="ml-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent" [attr.data-testid]="'suggested-' + a.id">uses {{ why }}</span> }
+                    <span class="block font-mono text-[10px] text-neutral-400">{{ a.env[0] }}</span>
+                  </span>
+                </label>
+              }
+            </div>
+          </fieldset>
+        }
+
         <details class="mt-6 rounded-lg border border-neutral-200 px-4 py-3 dark:border-neutral-800" data-testid="options">
           <summary class="cursor-pointer text-sm font-medium text-neutral-600 dark:text-neutral-400">Options</summary>
           <div class="mt-3 grid gap-3 sm:grid-cols-5">
@@ -175,6 +193,25 @@ export class NewPreview {
   });
   #planSeq = 0;
 
+  /** ADR-0017: the add-on catalogue, and which are ticked. Untouched, the plan decides (gangway.yml + suggestions). */
+  protected readonly addons = computed<AddonInfo[]>(() => this.list()?.addons ?? []);
+  readonly addonChecks = signal<AddonId[]>([]);
+  readonly #addonsTouched = signal(false);
+  protected suggestedBecause(id: AddonId): string | null {
+    return this.#autoPlan()?.suggested.find((s) => s.id === id)?.because ?? null;
+  }
+  protected toggleAddon(id: AddonId, on: boolean): void {
+    this.#addonsTouched.set(true);
+    const next = this.addonChecks().filter((a) => a !== id);
+    this.addonChecks.set(on ? [...next, id] : next);
+  }
+  /** What `?addons=` says: omitted when untouched and nothing is ticked (gangway.yml decides), `none` to clear. */
+  #addonsParam(): string | undefined {
+    const checks = this.addonChecks();
+    if (checks.length > 0) return checks.join(',');
+    return this.#addonsTouched() ? 'none' : undefined;
+  }
+
   protected readonly name = signal('');
   protected readonly visibility = signal('');
   protected readonly ttl = signal('');
@@ -196,21 +233,24 @@ export class NewPreview {
     // Re-plan whenever the files or the choice change -- and once the catalogue says which files to send.
     effect(() => {
       const u = this.upload(), choice = this.choice(), list = this.list();
+      const addons = this.#addonsTouched() ? this.addonChecks() : null;
       if (!u || !list) return;
-      untracked(() => void this.#plan(u, choice, list.planFiles ?? []));
+      untracked(() => void this.#plan(u, choice, list.planFiles ?? [], addons));
     });
   }
 
-  async #plan(u: Collected, choice: Detected | '', planFiles: readonly string[]): Promise<void> {
+  async #plan(u: Collected, choice: Detected | '', planFiles: readonly string[], addons: AddonId[] | null): Promise<void> {
     const seq = ++this.#planSeq;
     this.planning.set(true);
     this.plan.set(null);
     try {
-      const body = { ...planPayload(u.files, planFiles), runtime: choice || 'auto' };
+      const body = { ...planPayload(u.files, planFiles), runtime: choice || 'auto', ...(addons ? { addons } : {}) };
       const p = await firstValueFrom(this.#http.post<AppPlan>('/v1/runtimes/plan', body));
       if (seq !== this.#planSeq) return;
       this.plan.set(p);
-      if (choice === '') this.#autoPlan.set(p);
+      if (choice === '' && !addons) this.#autoPlan.set(p);
+      // Untouched: tick what gangway.yml asks for, and what the dependencies suggest.
+      if (!this.#addonsTouched()) this.addonChecks.set([...new Set([...p.addons.map((a) => a.id), ...p.suggested.map((s) => s.id)])]);
     } catch {
       // The plan is advice; a deploy still gets the server's own answer.
     } finally {
@@ -267,6 +307,8 @@ export class NewPreview {
       const c = await fn();
       if (c.files.length === 0) throw new UploadError('Nothing to upload: no files were found (or all were skipped).');
       this.#autoPlan.set(null);
+      this.#addonsTouched.set(false);
+      this.addonChecks.set([]);
       this.upload.set(c);
       this.choice.set('');
       if (!this.name() && c.name) this.name.set(c.name);
@@ -300,7 +342,7 @@ export class NewPreview {
     this.progress.set(0);
     const query = deployQuery({
       runtime, name: this.name().trim(), visibility: this.visibility(), ttl: this.ttl().trim(),
-      project: this.project(), template: this.template(),
+      project: this.project(), template: this.template(), addons: this.#addonsParam(),
     });
     try {
       const res = await firstValueFrom(this.#http.post<{ preview: Preview }>(`/v1/previews${query}`, body, {

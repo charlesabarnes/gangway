@@ -309,6 +309,28 @@
       "wrangler.jsonc",
       "requirements.txt",
       "pyproject.toml"
+    ],
+    "addons": [
+      {
+        "id": "postgres",
+        "name": "PostgreSQL",
+        "description": "A fresh Postgres for this preview. DATABASE_URL points at it; seed.sql (or db/seed.sql) loads on its first start.",
+        "versions": [
+          "16",
+          "17",
+          "18"
+        ],
+        "defaultVersion": "18",
+        "env": [
+          "DATABASE_URL",
+          "POSTGRES_URL",
+          "PGHOST",
+          "PGPORT",
+          "PGUSER",
+          "PGPASSWORD",
+          "PGDATABASE"
+        ]
+      }
     ]
   },
   "previewSource": {
@@ -387,6 +409,14 @@
         "then": "serves the build's output (dist/, build/, out/ …) with nginx"
       }
     ],
-    "issues": []
-  }
+    "issues": [],
+    "addons": [],
+    "suggested": [],
+    "sqlSeed": null
+  },
+  "addonIds": [
+    "postgres",
+    "mysql",
+    "redis"
+  ]
 }

@@ -27,6 +27,8 @@ export class PreviewLogs {
   readonly #now: () => number;
   readonly #next = new Map<string, number>();
   readonly #listeners = new Map<string, Set<LogListener>>();
+  /** Exact values to blank in a preview's lines -- an add-on's derived password (ADR-0017). */
+  readonly #masks = new Map<string, string[]>();
 
   constructor(stateDir: string, now: () => number = Date.now) {
     this.#dir = join(stateDir, "logs");
@@ -47,13 +49,31 @@ export class PreviewLogs {
     for (const raw of text.split(/\r?\n|\r/)) {
       if (raw === "") continue;
       const clipped = raw.length > MAX_LINE ? `${raw.slice(0, MAX_LINE)} [truncated]` : raw;
-      out.push({ n: n++, ts: this.#now(), stream, line: redactString(clipped) });
+      out.push({ n: n++, ts: this.#now(), stream, line: redactString(this.#masked(previewId, clipped)) });
     }
     if (out.length === 0) return;
     this.#next.set(previewId, n);
     appendFileSync(path, out.map((l) => JSON.stringify(l)).join("\n") + "\n");
     const ls = this.#listeners.get(previewId);
     if (ls) for (const line of out) for (const l of ls) { try { l(line); } catch { /* one bad client */ } }
+  }
+
+  /**
+   * From now on, `values` never reach this preview's log -- not the file, not a stream. In
+   * memory only: a restart forgets them, and the next deploy or rebuild sets them again
+   * before anything could print one.
+   */
+  mask(previewId: string, values: readonly string[]): void {
+    const keep = values.filter((v) => v.length >= 8);
+    if (keep.length > 0) this.#masks.set(previewId, [...new Set([...(this.#masks.get(previewId) ?? []), ...keep])]);
+  }
+
+  #masked(previewId: string, line: string): string {
+    const masks = this.#masks.get(previewId);
+    if (!masks) return line;
+    let out = line;
+    for (const m of masks) out = out.split(m).join("[redacted]");
+    return out;
   }
 
   /** Lines with n > afterLine. */
@@ -114,5 +134,6 @@ export class PreviewLogs {
   remove(previewId: string): void {
     rmSync(this.#path(previewId), { force: true });
     this.#next.delete(previewId);
+    this.#masks.delete(previewId);
   }
 }

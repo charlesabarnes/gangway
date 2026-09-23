@@ -190,6 +190,11 @@ describe("runtime wire shapes (ADR-0015)", () => {
     const vite = { "package.json": JSON.stringify({ scripts: { dev: "vite", build: "vite build" } }), "index.html": "" };
     const planned = await (await app.request("/runtimes/plan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ paths: Object.keys(vite), files: vite }) })).json();
     expect(planned).toEqual(contract["appPlan"]);
+    // ADR-0017: the add-on catalogue the New screen offers.
+    const addons = (list as unknown as { addons: unknown[] }).addons;
+    expect(shapeOf(addons[0])).toEqual(shapeOf((want as unknown as { addons: unknown[] }).addons[0]));
+    const { ADDON_IDS } = await import("../../../shared/src/addons.ts");
+    expect(contract["addonIds"]).toEqual([...ADDON_IDS]);
 
     const p = pack(); p.entry({ name: "index.ts" }, "export default {}"); p.finalize();
     const chunks: Buffer[] = []; for await (const c of p) chunks.push(c as Buffer);

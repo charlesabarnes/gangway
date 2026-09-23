@@ -113,6 +113,13 @@ export class Waker {
     const base = { project: preview.project, files: [], docker: ctx.docker };
     const empty = await mkdtemp(join(tmpdir(), "gangway-wake-"));
     const abort = new AbortController();
+    // In flight like a deploy: the reconciler must not read this `starting` as a pipeline a
+    // restart interrupted (found live: a Postgres add-on's start is slow enough for a pass
+    // to land in the middle, mark the preview failed and `down` it under the wake), and a
+    // destroy can abort it and wait.
+    let settle!: (p: Preview) => void;
+    const done = new Promise<Preview>((r) => { settle = r; });
+    ctx.inflight.set(previewId, { abort, done });
     ctx.logs.append(previewId, "system", "waking");
     ctx.states.transition(previewId, "starting");
     try {
@@ -132,6 +139,8 @@ export class Waker {
       if (now?.state === "starting") ctx.states.transition(previewId, "asleep");
       throw e;
     } finally {
+      ctx.inflight.delete(previewId);
+      settle(ctx.previews.get(previewId) ?? preview);
       await rm(empty, { recursive: true, force: true });
     }
   }

@@ -7,6 +7,7 @@ import type { AuditSink } from "../audit/audit.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
 import type { CloneOptions } from "./source/git.ts";
 import type { Clearance, Preview } from "../../../shared/src/domain.ts";
+import type { AddonId } from "../../../shared/src/addons.ts";
 import type { PublicOrigin } from "../../../shared/src/url.ts";
 import type { HostsRepo } from "../db/repos/hosts.ts";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
@@ -66,6 +67,11 @@ export type PreviewContext = {
    * repository's when it has one. Absent: no `.env` is written.
    */
   secretsFor?: ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
+  /**
+   * An add-on's password for a preview (ADR-0017): derived, so the sidecar's config is the
+   * same on every rebuild and compose never recreates the database. Absent: add-ons are refused.
+   */
+  addonSecret?: ((previewId: string, addon: AddonId) => string) | undefined;
   /** Uploaded sources, kept for the editor and for rebuilds (ADR-0015). Absent: nothing is kept. */
   sources?: SourceStore | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */

@@ -73,6 +73,7 @@ import { SourceStore } from "./previews/source/store.ts";
 import { Waker, sweepIdle } from "./previews/sleep.ts";
 import { PreviewStates } from "./previews/state.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "./secrets/box.ts";
+import { createHmac } from "node:crypto";
 import { Secrets } from "./secrets/secrets.ts";
 import { secretRoutes } from "./app/routes/secrets.ts";
 import { githubFullName } from "./forge/github/webhook.ts";
@@ -211,7 +212,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
 
   /* ---- pull requests (ADR-0011). Credentials are read from settings on every use. */
-  const secrets = new Secrets(projects, settingsStore, new SecretBox(loadOrCreateSecretsKey(stateDir)), audit);
+  const secretsKey = loadOrCreateSecretsKey(stateDir);
+  const secrets = new Secrets(projects, settingsStore, new SecretBox(secretsKey), audit);
+  // ADR-0017: an add-on's password, the same on every rebuild (so compose never recreates the
+  // database) and stored nowhere. Losing secrets.key changes it; the volume keeps the old one.
+  ctx.addonSecret = (previewId, addon) => createHmac("sha256", secretsKey).update(`gangway-addon\0${previewId}\0${addon}`).digest("base64url").slice(0, 32);
   // ADR-0012: the global map, plus the repository's when the deploy has one, at the clearance the pipeline resolved.
   ctx.secretsFor = (repoId, clearance) => secrets.valuesFor(repoId, clearance);
   const githubApp = new GitHubApp({

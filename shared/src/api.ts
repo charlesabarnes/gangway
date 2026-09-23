@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
 import { RUNTIME_IDS } from "./runtimes.ts";
+import { ADDON_IDS, isAddonId } from "./addons.ts";
 
 /** Runtime copies of the domain's string unions, so the web contract test has something to compare. */
 export const PREVIEW_STATE_VALUES = ["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"] as const;
@@ -41,6 +42,26 @@ export const DeploySourceSchema = z.discriminatedUnion("kind", [
 
 const templateId = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/, "a template id is 1-32 lowercase letters, digits and hyphens");
 
+/** ADR-0017: an add-on by id, optionally at a major version. */
+const addonRequest = z.union([z.enum(ADDON_IDS), z.strictObject({ id: z.enum(ADDON_IDS), version: z.string().regex(/^\d+(\.\d+)*$/).max(16).optional() })]);
+const addonArray = z.array(addonRequest).max(ADDON_IDS.length)
+  .refine((a) => new Set(a.map((x) => (typeof x === "string" ? x : x.id))).size === a.length, "each add-on at most once");
+
+/** `?addons=postgres,redis@8` in a query string; `none` for no add-ons. */
+export const addonQuery = z.string().max(200).transform((s, ctx) => {
+  const out: z.input<typeof addonArray> = [];
+  if (s === "none" || s === "") return out;
+  for (const part of s.split(",")) {
+    const [id, version] = part.trim().split("@") as [string, string | undefined];
+    if (!isAddonId(id) || (version !== undefined && !/^\d+(\.\d+)*$/.test(version))) {
+      ctx.addIssue({ code: "custom", message: `unknown add-on ${JSON.stringify(part)}: one of ${ADDON_IDS.join(", ")}, optionally @<major>` });
+      return z.NEVER;
+    }
+    out.push(version ? { id, version } : { id });
+  }
+  return out;
+}).pipe(addonArray);
+
 /**
  * A tarball deploy has no JSON body -- the body IS the archive -- so its options ride in
  * the query string:  curl --data-binary @src.tgz -H 'content-type: application/gzip' '.../v1/previews?name=x'
@@ -56,20 +77,23 @@ export const TarballDeployQuerySchema = z.object({
   port: z.coerce.number().int().min(1).max(65535).optional(),
   /** ADR-0015: build with a runtime, `auto` to detect one; absent or `own`, the upload's own stack. */
   runtime: z.enum([...RUNTIME_IDS, "auto", "own"]).optional(),
+  /** ADR-0017: throwaway databases, `postgres,redis`. Absent: gangway.yml's, if any. */
+  addons: addonQuery.optional(),
 });
 
 const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
 
 /** `PUT /v1/previews/:id/source`: the body is the new upload; the runtime rides in the query. */
-export const SourceReplaceQuerySchema = z.object({ runtime: runtimeChoice.optional() });
+export const SourceReplaceQuerySchema = z.object({ runtime: runtimeChoice.optional(), addons: addonQuery.optional() });
 
 /** `PATCH /v1/previews/:id/source` (ADR-0015): each path's new text, or null to delete it. */
 export const SourceEditSchema = z.strictObject({
   files: z.record(z.string().min(1).max(255), z.string().max(1024 * 1024).nullable())
-    .refine((f) => Object.keys(f).length > 0, "no files to change")
     .refine((f) => Object.keys(f).length <= 500, "at most 500 files per edit"),
   runtime: runtimeChoice.optional(),
-});
+  /** ADR-0017. Omitted: as gangway.yml says, else as before. `[]` removes them. */
+  addons: addonArray.optional(),
+}).refine((e) => Object.keys(e.files).length > 0 || e.runtime !== undefined || e.addons !== undefined, "nothing to change");
 export type SourceEdit = z.infer<typeof SourceEditSchema>;
 
 /**
@@ -84,6 +108,7 @@ export const PlanRequestSchema = z.strictObject({
     .refine((f) => Object.values(f).reduce((n, t) => n + t.length, 0) <= 1024 * 1024, "at most 1 MiB of file contents")
     .default({}),
   runtime: runtimeChoice.optional(),
+  addons: addonArray.optional(),
 });
 export type PlanRequest = z.infer<typeof PlanRequestSchema>;
 export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"] as const;

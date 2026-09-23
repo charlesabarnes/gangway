@@ -27,6 +27,7 @@ import type { Host, Route } from "../../../shared/src/domain.ts";
 import { buildLabel, fqdn } from "../../../shared/src/hostname.ts";
 import { publicOriginFor, type PublicOrigin } from "../../../shared/src/url.ts";
 import { containedIn } from "./source/types.ts";
+import type { RenderedAddons } from "./addons.ts";
 import { buildLabels, LABEL, labelsFromRoute, type LabelContext } from "../docker/labels.ts";
 import { AppError } from "../errors.ts";
 import { parseDuration } from "../util/duration.ts";
@@ -393,6 +394,8 @@ type Generated = {
   /** Stack-level `x-gangway` (ttl, visibility, idle, seed, release) from gangway.yml. */
   stack?: Record<string, string> | undefined;
   health?: string | null | undefined;
+  /** Add-on services (ADR-0017), from `renderAddons`. The app waits for them to be healthy. */
+  sidecars?: Pick<RenderedAddons, "services" | "volumes" | "dependsOn"> | undefined;
 };
 
 const generated = (o: Generated, web: Record<string, unknown>): string => `${JSON.stringify({
@@ -402,9 +405,12 @@ const generated = (o: Generated, web: Record<string, unknown>): string => `${JSO
       ...web,
       "x-gangway": { expose: true, port: o.port, ...(o.health ? { health: o.health } : {}) },
       ...(o.env && Object.keys(o.env).length ? { environment: literal(o.env) } : {}),
+      ...(o.sidecars && Object.keys(o.sidecars.dependsOn).length ? { depends_on: o.sidecars.dependsOn } : {}),
       restart: "unless-stopped",
     },
+    ...(o.sidecars?.services ?? {}),
   },
+  ...(o.sidecars && Object.keys(o.sidecars.volumes).length ? { volumes: o.sidecars.volumes } : {}),
 }, null, 2)}\n`;
 
 /** A source with a Dockerfile and nothing else: build it, expose it. */
