@@ -16,7 +16,8 @@ const LEGAL: Record<PreviewState, readonly PreviewState[]> = {
   // starting -> asleep: a WAKE that did not get there (ADR-0012). The containers are as they
   // were; the next request tries again. A deploy never takes this edge.
   starting: ["awake", "asleep", "failed", "destroying"],
-  awake: ["asleep", "failed", "destroying", "building"],
+  // awake -> starting: a rebuild in place swapping in its new containers (ADR-0015).
+  awake: ["asleep", "starting", "failed", "destroying", "building"],
   asleep: ["starting", "failed", "destroying"],
   failed: ["building", "destroying"],
   // A teardown that could not reach the daemon is a failure, not a success: the

@@ -9,6 +9,7 @@ import { SseService, type SseHandle, type SseStatus } from '../../core/sse.servi
 export const DESTROYED_LINGER_MS = 10_000;
 
 type Patch = Omit<StreamEvent, 'type'> & { type: StreamEvent['type'] };
+export type RedeployEvent = Extract<StreamEvent, { type: 'preview.redeploy' }>;
 
 /**
  * The previews on screen, kept live. One fetch, then `/v1/events` from the cursor that
@@ -112,12 +113,28 @@ export class PreviewsStore {
 
   #on(e: StreamEvent): void {
     if (e.type === 'reset') { void this.reload(); return; }
+    if (e.type === 'preview.redeploy') { this.#noteRedeploy(e); return; }
     // created/adopted carry no preview; an event about an id not held is the same problem.
     const held = this.#byId().get(e.previewId);
     if (e.type !== 'preview.state' || !held) { void this.load(e.previewId); return; }
     // The replay after a reconnect can include events OLDER than the row just fetched.
     if (Date.parse(e.at) < Date.parse(held.updatedAt)) return;
     this.#put({ ...held, state: e.state, error: e.error ?? null, updatedAt: e.at, ...(e.state === 'destroyed' ? { destroyedAt: e.at } : {}) });
+  }
+
+  /** The latest `preview.redeploy` per preview (ADR-0015): the Source panel shows its phase. */
+  readonly #redeploys = signal<ReadonlyMap<string, RedeployEvent>>(new Map());
+
+  redeployOf(id: string): Signal<RedeployEvent | undefined> {
+    return computed(() => this.#redeploys().get(id));
+  }
+
+  #noteRedeploy(e: RedeployEvent): void {
+    const held = this.#redeploys().get(e.previewId);
+    if (held && Date.parse(e.at) < Date.parse(held.at)) return;
+    const next = new Map(this.#redeploys());
+    next.set(e.previewId, e);
+    this.#redeploys.set(next);
   }
 
   #put(p: Preview): void {

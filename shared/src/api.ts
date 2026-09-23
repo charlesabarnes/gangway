@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
+import { RUNTIME_IDS } from "./runtimes.ts";
 
 /** Runtime copies of the domain's string unions, so the web contract test has something to compare. */
 export const PREVIEW_STATE_VALUES = ["building", "starting", "awake", "asleep", "failed", "destroying", "destroyed"] as const;
@@ -53,7 +54,23 @@ export const TarballDeployQuerySchema = z.object({
   template: templateId.optional(),
   project: z.string().min(1).max(64).optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
+  /** ADR-0015: build with a runtime, `auto` to detect one; absent or `own`, the upload's own stack. */
+  runtime: z.enum([...RUNTIME_IDS, "auto", "own"]).optional(),
 });
+
+const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
+
+/** `PUT /v1/previews/:id/source`: the body is the new upload; the runtime rides in the query. */
+export const SourceReplaceQuerySchema = z.object({ runtime: runtimeChoice.optional() });
+
+/** `PATCH /v1/previews/:id/source` (ADR-0015): each path's new text, or null to delete it. */
+export const SourceEditSchema = z.strictObject({
+  files: z.record(z.string().min(1).max(255), z.string().max(1024 * 1024).nullable())
+    .refine((f) => Object.keys(f).length > 0, "no files to change")
+    .refine((f) => Object.keys(f).length <= 500, "at most 500 files per edit"),
+  runtime: runtimeChoice.optional(),
+});
+export type SourceEdit = z.infer<typeof SourceEditSchema>;
 export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"] as const;
 
 export const DeployRequestSchema = z.strictObject({

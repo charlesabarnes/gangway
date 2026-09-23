@@ -14,11 +14,12 @@ import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { LogViewer } from './log-viewer';
 import { PreviewsStore } from './previews.store';
+import { SourcePanel } from './source-panel';
 import { displayName, sourceLabel } from './source-label';
 
 @Component({
   selector: 'app-preview-detail',
-  imports: [RouterLink, Btn, ConfirmDialog, EmptyState, LogViewer, RelativeTimePipe, StateBadge],
+  imports: [RouterLink, Btn, ConfirmDialog, EmptyState, LogViewer, RelativeTimePipe, SourcePanel, StateBadge],
   template: `
     <section class="mx-auto max-w-5xl px-6 py-10">
       <a routerLink="/previews" class="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">← Previews</a>
@@ -69,6 +70,10 @@ import { displayName, sourceLabel } from './source-label';
             <div><dt class="text-neutral-500">Host</dt><dd class="mt-0.5 font-mono text-xs">{{ p.hostId }}</dd></div>
           </dl>
         </div>
+
+        @if (p.state !== 'destroyed' && p.state !== 'destroying') {
+          <app-source-panel [previewId]="p.id" [uploaded]="p.source.kind === 'tarball'" />
+        }
 
         @if (canReadLogs()) {
           <h2 class="mt-10 text-sm font-medium text-neutral-500">Logs</h2>

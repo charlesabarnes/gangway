@@ -124,12 +124,14 @@
     "preview.created",
     "preview.adopted",
     "preview.state",
+    "preview.redeploy",
     "reset"
   ],
   "permissions": [
     "previews.read",
     "previews.deploy",
     "previews.destroy",
+    "previews.update",
     "previews.view_private",
     "logs.read",
     "events.read",
@@ -172,6 +174,7 @@
       "previews.read",
       "previews.deploy",
       "previews.destroy",
+      "previews.update",
       "previews.view_private",
       "logs.read",
       "events.read",
@@ -258,5 +261,69 @@
   "prTriggers": [
     "workflow",
     "webhook"
-  ]
+  ],
+  "runtimeIds": [
+    "static",
+    "node",
+    "bun",
+    "deno",
+    "workerd",
+    "python",
+    "php"
+  ],
+  "runtimeList": {
+    "runtimes": [
+      {
+        "id": "bun",
+        "name": "TypeScript on Bun",
+        "language": "TypeScript",
+        "description": "Runs the entry file as-is.",
+        "image": "oven/bun:1.4.2-alpine",
+        "port": 3000,
+        "starter": {
+          "index.ts": "export default { fetch() { return new Response('hi'); } };\n"
+        }
+      }
+    ],
+    "detection": [
+      {
+        "runtime": "own",
+        "markers": [
+          "compose.yaml"
+        ]
+      }
+    ]
+  },
+  "previewSource": {
+    "runtime": "bun",
+    "files": [
+      {
+        "path": "index.ts",
+        "size": 61,
+        "text": "export default { fetch() { return new Response('hi'); } };\n"
+      }
+    ],
+    "truncated": false
+  },
+  "redeployAccepted": {
+    "buildId": "01M32T8NBMWNSVJZT7XYX2MRZZ"
+  },
+  "redeployDone": {
+    "buildId": "01M32T8NBMWNSVJZT7XYX2MRZZ",
+    "outcome": "failed",
+    "error": "compose build exited 1"
+  },
+  "redeployEvent": {
+    "seq": 7,
+    "type": "preview.redeploy",
+    "at": "2026-09-22T20:24:15.900Z",
+    "phase": "started",
+    "buildId": "01M32T8NBMWNSVJZT7XYX2MRZZ",
+    "by": "user:01M32T80F881ZTYFWN40SMVWT6"
+  },
+  "tarballSource": {
+    "kind": "tarball",
+    "uploadId": "01M32T8NBMWNSVJZT7XYX2MRZY",
+    "runtime": "bun"
+  }
 }

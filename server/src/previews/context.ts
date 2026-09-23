@@ -17,6 +17,7 @@ import type { RouteTable } from "../routing/table.ts";
 import type { PreviewLogs } from "./logs.ts";
 import type { RouteProbe } from "./probe.ts";
 import type { Workdirs } from "./source/workdir.ts";
+import type { SourceStore } from "./source/store.ts";
 import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
 
@@ -65,6 +66,8 @@ export type PreviewContext = {
    * repository's when it has one. Absent: no `.env` is written.
    */
   secretsFor?: ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
+  /** Uploaded sources, kept for the editor and for rebuilds (ADR-0015). Absent: nothing is kept. */
+  sources?: SourceStore | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

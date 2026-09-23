@@ -16,9 +16,9 @@
  * written at the end of `plan`; `compose up` is in `run`. That ordering is structural.
  */
 import { randomBytes } from "node:crypto";
-import { lstat, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { projectNameFor, type Clearance, type Host, type Preview, type PreviewSource, type Route, type Visibility } from "../../../shared/src/domain.ts";
 import { slugify } from "../../../shared/src/hostname.ts";
 import { publicOriginFor } from "../../../shared/src/url.ts";
@@ -41,6 +41,9 @@ import { dotenvLine } from "../secrets/secrets.ts";
 import { assertNoEscapingSymlinks, COMPOSE_FILENAMES, inspectComposeFile } from "./source/guard.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
+import { GENERATED_DIR } from "./source/store.ts";
+import { resolveRuntime, writeRuntime, type RuntimeChoice } from "./runtimes.ts";
+import type { RuntimeId } from "../../../shared/src/runtimes.ts";
 
 export type DeploySource =
   | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined }
@@ -51,8 +54,11 @@ export type DeploySource =
    * not on the recorded source, not in a label, not in the log.
    */
   | { kind: "pr"; repo: string; number: number; sha: string; cloneUrl: string; credential: string | undefined; port?: number | undefined }
-  /** A tar or tar.gz of the project, compose file (or Dockerfile) at its root. */
-  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined }
+  /**
+   * A tar or tar.gz of the project. `runtime` (ADR-0015) builds it with a runtime, `auto`
+   * detects one; absent or `own`, the upload brings its compose file (or Dockerfile).
+   */
+  | { kind: "tarball"; archive: TarballSource; port?: number | undefined; digest?: string | undefined; runtime?: RuntimeChoice | undefined }
   /**
    * An image a workflow built and pushed for one commit of a pull request (ADR-0014).
    * `registry` logs in for this pull only: written to a DOCKER_CONFIG in the work
@@ -96,10 +102,10 @@ export type DeployResult = {
 const unprocessable = (m: string, d?: Record<string, unknown>) => new AppError("unprocessable", m, d);
 
 /** A placeholder `-p` for the config passes, which run before the real name is known. */
-const PLAN_PROJECT = "gw-plan";
+export const PLAN_PROJECT = "gw-plan";
 const COMPOSE_FILE = "compose.yaml";
 /** What we actually `up`: compose's canonical output with our changes applied. */
-const STACK_FILE = "gangway.stack.yaml";
+export const STACK_FILE = "gangway.stack.yaml";
 
 /** 50 bits, lowercase base32 without lookalikes. §8.3: "unguessable suffix in the hostname". */
 function unguessable(): string {
@@ -107,8 +113,9 @@ function unguessable(): string {
   return Array.from(randomBytes(10), (b) => alphabet[b % 32]).join("");
 }
 
-function defaultName(source: DeploySource): string {
-  if (source.kind === "tarball") return "preview";
+function defaultName(source: DeploySource, runtime: RuntimeId | null): string {
+  // A runtime preview is made on a whim, several at a time: its default must not collide.
+  if (source.kind === "tarball") return runtime ? `${runtime}-${unguessable().slice(0, 4)}` : "preview";
   if (source.kind === "pr") return `${source.repo.split("/").pop() ?? "repo"}-pr-${source.number}`;
   if (source.kind === "pushed") return `${source.pr.repo.split("/").pop() ?? "repo"}-pr-${source.pr.number}`;
   // "ghcr.io/acme/web-app:1.2" -> "web-app";  "https://github.com/acme/web-app.git" -> "web-app"
@@ -125,7 +132,11 @@ export function urlsFor(ctx: Pick<PreviewContext, "table" | "origin">, previewId
 
 /* ------------------------------------------------------------------ plan */
 
-type Materialized = { source: PreviewSource; composeFile: string; dockerConfig?: string };
+type Materialized = {
+  source: PreviewSource; composeFile: string; dockerConfig?: string;
+  /** An upload as it arrived, to keep once the preview exists (ADR-0015). */
+  pristine?: string | null; runtime?: RuntimeId | null;
+};
 
 /**
  * A DOCKER_CONFIG holding one registry login, for one `up`. The CLI looks for plugins
@@ -189,32 +200,74 @@ async function writeSource(ctx: PreviewContext, id: string, source: DeploySource
   } else {
     const r = await extractTarball(source.archive, wd.srcDir);
     ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
-    recorded = { kind: "tarball", uploadId: id };
+    const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port);
+    return {
+      source: { kind: "tarball", uploadId: id, ...(up.runtime ? { runtime: up.runtime } : {}) },
+      composeFile: up.composeFile, pristine: up.pristine, runtime: up.runtime,
+    };
   }
 
   // Both checks come BEFORE `compose config`, which opens whatever the file points it at.
   await assertNoEscapingSymlinks(wd.srcDir);
+  return { source: recorded, composeFile: await ownStack(ctx, id, wd.srcDir, env, source.port) };
+}
+
+/** A checkout or upload that brings its own compose file, or a Dockerfile and a port. */
+async function ownStack(ctx: PreviewContext, id: string, srcDir: string, env: Record<string, string> | undefined, port: number | undefined): Promise<string> {
   if (env) {
-    const n = await writeDotenv(wd.srcDir, env);
+    const n = await writeDotenv(srcDir, env);
     if (n > 0) ctx.logs.append(id, "system", `wrote .env with ${n} repository secret${n === 1 ? "" : "s"}`);
   }
-  const found = await inspectComposeFile(wd.srcDir);
-  if (found) return { source: recorded, composeFile: found };
+  const found = await inspectComposeFile(srcDir);
+  if (found) return found;
 
-  const dockerfile = await lstat(join(wd.srcDir, "Dockerfile")).catch(() => null);
+  const dockerfile = await lstat(join(srcDir, "Dockerfile")).catch(() => null);
   if (!dockerfile?.isFile()) {
-    throw unprocessable(`the source has no compose file (${COMPOSE_FILENAMES.join(", ")}) and no Dockerfile at its root`);
+    throw unprocessable(`the source has no compose file (${COMPOSE_FILENAMES.join(", ")}) and no Dockerfile at its root -- or choose a runtime to build it with`);
   }
-  if (source.port === undefined) {
+  if (port === undefined) {
     throw unprocessable("the source has a Dockerfile but no compose file, so `port` is required: the port the app listens on inside the container");
   }
-  await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForDockerfile({ port: source.port }), { mode: 0o600 });
-  return { source: recorded, composeFile: COMPOSE_FILE };
+  await writeFile(join(srcDir, COMPOSE_FILE), composeForDockerfile({ port }), { mode: 0o600 });
+  return COMPOSE_FILE;
+}
+
+export type PreparedUpload = { composeFile: string; runtime: RuntimeId | null; pristine: string | null };
+
+/**
+ * An upload on disk -> the compose file to read (ADR-0015). Deploy and redeploy both come
+ * through here. The pristine copy -- what is KEPT -- is taken after the symlink guard and
+ * before gangway writes `.env` or `.gangway/` into the tree.
+ */
+export async function prepareUpload(
+  ctx: PreviewContext, logId: string, wd: Workdir, choice: RuntimeChoice, env: Record<string, string> | undefined, port: number | undefined,
+): Promise<PreparedUpload> {
+  await assertNoEscapingSymlinks(wd.srcDir);
+  let pristine: string | null = null;
+  if (ctx.sources) {
+    pristine = join(wd.dir, "pristine");
+    await rm(pristine, { recursive: true, force: true });
+    await cp(wd.srcDir, pristine, {
+      recursive: true, verbatimSymlinks: true,
+      filter: (src) => src === wd.srcDir || relative(wd.srcDir, src).split(sep)[0] !== GENERATED_DIR,
+    });
+  }
+  const runtime = await resolveRuntime(wd.srcDir, choice);
+  if (runtime === "own") {
+    if (choice === "auto") ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
+    return { composeFile: await ownStack(ctx, logId, wd.srcDir, env, port), runtime: null, pristine };
+  }
+  // `port`, if given, overrides the runtime's own: a rebuild keeps the preview's.
+  const { composeFile, note } = await writeRuntime(wd.srcDir, runtime, env, join(wd.dir, "runtime.compose.yaml"), port);
+  ctx.logs.append(logId, "system", `${choice === "auto" ? "detected " : ""}runtime ${runtime}: ${note}`);
+  const secrets = Object.keys(env ?? {}).length;
+  if (secrets > 0) ctx.logs.append(logId, "system", `passing ${secrets} secret(s) to the container as environment`);
+  return { composeFile, runtime, pristine };
 }
 
 type Planned = { model: ComposeModel; resolved: unknown };
 
-async function readModel(ctx: PreviewContext, host: Host, wd: Workdir, composeFile: string): Promise<Planned> {
+export async function readModel(ctx: PreviewContext, host: Host, wd: Workdir, composeFile: string): Promise<Planned> {
   const argv = composeArgv({
     project: PLAN_PROJECT, files: [join(wd.srcDir, composeFile)], projectDirectory: wd.srcDir, docker: ctx.docker,
     // YAML, not `--format json`: JSON output drops service-level x-gangway. See compose-model.ts.
@@ -255,12 +308,16 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let routes: PlannedRoute[];
   let visibility: Visibility;
   let dockerConfig: string | undefined;
+  let pristine: string | null = null;
+  let runtimeUsed: RuntimeId | null = null;
   try {
     // The clearance: asked for, else the project's override, else the template's (ADR-0012, ADR-0013).
     const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
     const env = input.env !== undefined ? input.env : secretLevel === "none" ? {} : ctx.secretsFor?.(owner?.id ?? null, secretLevel);
-    const { source, composeFile, dockerConfig: login } = await writeSource(ctx, id, input.source, env, wd);
+    const { source, composeFile, dockerConfig: login, pristine: kept, runtime } = await writeSource(ctx, id, input.source, env, wd);
     dockerConfig = login;
+    pristine = kept ?? null;
+    runtimeUsed = runtime ?? null;
     planned = await readModel(ctx, host, wd, composeFile);
     const { model } = planned;
     const exposed = selectExposed(model);
@@ -277,7 +334,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     const ttlMs = ttlText === null ? null : parseDuration(ttlText);
     if (ttlText !== null && ttlMs === null) throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
 
-    const stem = slugify(input.name ?? defaultName(input.source));
+    const stem = slugify(input.name ?? defaultName(input.source, runtimeUsed));
     if (stem === "") throw unprocessable("name has no usable characters");
     const slug = visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
     const project = projectNameFor(ctx.instance, slug);
@@ -322,6 +379,12 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     throw e;
   }
 
+  // ADR-0015: the upload is kept once there is a preview to keep it for. Losing it costs the
+  // editor, not the deploy.
+  if (pristine && ctx.sources) {
+    await ctx.sources.adopt(id, pristine).catch((e) => ctx.logger.warn("could not keep the uploaded source", { previewId: id, err: e }));
+  }
+
   const urls = urlsFor(ctx, id);
   ctx.bus.publish("preview.created", { project: preview.project, by: actorId(input.actor), urls: urls.map((u) => u.url) }, id);
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
@@ -364,15 +427,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   // read, by compose itself, into the document the stack file was built from.
   const base = { project: preview.project, files: [stackPath], projectDirectory: wd.srcDir, docker: ctx.docker };
 
-  /** Streams a compose command into the preview log; throws unless it exits 0. */
-  const step = async (what: string, argv: string[], stream: "build" | "seed" | "stdout", env?: Record<string, string>) => {
-    log(`$ compose ${what}`);
-    for await (const ev of ctx.compose.stream(argv, host, { cwd: wd.srcDir, signal: r.signal, ...(env ? { env } : {}) })) {
-      if (ev.type === "line") ctx.logs.append(id, ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream, ev.line);
-      else if (ev.code !== 0) throw new StepFailed(`compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`, ev.code);
-    }
-    r.signal.throwIfAborted();
-  };
+  const step = stepper(ctx, { previewId: id, host, cwd: wd.srcDir, signal: r.signal });
 
   let upAttempted = false;
   try {
@@ -431,6 +486,20 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   } finally {
     await wd.cleanup();
   }
+}
+
+export type Step = (what: string, argv: string[], stream: "build" | "seed" | "stdout", env?: Record<string, string>) => Promise<void>;
+
+/** Streams a compose command into the preview log; throws unless it exits 0. */
+export function stepper(ctx: PreviewContext, o: { previewId: string; host: Host; cwd: string; signal: AbortSignal }): Step {
+  return async (what, argv, stream, env) => {
+    ctx.logs.append(o.previewId, "system", `$ compose ${what}`);
+    for await (const ev of ctx.compose.stream(argv, o.host, { cwd: o.cwd, signal: o.signal, ...(env ? { env } : {}) })) {
+      if (ev.type === "line") ctx.logs.append(o.previewId, ev.stream === "stderr" && stream === "stdout" ? "stderr" : stream, ev.line);
+      else if (ev.code !== 0) throw new StepFailed(`compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`, ev.code);
+    }
+    o.signal.throwIfAborted();
+  };
 }
 
 /** The seed hook as `{ service, command }`, the primary route's service filling in. */
@@ -505,7 +574,7 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
  * workloads -- but its last words are kept first, because the container logs are the
  * only thing that says WHY, and the failure page shows them (§6.1).
  */
-async function salvage(ctx: PreviewContext, r: RunInput): Promise<void> {
+export async function salvage(ctx: PreviewContext, r: Pick<RunInput, "preview" | "host">): Promise<void> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-salvage-"));
   try {
     const logs = await ctx.compose.capture(

@@ -21,6 +21,7 @@ import { userRoutes } from "./app/routes/users.ts";
 import { eventRoutes } from "./app/routes/events.ts";
 import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
+import { runtimeRoutes } from "./app/routes/runtimes.ts";
 import { Audit } from "./audit/audit.ts";
 import { Accounts } from "./auth/accounts.ts";
 import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor.ts";
@@ -68,6 +69,7 @@ import { IdempotentDeploys } from "./previews/idempotent.ts";
 import { PreviewLogs } from "./previews/logs.ts";
 import { httpProbe, type RouteProbe } from "./previews/probe.ts";
 import { Workdirs } from "./previews/source/workdir.ts";
+import { SourceStore } from "./previews/source/store.ts";
 import { Waker, sweepIdle } from "./previews/sleep.ts";
 import { PreviewStates } from "./previews/state.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "./secrets/box.ts";
@@ -159,6 +161,12 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   }));
   const workdirs = new Workdirs(stateDir);
   await workdirs.prune();
+  // ADR-0015: a kept upload whose preview is gone -- destroyed, or its row lost -- goes too.
+  const sources = new SourceStore(stateDir);
+  for (const id of await sources.ids()) {
+    const p = all.get(id);
+    if (!p || p.state === "destroyed") await sources.remove(id);
+  }
 
   const builds = new BuildsRepo(db);
   const orphanedBuilds = builds.cancelRunning();
@@ -196,7 +204,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     timings: { ...DEFAULT_TIMINGS, ...o.timings },
     now: Date.now,
     inflight: new Map(), teardowns: new Set(),
-    builds, audit,
+    builds, audit, sources,
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
   };
 
@@ -292,6 +300,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       hostRoutes(api, hosts);
       eventRoutes(api, bus, { signal: shutdown.signal });
       previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
+      runtimeRoutes(api);
       auditRoutes(api, auditRepo);
       tokenRoutes(api, tokens);
       userRoutes(api, accounts);

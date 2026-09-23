@@ -32,6 +32,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
         <h1 class="text-2xl font-semibold tracking-tight">Previews</h1>
         <span class="text-sm text-neutral-500" data-testid="count">{{ shown().length }}@if (filtered()) { of {{ store.previews().length }} }</span>
         <span class="ml-auto"><app-connection-dot [status]="store.status()" /></span>
+        @if (canDeploy()) { <a appBtn routerLink="/new" class="self-center" data-testid="new">New preview</a> }
       </div>
 
       <div class="mt-6 flex flex-wrap items-center gap-2">
@@ -106,7 +107,11 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
           </app-empty-state>
         } @else if (!store.error()) {
           <app-empty-state heading="No previews yet">
-            <p>Deploy one from the API and it will appear here as it happens — no refresh needed.</p>
+            @if (canDeploy()) {
+              <p><a routerLink="/new" class="text-accent hover:underline" data-testid="empty-new">Create one</a> from a runtime's starter or by dropping in files — or deploy from the API. It will appear here as it happens, no refresh needed.</p>
+            } @else {
+              <p>Deploy one from the API and it will appear here as it happens — no refresh needed.</p>
+            }
             <pre class="mt-4 overflow-x-auto rounded-md bg-neutral-100 p-3 text-left font-mono text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300" data-testid="curl">{{ curl }}</pre>
           </app-empty-state>
         }
@@ -148,6 +153,7 @@ export class PreviewList {
 
   /** Advice about what to SHOW. The server refuses a DELETE the role does not allow, whatever this says. */
   protected readonly canDestroy = computed(() => this.#auth.can('previews.destroy'));
+  protected readonly canDeploy = computed(() => this.#auth.can('previews.deploy'));
   protected readonly filtered = computed(() => this.states().size > 0 || this.source() !== '' || this.query().trim() !== '');
 
   protected readonly shown = computed(() => {

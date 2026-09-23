@@ -81,6 +81,7 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   ctx.table.removePreview(previewId);
   const gone = ctx.states.transition(previewId, "destroyed");
   await ctx.workdirs.remove(previewId);
+  await ctx.sources?.remove(previewId); // ADR-0015: the kept upload goes with it
   ctx.logs.remove(previewId); // §15.4 default: discard on destroy
   return gone;
 }

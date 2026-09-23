@@ -222,4 +222,14 @@ describe('source labels', () => {
     expect(primaryUrl({ urls: [{ service: 'api', url: 'https://a/', primary: false }, { service: 'web', url: 'https://w/', primary: true }] })).toBe('https://w/');
     expect(primaryUrl({ urls: [] })).toBeNull();
   });
+
+  it('offers New preview (header and empty state) only to a role with previews.deploy', async () => {
+    const without = await open({ previews: [] });
+    expect(without.byTestId('new')).toBeNull();
+    expect(without.byTestId('empty-new')).toBeNull();
+    TestBed.resetTestingModule();
+    const withIt = await open({ permissions: ['previews.read', 'previews.deploy'], previews: [] });
+    expect(withIt.byTestId('new')?.getAttribute('href')).toBe('/new');
+    expect(withIt.byTestId('empty-new')?.getAttribute('href')).toBe('/new');
+  });
 });

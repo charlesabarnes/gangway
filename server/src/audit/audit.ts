@@ -17,7 +17,7 @@ import type { AuditRepo } from "../db/repos/audit.ts";
 import { redact, type Logger } from "../logger.ts";
 
 export type AuditAction =
-  | "preview.deploy" | "preview.destroy"
+  | "preview.deploy" | "preview.destroy" | "preview.redeploy"
   | "auth.setup" | "auth.login" | "auth.login.failed" | "auth.login.blocked" | "auth.logout" | "auth.password.changed"
   | "user.created" | "user.updated"
   | "role.permissions.changed"

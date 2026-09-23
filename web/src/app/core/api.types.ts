@@ -19,7 +19,8 @@ export type PreviewSource =
   | { kind: 'manual'; userId: string }
   | { kind: 'agent'; tokenId: string; idempotencyKey: string }
   | { kind: 'image'; image: string }
-  | { kind: 'tarball'; uploadId: string }
+  /** `runtime` absent: the upload brought its own compose file or Dockerfile (ADR-0015). */
+  | { kind: 'tarball'; uploadId: string; runtime?: RuntimeId }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];
 
@@ -53,7 +54,7 @@ export type Preview = {
 /** `seq` is the event cursor to follow `/v1/events` from -- read by the server BEFORE the list. */
 export type PreviewList = { seq: number; previews: Preview[] };
 
-export type PreviewEvent = { seq: number; type: string; at: string; state?: PreviewState; from?: PreviewState; error?: string };
+export type PreviewEvent = { seq: number; type: string; at: string; state?: PreviewState; from?: PreviewState; error?: string; phase?: RedeployPhase; buildId?: string; by?: string };
 
 export type Build = {
   id: string; previewId: string; service: string | null;
@@ -70,8 +71,9 @@ export type StreamEvent =
   | { type: 'preview.created'; previewId: string; at: string }
   | { type: 'preview.adopted'; previewId: string; at: string }
   | { type: 'preview.state'; previewId: string; at: string; state: PreviewState; from: PreviewState; error?: string }
+  | { type: 'preview.redeploy'; previewId: string; at: string; phase: RedeployPhase; buildId: string; by: string; error?: string }
   | { type: 'reset'; at: string };
-export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'preview.state', 'reset'] as const;
+export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'preview.state', 'preview.redeploy', 'reset'] as const;
 
 /**
  * Permissions are what the UI gates on -- never a role name, because which role holds what
@@ -79,7 +81,7 @@ export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'previe
  * `fixtures/permissions.json`.
  */
 export const PERMISSIONS = [
-  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.view_private',
+  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.view_private',
   'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
   'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
   'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.manage', 'repos.secrets', 'templates.manage',
@@ -174,3 +176,33 @@ export const TRIGGERS: readonly Trigger[] = ['pr', 'api', 'manual'];
 
 /** One row of `GET /v1/settings`. A secret's value is never sent, only whether one is set. */
 export type SettingView = { key: string; value: unknown; source: 'config' | 'database' | 'default'; managedByConfig: boolean; secret: boolean; set: boolean };
+
+/* ---- Runtimes and editable previews (ADR-0015) */
+
+export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';
+export const RUNTIME_IDS: readonly RuntimeId[] = ['static', 'node', 'bun', 'deno', 'workerd', 'python', 'php'];
+/** `own`: the upload brings its own compose file or Dockerfile. */
+export type Detected = RuntimeId | 'own';
+
+/** One entry of `GET /v1/runtimes`: a way to build a folder with no Dockerfile. */
+export type Runtime = {
+  id: RuntimeId; name: string; language: string; description: string; image: string; port: number;
+  /** What a new preview of this runtime starts with: path -> text. */
+  starter: Record<string, string>;
+};
+/** Root-level marker files; the first rule with any marker present wins, else `static`. */
+export type DetectionRule = { runtime: Detected; markers: string[] };
+export type RuntimeList = { runtimes: Runtime[]; detection: DetectionRule[] };
+
+/** `GET /v1/previews/:id/source`. `text` is absent on a binary or too-large file: listed, not editable. */
+export type SourceFile = { path: string; size: number; text?: string };
+export type PreviewSourceFiles = { runtime: RuntimeId | null; files: SourceFile[]; truncated: boolean };
+
+/** `PATCH /v1/previews/:id/source`: text sets a file, null deletes it. */
+export type SourcePatch = { files: Record<string, string | null>; runtime?: Detected };
+
+export type RedeployPhase = 'started' | 'succeeded' | 'failed';
+/** 202 from PATCH/PUT `…/source` (with `preview`). */
+export type RedeployAccepted = { buildId: string };
+/** `?wait=true` (with `preview`). */
+export type RedeployDone = { buildId: string; outcome: 'succeeded' | 'failed'; error?: string };

@@ -14,6 +14,7 @@ export const PERMISSIONS = [
   { id: "previews.read", feature: "previews", description: "List previews and see their detail, URLs and builds" },
   { id: "previews.deploy", feature: "previews", description: "Deploy a new preview" },
   { id: "previews.destroy", feature: "previews", description: "Destroy any preview" },
+  { id: "previews.update", feature: "previews", description: "Change a preview's uploaded source and rebuild it at the same URL" },
   { id: "previews.view_private", feature: "previews", description: "Open previews whose visibility is private" },
   { id: "logs.read", feature: "logs", description: "Read and follow preview build and runtime logs" },
   { id: "events.read", feature: "events", description: "Follow the global state stream" },

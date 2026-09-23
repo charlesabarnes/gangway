@@ -158,3 +158,49 @@ describe("github wire shapes (ADR-0011)", () => {
     expect(contract["triggers"]).toEqual([...TRIGGERS]);
   });
 });
+
+describe("runtime wire shapes (ADR-0015)", () => {
+  test("the catalogue, a kept source, a redeploy event, an upload's source, and the runtime ids", async () => {
+    const { SourceStore } = await import("../../src/previews/source/store.ts");
+    const { runtimeRoutes } = await import("../../src/app/routes/runtimes.ts");
+    const { deploy } = await import("../../src/previews/deploy.ts");
+    const { redeploy } = await import("../../src/previews/redeploy.ts");
+    const { RUNTIME_IDS } = await import("../../../shared/src/runtimes.ts");
+    const { pack } = await import("tar-stream");
+    const { gzipSync } = await import("node:zlib");
+    const { dirname } = await import("node:path");
+    const s = setupPreviewContext();
+    s.ctx.sources = new SourceStore(dirname(s.ctx.workdirs.root));
+    const app = new Hono<AppEnv>();
+    app.onError(errorHandler(quiet));
+    app.use(async (c, next) => { c.set("requestId", "r"); c.set("actor", ACTOR); return next(); });
+    previewRoutes(app, s.ctx, null as never);
+    runtimeRoutes(app);
+
+    expect(contract["runtimeIds"]).toEqual([...RUNTIME_IDS]);
+    const list = await (await app.request("/runtimes")).json() as { runtimes: unknown[]; detection: unknown[] };
+    const want = contract["runtimeList"] as { runtimes: unknown[]; detection: unknown[] };
+    expect(Object.keys(list).sort()).toEqual(Object.keys(want).sort());
+    // Starter maps differ per runtime; their VALUES are strings -- compare the rest of the shape.
+    const noStarter = (r: unknown) => { const { starter, ...rest } = r as Record<string, unknown>; return shapeOf({ ...rest, starterIsObject: typeof starter === "object" }); };
+    expect(noStarter(list.runtimes[0])).toEqual(noStarter(want.runtimes[0]));
+    expect(shapeOf(list.detection[0])).toEqual(shapeOf(want.detection[0]));
+
+    const p = pack(); p.entry({ name: "index.ts" }, "export default {}"); p.finalize();
+    const chunks: Buffer[] = []; for await (const c of p) chunks.push(c as Buffer);
+    const res = await deploy(s.ctx, { actor: ACTOR, name: "rt", visibility: "public", source: { kind: "tarball", archive: gzipSync(Buffer.concat(chunks)), runtime: "bun" } });
+    await res.done;
+    expect(shapeOf(res.preview.source)).toEqual(shapeOf(contract["tarballSource"]));
+    expect(shapeOf(await (await app.request(`/previews/${res.preview.id}/source`)).json())).toEqual(shapeOf(contract["previewSource"]));
+
+    s.fake.buildExit = 1;
+    const accepted = await app.request(`/previews/${res.preview.id}/source?wait=true`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ files: { "index.ts": "x" } }) });
+    const done = await accepted.json() as Record<string, unknown>;
+    const { preview: _p, ...rest } = done;
+    expect(shapeOf(rest)).toEqual(shapeOf(contract["redeployDone"]));
+    void redeploy;
+    const { events } = await (await app.request(`/previews/${res.preview.id}/events`)).json() as { events: { type: string; phase?: string }[] };
+    expect(shapeOf(events.find((e) => e.type === "preview.redeploy" && e.phase === "started"))).toEqual(shapeOf(contract["redeployEvent"]));
+    for (const e of events) expect(contract["streamEventTypes"]).toContain(e.type);
+  });
+});

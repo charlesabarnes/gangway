@@ -10,6 +10,7 @@ export const routes: Routes = [
   { path: 'login', title: 'Log in · gangway', canActivate: [anonymousOnly], loadComponent: () => import('./features/auth/login').then((m) => m.Login) },
   { path: 'setup', title: 'Set up · gangway', canActivate: [setupOnly], loadComponent: () => import('./features/auth/setup').then((m) => m.Setup) },
   { path: 'previews', title: 'Previews · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-list').then((m) => m.PreviewList) },
+  { path: 'new', title: 'New preview · gangway', canActivate: [authGuard], loadComponent: () => import('./features/new/new-preview').then((m) => m.NewPreview) },
   { path: 'previews/:id', title: 'Preview · gangway', canActivate: [authGuard], loadComponent: () => import('./features/previews/preview-detail').then((m) => m.PreviewDetail) },
   { path: 'account', title: 'Account · gangway', canActivate: [authGuard], loadComponent: () => import('./features/account/account').then((m) => m.Account) },
   { path: 'projects', title: 'Projects · gangway', canActivate: [authGuard], loadComponent: () => import('./features/projects/projects').then((m) => m.ProjectsPage) },

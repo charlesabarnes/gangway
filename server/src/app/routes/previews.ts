@@ -3,18 +3,21 @@
  * response. If logic appears in this file it is in the wrong file -- the webhook receiver
  * and the MCP tool will need it too, and they do not come through here.
  */
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import type { Preview } from "../../../../shared/src/domain.ts";
-import { DeployRequestSchema, PreviewListQuerySchema, PreviewLogsQuerySchema, TARBALL_CONTENT_TYPES, TarballDeployQuerySchema } from "../../../../shared/src/api.ts";
+import { DeployRequestSchema, PreviewListQuerySchema, PreviewLogsQuerySchema, SourceEditSchema, SourceReplaceQuerySchema, TARBALL_CONTENT_TYPES, TarballDeployQuerySchema } from "../../../../shared/src/api.ts";
 import { badRequest, notFound } from "../../errors.ts";
 import type { PreviewContext } from "../../previews/context.ts";
 import { urlsFor, type DeployInput } from "../../previews/deploy.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
+import { redeploy, type RedeployInput } from "../../previews/redeploy.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 import { resumeCursor, sse, SSE_MAX_QUEUE, type SseOptions } from "../sse.ts";
+
+const isTarball = (contentType: string) => (TARBALL_CONTENT_TYPES as readonly string[]).includes(contentType);
 
 export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: IdempotentDeploys, o: SseOptions = {}): void {
   const wire = (p: Preview) => ({ ...p, urls: urlsFor(ctx, p.id) });
@@ -29,12 +32,12 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
   api.post("/previews", requirePermission("previews.deploy"), async (c) => {
     const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
     let req: Omit<DeployInput, "actor">;
-    if ((TARBALL_CONTENT_TYPES as readonly string[]).includes(contentType)) {
+    if (isTarball(contentType)) {
       // The body is the archive, streamed straight into the extractor -- never buffered.
-      const { ttl, project, ...q } = TarballDeployQuerySchema.parse(c.req.query());
+      const { ttl, project, runtime, port, ...q } = TarballDeployQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
       if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      req = { ...q, ...(project ? { projectId: project } : {}), ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port: q.port, digest: `len:${c.req.header("content-length") ?? "?"}` } };
+      req = { ...q, ...(project ? { projectId: project } : {}), ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port, runtime, digest: `len:${c.req.header("content-length") ?? "?"}` } };
     } else {
       const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
       const { project, ...parsed } = DeployRequestSchema.parse(body);
@@ -84,6 +87,40 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
   api.get("/previews/:id/builds", requirePermission("previews.read"), (c) => {
     const p = find(c.req.param("id"));
     return c.json({ builds: ctx.builds?.forPreview(p.id) ?? [] });
+  });
+
+  /** ADR-0015: the kept upload, for the editor. 404 when nothing is kept (git, image, PR previews). */
+  api.get("/previews/:id/source", requirePermission("previews.read"), async (c) => {
+    const p = find(c.req.param("id"));
+    if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) throw notFound("this preview keeps no source: only uploaded previews do");
+    const listing = await ctx.sources.list(p.id);
+    return c.json({ runtime: p.source.runtime ?? null, ...listing });
+  });
+
+  /** Rebuild in place from edits (JSON) or a whole new upload (tar.gz body). Same URL, same preview. */
+  const rebuild = async (c: Context<AppEnv, "/previews/:id">, change: RedeployInput["change"], runtime: RedeployInput["runtime"]) => {
+    const p = find(c.req.param("id"));
+    const res = await redeploy(ctx, { actor: c.get("actor"), previewId: p.id, change, runtime });
+    if (c.req.query("wait") === "true") {
+      const o = await res.done;
+      return c.json({ preview: wire(o.preview), buildId: o.buildId, outcome: o.outcome, ...(o.error ? { error: o.error } : {}) }, o.outcome === "succeeded" ? 200 : 502);
+    }
+    return c.json({ preview: wire(res.preview), buildId: res.buildId }, 202);
+  };
+
+  api.patch("/previews/:id/source", requirePermission("previews.update"), async (c) => {
+    const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+    const { files, runtime } = SourceEditSchema.parse(body);
+    return rebuild(c, { kind: "edit", files }, runtime);
+  });
+
+  api.put("/previews/:id/source", requirePermission("previews.update"), async (c) => {
+    const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+    if (!isTarball(contentType)) throw badRequest(`send the new source as a tar or tar.gz body (${TARBALL_CONTENT_TYPES.join(", ")})`);
+    const { runtime } = SourceReplaceQuerySchema.parse(c.req.query());
+    const archive = c.req.raw.body;
+    if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
+    return rebuild(c, { kind: "replace", archive }, runtime);
   });
 
   api.get("/previews/:id/logs", requirePermission("logs.read"), (c) => {

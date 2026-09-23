@@ -1,7 +1,8 @@
 import contract from '../../testing/fixtures/contract.json';
 import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
-  CLEARANCES, FORK_POLICIES, PR_TRIGGERS, TRIGGERS, type Template,
+  CLEARANCES, FORK_POLICIES, PR_TRIGGERS, RUNTIME_IDS, TRIGGERS, type Template,
+  type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type SourceFile, type StreamEvent,
   type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Project, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
@@ -42,6 +43,34 @@ describe('the /v1 wire contract', () => {
     expect(event.type).toBe('preview.state');
     expect(anonymous.authenticated).toBe(false);
     expect(user.authenticated && user.user?.role.id).toBe('admin');
+  });
+
+  it('runtimes, a kept source and a redeploy (ADR-0015)', () => {
+    const keys = (o: object) => Object.keys(o).sort();
+    const list: RuntimeList = contract.runtimeList as RuntimeList;
+    const RUNTIME_KEYS: (keyof Runtime)[] = ['id', 'name', 'language', 'description', 'image', 'port', 'starter'];
+    expect(keys(list)).toEqual(['detection', 'runtimes']);
+    expect(keys(list.runtimes[0]!)).toEqual([...RUNTIME_KEYS].sort());
+    expect(keys(list.detection[0]!)).toEqual(['markers', 'runtime']);
+    expect([...RUNTIME_IDS]).toEqual(contract.runtimeIds);
+
+    const source: PreviewSourceFiles = contract.previewSource as PreviewSourceFiles;
+    const FILE_KEYS: (keyof SourceFile)[] = ['path', 'size', 'text'];
+    expect(keys(source)).toEqual(['files', 'runtime', 'truncated']);
+    expect(keys(source.files[0]!)).toEqual([...FILE_KEYS].sort());
+
+    const accepted: RedeployAccepted = contract.redeployAccepted;
+    const done: RedeployDone = contract.redeployDone as RedeployDone;
+    expect(keys(accepted)).toEqual(['buildId']);
+    expect(keys(done)).toEqual(['buildId', 'error', 'outcome']);
+
+    const { seq: _seq, ...wire } = contract.redeployEvent;
+    const event: StreamEvent = { ...wire, previewId: 'x' } as StreamEvent;
+    expect(event.type).toBe('preview.redeploy');
+    expect(keys(contract.redeployEvent)).toEqual(['at', 'buildId', 'by', 'phase', 'seq', 'type']);
+
+    const tarball: PreviewSource = contract.tarballSource as PreviewSource;
+    expect(tarball.kind === 'tarball' && tarball.runtime).toBe('bun');
   });
 
   it('every string union the UI switches on lists exactly what the server sends', () => {

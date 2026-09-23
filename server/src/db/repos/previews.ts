@@ -88,6 +88,15 @@ export class PreviewsRepo {
     );
   }
 
+  /** A redeploy that changed the runtime (ADR-0015). The kind never changes: an upload stays one. */
+  setSource(id: string, source: PreviewSource): void {
+    const { source_kind, source_json } = sourceToColumns(source);
+    this.#db.run(
+      "UPDATE previews SET source_kind = $source_kind, source_json = $source_json, updated_at = $now WHERE id = $id",
+      { id, source_kind, source_json, now: this.#now() },
+    );
+  }
+
   /**
    * Written on every proxied request, so it must be as cheap as possible and must never
    * bump updated_at -- that column means "the lifecycle changed", not "someone visited".

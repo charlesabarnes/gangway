@@ -396,3 +396,22 @@ export function composeForImage(o: { image: string; port: number; env?: Record<s
     },
   }, null, 2)}\n`;
 }
+
+/**
+ * A runtime's stack (ADR-0015): built from the generated `.gangway/Dockerfile`, secrets as
+ * the container's environment (never a `.env` in the build context), and an init process,
+ * because `npm start` and friends make poor PID 1s.
+ */
+export function composeForRuntime(o: { port: number; env?: Record<string, string> | undefined }): string {
+  return `${JSON.stringify({
+    services: {
+      web: {
+        build: { context: ".", dockerfile: ".gangway/Dockerfile" },
+        "x-gangway": { expose: true, port: o.port },
+        init: true,
+        ...(o.env && Object.keys(o.env).length ? { environment: literal(o.env) } : {}),
+        restart: "unless-stopped",
+      },
+    },
+  }, null, 2)}\n`;
+}
