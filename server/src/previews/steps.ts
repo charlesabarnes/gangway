@@ -1,7 +1,7 @@
 import type { Host } from "@gangway/shared/domain";
 import { unprocessable } from "../errors.ts";
 import type { ComposeModel } from "./compose-model.ts";
-import type { PlannedRoute } from "./compose-routes.ts";
+import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
 
 export class StepFailed extends Error {

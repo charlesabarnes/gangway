@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { boot, type Running } from "../../src/boot.ts";
 import { loadConfig } from "../../src/config.ts";
-import type { ContainerSummary } from "../../src/docker/client.ts";
+import type { ContainerSummary } from "../../src/docker/client-types.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
 import type { ComposeRunner } from "../../src/docker/runner.ts";
 import { Logger } from "../../src/logger.ts";

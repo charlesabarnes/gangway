@@ -13,11 +13,12 @@ import { conflict, unprocessable } from "../errors.ts";
 import { allocatePorts } from "../routing/ports.ts";
 import { idleMs } from "../util/duration.ts";
 import type { ComposeModel } from "./compose-model.ts";
-import { planRoutes, type ExposedService, type PlannedRoute } from "./compose-routes.ts";
+import { planRoutes, type ExposedService } from "./compose-routes.ts";
 import type { PreviewContext } from "./context.ts";
 import { defaultName, unguessable } from "./deploy-names.ts";
-import type { DeployInput } from "./deploy.ts";
+import type { DeployInput } from "./deploy-types.ts";
 import { entryPassword, type ResolvedPassword } from "./password.ts";
+import type { PlannedRoute } from "./planned-route.ts";
 import type { ResolvedPolicy } from "./policy.ts";
 
 export type Claim = {

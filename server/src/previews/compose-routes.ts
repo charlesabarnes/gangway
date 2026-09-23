@@ -1,7 +1,8 @@
-import type { Host, Route } from "@gangway/shared/domain";
+import type { Host } from "@gangway/shared/domain";
 import { buildLabel, fqdn } from "@gangway/shared/hostname";
 import { unprocessable } from "../errors.ts";
 import type { ComposeModel, ServiceModel } from "./compose-model.ts";
+import type { PlannedRoute } from "./planned-route.ts";
 
 export type ExposedService = {
   service: string;
@@ -54,8 +55,6 @@ export function selectExposed(model: ComposeModel): ExposedService[] {
     primary: s.x.primary === true,
   }));
 }
-
-export type PlannedRoute = Omit<Route, "createdAt">;
 
 export type PlanInput = {
   previewId: string;

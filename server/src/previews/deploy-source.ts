@@ -6,7 +6,7 @@ import type { PreviewSource } from "@gangway/shared/domain";
 import type { RuntimeId } from "@gangway/shared/runtimes";
 import { composeForImage } from "./compose-generate.ts";
 import type { PreviewContext } from "./context.ts";
-import type { DeploySource, RegistryLogin } from "./deploy.ts";
+import type { DeploySource, RegistryLogin } from "./deploy-types.ts";
 import { COMPOSE_FILE, ownStack } from "./own-stack.ts";
 import { prepareUpload } from "./prepare-upload.ts";
 import { cloneRepo } from "./source/git.ts";

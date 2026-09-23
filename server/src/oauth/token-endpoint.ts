@@ -5,7 +5,7 @@ import type { Actor } from "../auth/actor.ts";
 import type { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { sha256 } from "../util/hash.ts";
 import { ulid } from "../util/ulid.ts";
-import type { OAuthScope } from "./authorize-request.ts";
+import type { OAuthScope } from "./scopes.ts";
 
 export const ACCESS_TTL_MS = 3_600_000;
 export const REFRESH_IDLE_MS = 30 * 86_400_000;

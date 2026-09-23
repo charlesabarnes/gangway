@@ -1,47 +1,16 @@
 import type { Host, Preview } from "@gangway/shared/domain";
-import type { RoutesRepo } from "../db/repos/routes.ts";
-import type { ContainerSummary, DockerClient } from "../docker/client.ts";
+import type { ContainerSummary } from "../docker/client-types.ts";
 import { LABEL } from "../docker/labels.ts";
-import type { Logger } from "../logger.ts";
 import { entryPassword } from "../previews/password.ts";
-import type { PreviewContext } from "../previews/context.ts";
 import { releaseStack } from "../previews/destroy.ts";
 import { isInRange } from "../routing/ports.ts";
 import { SingleFlight } from "../util/async.ts";
 import { parseDuration } from "../util/duration.ts";
 import { isUlid } from "../util/ulid.ts";
 import { diff, isMutating, type Action, type ScannedContainer } from "./diff.ts";
+import type { ReconcileReport, ReconcilerDeps } from "./reconciler-types.ts";
 import { coveredHostnames, isBusy, rescueInterrupted, wakeReturned } from "./recover.ts";
 import { scanHost, toScanned } from "./scan.ts";
-
-export type ClientSource = {
-  for(
-    host: Pick<Host, "id" | "dockerHost">,
-  ): Pick<DockerClient, "hostId" | "info" | "listContainers" | "stopContainer">;
-};
-
-export type ReconcilerDeps = {
-  ctx: PreviewContext;
-  routes: RoutesRepo;
-  clients: ClientSource;
-  logger: Logger;
-  orphans?: "stop" | "report";
-  env?: Readonly<Record<string, string | undefined>>;
-};
-
-export type HostScan = {
-  hostId: string;
-  reachable: boolean;
-  error: string | null;
-  containers: number;
-};
-
-export type ReconcileReport = {
-  at: number;
-  hosts: HostScan[];
-  actions: Action[];
-  changes: string[];
-};
 
 type Found = { summary: ContainerSummary; host: Host };
 type Of<K extends Action["kind"]> = Extract<Action, { kind: K }>;

@@ -4,7 +4,8 @@ import type { IdempotencyRepo } from "../db/repos/idempotency.ts";
 import { AppError, badRequest } from "../errors.ts";
 import { SingleFlight } from "../util/async.ts";
 import type { PreviewContext } from "./context.ts";
-import { deploy, urlsFor, type DeployInput, type DeployResult } from "./deploy.ts";
+import { deploy, urlsFor } from "./deploy.ts";
+import type { DeployInput, DeployResult } from "./deploy-types.ts";
 
 export const IDEMPOTENCY_TTL_MS = 24 * 3_600_000;
 

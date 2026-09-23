@@ -12,7 +12,7 @@ import type { ProjectsRepo } from "../../db/repos/projects.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
-import type { PreviewUrl } from "../../previews/deploy.ts";
+import type { PreviewUrl } from "../../previews/deploy-types.ts";
 import type { Pulls } from "../../projects/pulls.ts";
 import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../../projects/workflow.ts";
 import type { Secrets } from "../../secrets/secrets.ts";

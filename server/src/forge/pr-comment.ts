@@ -1,8 +1,8 @@
 import type { Preview } from "@gangway/shared/domain";
 import type { AppError } from "../errors.ts";
-import type { PreviewUrl } from "../previews/deploy.ts";
+import type { PreviewUrl } from "../previews/deploy-types.ts";
 import type { PullRequest } from "./forge.ts";
-import type { PrPreviewsDeps } from "./pr-previews.ts";
+import type { PrPreviewsDeps } from "./pr-previews-deps.ts";
 
 export type CommentPhase = "building" | "ready" | "failed" | "status";
 

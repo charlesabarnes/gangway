@@ -1,8 +1,6 @@
-import type { Scope } from "@gangway/shared/permissions";
+import { OAUTH_SCOPES, type OAuthScope } from "./scopes.ts";
 import { sameResource, type OAuthErrorCode } from "./token-endpoint.ts";
 
-export const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
-export type OAuthScope = (typeof OAUTH_SCOPES)[number];
 const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
 
 const SINGLE_PARAMS = [

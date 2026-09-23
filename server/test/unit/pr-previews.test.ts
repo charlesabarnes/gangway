@@ -22,7 +22,7 @@ import type {
 import { MAX_REPO_SLUG, PrPreviews, slugFor } from "../../src/forge/pr-previews.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
 import { Logger } from "../../src/logger.ts";
-import type { DeployInput, DeployResult, PreviewUrl } from "../../src/previews/deploy.ts";
+import type { DeployInput, DeployResult, PreviewUrl } from "../../src/previews/deploy-types.ts";
 
 const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const tmps: string[] = [];

@@ -3,10 +3,7 @@ import { z } from "zod";
 import type { Permission } from "@gangway/shared/permissions";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
-import type { Logger } from "../logger.ts";
-import type { PreviewContext } from "../previews/context.ts";
 import { destroy } from "../previews/destroy.ts";
-import type { IdempotentDeploys } from "../previews/idempotent.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { DeployTool } from "./deploy-tool.ts";
 import { describePreview, logTail, refusalDetail } from "./describe.ts";
@@ -28,16 +25,7 @@ import {
   type DeployArgs,
   type LogSource,
 } from "./tool-specs.ts";
-import type { Uploads } from "./uploads.ts";
-
-export type ToolDeps = {
-  ctx: PreviewContext;
-  deploys: IdempotentDeploys;
-  logger: Logger;
-  uploads?: Uploads | undefined;
-};
-
-export type CallScope = { actor: Actor; signal: AbortSignal };
+import type { CallScope, ToolDeps } from "./tool-deps.ts";
 
 const text = (t: string): CallToolResult => ({ content: [{ type: "text", text: t }] });
 const failure = (t: string): CallToolResult => ({

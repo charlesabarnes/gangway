@@ -6,7 +6,7 @@ import { parseDuration } from "../util/duration.ts";
 import { obj } from "../util/json.ts";
 import { literal } from "./compose-generate.ts";
 import { arr, policyViolations } from "./compose-policy.ts";
-import type { PlannedRoute } from "./compose-routes.ts";
+import type { PlannedRoute } from "./planned-route.ts";
 
 const portNumber = z.number().int().min(1).max(65535);
 

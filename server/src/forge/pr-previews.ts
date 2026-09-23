@@ -2,38 +2,14 @@ import type { Clearance, RepoProject, Preview } from "@gangway/shared/domain";
 import { slugify } from "@gangway/shared/hostname";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
-import type { ProjectsRepo } from "../db/repos/projects.ts";
-import type { Logger } from "../logger.ts";
-import type { DeployInput, DeployResult, DeploySource, PreviewUrl } from "../previews/deploy.ts";
-import type { Policy } from "../previews/policy.ts";
+import type { DeployResult, DeploySource } from "../previews/deploy-types.ts";
 import { commentBody, postComment, refusalBody } from "./pr-comment.ts";
 import { finishDeployment, recordDeployment, retireDeployment } from "./pr-deployment.ts";
-import type { Association, Forge, ForgeEvent, ForgeRepo, PullRequest } from "./forge.ts";
+import type { ForgeRefs, PrPreviewsDeps } from "./pr-previews-deps.ts";
+import type { Association, ForgeEvent, ForgeRepo, PullRequest } from "./forge.ts";
 
 // <slug>-pr-<n>-<service> has to fit a 63-character DNS label.
 export const MAX_REPO_SLUG = 24;
-
-export type PrPreviewsDeps = {
-  forge: Forge;
-  repos: ProjectsRepo;
-  instance: string;
-  previews: {
-    deploy(input: DeployInput): Promise<DeployResult>;
-    destroy(id: string, actor: Actor): Promise<Preview>;
-    findPullRequest(repo: string, number: number): Preview | undefined;
-    urls(id: string): PreviewUrl[];
-    forgeRefs(id: string): ForgeRefs;
-    setForgeRefs(
-      id: string,
-      refs: { commentId?: number | null; deploymentId?: number | null },
-    ): void;
-  };
-  secretsFor?: ((repo: RepoProject, clearance: Clearance) => Record<string, string>) | undefined;
-  policy: Policy;
-  logUrlFor?: ((previewId: string) => string | undefined) | undefined;
-  logger: Logger;
-  now?: (() => number) | undefined;
-};
 
 export type Outcome =
   | { action: "deployed"; previewId: string; name: string; settled: Promise<void> }
@@ -43,7 +19,6 @@ export type Outcome =
   | { action: "ignored"; reason: string };
 
 type CommandEvent = Extract<ForgeEvent, { type: "pr.command" }>;
-type ForgeRefs = { commentId: number | null; deploymentId: number | null };
 type DeployOptions = { force?: boolean; clearance?: Clearance };
 
 const NO_REFS: ForgeRefs = { commentId: null, deploymentId: null };

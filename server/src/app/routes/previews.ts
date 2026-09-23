@@ -15,10 +15,12 @@ import {
 import { badRequest, forbidden, notFound, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { PreviewContext } from "../../previews/context.ts";
-import { urlsFor, type DeployInput } from "../../previews/deploy.ts";
+import { urlsFor } from "../../previews/deploy-names.ts";
+import type { DeployInput } from "../../previews/deploy-types.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
-import { redeploy, type RedeployInput } from "../../previews/redeploy.ts";
+import type { RedeployInput } from "../../previews/redeploy-input.ts";
+import { redeploy } from "../../previews/redeploy.ts";
 import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
 import { mayRebuild } from "../../auth/actor.ts";
 import { planFromDisk } from "../../previews/runtimes.ts";

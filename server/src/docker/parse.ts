@@ -1,6 +1,6 @@
 import type Dockerode from "dockerode";
 import { badRequest } from "../errors.ts";
-import type { ContainerSummary } from "./client.ts";
+import type { ContainerSummary } from "./client-types.ts";
 
 export function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
   const s = dockerHost.trim();

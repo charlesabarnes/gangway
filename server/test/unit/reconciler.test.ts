@@ -16,7 +16,7 @@ import {
   RoutesRepo,
 } from "../../src/db/repos/index.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
-import type { ContainerSummary, DockerInfo, ListOptions } from "../../src/docker/client.ts";
+import type { ContainerSummary, DockerInfo, ListOptions } from "../../src/docker/client-types.ts";
 import type { ComposeEvent, ComposeResult } from "../../src/docker/compose.ts";
 import { containerLabels } from "../../src/docker/labels.ts";
 import type { ComposeRunner } from "../../src/docker/runner.ts";
