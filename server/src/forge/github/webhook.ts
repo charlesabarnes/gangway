@@ -135,42 +135,50 @@ export function parseGitHubEvent(event: string | null, payload: unknown): ForgeE
   const repo = repoOf(p.repository, installationId);
 
   switch (event) {
-    case "pull_request": {
-      if (!repo) return { type: "ignored", reason: "pull_request without a repository" };
-      if (installationId === "")
-        return { type: "ignored", reason: "pull_request without an installation" };
-      const pr = pullRequestOf(p.pull_request, repo);
-      if (!pr) return { type: "ignored", reason: "pull_request without a head" };
-      const action = p.action ?? "";
-      if (action === "closed")
-        return { type: "pr.closed", pr, merged: p.pull_request?.merged === true };
-      if (PR_UPDATE_ACTIONS.has(action))
-        return { type: "pr.updated", pr, action: action as "opened" };
-      return { type: "ignored", reason: `pull_request.${action}` };
-    }
-    case "issue_comment": {
-      if (p.action !== "created")
-        return { type: "ignored", reason: `issue_comment.${p.action ?? ""}` };
-      if (!repo) return { type: "ignored", reason: "issue_comment without a repository" };
-      if (!p.issue?.pull_request || typeof p.issue.number !== "number")
-        return { type: "ignored", reason: "a comment on an issue, not a pull request" };
-      const command = parsePreviewCommand(p.comment?.body ?? "");
-      if (command === null) return { type: "ignored", reason: "not a /preview command" };
-      if (typeof p.comment?.id !== "number")
-        return { type: "ignored", reason: "comment without an id" };
-      return {
-        type: "pr.command",
-        repo,
-        number: p.issue.number,
-        ...command,
-        commentId: p.comment.id,
-        author: p.comment.user?.login ?? "",
-        association: associationOf(p.comment.author_association),
-      };
-    }
+    case "pull_request":
+      return pullRequestEvent(p, repo, installationId);
+    case "issue_comment":
+      return issueCommentEvent(p, repo);
     case "ping":
       return { type: "ignored", reason: "ping" };
     default:
       return { type: "ignored", reason: `event ${event ?? "(none)"}` };
   }
+}
+
+function pullRequestEvent(
+  p: GhPayload,
+  repo: ForgeRepo | null,
+  installationId: string,
+): ForgeEvent {
+  if (!repo) return { type: "ignored", reason: "pull_request without a repository" };
+  if (installationId === "")
+    return { type: "ignored", reason: "pull_request without an installation" };
+  const pr = pullRequestOf(p.pull_request, repo);
+  if (!pr) return { type: "ignored", reason: "pull_request without a head" };
+  const action = p.action ?? "";
+  if (action === "closed")
+    return { type: "pr.closed", pr, merged: p.pull_request?.merged === true };
+  if (PR_UPDATE_ACTIONS.has(action)) return { type: "pr.updated", pr, action: action as "opened" };
+  return { type: "ignored", reason: `pull_request.${action}` };
+}
+
+function issueCommentEvent(p: GhPayload, repo: ForgeRepo | null): ForgeEvent {
+  if (p.action !== "created") return { type: "ignored", reason: `issue_comment.${p.action ?? ""}` };
+  if (!repo) return { type: "ignored", reason: "issue_comment without a repository" };
+  if (!p.issue?.pull_request || typeof p.issue.number !== "number")
+    return { type: "ignored", reason: "a comment on an issue, not a pull request" };
+  const command = parsePreviewCommand(p.comment?.body ?? "");
+  if (command === null) return { type: "ignored", reason: "not a /preview command" };
+  if (typeof p.comment?.id !== "number")
+    return { type: "ignored", reason: "comment without an id" };
+  return {
+    type: "pr.command",
+    repo,
+    number: p.issue.number,
+    ...command,
+    commentId: p.comment.id,
+    author: p.comment.user?.login ?? "",
+    association: associationOf(p.comment.author_association),
+  };
 }

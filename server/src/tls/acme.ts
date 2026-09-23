@@ -37,6 +37,11 @@ export type AcmeOptions = {
 };
 
 type StoredAccount = { keyPem: string; url: string };
+type TxtRecord = { recordId: string; name: string };
+type PendingChallenges = {
+  challenges: { authz: acme.Authorization; challenge: acme.Authorization["challenges"][number] }[];
+  byName: Map<string, string[]>;
+};
 const ACCOUNTS_KEY = "acme.accounts";
 
 const challengeName = (identifier: string) => `_acme-challenge.${identifier.replace(/^\*\./, "")}`;
@@ -126,7 +131,7 @@ export class AcmeProvider implements CertProvider {
   }
 
   async issue(domains: string[], signal?: AbortSignal): Promise<CertBundle> {
-    const { dns, certs, logger, directoryUrl } = this.#o;
+    const { dns, logger, directoryUrl } = this.#o;
     const began = this.#now();
     logger.info("acme order starting", { domains, directoryUrl });
 
@@ -136,88 +141,11 @@ export class AcmeProvider implements CertProvider {
     });
     const authzs = await client.getAuthorizations(order);
 
-    const created: { recordId: string; name: string }[] = [];
+    const created: TxtRecord[] = [];
     try {
-      // Every record before any challenge: both wildcard authorizations validate at one name.
-      const pending: {
-        authz: acme.Authorization;
-        challenge: (typeof authzs)[number]["challenges"][number];
-      }[] = [];
-      const byName = new Map<string, string[]>();
-      for (const authz of authzs) {
-        if (authz.status === "valid") continue; // the CA remembers a recent validation
-        const challenge = authz.challenges.find((c) => c.type === "dns-01");
-        if (!challenge)
-          throw new Error(`the CA offered no dns-01 challenge for ${authz.identifier.value}`);
-        const name = challengeName(authz.identifier.value);
-        const value = await client.getChallengeKeyAuthorization(challenge);
-        signal?.throwIfAborted();
-        created.push({ ...(await dns.createTxt(name, value)), name });
-        byName.set(name, [...(byName.get(name) ?? []), value]);
-        pending.push({ authz, challenge });
-      }
-
-      // The CA looks once, and a miss is a failed authorization and a rate-limit strike.
-      for (const [name, values] of byName) {
-        signal?.throwIfAborted();
-        if (!(await dns.waitForPropagation(name, values))) {
-          throw new Error(
-            `TXT records at ${name} did not propagate; the order was abandoned before the CA was asked to validate`,
-          );
-        }
-      }
-
-      for (const { authz, challenge } of pending) {
-        signal?.throwIfAborted();
-        await client.completeChallenge(challenge);
-        await client.waitForValidStatus(challenge);
-        logger.debug("acme authorization valid", {
-          identifier: authz.identifier.value,
-          wildcard: authz.wildcard === true,
-        });
-      }
-
-      const [key, csr] = await acme.crypto.createCsr(
-        { commonName: domains[0]!, altNames: domains },
-        await acme.crypto.createPrivateEcdsaKey(),
-      );
-      const pem = await client.getCertificate(await client.finalizeOrder(order, csr));
-
-      // Re-joined with explicit newlines: a chain glued END-to-BEGIN is a BAD_END_LINE in OpenSSL.
-      const [leaf, ...chain] = acme.crypto.splitPemChain(pem).map((c) => `${c.trim()}\n`);
-      if (!leaf) throw new Error("the CA returned an empty certificate chain");
-      const info = acme.crypto.readCertificateInfo(leaf);
-      const chainPem = chain.join("");
-
-      // Stored before it goes live: a certificate only in memory is reissued on every restart.
-      certs.put({
-        domain: domains[0]!,
-        certPem: leaf,
-        keyPem: key.toString(),
-        chainPem: chainPem || null,
-        issuer: info.issuer.commonName,
-        source: directoryUrl,
-        notBefore: info.notBefore,
-        notAfter: info.notAfter,
-      });
-      logger.info("acme certificate issued", {
-        domains,
-        issuer: info.issuer.commonName,
-        notAfter: info.notAfter.toISOString(),
-        ms: this.#now() - began,
-      });
-      return {
-        materials: [
-          {
-            serverName: domains[0]!,
-            key: key.toString(),
-            cert: leaf + chainPem,
-            notBefore: info.notBefore,
-            notAfter: info.notAfter,
-            issuer: info.issuer.commonName,
-          },
-        ],
-      };
+      const pending = await this.#publishChallenges(client, authzs, created, signal);
+      await this.#validate(client, pending, signal);
+      return await this.#finalize(client, order, domains, began);
     } finally {
       // Always removed, or the next attempt's propagation check matches stale values.
       for (const r of created) {
@@ -228,5 +156,104 @@ export class AcmeProvider implements CertProvider {
           );
       }
     }
+  }
+
+  // Every record before any challenge: both wildcard authorizations validate at one name.
+  async #publishChallenges(
+    client: AcmeApi,
+    authzs: acme.Authorization[],
+    created: TxtRecord[],
+    signal: AbortSignal | undefined,
+  ): Promise<PendingChallenges> {
+    const pending: PendingChallenges = { challenges: [], byName: new Map() };
+    for (const authz of authzs) {
+      if (authz.status === "valid") continue; // the CA remembers a recent validation
+      const challenge = authz.challenges.find((c) => c.type === "dns-01");
+      if (!challenge)
+        throw new Error(`the CA offered no dns-01 challenge for ${authz.identifier.value}`);
+      const name = challengeName(authz.identifier.value);
+      const value = await client.getChallengeKeyAuthorization(challenge);
+      signal?.throwIfAborted();
+      created.push({ ...(await this.#o.dns.createTxt(name, value)), name });
+      pending.byName.set(name, [...(pending.byName.get(name) ?? []), value]);
+      pending.challenges.push({ authz, challenge });
+    }
+    return pending;
+  }
+
+  async #validate(
+    client: AcmeApi,
+    pending: PendingChallenges,
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
+    // The CA looks once, and a miss is a failed authorization and a rate-limit strike.
+    for (const [name, values] of pending.byName) {
+      signal?.throwIfAborted();
+      if (!(await this.#o.dns.waitForPropagation(name, values))) {
+        throw new Error(
+          `TXT records at ${name} did not propagate; the order was abandoned before the CA was asked to validate`,
+        );
+      }
+    }
+
+    for (const { authz, challenge } of pending.challenges) {
+      signal?.throwIfAborted();
+      await client.completeChallenge(challenge);
+      await client.waitForValidStatus(challenge);
+      this.#o.logger.debug("acme authorization valid", {
+        identifier: authz.identifier.value,
+        wildcard: authz.wildcard === true,
+      });
+    }
+  }
+
+  async #finalize(
+    client: AcmeApi,
+    order: acme.Order,
+    domains: string[],
+    began: number,
+  ): Promise<CertBundle> {
+    const { certs, logger, directoryUrl } = this.#o;
+    const [key, csr] = await acme.crypto.createCsr(
+      { commonName: domains[0]!, altNames: domains },
+      await acme.crypto.createPrivateEcdsaKey(),
+    );
+    const pem = await client.getCertificate(await client.finalizeOrder(order, csr));
+
+    // Re-joined with explicit newlines: a chain glued END-to-BEGIN is a BAD_END_LINE in OpenSSL.
+    const [leaf, ...chain] = acme.crypto.splitPemChain(pem).map((c) => `${c.trim()}\n`);
+    if (!leaf) throw new Error("the CA returned an empty certificate chain");
+    const info = acme.crypto.readCertificateInfo(leaf);
+    const chainPem = chain.join("");
+
+    // Stored before it goes live: a certificate only in memory is reissued on every restart.
+    certs.put({
+      domain: domains[0]!,
+      certPem: leaf,
+      keyPem: key.toString(),
+      chainPem: chainPem || null,
+      issuer: info.issuer.commonName,
+      source: directoryUrl,
+      notBefore: info.notBefore,
+      notAfter: info.notAfter,
+    });
+    logger.info("acme certificate issued", {
+      domains,
+      issuer: info.issuer.commonName,
+      notAfter: info.notAfter.toISOString(),
+      ms: this.#now() - began,
+    });
+    return {
+      materials: [
+        {
+          serverName: domains[0]!,
+          key: key.toString(),
+          cert: leaf + chainPem,
+          notBefore: info.notBefore,
+          notAfter: info.notAfter,
+          issuer: info.issuer.commonName,
+        },
+      ],
+    };
   }
 }

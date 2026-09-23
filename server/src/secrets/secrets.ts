@@ -70,27 +70,8 @@ class SecretMap {
   update(actor: Actor | null, change: SecretChange): SecretListing[] {
     const current = this.all();
     const before = Object.keys(current).sort();
-    for (const [k, v] of Object.entries(change.set ?? {})) {
-      if (!ENV_NAME_RE.test(k))
-        throw unprocessable(`"${k}" is not a valid environment variable name`, { name: k });
-      const entry: SecretEntry =
-        typeof v === "string" ? { value: v, level: current[k]?.level ?? "standard" } : v;
-      if (Buffer.byteLength(entry.value, "utf8") > MAX_ENV_VALUE_BYTES)
-        throw unprocessable(`"${k}" is longer than ${MAX_ENV_VALUE_BYTES} bytes`, { name: k });
-      if (!SECRET_LEVELS.includes(entry.level))
-        throw unprocessable(`"${k}": level must be one of ${SECRET_LEVELS.join(", ")}`, {
-          name: k,
-        });
-      current[k] = entry;
-    }
-    for (const [k, level] of Object.entries(change.levels ?? {})) {
-      if (!current[k]) throw unprocessable(`"${k}" is not set`, { name: k });
-      if (!SECRET_LEVELS.includes(level))
-        throw unprocessable(`"${k}": level must be one of ${SECRET_LEVELS.join(", ")}`, {
-          name: k,
-        });
-      current[k] = { ...current[k], level };
-    }
+    applySet(current, change.set ?? {});
+    applyLevels(current, change.levels ?? {});
     for (const k of change.unset ?? []) delete current[k];
     const names = Object.keys(current).sort();
     if (names.length > MAX_ENV_ENTRIES)
@@ -108,6 +89,38 @@ class SecretMap {
     });
     return this.list();
   }
+}
+
+function applySet(
+  current: Record<string, SecretEntry>,
+  set: Record<string, string | SecretEntry>,
+): void {
+  for (const [k, v] of Object.entries(set)) {
+    if (!ENV_NAME_RE.test(k))
+      throw unprocessable(`"${k}" is not a valid environment variable name`, { name: k });
+    const entry: SecretEntry =
+      typeof v === "string" ? { value: v, level: current[k]?.level ?? "standard" } : v;
+    if (Buffer.byteLength(entry.value, "utf8") > MAX_ENV_VALUE_BYTES)
+      throw unprocessable(`"${k}" is longer than ${MAX_ENV_VALUE_BYTES} bytes`, { name: k });
+    assertLevel(k, entry.level);
+    current[k] = entry;
+  }
+}
+
+function applyLevels(
+  current: Record<string, SecretEntry>,
+  levels: Record<string, SecretLevel>,
+): void {
+  for (const [k, level] of Object.entries(levels)) {
+    if (!current[k]) throw unprocessable(`"${k}" is not set`, { name: k });
+    assertLevel(k, level);
+    current[k] = { ...current[k], level };
+  }
+}
+
+function assertLevel(name: string, level: SecretLevel): void {
+  if (!SECRET_LEVELS.includes(level))
+    throw unprocessable(`"${name}": level must be one of ${SECRET_LEVELS.join(", ")}`, { name });
 }
 
 export class Secrets {

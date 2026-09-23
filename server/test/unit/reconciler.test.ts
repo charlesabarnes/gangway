@@ -30,7 +30,8 @@ import { destroy } from "../../src/previews/destroy.ts";
 import { PreviewLogs } from "../../src/previews/logs.ts";
 import { Workdirs } from "../../src/previews/source/workdir.ts";
 import { PreviewStates } from "../../src/previews/state.ts";
-import { Reconciler, scanLabels, toScanned } from "../../src/reconcile/reconciler.ts";
+import { Reconciler } from "../../src/reconcile/reconciler.ts";
+import { scanLabels, toScanned } from "../../src/reconcile/scan.ts";
 import { RouteTable } from "../../src/routing/table.ts";
 
 const MIGRATIONS = join(import.meta.dir, "../../migrations");

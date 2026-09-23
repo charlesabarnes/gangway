@@ -86,79 +86,23 @@ export function parseLabels(
   if (!isManaged(bag)) return { ok: false, reason: "not-managed" };
 
   // Version first: a newer gangway's labels must not be read as malformed and stopped.
-  const rawVersion = bag[LABEL.version];
-  const version = rawVersion === undefined ? Number.NaN : Number(rawVersion);
-  if (!Number.isInteger(version) || version < 1) {
-    return {
-      ok: false,
-      reason: "malformed",
-      missing: rawVersion === undefined ? [LABEL.version] : [],
-      invalid: rawVersion === undefined ? [] : [LABEL.version],
-    };
-  }
-  if (version > CURRENT_LABEL_VERSION) {
-    return { ok: false, reason: "future-version", version, ours: CURRENT_LABEL_VERSION };
-  }
+  const refused = checkVersion(bag[LABEL.version]);
+  if (refused) return refused;
 
-  const missing: string[] = [];
-  const invalid: string[] = [];
-
-  const str = (key: string): string => {
-    const v = bag[key];
-    if (v === undefined) {
-      missing.push(key);
-      return "";
-    }
-    if (v === "") {
-      invalid.push(key);
-      return "";
-    }
-    return v;
-  };
-  const port = (key: string): number => {
-    const v = bag[key];
-    if (v === undefined) {
-      missing.push(key);
-      return 0;
-    }
-    if (!PORT_RE.test(v) || !isPort(Number(v))) {
-      invalid.push(key);
-      return 0;
-    }
-    return Number(v);
-  };
-
-  const instance = str(LABEL.instance);
-  const env = str(LABEL.env);
-  const previewId = str(LABEL.previewId);
-  const project = str(LABEL.project);
-  const service = str(LABEL.service);
-  const hostId = str(LABEL.hostId);
-  const hostname = str(LABEL.hostname);
-  const upstreamHost = str(LABEL.upstreamHost);
-  const portValue = port(LABEL.port);
-  const containerPort = port(LABEL.containerPort);
-
-  const rawVisibility = bag[LABEL.visibility];
-  let visibility: Visibility = "private";
-  if (rawVisibility === undefined) missing.push(LABEL.visibility);
-  else if (!VISIBILITIES.includes(rawVisibility as Visibility)) invalid.push(LABEL.visibility);
-  else visibility = rawVisibility as Visibility;
-
-  const rawPrimary = bag[LABEL.primary];
-  let primary = false;
-  if (rawPrimary === undefined) missing.push(LABEL.primary);
-  else if (rawPrimary !== "true" && rawPrimary !== "false") invalid.push(LABEL.primary);
-  else primary = rawPrimary === "true";
-
-  const rawCreatedAt = bag[LABEL.createdAt];
-  let createdAt = new Date(0);
-  if (rawCreatedAt === undefined) missing.push(LABEL.createdAt);
-  else {
-    const d = new Date(rawCreatedAt);
-    if (Number.isNaN(d.getTime())) invalid.push(LABEL.createdAt);
-    else createdAt = d;
-  }
+  const { read, missing, invalid } = labelReader(bag);
+  const instance = read(LABEL.instance, "", nonEmpty);
+  const env = read(LABEL.env, "", nonEmpty);
+  const previewId = read(LABEL.previewId, "", nonEmpty);
+  const project = read(LABEL.project, "", nonEmpty);
+  const service = read(LABEL.service, "", nonEmpty);
+  const hostId = read(LABEL.hostId, "", nonEmpty);
+  const hostname = read(LABEL.hostname, "", nonEmpty);
+  const upstreamHost = read(LABEL.upstreamHost, "", nonEmpty);
+  const portValue = read(LABEL.port, 0, portOf);
+  const containerPort = read(LABEL.containerPort, 0, portOf);
+  const visibility = read<Visibility>(LABEL.visibility, "private", visibilityOf);
+  const primary = read(LABEL.primary, false, booleanOf);
+  const createdAt = read(LABEL.createdAt, new Date(0), dateOf);
 
   if (missing.length > 0 || invalid.length > 0) {
     return { ok: false, reason: "malformed", missing, invalid };
@@ -182,6 +126,57 @@ export function parseLabels(
       createdAt,
     },
   };
+}
+
+function checkVersion(rawVersion: string | undefined): LabelParseFailure | undefined {
+  const version = rawVersion === undefined ? Number.NaN : Number(rawVersion);
+  if (!Number.isInteger(version) || version < 1) {
+    return {
+      ok: false,
+      reason: "malformed",
+      missing: rawVersion === undefined ? [LABEL.version] : [],
+      invalid: rawVersion === undefined ? [] : [LABEL.version],
+    };
+  }
+  if (version > CURRENT_LABEL_VERSION) {
+    return { ok: false, reason: "future-version", version, ours: CURRENT_LABEL_VERSION };
+  }
+  return undefined;
+}
+
+function labelReader(bag: Readonly<Record<string, string>>) {
+  const missing: string[] = [];
+  const invalid: string[] = [];
+  const read = <T>(key: string, fallback: T, parse: (v: string) => T | undefined): T => {
+    const v = bag[key];
+    if (v === undefined) {
+      missing.push(key);
+      return fallback;
+    }
+    const parsed = parse(v);
+    if (parsed === undefined) {
+      invalid.push(key);
+      return fallback;
+    }
+    return parsed;
+  };
+  return { read, missing, invalid };
+}
+
+const nonEmpty = (v: string): string | undefined => (v === "" ? undefined : v);
+
+const portOf = (v: string): number | undefined =>
+  PORT_RE.test(v) && isPort(Number(v)) ? Number(v) : undefined;
+
+const visibilityOf = (v: string): Visibility | undefined =>
+  VISIBILITIES.includes(v as Visibility) ? (v as Visibility) : undefined;
+
+const booleanOf = (v: string): boolean | undefined =>
+  v === "true" || v === "false" ? v === "true" : undefined;
+
+function dateOf(v: string): Date | undefined {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
 export function routeFromLabels(l: GangwayLabels): Route {

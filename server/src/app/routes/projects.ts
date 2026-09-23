@@ -35,11 +35,6 @@ const MAX_SLUG = 24;
 
 export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   const { projects, audit } = d;
-  const find = (ref: string): Project => {
-    const p = projects.find(ref);
-    if (!p) throw notFound(`no such project: ${ref}`);
-    return p;
-  };
   const checkTemplate = (id: string | null | undefined) => {
     if (id !== undefined && id !== null && !d.templates?.get(id))
       throw unprocessable(`no such template: ${id}`, { templateId: id });
@@ -55,7 +50,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   );
 
   api.get("/projects/:ref", requirePermission("previews.read"), (c) =>
-    c.json({ project: find(c.req.param("ref")) }),
+    c.json({ project: findProject(projects, c.req.param("ref")) }),
   );
 
   api.post("/projects", requirePermission("repos.manage"), async (c) => {
@@ -78,7 +73,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   });
 
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
-    const before = find(c.req.param("ref"));
+    const before = findProject(projects, c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
     if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null)
       throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
@@ -106,26 +101,39 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   });
 
   api.delete("/projects/:ref", requirePermission("repos.manage"), (c) => {
-    const before = find(c.req.param("ref"));
+    const before = findProject(projects, c.req.param("ref"));
     projects.delete(before.id);
     audit.record(c.get("actor"), "project.deleted", before.id, { old: pick(before), new: null });
     return c.body(null, 204);
   });
 
+  projectSecretRoutes(api, d);
+  projectPullRoutes(api, d);
+}
+
+function findProject(projects: ProjectsRepo, ref: string): Project {
+  const p = projects.find(ref);
+  if (!p) throw notFound(`no such project: ${ref}`);
+  return p;
+}
+
+function projectSecretRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.get("/projects/:ref/env", requirePermission("repos.secrets"), (c) => {
-    const project = find(c.req.param("ref"));
+    const project = findProject(d.projects, c.req.param("ref"));
     return c.json({ secrets: d.secrets ? d.secrets.project(project.id).list() : [] });
   });
 
   api.patch("/projects/:ref/env", requirePermission("repos.secrets"), async (c) => {
-    const project = find(c.req.param("ref"));
+    const project = findProject(d.projects, c.req.param("ref"));
     if (!d.secrets) throw notFound("secrets are not available on this server");
     const patch = EnvPatchSchema.parse(await readJson(c));
     return c.json({ secrets: d.secrets.project(project.id).update(c.get("actor"), patch) });
   });
+}
 
+function projectPullRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.get("/projects/:ref/workflow", requirePermission("previews.read"), (c) => {
-    const project = find(c.req.param("ref"));
+    const project = findProject(d.projects, c.req.param("ref"));
     const port = Number(c.req.query("port") ?? 3000);
     if (!Number.isInteger(port) || port < 1 || port > 65535)
       throw unprocessable("port must be 1-65535");
