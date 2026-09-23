@@ -71,6 +71,37 @@ describe('NewPreview', () => {
     r.http.verify();
   });
 
+  it('a chosen password rides in a header, never the URL; generate rides the query', async () => {
+    const r = await open();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const mode = r.byTestId('password-mode') as HTMLSelectElement;
+    mode.value = 'set'; mode.dispatchEvent(new Event('change'));
+    await r.settle();
+    const input = r.byTestId('password-value') as HTMLInputElement;
+    input.value = 'x'; input.dispatchEvent(new Event('input'));
+    r.byTestId('starter-bun')!.click();
+    await r.settle();
+    let req = r.http.expectOne((q) => q.url.startsWith('/v1/previews'));
+    expect(req.request.urlWithParams).toBe('/v1/previews?runtime=bun');
+    expect(req.request.headers.get('gangway-preview-password')).toBe('x');
+    req.flush({ preview: contract.preview as Preview }, { status: 202, statusText: 'Accepted' });
+    await r.settle();
+
+    mode.value = 'generate'; mode.dispatchEvent(new Event('change'));
+    await r.settle();
+    const login = r.byTestId('password-login') as HTMLSelectElement;
+    login.value = 'off'; login.dispatchEvent(new Event('change'));
+    await r.settle();
+    r.byTestId('starter-bun')!.click();
+    await r.settle();
+    req = r.http.expectOne((q) => q.url.startsWith('/v1/previews'));
+    expect(req.request.urlWithParams).toBe('/v1/previews?runtime=bun&password=generate&passwordLogin=off');
+    expect(req.request.headers.has('gangway-preview-password')).toBe(false);
+    req.flush({ preview: contract.preview as Preview }, { status: 202, statusText: 'Accepted' });
+    await r.settle();
+    r.http.verify();
+  });
+
   it('dropped files show a summary and the detected runtime; the choice can be overridden; options ride the query', async () => {
     const r = await open();
     await r.fixture.componentInstance.accept(finish([

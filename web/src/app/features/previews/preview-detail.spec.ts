@@ -188,3 +188,44 @@ describe('PreviewDetail', () => {
     });
   });
 });
+
+describe('PreviewDetail: password (ADR-0023)', () => {
+  it('shows the mode, never a password; a change is one PUT and the page follows the answer', async () => {
+    const r = await open({ permissions: ['previews.read', 'previews.update_own', 'logs.read', 'events.read'] });
+    await answerHistory(r);
+    expect(r.text('password-current')).toContain('the server default');
+    const choice = r.byTestId('password-choice') as HTMLSelectElement;
+    choice.value = 'generate'; choice.dispatchEvent(new Event('change'));
+    await r.settle();
+    (r.byTestId('password-save') as HTMLButtonElement).click();
+    await r.settle();
+    const req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
+    expect(req.request.body).toEqual({ password: { mode: 'generate' } });
+    req.flush({ preview: { ...base, password: 'generated', updatedAt: '2026-09-23T00:00:00.000Z' } });
+    await r.settle();
+    await answerHistory(r);
+    expect(r.text('password-current')).toContain('generated password (in the log)');
+  });
+
+  it('who skips the password is its own one-click change', async () => {
+    const r = await open({ permissions: ['previews.read', 'previews.update_own', 'logs.read', 'events.read'] });
+    await answerHistory(r);
+    expect(r.text('login-current')).toContain('as the server default says');
+    const login = r.byTestId('login-choice') as HTMLSelectElement;
+    login.value = 'off'; login.dispatchEvent(new Event('change'));
+    await r.settle();
+    const req = r.http.expectOne({ method: 'PUT', url: `/v1/previews/${ID}/password` });
+    expect(req.request.body).toEqual({ login: 'off' });
+    req.flush({ preview: { ...base, passwordLogin: 'off', updatedAt: '2026-09-23T00:00:01.000Z' } });
+    await r.settle();
+    await answerHistory(r);
+    expect(r.text('login-current')).toContain('need the password too');
+  });
+
+  it('without an update permission there is nothing to change', async () => {
+    const r = await open();
+    await answerHistory(r);
+    expect(r.text('password-current')).toContain('the server default');
+    expect(r.byTestId('password-choice')).toBeNull();
+  });
+});

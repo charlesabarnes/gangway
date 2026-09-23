@@ -27,8 +27,11 @@ export type DispatchDeps = {
    * when the wake is taking long), or null: the preview is awake now, proxy the request.
    */
   wake?: (entry: RouteEntry, req: Request) => Promise<Response | null>;
-  /** Visibility gate (§8.3). Returning a Response short-circuits before the upstream. */
-  visibilityGate?: (entry: RouteEntry, req: Request) => Response | null;
+  /**
+   * Visibility and password gate (§8.3, ADR-0023). Returning a Response short-circuits
+   * before the upstream. A promise only for the password form's POST.
+   */
+  visibilityGate?: (entry: RouteEntry, req: Request, clientIp?: string) => Response | Promise<Response> | null;
   logTailFor?: (previewId: string) => string[];
   logUrlFor?: (previewId: string) => string | undefined;
   clientIpFor: (req: Request) => string;
@@ -71,7 +74,7 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
   if (!entry) return unknownPage(host);
 
   // 5. Visibility gate BEFORE the upstream ever sees the request (§6.3).
-  const gated = d.visibilityGate?.(entry, req);
+  const gated = d.visibilityGate?.(entry, req, clientIp);
   if (gated) return gated;
 
   // 6. State machine (§6.1), hot path first.

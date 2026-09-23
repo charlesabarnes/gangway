@@ -25,6 +25,7 @@ import { DockerGuardError } from "../docker/guard.ts";
 import { LABEL, MANAGED_FILTER } from "../docker/labels.ts";
 import type { Logger } from "../logger.ts";
 import { redactString } from "../logger.ts";
+import { entryPassword } from "../previews/password.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { releaseStack, teardown } from "../previews/destroy.ts";
 import { isInRange } from "../routing/ports.ts";
@@ -285,6 +286,7 @@ export class Reconciler {
         upstream: a.upstream, primary: a.primary, createdAt: new Date(raw[LABEL.createdAt] ?? ctx.now()),
       },
       hostId: preview.hostId, project: preview.project, visibility: preview.visibility, state: preview.state,
+      password: entryPassword(ctx.previews.passwordOf(preview.id)), passwordLogin: preview.passwordLogin,
     });
     return `${a.hostname}: route rebuilt from container labels`;
   }

@@ -21,6 +21,7 @@ import type { Workdirs } from "./source/workdir.ts";
 import type { SourceStore } from "./source/store.ts";
 import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
+import type { PreviewPasswordDeps } from "./password.ts";
 
 export type PreviewTimings = {
   /** `compose up` returning -> every service running and healthy. */
@@ -76,6 +77,8 @@ export type PreviewContext = {
   addonSecret?: ((previewId: string, addon: AddonId) => string) | undefined;
   /** Uploaded sources, kept for the editor and for rebuilds (ADR-0015). Absent: nothing is kept. */
   sources?: SourceStore | undefined;
+  /** ADR-0023: hashing preview passwords, and the server-wide default. Absent: only `inherit`/`none` work. */
+  passwords?: PreviewPasswordDeps | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

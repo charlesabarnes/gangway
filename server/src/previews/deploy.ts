@@ -48,6 +48,9 @@ import type { AddonChoice } from "../../../shared/src/addons.ts";
 import { renderAddons, type RenderedAddons } from "./addons.ts";
 import { DIR_MODE, FILE_MODE } from "./source/types.ts";
 import type { RuntimeId } from "../../../shared/src/runtimes.ts";
+import type { PasswordChoice } from "../../../shared/src/api.ts";
+import type { PasswordLogin } from "../../../shared/src/domain.ts";
+import { entryPassword, logGenerated, resolvePassword } from "./password.ts";
 
 export type DeploySource =
   | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined }
@@ -92,6 +95,10 @@ export type DeployInput = {
   template?: string | undefined;
   /** The project it belongs to (ADR-0014). Omitted: found from the source's repository, if any. */
   projectId?: string | undefined;
+  /** ADR-0023. Omitted: inherit the server-wide default. */
+  password?: PasswordChoice | undefined;
+  /** ADR-0023: whether a gangway login gets past the password. Omitted: inherit. */
+  passwordLogin?: PasswordLogin | undefined;
 };
 
 export type PreviewUrl = { service: string; url: string; primary: boolean };
@@ -350,6 +357,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let pristine: string | null = null;
   let runtimeUsed: RuntimeId | null = null;
   let appPlan: AppPlan | undefined;
+  let generatedPassword: string | undefined;
   try {
     // The clearance: asked for, else the project's override, else the template's (ADR-0012, ADR-0013).
     const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
@@ -374,6 +382,9 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     const ttlText = input.ttl !== undefined ? input.ttl : owner?.ttl ?? model.x.ttl ?? template.ttl;
     const ttlMs = ttlText === null ? null : parseDuration(ttlText);
     if (ttlText !== null && ttlMs === null) throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
+
+    // ADR-0023: hashed BEFORE the synchronous block below (scrypt is async).
+    const password = await resolvePassword(ctx.passwords, input.password);
 
     const stem = slugify(input.name ?? defaultName(input.source, runtimeUsed));
     if (stem === "") throw unprocessable("name has no usable characters");
@@ -403,10 +414,12 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
       id, project, hostId: host.id, state: "building", source, visibility,
       ttlExpiresAt: ttlMs === null ? null : new Date(ctx.now() + ttlMs), idleAfterMs,
       secretLevel, templateId: template.id, projectId: owner?.id ?? null, owner: principalOf(input.actor),
+      password: password.stored, passwordLogin: input.passwordLogin ?? "inherit",
     });
+    generatedPassword = password.generated;
     try {
       for (const route of routes) {
-        ctx.table.apply({ route: { ...route, createdAt: preview.createdAt }, hostId: host.id, project, visibility, state: "building" });
+        ctx.table.apply({ route: { ...route, createdAt: preview.createdAt }, hostId: host.id, project, visibility, password: entryPassword(password.stored), passwordLogin: input.passwordLogin ?? "inherit", state: "building" });
       }
     } catch (e) {
       ctx.table.removePreview(id);
@@ -429,9 +442,10 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   const urls = urlsFor(ctx, id);
   ctx.bus.publish("preview.created", { project: preview.project, by: actorId(input.actor), urls: urls.map((u) => u.url) }, id);
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
+  if (generatedPassword) logGenerated(ctx, id, generatedPassword);
   // After the rows exist: a rejected deploy made nothing, so there is nothing to have done.
   ctx.audit?.record(input.actor, "preview.deploy", id, {
-    new: { project: preview.project, visibility, source: input.source.kind, hostId: host.id, urls: urls.map((u) => u.url) },
+    new: { project: preview.project, visibility, passwordMode: preview.password, source: input.source.kind, hostId: host.id, urls: urls.map((u) => u.url) },
   });
 
   const abort = new AbortController();

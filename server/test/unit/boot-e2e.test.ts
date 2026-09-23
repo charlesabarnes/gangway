@@ -349,6 +349,72 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
   expect(((await refused.json()) as { detail: string }).detail).toContain("previews.view_private");
 }, 30_000);
 
+test("ADR-0023: a password preview lets a signed-in user through automatically, a stranger gets the form, and the preview can say no", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const running = await start(dir, await freePort());
+  const port = running.listener.port;
+  const raw = (host: string, path: string, init: RequestInit = {}) =>
+    fetch(`https://127.0.0.1:${port}${path}`, { ...init, headers: { host: `${host}:${port}`, ...(init.headers as Record<string, string> | undefined) }, tls: { rejectUnauthorized: false }, redirect: "manual" } as RequestInit);
+  const APP = "app.preview.localhost", SHARED = "shared.preview.localhost";
+  const setup = await raw(APP, "/v1/auth/setup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: new URL(running.setupUrl!).searchParams.get("token"), email: "ada@example.com", password: "correct horse battery staple" }) });
+  const session = setup.headers.get("set-cookie")!.split(";")[0]!;
+  const deployed = await client(running)("api.preview.localhost", "/v1/previews?wait=true", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "shared", visibility: "public", password: { mode: "set", value: "pw" }, source: { kind: "image", image: "traefik/whoami:v1.10", port: 80 } }) });
+  expect(deployed.status).toBe(201);
+  const id = ((await deployed.json()) as { preview: { id: string } }).preview.id;
+
+  // 1. No cookie: one bounce through app (the default lets a login through).
+  const bounced = await raw(SHARED, "/cookie?x=1");
+  expect(bounced.status).toBe(302);
+  const toGate = new URL(bounced.headers.get("location")!);
+  expect(`${toGate.host}${toGate.pathname}`).toBe(`${APP}:${port}/v1/auth/gate`);
+
+  // 2. A stranger is NOT sent to log in: straight back to the preview's form.
+  const stranger = await raw(APP, `${toGate.pathname}${toGate.search}`);
+  expect(stranger.status).toBe(302);
+  const back = new URL(stranger.headers.get("location")!);
+  expect(`${back.host}${back.pathname}`).toBe(`${SHARED}:${port}/__gangway/password`);
+  const form = await raw(SHARED, `${back.pathname}${back.search}`);
+  expect(form.status).toBe(401);
+  expect(await form.text()).toContain('name="to" value="/cookie?x=1"');
+
+  // 3. Signed in: a ticket that says "skip the password", then straight in.
+  const ticketed = await raw(APP, `${toGate.pathname}${toGate.search}`, { headers: { cookie: session } });
+  const toPreview = new URL(ticketed.headers.get("location")!);
+  expect(toPreview.pathname).toBe("/__gangway/auth");
+  const redeemed = await raw(SHARED, `${toPreview.pathname}${toPreview.search}`);
+  expect(redeemed.headers.get("location")).toBe("/cookie?x=1");
+  const gateCookie = redeemed.headers.get("set-cookie")!.split(";")[0]!;
+  const inside = await raw(SHARED, "/cookie?x=1", { headers: { cookie: `theme=dark; ${gateCookie}` } });
+  expect(inside.status).toBe(200);
+  expect(await inside.json()).toEqual({ cookie: "theme=dark", path: "/cookie?x=1" });
+
+  // 4. The preview says a login is not enough (sharing): the same cookie now gets the form, no bounce.
+  const off = await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: "off" }) });
+  expect(((await off.json()) as { preview: { passwordLogin: string } }).preview.passwordLogin).toBe("off");
+  const asked = await raw(SHARED, "/cookie", { headers: { cookie: gateCookie } });
+  expect(asked.status).toBe(401);
+  expect(await asked.text()).toContain("password-protected");
+  expect((await raw(SHARED, "/cookie")).status).toBe(401);
+  // ...and the app gate will not hand out tickets for it any more.
+  expect((await raw(APP, `${toGate.pathname}${toGate.search}`, { headers: { cookie: session } })).status).toBe(404);
+
+  // 5. Back on, but a role without previews.skip_password: signed in, and still the form.
+  await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: "on" }) });
+  const origin = `https://${APP}:${port}`;
+  await raw(APP, "/v1/roles/viewer/permissions", { method: "PUT", headers: { cookie: session, origin, "content-type": "application/json" }, body: JSON.stringify({ permissions: ["previews.read"] }) });
+  await raw(APP, "/v1/users", { method: "POST", headers: { cookie: session, origin, "content-type": "application/json" }, body: JSON.stringify({ email: "vic@example.com", password: "correct horse battery staple", roleId: "viewer" }) });
+  const vic = (await raw(APP, "/v1/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "vic@example.com", password: "correct horse battery staple" }) })).headers.get("set-cookie")!.split(";")[0]!;
+  const vicBack = await raw(APP, `${toGate.pathname}${toGate.search}`, { headers: { cookie: vic } });
+  expect(new URL(vicBack.headers.get("location")!).pathname).toBe("/__gangway/password");
+
+  // 6. The server-wide switch: off, and an `inherit` preview asks everyone.
+  await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: "inherit" }) });
+  expect((await raw(SHARED, "/cookie")).status).toBe(302);
+  await client(running)("api.preview.localhost", "/v1/settings/preview-password", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "off", login: false }) });
+  expect((await raw(SHARED, "/cookie")).status).toBe(401);
+}, 30_000);
+
 test("T53: the hooks surface is dispatched -- a signed delivery is 202'd on hooks.<base>, an unsigned one 401'd, and nothing else answers there", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));

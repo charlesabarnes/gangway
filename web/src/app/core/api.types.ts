@@ -26,6 +26,16 @@ export type SourceKind = PreviewSource['kind'];
 
 export type PreviewUrl = { service: string; url: string; primary: boolean };
 
+/** ADR-0023: `inherit` follows Settings -> Preview passwords; `set` / `generated` are the preview's own. */
+export type PasswordMode = 'inherit' | 'none' | 'set' | 'generated';
+export type PasswordChoice = { mode: 'inherit' } | { mode: 'none' } | { mode: 'generate' } | { mode: 'set'; value: string };
+/** ADR-0023: does a signed-in gangway user (with `previews.skip_password`) get past the password? */
+export type PasswordLogin = 'inherit' | 'on' | 'off';
+/** `PUT /v1/previews/:id/password`: what is left out is kept. */
+export type PasswordChange = { password?: PasswordChoice; login?: PasswordLogin };
+/** The server-wide default: off, one shared password, or one generated per new preview. */
+export type DefaultPasswordMode = 'off' | 'shared' | 'generated';
+
 export type Preview = {
   id: string;
   project: string;
@@ -43,6 +53,10 @@ export type Preview = {
   templateId: string | null;
   /** The project it belongs to (ADR-0014); null for one deployed outside any. */
   projectId: string | null;
+  /** ADR-0023: its password's mode -- never the password. */
+  password: PasswordMode;
+  /** ADR-0023: whether a signed-in gangway user skips that password. */
+  passwordLogin: PasswordLogin;
   lastSeenAt: string | null;
   error: string | null;
   createdAt: string;
@@ -81,7 +95,7 @@ export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'previe
  * `fixtures/permissions.json`.
  */
 export const PERMISSIONS = [
-  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.update_own', 'previews.data', 'previews.view_private',
+  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.update_own', 'previews.data', 'previews.view_private', 'previews.skip_password',
   'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
   'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
   'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.manage', 'repos.secrets', 'templates.manage',

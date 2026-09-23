@@ -38,6 +38,7 @@ import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor
 import { Bootstrap } from "./auth/bootstrap.ts";
 import { LoginLimiter } from "./auth/limiter.ts";
 import { Passwords } from "./auth/password.ts";
+import { entryPassword } from "./previews/password.ts";
 import { RolePermissions } from "./auth/roles.ts";
 import { Sessions } from "./auth/sessions.ts";
 import { Tokens } from "./auth/tokens.ts";
@@ -168,7 +169,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const all = new Map(previews.list({ includeDestroyed: true }).map((p) => [p.id, p]));
   table.hydrate(routes.all().flatMap((route) => {
     const p = all.get(route.previewId);
-    return p ? [{ route, hostId: p.hostId, project: p.project, visibility: p.visibility, state: p.state }] : [];
+    return p ? [{ route, hostId: p.hostId, project: p.project, visibility: p.visibility, state: p.state, password: entryPassword(previews.passwordOf(p.id)), passwordLogin: p.passwordLogin }] : [];
   }));
   const workdirs = new Workdirs(stateDir);
   await workdirs.prune();
@@ -204,6 +205,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     logger: logger.child({ mod: "policy" }),
   });
 
+  const previewPasswords = new Passwords({ ln: 14 });
   const ctx: PreviewContext = {
     instance: config.instanceId, env: config.environment,
     origin: { scheme: config.publicScheme, port: config.publicPort },
@@ -217,6 +219,9 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     inflight: new Map(), teardowns: new Set(),
     builds, audit, sources,
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
+    // ADR-0023: cheaper than a login's scrypt (these guard previews, not accounts) and its
+    // own semaphore, so a burst of password forms never queues an operator's login.
+    passwords: { passwords: previewPasswords, defaultMode: () => settings.get(SETTINGS.previewPasswordMode) },
   };
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
@@ -285,6 +290,13 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const gate = new PreviewGate({
     key: loadOrCreateGateKey(settingsStore),
     appOrigin: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin),
+    // ADR-0023: the shared password applies only while the default says `shared`.
+    sharedPassword: () => (settings.get(SETTINGS.previewPasswordMode) === "shared" ? settings.get(SETTINGS.previewPasswordShared) : null),
+    passwords: previewPasswords,
+    // Per source and per preview; a preview's counter locks after 10 misses, doubling to 15 minutes.
+    limiter: new LoginLimiter({ emailFree: 10 }),
+    loginDefault: () => settings.get(SETTINGS.previewPasswordLogin),
+    onPasswordFailure: (entry, clientIp, reason) => logger.warn("preview password refused", { previewId: entry.previewId, host: entry.hostname, clientIp, reason }),
   });
 
   /* ---- ADR-0014: pull requests from a project's own workflow. The workflow's OIDC
@@ -345,7 +357,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       tokenRoutes(api, tokens);
       userRoutes(api, accounts);
       roleRoutes(api, roles);
-      settingsRoutes(api, settings, audit, templates);
+      settingsRoutes(api, settings, audit, templates, (plain) => previewPasswords.hash(plain));
       oauthRoutes(api, { oauth, enabled: mcpOn });
       surfaceRoutes(api, {
         settings, audit, apiOrigin,
@@ -364,7 +376,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     publicV1: (pub) => {
       authRoutes(pub, {
         auth, accounts, bootstrap, roles, sessionMaxAgeSec: Math.floor(sessions.timings.absoluteMs / 1000),
-        gate: { lookup: (host) => table.lookup(host), issueTicket: (e) => gate.issueTicket(e), originFor: (host) => publicOriginFor(host, ctx.origin), safePath },
+        gate: {
+          lookup: (host) => table.lookup(host), issueTicket: (e, o) => gate.issueTicket(e, o),
+          gateable: (host) => { const e = table.lookup(host); return e ? gate.gateable(e) : { private: false, passwordSkippable: false }; },
+          originFor: (host) => publicOriginFor(host, ctx.origin), safePath,
+        },
       });
       schemaRoutes(pub);
     },
@@ -420,7 +436,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const waker = new Waker(ctx, logger.child({ mod: "wake" }));
   const deps: DispatchDeps = {
     baseDomain, table, limits: DEFAULT_LIMITS, surfaceEnabled,
-    visibilityGate: gate.check,
+    visibilityGate: gate.handle,
     wake: async (entry) => {
       const woke = await Promise.race([
         waker.wake(entry.previewId).then(() => true, () => false),

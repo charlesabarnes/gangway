@@ -10,7 +10,7 @@ function entry(over: Partial<RouteEntry> = {}): RouteEntry {
   return {
     hostname: `acme-pr-1.${BASE}`, previewId: "p1", hostId: "local", project: "gw-1", service: "web",
     containerPort: 3000, upstreamHost: "127.0.0.1", upstreamPort: 31000, primary: true,
-    visibility: "public", state: "awake", inflight: 0, bytesInFlight: 0, lastSeenAt: 0,
+    visibility: "public", password: { mode: "inherit" }, passwordLogin: "inherit", state: "awake", inflight: 0, bytesInFlight: 0, lastSeenAt: 0,
     ...over,
   };
 }

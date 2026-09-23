@@ -22,7 +22,9 @@ import { clearSessionCookie, isSameOrigin, resolveActor, setSessionCookie, type 
 export type GateDeps = {
   /** The live route for a preview hostname, if there is one. */
   lookup(host: string): { hostname: string; previewId: string; visibility: string } | undefined;
-  issueTicket(entry: { hostname: string; previewId: string }): string;
+  /** ADR-0023: private, and/or behind a password a gangway login gets past. Absent: private only. */
+  gateable?(host: string): { private: boolean; passwordSkippable: boolean };
+  issueTicket(entry: { hostname: string; previewId: string }, o?: { skipPassword?: boolean }): string;
   /** `https://<preview host>[:port]` */
   originFor(host: string): string;
   safePath(raw: string | null | undefined): string;
@@ -108,19 +110,34 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
    * preview host sent the browser here because it had no gate cookie. This is the only
    * place the SESSION is consulted: the preview never sees it.
    *
-   * A GET that redirects, so it must not be steerable. `host` has to be a LIVE, PRIVATE
-   * preview -- not any hostname, which would make this an open redirect with a gangway
-   * URL on the front -- and `to` is reduced to a same-origin path.
+   * A GET that redirects, so it must not be steerable. `host` has to be a LIVE preview that
+   * is private or behind a password a login gets past (ADR-0023) -- not any hostname, which
+   * would make this an open redirect with a gangway URL on the front -- and `to` is reduced
+   * to a same-origin path.
+   *
+   * ADR-0023: for a password-protected preview that is NOT private, nobody is sent to log
+   * in. Signed in with `previews.skip_password`, the ticket says so; anyone else goes
+   * straight back to the preview's password form.
    */
   pub.get("/auth/gate", async (c) => {
     appOnly(c);
     const gate = d.gate;
-    const entry = gate?.lookup((c.req.query("host") ?? "").toLowerCase());
-    if (!gate || !entry || entry.visibility !== "private") throw notFound("no such private preview");
+    const host = (c.req.query("host") ?? "").toLowerCase();
+    const entry = gate?.lookup(host);
+    const kind = entry ? gate?.gateable?.(host) ?? { private: entry.visibility === "private", passwordSkippable: false } : undefined;
+    if (!gate || !entry || !kind || (!kind.private && !kind.passwordSkippable)) throw notFound("no such private preview");
     const to = gate.safePath(c.req.query("to"));
     c.header("cache-control", "no-store");
 
     const actor = await resolveActor(c, d.auth).catch(() => null);
+    const skipPassword = kind.passwordSkippable && actor !== null && actor.permissions.has("previews.skip_password");
+    if (!kind.private) {
+      const target = new URL(skipPassword ? "/__gangway/auth" : "/__gangway/password", gate.originFor(entry.hostname));
+      if (skipPassword) target.searchParams.set("ticket", gate.issueTicket(entry, { skipPassword }));
+      target.searchParams.set("to", to);
+      c.header("referrer-policy", "no-referrer");
+      return c.redirect(target.toString(), 302);
+    }
     if (!actor) {
       // Come back HERE after login, with the same two parameters and nothing else.
       const back = `/v1/auth/gate?host=${encodeURIComponent(entry.hostname)}&to=${encodeURIComponent(to)}`;
@@ -129,7 +146,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     if (!actor.permissions.has("previews.view_private")) throw forbidden('requires the "previews.view_private" permission');
 
     const target = new URL("/__gangway/auth", gate.originFor(entry.hostname));
-    target.searchParams.set("ticket", gate.issueTicket(entry));
+    target.searchParams.set("ticket", gate.issueTicket(entry, { skipPassword }));
     target.searchParams.set("to", to);
     c.header("referrer-policy", "no-referrer");
     return c.redirect(target.toString(), 302);

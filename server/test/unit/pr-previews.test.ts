@@ -81,7 +81,7 @@ function fakePreviews(instance = "test") {
         id, project: `gw-${instance}-${slug}`, hostId: "local", kind: "preview", state: "building",
         source: s.kind === "pr" ? { kind: "pr", repo: s.repo, number: s.number, sha: s.sha } : { kind: "image", image: "x" },
         visibility: input.visibility ?? "unlisted", ttlExpiresAt: input.ttl ? new Date(Date.now() + 86_400_000) : null,
-        idleAfterMs: null, secretLevel: input.secretLevel ?? null, templateId: input.template ?? "default", projectId: input.projectId ?? null, lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
+        idleAfterMs: null, secretLevel: input.secretLevel ?? null, templateId: input.template ?? "default", projectId: input.projectId ?? null, password: "inherit", passwordLogin: "inherit", lastSeenAt: null, error: null, createdAt: new Date(), updatedAt: new Date(), destroyedAt: null,
       };
       rows.set(id, preview);
       const done = new Promise<Preview>((resolve) => pending.set(id, (final) => { rows.set(id, final); resolve(final); }));

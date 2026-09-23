@@ -14,13 +14,14 @@ import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { DbBrowser } from './db-browser';
 import { LogViewer } from './log-viewer';
+import { PasswordPanel } from './password-panel';
 import { PreviewsStore } from './previews.store';
 import { SourcePanel } from './source-panel';
 import { displayName, sourceLabel } from './source-label';
 
 @Component({
   selector: 'app-preview-detail',
-  imports: [RouterLink, Btn, ConfirmDialog, DbBrowser, EmptyState, LogViewer, RelativeTimePipe, SourcePanel, StateBadge],
+  imports: [RouterLink, Btn, ConfirmDialog, DbBrowser, EmptyState, LogViewer, PasswordPanel, RelativeTimePipe, SourcePanel, StateBadge],
   template: `
     <section class="mx-auto max-w-5xl px-6 py-10">
       <a routerLink="/previews" class="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">← Previews</a>
@@ -73,6 +74,7 @@ import { displayName, sourceLabel } from './source-label';
         </div>
 
         @if (p.state !== 'destroyed' && p.state !== 'destroying') {
+          <app-password-panel [preview]="p" />
           <app-source-panel [previewId]="p.id" [uploaded]="p.source.kind === 'tarball'" />
         }
 

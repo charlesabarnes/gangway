@@ -5,13 +5,15 @@
  */
 import type { Context, Hono } from "hono";
 import type { Preview } from "../../../../shared/src/domain.ts";
-import { DeployRequestSchema, PreviewListQuerySchema, PreviewLogsQuerySchema, SourceEditSchema, SourceReplaceQuerySchema, TARBALL_CONTENT_TYPES, TarballDeployQuerySchema } from "../../../../shared/src/api.ts";
-import { badRequest, notFound } from "../../errors.ts";
+import { DeployRequestSchema, PreviewPasswordChangeSchema, PREVIEW_PASSWORD_HEADER, PREVIEW_PASSWORD_MAX, PreviewListQuerySchema, PreviewLogsQuerySchema, SourceEditSchema, SourceReplaceQuerySchema, TARBALL_CONTENT_TYPES, TarballDeployQuerySchema } from "../../../../shared/src/api.ts";
+import { badRequest, forbidden, notFound, unprocessable } from "../../errors.ts";
 import type { PreviewContext } from "../../previews/context.ts";
 import { urlsFor, type DeployInput } from "../../previews/deploy.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
 import { redeploy, type RedeployInput } from "../../previews/redeploy.ts";
+import { setPreviewPassword } from "../../previews/password.ts";
+import { mayRebuild } from "../../auth/actor.ts";
 import { planFromDisk } from "../../previews/runtimes.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
@@ -35,10 +37,15 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     let req: Omit<DeployInput, "actor">;
     if (isTarball(contentType)) {
       // The body is the archive, streamed straight into the extractor -- never buffered.
-      const { ttl, project, runtime, port, addons, ...q } = TarballDeployQuerySchema.parse(c.req.query());
+      const { ttl, project, runtime, port, addons, password: passwordMode, passwordLogin, ...q } = TarballDeployQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
       if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      req = { ...q, ...(project ? { projectId: project } : {}), ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port, runtime, addons, digest: `len:${c.req.header("content-length") ?? "?"}` } };
+      // ADR-0023: a chosen password in a header, never the query string.
+      const chosen = c.req.header(PREVIEW_PASSWORD_HEADER);
+      if (chosen !== undefined && passwordMode !== undefined) throw badRequest(`send either ?password= or the ${PREVIEW_PASSWORD_HEADER} header, not both`);
+      if (chosen !== undefined && (chosen.length === 0 || chosen.length > PREVIEW_PASSWORD_MAX)) throw unprocessable(`a password is 1 to ${PREVIEW_PASSWORD_MAX} characters`);
+      const password = chosen !== undefined ? { mode: "set" as const, value: chosen } : passwordMode ? { mode: passwordMode } : undefined;
+      req = { ...q, ...(password ? { password } : {}), ...(passwordLogin ? { passwordLogin } : {}), ...(project ? { projectId: project } : {}), ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }), source: { kind: "tarball", archive, port, runtime, addons, digest: `len:${c.req.header("content-length") ?? "?"}` } };
     } else {
       const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
       const { project, ...parsed } = DeployRequestSchema.parse(body);
@@ -129,6 +136,20 @@ export function previewRoutes(api: Hono<AppEnv>, ctx: PreviewContext, deploys: I
     const archive = c.req.raw.body;
     if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
     return rebuild(c, { kind: "replace", archive }, runtime, addons);
+  });
+
+  /**
+   * ADR-0023: put a running preview behind a password, change it, generate a new one (it is
+   * printed in the preview's log), or open it; and/or say whether a gangway login gets past
+   * it. Who may: whoever may rebuild it.
+   */
+  api.put("/previews/:id/password", requirePermission("previews.update_own", "previews.update"), async (c) => {
+    const p = find(c.req.param("id"));
+    const actor = c.get("actor");
+    if (!mayRebuild(actor, ctx.previews.ownerOf(p.id))) throw forbidden('this preview was deployed by someone else: "previews.update_own" covers only your own, and changing any preview\'s password needs "previews.update"');
+    const body = await c.req.json().catch(() => { throw badRequest("the request body is not JSON"); });
+    const { password, login } = PreviewPasswordChangeSchema.parse(body);
+    return c.json({ preview: wire(await setPreviewPassword(ctx, { actor, previewId: p.id, choice: password, login })) });
   });
 
   api.get("/previews/:id/logs", requirePermission("logs.read"), (c) => {

@@ -41,6 +41,24 @@ export type PreviewState =
 
 export type Visibility = "public" | "unlisted" | "private";
 
+/**
+ * A preview's password (ADR-0023). `inherit` follows the server-wide default at request
+ * time; `none` is open whatever the default says; `set` and `generated` are its own. Only
+ * the mode is ever reported: the hash stays in the database, the plain text nowhere.
+ */
+export type PasswordMode = "inherit" | "none" | "set" | "generated";
+export const PASSWORD_MODES: readonly PasswordMode[] = ["inherit", "none", "set", "generated"];
+
+/**
+ * ADR-0023: does being signed in to gangway (with `previews.skip_password`) let you past a
+ * preview's password? `inherit` follows the server-wide switch.
+ */
+export type PasswordLogin = "inherit" | "on" | "off";
+export const PASSWORD_LOGINS: readonly PasswordLogin[] = ["inherit", "on", "off"];
+
+/** The server-wide default (ADR-0023): off, one shared password, or one generated per new preview. */
+export type DefaultPasswordMode = "off" | "shared" | "generated";
+
 /** §12.3: "A CI job is a preview with no route." */
 export type PreviewKind = "preview" | "job";
 
@@ -156,6 +174,10 @@ export type Preview = {
   templateId: string | null;
   /** The project it belongs to (ADR-0014); null for one deployed outside any. */
   projectId: string | null;
+  /** Its password (ADR-0023): the mode only, never the password. */
+  password: PasswordMode;
+  /** Whether a signed-in gangway user skips that password (ADR-0023). */
+  passwordLogin: PasswordLogin;
   /** Written by the proxy on every request; the idle-sleep sweeper reads it. */
   lastSeenAt: Date | null;
   error: string | null;

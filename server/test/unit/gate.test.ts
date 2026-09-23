@@ -7,7 +7,7 @@ import type { RouteEntry } from "../../src/routing/table.ts";
 const APP = "https://app.preview.example.dev";
 const entry = (over: Partial<RouteEntry> = {}): RouteEntry => ({
   hostname: "shop.preview.example.dev", previewId: "01SHOP0000000000000000000A", hostId: "local", project: "gw-shop", service: "web",
-  containerPort: 80, upstreamHost: "127.0.0.1", upstreamPort: 31000, primary: true, visibility: "private", state: "awake",
+  containerPort: 80, upstreamHost: "127.0.0.1", upstreamPort: 31000, primary: true, visibility: "private", password: { mode: "inherit" }, passwordLogin: "inherit", state: "awake",
   inflight: 0, bytesInFlight: 0, lastSeenAt: 0, ...over,
 });
 
@@ -79,7 +79,7 @@ describe("the handshake", () => {
     const { res } = t.signIn(entry(), "/orders/42?tab=items");
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/orders/42?tab=items");
-    expect(res.headers.get("set-cookie")).toMatch(/^__Host-gw_pv=01SHOP0000000000000000000A\.\d+\.[A-Za-z0-9_-]{43}; Max-Age=28800; Path=\/; HttpOnly; Secure; SameSite=Lax$/);
+    expect(res.headers.get("set-cookie")).toMatch(/^__Host-gw_pv=01SHOP0000000000000000000A\.\d+\.0\.[A-Za-z0-9_-]{43}; Max-Age=28800; Path=\/; HttpOnly; Secure; SameSite=Lax$/);
     expect(res.headers.get("referrer-policy")).toBe("no-referrer"); // the ticket is in THIS url
   });
 

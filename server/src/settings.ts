@@ -60,6 +60,14 @@ export const SETTINGS = {
   templatePr: def("templates.default.pr", templateRef, "default"),
   templateApi: def("templates.default.api", templateRef, "default"),
   templateManual: def("templates.default.manual", templateRef, "default"),
+  // ADR-0023: the password a preview that inherits is behind. `shared` is one password for
+  // all of them (its scrypt hash, never the text); `generated` gives each NEW preview its
+  // own, printed in its log. Written only through PUT /v1/settings/preview-password.
+  previewPasswordMode: def("previews.password.mode", z.enum(["off", "shared", "generated"]), "off"),
+  // Whether a signed-in gangway user (with `previews.skip_password`) gets past the password
+  // of a preview that follows this default. A preview can say on or off for itself.
+  previewPasswordLogin: def("previews.password.login", z.boolean(), true),
+  previewPasswordShared: def("previews.password.shared", z.object({ hash: z.string().min(1), salt: z.string().min(1) }).nullable(), null, { secret: true }),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),

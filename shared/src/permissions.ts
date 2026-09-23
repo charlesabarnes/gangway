@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   { id: "previews.update_own", feature: "previews", description: "Rebuild previews you deployed, at the same URL" },
   { id: "previews.data", feature: "previews", description: "Browse and query a preview's add-on databases (every query is audited)" },
   { id: "previews.view_private", feature: "previews", description: "Open previews whose visibility is private" },
+  { id: "previews.skip_password", feature: "previews", description: "Open password-protected previews by being signed in, without the password" },
   { id: "logs.read", feature: "logs", description: "Read and follow preview build and runtime logs" },
   { id: "events.read", feature: "events", description: "Follow the global state stream" },
   { id: "hosts.read", feature: "hosts", description: "See registered Docker hosts and their state" },
@@ -81,6 +82,6 @@ export const ADMIN_ROLE_ID: BuiltinRole = "admin";
  * test holds the two together.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<BuiltinRole, "admin">, readonly Permission[]> = {
-  member: [...READ, "previews.deploy", "previews.destroy", "previews.update_own", "previews.view_private", "tokens.manage_own"],
-  viewer: [...READ, "previews.view_private"],
+  member: [...READ, "previews.deploy", "previews.destroy", "previews.update_own", "previews.view_private", "previews.skip_password", "tokens.manage_own"],
+  viewer: [...READ, "previews.view_private", "previews.skip_password"],
 };

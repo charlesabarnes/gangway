@@ -219,3 +219,54 @@ describe('GitHubCallback', () => {
     r.http.expectNone('/v1/github/manifest/exchange');
   });
 });
+
+describe('Settings: preview passwords (ADR-0023)', () => {
+  const type = async (r: Rendered<unknown>, id: string, v: string) => { const i = r.byTestId(id) as HTMLInputElement; i.value = v; i.dispatchEvent(new Event('input')); await r.settle(); };
+  const pwSettings = (mode: string, set: boolean): SettingView[] => [
+    setting('previews.password.mode', mode),
+    { key: 'previews.password.shared', value: null, source: set ? 'database' : 'default', managedByConfig: false, secret: true, set },
+  ];
+
+  it('a first shared password needs a value, is sent to its own route, and is never shown back', async () => {
+    const r = await open({ settings: pwSettings('off', false) });
+    await choose(r, 'password-default', 'shared');
+    expect((r.byTestId('password-save') as HTMLButtonElement).disabled).toBe(true);
+    await type(r, 'password-shared', 'p');
+    (r.byTestId('password-save') as HTMLButtonElement).click();
+    await r.settle();
+    const req = r.http.expectOne({ method: 'PUT', url: '/v1/settings/preview-password' });
+    expect(req.request.body).toEqual({ mode: 'shared', login: true, value: 'p' });
+    req.flush({ settings: pwSettings('shared', true) });
+    await r.settle();
+    expect((r.byTestId('password-shared') as HTMLInputElement).value).toBe('');
+    r.http.verify();
+  });
+
+  it('generated: no value, and the help says only new previews change', async () => {
+    const r = await open({ settings: pwSettings('shared', true) });
+    await choose(r, 'password-default', 'generated');
+    expect(r.text('password-help')).toContain('not changed');
+    (r.byTestId('password-save') as HTMLButtonElement).click();
+    await r.settle();
+    const req = r.http.expectOne({ method: 'PUT', url: '/v1/settings/preview-password' });
+    expect(req.request.body).toEqual({ mode: 'generated', login: true });
+    req.flush({ settings: pwSettings('generated', true) });
+    await r.settle();
+  });
+
+  it('the login switch alone is a change worth saving: signed-in users need the password too', async () => {
+    const r = await open({ settings: [...pwSettings('shared', true), setting('previews.password.login', true)] });
+    expect((r.byTestId('password-save') as HTMLButtonElement).disabled).toBe(true);
+    const box = r.byTestId('password-login') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    box.checked = false; box.dispatchEvent(new Event('change'));
+    await r.settle();
+    (r.byTestId('password-save') as HTMLButtonElement).click();
+    await r.settle();
+    const req = r.http.expectOne({ method: 'PUT', url: '/v1/settings/preview-password' });
+    expect(req.request.body).toEqual({ mode: 'shared', login: false });
+    req.flush({ settings: [...pwSettings('shared', true), setting('previews.password.login', false)] });
+    await r.settle();
+    expect((r.byTestId('password-login') as HTMLInputElement).checked).toBe(false);
+  });
+});

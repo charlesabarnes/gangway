@@ -9,8 +9,15 @@
  * there is no await between the two writes, so no in-flight request can ever observe a
  * half-applied state. A promise-based driver would need a lock here.
  */
-import type { PreviewState, Route, Visibility } from "../../../shared/src/domain.ts";
+import type { PasswordLogin, PreviewState, Route, Visibility } from "../../../shared/src/domain.ts";
 import type { RoutesRepo } from "../db/repos/routes.ts";
+
+/**
+ * ADR-0023: what the gate needs to know about a preview's password, denormalized like the
+ * rest. `inherit` is resolved against the server-wide default per request, so changing the
+ * default takes effect at once; `own` carries the preview's scrypt hash.
+ */
+export type EntryPassword = { mode: "inherit" } | { mode: "none" } | { mode: "own"; hash: string; salt: string };
 
 /**
  * Denormalized so a proxied request touches zero SQLite: the hot path is one Map lookup.
@@ -28,6 +35,9 @@ export type RouteEntry = {
   upstreamPort: number;
   readonly primary: boolean;
   visibility: Visibility;
+  password: EntryPassword;
+  /** ADR-0023: whether a gangway login gets past that password; `inherit` is read per request. */
+  passwordLogin: PasswordLogin;
   state: PreviewState;
   /** Mutable per-request counters -- see net/limits.ts. */
   inflight: number;
@@ -40,6 +50,9 @@ export type RouteSeed = {
   hostId: string;
   project: string;
   visibility: Visibility;
+  /** ADR-0023. Omitted: inherit. */
+  password?: EntryPassword | undefined;
+  passwordLogin?: PasswordLogin | undefined;
   state: PreviewState;
 };
 
@@ -55,6 +68,8 @@ function toEntry(s: RouteSeed): RouteEntry {
     upstreamPort: s.route.upstream.port,
     primary: s.route.primary,
     visibility: s.visibility,
+    password: s.password ?? { mode: "inherit" },
+    passwordLogin: s.passwordLogin ?? "inherit",
     state: s.state,
     inflight: 0,
     bytesInFlight: 0,
@@ -151,6 +166,14 @@ export class RouteTable {
 
   setVisibility(previewId: string, visibility: Visibility): void {
     for (const e of this.forPreview(previewId)) e.visibility = visibility;
+  }
+
+  setPassword(previewId: string, password: EntryPassword): void {
+    for (const e of this.forPreview(previewId)) e.password = password;
+  }
+
+  setPasswordLogin(previewId: string, login: PasswordLogin): void {
+    for (const e of this.forPreview(previewId)) e.passwordLogin = login;
   }
 
   /** Called on every proxied request. Memory only -- the database write is batched. */

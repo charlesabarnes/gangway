@@ -79,6 +79,9 @@ export const TarballDeployQuerySchema = z.object({
   runtime: z.enum([...RUNTIME_IDS, "auto", "own"]).optional(),
   /** ADR-0017: throwaway databases, `postgres,redis`. Absent: gangway.yml's, if any. */
   addons: addonQuery.optional(),
+  /** ADR-0023: `inherit`, `none` or `generate`. A chosen password rides in PREVIEW_PASSWORD_HEADER. */
+  password: z.enum(["inherit", "none", "generate"]).optional(),
+  passwordLogin: z.enum(["inherit", "on", "off"]).optional(),
 });
 
 const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
@@ -113,6 +116,48 @@ export const PlanRequestSchema = z.strictObject({
 export type PlanRequest = z.infer<typeof PlanRequestSchema>;
 export const TARBALL_CONTENT_TYPES = ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"] as const;
 
+/**
+ * ADR-0023: a preview's password. `inherit` (the default) follows Settings; `none` opens it;
+ * `set` takes a value; `generate` has gangway make one and print it in the preview's log.
+ */
+/** Any length the person wants; the cap only keeps a huge body out of the proxy (the gate reads at most 1024). */
+export const PREVIEW_PASSWORD_MAX = 1024;
+export const PasswordChoiceSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("inherit") }),
+  z.strictObject({ mode: z.literal("none") }),
+  z.strictObject({ mode: z.literal("generate") }),
+  z.strictObject({ mode: z.literal("set"), value: z.string().min(1, "a password cannot be empty").max(PREVIEW_PASSWORD_MAX) }),
+]);
+export type PasswordChoice = z.infer<typeof PasswordChoiceSchema>;
+
+export const PasswordLoginSchema = z.enum(["inherit", "on", "off"]);
+
+/**
+ * `PUT /v1/previews/:id/password`: the password, whether a gangway login gets past it, or
+ * both. What is left out is kept.
+ */
+export const PreviewPasswordChangeSchema = z.strictObject({
+  password: PasswordChoiceSchema.optional(),
+  login: PasswordLoginSchema.optional(),
+}).refine((b) => b.password !== undefined || b.login !== undefined, "nothing to change: send password, login or both");
+
+/**
+ * `PUT /v1/settings/preview-password`: the server-wide default. `shared` needs a value unless
+ * one is already set. `login`: whether a signed-in gangway user skips the password on
+ * previews that follow the default; omitted, unchanged.
+ */
+export const DefaultPasswordSchema = z.strictObject({
+  login: z.boolean().optional(),
+  mode: z.enum(["off", "shared", "generated"]),
+  value: z.string().min(1, "a password cannot be empty").max(PREVIEW_PASSWORD_MAX).optional(),
+});
+
+/**
+ * A tarball deploy carries a CHOSEN password in the `gangway-preview-password` header, never
+ * the query string (query strings end up in logs); the query names the other modes.
+ */
+export const PREVIEW_PASSWORD_HEADER = "gangway-preview-password";
+
 export const DeployRequestSchema = z.strictObject({
   source: DeploySourceSchema,
   name: z.string().min(1).max(40).optional(),
@@ -124,6 +169,10 @@ export const DeployRequestSchema = z.strictObject({
   template: templateId.optional(),
   /** A project by id or slug (ADR-0014): the preview is filed under it and follows its policy. */
   project: z.string().min(1).max(64).optional(),
+  /** ADR-0023. Omitted: inherit the server-wide default. */
+  password: PasswordChoiceSchema.optional(),
+  /** ADR-0023: whether a gangway login gets past the password. Omitted: the server default. */
+  passwordLogin: PasswordLoginSchema.optional(),
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
 

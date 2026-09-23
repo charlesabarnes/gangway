@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { DISABLE_UI_PHRASE, TRIGGERS, type GitHubStatus, type Surfaces, type ManifestStart, type SecretListing, type SettingView, type Template, type Trigger } from '../../core/api.types';
+import { DISABLE_UI_PHRASE, TRIGGERS, type DefaultPasswordMode, type GitHubStatus, type Surfaces, type ManifestStart, type SecretListing, type SettingView, type Template, type Trigger } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
@@ -111,6 +111,44 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
         </div>
       }
 
+      @if (canReadSettings()) {
+        <h2 class="mt-10 text-base font-semibold">Preview passwords</h2>
+        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">What a preview that follows the server default asks visitors for. A preview can still choose its own password, or none, when it is made or later on its page.</p>
+        <form class="mt-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800" data-testid="preview-password" (submit)="$event.preventDefault(); savePassword()">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="text-xs text-neutral-500">Default
+              <select [class]="field" [disabled]="!canWriteSettings() || pwManaged() || saving() === 'password'" (change)="pwDraft.set($any($event.target).value)" data-testid="password-default">
+                <option value="off" [selected]="pwDraft() === 'off'">off: previews are open</option>
+                <option value="shared" [selected]="pwDraft() === 'shared'">one shared password</option>
+                <option value="generated" [selected]="pwDraft() === 'generated'">generate one per new preview</option>
+              </select>
+            </label>
+            @if (pwDraft() === 'shared') {
+              <label class="text-xs text-neutral-500">{{ pwSet() ? 'New shared password (blank keeps the current one)' : 'Shared password' }}
+                <input [class]="field" type="password" autocomplete="new-password" placeholder="any length" [disabled]="!canWriteSettings() || pwManaged()" [value]="pwValue()" (input)="pwValue.set($any($event.target).value)" data-testid="password-shared" />
+              </label>
+            }
+          </div>
+          @if (pwDraft() !== 'off') {
+            <label class="mt-3 flex items-center gap-2 text-sm">
+              <input type="checkbox" [checked]="pwLoginDraft()" [disabled]="!canWriteSettings() || pwManaged()" (change)="pwLoginDraft.set($any($event.target).checked)" data-testid="password-login" />
+              People signed in to gangway skip the password
+            </label>
+          }
+          <p class="mt-2 text-xs text-neutral-500" data-testid="password-help">
+            @switch (pwDraft()) {
+              @case ('shared') { Every preview that follows the default asks for this password. Changing it signs everyone out of those previews. }
+              @case ('generated') { Each new preview gets its own password, printed once in its log. Previews that already exist are not changed. }
+              @default { Previews that follow the default are open to anyone with the link. }
+            }
+            @if (pwManaged()) { <span class="block">managed by config</span> }
+          </p>
+          @if (canWriteSettings() && !pwManaged()) {
+            <button appBtn type="submit" class="mt-3" [disabled]="saving() !== null || (pwDraft() === 'shared' && !pwSet() && pwValue() === '') || (pwDraft() === pwMode() && pwValue() === '' && pwLoginDraft() === pwLogin())" data-testid="password-save">{{ saving() === 'password' ? 'Saving…' : 'Save' }}</button>
+          }
+        </form>
+      }
+
       @if (canSecrets()) {
         <h2 class="mt-10 text-base font-semibold">Secrets for every preview</h2>
         <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Written to <code class="font-mono">.env</code> in every checkout at deploy, at or below the preview's clearance — <span class="font-mono">low</span> &lt; <span class="font-mono">standard</span> &lt; <span class="font-mono">high</span>. The clearance comes from the template; a project's own secrets add to these and win on a name.</p>
@@ -145,7 +183,15 @@ export class SettingsPage {
   protected readonly globalSecrets = signal<SecretListing[]>([]);
   protected readonly globalLoaded = signal(false);
   protected readonly busy = signal(false);
-  protected readonly saving = signal<Trigger | 'surfaces' | null>(null);
+  protected readonly saving = signal<Trigger | 'surfaces' | 'password' | null>(null);
+  /** ADR-0023: the saved default, what the form shows, whether a shared password exists. */
+  protected readonly pwMode = signal<DefaultPasswordMode>('off');
+  protected readonly pwDraft = signal<DefaultPasswordMode>('off');
+  protected readonly pwSet = signal(false);
+  protected readonly pwManaged = signal(false);
+  protected readonly pwValue = signal('');
+  protected readonly pwLogin = signal(true);
+  protected readonly pwLoginDraft = signal(true);
   protected readonly error = signal<string | null>(null);
 
   constructor() {
@@ -208,7 +254,37 @@ export class SettingsPage {
       }
       this.defaults.set(defaults);
       this.managed.set(managed);
+      this.#readPassword(settings);
     } catch (e) { this.#toasts.problem('Could not load settings', toProblem(e)); }
+  }
+
+  #readPassword(settings: SettingView[]): void {
+    const mode = settings.find((s) => s.key === 'previews.password.mode');
+    const shared = settings.find((s) => s.key === 'previews.password.shared');
+    this.pwMode.set((mode?.value as DefaultPasswordMode | undefined) ?? 'off');
+    this.pwDraft.set(this.pwMode());
+    this.pwSet.set(shared?.set ?? false);
+    const login = settings.find((s) => s.key === 'previews.password.login');
+    this.pwLogin.set(login?.value !== false);
+    this.pwLoginDraft.set(this.pwLogin());
+    this.pwManaged.set(!!(mode?.managedByConfig || shared?.managedByConfig || login?.managedByConfig));
+  }
+
+  protected async savePassword(): Promise<void> {
+    if (this.saving() !== null) return;
+    const mode = this.pwDraft();
+    const value = this.pwValue();
+    this.saving.set('password');
+    try {
+      const { settings } = await firstValueFrom(this.#http.put<{ settings: SettingView[] }>('/v1/settings/preview-password', { mode, login: this.pwLoginDraft(), ...(mode === 'shared' && value !== '' ? { value } : {}) }));
+      this.#readPassword(settings);
+      this.pwValue.set('');
+      this.#toasts.info('Preview passwords saved', mode === 'off' ? 'Previews that follow the default are open.' : mode === 'shared' ? 'Previews that follow the default ask for the shared password.' : 'New previews get their own password, in their log.');
+    } catch (e) {
+      this.#toasts.problem('Could not save preview passwords', toProblem(e));
+    } finally {
+      this.saving.set(null);
+    }
   }
 
   async #loadGlobal(): Promise<void> {

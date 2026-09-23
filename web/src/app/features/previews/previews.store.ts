@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal, type Signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { STREAM_EVENT_TYPES, type Preview, type PreviewList, type StreamEvent } from '../../core/api.types';
+import { STREAM_EVENT_TYPES, type PasswordChange, type Preview, type PreviewList, type StreamEvent } from '../../core/api.types';
 import { toProblem, type ProblemError } from '../../core/problem';
 import { SseService, type SseHandle, type SseStatus } from '../../core/sse.service';
 
@@ -102,6 +102,17 @@ export class PreviewsStore {
     } catch (e) {
       // Only if nothing newer arrived meanwhile: an event may already have moved it on.
       if (before && this.#byId().get(id)?.state === 'destroying') this.#put(before);
+      throw toProblem(e);
+    }
+  }
+
+  /** ADR-0023: change a preview's password and/or its login rule. Rejects with a ProblemError the caller can show. */
+  async setPassword(id: string, change: PasswordChange): Promise<Preview> {
+    try {
+      const { preview } = await firstValueFrom(this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/password`, change));
+      this.#put(preview);
+      return preview;
+    } catch (e) {
       throw toProblem(e);
     }
   }

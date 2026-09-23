@@ -1,4 +1,4 @@
-import type { Clearance, Preview, PreviewKind, PreviewSource, PreviewState, Visibility } from "../../../../shared/src/domain.ts";
+import type { Clearance, PasswordLogin, PasswordMode, Preview, PreviewKind, PreviewSource, PreviewState, Visibility } from "../../../../shared/src/domain.ts";
 import type { Db } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 
@@ -17,7 +17,14 @@ export type CreatePreview = {
   projectId?: string | null;
   /** ADR-0021: who deployed it (`principalOf` in auth/actor.ts). Not on `Preview`: only `previews.update_own` asks. */
   owner?: string | null;
+  /** ADR-0023. Omitted: inherit. */
+  password?: StoredPreviewPassword;
+  /** ADR-0023. Omitted: inherit. */
+  passwordLogin?: PasswordLogin;
 };
+
+/** A preview's password as the database holds it: the mode, and the scrypt hash for `set` / `generated`. */
+export type StoredPreviewPassword = { mode: PasswordMode; secret: { hash: string; salt: string } | null };
 
 export type PreviewFilter = {
   state?: PreviewState | PreviewState[];
@@ -41,13 +48,16 @@ export class PreviewsRepo {
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
       `INSERT INTO previews (id, project, host_id, kind, state, source_kind, source_json,
-                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, created_at, updated_at)
+                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner,
+                             password_mode, password_hash, password_salt, password_login, created_at, updated_at)
        VALUES ($id, $project, $host_id, $kind, $state, $source_kind, $source_json,
-               $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $now, $now)`,
+               $visibility, $ttl, $idle, $level, $template, $projectId, $owner,
+               $pwMode, $pwHash, $pwSalt, $pwLogin, $now, $now)`,
       {
         id: p.id, project: p.project, host_id: p.hostId, kind: p.kind ?? "preview",
         state: p.state, source_kind, source_json, visibility: p.visibility,
-        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, projectId: p.projectId ?? null, owner: p.owner ?? null, now,
+        ttl: fromDate(p.ttlExpiresAt ?? null), idle: p.idleAfterMs ?? null, level: p.secretLevel ?? null, template: p.templateId ?? null, projectId: p.projectId ?? null, owner: p.owner ?? null,
+        pwMode: p.password?.mode ?? "inherit", pwHash: p.password?.secret?.hash ?? null, pwSalt: p.password?.secret?.salt ?? null, pwLogin: p.passwordLogin ?? "inherit", now,
       },
     );
     return this.get(p.id)!;
@@ -61,6 +71,26 @@ export class PreviewsRepo {
   /** ADR-0021: who deployed it, or null (a PR, a workflow, a row from before 0010). */
   ownerOf(id: string): string | null {
     return this.#db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = $id", { id })?.owner ?? null;
+  }
+
+  /** ADR-0023: the mode and hash. Not on `Preview`: only the gate reads the hash. */
+  passwordOf(id: string): StoredPreviewPassword {
+    const r = this.#db.get<{ password_mode: string | null; password_hash: string | null; password_salt: string | null }>(
+      "SELECT password_mode, password_hash, password_salt FROM previews WHERE id = $id", { id });
+    const mode = (r?.password_mode ?? "inherit") as PasswordMode;
+    const secret = r?.password_hash && r.password_salt ? { hash: r.password_hash, salt: r.password_salt } : null;
+    return { mode, secret: mode === "set" || mode === "generated" ? secret : null };
+  }
+
+  setPassword(id: string, pw: StoredPreviewPassword): void {
+    this.#db.run(
+      "UPDATE previews SET password_mode = $mode, password_hash = $hash, password_salt = $salt, updated_at = $now WHERE id = $id",
+      { id, mode: pw.mode, hash: pw.secret?.hash ?? null, salt: pw.secret?.salt ?? null, now: this.#now() },
+    );
+  }
+
+  setPasswordLogin(id: string, login: PasswordLogin): void {
+    this.#db.run("UPDATE previews SET password_login = $login, updated_at = $now WHERE id = $id", { id, login, now: this.#now() });
   }
 
   getByProject(project: string): Preview | undefined {
