@@ -1,4 +1,4 @@
-# gangway plugin for Claude Code
+# gangway plugin for Claude Code and Codex
 
 Ship what Claude would normally make as an artifact to a real HTTPS URL on your gangway server, and keep iterating on it at the same URL.
 
@@ -18,6 +18,17 @@ Or inside Claude Code: `/plugin marketplace add charlesabarnes/gangway`, then `/
 To try a local checkout without installing: `claude --plugin-dir ./plugin/gangway`.
 
 If you already added gangway as a user-level MCP server, remove it (`claude mcp remove gangway`), or you will see every tool twice.
+
+## Codex
+
+```sh
+codex mcp add gangway --url https://mcp.preview.example.com/     # signs you in on your server
+codex plugin marketplace add charlesabarnes/gangway --sparse .agents --sparse plugin && codex plugin add gangway@gangway   # optional: the skill
+```
+
+## Any other agent
+
+Nothing to install: point any MCP client at your server. It explains its workflow on connect and offers a `generate-artifact` prompt. Your gangway's **Account → Connect an agent** page shows the exact commands and install links for Claude Code, Codex, Cursor and VS Code, with your URL filled in.
 
 ## Needs
 

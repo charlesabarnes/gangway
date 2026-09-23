@@ -1,0 +1,18 @@
+{
+  "name": "gangway",
+  "version": "0.1.0",
+  "description": "Ship what you would make as an artifact to a real HTTPS URL on your own gangway server, and iterate on it at the same URL.",
+  "author": { "name": "Charles Barnes" },
+  "repository": "https://github.com/charlesabarnes/gangway",
+  "keywords": ["deploy", "preview", "mcp", "artifact"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "gangway",
+    "shortDescription": "Deploy artifact-style apps to your gangway server",
+    "longDescription": "The generate-artifact skill: write each file once, ship it to your gangway server with files or upload by reference, read the route checks in the deploy answer, and patch in place at the same URL. Connect the MCP server separately: codex mcp add gangway --url https://mcp.<your base>/ then codex mcp login gangway.",
+    "developerName": "Charles Barnes",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": ["Build a small app and deploy it to gangway"]
+  }
+}
