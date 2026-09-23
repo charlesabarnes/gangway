@@ -81,7 +81,7 @@ export const STREAM_EVENT_TYPES = ['preview.created', 'preview.adopted', 'previe
  * `fixtures/permissions.json`.
  */
 export const PERMISSIONS = [
-  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.view_private',
+  'previews.read', 'previews.deploy', 'previews.destroy', 'previews.update', 'previews.data', 'previews.view_private',
   'logs.read', 'events.read', 'hosts.read', 'hosts.manage',
   'tokens.manage_own', 'tokens.manage_all', 'users.read', 'users.manage', 'roles.read', 'roles.manage',
   'audit.read', 'settings.read', 'settings.write', 'surfaces.manage', 'github.manage', 'repos.manage', 'repos.secrets', 'templates.manage',
@@ -205,6 +205,16 @@ export const ADDON_IDS: readonly AddonId[] = ['postgres', 'mysql', 'redis'];
 export type AddonChoice = { id: AddonId; version: string };
 /** One entry of `GET /v1/runtimes` `addons`. `env`: the variables the app receives. */
 export type AddonInfo = { id: AddonId; name: string; description: string; versions: string[]; defaultVersion: string; env: string[] };
+
+/* ---- The data browser (ADR-0018): needs `previews.data` */
+
+/** `GET /v1/previews/:id/addons` (previews.read). */
+export type PreviewAddon = AddonChoice & { name: string; service: string; env: string[] };
+export type DataTable = { schema: string; name: string };
+/** A query's answer. A cell is null for SQL NULL. `message`: what the database said on stderr (notices). */
+export type DataResult = { columns: string[]; rows: (string | null)[][]; truncated: boolean; message: string | null; ms: number };
+export type RedisKeys = { cursor: string; keys: string[] };
+export type RedisKey = { type: string; ttl: string; value: DataResult };
 
 /* ---- The app plan (ADR-0016): what the server will do with an upload, and why */
 

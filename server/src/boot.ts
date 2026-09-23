@@ -22,6 +22,8 @@ import { eventRoutes } from "./app/routes/events.ts";
 import { hostRoutes } from "./app/routes/hosts.ts";
 import { previewRoutes } from "./app/routes/previews.ts";
 import { runtimeRoutes, schemaRoutes } from "./app/routes/runtimes.ts";
+import { addonRoutes } from "./app/routes/addons.ts";
+import { DataBrowser } from "./previews/data/service.ts";
 import { Audit } from "./audit/audit.ts";
 import { Accounts } from "./auth/accounts.ts";
 import { chainVerifiers, staticTokenVerifier, workflowActor } from "./auth/actor.ts";
@@ -306,6 +308,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       eventRoutes(api, bus, { signal: shutdown.signal });
       previewRoutes(api, ctx, deploys, { signal: shutdown.signal });
       runtimeRoutes(api);
+      addonRoutes(api, new DataBrowser(ctx));
       auditRoutes(api, auditRepo);
       tokenRoutes(api, tokens);
       userRoutes(api, accounts);

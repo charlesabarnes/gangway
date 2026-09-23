@@ -352,7 +352,8 @@ export class NewPreview {
         last(),
       ));
       if (res.type !== HttpEventType.Response || !res.body) throw new Error('The server did not answer with a preview.');
-      await this.#router.navigate(['/previews', res.body.preview.id]);
+      // Every New deploy is an upload: straight into the workspace, where it can be edited and watched.
+      await this.#router.navigate(['/previews', res.body.preview.id, 'edit']);
     } catch (e) {
       this.error.set(toProblem(e));
       this.notes.set(problemNotes(e));

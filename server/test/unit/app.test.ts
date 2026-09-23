@@ -75,6 +75,17 @@ describe("app root", () => {
     expect(await health.json()).toEqual({ ok: false, draining: true });
   });
 
+  test("nothing frames gangway (the workspace frames previews, never the reverse); the gate is the one exception", async () => {
+    const { ui, api } = make({ publicV1: (pub) => { pub.get("/auth/gate", (c) => c.redirect("https://x.preview.localhost/")); } });
+    for (const res of [await ui("/v1/whoami", auth), await api("/v1/whoami", auth), await ui("/nope")]) {
+      expect(res.headers.get("x-frame-options")).toBe("DENY");
+      expect(res.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    }
+    const gate = await ui("/v1/auth/gate");
+    expect(gate.status).toBe(302);
+    expect(gate.headers.get("x-frame-options")).toBeNull();
+  });
+
   test("/v1 answers on both surfaces", async () => {
     const { api, ui } = make();
     expect((await api("/v1/whoami", auth)).status).toBe(200);

@@ -48,6 +48,21 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
 
   app.onError(errorHandler(d.logger));
 
+  // ADR-0016 (the workspace): gangway frames PREVIEWS; nothing may frame gangway. A preview
+  // is same-site with the app, so without this a hostile one could frame the UI under its
+  // own buttons (clickjacking). The one exception is the private-preview gate, which the
+  // workspace's iframe passes through on its way to the preview.
+  app.use(async (c, next) => {
+    await next();
+    if (new URL(c.req.url).pathname === "/v1/auth/gate") return;
+    try {
+      c.res.headers.set("x-frame-options", "DENY");
+      c.res.headers.append("content-security-policy", "frame-ancestors 'none'");
+    } catch {
+      // A response with immutable headers (a proxied fetch) is not a page anyone frames.
+    }
+  });
+
   // Unauthenticated by design: an orchestrator's healthcheck has no token.
   app.get("/healthz", (c) => d.draining?.()
     ? c.json({ ok: false, draining: true }, 503)

@@ -65,7 +65,7 @@ describe('NewPreview', () => {
     expect(await gunzipText(req.request.body)).toContain('export default {};');
     req.flush({ preview: { ...(contract.preview as Preview), id: '01NEWPREVIEW0000000000000A' } }, { status: 202, statusText: 'Accepted' });
     await r.until(() => navigate.mock.calls.length > 0, 'navigation');
-    expect(navigate).toHaveBeenCalledWith(['/previews', '01NEWPREVIEW0000000000000A']);
+    expect(navigate).toHaveBeenCalledWith(['/previews', '01NEWPREVIEW0000000000000A', 'edit']);
     r.http.verify();
   });
 

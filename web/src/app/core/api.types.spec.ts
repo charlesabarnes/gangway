@@ -2,7 +2,7 @@ import contract from '../../testing/fixtures/contract.json';
 import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
   CLEARANCES, FORK_POLICIES, PR_TRIGGERS, RUNTIME_IDS, TRIGGERS, type Template,
-  type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type AppPlan, type AddonInfo, ADDON_IDS, type SourceFile, type StreamEvent,
+  type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type AppPlan, type AddonInfo, ADDON_IDS, type DataResult, type PreviewAddon, type SourceFile, type StreamEvent,
   type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Project, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
@@ -55,6 +55,11 @@ describe('the /v1 wire contract', () => {
     expect([...ADDON_IDS]).toEqual(contract.addonIds);
     expect(keys(list.runtimes[0]!)).toEqual([...RUNTIME_KEYS].sort());
     expect(keys(list.detection[0]!)).toEqual(['markers', 'runtime']);
+    // ADR-0018: the data browser's answer, and a preview's add-ons.
+    const result: DataResult = contract.dataResult as DataResult;
+    expect(keys(result)).toEqual(['columns', 'message', 'ms', 'rows', 'truncated']);
+    const addon: PreviewAddon = (contract.previewAddons as PreviewAddon[])[0]!;
+    expect(keys(addon)).toEqual(['env', 'id', 'name', 'service', 'version']);
     // ADR-0016: the plan, as the New screen reads it.
     const plan: AppPlan = contract.appPlan as AppPlan;
     const PLAN_KEYS: (keyof AppPlan)[] = ['kind', 'runtime', 'version', 'image', 'root', 'install', 'build', 'start', 'release', 'serve', 'docroot', 'entry', 'port', 'health', 'env', 'stack', 'configFile', 'addons', 'suggested', 'sqlSeed', 'reasons', 'issues'];

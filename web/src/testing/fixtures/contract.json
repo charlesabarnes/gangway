@@ -132,6 +132,7 @@
     "previews.deploy",
     "previews.destroy",
     "previews.update",
+    "previews.data",
     "previews.view_private",
     "logs.read",
     "events.read",
@@ -175,6 +176,7 @@
       "previews.deploy",
       "previews.destroy",
       "previews.update",
+      "previews.data",
       "previews.view_private",
       "logs.read",
       "events.read",
@@ -406,7 +408,7 @@
       {
         "level": "info",
         "found": "a build script and nothing to start",
-        "then": "serves the build's output (dist/, build/, out/ …) with nginx"
+        "then": "serves the build's output (dist/, build/, out/ \u2026) with nginx"
       }
     ],
     "issues": [],
@@ -418,5 +420,31 @@
     "postgres",
     "mysql",
     "redis"
+  ],
+  "dataResult": {
+    "columns": [
+      "n",
+      "note"
+    ],
+    "rows": [
+      [
+        "1",
+        null
+      ]
+    ],
+    "truncated": false,
+    "message": null,
+    "ms": 12
+  },
+  "previewAddons": [
+    {
+      "id": "postgres",
+      "version": "18",
+      "name": "PostgreSQL",
+      "service": "postgres",
+      "env": [
+        "DATABASE_URL"
+      ]
+    }
   ]
 }
