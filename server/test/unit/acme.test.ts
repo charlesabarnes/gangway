@@ -1,8 +1,3 @@
-/**
- * The order of operations in tls/acme.ts, against a fake CA that signs with the dev CA.
- * This proves the sequencing; scripts/acme-pebble-check.ts proves it against a real
- * ACME server. A passing fake alone proves nothing about the real protocol.
- */
 import { describe, expect, test } from "bun:test";
 import { CertificatesRepo } from "../../src/db/repos/index.ts";
 import { MemorySettingsStore } from "../../src/settings.ts";
@@ -21,7 +16,6 @@ async function setup(o: { propagates?: boolean; failAt?: string; days?: number }
   const certs = new CertificatesRepo(db);
   const store = new MemorySettingsStore();
   const ca = await createCa("Fake ACME CA");
-  /** Everything that happened, in order. The assertions are about this. */
   const log: string[] = [];
   const connects: { accountUrl?: string | undefined }[] = [];
   let txt = 0;
@@ -105,7 +99,7 @@ async function setup(o: { propagates?: boolean; failAt?: string; days?: number }
 }
 
 describe("AcmeProvider.issue", () => {
-  test("BOTH TXT records exist, and are seen to have propagated TOGETHER, before the CA is asked to validate either", async () => {
+  test("both TXT records propagate together before the CA validates either", async () => {
     const s = await setup();
     const bundle = await s.provider.issue(DOMAINS);
     expect(s.log).toEqual([
@@ -155,13 +149,13 @@ describe("AcmeProvider.issue", () => {
     expect(s.log.slice(-2)).toEqual(["txt- r1", "txt- r2"]);
   });
 
-  test("the account is created once and reused -- a new account per order is its own rate limit", async () => {
+  test("the account is created once per directory and reused", async () => {
     const s = await setup();
     await s.provider.issue(DOMAINS);
     await s.make().issue(DOMAINS);
     expect(s.log.filter((l) => l === "createAccount").length).toBe(1);
     expect(s.connects.map((c) => c.accountUrl)).toEqual([undefined, "https://ca.test/acct/1"]);
-    // ...per directory: staging and production are different CAs.
+    // Staging and production are different CAs, so each gets its own account.
     await s.make("https://other.test/directory").issue(DOMAINS);
     expect(s.log.filter((l) => l === "createAccount").length).toBe(2);
   });
@@ -185,7 +179,7 @@ describe("AcmeProvider.load / renewIfDue", () => {
     expect(s.log).toEqual([]);
   });
 
-  test("inside the 30-day window it is still SERVED, and renewed", async () => {
+  test("inside the 30-day window it is still served, and renewed", async () => {
     const s = await setup();
     await s.provider.issue(DOMAINS);
     s.clock.now += 65 * DAY;
@@ -193,7 +187,7 @@ describe("AcmeProvider.load / renewIfDue", () => {
     expect(await s.provider.renewIfDue(DOMAINS)).not.toBeNull();
   });
 
-  test("a short-lived (6-day) certificate is NOT due the moment it is issued; it is due in its last third", async () => {
+  test("a 6-day certificate is not due when issued, only in its last third", async () => {
     const s = await setup({ days: 6 });
     const bundle = await s.provider.issue(DOMAINS);
     expect(s.provider.isDue(bundle)).toBe(false);

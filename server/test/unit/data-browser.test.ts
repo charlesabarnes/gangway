@@ -1,4 +1,3 @@
-/** The data browser -- drivers (pure) and the service (limits, refusals, audit) over a stubbed runner. */
 import { describe, expect, test } from "bun:test";
 import { dirname } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -19,7 +18,7 @@ import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import contract from "../../../web/src/testing/fixtures/contract.json";
 
 describe("drivers", () => {
-  test('psql CSV: NULL is an empty unquoted field, "" is an empty string, quotes and newlines survive', () => {
+  test('psql CSV: NULL is an unquoted empty field, "" an empty string; quotes survive', () => {
     expect(parseCsv('id,name,note\n1,"a, b",\n2,"",x\n3,"say ""hi""","two\nlines"\n')).toEqual({
       columns: ["id", "name", "note"],
       rows: [
@@ -41,7 +40,7 @@ describe("drivers", () => {
     });
   });
 
-  test('no secret and no query text inside a shell script: the password comes from the container, the text is "$1"', () => {
+  test("neither the password nor the query text is written into the shell script", () => {
     const my = queryArgv("mysql", "select '$(rm -rf /)'", false);
     expect(my[0]).toBe("sh");
     expect(my[2]).toContain(`MYSQL_PWD="$MYSQL_ROOT_PASSWORD"`);
@@ -131,7 +130,7 @@ const lines = (out: string[], code = 0) =>
   };
 
 describe("the service", () => {
-  test("a query runs in the add-on's container, parses, and is audited without its results", async () => {
+  test("a query runs in the add-on container and is audited without its results", async () => {
     const { s, p, data, seen } = await withPostgres(lines(["n,secret_value", "1,hunter2"]));
     const r = await data.query(ACTOR, p.id, "postgres", "select n, secret_value from t", false);
     expect(r).toMatchObject({
@@ -176,7 +175,7 @@ describe("the service", () => {
     ).rejects.toMatchObject({ code: "not_found" });
   });
 
-  test("an error from the database is a 422 with its message; a missing add-on is 404; a sleeping preview is 409", async () => {
+  test("a database error is 422, a missing add-on 404 and a sleeping preview 409", async () => {
     const { s, p, data } = await withPostgres(async function* () {
       yield { type: "line", stream: "stderr", line: 'ERROR:  relation "nope" does not exist' };
       yield { type: "exit", code: 1, signal: null };
@@ -245,7 +244,7 @@ describe("the service", () => {
     });
   });
 
-  test("list: names and variable NAMES, no values", async () => {
+  test("list gives names and variable names, never values", async () => {
     const { data, p } = await withPostgres(lines([]));
     expect(data.list(p.id)).toEqual([
       {

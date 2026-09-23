@@ -11,8 +11,7 @@ import {
   type DockerInfo,
 } from "../../src/docker/guard.ts";
 
-/* Captured shapes. The strings matter more than they look: the whole guard is a
-   judgement about what a real daemon puts in these two fields. */
+// Captured from real daemons: the guard is a judgement about exactly these strings.
 const DESKTOP_MAC: DockerInfo = {
   Name: "docker-desktop",
   OperatingSystem: "Docker Desktop",
@@ -48,12 +47,11 @@ const EMPTY: Record<string, string | undefined> = {};
 const ALLOWED: Record<string, string | undefined> = { [ALLOW_LOCAL_ENV]: "1" };
 
 describe("Docker Desktop detection", () => {
-  test("the plain OperatingSystem string", () => {
-    expect(looksLikeDockerDesktop(DESKTOP_MAC)).toBe(true);
-  });
-
-  test("the version-suffixed OperatingSystem string", () => {
-    expect(looksLikeDockerDesktop(DESKTOP_VERSIONED)).toBe(true);
+  test.each([
+    ["plain", DESKTOP_MAC],
+    ["version-suffixed", DESKTOP_VERSIONED],
+  ])("the %s OperatingSystem string", (_what, info) => {
+    expect(looksLikeDockerDesktop(info)).toBe(true);
   });
 
   test("case does not rescue it", () => {
@@ -61,8 +59,7 @@ describe("Docker Desktop detection", () => {
     expect(looksLikeDockerDesktop({ OperatingSystem: "docker desktop" })).toBe(true);
   });
 
-  /* The second signal exists so a Docker Desktop release that rewords OperatingSystem
-     cannot silently disarm the guard. */
+  // A second signal, so a release that rewords OperatingSystem cannot disarm the guard.
   test("Name alone is enough when OperatingSystem is reworded", () => {
     expect(looksLikeDockerDesktop({ Name: "docker-desktop", OperatingSystem: "Linux" })).toBe(true);
   });
@@ -74,8 +71,7 @@ describe("Docker Desktop detection", () => {
     expect(looksLikeDockerDesktop({ OperatingSystem: "Docker Engine - Community" })).toBe(false);
   });
 
-  /* "desktop-linux" is a Docker context name, not a daemon OperatingSystem.
-     Matching on it would be matching the wrong string. */
+  // "desktop-linux" is a Docker context name, not a daemon's OperatingSystem.
   test("a host merely named like a desktop context is not Desktop", () => {
     expect(looksLikeDockerDesktop({ Name: "desktop-linux", OperatingSystem: "Debian 12" })).toBe(
       false,
@@ -135,7 +131,7 @@ describe("the escape hatch", () => {
     expect(localDockerAllowed({ [ALLOW_LOCAL_ENV]: "1" })).toBe(true);
   });
 
-  test("it does NOT open the name check — wrong remote is never benign", () => {
+  test("it does not open the name check; a wrong remote is never benign", () => {
     expect(() => assertRemoteDaemon(DESKTOP_MAC, "docker-host", ALLOWED)).toThrow(/wrong daemon/);
   });
 });
@@ -169,7 +165,7 @@ describe("expectName", () => {
     expect(r.error.reason).toBe("name-mismatch");
   });
 
-  test("matching is exact — no trimming, no case folding", () => {
+  test("matching is exact, with no trimming or case folding", () => {
     expect(
       checkDaemon({ Name: "Docker-Host", OperatingSystem: "Ubuntu" }, "docker-host", EMPTY).ok,
     ).toBe(false);
@@ -179,9 +175,7 @@ describe("expectName", () => {
   });
 });
 
-/* The scenario the guard exists for, end to end: DOCKER_HOST is set to docker-host but
-   DOCKER_CONTEXT=desktop-linux quietly wins, so `docker info` answers from the local machine.
-   Without this check the next call creates containers there and reports success. */
+// DOCKER_HOST names docker-host, but DOCKER_CONTEXT=desktop-linux quietly wins.
 describe("the actual accident", () => {
   test("DOCKER_CONTEXT beating DOCKER_HOST is caught by both checks", () => {
     const host = { id: "docker-host", expectName: "docker-host" };

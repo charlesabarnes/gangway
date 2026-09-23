@@ -15,8 +15,6 @@ import {
 } from "../../src/docker/inspect.ts";
 import type { InspectJson } from "../../src/docker/inspect-json.ts";
 
-/* A captured-shape inspect payload. Everything here is a judgement about JSON, which is
-   why none of it needs a daemon. */
 const running: InspectJson = {
   Id: "c0ffee",
   Name: "/gw-acme-pr-123-api-1",
@@ -80,8 +78,7 @@ describe("publishedPorts", () => {
 });
 
 describe("findPublishedPort", () => {
-  /* dockerd binds both families when no bind address is given. Returning whichever the
-     daemon listed first would hand the proxy "::" half the time. */
+  // dockerd binds both families by default; taking the first listed would give "::" at random.
   test("prefers the binding matching Host.publishBind", () => {
     expect(findPublishedPort(running, 8080, { bind: "::" })?.hostIp).toBe("::");
     expect(findPublishedPort(running, 8080, { bind: "0.0.0.0" })?.hostIp).toBe("0.0.0.0");
@@ -103,8 +100,7 @@ describe("findPublishedPort", () => {
   });
 });
 
-/* Wake is gated on healthchecks. A service that declares none must read as ready,
-   or the wake hangs forever on a container that is working perfectly. */
+// Wake waits on health, so a service with no healthcheck must read as ready or wake hangs.
 describe("health", () => {
   test("the three real statuses", () => {
     expect(healthState(running)).toBe("healthy");
@@ -144,9 +140,7 @@ describe("health", () => {
   });
 });
 
-/* We allocate the port, so agreement is the normal case. `UpdateUpstream`
-   exists because a human can recreate a container by hand and move it. */
-describe("portDrift (verify port, continue)", () => {
+describe("portDrift", () => {
   const route = { containerPort: 8080, upstream: { host: "10.0.0.4", port: 31042 } };
 
   test("agreement is null", () => {
@@ -167,8 +161,6 @@ describe("portDrift (verify port, continue)", () => {
     });
   });
 });
-
-/* ---------------------------------------------------------------- scan */
 
 const labels: GangwayLabels = {
   instance: "gw-main",
@@ -217,9 +209,7 @@ describe("scanning a daemon for our containers", () => {
     expect(row.project).toBe("gw-acme-pr-123");
   });
 
-  /* Malformed means orphan (stop it); future-version means stranger (leave it
-     alone). Merging the two loses the distinction that decides whether we destroy
-     someone's running preview. */
+  // Malformed means orphan (stop it); future-version means stranger (leave it alone).
   test("future-version and malformed stay separable in the scan output", async () => {
     const good = summary();
     const future = summary({

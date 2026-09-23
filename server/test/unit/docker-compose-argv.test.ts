@@ -32,8 +32,7 @@ describe("composeArgv", () => {
     ]);
   });
 
-  /* `docker compose up --project-name x` is a parse error and `docker compose up -f y`
-     means something else entirely. Flag order is what this file guards. */
+  // `compose up --project-name x` is a parse error, and `compose up -f y` means something else.
   test("every global flag precedes the subcommand", () => {
     const argv = composeArgv({
       ...base,
@@ -115,8 +114,7 @@ describe("the five commands we actually run", () => {
     expect(upArgv(base, ["--build"]).slice(-3)).toEqual(["up", "-d", "--build"]);
   });
 
-  /* Teardown is `down -v`. Orphans go too, or a renamed service leaves a container
-     squatting on its published port forever. */
+  // Orphans must go too, or a renamed service's container squats on its published port.
   test("down removes volumes and orphans", () => {
     expect(downArgv(base).slice(-5)).toEqual(["down", "-v", "--remove-orphans", "--rmi", "local"]);
   });
@@ -154,9 +152,7 @@ describe("the five commands we actually run", () => {
   });
 });
 
-/* The environment is the whole reason this project has a safety story. DOCKER_CONTEXT
-   beats DOCKER_HOST in the CLI's precedence order, so exporting DOCKER_HOST while a
-   context such as desktop-linux is active deploys to the local machine and prints success. */
+// DOCKER_CONTEXT beats DOCKER_HOST, so an ambient context silently deploys to the local daemon.
 describe("composeEnv", () => {
   const ambient = {
     PATH: "/usr/bin",
@@ -194,7 +190,7 @@ describe("composeEnv", () => {
     for (const k of NEUTRALISED_ENV) expect(env[k]).toBe("");
   });
 
-  test("only what the docker CLI needs is inherited: the compose file is the SUBMITTER'S, and compose interpolates ${VAR} from this", () => {
+  test("only what the docker CLI needs is inherited, since compose interpolates from it", () => {
     const env = composeEnv(
       { dockerHost: "ssh://root@docker-host" },
       {
@@ -230,8 +226,6 @@ describe("composeEnv", () => {
     expect(env["DOCKER_CONTEXT"]).toBe("");
   });
 });
-
-/* ---------------------------------------------------------------- streaming */
 
 const enc = new TextEncoder();
 
@@ -294,9 +288,7 @@ describe("runCompose", () => {
     expect(events.filter((e) => e.type === "exit")).toHaveLength(1);
   });
 
-  /* Build progress is streamed over SSE. A progress bar delivered after the build
-     finishes is not progress, so this must deadlock rather than pass if the wrapper
-     ever starts buffering to completion. */
+  // This deadlocks rather than passes if the wrapper ever buffers output to completion.
   test("lines arrive incrementally, before the process has finished writing", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => {
@@ -450,8 +442,7 @@ describe("parseComposePs", () => {
     Publishers: [{ URL: "127.0.0.1", TargetPort: 8080, PublishedPort: 31042, Protocol: "tcp" }],
   };
 
-  /* Compose changed this output mid-v2 and both shapes are in the wild on the same
-     major version. We do not control which build is on a given host. */
+  // Compose changed this output mid-v2, and hosts run both shapes.
   test("newline-delimited objects (compose >= 2.21)", () => {
     const out = parseComposePs(
       `${JSON.stringify(row)}\n${JSON.stringify({ ...row, Service: "web" })}\n`,

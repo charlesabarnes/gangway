@@ -105,7 +105,7 @@ describe("EventBus", () => {
 
   test("follow: a preview filter applies to backlog and live alike", () => {
     const { bus } = setup();
-    // previews has a FK from events; use null vs. a filter that matches nothing.
+    // events.preview_id is a foreign key, so filter by an id that matches nothing.
     bus.publish("a");
     const got: GangwayEvent[] = [];
     bus.follow(0, (e) => got.push(e), "01HZZZZZZZZZZZZZZZZZZZZZZZ");
@@ -153,13 +153,10 @@ describe("GET /v1/events", () => {
     expect(viaQuery.frames.map((f) => f["id"])).toEqual(["3"]);
   });
 
-  test("an IDLE stream says something at once, so `onopen` does not wait for the first heartbeat", async () => {
-    // No events, and a heartbeat far in the future: the only thing that can arrive is the greeting.
-    const { dir: _dir, hosts: _hosts, ...t } = setup();
-    void _dir;
-    void _hosts;
+  test("an idle stream greets at once, so `onopen` need not wait for a heartbeat", async () => {
+    const { get } = setup();
     const started = performance.now();
-    const res = await t.get("/v1/events");
+    const res = await get("/v1/events");
     const reader = res.body!.getReader();
     const first = await Promise.race([reader.read(), Bun.sleep(1000).then(() => null)]);
     await reader.cancel().catch(() => {});
@@ -238,7 +235,7 @@ describe("hosts", () => {
     createdAt: new Date(0),
   });
 
-  test("placement", () => {
+  test("placement prefers a ready host, honours a pinned one and explains refusals", () => {
     expect(place({ capability: "preview" }, [host("local", "unknown")]).id).toBe("local");
     expect(place({ capability: "preview" }, [host("a", "unknown"), host("b", "ready")]).id).toBe(
       "b",

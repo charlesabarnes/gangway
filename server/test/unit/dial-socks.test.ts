@@ -1,9 +1,3 @@
-/**
- * The SOCKS5 client, against a real (tiny) SOCKS5 server on a real socket.
- *
- * `ssh -D` sends its 10-byte CONNECT reply in one chunk, so the client must not drop the bytes
- * after the first 4. The `chunking: "whole"` cases pin that.
- */
 import { afterEach, describe, expect, test } from "bun:test";
 import net from "node:net";
 import { dialUpstream, parseSocksProxy } from "../../src/net/dial.ts";
@@ -67,7 +61,7 @@ function socksProxy(
         const upstream = net.connect({ host: atyp === 0x03 ? "127.0.0.1" : host, port });
         upstream.on("error", () => client.destroy());
         upstream.once("connect", async () => {
-          // Exactly what OpenSSH sends: VER REP RSV ATYP=IPv4 0.0.0.0 port 0 -- ten bytes.
+          // Exactly what OpenSSH sends: VER REP RSV ATYP=IPv4 0.0.0.0 port 0, ten bytes.
           const reply = Buffer.from([0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]);
           // Inbound first: the client may speak the instant it has the last reply byte.
           client.pipe(upstream);
@@ -107,22 +101,24 @@ const roundTrip = (s: net.Socket, text: string) =>
   });
 
 describe("SOCKS5 dial", () => {
-  for (const chunking of ["whole", "bytewise"] as const) {
-    test(`tunnels end to end when the proxy replies ${chunking === "whole" ? "in one chunk, as OpenSSH does" : "one byte at a time"}`, async () => {
-      const port = await echoServer();
-      const proxy = await socksProxy({ chunking });
-      const s = await dialUpstream(
-        { host: "127.0.0.1", port },
-        { dial: "socks5", proxy: proxy.url, timeoutMs: 1_000 },
-      );
-      closers.push(() => s.destroy());
-      expect(await roundTrip(s, "hello")).toBe("echo:hello");
-      expect(await roundTrip(s, "again")).toBe("echo:again");
-      expect(proxy.requests).toEqual([{ atyp: 0x01, host: "127.0.0.1", port }]);
-    });
-  }
+  // `ssh -D` sends its 10-byte reply in one chunk; "whole" pins that bytes after the 4th survive.
+  test.each([
+    ["in one chunk, as OpenSSH does", "whole"],
+    ["one byte at a time", "bytewise"],
+  ] as const)("tunnels end to end when the proxy replies %s", async (_how, chunking) => {
+    const port = await echoServer();
+    const proxy = await socksProxy({ chunking });
+    const s = await dialUpstream(
+      { host: "127.0.0.1", port },
+      { dial: "socks5", proxy: proxy.url, timeoutMs: 1_000 },
+    );
+    closers.push(() => s.destroy());
+    expect(await roundTrip(s, "hello")).toBe("echo:hello");
+    expect(await roundTrip(s, "again")).toBe("echo:again");
+    expect(proxy.requests).toEqual([{ atyp: 0x01, host: "127.0.0.1", port }]);
+  });
 
-  test("many dials in a row all succeed (the agent does this under load)", async () => {
+  test("25 concurrent dials all succeed", async () => {
     const port = await echoServer();
     const proxy = await socksProxy({ chunking: "whole" });
     const replies = await Promise.all(
@@ -139,7 +135,7 @@ describe("SOCKS5 dial", () => {
     expect(replies).toEqual(Array.from({ length: 25 }, (_, i) => `echo:n${i}`));
   });
 
-  test("a hostname is sent as a DOMAIN address, for the proxy to resolve on the far side", async () => {
+  test("a hostname is sent as a domain address for the proxy to resolve", async () => {
     const port = await echoServer();
     const proxy = await socksProxy({ chunking: "whole" });
     const s = await dialUpstream(

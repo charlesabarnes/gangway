@@ -44,7 +44,7 @@ describe("the audit log is written by the service layer", () => {
     expect(all(s.audit)).toEqual([]);
   });
 
-  test("a destroy records what the preview WAS, and a user is a user", async () => {
+  test("a destroy records what the preview was, and a user as a user", async () => {
     const s = setup();
     const preview = await s.deployed("doomed");
     const user: Actor = {
@@ -83,7 +83,7 @@ describe("the audit log is written by the service layer", () => {
 });
 
 describe("Audit.record", () => {
-  test("redacts on the way in -- a token in a value, a secret-named field, nested", () => {
+  test("redacts tokens in values and secret-named fields, nested ones included", () => {
     const s = setup();
     new Audit(s.audit, quiet).record(ACTOR, "token.created", "t1", {
       new: {
@@ -104,7 +104,7 @@ describe("Audit.record", () => {
     });
   });
 
-  test("a field NAMED `key` is swallowed by redaction: settings changes must say `setting`", () => {
+  test("a field named `key` is redacted, so settings changes must say `setting`", () => {
     const s = setup();
     const audit = new Audit(s.audit, quiet);
     audit.record(ACTOR, "user.updated", null, {
@@ -113,7 +113,7 @@ describe("Audit.record", () => {
     expect(all(s.audit)[0]!.new).toEqual({ key: "[redacted]", setting: "surfaces.ui" });
   });
 
-  test("nobody authenticated (a failed login) is `system` with no id; the target says who it was about", () => {
+  test("a failed login is recorded as `system` with no id and the email as target", () => {
     const s = setup();
     new Audit(s.audit, quiet).record(null, "auth.login.failed", "ada@example.com", {
       new: { ip: "203.0.113.7" },
@@ -126,7 +126,7 @@ describe("Audit.record", () => {
     });
   });
 
-  test("never throws: the action already happened, so a failed write is logged, not raised", () => {
+  test("never throws: a failed write is logged, not raised", () => {
     const lines: string[] = [];
     const broken = {
       append: () => {

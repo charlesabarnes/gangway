@@ -36,7 +36,7 @@ describe("requestHash", () => {
 });
 
 describe("IdempotentDeploys", () => {
-  test("no key: every call is a new deploy (and the second, same-named one conflicts as it always did)", async () => {
+  test("without a key every call is a new deploy, so a same-named second one conflicts", async () => {
     const s = setup();
     const first = await s.deploys.deploy(s.request("plain"), undefined);
     expect(first.replayed).toBe(false);
@@ -46,7 +46,7 @@ describe("IdempotentDeploys", () => {
     });
   });
 
-  test("three retries, one preview, one URL -- and the replay reports the preview as it is NOW", async () => {
+  test("three retries give one preview and one URL, replaying its current state", async () => {
     const s = setup();
     const first = await s.deploys.deploy(s.request("agent"), "key-1");
     expect(first.replayed).toBe(false);
@@ -64,7 +64,7 @@ describe("IdempotentDeploys", () => {
     expect(s.fake.ups).toBe(1);
   });
 
-  test("a retry while the first is still deploying waits on the SAME pipeline", async () => {
+  test("a retry while the first is still deploying waits on the same pipeline", async () => {
     const s = setup();
     const first = await s.deploys.deploy(s.request("slow"), "k");
     const retry = await s.deploys.deploy(s.request("slow"), "k");
@@ -85,7 +85,7 @@ describe("IdempotentDeploys", () => {
     expect(s.fake.ups).toBe(1);
   });
 
-  test("same key, different request: 422, whether the first has finished or is still planning", async () => {
+  test("same key with a different request is 422, whether the first finished or not", async () => {
     const s = setup();
     await (
       await s.deploys.deploy(s.request("one"), "k")
@@ -136,7 +136,7 @@ describe("IdempotentDeploys", () => {
     await Promise.all([asToken.done, asUser.done]);
   });
 
-  test("a rejected deploy records nothing: the retry gets the same honest error, and a fixed request may reuse the key", async () => {
+  test("a rejected deploy records nothing, so a fixed request may reuse the key", async () => {
     const s = setup();
     const bad = { ...s.request("bad"), ttl: "soon" };
     await expect(s.deploys.deploy(bad, "k")).rejects.toMatchObject({ code: "unprocessable" });
@@ -147,7 +147,7 @@ describe("IdempotentDeploys", () => {
     await fixed.done;
   });
 
-  test("a failed preview IS replayed: a retry is not a redeploy", async () => {
+  test("a failed preview is replayed, since a retry is not a redeploy", async () => {
     const s = setup();
     s.ctx.probe = async () => false;
     const first = await s.deploys.deploy(s.request("broken"), "k");
@@ -159,7 +159,7 @@ describe("IdempotentDeploys", () => {
     });
   });
 
-  test("once the preview is destroyed the key is free, and may even mean something new", async () => {
+  test("once the preview is destroyed the key is free to mean something new", async () => {
     const s = setup();
     const first = await s.deploys.deploy(s.request("gone"), "k");
     await first.done;
