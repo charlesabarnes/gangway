@@ -26,8 +26,10 @@ import { ClientMetadataError, redirectAllowed, type ClientMetadataStore } from "
 export const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
 export type OAuthScope = (typeof OAUTH_SCOPES)[number];
 /**
- * A request that names no scope. Not `update` (ADR-0021): rebuilding ANY preview is asked
- * for on purpose, by a step-up, never granted in passing; `deploy` already rebuilds your own.
+ * A request that names no scope. Not `update` (ADR-0021): `deploy` already rebuilds your own.
+ * All three ARE advertised, so a client that asks for every `scopes_supported` (Codex does)
+ * gets `update` offered on its first consent, where the page pre-ticks what the role covers.
+ * The owner chose that over holding it back for a step-up.
  */
 export const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
 

@@ -26,6 +26,7 @@ import type { Taken, Uploads } from "./uploads.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
 import { cmdText, type AppPlan } from "../../../shared/src/app-plan.ts";
+import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
 import { nameOf, resolvePreview } from "./resolve.ts";
 import { packFiles } from "./pack.ts";
 
@@ -181,9 +182,14 @@ export class Tools {
 
   /** One server per request (stateless): its tools are closed over THIS request's actor. */
   server(scope: CallScope): McpServer {
-    const s = new McpServer({ name: "gangway", version: "1" }, {
-      instructions: "gangway gives an app a public HTTPS URL. deploy blocks until the URL answers, then returns it. Use status to see what exists, logs when something failed, destroy when done.",
-    });
+    const s = new McpServer({ name: "gangway", version: "1" }, { instructions: INSTRUCTIONS });
+    // ADR-0022: the workflow, for any client, with nothing installed. A prompt is not a tool:
+    // §10.2's four stands.
+    s.registerPrompt("generate-artifact", {
+      title: "Build and ship an artifact-style app",
+      description: "Build something you would make as an artifact (a page, demo, mockups, a small app with a database) and ship it to a real URL here, the fast way.",
+      argsSchema: z.object({ what: z.string().max(2000).optional().describe("What to build") }),
+    }, (args) => ({ messages: [{ role: "user" as const, content: { type: "text" as const, text: artifactPrompt(args.what) } }] }));
     s.registerTool("deploy", {
       title: "Deploy a preview",
       description: "Put an app on a public HTTPS URL: from files (the usual case), a container image, or a git repository. Waits until the URL actually answers and returns it. Also rebuilds an existing preview in place (preview + files).",

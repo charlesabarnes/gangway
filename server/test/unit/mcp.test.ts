@@ -13,6 +13,7 @@ import { checkFiles, packFiles } from "../../src/mcp/pack.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { refusalDetail, TOOL_PERMISSIONS, Tools, type CallScope } from "../../src/mcp/tools.ts";
 import type { AppError } from "../../src/errors.ts";
+import { artifactPrompt, INSTRUCTIONS } from "../../src/mcp/guide.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { extractTarball } from "../../src/previews/source/tarball.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
@@ -269,7 +270,7 @@ function surface() {
   const messages = async (res: Response) => (await res.text()).split("\n").filter((l) => l.startsWith("data: ")).map((l) => JSON.parse(l.slice(6)) as { id?: number; result?: any; error?: any; method?: string });
   const modern = (id: number, method: string, params: Record<string, unknown> = {}) => call({
     body: { jsonrpc: "2.0", id, method, params: { ...params, _meta: { ...ENVELOPE, ...(params["_meta"] as object | undefined) } } },
-    headers: { "mcp-protocol-version": MODERN, "mcp-method": method, ...(method === "tools/call" ? { "mcp-name": String(params["name"]) } : {}) },
+    headers: { "mcp-protocol-version": MODERN, "mcp-method": method, ...(method === "tools/call" || method === "prompts/get" ? { "mcp-name": String(params["name"]) } : {}) },
   });
   return { ...s, mcp, call, messages, modern };
 }
@@ -306,6 +307,31 @@ describe("the mcp surface", () => {
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).toStartWith("ready: https://modern.preview.localhost:8443/");
     expect(s.mcp.open).toBe(0);
+  });
+
+  test("ADR-0022: the workflow comes with the server -- instructions on connect, and a generate-artifact prompt, for any client", async () => {
+    const s = surface();
+    const init = await s.messages(await s.call({ body: { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "codex", version: "1" } } } }));
+    expect(init[0]!.result.instructions).toBe(INSTRUCTIONS);
+    expect(init[0]!.result.capabilities.prompts).toBeDefined();
+    const list = await s.messages(await s.modern(2, "prompts/list"));
+    expect(list.at(-1)!.result.prompts.map((p: { name: string }) => p.name)).toEqual(["generate-artifact"]);
+    const got = await s.messages(await s.modern(3, "prompts/get", { name: "generate-artifact", arguments: { what: "a pomodoro timer" } }));
+    const text = got.at(-1)!.result.messages[0].content.text as string;
+    expect(text).toStartWith("What to build: a pomodoro timer");
+    expect(text).toContain('upload: "new"');
+    // Still four tools: a prompt is not one.
+    expect((await s.messages(await s.modern(4, "tools/list"))).at(-1)!.result.tools).toHaveLength(4);
+  });
+
+  test("the plugin's skill and the server's guide agree on the rules that matter", () => {
+    const skill = readFileSync(join(import.meta.dir, "../../../plugin/gangway/skills/generate-artifact/SKILL.md"), "utf8");
+    for (const text of [skill, artifactPrompt(undefined), INSTRUCTIONS]) {
+      for (const rule of ["bunfig.toml", 'upload: "new"', "check", 'preview: "<name>"', "$PORT", 'source: "runtime"']) {
+        expect(text.replace(/`/g, "")).toContain(rule.replace("$PORT", text === INSTRUCTIONS ? "$PORT" : "PORT"));
+      }
+    }
+    expect(INSTRUCTIONS.length).toBeLessThan(1400);
   });
 
   test("2025-11-25: the initialize handshake, then a call; a refusal is a tool error the agent can read", async () => {

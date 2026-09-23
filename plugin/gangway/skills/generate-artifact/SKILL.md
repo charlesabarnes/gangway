@@ -8,7 +8,7 @@ argument-hint: "[what to build]"
 
 Treat the gangway preview as a very fast artifact host: a deploy answers in about 10 seconds. The slow part is always you. Write every file **once**, deploy it, and use the live preview as your test environment.
 
-What to build: $ARGUMENTS
+What to build: $ARGUMENTS (if that is empty or unexpanded, the user's request)
 
 ## Plan in one breath
 
@@ -27,7 +27,7 @@ What to build: $ARGUMENTS
 **Up to about 30 KB of text in a few files:** call the gangway MCP `deploy` tool with `files` directly, and don't write anything to disk first.
 
 **Anything bigger, or already on disk:** use upload by reference, so the bytes are never retyped into a tool call.
-1. Write the files into a fresh directory in your scratchpad with the Write tool.
+1. Write the files into a fresh scratch directory.
 2. Call `deploy` with `upload: "new"`. It answers with a one-use URL and the exact command to fill it.
 3. Run that command from the app's directory. It is `tar … | curl -X PUT … --data-binary @-`.
 4. Call `deploy` with `upload: "<id>"` plus `name`, `visibility`, `addons` and `check`.

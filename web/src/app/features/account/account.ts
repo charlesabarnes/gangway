@@ -7,6 +7,7 @@ import { Clock } from '../../core/clock';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
+import { ConnectAgent } from './connect-agent';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { ToastService } from '../../ui/toast';
 
@@ -27,7 +28,7 @@ const EXPIRY = [{ value: '', label: 'never' }, { value: '30d', label: '30 days' 
  */
 @Component({
   selector: 'app-account',
-  imports: [Btn, ConfirmDialog, RelativeTimePipe],
+  imports: [Btn, ConfirmDialog, ConnectAgent, RelativeTimePipe],
   template: `
     <section class="mx-auto max-w-3xl px-6 py-10">
       <h1 class="text-2xl font-semibold tracking-tight">Account</h1>
@@ -116,6 +117,8 @@ const EXPIRY = [{ value: '', label: 'never' }, { value: '30d', label: '30 days' 
         <app-confirm-dialog #tokenDialog [heading]="'Revoke ' + (pending()?.name ?? '') + '?'" confirmLabel="Revoke" (confirmed)="revoke()">
           Anything using this token stops working immediately. It cannot be un-revoked; create a new one instead.
         </app-confirm-dialog>
+
+        <app-connect-agent />
 
         <h2 class="mt-10 text-base font-semibold">Connected agents</h2>
         <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Apps you let act as you over MCP, such as claude.ai. They can do no more than you can.</p>
