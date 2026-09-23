@@ -74,12 +74,12 @@ describe('SourcePanel', () => {
   it('a save sends ONLY what changed: edits as text, new files, deletions as null', async () => {
     const r = await open();
     r.http.expectOne('/v1/runtimes').flush(contract.runtimeList);
-    const panel = r.fixture.componentInstance;
-    panel.edit('index.ts', 'export default { fetch() { return new Response("2"); } };\n');
-    panel.edit('lib/util.ts', 'export {};\n'); // the same text: not a change
-    panel.addFile('src/new.ts');
-    panel.edit('src/new.ts', 'export const x = 1;\n');
-    panel.remove('lib/util.ts');
+    const draft = r.fixture.componentInstance.draft;
+    draft.edit('index.ts', 'export default { fetch() { return new Response("2"); } };\n');
+    draft.edit('lib/util.ts', 'export {};\n'); // the same text: not a change
+    draft.add('src/new.ts');
+    draft.edit('src/new.ts', 'export const x = 1;\n');
+    draft.remove('lib/util.ts');
     await r.settle();
     expect(r.allByTestId('file').map((f) => f.dataset['path'])).toEqual([
       'index.ts',
@@ -103,14 +103,17 @@ describe('SourcePanel', () => {
     // Saved is the new baseline: nothing left to save, and the rebuild is under way.
     expect((r.byTestId('save') as HTMLButtonElement).disabled).toBe(true);
     expect(r.text('redeploy-status')).toContain('Rebuilding');
-    expect(panel.changes()).toEqual({});
+    expect(draft.changes()).toEqual({});
     r.http.verify();
   });
 
   it('refuses a new file under .gangway/, locally', async () => {
     const r = await open();
     r.http.expectOne('/v1/runtimes').flush(contract.runtimeList);
-    r.fixture.componentInstance.addFile('.gangway/Dockerfile');
+    const path = r.byTestId('new-path') as HTMLInputElement;
+    path.value = '.gangway/Dockerfile';
+    path.dispatchEvent(new Event('input'));
+    path.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await r.settle();
     expect(r.text('source-error')).toContain('.gangway/');
     r.http.verify();
@@ -119,7 +122,7 @@ describe('SourcePanel', () => {
   it('a refused save shows why and keeps the edits', async () => {
     const r = await open();
     r.http.expectOne('/v1/runtimes').flush(contract.runtimeList);
-    r.fixture.componentInstance.edit('index.ts', 'broken');
+    r.fixture.componentInstance.draft.edit('index.ts', 'broken');
     await r.settle();
     r.byTestId('save')!.click();
     await r.settle();
@@ -131,7 +134,7 @@ describe('SourcePanel', () => {
       );
     await r.until(() => r.byTestId('source-error') !== null, 'error');
     expect(r.text('source-error')).toContain('different services');
-    expect(r.fixture.componentInstance.changes()).toEqual({ 'index.ts': 'broken' });
+    expect(r.fixture.componentInstance.draft.changes()).toEqual({ 'index.ts': 'broken' });
   });
 
   it('replacing files PUTs a gzipped tar with the current runtime, then reloads the source', async () => {

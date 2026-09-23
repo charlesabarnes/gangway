@@ -4,9 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import { SECRET_LEVELS, type SecretLevel, type SecretListing } from '../../core/api.types';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
+import { FIELD } from '../../ui/field';
 
-const FIELD =
-  'block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent/30 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900';
 const LEVEL_CLASS: Record<SecretLevel, string> = {
   low: 'border-emerald-400 text-emerald-700 dark:text-emerald-300',
   standard: 'border-neutral-300 dark:border-neutral-700',

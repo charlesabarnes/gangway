@@ -8,6 +8,7 @@ import { Btn } from '../../ui/button';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { ConnectionDot } from '../../ui/connection-dot';
 import { EmptyState } from '../../ui/empty-state';
+import { ErrorAlert } from '../../ui/error-alert';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { PasswordBadge } from '../../ui/password-badge';
 import { StateBadge } from '../../ui/state-badge';
@@ -31,6 +32,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
     ConfirmDialog,
     ConnectionDot,
     EmptyState,
+    ErrorAlert,
     RelativeTimePipe,
     StateBadge,
     PasswordBadge,
@@ -101,16 +103,12 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
       </div>
 
       @if (store.error(); as e) {
-        <p
-          class="mt-6 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
-          role="alert"
+        <app-error-alert
+          class="mt-6 px-3 py-2.5"
+          [problem]="e"
+          lead="Could not load previews: "
           data-testid="list-error"
-        >
-          Could not load previews: {{ e.detail }}
-          @if (e.requestId) {
-            <span class="font-mono text-xs opacity-70"> (request {{ e.requestId }})</span>
-          }
-        </p>
+        />
       }
 
       <div class="mt-6">

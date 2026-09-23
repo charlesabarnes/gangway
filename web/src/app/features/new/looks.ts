@@ -15,6 +15,8 @@ import type { AddonId, Detected } from '../../core/api.types';
 
 export type Look = { path: string; color: string | null; tagline: string; name: string };
 
+export const OWN_LABEL = 'Own Dockerfile / compose';
+
 const hex = (h: string) => (h === '000000' ? null : `#${h}`);
 
 export const RUNTIME_LOOKS: Record<Detected, Look> = {

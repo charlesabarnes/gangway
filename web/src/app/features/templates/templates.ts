@@ -11,13 +11,12 @@ import {
   type TemplatePatch,
 } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
-import { toProblem } from '../../core/problem';
+import { issuesOrDetail, toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { ToastService } from '../../ui/toast';
+import { FIELD } from '../../ui/field';
 
-const FIELD =
-  'block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent/30 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900';
 const CLEARANCE_HELP: Record<Clearance, string> = {
   none: 'no .env at all',
   low: 'low only',
@@ -326,9 +325,7 @@ export class TemplatesPage {
       const p = toProblem(err);
       this.rowError.set({
         id: t.id,
-        message: p.issues.length
-          ? p.issues.map((i) => `${i.path}: ${i.message}`).join('; ')
-          : p.detail,
+        message: issuesOrDetail(p),
       });
     } finally {
       this.saving.set(null);

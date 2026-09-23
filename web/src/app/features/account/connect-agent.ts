@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import type { Capabilities } from '../../core/api.types';
+import { ClipboardService } from '../../ui/clipboard';
 
 export const PLUGIN_REPO = 'charlesabarnes/gangway';
 
@@ -168,6 +169,7 @@ const TABS: AgentClient[] = ['claude', 'codex', 'cursor', 'vscode', 'other'];
 })
 export class ConnectAgent {
   readonly #http = inject(HttpClient);
+  readonly #clipboard = inject(ClipboardService);
   protected readonly tabs = TABS;
   protected readonly caps = signal<Capabilities | null>(null);
   protected readonly tab = signal<AgentClient>('claude');
@@ -186,14 +188,10 @@ export class ConnectAgent {
   }
 
   protected async copy(text: string, i: number): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      this.copied.set(i);
-      setTimeout(() => {
-        if (this.copied() === i) this.copied.set(null);
-      }, 1500);
-    } catch {
-      /* no clipboard: the text is selectable */
-    }
+    if (!(await this.#clipboard.write(text))) return;
+    this.copied.set(i);
+    setTimeout(() => {
+      if (this.copied() === i) this.copied.set(null);
+    }, 1500);
   }
 }

@@ -16,6 +16,7 @@ import {
 import { AuthService } from '../../core/auth.service';
 import { Toasts } from '../../ui/toast';
 import { GitHubCallback } from './github-callback';
+import { GitHubSettings } from './github-settings';
 import { SettingsPage } from './settings';
 
 installDialogPolyfill();
@@ -199,9 +200,10 @@ describe('Settings: GitHub', () => {
     const r = await open({ status: NOT_CONNECTED });
     expect(r.text('status')).toContain('Not connected');
     let posted: ManifestStart | null = null;
-    const page = r.fixture.debugElement.query((d) => d.componentInstance instanceof SettingsPage)
-      .componentInstance as SettingsPage;
-    (page as unknown as { submitManifest: (s: ManifestStart) => void }).submitManifest = (s) => {
+    const github = r.fixture.debugElement.query(
+      (d) => d.componentInstance instanceof GitHubSettings,
+    ).componentInstance as GitHubSettings;
+    (github as unknown as { submitManifest: (s: ManifestStart) => void }).submitManifest = (s) => {
       posted = s;
     };
 
