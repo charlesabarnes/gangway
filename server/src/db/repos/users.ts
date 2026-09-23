@@ -3,18 +3,11 @@ import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { USER_COLUMNS, num, rowToUser, type UserRow } from "./mappers.ts";
 
-/** Password material. Leaves this repo only through `credentials()`, never inside a `User`. */
 export type UserCredentials = { hash: string; salt: string };
 
 export type CreateUser = { id: string; email: string; roleId: string } & UserCredentials;
 
-/**
- * Local accounts. `email` arrives already trimmed and lowercased (the zod schema does
- * it): the UNIQUE column has no NOCASE collation, so the repo compares bytes.
- *
- * There is no `delete`. An account is disabled, never removed: audit rows keep pointing at
- * a real person, and the ON DELETE CASCADE to their tokens never fires by accident.
- */
+// Emails arrive trimmed and lowercased; the UNIQUE column has no NOCASE collation.
 export class UsersRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -79,10 +72,6 @@ export class UsersRepo {
     });
   }
 
-  /**
-   * Enabled accounts holding the builtin `admin` role, optionally not counting one. The
-   * last-admin guard asks "who is left if this account stops being one?".
-   */
   countActiveAdmins(exceptId?: string): number {
     return this.#db.get<{ n: number }>(
       "SELECT COUNT(*) AS n FROM users WHERE role_id = $admin AND disabled = 0 AND id != $except",

@@ -1,4 +1,3 @@
-/** `90s`, `15m`, `12h`, `7d`, `2w` -> milliseconds. One unit, no arithmetic, no surprises. */
 const UNIT_MS: Record<string, number> = {
   s: 1_000,
   m: 60_000,

@@ -1,10 +1,3 @@
-/**
- * Holds the current certificate material and notifies the listener when it changes.
- *
- * The swap itself lives in net/listener.ts: `server.reload({ tls })` does not replace the
- * certificate, so the listener rebinds with SO_REUSEPORT and drains the old one. If Bun's
- * reload() ever does, only the listener changes.
- */
 import type { CertBundle } from "./types.ts";
 
 export type CertListener = (bundle: CertBundle) => void | Promise<void>;
@@ -21,7 +14,6 @@ export class CertStore {
     return this.#bundle;
   }
 
-  /** The shape Bun.serve wants for `tls`. Every entry carries a serverName. */
   tlsConfig(): { serverName: string; cert: string; key: string }[] {
     return this.#bundle.materials.map((m) => ({
       serverName: m.serverName,
@@ -43,7 +35,6 @@ export class CertStore {
     for (const fn of this.#listeners) await fn(bundle);
   }
 
-  /** Earliest expiry across the bundle -- the one that governs renewal. */
   earliestNotAfter(): Date | null {
     let earliest: Date | null = null;
     for (const m of this.#bundle.materials) {

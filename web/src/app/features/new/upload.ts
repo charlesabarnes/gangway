@@ -1,10 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-/**
- * What a refused upload says beyond its `detail`: the compose policy's violations, and
- * compose's own stderr. The server spreads them into the problem body; `toProblem` keeps
- * only the common fields, so they are read here.
- */
 export function problemNotes(e: unknown): string[] {
   if (!(e instanceof HttpErrorResponse) || e.error === null || typeof e.error !== 'object')
     return [];
@@ -16,7 +11,6 @@ export function problemNotes(e: unknown): string[] {
   return out;
 }
 
-/** Query-string options for a tarball deploy (`TarballDeployQuerySchema`), empties dropped. */
 export function deployQuery(o: Record<string, string | null | undefined>): string {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(o))
@@ -25,7 +19,6 @@ export function deployQuery(o: Record<string, string | null | undefined>): strin
   return s ? `?${s}` : '';
 }
 
-/** `12.3 KiB` -- sizes on screen. */
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${Math.round(n / 102.4) / 10} KiB`;

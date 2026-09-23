@@ -31,7 +31,6 @@ const LOOK: Record<PreviewState, { label: string; dot: string; text: string; pul
   },
 };
 
-/** Always a word beside the colour: state must not be readable by hue alone. */
 @Component({
   selector: 'app-state-badge',
   template: `

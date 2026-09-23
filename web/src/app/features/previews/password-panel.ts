@@ -12,7 +12,6 @@ import { Btn } from '../../ui/button';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
 
-/** The choices, in the order they are offered. */
 export type Who = 'open' | 'password' | 'signed-in' | 'either';
 export const WHO_LABELS: Record<Who, string> = {
   open: 'Anyone with the link',
@@ -27,10 +26,8 @@ const WHO_LOGIN: Record<Who, PasswordLogin> = {
   either: 'on',
 };
 
-/** Where the password comes from, when the choice needs one. */
 type Source = 'keep' | 'generate' | 'set' | 'shared';
 
-/** What a visitor gets, in a sentence, for what the server says is in effect. */
 export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
   open: 'Anyone with the link can open it.',
   password: 'Everyone is asked for the password, including people signed in to gangway.',
@@ -40,12 +37,6 @@ export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
   'signed-in+password': 'A private preview: sign in to gangway, then enter the password.',
 };
 
-/**
- * Who can open a running preview. One choice -- the link, the password, a gangway
- * login, or either -- and, when the choice needs a password, where it comes from. Takes
- * effect on the next request; a new password signs out everyone who used the old one. A
- * generated password is printed only in the preview's log below; this panel never shows it.
- */
 @Component({
   selector: 'app-password-panel',
   imports: [Btn],
@@ -144,7 +135,6 @@ export class PasswordPanel {
   protected readonly value = signal('');
   protected readonly busy = signal(false);
 
-  /** The preview's own password (set or generated), which "keep" keeps. */
   protected readonly hasOwn = computed(() =>
     ['set', 'generated'].includes(this.preview().password),
   );
@@ -152,7 +142,6 @@ export class PasswordPanel {
     () => this.who() === 'password' || this.who() === 'either',
   );
   protected readonly effect = computed(() => ACCESS_EFFECT[this.preview().access ?? 'open']);
-  /** The server decides whose preview is whose; either permission may be enough. */
   protected readonly canChange = computed(
     () => this.#auth.can('previews.update') || this.#auth.can('previews.update_own'),
   );
@@ -163,7 +152,6 @@ export class PasswordPanel {
   );
 
   constructor() {
-    // Follow the preview: after a save, or when it changes elsewhere, the form shows what is in effect.
     effect(() => {
       const p = this.preview();
       untracked(() => {
@@ -213,7 +201,6 @@ export class PasswordPanel {
   }
 }
 
-/** The choice that produces what is in effect. A private preview reads as signed-in. */
 function whoOf(access: PreviewAccess | undefined): Who {
   switch (access) {
     case 'password':

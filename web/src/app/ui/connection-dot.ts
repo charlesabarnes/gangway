@@ -10,7 +10,6 @@ const LOOK: Record<SseStatus | 'idle', { label: string; dot: string; pulse: bool
   closed: { label: 'not live', dot: 'bg-neutral-400', pulse: false },
 };
 
-/** Whether what is on screen is still being kept up to date. `role=status`: a change is announced, politely. */
 @Component({
   selector: 'app-connection-dot',
   template: `

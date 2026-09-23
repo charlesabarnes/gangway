@@ -8,9 +8,7 @@ export type Rendered<T> = {
   fixture: ComponentFixture<T>;
   http: HttpTestingController;
   el: HTMLElement;
-  /** Let pending promises, signals and the zoneless scheduler settle, then re-render. */
   settle(): Promise<void>;
-  /** Re-render until `done()` is true. For anything several promise-turns away (a rejected request, a navigation). */
   until(done: () => boolean, what?: string): Promise<void>;
   byTestId(id: string): HTMLElement | null;
   allByTestId(id: string): HTMLElement[];
@@ -24,7 +22,6 @@ export type RenderOptions = {
   inputs?: Record<string, unknown>;
 };
 
-/** The pattern every component spec here starts with. Zoneless: nothing re-renders until asked. */
 export async function render<T>(component: Type<T>, o: RenderOptions = {}): Promise<Rendered<T>> {
   TestBed.configureTestingModule({
     imports: [component],
@@ -38,9 +35,7 @@ export async function render<T>(component: Type<T>, o: RenderOptions = {}): Prom
   const fixture = TestBed.createComponent(component);
   for (const [k, v] of Object.entries(o.inputs ?? {})) fixture.componentRef.setInput(k, v);
   const el = fixture.nativeElement as HTMLElement;
-  // A macrotask turn, not just microtasks: a rejected firstValueFrom reaches its `catch`
-  // several turns after the flush. Real setTimeout on purpose -- specs that fake timers
-  // fake only setInterval.
+  // Real setTimeout: specs that fake timers fake only setInterval.
   const turn = () => new Promise<void>((r) => setTimeout(r));
   const settle = async () => {
     for (let i = 0; i < 3; i++) {

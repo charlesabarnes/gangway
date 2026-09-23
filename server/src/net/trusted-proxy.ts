@@ -1,20 +1,7 @@
-/**
- * Who is the visitor, when gangway is not the first thing they reach?
- *
- * By default gangway faces the internet and the socket peer is the visitor: every inbound
- * X-Forwarded-* is attacker-controlled and ignored. Behind a reverse proxy the peer is always
- * the proxy, so logs, limits and forwarded headers would all name the proxy.
- *
- * X-Forwarded-For is believed only when the peer is inside a configured range, and it is read
- * right to left, skipping trusted hops. Each proxy appends the address it saw, so the rightmost
- * untrusted entry is the last thing a trusted proxy vouched for; everything to its left is
- * whatever the visitor typed.
- */
 import { BlockList, isIP } from "node:net";
 
 export type ClientIpResolver = (peer: string, forwardedFor: string | null) => string;
 
-/** `10.0.0.0/8`, `172.17.0.1`, `fd00::/8`. Throws on anything else: a typo here must not mean "trust nobody, silently". */
 export function parseTrustedProxies(entries: readonly string[]): BlockList {
   const list = new BlockList();
   for (const raw of entries) {
@@ -31,7 +18,6 @@ export function parseTrustedProxies(entries: readonly string[]): BlockList {
   return list;
 }
 
-/** A dual-stack listener reports IPv4 peers as `::ffff:a.b.c.d`. Compare and report the v4 form. */
 const unmap = (ip: string): string => (/^::ffff:\d+\.\d+\.\d+\.\d+$/i.test(ip) ? ip.slice(7) : ip);
 
 export function clientIpResolver(trusted: readonly string[]): ClientIpResolver {
@@ -48,7 +34,7 @@ export function clientIpResolver(trusted: readonly string[]): ClientIpResolver {
     const hops = forwardedFor.split(",").map((h) => unmap(h.trim()));
     for (let i = hops.length - 1; i >= 0; i--) {
       const hop = hops[i]!;
-      // Garbage in the chain ends the walk: nothing to its left was vouched for either.
+      // Walking right to left, the first untrusted hop is the last one a trusted proxy vouched for.
       if (isIP(hop) === 0) return peer;
       if (!isTrusted(hop)) return hop;
     }

@@ -3,22 +3,14 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import type { Capabilities } from '../../core/api.types';
 
-/** Where the Claude Code and Codex plugins are published: a marketplace in gangway's own repository. */
 export const PLUGIN_REPO = 'charlesabarnes/gangway';
 
 export type AgentClient = 'claude' | 'codex' | 'cursor' | 'vscode' | 'other';
 type Step = { note: string; code?: string };
 type Recipe = { label: string; steps: Step[]; link?: { href: string; text: string } };
 
-/** Base64 of UTF-8, as Cursor's install link wants its config. */
 const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 
-/**
- * How to point each agent at this server, with its MCP URL filled in. Every recipe
- * ends in the same place -- the agent's own OAuth sign-in, which lands on /connect -- and
- * the workflow comes with the server (its instructions and `generate-artifact` prompt), so a
- * plugin is a convenience, not a requirement.
- */
 export function recipes(url: string): Record<AgentClient, Recipe> {
   return {
     claude: {
@@ -180,7 +172,6 @@ export class ConnectAgent {
   protected readonly caps = signal<Capabilities | null>(null);
   protected readonly tab = signal<AgentClient>('claude');
   protected readonly copied = signal<number | null>(null);
-  /** The MCP URL with a trailing slash: the form every client's config stores it in. */
   protected readonly all = computed(() => {
     const c = this.caps();
     return c ? recipes(c.mcpUrl.replace(/\/?$/, '/')) : null;

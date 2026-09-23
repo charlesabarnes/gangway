@@ -1,9 +1,3 @@
-/**
- * The only file in the repo that may import `bun:sqlite`.
- *
- * Everything else depends on the Db interface, which sqlite.node.ts also implements, so
- * switching drivers is a config flag, not a project.
- */
 import { Database } from "bun:sqlite";
 import {
   applyPragmas,
@@ -33,8 +27,7 @@ class BunDb implements Db {
     return (params ? this.#db.query(sql).all(params) : this.#db.query(sql).all()) as T[];
   }
   get<T>(sql: string, params?: Params): T | undefined {
-    // bun:sqlite returns null for "no row"; node:sqlite returns undefined.
-    // Normalise here so callers see one contract across drivers.
+    // bun:sqlite returns null for no row; node:sqlite returns undefined.
     const r = params ? this.#db.query(sql).get(params) : this.#db.query(sql).get();
     return (r ?? undefined) as T | undefined;
   }
@@ -54,8 +47,7 @@ class BunDb implements Db {
 }
 
 export function openDatabase(o: OpenOptions): { db: Db; journalMode: string } {
-  // strict:true gives sigil-free named parameters and throws on a missing binding
-  // instead of silently binding NULL -- exactly the failure we want loud.
+  // strict throws on a missing binding instead of silently binding NULL.
   const raw = new Database(o.path, { create: true, strict: true, readonly: o.readonly ?? false });
   const db = new BunDb(raw);
 

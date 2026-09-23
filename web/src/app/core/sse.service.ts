@@ -5,7 +5,6 @@ import { firstValueFrom } from 'rxjs';
 import type { SessionInfo } from './api.types';
 import { AuthService } from './auth.service';
 
-/** The slice of EventSource this uses. jsdom has none, so specs provide a fake. */
 export type EventSourceLike = {
   onopen: ((e: Event) => void) | null;
   onerror: ((e: Event) => void) | null;
@@ -21,7 +20,6 @@ export const EVENT_SOURCE_FACTORY = new InjectionToken<(url: string) => EventSou
   },
 );
 
-/** 0..1. Injected so specs get exact delays. */
 export const SSE_JITTER = new InjectionToken<() => number>('SSE_JITTER', {
   providedIn: 'root',
   factory: () => Math.random,
@@ -35,23 +33,6 @@ const BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 15_000];
 const HIDDEN_GRACE_MS = 30_000;
 const PROBE_AFTER_FAILURES = 2;
 
-/**
- * Server-sent events, for a server that restarts.
- *
- * Native EventSource reconnects on a dropped connection -- but gives up for good on any
- * response that is not a 200. gangway answers 503 while draining, and a reverse proxy
- * answers 502 while gangway is down: exactly the moments this must survive. So the native
- * retry is never relied on. Every error closes the source and this reopens it, with
- * backoff, asking for `?after=<last id>` -- one code path, and one that a spec can drive.
- *
- * EventSource reports no status code, so a dead session and a restarting server look the
- * same from here. After two failures in a row, `/v1/auth/session` is asked: if it says
- * "not logged in", this goes to login instead of retrying forever against a 401.
- *
- * A browser allows six HTTP/1.1 connections per origin and each tab can hold two streams,
- * so a fourth tab would hang. A tab hidden for 30 s lets go of its stream and takes it
- * back, from where it left off, when it is looked at again.
- */
 @Injectable({ providedIn: 'root' })
 export class SseService {
   readonly #factory = inject(EVENT_SOURCE_FACTORY);
@@ -61,10 +42,6 @@ export class SseService {
   readonly #router = inject(Router);
   readonly #doc = inject(DOCUMENT);
 
-  /**
-   * `types` must be listed: a named event never reaches `onmessage`, and gangway names
-   * every event. Malformed JSON is dropped, not thrown -- one bad frame must not end a stream.
-   */
   open<T>(
     url: string,
     types: readonly string[],
@@ -73,8 +50,6 @@ export class SseService {
   ): SseHandle {
     const status = signal<SseStatus>('connecting');
     let source: EventSourceLike | null = null;
-    // The cursor is an option, never part of `url`: a reconnect appends its own `after`, and
-    // a URL that already carried one would send two -- the server reads the first, the stale one.
     let lastId = o.after === undefined ? '' : String(o.after);
     let failures = 0;
     let retry: ReturnType<typeof setTimeout> | null = null;
@@ -93,6 +68,7 @@ export class SseService {
     const connect = () => {
       if (done) return;
       drop();
+      // Callers pass the cursor as o.after: a url with its own after would send two.
       const at =
         lastId === ''
           ? url
@@ -179,7 +155,6 @@ export class SseService {
     return { status: status.asReadonly(), close };
   }
 
-  /** True only on a definite "not logged in". An unreachable server is a reason to keep retrying. */
   async #loggedOut(): Promise<boolean> {
     try {
       return !(await firstValueFrom(this.#http.get<SessionInfo>('/v1/auth/session'))).authenticated;

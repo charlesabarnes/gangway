@@ -1,11 +1,3 @@
-/**
- * `/v1/auth/*`: a thin adapter over auth/accounts.ts.
- *
- * All of these live in the public mount: login and setup have no credential yet, "who am I"
- * must answer an anonymous caller, and logout and change-password are for any logged-in
- * person whatever their role. So each handler answers for its own access, and every route
- * behind `authenticate` still names a permission.
- */
 import type { Context, Hono } from "hono";
 import { ChangePasswordSchema, LoginRequestSchema, SetupRequestSchema } from "@gangway/shared/api";
 import type { User } from "@gangway/shared/domain";
@@ -24,29 +16,23 @@ import {
   type AuthDeps,
 } from "../middleware/auth.ts";
 
-/** What `/v1/auth/gate` needs from the proxy side, without importing it. */
 export type GateDeps = {
-  /** The live route for a preview hostname, if there is one. */
   lookup(host: string): { hostname: string; previewId: string; visibility: string } | undefined;
-  /** Private, and/or behind a password a gangway login gets past. Absent: private only. */
   gateable?(host: string): { private: boolean; passwordSkippable: boolean };
   issueTicket(
     entry: { hostname: string; previewId: string },
     o?: { skipPassword?: boolean },
   ): string;
-  /** `https://<preview host>[:port]` */
   originFor(host: string): string;
   safePath(raw: string | null | undefined): string;
 };
 
 export type AuthRouteDeps = {
   auth: AuthDeps;
-  /** Absent: private previews cannot be opened (and deploy says so). */
   gate?: GateDeps | undefined;
   accounts: Accounts;
   bootstrap: Bootstrap;
   roles: RolePermissions;
-  /** The cookie's Max-Age: the session's absolute cap. */
   sessionMaxAgeSec: number;
 };
 
@@ -56,16 +42,11 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     userAgent: c.req.header("user-agent") ?? null,
   });
 
-  /** Sessions belong to the `app` hostname, where the cookie is host-only; elsewhere, 404. */
   const appOnly = (c: Context<AppEnv>) => {
     if (c.env.surface !== "app") throw notFound(`no such resource: ${new URL(c.req.url).pathname}`);
   };
 
-  /**
-   * Login CSRF: a hostile page logging your browser into their account, so that what you do
-   * next lands in it. There is no session to protect yet, so the check is on Origin alone,
-   * and only when a browser sent one -- curl sends none, and scripts must keep working.
-   */
+  // Login CSRF: checked only when a browser sends Origin, so curl and scripts keep working.
   const refuseForeignOrigin = (c: Context<AppEnv>) => {
     if (
       c.req.header("origin") !== undefined &&
@@ -88,7 +69,6 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
         token: { id: actor.tokenId, scopes: actor.scopes },
         permissions,
       };
-    // A forge actor never holds a session or a bearer; only here for the type's sake.
     if (actor.kind === "forge" || actor.kind === "workflow")
       return { authenticated: true, setupRequired: false, permissions };
     const user = d.accounts.getUser(actor.userId);
@@ -100,11 +80,6 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     };
   };
 
-  /**
-   * Always 200. The UI asks this first, on every load, to choose between the app, the
-   * login page and first-run setup; a 401 here would be an error it has to special-case.
-   * `permissions` is what the UI gates on -- it never branches on a role name.
-   */
   pub.get("/auth/session", async (c) => {
     c.header("cache-control", "no-store");
     const actor = await resolveActor(c, d.auth).catch(() => null);
@@ -123,7 +98,6 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     return c.json({ user: wireUser(user), permissions: [...d.roles.for(user.roleId)].sort() });
   });
 
-  /** 404 (not 403 or 409) whenever setup is not pending: a finished setup was never there. */
   pub.post("/auth/setup", async (c) => {
     appOnly(c);
     if (!d.bootstrap.pending) throw notFound("no such resource: /v1/auth/setup");
@@ -137,19 +111,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     return c.json({ user: wireUser(user), permissions: [...d.roles.for(user.roleId)].sort() }, 201);
   });
 
-  /**
-   * Step 2 of the private-preview handshake (net/gate.ts has the whole picture). A preview
-   * host sent the browser here because it had no gate cookie. This is the only place the
-   * session is consulted: the preview never sees it.
-   *
-   * A GET that redirects, so it must not be steerable. `host` has to be a live preview that
-   * is private or behind a password a login gets past -- not any hostname, which would make
-   * this an open redirect -- and `to` is reduced to a same-origin path.
-   *
-   * For a password-protected preview that is not private, nobody is sent to log in. Signed
-   * in with `previews.skip_password`, the ticket says so; anyone else goes straight back to
-   * the preview's password form.
-   */
+  // Only a live gateable preview host is accepted, or this GET would be an open redirect.
   pub.get("/auth/gate", async (c) => {
     appOnly(c);
     const gate = d.gate;
@@ -181,7 +143,6 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
       return c.redirect(target.toString(), 302);
     }
     if (!actor) {
-      // Come back here after login, with the same two parameters and nothing else.
       const back = `/v1/auth/gate?host=${encodeURIComponent(entry.hostname)}&to=${encodeURIComponent(to)}`;
       return c.redirect(`/login?returnUrl=${encodeURIComponent(back)}`, 302);
     }
@@ -201,7 +162,6 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     return actor;
   };
 
-  /** Idempotent, and the cookie is cleared even if the session was already gone. */
   pub.post("/auth/logout", async (c) => {
     const actor = await resolveActor(c, d.auth);
     if (actor) d.accounts.logout(actor);

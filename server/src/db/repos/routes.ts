@@ -38,7 +38,6 @@ export class RoutesRepo {
       .map(rowToRoute);
   }
 
-  /** Throws on a hostname or (host, port) collision -- both are constraint violations. */
   create(r: CreateRoute): Route {
     this.#db.run(
       `INSERT INTO routes (hostname, preview_id, service, container_port,
@@ -59,7 +58,6 @@ export class RoutesRepo {
     return this.get(r.hostname)!;
   }
 
-  /** The reconciler's UpdateUpstream action: a container came back on a different port. */
   updateUpstream(hostname: string, upstream: { host: string; port: number }): void {
     this.#db.run(
       "UPDATE routes SET upstream_host = $h, upstream_port = $p WHERE hostname = $hostname",
@@ -75,10 +73,6 @@ export class RoutesRepo {
     return this.#db.run("DELETE FROM routes WHERE hostname = $h", { h: hostname }).changes > 0;
   }
 
-  /**
-   * Ports in use on a host. The routes table is the port allocation record,
-   * so there is no separate allocator state to drift or leak.
-   */
   usedPorts(upstreamHost: string): Set<number> {
     const rows = this.#db.query<{ upstream_port: number }>(
       "SELECT upstream_port FROM routes WHERE upstream_host = $h",

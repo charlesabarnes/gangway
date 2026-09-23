@@ -5,7 +5,6 @@ export type BuildState = "running" | "succeeded" | "failed" | "cancelled";
 export type Build = {
   id: string;
   previewId: string;
-  /** The services built, comma-joined: one `compose build` builds them together. */
   service: string | null;
   state: BuildState;
   startedAt: Date;
@@ -33,11 +32,6 @@ const toBuild = (r: Row): Build => ({
   exitCode: r.exit_code,
 });
 
-/**
- * One row per build attempt. The build's output is in the preview log (stream `build`),
- * which is already durable and resumable over SSE; this records that it happened, how
- * long it took and how it ended -- what the UI's history and "why is this slow" need.
- */
 export class BuildsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -70,7 +64,6 @@ export class BuildsRepo {
       .map(toBuild);
   }
 
-  /** Boot: a build cannot outlive the process that ran it. */
   cancelRunning(): number {
     return this.#db.run(
       "UPDATE builds SET state = 'cancelled', finished_at = $now WHERE state = 'running'",

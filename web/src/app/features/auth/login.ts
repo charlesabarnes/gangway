@@ -87,7 +87,6 @@ export class Login {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Seconds left on a 429. Ticks on its own timer: zoneless, so nothing else would redraw it. */
   protected readonly lockedFor = signal(0);
   protected readonly countdown = computed(() => {
     const s = this.lockedFor();
@@ -112,7 +111,6 @@ export class Login {
     try {
       await this.auth.login(this.email().trim(), this.password());
       const to = safeReturnUrl(this.#route.snapshot.queryParamMap.get('returnUrl'));
-      // Sent here by a private preview: go back through the server's gate, not the SPA router.
       if (isServerReturn(to)) this.#hardNavigate(to);
       else await this.#router.navigateByUrl(to);
     } catch (err) {
@@ -122,8 +120,6 @@ export class Login {
         this.error.set('Too many failed attempts. Logging in is paused for a moment.');
         this.#lock(p.retryAfter ?? 60);
       } else if (p.status === 401) {
-        // The server says exactly one thing for a wrong password, an unknown email and a
-        // disabled account. So does this.
         this.error.set('Wrong email or password.');
       } else {
         this.error.set(

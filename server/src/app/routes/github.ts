@@ -15,7 +15,6 @@ export type GitHubRouteDeps = {
   states: ManifestStates;
   audit: AuditSink;
   baseDomain: () => string;
-  /** Public origins of the two surfaces the manifest names. */
   originFor: (label: string) => string;
 };
 
@@ -28,10 +27,6 @@ const GITHUB_KEYS = [
   SETTINGS.githubWebhookSecret,
 ];
 
-/**
- * `/v1/github`: is the App connected, and the manifest flow that
- * connects it. Every route needs `github.manage`; the status answer carries no secret.
- */
 export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
   const status = () => {
     const appId = d.settings.get(SETTINGS.githubAppId);
@@ -59,14 +54,11 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
 
   api.get("/github", requirePermission("github.manage"), (c) => c.json(status()));
 
-  // What the New project form offers: repositories the App is installed on.
-  // Readable by whoever may make a project; empty (not an error) when the App is not connected.
   api.get("/github/repositories", requirePermission("repos.manage"), async (c) => {
     if (!status().configured) return c.json({ repositories: [] });
     return c.json({ repositories: await d.app.installedRepositories() });
   });
 
-  /** The manifest and a one-time state; the UI posts the manifest to GitHub as a form. */
   api.get("/github/manifest", requirePermission("github.manage"), (c) => {
     if (GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key))) {
       throw conflict(
@@ -86,7 +78,6 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
     });
   });
 
-  /** GitHub sent the browser back with `code` and `state`; the code becomes the credentials. */
   api.post("/github/manifest/exchange", requirePermission("github.manage"), async (c) => {
     const body = await readJson(c);
     const { code, state } = ManifestExchangeSchema.parse(body);

@@ -15,7 +15,6 @@ export type CreateTemplate = {
   hostId?: string | null | undefined;
 };
 
-/** Absent and undefined both mean "leave it": zod's optional output is passed straight through. */
 export type TemplatePatch = {
   name?: string | undefined;
   description?: string | undefined;
@@ -36,7 +35,6 @@ const COLUMNS: Record<keyof TemplatePatch, string> = {
   hostId: "host_id",
 };
 
-/** Named preview policies. `default` is seeded by migration 0007 and never deleted. */
 export class TemplatesRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -46,7 +44,6 @@ export class TemplatesRepo {
     this.#now = now;
   }
 
-  /** A new template starts from the built-in one's values for anything left unsaid. */
   create(t: CreateTemplate): Template {
     const base = this.get(DEFAULT_TEMPLATE_ID);
     const now = this.#now();
@@ -73,7 +70,6 @@ export class TemplatesRepo {
     return r ? rowToTemplate(r) : undefined;
   }
 
-  /** The built-in one. Present in every migrated database; the fallback for everything. */
   default(): Template {
     const t = this.get(DEFAULT_TEMPLATE_ID);
     if (!t) throw new Error("the default template is missing; migration 0007 did not run");
@@ -102,13 +98,11 @@ export class TemplatesRepo {
     return this.get(id);
   }
 
-  /** Repositories on this template fall back to the trigger default (ON DELETE SET NULL). */
   delete(id: string): boolean {
     if (id === DEFAULT_TEMPLATE_ID) return false;
     return this.#db.run("DELETE FROM templates WHERE id = $id AND builtin = 0", { id }).changes > 0;
   }
 
-  /** How many projects name this template -- said before a delete, not after. */
   repoCount(id: string): number {
     return (
       this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", {

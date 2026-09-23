@@ -1,20 +1,3 @@
-/**
- * The I/O half of reconciliation. `diff.ts` decides; this file asks the daemons, hands the
- * diff what they said, and carries out what it decided -- carefully, because two of those
- * decisions are "stop a container" and "fail a preview" on a box that may also run the
- * operator's real workloads.
- *
- * The rules this file enforces, which the pure diff cannot:
- *
- *  1. Provably ours or not at all. The daemon is asked only for containers labelled with
- *     this instance and env, and each is checked again client-side.
- *  2. An unreachable host is not an empty host. A host is `reachable` only if the guard
- *     passed and the listing succeeded; anything else yields no mutating actions for it.
- *  3. Work in flight is untouchable. A `starting` preview briefly has a route and no
- *     container. Every action is re-checked against `inflight`/`teardowns` and the current
- *     row at apply time, because the scan that justified it is already stale.
- *  4. Never bulk-start. Nothing here starts a container.
- */
 import type { Host, Visibility } from "@gangway/shared/domain";
 import type { RoutesRepo } from "../db/repos/routes.ts";
 import { verifyDaemon, type ContainerSummary, type DockerClient } from "../docker/client.ts";
@@ -48,10 +31,6 @@ export type ReconcilerDeps = {
   routes: RoutesRepo;
   clients: ClientSource;
   logger: Logger;
-  /**
-   * `report` logs what would be stopped and stops nothing. The escape hatch for an operator
-   * who wants to see a first run against a daemon full of real workloads before trusting it.
-   */
   orphans?: "stop" | "report";
   env?: Readonly<Record<string, string | undefined>>;
 };
@@ -67,13 +46,11 @@ export type ReconcileReport = {
   at: number;
   hosts: HostScan[];
   actions: Action[];
-  /** What actually changed, as short human-readable lines. Empty on a quiet pass. */
   changes: string[];
 };
 
 const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
 
-/** Field by field, unlike `parseLabels`: orphan handling is about partial labels. */
 export function scanLabels(raw: Readonly<Record<string, string>>): ScannedLabels {
   const int = (v: string | undefined) =>
     v !== undefined && /^\d{1,5}$/.test(v) ? Number(v) : undefined;
@@ -103,8 +80,7 @@ export function toScanned(
     hostId: host.id,
     upstreamHost: host.upstream.address,
     publishedPort: published?.hostPort ?? null,
-    // `paused` and `restarting` still own their port binding; only a stopped container
-    // has released it, and releasing the port is what "exited" means to the diff.
+    // paused and restarting containers still hold their port binding.
     state:
       c.state === "running" || c.state === "paused" || c.state === "restarting"
         ? "running"
@@ -121,12 +97,10 @@ export class Reconciler {
     this.#d = deps;
   }
 
-  /** Concurrent callers share one pass: two passes interleaving their applies is the bug. */
+  // Concurrent callers share one pass; interleaved applies would corrupt state.
   run(): Promise<ReconcileReport> {
     return this.#flight.run("reconcile", () => this.#pass());
   }
-
-  /* ---------------------------------------------------------------- scan */
 
   async #scanHost(host: Host): Promise<{ scan: HostScan; summaries: ContainerSummary[] }> {
     const { ctx, clients, env } = this.#d;
@@ -139,8 +113,7 @@ export class Reconciler {
           label: [MANAGED_FILTER, `${LABEL.instance}=${ctx.instance}`, `${LABEL.env}=${ctx.env}`],
         },
       });
-      // Belt and braces behind the daemon-side filter: a fake, a proxy or a future
-      // engine that ignores an unknown filter must not widen what may be stopped.
+      // Re-check client-side in case the daemon ignored the filter.
       const ours = listed.filter(
         (c) =>
           c.labels[LABEL.managed] === "true" &&
@@ -154,7 +127,6 @@ export class Reconciler {
       };
     } catch (e) {
       const message = redactString(errorMessage(e));
-      // The wrong daemon is not a network blip and must not look like one.
       ctx.hosts.setState(host.id, e instanceof DockerGuardError ? "error" : "unreachable", message);
       return {
         scan: { hostId: host.id, reachable: false, error: message, containers: 0 },
@@ -162,8 +134,6 @@ export class Reconciler {
       };
     }
   }
-
-  /* ---------------------------------------------------------------- one pass */
 
   async #pass(): Promise<ReconcileReport> {
     const { ctx, routes, logger } = this.#d;
@@ -182,9 +152,7 @@ export class Reconciler {
       }
     });
 
-    // The database is read after the scan. Read before, a deploy that lands in between
-    // shows up as a container with no route; read after, as a route with no container,
-    // which the in-flight guard below already covers.
+    // Read after the scan: a concurrent deploy then shows as a route the in-flight guard covers.
     const actions = diff({
       dbRoutes: routes.all(),
       previews: ctx.previews.list({ includeDestroyed: true }),
@@ -232,8 +200,6 @@ export class Reconciler {
     return this.#d.ctx.inflight.has(previewId) || this.#d.ctx.teardowns.has(previewId);
   }
 
-  /* ---------------------------------------------------------------- apply */
-
   async #apply(
     a: Action,
     summaries: Map<string, { summary: ContainerSummary; host: Host }>,
@@ -252,8 +218,6 @@ export class Reconciler {
       case "MarkAsleep": {
         const p = ctx.previews.get(a.previewId);
         if (!p || this.#busy(p.id)) return null;
-        // An interrupted `starting` has nothing to wake: `up` never finished. That is
-        // handled, with the rest of the interrupted pipelines, in #rescueInterrupted.
         if (p.state !== "awake") return null;
         ctx.states.transition(p.id, "asleep");
         return `${p.project}: no running container; marked asleep`;
@@ -264,8 +228,6 @@ export class Reconciler {
         if (!p || this.#busy(p.id) || p.state !== "building") return null;
         ctx.states.transition(p.id, "failed", a.error);
         ctx.logs.append(p.id, "system", `FAILED: ${a.error}`);
-        // No routed container is running, but a sidecar may be: `up` starts a database
-        // before the app that depends on it.
         const host = hosts.get(p.hostId);
         if (host) await releaseStack(ctx, p, host);
         return `${p.project}: ${a.error}`;
@@ -277,7 +239,7 @@ export class Reconciler {
       case "StopOrphan": {
         const found = summaries.get(a.containerId);
         if (!found) return null;
-        // Stale-scan guard: a deploy may have claimed this hostname since the scan.
+        // The scan may be stale: a deploy may have claimed this hostname since.
         const previewId = found.summary.labels[LABEL.previewId];
         if (previewId && this.#busy(previewId)) return null;
         if (a.hostname && routes.get(a.hostname)?.previewId === previewId && previewId) return null;
@@ -307,19 +269,14 @@ export class Reconciler {
 
     let preview = ctx.previews.get(a.previewId);
     if (preview && (preview.state === "destroyed" || preview.state === "destroying")) {
-      // This preview was already destroyed. A container that outlived
-      // its destroy is the orphan, not a route waiting to be restored.
       return this.#stop(host, found.summary, "preview-destroyed");
     }
 
     if (!preview) {
-      // SQLite is behind or gone. The labels are the second copy; rebuild from them.
       const project = raw[LABEL.project] ?? raw["com.docker.compose.project"];
       if (!isUlid(a.previewId) || !project || ctx.previews.getByProject(project)) {
         return this.#stop(host, found.summary, "unadoptable");
       }
-      // The labels do not carry a TTL. An adopted preview gets the default template's from
-      // now, rather than living forever because nobody remembers when it was due to die.
       const ttlText = ctx.policy.default().ttl;
       const ttl = ttlText === null ? null : parseDuration(ttlText);
       preview = ctx.previews.create({
@@ -364,19 +321,6 @@ export class Reconciler {
     return `${a.hostname}: route rebuilt from container labels`;
   }
 
-  /* ---------------------------------------------------------------- interrupted work */
-
-  /**
-   * A pipeline cannot outlive the process that ran it. After the diff has had its say,
-   * anything still `building`/`starting`/`destroying` that nobody in this process is
-   * working on was cut off by a restart. Decide it from evidence, not from the state:
-   *
-   *   building/starting, every route has its container  -> probe; answering => awake
-   *   building/starting, otherwise                      -> failed, and release the stack
-   *   destroying                                        -> finish the teardown
-   *
-   * Only on reachable hosts. On an unreachable one there is no evidence, so no verdict.
-   */
   async #rescueInterrupted(
     covered: ReadonlySet<string>,
     reachable: Map<string, boolean>,
@@ -427,16 +371,6 @@ export class Reconciler {
     return out;
   }
 
-  /**
-   * `asleep` is a claim about the daemon, and the daemon can stop agreeing: someone runs
-   * `docker start`, or a host reboots with a restart policy. The diff calls that in-sync
-   * (route and container do agree) and the state would stay `asleep` forever, the proxy
-   * serving the waking page in front of an app that is up.
-   *
-   * This is not a start -- rule 4 stands. It only records what already happened, and only
-   * on the same evidence a deploy needs: every route has its container and answers HTTP.
-   * A stack that is half back stays asleep; wake-on-request is what finishes it.
-   */
   async #wakeReturned(
     covered: ReadonlySet<string>,
     reachable: Map<string, boolean>,

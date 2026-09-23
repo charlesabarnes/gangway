@@ -16,9 +16,8 @@ console.log(`
 let stopping = false;
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
-    if (stopping) process.exit(1); // a second signal means "now"
+    if (stopping) process.exit(1);
     stopping = true;
-    // stop() bounds itself; this bounds stop(). Nothing may keep a SIGTERM'd process alive.
     setTimeout(() => process.exit(1), config.shutdownGraceMs + 5_000).unref();
     void running.stop().then(
       () => process.exit(0),

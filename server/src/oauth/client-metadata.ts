@@ -1,17 +1,3 @@
-/**
- * Client ID Metadata Documents, the MCP authorization spec's preferred client
- * registration. A client's `client_id` is an https URL; the document there names the
- * client and the redirect URIs it may use. claude.ai and Claude Code both register this way.
- *
- * Fetching a URL a stranger chose is server-side request forgery waiting to happen, so:
- *  - https on 443 only, no credentials in the URL, a path required (the MCP spec's rules);
- *  - the address is checked at connect time by the socket's own `lookup`, so a DNS answer
- *    that changes between a check and the connect (rebinding) cannot reach the host's LAN,
- *    loopback, the docker bridge or a metadata service;
- *  - no redirects, 5 s, 64 KiB, JSON;
- *  - the document's `client_id` must equal the URL, byte for byte.
- * Cached per `Cache-Control`, clamped to 5 min .. 24 h; a failure is not cached.
- */
 import { lookup as dnsLookup, type LookupAddress } from "node:dns";
 import { request } from "node:https";
 import { BlockList, isIP } from "node:net";
@@ -31,7 +17,6 @@ const MIN_TTL_MS = 5 * 60_000;
 const MAX_TTL_MS = 24 * 3_600_000;
 const MAX_CACHE = 500;
 
-/** Everything a client-chosen URL must never reach. */
 const PRIVATE = new BlockList();
 for (const [net, bits] of [
   ["0.0.0.0", 8],
@@ -51,8 +36,7 @@ for (const [net, bits] of [
 ] as const)
   PRIVATE.addSubnet(net, bits, "ipv4");
 for (const [net, bits] of [
-  // Not ::ffff:0:0/96: BlockList matches every IPv4 address against it. Mapped addresses
-  // are unwrapped and judged as IPv4 below instead.
+  // Not ::ffff:0:0/96, which BlockList matches against every IPv4 address; mapped addresses are unwrapped below.
   ["::", 128],
   ["::1", 128],
   ["64:ff9b::", 96],
@@ -67,13 +51,11 @@ for (const [net, bits] of [
 export function isPublicAddress(address: string): boolean {
   const family = isIP(address);
   if (family === 0) return false;
-  // An IPv4-mapped IPv6 address is judged as the IPv4 address it is.
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
   if (mapped) return !PRIVATE.check(mapped[1]!, "ipv4");
   return !PRIVATE.check(address, family === 6 ? "ipv6" : "ipv4");
 }
 
-/** The MCP spec's shape rules for a client_id URL, before any network. */
 export function checkClientIdUrl(raw: string): URL {
   let u: URL;
   try {
@@ -95,7 +77,7 @@ export function checkClientIdUrl(raw: string): URL {
   return u;
 }
 
-/** The socket's own resolver: every address it would use must be public, or the connect fails. */
+// Checked at connect time so DNS rebinding cannot reach private addresses.
 const safeLookup: typeof dnsLookup = ((
   hostname: string,
   options: unknown,
@@ -133,7 +115,6 @@ const safeLookup: typeof dnsLookup = ((
 export type Fetched = { status: number; contentType: string; cacheControl: string; body: string };
 export type DocumentFetcher = (url: URL) => Promise<Fetched>;
 
-/** The real fetch: node:https with the checked lookup, no redirects followed, capped. */
 export const fetchDocument: DocumentFetcher = (url) =>
   new Promise((resolve, reject) => {
     const req = request(
@@ -212,7 +193,6 @@ export function parseDocument(url: string, f: Fetched): ClientMetadata {
       `token_endpoint_auth_method ${JSON.stringify(method)} is not supported; gangway serves public clients only`,
     );
   const rawName = typeof d["client_name"] === "string" ? d["client_name"].trim() : "";
-  // A name is shown to a person deciding whether to trust it: printable, short.
   const clientName =
     rawName
       .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, "")
@@ -254,10 +234,6 @@ export class ClientMetadataStore {
   }
 }
 
-/**
- * Exact match, except a loopback redirect, which matches whatever port the client opened
- * this time (RFC 8252 section 7.3): Claude Code listens on an ephemeral port.
- */
 export function redirectAllowed(requested: string, registered: readonly string[]): boolean {
   if (registered.includes(requested)) return true;
   let r: URL;

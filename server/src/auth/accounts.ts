@@ -1,14 +1,3 @@
-/**
- * Local accounts: logging in, the first admin, and administering the rest. No HTTP types --
- * a route parses, calls one of these, and shapes the answer.
- *
- * Two rules shape this file:
- *  - `Db.transaction` is synchronous. Password hashing is async and slow, so it always
- *    happens before the transaction; there is never an await inside one.
- *  - A failed login says one thing, whatever went wrong, and costs the same whatever went
- *    wrong. Unknown email, wrong password and disabled account are indistinguishable from
- *    outside, in both the response and the time it takes.
- */
 import type { User } from "@gangway/shared/domain";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
@@ -41,13 +30,11 @@ export type AccountsDeps = {
   passwords: Passwords;
   limiter: LoginLimiter;
   audit: AuditSink;
-  /** A reset or a disable also ends the user's agent connections (OAuth grants). */
   onCredentialsRevoked?: ((userId: string) => void) | undefined;
   now?: () => number;
 };
 
 const BAD_LOGIN = "wrong email or password";
-/** A password spray must not become an audit-table spray: one `blocked` row per key per window. */
 const BLOCKED_NOTE_EVERY_MS = 15 * 60_000;
 
 export class Accounts {
@@ -107,12 +94,9 @@ export class Accounts {
     return { user, secret };
   }
 
-  /**
-   * The caller has already proved it holds the bootstrap secret. 404, not 409, once any
-   * user exists: a finished setup should look like it was never there.
-   */
   async setupFirstAdmin(email: string, password: string, meta: RequestMeta): Promise<LoggedIn> {
     const { db, users, passwords, sessions, audit } = this.#d;
+    // Db.transaction is synchronous, so hashing happens before it and nothing inside awaits.
     const credentials = await passwords.hash(password);
     const user = db.transaction(() => {
       if (users.count() > 0) throw notFound("not found");
@@ -170,8 +154,7 @@ export class Accounts {
     const { before, after } = db.transaction(() => {
       const before = users.get(id);
       if (!before) throw notFound(`no such user: ${id}`);
-      // "Who is left if this account stops being an enabled admin?" Asked inside the
-      // transaction, so two admins demoting each other cannot both succeed.
+      // Checked inside the transaction so two admins demoting each other cannot both succeed.
       const isAdminNow = before.roleId === ADMIN_ROLE_ID && !before.disabled;
       const stopsBeingOne =
         (patch.roleId !== undefined && patch.roleId !== ADMIN_ROLE_ID) || patch.disabled === true;
@@ -186,8 +169,6 @@ export class Accounts {
       return { before, after };
     });
 
-    // A reset or a disable ends every session now. A role change does not need to: the
-    // actor is rebuilt on every request, so the new role already applies.
     if (credentials || patch.disabled === true) {
       sessions.revokeAllFor(id);
       this.#d.onCredentialsRevoked?.(id);
@@ -203,7 +184,6 @@ export class Accounts {
     return after;
   }
 
-  /** Session-authenticated users only. Every other session ends; the one in hand survives. */
   async changeOwnPassword(
     actor: Actor,
     current: string,
@@ -217,7 +197,6 @@ export class Accounts {
     const stored = user ? users.credentials(user.id) : undefined;
     if (!user || !stored) throw unauthorized();
 
-    // The same limiter as login: this is a password oracle for whoever holds a session.
     const verdict = limiter.check(meta.ip, user.email);
     if (!verdict.ok) throw rateLimited(verdict.retryAfterSec);
     if (!(await passwords.verify(current, stored))) {

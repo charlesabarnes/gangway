@@ -1,17 +1,3 @@
-/**
- * Upload by reference. `files` makes an agent retype every byte of its app into the tool
- * call, slowly, and the copy can drift from what it tested. Instead `deploy` with
- * `upload: "new"` hands out a one-use URL, the agent's shell sends a tar.gz there
- * (`tar | curl`), and `deploy` with `upload: "<id>"` builds exactly those bytes.
- *
- * The URL is a capability: 256 bits, one PUT, 15 minutes, no bearer (the agent's shell has
- * no token; its MCP client holds it). Whoever PUTs, only the credential that asked for the
- * slot can deploy from it -- a leaked URL lets someone hand you a tarball, which you then
- * decline to deploy, never deploy as you.
- *
- * Bytes wait on disk under `<state>/uploads/`, capped as they stream in, and are gone after
- * the deploy has unpacked them, when the slot expires, or at the next boot.
- */
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readdirSync, rmSync } from "node:fs";
 import { open, rm } from "node:fs/promises";
@@ -60,7 +46,6 @@ export class Uploads {
     this.#now = o.now ?? Date.now;
     this.#maxBytes = o.maxBytes ?? MAX_UPLOAD_BYTES;
     mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
-    // Slots live in memory: whatever a previous process left behind is nobody's now.
     for (const f of readdirSync(this.#dir))
       rmSync(join(this.#dir, f), { force: true, recursive: true });
   }
@@ -108,7 +93,6 @@ export class Uploads {
     return { id, url: this.#url(id), expiresAt: slot.expiresAt, maxBytes: this.#maxBytes };
   }
 
-  /** The PUT. Streams to disk, hashing and counting on the way; over the cap, it stops and forgets. */
   async receive(
     id: string,
     body: ReadableStream<Uint8Array> | null,
@@ -154,7 +138,6 @@ export class Uploads {
     return { bytes, sha256: slot.sha256 };
   }
 
-  /** For `deploy`: the bytes, once, and only to the credential that asked for the slot. */
   take(id: string, actor: Actor): Taken {
     this.#sweep();
     const slot = ID.test(id) ? this.#slots.get(id) : undefined;

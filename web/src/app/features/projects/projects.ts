@@ -31,11 +31,6 @@ export const TRIGGER_HELP: Record<PrTrigger, { name: string; help: string }> = {
 };
 const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
 
-/**
- * Projects: the things you preview. Each names where its code comes from, the
- * template its previews follow, and its secrets; a project is made here, on purpose --
- * a pull request from a repository that is no project's is ignored.
- */
 @Component({
   selector: 'app-projects',
   imports: [Btn, EmptyState, RouterLink, StateBadge],
@@ -274,7 +269,6 @@ export class ProjectsPage {
     void this.#load();
     this.store.connect();
     inject(DestroyRef).onDestroy(() => this.store.disconnect());
-    // The picker is offered to whoever may make a project, once the session says so.
     effect(() => {
       if (this.canManage()) untracked(() => void this.#loadInstalled());
     });
@@ -296,7 +290,6 @@ export class ProjectsPage {
   }
 
   async #loadInstalled(): Promise<void> {
-    // Best effort: with the App not connected the list is empty, and typing a name still works.
     try {
       this.installed.set(
         (
@@ -331,7 +324,6 @@ export class ProjectsPage {
     this.creating.set(true);
   }
 
-  /** Picking an installed repository fills in a name, and suggests the App since it is there. */
   protected pickRepository(v: string): void {
     this.repository.set(v.trim());
     if (!this.name().trim() && v.includes('/')) this.name.set(v.split('/').pop() ?? '');

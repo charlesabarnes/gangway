@@ -1,21 +1,3 @@
-/**
- * The compose model: what we need to know about a stack, and the stack file we actually
- * run, which carries everything we need to change about it.
- *
- * We never interpret compose.yaml ourselves. We read the YAML output of `docker compose
- * config` -- compose's canonical view, after `extends`, profiles, includes and
- * interpolation -- and this module is pure functions over that document.
- *
- * The user's compose.yaml is never edited. What we `up` is the canonical output with our
- * labels, self-allocated published ports and public URL env applied. `config` output is a
- * fixpoint -- feeding it back yields the same document, `$` still escaped as `$$` -- so
- * running it is running what the user wrote.
- *
- * Deliberately avoided:
- *  - `config --format json`: it drops service-level `x-*` keys on some Compose versions.
- *  - A second `-f` override file: compose merges `ports` by appending, and replacing one
- *    needs the `!override` tag (Compose >= 2.24). Owning the final document needs no merge.
- */
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import type { Host, Route } from "@gangway/shared/domain";
@@ -28,20 +10,13 @@ import { unprocessable } from "../errors.ts";
 import { parseDuration } from "../util/duration.ts";
 import { obj, type Json } from "../util/json.ts";
 
-/* ------------------------------------------------------------------ x-gangway */
-
 const portNumber = z.number().int().min(1).max(65535);
 
 const ServiceExtensionSchema = z.strictObject({
   expose: z.boolean().optional(),
   subdomain: z.string().min(1).max(40).optional(),
   primary: z.boolean().optional(),
-  /** Which container port to route to, when the service publishes several (or none). */
   port: portNumber.optional(),
-  /**
-   * A path that must answer 2xx/3xx before the service counts as up. Omitted:
-   * any HTTP answer on `/`. Checked on deploy and rebuild; a wake uses the plain probe.
-   */
   health: z
     .string()
     .regex(/^\/[\x21-\x7e]*$/, "a path starting with /")
@@ -55,11 +30,6 @@ const StackExtensionSchema = z.strictObject({
     .string()
     .refine((s) => parseDuration(s) !== null, "expected a duration like 12h or 7d")
     .optional(),
-  /**
-   * Run once after the stack is healthy, before routes go live. A string
-   * runs in the primary service; `{ service, command }` picks another. `sh -c`, so a
-   * script path or a one-liner both work.
-   */
   seed: z
     .union([
       z.string().min(1),
@@ -67,7 +37,6 @@ const StackExtensionSchema = z.strictObject({
     ])
     .optional(),
   visibility: z.enum(["public", "unlisted", "private"]).optional(),
-  /** Idle-sleep after this long without a request; `never` opts the stack out. */
   idle: z
     .string()
     .refine(
@@ -75,35 +44,24 @@ const StackExtensionSchema = z.strictObject({
       "expected a duration like 30m, or never",
     )
     .optional(),
-  /**
-   * Runs before every version goes live (migrations), in a one-off container of
-   * the primary service, `sh -c`. On a rebuild, before the swap: failing it keeps the old
-   * version serving. On a first deploy, once the stack is healthy and before the seed.
-   */
   release: z.string().min(1).max(8192).optional(),
 });
 export type StackExtension = z.infer<typeof StackExtensionSchema>;
-
-/* ------------------------------------------------------------------ the model */
 
 export type ServiceModel = {
   name: string;
   image: string | null;
   hasBuild: boolean;
-  /** Container-side TCP ports from `ports:`, in file order. */
   publishedTargets: number[];
-  /** Container-side ports from `expose:`. */
   exposed: number[];
   x: ServiceExtension;
 };
 
 export type ComposeModel = {
   services: ServiceModel[];
-  /** Keys as written in the file, which is what an override file addresses. */
   networks: string[];
   volumes: string[];
   x: StackExtension;
-  /** Policy violations. Non-empty means we refuse to run this stack. */
   violations: string[];
 };
 
@@ -118,11 +76,6 @@ function parseExtension<T>(schema: z.ZodType<T>, raw: unknown, where: string): T
   );
 }
 
-/**
- * What a preview may not ask of the host. Previews are throwaway code -- possibly a
- * stranger's pull request -- on a daemon that also runs the operator's real workloads.
- * Each rule is a way out of the project's namespace or onto the host itself.
- */
 function policyViolations(project: string, doc: Json, sourceDirs: readonly string[]): string[] {
   const out: string[] = [];
   const inSource = (p: string) => sourceDirs.some((d) => containedIn(d, p));
@@ -136,15 +89,13 @@ function policyViolations(project: string, doc: Json, sourceDirs: readonly strin
     if (typeof s["network_mode"] === "string" && s["network_mode"].startsWith("container:")) {
       out.push(`${at}: network_mode: container:* is not allowed`);
     }
-    // A fixed name escapes `-p` namespacing: the second preview of the same repo collides.
+    // A fixed container_name escapes -p namespacing.
     if (s["container_name"] !== undefined)
       out.push(`${at}: container_name is not allowed (it defeats per-preview namespacing)`);
     if (arr(s["devices"]).length > 0) out.push(`${at}: devices are not allowed`);
     if (arr(s["cap_add"]).length > 0) out.push(`${at}: cap_add is not allowed`);
     if (arr(s["security_opt"]).length > 0) out.push(`${at}: security_opt is not allowed`);
-    // The build runs on this machine's filesystem before anything reaches the daemon: a
-    // context of `/` or `../../state` would ship gangway's own database into an image the
-    // submitter then runs. `config` has already made these paths absolute.
+    // The build reads this machine's disk: a context of / would ship gangway's own database into an image.
     if (s["build"] !== undefined && s["build"] !== null) {
       const b = typeof s["build"] === "string" ? { context: s["build"] } : obj(s["build"]);
       const context = typeof b["context"] === "string" ? b["context"] : "";
@@ -170,16 +121,12 @@ function policyViolations(project: string, doc: Json, sourceDirs: readonly strin
     }
     for (const v of arr(s["volumes"])) {
       const type = obj(v)["type"];
-      // The daemon is remote: a bind path names a directory on the host, not in the
-      // upload. `/var/run/docker.sock` is the famous one; none of them are safe.
       if (type !== "volume" && type !== "tmpfs")
         out.push(
           `${at}: ${String(type)} mount of ${String(obj(v)["source"])} is not allowed (named volumes and tmpfs only)`,
         );
     }
   }
-  // `file:` reads this machine's disk and `environment:` reads gangway's own environment;
-  // `external` reaches for something the operator owns. Inline `content:` is the safe one.
   for (const kind of ["secrets", "configs"] as const) {
     for (const [key, raw] of Object.entries(obj(doc[kind]))) {
       const r = obj(raw);
@@ -199,8 +146,6 @@ function policyViolations(project: string, doc: Json, sourceDirs: readonly strin
     for (const [key, raw] of Object.entries(obj(doc[kind]))) {
       const r = obj(raw);
       const at = `${kind.slice(0, -1)} "${key}"`;
-      // `external` attaches to something the operator owns; a custom `name` does the
-      // same thing by a different door. Either survives `down -v` and outlives us.
       if (r["external"] !== undefined && r["external"] !== false)
         out.push(`${at}: external is not allowed`);
       if (typeof r["name"] === "string" && r["name"] !== `${project}_${key}`)
@@ -214,11 +159,6 @@ function policyViolations(project: string, doc: Json, sourceDirs: readonly strin
   return out;
 }
 
-/**
- * @param resolved    the parsed YAML output of `docker compose config`
- * @param sourceDirs  where the source was unpacked (as given, and realpath'd): anything a
- *                    build reads must be inside one of them. None given, no build may run.
- */
 export function parseComposeModel(
   project: string,
   resolved: unknown,
@@ -255,8 +195,6 @@ export function parseComposeModel(
   };
 }
 
-/* ------------------------------------------------------------------ what is exposed */
-
 export type ExposedService = {
   service: string;
   containerPort: number;
@@ -264,11 +202,6 @@ export type ExposedService = {
   primary: boolean;
 };
 
-/**
- * With no extension, the single service with a published port is exposed.
- * Anything more ambiguous than that is an error naming the fix, never a guess -- a guess
- * here is a public URL pointing at somebody's database.
- */
 export function selectExposed(model: ComposeModel): ExposedService[] {
   let chosen = model.services.filter((s) => s.x.expose === true);
   if (chosen.length === 0) {
@@ -310,13 +243,10 @@ export function selectExposed(model: ComposeModel): ExposedService[] {
   });
 }
 
-/* ------------------------------------------------------------------ the route plan */
-
 export type PlannedRoute = Omit<Route, "createdAt">;
 
 export type PlanInput = {
   previewId: string;
-  /** The hostname stem, already carrying the unlisted suffix if there is one. */
   slug: string;
   baseDomain: string;
   host: Pick<Host, "id" | "upstream" | "ports">;
@@ -359,12 +289,8 @@ export function planRoutes(i: PlanInput): PlannedRoute[] {
   return routes;
 }
 
-/* ------------------------------------------------------------------ the stack we run */
-
 export type StackInput = {
-  /** The same parsed `config` document the model was read from. Not mutated. */
   resolved: unknown;
-  /** The placeholder `-p` that `config` ran under; its derived names are stripped. */
   planProject: string;
   model: ComposeModel;
   routes: PlannedRoute[];
@@ -375,14 +301,13 @@ export type StackInput = {
   extraEnv?: Record<string, string>;
 };
 
-/** Compose interpolates `$` in every file it reads, this one included. `$$` is a literal. */
+// Compose interpolates $ in every file it reads, so $$ is a literal.
 const literal = (env: Record<string, string> = {}) =>
   Object.fromEntries(Object.entries(env).map(([k, v]) => [k, v.replace(/\$/g, "$$$$")]));
 
 const envKey = (service: string) =>
   `GANGWAY_URL_${service.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
 
-/** `environment` and `labels` are maps in canonical output, but lists are legal input. */
 function asMap(v: unknown): Record<string, unknown> {
   if (!Array.isArray(v)) return { ...obj(v) };
   return Object.fromEntries(
@@ -397,10 +322,6 @@ function asMap(v: unknown): Record<string, unknown> {
 export function buildStack(i: StackInput): string {
   const doc = structuredClone(obj(i.resolved));
   const previewId = i.routes[0]?.previewId ?? "";
-  // Ownership without `gangway.managed`: enough to find and remove everything a preview
-  // created, deliberately not enough to look like a route. `managed=true` promises the
-  // reconciler a complete route record; a database sidecar has none, and would be
-  // stopped as a malformed orphan.
   const ownership = {
     [LABEL.instance]: i.ctx.instance,
     [LABEL.env]: i.ctx.env,
@@ -421,16 +342,11 @@ export function buildStack(i: StackInput): string {
     const mine = route
       ? buildLabels(labelsFromRoute({ ...route, createdAt: i.createdAt }, i.ctx))
       : ownership;
-    // Ours last: a compose file may set any label it likes, including `gangway.*` ones
-    // that claim to be someone else's preview. It does not get to keep them.
     const theirs = Object.fromEntries(
       Object.entries(asMap(svc["labels"])).filter(([k]) => !k.startsWith("gangway.")),
     );
     svc["labels"] = { ...theirs, ...mine };
 
-    // Every service's ports are replaced, not just the routed one's. A sidecar's
-    // `5432:5432` would otherwise bind the operator's host -- outside our pool, and on
-    // top of their real Postgres.
     if (route) {
       svc["ports"] = [
         {
@@ -451,7 +367,6 @@ export function buildStack(i: StackInput): string {
       ...literal(i.extraEnv),
       GANGWAY_PREVIEW_ID: previewId,
       ...urls,
-      // Vite and Next need their own external hostname to build absolute URLs.
       ...(self ? { PUBLIC_URL: publicOriginFor(self.hostname, i.origin) } : {}),
     };
     services[name] = svc;
@@ -461,10 +376,6 @@ export function buildStack(i: StackInput): string {
     const section = obj(doc[kind]);
     for (const [key, raw] of Object.entries(section)) {
       const r = obj(raw);
-      // `config` bakes in names derived from the placeholder project. Left in place,
-      // every preview would share one `gw-plan_default` network. Dropped, compose
-      // derives them again from the real `-p`. (Policy has already refused any name
-      // that was not derived, so there is nothing legitimate to lose.)
       if (r["name"] === `${i.planProject}_${key}`) delete r["name"];
       r["labels"] = { ...asMap(r["labels"]), ...ownership };
       section[key] = r;
@@ -472,19 +383,14 @@ export function buildStack(i: StackInput): string {
     if (Object.keys(section).length > 0) doc[kind] = section;
   }
 
-  // JSON is YAML. Compose reads it; nothing can be re-typed by a YAML emitter's quoting.
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
-
-/* ------------------------------------------------------------------ generated stacks */
 
 type Generated = {
   port: number;
   env?: Record<string, string> | undefined;
-  /** Stack-level `x-gangway` (ttl, visibility, idle, seed, release) from gangway.yml. */
   stack?: Record<string, string> | undefined;
   health?: string | null | undefined;
-  /** Add-on services, from `renderAddons`. The app waits for them to be healthy. */
   sidecars?: Pick<RenderedAddons, "services" | "volumes" | "dependsOn"> | undefined;
 };
 
@@ -512,12 +418,10 @@ const generated = (o: Generated, web: Record<string, unknown>): string =>
     2,
   )}\n`;
 
-/** A source with a Dockerfile and nothing else: build it, expose it. */
 export function composeForDockerfile(o: Generated): string {
   return generated(o, { build: { context: "." } });
 }
 
-/** An image deploy is a one-service stack: same pipeline, no special case downstream. */
 export function composeForImage(o: {
   image: string;
   port: number;
@@ -526,11 +430,6 @@ export function composeForImage(o: {
   return generated(o, { image: o.image });
 }
 
-/**
- * A runtime's stack: built from the generated `.gangway/Dockerfile` in the app's
- * root, secrets as the container's environment (never a `.env` in the build context), and
- * an init process, because `npm start` and friends make poor PID 1s.
- */
 export function composeForRuntime(o: Generated & { context?: string }): string {
   return generated(o, {
     build: { context: o.context ?? ".", dockerfile: ".gangway/Dockerfile" },

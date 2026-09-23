@@ -1,19 +1,8 @@
-/**
- * The App-manifest flow: gangway writes the manifest, the browser posts it to
- * GitHub, GitHub creates the App and sends the browser back with a one-time code, and
- * gangway turns the code into credentials. No secret is ever typed or copied by hand.
- *
- * `state` is the CSRF half: minted here, sent with the manifest, echoed back by GitHub on
- * the redirect, and accepted once within ten minutes. In memory: it is worth nothing
- * after a restart, which is exactly right.
- */
 import { randomBytes } from "node:crypto";
 
 const MANIFEST_STATE_TTL_MS = 10 * 60_000;
 
-/** What `pull_request` + `issue_comment` and the six REST calls need, and nothing more. */
-// `issues: read` is what the issue_comment event needs (GitHub refuses the manifest without
-// it, whatever the docs say); commenting on a PR is covered by pull_requests: write.
+// issues: read is required for issue_comment, whatever the docs say.
 const APP_PERMISSIONS = {
   contents: "read",
   metadata: "read",
@@ -66,7 +55,6 @@ export class ManifestStates {
     return state;
   }
 
-  /** True once per state, and only while it is fresh. */
   consume(state: string): boolean {
     this.#sweep();
     const exp = this.#issued.get(state);

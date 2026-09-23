@@ -7,7 +7,6 @@ const STEPS: [limit: number, div: number, unit: string][] = [
   [Infinity, 86_400, 'd'],
 ];
 
-/** "3 h ago" / "in 5 d". Pure over (value, now): pass `clock.now()` so it re-renders when time moves. */
 export function relativeTime(iso: string | null | undefined, now: number): string {
   if (!iso) return '';
   const t = Date.parse(iso);

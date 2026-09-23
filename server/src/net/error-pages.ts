@@ -1,8 +1,3 @@
-/**
- * State-aware pages. A preview visitor is untrusted, so these never leak a
- * stack trace -- and "building" must say so with a link to its logs, because a bare 502
- * during a two-minute build is the single most confusing thing this system can do.
- */
 import { escapeHtml } from "../util/html.ts";
 
 type PageOpts = {
@@ -39,8 +34,6 @@ a{color:inherit}
 <body><main>${o.body}</main></body></html>`;
   return new Response(html, {
     status: o.status,
-    // gangway's own pages are served on preview hostnames, unlisted ones included:
-    // "building", "failed" and "not found" are not things to index under somebody's URL.
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -49,7 +42,6 @@ a{color:inherit}
   });
 }
 
-/** 202, not 502: the stack is coming up and the browser should come back. */
 export function buildingPage(hostname: string, logUrl?: string): Response {
   return page({
     status: 202,
@@ -63,7 +55,6 @@ ${logUrl ? `<p><a href="${escapeHtml(logUrl)}">View the build log</a></p>` : ""}
   });
 }
 
-/** Waking from idle sleep. Same shape as building; the visitor need not care which. */
 export function wakingPage(hostname: string): Response {
   return page({
     status: 202,
@@ -138,7 +129,6 @@ export function payloadTooLargePage(): Response {
   });
 }
 
-/** 421: the Host header is not under our base domain, so we are not the right server. */
 export function misdirectedPage(): Response {
   return page({
     status: 421,

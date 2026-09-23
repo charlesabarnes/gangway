@@ -1,9 +1,3 @@
-/**
- * The `node:sqlite` twin of sqlite.ts, behind the same Db interface.
- *
- * The whole repository test suite runs against both drivers, so a Bun-specific assumption
- * fails a test rather than surfacing during a move off Bun.
- */
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import {
   applyPragmas,
@@ -14,7 +8,7 @@ import {
   type Params,
 } from "./types.ts";
 
-// node:sqlite takes no booleans; SQLite stores them as 0/1 either way.
+// node:sqlite takes no booleans.
 type SqlParams = Record<string, SQLInputValue>;
 
 class NodeDb implements Db {
@@ -31,8 +25,7 @@ class NodeDb implements Db {
 
   #prep(sql: string) {
     const s = this.#db.prepare(sql);
-    // node:sqlite wants `$name` keys by default; allow the bare names bun:sqlite uses
-    // so callers write one dialect.
+    // Accept the bare parameter names bun:sqlite uses.
     s.setAllowBareNamedParameters?.(true);
     return s;
   }
@@ -61,7 +54,7 @@ class NodeDb implements Db {
       try {
         this.#db.exec("ROLLBACK");
       } catch {
-        // Nothing to roll back: the failure ended the transaction already.
+        // Nothing to roll back: the failure already ended the transaction.
       }
       throw e;
     }

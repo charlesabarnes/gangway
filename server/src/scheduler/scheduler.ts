@@ -1,32 +1,11 @@
-/**
- * Named periodic jobs for the one process: reconcile, the TTL sweep, the lastSeen flush,
- * certificate renewal and the like.
- *
- * What it guarantees, each of which a bare `setInterval` does not:
- *
- *  1. A job never overlaps itself. The next run is scheduled when the previous one
- *     settles, so a pass that outlives its interval delays the next instead of stacking
- *     on it. `trigger()` joins a run in flight rather than starting a second.
- *  2. Jitter. Every delay is spread by +/- `jitter`, so jobs sharing an interval do not
- *     fire in the same tick forever, and two instances on one daemon do not scan in step.
- *  3. A throwing job is a log line, not an unhandled rejection and not the end of the job.
- *  4. Stop is graceful. No new runs; running jobs are told through their AbortSignal and
- *     waited for up to a deadline, so the database is never closed under a job's feet.
- *
- * Timers are unref'd: the scheduler never keeps the process alive on its own.
- */
 import type { Logger } from "../logger.ts";
 import { errorMessage } from "../errors.ts";
 
 export type Job = {
   name: string;
-  /** Time from the end of one run to the start of the next. <= 0 registers the job disabled. */
   intervalMs: number;
-  /** Fraction of the interval, 0..1. Default 0.1: a 60s job runs every 54-66s. */
   jitter?: number;
-  /** Delay before the first run. Default: one (jittered) interval. */
   initialDelayMs?: number;
-  /** May return a promise; the scheduler awaits it. */
   run(signal: AbortSignal): unknown;
 };
 
@@ -47,7 +26,6 @@ export type SchedulerOptions = {
   logger: Logger;
   now?: () => number;
   random?: () => number;
-  /** Tests drive time by hand through this. */
   setTimer?: (fn: () => void, ms: number) => TimerHandle;
 };
 
@@ -86,7 +64,6 @@ export class Scheduler {
     this.#setTimer = o.setTimer ?? realTimer;
   }
 
-  /** Registering after `start()` schedules the job at once; after `stop()` it is an error. */
   register(job: Job): void {
     if (this.#stopping) throw new Error(`scheduler is stopped; cannot register ${job.name}`);
     if (this.#jobs.has(job.name)) throw new Error(`duplicate job name: ${job.name}`);
@@ -115,11 +92,6 @@ export class Scheduler {
     for (const e of this.#jobs.values()) this.#arm(e, true);
   }
 
-  /**
-   * Runs a job now, outside its schedule -- or joins the run already in flight. Works
-   * for disabled jobs too: "interval 0" means "not periodically", not "never".
-   * Rejects if the job does; the periodic path logs instead.
-   */
   trigger(name: string): Promise<void> {
     const e = this.#jobs.get(name);
     if (!e) return Promise.reject(new Error(`no such job: ${name}`));
@@ -131,10 +103,6 @@ export class Scheduler {
     return [...this.#jobs.values()].map((e) => ({ ...e.status }));
   }
 
-  /**
-   * Idempotent. Resolves when every running job has settled, or after `timeoutMs` --
-   * whichever is first; jobs still running at the deadline are named in a warning.
-   */
   stop(timeoutMs = 10_000): Promise<void> {
     if (this.#stopping) return this.#stopping;
     for (const e of this.#jobs.values()) {
@@ -170,7 +138,6 @@ export class Scheduler {
         : jittered(e.job.intervalMs, e.job.jitter ?? 0.1, this.#random);
     e.timer = this.#setTimer(() => {
       e.timer = null;
-      // Re-armed from the end of the run, whoever started it: that is rule 1.
       this.#run(e)
         .catch(() => {})
         .finally(() => this.#arm(e, false));
@@ -185,15 +152,13 @@ export class Scheduler {
     s.lastStartedAt = started;
     e.current = (async () => {
       try {
-        // Yield first, so `current` is assigned before a synchronous job can finish:
-        // otherwise the `finally` below clears it and the assignment then resurrects it.
+        // Yield first, so current is assigned before a synchronous job can finish and clear it.
         await Promise.resolve();
         await e.job.run(this.#abort.signal);
         s.lastError = null;
       } catch (err) {
         s.failures++;
         s.lastError = errorMessage(err);
-        // An abort during stop() is the job doing what it was told.
         if (!this.#abort.signal.aborted)
           this.#o.logger.error("scheduled job failed", { job: e.job.name, err });
         throw err;

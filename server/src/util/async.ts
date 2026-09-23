@@ -1,10 +1,3 @@
-/** Singleflight, backoff and deadlines. Used by wake, reconcile, cert renewal and ACME. */
-
-/**
- * Collapses concurrent calls for the same key onto one in-flight promise.
- * Wake-on-request needs this: sixty browser tabs hitting an asleep preview must start
- * the stack once, not sixty times.
- */
 export class SingleFlight<T> {
   #inflight = new Map<string, Promise<T>>();
 
@@ -30,7 +23,6 @@ export type BackoffOptions = {
   attempts?: number;
   baseMs?: number;
   maxMs?: number;
-  /** Full jitter by default; deterministic in tests by injecting `random`. */
   random?: () => number;
   signal?: AbortSignal;
   onRetry?: (attempt: number, delayMs: number, err: unknown) => void;
@@ -66,10 +58,6 @@ export async function retry<T>(
   throw lastErr;
 }
 
-/**
- * Waits for `idle()` to hold, or for the deadline. Returns whether it drained. The
- * shutdown primitive: "let the work finish, but not forever".
- */
 export async function drain(
   idle: () => boolean,
   o: { timeoutMs: number; intervalMs?: number },
@@ -83,7 +71,6 @@ export async function drain(
   }
 }
 
-/** Polls until `fn` returns a non-null value, or the deadline passes. */
 export async function waitFor<T>(
   fn: () => Promise<T | null | undefined>,
   o: { timeoutMs: number; intervalMs?: number; signal?: AbortSignal },

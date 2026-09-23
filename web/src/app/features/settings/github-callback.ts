@@ -7,11 +7,6 @@ import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { ToastService } from '../../ui/toast';
 
-/**
- * Where GitHub sends the browser back after creating the App: `?code=…&state=…`. The code
- * is exchanged once, here, and the page moves on. Reloading this URL cannot repeat it --
- * the state was consumed -- which is the point.
- */
 @Component({
   selector: 'app-github-callback',
   imports: [Btn, RouterLink],

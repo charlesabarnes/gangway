@@ -1,10 +1,6 @@
 import { Routes } from '@angular/router';
 import { anonymousOnly, authGuard, setupOnly } from './core/auth.guard';
 
-/**
- * Every screen is a lazy chunk: the login page should not download the log viewer. Keep the
- * number of screens small; a dashboard is how a tool like this sprawls.
- */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'previews' },
   {
@@ -68,8 +64,6 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
   },
-  // GitHub's manifest flow sends the browser back here with ?code=&state=. The
-  // path is registered with GitHub: it stays, whatever the page it lands on is called.
   {
     path: 'github/callback',
     title: 'GitHub · gangway',
@@ -78,14 +72,11 @@ export const routes: Routes = [
       import('./features/settings/github-callback').then((m) => m.GitHubCallback),
   },
   { path: 'github', redirectTo: 'settings' },
-  // /oauth/authorize parks an MCP client's request and sends the browser here.
   {
     path: 'connect',
     title: 'Connect an app · gangway',
     canActivate: [authGuard],
     loadComponent: () => import('./features/connect/connect').then((m) => m.Connect),
   },
-  // The server answers every unknown path on the `app` surface with index.html (SPA
-  // fallback), so an unknown path is the router's to handle, not a 404 page's.
   { path: '**', redirectTo: '' },
 ];

@@ -1,7 +1,6 @@
 import type { SettingsStore } from "../../settings.ts";
 import type { Db } from "../types.ts";
 
-/** The database layer of the settings precedence rule. Config overrides sit above this. */
 export class SqliteSettingsStore implements SettingsStore {
   readonly #db: Db;
   readonly #now: () => number;
@@ -40,7 +39,7 @@ export class SqliteSettingsStore implements SettingsStore {
       try {
         out[r.key] = JSON.parse(r.value_json);
       } catch {
-        /* skip a corrupt row */
+        // skip a corrupt row
       }
     }
     return out;

@@ -1,13 +1,3 @@
-/**
- * The role -> permission matrix, in memory. Every request resolves an actor's permissions,
- * so that must be a Map lookup and not a query -- the same bargain the RouteTable makes:
- * SQLite is the truth, this is a write-through cache, and a write goes to both or neither.
- *
- * `admin` is answered from code, never from the table. No edit to the matrix -- through
- * the API, or by hand in SQLite -- can take a permission away from it, and a new permission
- * belongs to it the moment the code knows about it. That is the whole lockout guarantee,
- * so it lives in one `if`.
- */
 import type { Role } from "@gangway/shared/domain";
 import {
   ADMIN_ROLE_ID,
@@ -39,8 +29,8 @@ export class RolePermissions {
     this.#matrix = new Map([...this.#repo.grants()].map(([role, ps]) => [role, new Set(ps)]));
   }
 
-  /** An unknown role holds nothing: a user whose role vanished can do nothing, not everything. */
   for(roleId: string): ReadonlySet<Permission> {
+    // Admin is answered from code so no edit to the table can lock everyone out.
     if (roleId === ADMIN_ROLE_ID) return EVERYTHING;
     return this.#matrix.get(roleId) ?? NOTHING;
   }
@@ -53,11 +43,6 @@ export class RolePermissions {
     }));
   }
 
-  /**
-   * Replace what a role grants. Takes effect on the next request of everyone in the role,
-   * and of every token they own: nothing about authority is cached in a session. The whole
-   * before-and-after goes to the audit log.
-   */
   set(
     roleId: string,
     permissions: readonly Permission[],

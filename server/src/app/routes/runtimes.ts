@@ -1,8 +1,3 @@
-/**
- * The runtime catalogue, for the New preview screen, and the plan -- what the server would
- * do with a set of files, asked before they are uploaded -- so the screen shows the
- * server's own answer, never a guess of its own.
- */
 import type { Hono } from "hono";
 import { planApp, PLAN_FILES } from "@gangway/shared/app-plan";
 import { PlanRequestSchema } from "@gangway/shared/api";
@@ -29,7 +24,6 @@ export function runtimeRoutes(api: Hono<AppEnv>): void {
     ),
     detection: DETECTION,
     planFiles: PLAN_FILES,
-    // Add-ons: what can sit beside an app. Images are shown; hints stay server-side.
     addons: ADDONS.map(({ id, name, description, versions, defaultVersion, env }) => ({
       id,
       name,
@@ -49,10 +43,6 @@ export function runtimeRoutes(api: Hono<AppEnv>): void {
   });
 }
 
-/**
- * Public: gangway.yml's JSON Schema, for editors (`# yaml-language-server: $schema=<url>`).
- * It says nothing about this installation.
- */
 export function schemaRoutes(pub: Hono<AppEnv>): void {
   const schema = gangwayJsonSchema();
   pub.get("/schema/gangway.yml", (c) =>

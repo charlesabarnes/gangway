@@ -1,8 +1,4 @@
-/**
- * The GitHub Actions workflow a project's repository runs, filled in for that
- * project. Kept as a YAML file beside this one: `${{ }}` is GitHub's syntax, and a JS
- * template literal would try to evaluate it.
- */
+// A separate YAML file because ${{ }} would clash with a template literal.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Project } from "@gangway/shared/domain";

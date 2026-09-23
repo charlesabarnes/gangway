@@ -7,10 +7,6 @@ import { ALERT, AuthCard, FIELD, LABEL } from './auth-card';
 
 const MIN_PASSWORD = 12;
 
-/**
- * First run. Reached from the one-time URL the server printed to its output; the
- * `token` in it is what proves you can read that output. There are no default credentials.
- */
 @Component({
   selector: 'app-setup',
   imports: [AuthCard, Btn],

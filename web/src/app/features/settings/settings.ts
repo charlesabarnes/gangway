@@ -29,11 +29,6 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
   manual: { name: 'Deploy screen', help: 'a person, logged in' },
 };
 
-/**
- * Settings: the UI and MCP surfaces, the GitHub App connection, which template each
- * trigger deploys with, and the secrets every preview may receive. Each section is gated
- * on its own permission; the page is reachable with any of them.
- */
 @Component({
   selector: 'app-settings',
   imports: [Btn, ConfirmDialog, RouterLink, SecretsEditor],
@@ -440,7 +435,6 @@ export class SettingsPage {
   protected readonly globalLoaded = signal(false);
   protected readonly busy = signal(false);
   protected readonly saving = signal<Trigger | 'surfaces' | 'password' | null>(null);
-  /** Preview passwords: the saved default, what the form shows, whether a shared password exists. */
   protected readonly pwMode = signal<DefaultPasswordMode>('off');
   protected readonly pwDraft = signal<DefaultPasswordMode>('off');
   protected readonly pwSet = signal(false);
@@ -451,8 +445,6 @@ export class SettingsPage {
   protected readonly error = signal<string | null>(null);
 
   constructor() {
-    // Each section is gated on a permission that arrives with the session, possibly after
-    // this page did; an effect asks once it is there (and again if it is granted later).
     effect(() => {
       if (this.canSurfaces()) untracked(() => void this.#loadSurfaces());
     });
@@ -505,7 +497,6 @@ export class SettingsPage {
     );
   }
 
-  /** After this the UI is gone: the next request from this page is a 404. Say so and stay put. */
   protected disableUi(): Promise<boolean> {
     return this.#putSurfaces(
       { ui: false, confirm: DISABLE_UI_PHRASE },
@@ -617,11 +608,6 @@ export class SettingsPage {
     }
   }
 
-  /**
-   * The manifest flow's first step: GitHub only accepts the manifest as a form post from the
-   * browser, so a form is made and submitted. The page leaves for github.com and comes back
-   * at /github/callback with a code.
-   */
   protected async connect(): Promise<void> {
     if (this.busy()) return;
     this.busy.set(true);
@@ -635,7 +621,6 @@ export class SettingsPage {
     }
   }
 
-  /** Split out so a spec can replace it: a real submit navigates the test browser away. */
   protected submitManifest(start: ManifestStart): void {
     const form = document.createElement('form');
     form.method = 'post';

@@ -38,7 +38,6 @@ const toGrant = (r: GrantRow): OAuthGrant => ({
   revokedAt: r.revoked_at === null ? null : new Date(r.revoked_at),
 });
 
-/** What the token endpoint and the verifier need beyond the wire shape. */
 export type GrantRecord = {
   grant: OAuthGrant;
   resource: string;
@@ -89,7 +88,6 @@ const toRecord = (r: Joined): GrantRecord => {
   };
 };
 
-/** OAuth grants. Tokens are stored as sha256 hashes and never selected into a domain object. */
 export class OAuthGrantsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -128,7 +126,6 @@ export class OAuthGrantsRepo {
     return r ? toGrant(r) : undefined;
   }
 
-  /** The verifier's one read: a live access token of a live grant whose owner is enabled. */
   findByAccess(hash: string, now: number = this.#now()): GrantRecord | undefined {
     const r = this.#db.get<Joined>(
       `${JOIN} WHERE g.access_hash = $hash AND g.revoked_at IS NULL AND g.access_expires_at > $now AND u.disabled = 0`,
@@ -137,7 +134,6 @@ export class OAuthGrantsRepo {
     return r ? toRecord(r) : undefined;
   }
 
-  /** The refresh grant's read. The caller judges expiry and the owner, and says why it refuses. */
   findByRefresh(hash: string): GrantRecord | undefined {
     const r = this.#db.get<Joined>(
       `${JOIN} WHERE g.refresh_hash = $hash AND g.revoked_at IS NULL`,
@@ -146,7 +142,6 @@ export class OAuthGrantsRepo {
     return r ? toRecord(r) : undefined;
   }
 
-  /** A refresh token that was already rotated away, and when that rotation happened. */
   findByPreviousRefresh(hash: string): { grant: OAuthGrant; rotatedAt: number | null } | undefined {
     const r = this.#db.get<GrantRow & { rotated_at: number | null }>(
       `SELECT ${COLUMNS}, rotated_at FROM oauth_grants WHERE prev_refresh_hash = $hash`,
@@ -155,10 +150,7 @@ export class OAuthGrantsRepo {
     return r ? { grant: toGrant(r), rotatedAt: r.rotated_at } : undefined;
   }
 
-  /**
-   * Rotation, conditional on the refresh token still being the current one: of two
-   * concurrent refreshes with one token, exactly one wins.
-   */
+  // Conditional on the current refresh token, so exactly one of two concurrent refreshes wins.
   rotate(
     id: string,
     from: string,
@@ -227,7 +219,6 @@ export class OAuthGrantsRepo {
     ).changes;
   }
 
-  /** Housekeeping: grants past their absolute end, or revoked, a while ago. */
   purge(before: number): number {
     return this.#db.run(
       "DELETE FROM oauth_grants WHERE absolute_expires_at < $b OR (revoked_at IS NOT NULL AND revoked_at < $b)",

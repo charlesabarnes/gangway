@@ -18,7 +18,6 @@ export class ToastService {
     this.#push({ kind: 'info', title, ...(detail ? { detail } : {}) }, 4_000);
   }
 
-  /** Errors stay until dismissed: the request id on them is what to quote when asking why. */
   problem(what: string, p: ProblemError): void {
     this.#push(
       {

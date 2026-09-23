@@ -1,14 +1,3 @@
-/**
- * The OAuth 2.1 authorization server for MCP clients. Authorization code + PKCE (S256 only),
- * public clients named by Client ID Metadata Documents, refresh tokens rotated on every use,
- * and access tokens good on one resource only: the MCP surface.
- *
- * A grant follows the same rules as an API token: its scopes are bundles, what it may do is
- * those bundles intersected with the owner's role on every request, and a scope is offered at
- * consent only if the role covers its whole bundle. Only a logged-in person can consent.
- *
- * Nothing here knows HTTP; `app/routes/oauth.ts` and the MCP surface adapt it.
- */
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { OAuthGrant } from "@gangway/shared/domain";
 import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
@@ -25,20 +14,14 @@ import {
 } from "./client-metadata.ts";
 import { sha256 } from "../util/hash.ts";
 
-/** What OAuth may grant. Never `admin`: an agent should not hold the keys to the server. */
 const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
 export type OAuthScope = (typeof OAUTH_SCOPES)[number];
-/**
- * Scopes for a request that names none. Not `update`: `deploy` already rebuilds your own.
- * All three are advertised, so a client that asks for every `scopes_supported` gets `update`
- * offered on its first consent, where the page pre-ticks what the role covers.
- */
 const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
 
 export const ACCESS_TTL_MS = 3_600_000;
 export const REFRESH_IDLE_MS = 30 * 86_400_000;
 const GRANT_ABSOLUTE_MS = 90 * 86_400_000;
-/** A rotated-away refresh token back this soon is the client racing itself: refuse, not revoke. */
+// A rotated-away refresh token back within this window is the client racing itself: refuse it but keep the grant.
 export const REFRESH_REUSE_GRACE_MS = 60_000;
 const PENDING_TTL_MS = 10 * 60_000;
 const CODE_TTL_MS = 60_000;
@@ -50,7 +33,6 @@ const REFRESH_SHAPE = /^gwr_[A-Za-z0-9_-]{43}$/;
 const secret = (prefix: string) => `${prefix}_${randomBytes(32).toString("base64url")}`;
 const pkce = (verifier: string) => sha256(verifier, "base64url");
 
-/** RFC 6749 error codes (sections 5.2 and 4.1.2.1), plus RFC 8707's `invalid_target`. */
 export type OAuthErrorCode =
   | "invalid_request"
   | "invalid_client"
@@ -73,13 +55,9 @@ export class OAuthError extends Error {
   }
 }
 
-/** The outcome of `GET /oauth/authorize`. */
 export type AuthorizeOutcome =
-  /** The client or its redirect could not be trusted: say so, redirect nowhere. */
   | { kind: "page"; error: string }
-  /** Anything later: back to the client with an error. */
   | { kind: "redirect"; url: string }
-  /** Valid: ask the user. */
   | { kind: "consent"; requestId: string };
 
 type Pending = {
@@ -104,11 +82,9 @@ type Code = {
   expiresAt: number;
   used: boolean;
   grantId?: string;
-  /** Who consented: the audit row for the grant names them. */
   actor: Actor;
 };
 
-/** What the consent page shows. */
 export type ConsentView = {
   id: string;
   client: { id: string; name: string; host: string };
@@ -116,7 +92,6 @@ export type ConsentView = {
   redirectHost: string;
   resource: string;
   requested: OAuthScope[];
-  /** The requested scopes this user's role fully covers: the only ones they can grant. */
   grantable: OAuthScope[];
   scopePermissions: Record<OAuthScope, readonly Permission[]>;
   expiresAt: Date;
@@ -135,9 +110,7 @@ export type OAuthServerDeps = {
   clients: Pick<ClientMetadataStore, "get">;
   roles: RolePermissions;
   audit: AuditSink;
-  /** `https://app.<base>`: what `iss` and the metadata say. */
   issuer: () => string;
-  /** `https://mcp.<base>`: the one resource a token is good for. */
   resource: () => string;
   now?: () => number;
 };
@@ -155,7 +128,6 @@ export class OAuthServer {
     this.#now = d.now ?? Date.now;
   }
 
-  /** RFC 8414 metadata, served at `/.well-known/oauth-authorization-server` on the issuer. */
   metadata() {
     const iss = this.#d.issuer();
     return {
@@ -173,7 +145,6 @@ export class OAuthServer {
     };
   }
 
-  /** RFC 9728 metadata, served on the MCP surface. */
   resourceMetadata() {
     return {
       resource: this.#d.resource(),
@@ -197,7 +168,6 @@ export class OAuthServer {
     return u.href;
   }
 
-  /** `GET /oauth/authorize`. Until the redirect is trusted, redirect nowhere (RFC 6749 4.1.2.1). */
   async authorize(q: URLSearchParams): Promise<AuthorizeOutcome> {
     this.#sweep();
     const one = (k: string) => {
@@ -277,7 +247,6 @@ export class OAuthServer {
   }
 
   #person(actor: Actor): Extract<Actor, { kind: "user" }> {
-    // Consent is a person at a browser. A token -- even the env admin token -- cannot.
     if (actor.kind !== "user") throw forbidden("only a person, logged in, can connect an agent");
     return actor;
   }
@@ -316,7 +285,6 @@ export class OAuthServer {
     };
   }
 
-  /** Approve or deny. Either way the request is spent; the answer is where to send the browser. */
   decide(
     actor: Actor,
     id: string,
@@ -361,7 +329,6 @@ export class OAuthServer {
     return { redirect: this.#redirect(p.redirectUri, { code, state: p.state }) };
   }
 
-  /** `POST /oauth/token`, form-encoded. Throws OAuthError, which the route renders per RFC 6749. */
   token(form: URLSearchParams): TokenResponse {
     this.#sweep();
     const grantType = form.get("grant_type");
@@ -389,7 +356,7 @@ export class OAuthServer {
     if (!c || c.expiresAt <= this.#now())
       throw new OAuthError("invalid_grant", "the authorization code is unknown or expired");
     if (c.used) {
-      // A code used twice means someone else has it: revoke what it made (RFC 6749 4.1.2).
+      // A code used twice means someone else has it, so revoke what it made.
       if (c.grantId && this.#d.grants.revoke(c.grantId))
         this.#d.audit.record(null, "oauth.grant.revoked", c.grantId, {
           new: { reason: "authorization code replayed" },
@@ -457,8 +424,6 @@ export class OAuthServer {
     const rec = this.#d.grants.findByRefresh(hash);
     if (!rec) {
       const replayed = this.#d.grants.findByPreviousRefresh(hash);
-      // Within the grace window it is two refreshes in flight with one token (or a retry after
-      // a lost answer): the loser is refused and the winner's tokens stand.
       const racing =
         replayed?.rotatedAt != null && this.#now() - replayed.rotatedAt < REFRESH_REUSE_GRACE_MS;
       if (
@@ -467,8 +432,6 @@ export class OAuthServer {
         replayed.grant.revokedAt === null &&
         this.#d.grants.revoke(replayed.grant.id)
       ) {
-        // A rotated-away refresh token came back. One of the two holders is not the client and
-        // there is no telling which, so neither keeps the grant (OAuth 2.1 4.3.1).
         this.#d.audit.record(null, "oauth.grant.revoked", replayed.grant.id, {
           new: { reason: "refresh token replayed", client: replayed.grant.clientId },
         });
@@ -486,7 +449,6 @@ export class OAuthServer {
       throw new OAuthError("invalid_grant", "the grant has expired; connect again");
     if (rec.owner.disabled)
       throw new OAuthError("invalid_grant", "the account behind this grant is disabled");
-    // Fewer scopes than the grant is allowed (RFC 6749 section 6); more never is.
     const asked = (form.get("scope") ?? "")
       .split(" ")
       .filter((s) => s !== "" && s !== "offline_access");
@@ -514,10 +476,6 @@ export class OAuthServer {
     };
   }
 
-  /**
-   * For the MCP surface's verifier chain only. An access token is good for one resource;
-   * `/v1` never sees this verifier, so a token minted for MCP opens nothing else.
-   */
   readonly verify: TokenVerifier = (presented) => {
     if (!ACCESS_SHAPE.test(presented)) return null;
     const now = this.#now();
@@ -537,7 +495,6 @@ export class OAuthServer {
     };
   };
 
-  /** Your own grants; with `all` and `tokens.manage_all`, everyone's. */
   list(actor: Actor, o: { all?: boolean } = {}): OAuthGrant[] {
     if (o.all) {
       if (!can(actor, "tokens.manage_all"))
@@ -547,7 +504,6 @@ export class OAuthServer {
     return actor.kind === "user" ? this.#d.grants.listForUser(actor.userId) : [];
   }
 
-  /** Someone else's grant is a 404, as with tokens. */
   revoke(actor: Actor, id: string): OAuthGrant {
     const g = this.#d.grants.get(id);
     const mine = g !== undefined && actor.kind === "user" && g.userId === actor.userId;
@@ -560,13 +516,11 @@ export class OAuthServer {
     return this.#d.grants.get(id)!;
   }
 
-  /** A password reset or a disable ends every agent connection too, as it ends every session. */
   revokeAllFor(userId: string): void {
     this.#d.grants.revokeAllFor(userId);
   }
 }
 
-/** An OAuth actor's tokenId is `oauth:<grantId>`, in the audit log and the MCP step-up. */
 const OAUTH_TOKEN_PREFIX = "oauth:";
 export const isOAuthActor = (a: Actor): a is Extract<Actor, { kind: "token" }> =>
   a.kind === "token" && a.tokenId.startsWith(OAUTH_TOKEN_PREFIX);

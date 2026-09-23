@@ -1,25 +1,4 @@
-/**
- * tls/acme.ts against a real ACME server: Pebble (Let's Encrypt's test CA) plus its
- * challenge DNS server, both on a Docker host reachable over SSH as $DOCKER_HOST_SSH. The
- * unit test covers the sequencing against a fake; this covers the protocol -- nonces, JWS,
- * order finalization, a real chain -- and then the part no unit test can: gangway boots on
- * the dev CA, the `cert-renew` job obtains the certificate, and the listener starts
- * presenting it without a restart.
- *
- *   ssh $DOCKER_HOST_SSH 'docker run --rm -d --name gw-acme-challtestsrv \
- *       -p 127.0.0.1:31900:14000 -p 127.0.0.1:31901:8055 ghcr.io/letsencrypt/pebble-challtestsrv:latest \
- *       -http01 "" -https01 "" -tlsalpn01 "" -doh "" -dnsserver ":8053" -management ":8055"'
- *   ssh $DOCKER_HOST_SSH 'docker run --rm -d --name gw-acme-pebble --network container:gw-acme-challtestsrv \
- *       -e PEBBLE_VA_NOSLEEP=1 ghcr.io/letsencrypt/pebble:latest \
- *       -config test/config/pebble-config.json -dnsserver 127.0.0.1:8053 -strict'
- *   ssh -N -L 31900:127.0.0.1:31900 -L 31901:127.0.0.1:31901 $DOCKER_HOST_SSH &
- *   NODE_TLS_REJECT_UNAUTHORIZED=0 bun scripts/acme-pebble-check.ts
- *   ssh $DOCKER_HOST_SSH 'docker stop gw-acme-pebble gw-acme-challtestsrv'
- *
- * Pebble's own API certificate comes from a throwaway CA, hence NODE_TLS_REJECT_UNAUTHORIZED
- * -- for this script only. Pebble deliberately rejects ~5% of nonces, so a pass here also
- * exercises the badNonce retry path.
- */
+// How to run this: scripts/README.md
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -52,7 +31,6 @@ const dns: DnsProvider = {
   },
 };
 
-/** What the listener presents right now for this SNI name. */
 const presented = (port: number, servername: string) =>
   new Promise<{ issuer: string; sans: string }>((resolve, reject) => {
     const s = tlsConnect({ host: "127.0.0.1", port, servername, rejectUnauthorized: false }, () => {
@@ -95,7 +73,6 @@ const start = async () => {
   return boot(config, {
     acme: { dns },
     logger: new Logger("info", {}, (l) => lines.push(l)),
-    // No Docker in this check, and above all not whatever socket this machine has.
     clients: {
       for: () => ({
         hostId: "local",
@@ -119,7 +96,7 @@ try {
     first.issuer,
   );
 
-  await running.scheduler.trigger("cert-renew"); // joins the run boot already started
+  await running.scheduler.trigger("cert-renew");
   const swapped = await presented(port, `hello.${BASE}`);
   check(
     "the listener presents the ACME certificate WITHOUT a restart",

@@ -14,7 +14,6 @@ export type CreateProject = {
   id: string;
   name: string;
   slug: string;
-  /** Both or neither: a project with no repository takes images and tarballs only. */
   forge?: ForgeId | null | undefined;
   fullName?: string | null | undefined;
   installationId?: string | undefined;
@@ -24,7 +23,6 @@ export type CreateProject = {
   templateId?: string | null | undefined;
 };
 
-/** Absent and undefined both mean "leave it": zod's optional output is passed straight through. */
 export type ProjectPatch = {
   name?: string | undefined;
   slug?: string | undefined;
@@ -57,7 +55,6 @@ const COLUMNS: Record<keyof ProjectPatch, string> = {
   forkClearance: "fork_clearance",
 };
 
-/** Projects: the things you preview, and how their previews are shaped. */
 export class ProjectsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -94,14 +91,12 @@ export class ProjectsRepo {
     return r ? rowToProject(r) : undefined;
   }
 
-  /** By id, else by slug: a workflow names its project by slug, the UI by id. */
   find(ref: string): Project | undefined {
     return this.get(ref) ?? this.getBySlug(ref);
   }
 
   getByFullName(forge: ForgeId, fullName: string): RepoProject | undefined {
-    // NOCASE: GitHub treats `Owner/Repo` and `owner/repo` as one repository, and the OIDC
-    // claim, the webhook and a person typing it need not agree on case.
+    // NOCASE because GitHub repository names are case-insensitive.
     const r = this.#db.get<ProjectRow>(
       "SELECT * FROM projects WHERE forge = $forge AND full_name = $fullName COLLATE NOCASE",
       { forge, fullName },
@@ -120,7 +115,6 @@ export class ProjectsRepo {
       .map(rowToProject);
   }
 
-  /** A partial update; only the keys present are written. Returns the row afterwards. */
   update(id: string, patch: ProjectPatch): Project | undefined {
     const sets: string[] = [];
     const params: Params = { id, now: this.#now() };
@@ -137,7 +131,6 @@ export class ProjectsRepo {
     return this.get(id);
   }
 
-  /** The repository is set once, when the project is made, or changed deliberately here. */
   setRepository(id: string, forge: ForgeId | null, fullName: string | null): Project | undefined {
     this.#db.run(
       "UPDATE projects SET forge = $forge, full_name = $fullName, updated_at = $now WHERE id = $id",
@@ -146,7 +139,6 @@ export class ProjectsRepo {
     return this.get(id);
   }
 
-  /** The sealed secrets map; the repo never sees plaintext. */
   envCiphertext(id: string): string | null {
     return (
       this.#db.get<{ env_ciphertext: string | null }>(
@@ -164,7 +156,6 @@ export class ProjectsRepo {
     });
   }
 
-  /** Its previews keep running, unowned (ON DELETE SET NULL). */
   delete(id: string): boolean {
     return this.#db.run("DELETE FROM projects WHERE id = $id", { id }).changes > 0;
   }

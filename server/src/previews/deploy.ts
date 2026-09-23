@@ -1,20 +1,3 @@
-/**
- * The deploy pipeline. This is the one code path that can create a preview, and there is
- * not an HTTP type in it.
- *
- * Two halves, split where the answer to "what is my URL?" becomes known:
- *
- *   plan   (awaited by the caller)  source -> `compose config` -> policy -> hostnames
- *                                   and ports -> preview row + route rows
- *   run    (background)             stack file -> build -> up -> healthy -> answering
- *
- * A failure while planning leaves nothing behind -- no row, no route, no container --
- * and surfaces as a 4xx to the caller. A failure while running leaves a `failed` preview
- * whose URL serves the log tail, because by then someone may be watching it.
- *
- * The route rows are written before containers start, never after: at the end of `plan`,
- * while `compose up` is in `run`. That ordering is structural.
- */
 import { randomBytes } from "node:crypto";
 import { cp, lstat, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -84,15 +67,7 @@ import { entryPassword, logGenerated, resolvePassword } from "./password.ts";
 
 export type DeploySource =
   | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined }
-  /**
-   * Cloned by the server itself. `port` is only for a repo with a Dockerfile and no compose
-   * file.
-   */
   | { kind: "git"; repo: string; ref: string; port?: number | undefined }
-  /**
-   * A pull request's head. `credential` is presented to git and forgotten: it is
-   * not on the recorded source, not in a label, not in the log.
-   */
   | {
       kind: "pr";
       repo: string;
@@ -102,10 +77,6 @@ export type DeploySource =
       credential: string | undefined;
       port?: number | undefined;
     }
-  /**
-   * A tar or tar.gz of the project. `runtime` builds it with a runtime, `auto`
-   * detects one; absent or `own`, the upload brings its compose file (or Dockerfile).
-   */
   | {
       kind: "tarball";
       archive: TarballSource;
@@ -114,11 +85,6 @@ export type DeploySource =
       runtime?: RuntimeChoice | undefined;
       addons?: readonly AddonRequest[] | undefined;
     }
-  /**
-   * An image a workflow built and pushed for one commit of a pull request.
-   * `registry` logs in for this pull only: written to a DOCKER_CONFIG in the work
-   * directory for `up`, deleted after it, never recorded, never logged.
-   */
   | {
       kind: "pushed";
       image: string;
@@ -132,28 +98,15 @@ export type RegistryLogin = { server: string; username: string; password: string
 export type DeployInput = {
   actor: Actor;
   source: DeploySource;
-  /**
-   * Written to `<checkout>/.env` before compose reads anything. Given -- even
-   * empty -- it is final; absent, the context may supply a repository's secrets by source.
-   */
   env?: Record<string, string> | undefined;
-  /**
-   * The clearance to deploy with. Recorded on the row; the context's lookup filters by it.
-   */
   secretLevel?: Clearance | undefined;
-  /** The hostname stem. Defaults to something derived from the source. */
   name?: string | undefined;
   visibility?: Visibility | undefined;
-  /** A duration (`12h`, `7d`), or null for no expiry. */
   ttl?: string | null | undefined;
   hostId?: string | undefined;
-  /** A template by id. Omitted: the project's, else the trigger's default. */
   template?: string | undefined;
-  /** The project it belongs to. Omitted: found from the source's repository, if any. */
   projectId?: string | undefined;
-  /** The preview password. Omitted: inherit the server-wide default. */
   password?: PasswordChoice | undefined;
-  /** Whether a gangway login gets past the password. Omitted: inherit. */
   passwordLogin?: PasswordLogin | undefined;
 };
 
@@ -162,35 +115,25 @@ export type PreviewUrl = { service: string; url: string; primary: boolean };
 export type DeployResult = {
   preview: Preview;
   urls: PreviewUrl[];
-  /** Settles when the pipeline does. Resolves with the final preview -- awake or failed. */
   done: Promise<Preview>;
-  /**
-   * An upload's plan: what was found and what runs, for an agent to read back. Absent
-   * otherwise.
-   */
   plan?: AppPlan | undefined;
 };
 
-/** A placeholder `-p` for the config passes, which run before the real name is known. */
 export const PLAN_PROJECT = "gw-plan";
 const COMPOSE_FILE = "compose.yaml";
-/** What we actually `up`: compose's canonical output with our changes applied. */
 export const STACK_FILE = "gangway.stack.yaml";
 
-/** An unguessable hostname suffix: 50 bits, lowercase base32 without lookalikes. */
 function unguessable(): string {
   const alphabet = "abcdefghjkmnpqrstvwxyz0123456789";
   return Array.from(randomBytes(10), (b) => alphabet[b % 32]).join("");
 }
 
 function defaultName(source: DeploySource, runtime: RuntimeId | null): string {
-  // A runtime preview is made on a whim, several at a time: its default must not collide.
   if (source.kind === "tarball")
     return runtime ? `${runtime}-${unguessable().slice(0, 4)}` : "preview";
   if (source.kind === "pr") return `${source.repo.split("/").pop() ?? "repo"}-pr-${source.number}`;
   if (source.kind === "pushed")
     return `${source.pr.repo.split("/").pop() ?? "repo"}-pr-${source.pr.number}`;
-  // "ghcr.io/acme/web-app:1.2" -> "web-app";  "https://github.com/acme/web-app.git" -> "web-app"
   const from =
     source.kind === "git" ? source.repo.replace(/\/+$/, "").replace(/\.git$/, "") : source.image;
   const last = from.split("/").pop() ?? from;
@@ -211,23 +154,15 @@ export function urlsFor(
     .sort((a, b) => Number(b.primary) - Number(a.primary) || a.service.localeCompare(b.service));
 }
 
-/* ------------------------------------------------------------------ plan */
-
 type Materialized = {
   source: PreviewSource;
   composeFile: string;
   dockerConfig?: string;
-  /** An upload as it arrived, to keep once the preview exists. */
   pristine?: string | null;
   runtime?: RuntimeId | null;
   plan?: AppPlan;
 };
 
-/**
- * A DOCKER_CONFIG holding one registry login, for one `up`. The CLI looks for plugins
- * under DOCKER_CONFIG too, so the caller's `cli-plugins` is linked in: without it a
- * compose plugin installed per-user vanishes for exactly this command.
- */
 async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<string> {
   const cfg = join(dir, "docker-config");
   await mkdir(cfg, { recursive: true, mode: 0o700 });
@@ -237,17 +172,13 @@ async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<str
     JSON.stringify({ auths: { [login.server]: { auth } } }),
     { mode: 0o600 },
   );
+  // Without the caller's cli-plugins linked in, a per-user compose plugin disappears for this command.
   const plugins = join(process.env["DOCKER_CONFIG"] ?? join(homedir(), ".docker"), "cli-plugins");
   if (await lstat(plugins).catch(() => null))
     await symlink(plugins, join(cfg, "cli-plugins")).catch(() => {});
   return cfg;
 }
 
-/**
- * The repository's secrets, as the `.env` compose reads for `${VAR}` and for
- * `env_file: .env`. A committed `.env` is kept and the secrets appended, so a secret
- * wins over a committed placeholder.
- */
 async function writeDotenv(srcDir: string, env: Record<string, string>): Promise<number> {
   const names = Object.keys(env);
   if (names.length === 0) return 0;
@@ -261,7 +192,6 @@ async function writeDotenv(srcDir: string, env: Record<string, string>): Promise
   return names.length;
 }
 
-/** Put the source on disk and find its compose file -- trusting neither. */
 async function writeSource(
   ctx: PreviewContext,
   id: string,
@@ -274,8 +204,6 @@ async function writeSource(
     return { source: { kind: "image", image: source.image }, composeFile: COMPOSE_FILE };
   }
   if (source.kind === "pushed") {
-    // No checkout, so no .env file: the project's secrets reach the one service as its
-    // environment.
     await writeFile(
       join(wd.srcDir, COMPOSE_FILE),
       composeForImage({ image: source.image, port: source.port, env }),
@@ -353,7 +281,6 @@ async function writeSource(
     };
   }
 
-  // Both checks come before `compose config`, which opens whatever the file points it at.
   await assertNoEscapingSymlinks(wd.srcDir);
   return {
     source: recorded,
@@ -361,10 +288,6 @@ async function writeSource(
   };
 }
 
-/**
- * A checkout or upload that brings its own compose file, or a Dockerfile and a port. An
- * upload's `gangway.yml` may name the port, env and policy for a lone Dockerfile.
- */
 async function ownStack(
   ctx: PreviewContext,
   id: string,
@@ -399,8 +322,6 @@ async function ownStack(
     for (const [name, body] of Object.entries(sidecars.files))
       await writeFile(join(srcDir, GENERATED_DIR, name), body, { mode: FILE_MODE });
   }
-  // A lone Dockerfile's env: gangway.yml's, then the add-ons'. Secrets reach it as the .env
-  // above.
   const appEnv = { ...(plan?.env ?? {}), ...(sidecars?.appEnv ?? {}) };
   await writeFile(
     join(srcDir, COMPOSE_FILE),
@@ -423,18 +344,12 @@ export type PreparedUpload = {
   plan: AppPlan;
 };
 
-/** The options a plan takes beyond the files: what was asked for, and what a rebuild had. */
 export type PlanOptions = {
   previous?: RuntimeId | "own" | undefined;
   addons?: readonly AddonRequest[] | undefined;
   previousAddons?: readonly AddonChoice[] | undefined;
 };
 
-/**
- * An upload on disk -> the compose file to read. Deploy and redeploy both come
- * through here. The pristine copy -- what is kept -- is taken after the symlink guard and
- * before gangway writes `.env` or `.gangway/` into the tree.
- */
 export async function prepareUpload(
   ctx: PreviewContext,
   logId: string,
@@ -452,7 +367,6 @@ export async function prepareUpload(
     await cp(wd.srcDir, pristine, {
       recursive: true,
       verbatimSymlinks: true,
-      // Generated files live in `<root>/.gangway/`; none of them, at any depth, is the user's.
       filter: (src) =>
         src === wd.srcDir || !relative(wd.srcDir, src).split(sep).includes(GENERATED_DIR),
     });
@@ -474,7 +388,6 @@ export async function prepareUpload(
         "add-ons are not available: no key to derive their passwords from",
       );
     sidecars = renderAddons(plan.addons, (a) => secret(logId, a), plan.sqlSeed, plan.root || ".");
-    // Before anything that could print them: compose's own output, a seed, a release.
     ctx.logs.mask(logId, sidecars.secrets);
     const shadowed = Object.keys(sidecars.appEnv).filter(
       (k) => env?.[k] !== undefined || plan.env[k] !== undefined,
@@ -497,7 +410,6 @@ export async function prepareUpload(
     };
   }
   const runtime = plan.runtime!;
-  // `port`, if given, overrides the runtime's own: a rebuild keeps the preview's.
   const { composeFile, note } = await writeRuntime(
     wd.srcDir,
     plan,
@@ -534,8 +446,6 @@ export async function readModel(
     files: [join(wd.srcDir, composeFile)],
     projectDirectory: wd.srcDir,
     docker: ctx.docker,
-    // YAML, not `--format json`: JSON output drops service-level x-gangway. See
-    // compose-model.ts.
     command: "config",
   });
   const r = await ctx.compose.capture(argv, host, { cwd: wd.srcDir });
@@ -550,8 +460,7 @@ export async function readModel(
     throw new AppError("internal", "could not read `compose config` output");
   }
 
-  // Both spellings: compose may hand back the path as given or with symlinks resolved
-  // (on macOS every temp dir is one).
+  // compose may return the path as given or with symlinks resolved (macOS temp dirs are symlinks).
   const model = parseComposeModel(PLAN_PROJECT, resolved, [wd.srcDir, await realpath(wd.srcDir)]);
   if (model.violations.length > 0) {
     throw unprocessable("the compose file asks for things a preview may not have", {
@@ -563,7 +472,6 @@ export async function readModel(
 
 export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
   const id = ulid(ctx.now());
-  // The template first -- it may place the preview, and it fills every gap below.
   const { template, project: owner } = ctx.policy.resolve({
     source: input.source,
     actor: input.actor,
@@ -577,15 +485,12 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     template.hostId !== null &&
     !allHosts.some((h) => h.id === template.hostId)
   ) {
-    // The template names a host that left the config. Placing it anyway beats failing
-    // every preview on that template for a stale row.
     ctx.logger.warn(
       "template names a host that does not exist; letting the scheduler place the preview",
       { template: template.id, hostId: template.hostId },
     );
     wantedHost = undefined;
   }
-  // Placement is decided here and nowhere else, even while there is one host.
   const host = place({ capability: "preview", hostId: wantedHost }, allHosts);
   const wd = await ctx.workdirs.create(id);
 
@@ -599,7 +504,6 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   let appPlan: AppPlan | undefined;
   let generatedPassword: string | undefined;
   try {
-    // The clearance: asked for, else the project's override, else the template's.
     const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
     const env =
       input.env !== undefined
@@ -623,10 +527,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     const { model } = planned;
     const exposed = selectExposed(model);
 
-    // Per field: the request, the project's override, the stack's own word, the template.
     visibility = input.visibility ?? owner?.visibility ?? model.x.visibility ?? template.visibility;
-    // A private preview is opened by logging in to the UI (net/gate.ts). With the UI switched
-    // off there is no login page to send anyone to: say so now, not with a dead link later.
     if (
       (visibility === "private" || input.passwordLogin === "only") &&
       ctx.privateAvailable?.() === false
@@ -642,7 +543,6 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     if (ttlText !== null && ttlMs === null)
       throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
 
-    // Hashed before the synchronous block below (scrypt is async).
     const password = await resolvePassword(ctx.passwords, input.password);
 
     const stem = slugify(input.name ?? defaultName(input.source, runtimeUsed));
@@ -658,9 +558,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
       });
     }
 
-    // ---- from here to the end of the block is synchronous. Ports are allocated from
-    // the route table and claimed in the route table with no await in between, so two
-    // concurrent deploys cannot be handed the same port.
+    // No await from here until the route rows are claimed, so concurrent deploys can't take the same port.
     routes = planRoutes({
       previewId: id,
       slug,
@@ -674,8 +572,6 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
       ctx.previews.delete(existing.id);
       ctx.logs.remove(existing.id);
     }
-    // The idle window is pinned on the row: the stack's own word, else the template's, so a
-    // later template edit changes new previews and not running ones.
     const idleAfterMs = idleMs(model.x.idle ?? template.idleAfter);
     preview = ctx.previews.create({
       id,
@@ -713,15 +609,12 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
         ? conflict("that hostname is already taken by another preview")
         : e;
     }
-    // ---- end synchronous block
   } catch (e) {
     await wd.cleanup();
     ctx.logs.remove(id);
     throw e;
   }
 
-  // The upload is kept once there is a preview to keep it for. Losing it costs the
-  // editor, not the deploy.
   if (pristine && ctx.sources) {
     await ctx.sources
       .adopt(id, pristine)
@@ -738,7 +631,6 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   );
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
   if (generatedPassword) logGenerated(ctx, id, generatedPassword);
-  // After the rows exist: a rejected deploy made nothing, so there is nothing to have done.
   ctx.audit.record(input.actor, "preview.deploy", id, {
     new: {
       project: preview.project,
@@ -768,8 +660,6 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   return { preview, urls, done, plan: appPlan };
 }
 
-/* ------------------------------------------------------------------ run */
-
 type RunInput = {
   preview: Preview;
   host: Host;
@@ -779,7 +669,6 @@ type RunInput = {
   routes: PlannedRoute[];
   visibility: Visibility;
   signal: AbortSignal;
-  /** A one-deploy registry login, for `up`'s pull. Deleted once `up` returns. */
   dockerConfig?: string | undefined;
 };
 
@@ -796,8 +685,6 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
   const id = preview.id;
   const log = (line: string) => ctx.logs.append(id, "system", line);
   const stackPath = join(wd.dir, STACK_FILE);
-  // One file. The user's compose.yaml is not on this command line: it has already been
-  // read, by compose itself, into the document the stack file was built from.
   const base = {
     project: preview.project,
     files: [stackPath],
@@ -857,7 +744,6 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
         r.dockerConfig ? { DOCKER_CONFIG: r.dockerConfig } : undefined,
       );
     } finally {
-      // The login was for this pull. Gone before anything else runs, success or not.
       if (r.dockerConfig) await rm(r.dockerConfig, { recursive: true, force: true });
     }
 
@@ -872,7 +758,6 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     };
     await waitHealthy(ctx, target);
 
-    // The release command runs before every version goes live; here, before the seed.
     const release = releaseFor(r.model, r.routes);
     if (release) {
       log(`release: ${release.command} (in ${release.service})`);
@@ -883,7 +768,6 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
       );
     }
 
-    // The seed runs once, healthy but not yet routed. Failing it fails the preview.
     const seed = seedFor(r.model, r.routes);
     if (seed) {
       log(`seeding: ${seed.command} (in ${seed.service})`);
@@ -899,7 +783,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<Preview> {
     log("awake");
     return ctx.states.transition(id, "awake");
   } catch (e) {
-    // destroy() aborted us and owns the preview from here; do not fight it for the state.
+    // destroy() aborted the run and owns the preview from here.
     if (r.signal.aborted) return ctx.previews.get(id) ?? preview;
 
     const message = redactString(errorMessage(e));
@@ -920,7 +804,6 @@ export type Step = (
   env?: Record<string, string>,
 ) => Promise<void>;
 
-/** Streams a compose command into the preview log; throws unless it exits 0. */
 export function stepper(
   ctx: PreviewContext,
   o: { previewId: string; host: Host; cwd: string; signal: AbortSignal },
@@ -948,7 +831,6 @@ export function stepper(
   };
 }
 
-/** The seed hook as `{ service, command }`, the primary route's service filling in. */
 function seedFor(
   model: ComposeModel,
   routes: PlannedRoute[],
@@ -962,7 +844,6 @@ function seedFor(
   return { service: primary.service, command: seed };
 }
 
-/** The release command, in the primary route's service. */
 export function releaseFor(
   model: ComposeModel,
   routes: PlannedRoute[],
@@ -974,24 +855,19 @@ export function releaseFor(
   return { service: primary.service, command };
 }
 
-/** Each service's `x-gangway.health` path, for the answering probe. */
 export const healthOf = (model: ComposeModel): Record<string, string> =>
   Object.fromEntries(model.services.flatMap((s) => (s.x.health ? [[s.name, s.x.health]] : [])));
 
-/** What the two waits need: a deploy has it from its plan, a wake from the route table. */
 export type WaitTarget = {
   previewId: string;
   host: Host;
   routes: Pick<Route, "service" | "hostname" | "upstream" | "containerPort">[];
   signal: AbortSignal;
-  /** The `ps` argv -- with the stack file for a deploy, file-less for a wake. */
   ps: string[];
   cwd: string;
-  /** Per service, a path that must answer 2xx/3xx. A wake has none: any answer will do. */
   health?: Record<string, string> | undefined;
 };
 
-/** Gate on healthchecks, not on container start. */
 export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<void> {
   const deadline = Date.now() + ctx.timings.startTimeoutMs;
   const argv = r.ps;
@@ -1011,7 +887,6 @@ export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<v
         );
       if (c.health === "unhealthy") throw new StepFailed(`service "${c.service}" is unhealthy`);
     }
-    // A one-shot service (a migration) that exited 0 is done, not broken.
     const waiting = rows
       .filter((c) => !(c.state === "exited" && c.exitCode === 0))
       .filter((c) => c.state !== "running" || (c.health !== null && c.health !== "healthy"));
@@ -1035,7 +910,6 @@ export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<v
   }
 }
 
-/** Running is not listening. Do not call it awake until the URL would actually work. */
 export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise<void> {
   const deadline = Date.now() + ctx.timings.probeTimeoutMs;
   let pending = [...r.routes];
@@ -1055,11 +929,6 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
   }
 }
 
-/**
- * A failed stack is torn down -- it is holding ports and memory on a box that runs real
- * workloads -- but its last words are kept first, because the container logs are the
- * only thing that says why, and the failure page shows them.
- */
 export async function salvage(
   ctx: PreviewContext,
   r: Pick<RunInput, "preview" | "host">,
@@ -1078,7 +947,7 @@ export async function salvage(
       { cwd: empty },
     );
     if (logs.stdout) ctx.logs.append(r.preview.id, "stdout", logs.stdout);
-    // Volumes stay: a failed rebuild must not take the add-on's data. Destroy removes them.
+    // Keep volumes: a failed rebuild must not take the add-on's data.
     await ctx.compose.capture(
       downArgv(
         { project: r.preview.project, files: [], docker: ctx.docker },

@@ -1,13 +1,3 @@
-/**
- * What a preview's containers are printing. The preview log (logs.ts) holds the pipeline --
- * build output, compose, gangway's own lines -- and a failed stack's last words, but not a
- * healthy stack's stdout. This reads that on demand with `compose logs`, which the daemon
- * keeps for as long as the containers exist (a sleeping preview's too).
- *
- * Read, never stored: copying it would grow without bound on a chatty app. It is scrubbed
- * like every stored line -- redacted, and add-on passwords masked -- because an app printing
- * its DATABASE_URL is the common case.
- */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,12 +6,10 @@ import { composeArgv } from "../docker/compose.ts";
 import { redactString } from "../logger.ts";
 import type { PreviewContext } from "./context.ts";
 
-/** States with containers to read: a stopped (asleep) container still has its log. */
 const HAS_CONTAINERS: ReadonlySet<Preview["state"]> = new Set(["starting", "awake", "asleep"]);
 
 export type RuntimeLogs = { lines: string[] } | { lines: null; why: string };
 
-/** A compose service name: what `service` may be, since it becomes an argv element. */
 const SERVICE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/;
 
 export async function runtimeLogs(
@@ -69,10 +57,6 @@ export async function runtimeLogs(
   }
 }
 
-/**
- * Derived, not remembered (logs.ts forgets its masks on a restart): the same key gives the
- * same password.
- */
 function addonPasswords(ctx: PreviewContext, p: Preview): string[] {
   if (p.source.kind !== "tarball" || !p.source.addons?.length || !ctx.addonSecret) return [];
   return p.source.addons.map((a) => ctx.addonSecret!(p.id, a.id)).filter((s) => s.length >= 8);

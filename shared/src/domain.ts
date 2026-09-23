@@ -1,9 +1,3 @@
-/**
- * The domain model shared by the server, the web app and the plugin.
- *
- * Timestamps are epoch milliseconds at the storage boundary and `Date` in the domain.
- * Repositories do the conversion so nothing above them handles raw integers.
- */
 import type { AddonChoice } from "./addons.ts";
 import type { RuntimeId } from "./runtimes.ts";
 import type { Scope } from "./permissions.ts";
@@ -15,14 +9,11 @@ export type HostState = "unknown" | "ready" | "unreachable" | "error";
 export type Host = {
   id: string;
   name: string;
-  /** How we talk to the daemon. */
   dockerHost: string;
-  /** Guard: `docker info`.Name must match this before we touch the daemon. */
+  // `docker info` Name must match this before anything touches the daemon.
   expectName: string | null;
   capabilities: HostCapability[];
-  /** The IP dockerd binds published ports to. */
   publishBind: string;
-  /** How the proxy reaches those published ports. Separate from publishBind by design. */
   upstream: { dial: UpstreamDial; address: string; proxy: string | null };
   ports: { rangeStart: number; rangeEnd: number };
   state: HostState;
@@ -31,55 +22,24 @@ export type Host = {
   createdAt: Date;
 };
 
-/**
- * `destroying` and `destroyed` exist because teardown is not instantaneous and the
- * reconciler must tell a half-destroyed preview from a live one.
- */
 export type PreviewState =
   "building" | "starting" | "awake" | "asleep" | "failed" | "destroying" | "destroyed";
 
 export type Visibility = "public" | "unlisted" | "private";
 
-/**
- * A preview's password. `inherit` follows the server-wide default at request
- * time; `none` is open whatever the default says; `set` and `generated` are its own. Only
- * the mode is ever reported: the hash stays in the database, the plain text nowhere.
- */
 export type PasswordMode = "inherit" | "none" | "set" | "generated";
 
-/**
- * What a gangway login does for a preview with a password. `off`: nothing, the password
- * is asked of everyone. `on`: either one opens it (signed-in users skip the password).
- * `only`: only a login opens it, and no password is asked for. `inherit` follows the
- * server-wide switch (on or off).
- */
 export type PasswordLogin = "inherit" | "on" | "off" | "only";
 
-/**
- * Who can open a preview right now, every default resolved. What the UI shows.
- *   open                 anyone with the link
- *   password             anyone with the password -- signed in or not
- *   signed-in            people signed in to gangway (a login-only or private preview)
- *   either               signed in, or the password
- *   signed-in+password   private, and a password that a login does not skip
- */
 export type PreviewAccess = "open" | "password" | "signed-in" | "either" | "signed-in+password";
 
-/** The server-wide default: off, one shared password, or one generated per new preview. */
 export type DefaultPasswordMode = "off" | "shared" | "generated";
 
-/** A CI job is a preview with no route. */
 export type PreviewKind = "preview" | "job";
 
-/** Where pull requests come from. One so far; the union is the point. */
 export type ForgeId = "github";
-/** What a PR from a fork gets: nothing until asked (`ask`), a preview (`auto`), or never. */
 export type ForkPolicy = "ask" | "auto" | "never";
 
-/**
- * Secrets have a level; a preview has a clearance and receives every secret at or below
- * it. `none` is a clearance only: no .env at all.
- */
 export type SecretLevel = "low" | "standard" | "high";
 export type Clearance = "none" | SecretLevel;
 export const CLEARANCES: readonly Clearance[] = ["none", "low", "standard", "high"];
@@ -87,67 +47,40 @@ export const SECRET_LEVELS: readonly SecretLevel[] = ["low", "standard", "high"]
 export const clears = (clearance: Clearance, level: SecretLevel): boolean =>
   CLEARANCES.indexOf(clearance) >= CLEARANCES.indexOf(level);
 
-/**
- * A named preview policy: what a deploy gets unless the request, the
- * repository or the stack file says otherwise. `default` exists in every install.
- */
 export type Template = {
-  /** A slug the operator chose, like a role id. */
   id: string;
   name: string;
   description: string;
-  /** `default`: seeded by the migration, never deleted. */
   builtin: boolean;
   visibility: Visibility;
-  /** A duration; null never expires. */
   ttl: string | null;
-  /** A duration, or `never`. */
   idleAfter: string;
   clearance: Clearance;
-  /** Placement; null lets the scheduler choose. */
   hostId: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
 
-/** The deploy triggers a template is the default for. */
 export type Trigger = "pr" | "api" | "manual";
 export const TRIGGERS: readonly Trigger[] = ["pr", "api", "manual"];
 
-/**
- * How a project's pull requests reach gangway: a GitHub Actions `workflow` in
- * the repository builds the image and calls in with an OIDC token, or the GitHub App's
- * `webhook` has gangway clone and build it. Never both -- that would be two previews per PR.
- */
 export type PrTrigger = "workflow" | "webhook";
 export const PR_TRIGGERS: readonly PrTrigger[] = ["workflow", "webhook"];
 
-/**
- * The thing you preview: a name, a hostname stem, where its code comes from,
- * the template it follows with overrides on top, its secrets, and its previews. Made on
- * purpose -- a pull request from a repository that is no project's is ignored.
- */
 export type Project = {
   id: string;
   name: string;
-  /** The hostname stem: previews are `<slug>-pr-<n>`. Unique across projects. */
   slug: string;
-  /** Where its code lives; both null for a project with no repository (images, tarballs). */
   forge: ForgeId | null;
-  /** `owner/name` as the forge spells it. */
   fullName: string | null;
-  /** The GitHub App installation, when the App is installed on the repository. */
   installationId: string;
   prTrigger: PrTrigger;
   enabled: boolean;
   disabledReason: string | null;
-  /** The template its previews follow; null: the PR trigger's default. */
   templateId: string | null;
-  /** Overrides on top of the template; null takes the template's value. */
   visibility: Visibility | null;
   ttl: string | null;
   prClearance: Clearance | null;
-  /** The webhook's policy: forks, drafts, and what a fork's PR is cleared for. */
   forks: ForkPolicy;
   drafts: boolean;
   forkClearance: Clearance;
@@ -156,22 +89,15 @@ export type Project = {
 };
 
 export type PreviewSource =
-  /** `image`: pushed for this commit by a workflow, pulled once, removed with the preview. */
   | { kind: "pr"; repo: string; number: number; sha: string; image?: string }
   | { kind: "manual"; userId: string }
   | { kind: "agent"; tokenId: string; idempotencyKey: string }
   | { kind: "image"; image: string }
-  /**
-   * An upload. `runtime`: built by that runtime; absent, the upload brought its own compose
-   * file or Dockerfile. `addons`: the throwaway databases beside it, each at the major
-   * version it was created with.
-   */
   | { kind: "tarball"; uploadId: string; runtime?: RuntimeId; addons?: AddonChoice[] }
   | { kind: "git"; repo: string; ref: string };
 
 export type Preview = {
   id: string;
-  /** The compose project name -- see `projectNameFor`. Namespaces containers, network and volumes. */
   project: string;
   hostId: string;
   kind: PreviewKind;
@@ -179,19 +105,12 @@ export type Preview = {
   source: PreviewSource;
   visibility: Visibility;
   ttlExpiresAt: Date | null;
-  /** Idle-sleep after this long without a request. null: the server default; 0: never. */
   idleAfterMs: number | null;
-  /** The clearance this preview was deployed with; null when no repository was involved. */
   secretLevel: Clearance | null;
-  /** The template it was deployed with; null on rows from before templates. */
   templateId: string | null;
-  /** The project it belongs to; null for one deployed outside any. */
   projectId: string | null;
-  /** Its password: the mode only, never the password. */
   password: PasswordMode;
-  /** Whether a signed-in gangway user skips that password. */
   passwordLogin: PasswordLogin;
-  /** Written by the proxy on every request; the idle-sleep sweeper reads it. */
   lastSeenAt: Date | null;
   error: string | null;
   createdAt: Date;
@@ -223,26 +142,20 @@ export type Certificate = {
   keyPem: string;
   chainPem: string | null;
   issuer: string | null;
-  /** The ACME directory URL that issued it; null for anything else. */
   source: string | null;
   notBefore: Date | null;
   notAfter: Date | null;
   updatedAt: Date;
 };
 
-/* ------------------------------------------------------------------ accounts */
-
-/** A named set of permissions. Which permissions is data: see `permissions.ts`. */
 export type Role = {
   id: string;
   name: string;
   description: string;
-  /** Shipped with gangway. `admin` is builtin and immutable; the other two are editable. */
   builtin: boolean;
   createdAt: Date;
 };
 
-/** Never carries password material: that type exists only inside the server. */
 export type User = {
   id: string;
   email: string;
@@ -252,7 +165,6 @@ export type User = {
 };
 
 export type Session = {
-  /** sha256 of the cookie's secret -- the secret itself is never stored. */
   id: string;
   userId: string;
   createdAt: Date;
@@ -262,14 +174,11 @@ export type Session = {
   userAgent: string | null;
 };
 
-/** The secret is shown once at creation and is not part of this type. */
 export type ApiToken = {
   id: string;
   name: string;
-  /** The first characters of the secret, in clear, so a token can be recognised in a list. */
   prefix: string;
   scopes: Scope[];
-  /** null for a token that belongs to no account (minted with the env admin token). */
   userId: string | null;
   appName: string | null;
   expiresAt: Date | null;
@@ -278,28 +187,21 @@ export type ApiToken = {
   createdAt: Date;
 };
 
-/**
- * A user let an OAuth client (an MCP client such as claude.ai, named by its
- * Client ID Metadata Document URL) act as them. The tokens are never part of this type.
- */
 export type OAuthGrant = {
   id: string;
   userId: string;
-  /** An https URL: the client's metadata document. Its host is what the user should recognise. */
   clientId: string;
   clientName: string;
   redirectUri: string;
   scopes: Scope[];
   createdAt: Date;
   lastUsedAt: Date | null;
-  /** The absolute end: no refresh carries a grant past it. */
   expiresAt: Date;
   revokedAt: Date | null;
 };
 
 export type AuditActorType = "user" | "token" | "app" | "system" | "github";
 
-/** Append-only; `old`/`new` are redacted before they are written. */
 export type AuditEntry = {
   seq: number;
   actorType: AuditActorType;
@@ -311,19 +213,10 @@ export type AuditEntry = {
   createdAt: Date;
 };
 
-/**
- * The compose project name for a preview: `gw-<instance>-<slug>`, e.g. `gw-main-acme-pr-123`.
- *
- * The instance is always in the name, in production too. Two gangway installations can
- * drive one daemon (a dev run and a standing install on the same host); their reconcilers
- * tell their containers apart by the `gangway.instance` label, but compose keys on the
- * project name alone, so with `gw-<slug>` a dev deploy named like a live preview would
- * recreate it. The slug alone stays the hostname.
- */
+// The instance stays in the name so two installs on one daemon never share a compose project.
 export function projectNameFor(instance: string, slug: string): string {
   return `gw-${instance}-${slug}`;
 }
 
-/** A project with a repository: what the forge code works with. */
 export type RepoProject = Project & { forge: ForgeId; fullName: string };
 export const hasRepo = (p: Project): p is RepoProject => p.forge !== null && p.fullName !== null;

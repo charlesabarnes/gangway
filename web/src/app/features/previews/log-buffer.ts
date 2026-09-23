@@ -1,14 +1,10 @@
 import type { LogLine } from '../../core/api.types';
 
-/** CSI sequences: colours, cursor movement, erase-line. Build tools emit all three. */
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
-/** What is left of a progress bar once the escapes are gone. */
 const CONTROL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
-/** No ANSI library: colour in a build log is decoration, and rendering it means trusting it. */
 export const stripAnsi = (s: string): string => s.replace(ANSI, '').replace(CONTROL, '');
 
-/** Closer than this to the bottom counts as "at the bottom": a sub-pixel gap must not unstick the view. */
 export const STICK_THRESHOLD_PX = 24;
 export const isStuckToBottom = (m: {
   scrollHeight: number;
@@ -16,15 +12,6 @@ export const isStuckToBottom = (m: {
   clientHeight: number;
 }): boolean => m.scrollHeight - m.scrollTop - m.clientHeight < STICK_THRESHOLD_PX;
 
-/**
- * The last N lines. A build can emit tens of thousands; a tab that kept them all would
- * grow without limit, and nobody scrolls back that far in a browser -- the server has the
- * whole log.
- *
- * Lines carry the server's line number `n`. Anything not newer than the last line held is
- * dropped: a reconnect replays from the last id the browser acknowledged, which can
- * overlap what already arrived.
- */
 export class LogBuffer {
   readonly #max: number;
   #lines: LogLine[] = [];
@@ -35,7 +22,6 @@ export class LogBuffer {
     this.#max = max;
   }
 
-  /** True if anything was added. */
   push(batch: readonly LogLine[]): boolean {
     const fresh = batch
       .filter((l) => l.n > this.#last)
@@ -52,7 +38,6 @@ export class LogBuffer {
   get lines(): readonly LogLine[] {
     return this.#lines;
   }
-  /** Lines this tab let go of to stay bounded. */
   get dropped(): number {
     return this.#dropped;
   }

@@ -1,12 +1,3 @@
-/**
- * Numbered-SQL-file migration runner.
- *
- * Tracked in a table rather than PRAGMA user_version, so each migration's checksum is
- * recorded: editing an already-applied migration is refused instead of letting dev and
- * production silently diverge.
- *
- * There are no down-migrations; the rollback story is restoring a backup.
- */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Db } from "./types.ts";
@@ -65,11 +56,9 @@ export function migrate(db: Db, dir: string, now: () => number = Date.now): Migr
   );
   const byVersion = new Map(applied.map((r) => [r.version, r]));
 
-  // Drift: an applied migration whose file has since changed.
   for (const row of applied) {
     const file = migrations.find((m) => m.version === row.version);
     if (!file) {
-      // The database is ahead of the code -- a downgrade. Refuse rather than guess.
       throw new Error(
         `database has migration ${row.version} (${row.name}) applied but no such file exists; ` +
           `this build is older than the database. Refusing to run.`,
@@ -88,7 +77,7 @@ export function migrate(db: Db, dir: string, now: () => number = Date.now): Migr
   const appliedNow: number[] = [];
 
   for (const m of pending) {
-    // SQLite requires foreign_keys OFF around the 12-step table-rebuild pattern.
+    // SQLite requires foreign_keys OFF around the table-rebuild pattern.
     db.exec("PRAGMA foreign_keys = OFF");
     try {
       db.transaction(() => {

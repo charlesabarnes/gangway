@@ -1,6 +1,5 @@
 import { Component, input } from '@angular/core';
 
-/** The frame login and setup share: no app header, one centred card. */
 @Component({
   selector: 'app-auth-card',
   template: `
@@ -23,7 +22,6 @@ export class AuthCard {
   readonly heading = input.required<string>();
 }
 
-/** Shared by both forms so the two pages cannot drift apart. */
 export const FIELD =
   'mt-1.5 block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-xs ' +
   'placeholder:text-neutral-400 focus:border-accent focus:outline-2 focus:outline-accent/30 ' +

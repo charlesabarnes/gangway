@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 
-/* One accent, used sparingly. Everything else is the neutral scale. */
 @theme {
   --color-accent: oklch(0.62 0.17 255);
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;

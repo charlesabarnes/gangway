@@ -1,8 +1,3 @@
-/**
- * WebSocket relay. This terminates and re-originates rather than piping bytes: gangway accepts
- * the client's upgrade itself, then opens its own connection upstream, relaying frames,
- * subprotocol and close codes both ways. It fails silently when wrong: HMR just stops working.
- */
 import type { ServerWebSocket } from "bun";
 import type { RouteEntry } from "../routing/table.ts";
 
@@ -33,7 +28,6 @@ export const wsRelay = {
     const relay: Relay = { upstream, pending: [] };
     relays.set(ws, relay);
 
-    // Frames can arrive before the upstream finishes connecting; buffer, then flush.
     upstream.onopen = () => {
       for (const m of relay.pending) upstream.send(m);
       relay.pending.length = 0;
@@ -42,22 +36,21 @@ export const wsRelay = {
       try {
         ws.send(ev.data as string | ArrayBuffer);
       } catch {
-        /* client gone */
+        // client gone
       }
     };
     upstream.onclose = (ev) => {
-      // 1005 means "no status received" and may not be sent on the wire.
       try {
         ws.close(ev.code === 1005 ? 1000 : ev.code, ev.reason);
       } catch {
-        /* already closed */
+        // already closed
       }
     };
     upstream.onerror = () => {
       try {
         ws.close(1011, "upstream error");
       } catch {
-        /* already closed */
+        // already closed
       }
     };
   },
@@ -79,12 +72,12 @@ export const wsRelay = {
   close(ws: ServerWebSocket<WsData>, code: number, reason: string) {
     const relay = relays.get(ws);
     if (!relay) return;
-    // 1005/1006 are local-only codes and must not be forwarded verbatim.
+    // 1005 and 1006 are local-only close codes and may not be sent on the wire.
     const out = code === 1005 || code === 1006 ? 1000 : code;
     try {
       relay.upstream.close(out, reason);
     } catch {
-      /* already closed */
+      // already closed
     }
     relays.delete(ws);
   },

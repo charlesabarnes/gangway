@@ -16,7 +16,6 @@ import { SseService, type SseHandle } from '../../core/sse.service';
 import { ConnectionDot } from '../../ui/connection-dot';
 import { LogBuffer, isStuckToBottom } from './log-buffer';
 
-/** "Once per frame". Injected because jsdom has no requestAnimationFrame, and specs want to choose when. */
 export const FRAME = new InjectionToken<(cb: () => void) => void>('FRAME', {
   providedIn: 'root',
   factory: () => (cb: () => void) => {
@@ -25,7 +24,6 @@ export const FRAME = new InjectionToken<(cb: () => void) => void>('FRAME', {
   },
 });
 
-/** How much history to ask for. The server says so, in the stream, when there was more. */
 const TAIL = 2_000;
 
 const STREAM_CLASS: Record<LogStream, string> = {
@@ -36,16 +34,6 @@ const STREAM_CLASS: Record<LogStream, string> = {
   stderr: 'text-amber-300',
 };
 
-/**
- * A live log. Build output and runtime output are one stream on the server, told apart by
- * `stream`, so "the build log" is a filter here and not a second endpoint.
- *
- * A build can emit hundreds of lines a second. Each one is not a change-detection pass:
- * lines collect in a plain array and are flushed once per animation frame into one signal
- * write. Rows are `content-visibility: auto`, so the browser skips layout and paint for
- * the thousands that are off-screen -- most of what a virtual scroller buys, with no
- * library and no broken find-in-page.
- */
 @Component({
   selector: 'app-log-viewer',
   imports: [ConnectionDot],
@@ -118,7 +106,6 @@ const STREAM_CLASS: Record<LogStream, string> = {
 })
 export class LogViewer {
   readonly previewId = input.required<string>();
-  /** False once the preview is destroyed: its log is deleted server-side, so there is nothing to follow. */
   readonly follow = input(true);
 
   readonly #sse = inject(SseService);
@@ -164,7 +151,6 @@ export class LogViewer {
         );
       });
     });
-    // After the lines are in the DOM, not before: scrollHeight has to include them.
     effect(() => {
       this.visible();
       if (untracked(this.stuck)) this.#frame(() => this.#toBottom());
@@ -184,7 +170,6 @@ export class LogViewer {
     });
   }
 
-  /** Scrolling up to read something must not be yanked back down by the next line. */
   protected onScroll(): void {
     this.stuck.set(isStuckToBottom(this.scroller().nativeElement));
   }

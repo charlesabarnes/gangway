@@ -1,30 +1,12 @@
-/**
- * The in-memory route table: a cache over SQLite, which remains the source of truth.
- *
- * Every mutation goes through apply(), which writes SQLite first and memory second in the
- * same synchronous function; no other code writes the routes table. bun:sqlite being
- * synchronous means no await separates the two writes, so no request can observe a
- * half-applied state. A promise-based driver would need a lock here.
- */
 import type { PasswordLogin, PreviewState, Route, Visibility } from "@gangway/shared/domain";
 import type { RoutesRepo } from "../db/repos/routes.ts";
 
-/**
- * What the gate needs to know about a preview's password, denormalized like the
- * rest. `inherit` is resolved against the server-wide default per request, so changing the
- * default takes effect at once; `own` carries the preview's scrypt hash.
- */
 export type EntryPassword =
   { mode: "inherit" } | { mode: "none" } | { mode: "own"; hash: string; salt: string };
 
-/**
- * Denormalized so a proxied request touches zero SQLite: the hot path is one Map lookup.
- * Mutable counters live here too, so limit enforcement is a field increment.
- */
 export type RouteEntry = {
   readonly hostname: string;
   readonly previewId: string;
-  /** Which host's containers these are: the proxy dials each host its own way. */
   readonly hostId: string;
   readonly project: string;
   readonly service: string;
@@ -34,10 +16,8 @@ export type RouteEntry = {
   readonly primary: boolean;
   visibility: Visibility;
   password: EntryPassword;
-  /** Whether a gangway login gets past that password; `inherit` is read per request. */
   passwordLogin: PasswordLogin;
   state: PreviewState;
-  /** Mutable per-request counters -- see net/limits.ts. */
   inflight: number;
   bytesInFlight: number;
   lastSeenAt: number;
@@ -48,7 +28,6 @@ export type RouteSeed = {
   hostId: string;
   project: string;
   visibility: Visibility;
-  /** Omitted: inherit. */
   password?: EntryPassword | undefined;
   passwordLogin?: PasswordLogin | undefined;
   state: PreviewState;
@@ -78,7 +57,6 @@ function toEntry(s: RouteSeed): RouteEntry {
 export class RouteTable {
   readonly #byHostname = new Map<string, RouteEntry>();
   readonly #byPreview = new Map<string, Set<string>>();
-  /** Preview ids touched since the last `drainSeen()`. */
   readonly #seen = new Set<string>();
   readonly #repo: RoutesRepo;
 
@@ -86,7 +64,6 @@ export class RouteTable {
     this.#repo = repo;
   }
 
-  /** Hot path. Exact match on an already-normalized hostname: no regex, no wildcards. */
   lookup(hostname: string): RouteEntry | undefined {
     return this.#byHostname.get(hostname);
   }
@@ -107,7 +84,6 @@ export class RouteTable {
       .filter((e): e is RouteEntry => e !== undefined);
   }
 
-  /** Boot load. Replaces memory wholesale; does not write the database. */
   hydrate(seeds: RouteSeed[]): void {
     this.#byHostname.clear();
     this.#byPreview.clear();
@@ -124,10 +100,7 @@ export class RouteTable {
     set.add(e.hostname);
   }
 
-  /**
-   * Database first, memory second. If the insert throws -- a hostname collision, a
-   * duplicate port -- memory is left untouched and the caller sees the error.
-   */
+  // SQLite first, memory second, with no await between, so no request sees a half-applied state.
   apply(seed: RouteSeed): RouteEntry {
     this.#repo.create({
       hostname: seed.route.hostname,
@@ -142,7 +115,6 @@ export class RouteTable {
     return entry;
   }
 
-  /** Adopts a route rebuilt from container labels without re-writing the database. */
   adopt(seed: RouteSeed): RouteEntry {
     const entry = toEntry(seed);
     this.#index(entry);
@@ -156,10 +128,6 @@ export class RouteTable {
     e.upstreamPort = port;
   }
 
-  /**
-   * State lives on every entry so the proxy's state machine needs no database read.
-   * Touches the preview's routes only -- previews with sixty routes are the exception.
-   */
   setState(previewId: string, state: PreviewState): void {
     for (const e of this.forPreview(previewId)) e.state = state;
   }
@@ -176,7 +144,6 @@ export class RouteTable {
     for (const e of this.forPreview(previewId)) e.passwordLogin = login;
   }
 
-  /** Called on every proxied request. Memory only -- the database write is batched. */
   touch(hostname: string, at: number): void {
     const e = this.#byHostname.get(hostname);
     if (!e) return;
@@ -184,11 +151,6 @@ export class RouteTable {
     this.#seen.add(e.previewId);
   }
 
-  /**
-   * Previews visited since the last drain, with the newest visit across their routes.
-   * Draining clears the set. A flush that then fails to write loses one window of visits,
-   * which the next request to that preview repairs; not worth a hand-back protocol.
-   */
   drainSeen(): Map<string, number> {
     const out = new Map<string, number>();
     for (const id of this.#seen) {
@@ -209,7 +171,6 @@ export class RouteTable {
     return names.size;
   }
 
-  /** Removes one route from memory only -- used when stopping an adopted orphan. */
   evict(hostname: string): void {
     const e = this.#byHostname.get(hostname);
     if (!e) return;
@@ -219,7 +180,6 @@ export class RouteTable {
     if (set && set.size === 0) this.#byPreview.delete(e.previewId);
   }
 
-  /** Ports in use on a host, for the allocator. Reads memory, not the database. */
   usedPorts(upstreamHost: string): Set<number> {
     const out = new Set<number>();
     for (const e of this.#byHostname.values()) {

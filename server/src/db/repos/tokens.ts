@@ -13,7 +13,6 @@ export type CreateToken = {
   expiresAt: number | null;
 };
 
-/** API tokens. Only the sha256 is stored; `token_hash` is never selected into a domain object. */
 export class TokensRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -48,11 +47,6 @@ export class TokensRepo {
     return r ? rowToToken(r) : undefined;
   }
 
-  /**
-   * The verifier's one read. Revoked, expired, or owned by a disabled account: all "no".
-   * `owner` is null for an ownerless token, which is not the same as a missing owner --
-   * the FK cascades, so a token never outlives its account.
-   */
   findActiveByHash(
     tokenHash: string,
     now: number = this.#now(),
@@ -90,7 +84,6 @@ export class TokensRepo {
     return { token: rowToToken(r), owner: owner ? rowToUser(owner) : null };
   }
 
-  /** "Last used", throttled like a session's: a CI job hammering the API writes once a minute. */
   touch(id: string, staleBefore: number, now: number = this.#now()): boolean {
     return (
       this.#db.run(
@@ -115,7 +108,6 @@ export class TokensRepo {
       .map(rowToToken);
   }
 
-  /** Revoked, not deleted: "which token did that" must still have an answer in the audit log. */
   revoke(id: string, now: number = this.#now()): boolean {
     return (
       this.#db.run(
@@ -125,11 +117,6 @@ export class TokensRepo {
     );
   }
 
-  /**
-   * Lockout guard: is there a live `admin`-scoped token? Asked before the UI may be
-   * switched off. An owned token counts only while its owner is an enabled admin -- a token
-   * whose scopes are clamped to nothing is not a way back in.
-   */
   hasActiveAdmin(now: number = this.#now()): boolean {
     return (
       this.#db.get<{ n: number }>(

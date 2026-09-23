@@ -1,7 +1,3 @@
-/**
- * jsdom has no EventSource, and a real one could not be driven from a test anyway. This is
- * the part of the interface SseService uses, plus handles to push events and failures.
- */
 type Listener = (e: MessageEvent) => void;
 
 export class FakeEventSource {
@@ -41,8 +37,6 @@ export class FakeEventSource {
     this.readyState = FakeEventSource.CLOSED;
   }
 
-  /* ---- test handles */
-
   open(): void {
     this.readyState = FakeEventSource.OPEN;
     this.onopen?.();
@@ -56,7 +50,6 @@ export class FakeEventSource {
     for (const l of this.#listeners.get(type) ?? []) l(e);
   }
 
-  /** What a dropped connection, a 503 while draining, or a proxy's 502 all look like: no status, just this. */
   fail(): void {
     this.readyState = FakeEventSource.CLOSED;
     this.onerror?.();

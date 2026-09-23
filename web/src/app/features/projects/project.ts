@@ -54,10 +54,6 @@ const PR_CLEARANCES: { value: Clearance | ''; label: string }[] = [
   ...CLEARANCES.map((c) => ({ value: c, label: c })),
 ];
 
-/**
- * One project: its previews, its settings, its secrets, and -- when its pull
- * requests come from a workflow -- the workflow file to put in its repository.
- */
 @Component({
   selector: 'app-project',
   imports: [Btn, ConfirmDialog, RelativeTimePipe, RouterLink, SecretsEditor, StateBadge],
@@ -451,7 +447,7 @@ export class ProjectPage {
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
   readonly #router = inject(Router);
-  // `viewChild` cannot sit on an ES #private member (NG1053), hence TypeScript `private`.
+  // viewChild cannot target an ES #private field (NG1053).
   private readonly dialog = viewChild.required(ConfirmDialog);
 
   protected readonly field = FIELD;
@@ -499,7 +495,6 @@ export class ProjectPage {
     return this.store.previews().filter((p) => p.projectId === id);
   });
 
-  /** The project as the form shows it: saved values, then the draft over them. */
   protected readonly d = computed(() => {
     const p = this.project()!;
     return { ...p, repository: p.fullName, ...this.draft() } as Project & {

@@ -27,19 +27,12 @@ export type ProjectRouteDeps = {
   secrets?: Secrets | undefined;
   templates?: Pick<TemplatesRepo, "get"> | undefined;
   pulls?: Pulls | undefined;
-  /** A preview as the API returns it, URLs included. */
   wire?: ((p: Preview) => Preview & { urls: PreviewUrl[] }) | undefined;
-  /** Our public API origin: the workflow's audience and the address it calls. */
   apiOrigin?: (() => string) | undefined;
 };
 
 const MAX_SLUG = 24;
 
-/**
- * `/v1/projects`: the things you preview. Made on purpose; tuned, given
- * secrets, and deleted here. `/pulls/:n` is where a project's workflow deploys and tears
- * down its pull requests' previews -- the one path a workflow token reaches.
- */
 export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   const { projects, audit } = d;
   const find = (ref: string): Project => {
@@ -101,7 +94,6 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
       if (repository !== null) checkRepository(repository, before.id);
       projects.setRepository(before.id, repository === null ? null : "github", repository);
     }
-    // Enabling clears the reason it was disabled for; the operator has resolved it.
     const after = projects.update(before.id, {
       ...patch,
       ...(patch.enabled === true ? { disabledReason: null } : {}),
@@ -120,7 +112,6 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     return c.body(null, 204);
   });
 
-  // Names in, names out: values are never returned. `repos.secrets` is its own authority.
   api.get("/projects/:ref/env", requirePermission("repos.secrets"), (c) => {
     const project = find(c.req.param("ref"));
     return c.json({ secrets: d.secrets ? d.secrets.project(project.id).list() : [] });
@@ -133,7 +124,6 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     return c.json({ secrets: d.secrets.project(project.id).update(c.get("actor"), patch) });
   });
 
-  // The workflow file for the repository, filled in for this project. `?port=` sets PORT.
   api.get("/projects/:ref/workflow", requirePermission("previews.read"), (c) => {
     const project = find(c.req.param("ref"));
     const port = Number(c.req.query("port") ?? 3000);
@@ -143,8 +133,6 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     c.header("x-gangway-path", WORKFLOW_PATH_IN_REPO);
     return c.body(workflowFor(project, d.apiOrigin?.() ?? "", port));
   });
-
-  /* ---- A pull request's preview, from its workflow (or a person, by hand) */
 
   api.put("/projects/:ref/pulls/:n", requirePermission("previews.deploy"), async (c) => {
     if (!d.pulls || !d.wire)

@@ -34,14 +34,6 @@ export type SourceEntry = {
   status: '' | 'changed' | 'new';
 };
 
-/**
- * The kept source of an uploaded preview: list it, edit it, save to rebuild at
- * the same URL. Hidden entirely when the server keeps nothing (404) -- a git, image or PR
- * preview has its source somewhere else.
- *
- * A save sends only what changed: edited and new files as text, deleted ones as null.
- * Binary and large files are listed read-only and survive an edit untouched, server side.
- */
 @Component({
   selector: 'app-source-panel',
   imports: [Btn, CodeEditor],
@@ -259,7 +251,6 @@ export type SourceEntry = {
 })
 export class SourcePanel {
   readonly previewId = input.required<string>();
-  /** Only uploads keep a source; anything else is never asked for. */
   readonly uploaded = input.required<boolean>();
 
   readonly #http = inject(HttpClient);
@@ -272,7 +263,6 @@ export class SourcePanel {
   protected readonly canUpdate = computed(() => this.#auth.can('previews.update'));
   readonly base = signal<PreviewSourceFiles | null>(null);
   protected readonly runtimes = signal<Runtime[]>([]);
-  /** Edited and new files. */
   readonly edits = signal<ReadonlyMap<string, string>>(new Map());
   readonly deleted = signal<ReadonlySet<string>>(new Set());
   readonly selected = signal<string | null>(null);
@@ -282,7 +272,6 @@ export class SourcePanel {
   protected readonly busy = signal(false);
   protected readonly error = signal<ProblemError | null>(null);
   protected readonly notes = signal<string[]>([]);
-  /** Set once a save is accepted, until the stream says how the rebuild went. */
   readonly #pending = signal<string | null>(null);
 
   readonly entries = computed<SourceEntry[]>(() => {
@@ -304,7 +293,6 @@ export class SourcePanel {
     return out.sort((a, b2) => a.path.localeCompare(b2.path));
   });
 
-  /** Exactly what a save sends. */
   readonly changes = computed<Record<string, string | null>>(() => {
     const b = this.base();
     if (!b) return {};
@@ -356,7 +344,6 @@ export class SourcePanel {
       if (this.previewId() !== id) return;
       this.#rebase(src);
     } catch (e) {
-      // 404: nothing is kept for this preview. Hide the panel and say nothing.
       if (!(e instanceof HttpErrorResponse && e.status === 404)) {
         this.error.set(toProblem(e));
       }
@@ -445,7 +432,6 @@ export class SourcePanel {
       this.selected.set(this.entries().find((f) => f.editable)?.path ?? null);
   }
 
-  /** Moves the selected file: its text to the path in the new-file box. */
   protected rename(): void {
     const from = this.selected();
     const to = this.newPath().trim();
@@ -521,7 +507,6 @@ export class SourcePanel {
       if (refetch || !b) {
         await this.#load(this.previewId());
       } else {
-        // What was saved is now the kept source: a save commits when accepted.
         const changes = this.changes();
         const files = b.files
           .filter((f) => !(f.path in changes) || changes[f.path] !== null)

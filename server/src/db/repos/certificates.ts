@@ -2,10 +2,6 @@ import type { Certificate } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { fromDate, rowToCert, type CertRow } from "./mappers.ts";
 
-/**
- * Certificates and the ACME account key live in SQLite so "back up gangway" is
- * "copy one file".
- */
 export class CertificatesRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -47,7 +43,6 @@ export class CertificatesRepo {
     return this.get(c.domain)!;
   }
 
-  /** Renewal check: due when it expires inside the window, or is missing entirely. */
   isDueForRenewal(domain: string, windowMs: number, now: number = this.#now()): boolean {
     const c = this.get(domain);
     if (!c || !c.notAfter) return true;

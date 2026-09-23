@@ -1,15 +1,3 @@
-/**
- * Secrets: two scopes, one shape. The global map reaches every preview; a repository's
- * map reaches previews of that repository and wins on a name both hold.
- * Every entry has a value and a level; a preview is deployed with a clearance and
- * receives the entries at or below it.
- *
- * Both maps are one encrypted JSON blob each -- the repository's on its `repos` row, the
- * global one in the settings store under `secrets.global` -- sealed by the same key in
- * the state directory. Names and levels are listable; values leave this process exactly
- * twice: into `<checkout>/.env`, and from there into the containers. `set`/`unset`/`levels`
- * merge, because the API never returns a value for the browser to send back.
- */
 import { SECRET_LEVELS, clears, type Clearance, type SecretLevel } from "@gangway/shared/domain";
 import type { AuditAction, AuditSink } from "../audit/audit.ts";
 import type { Actor } from "../auth/actor.ts";
@@ -27,16 +15,13 @@ export type SecretEntry = { value: string; level: SecretLevel };
 export type SecretListing = { name: string; level: SecretLevel };
 
 export type SecretChange = {
-  /** A plain string sets the value at `standard` (or keeps the level of an existing entry). */
   set?: Record<string, string | SecretEntry> | undefined;
   unset?: string[] | undefined;
-  /** Re-level without re-entering the value. */
   levels?: Record<string, SecretLevel> | undefined;
 };
 
 type Backend = { read(): string | null; write(sealed: string | null): void };
 
-/** One sealed map: the global one, or a repository's. */
 class SecretMap {
   readonly #backend: Backend;
   readonly #box: SecretBox;
@@ -59,7 +44,7 @@ class SecretMap {
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
     const out: Record<string, SecretEntry> = {};
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      // A bare string is the older shape, read as `standard`.
+      // A bare string is the older shape, read as standard.
       if (typeof v === "string") out[k] = { value: v, level: "standard" };
       else if (
         typeof v === "object" &&
@@ -82,7 +67,6 @@ class SecretMap {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** Merges. Returns the listing afterwards. */
   update(actor: Actor | null, change: SecretChange): SecretListing[] {
     const current = this.all();
     const before = Object.keys(current).sort();
@@ -112,7 +96,7 @@ class SecretMap {
     if (names.length > MAX_ENV_ENTRIES)
       throw unprocessable(`at most ${MAX_ENV_ENTRIES} variables may be held here`);
     this.#backend.write(names.length === 0 ? null : this.#box.seal(JSON.stringify(current)));
-    // Names and levels only, ever: the audit log is readable by more people than the values are.
+    // Names and levels only: the audit log is readable by more people than the values are.
     this.#audit.sink?.record(actor, this.#audit.action, this.#audit.target, {
       old: { names: before },
       new: {
@@ -164,10 +148,6 @@ export class Secrets {
     );
   }
 
-  /**
-   * What a preview receives: the global entries, then the project's over them, each
-   * filtered by the clearance. `none` is nothing at all. Never for a response.
-   */
   valuesFor(projectId: string | null, clearance: Clearance): Record<string, string> {
     if (clearance === "none") return {};
     const out: Record<string, string> = {};
@@ -180,11 +160,7 @@ export class Secrets {
   }
 }
 
-/**
- * The `.env` line for one variable, in the form compose reads back exactly: double-quoted,
- * with the characters that would end or escape the string escaped. Compose expands
- * `\\n` inside double quotes, so a multi-line value survives too.
- */
+// Double-quoted so compose reads the value back exactly; it expands \n inside quotes.
 export function dotenvLine(name: string, value: string): string {
   const escaped = value
     .replace(/\\/g, "\\\\")

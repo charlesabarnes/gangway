@@ -1,15 +1,8 @@
-/**
- * Structured JSON-lines logging with secret redaction.
- *
- * Redaction is not decoration: build logs, git clone output and compose stderr all flow
- * through here and out to SSE clients, PR comments and disk. A leaked `gw_` token or a
- * GitHub installation token in a log line is a real credential disclosure.
- */
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 const ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
-/** Token shapes worth catching on sight, independent of the field they arrive in. */
+// Logs reach SSE clients, PR comments and disk, so a leaked token here is a real disclosure.
 const SECRET_PATTERNS: RegExp[] = [
   /gw_[A-Za-z0-9_-]{16,}/g, // our own API tokens
   /gh[pousr]_[A-Za-z0-9]{20,}/g, // GitHub PAT / OAuth / installation tokens
@@ -19,7 +12,6 @@ const SECRET_PATTERNS: RegExp[] = [
   /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g,
 ];
 
-/** Field names whose value is always replaced, whatever it looks like. */
 const SECRET_KEYS = new Set([
   "password",
   "passwordhash",
@@ -53,11 +45,9 @@ export function redact(value: unknown, depth = 0): unknown {
   if (typeof value === "string") return redactString(value);
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
-  // A Date has no own enumerable properties: walked as an object it would become `{}`.
+  // A Date has no own enumerable properties and would otherwise become {}.
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (value instanceof Error) {
-    // An AppError's `code` and `detail` are the part worth reading -- `compose config`'s
-    // stderr lives there; without them the log says only "the compose file is not valid".
     const extra = value as Error & { code?: unknown; detail?: unknown };
     return {
       name: value.name,

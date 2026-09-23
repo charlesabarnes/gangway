@@ -1,4 +1,3 @@
-/** Row <-> domain conversion. The only place epoch-millis integers become Dates. */
 import type {
   ApiToken,
   AuditActorType,
@@ -119,7 +118,6 @@ export function rowToPreview(r: PreviewRow): Preview {
   };
 }
 
-/** Splits a discriminated source into its column and its payload. */
 export function sourceToColumns(s: PreviewSource): { source_kind: string; source_json: string } {
   const { kind, ...rest } = s as { kind: string } & Record<string, unknown>;
   return { source_kind: kind, source_json: JSON.stringify(rest) };
@@ -192,8 +190,6 @@ export function rowToCert(r: CertRow): Certificate {
   };
 }
 
-/* ------------------------------------------------------------------ accounts */
-
 export type RoleRow = {
   id: string;
   name: string;
@@ -210,7 +206,6 @@ export const rowToRole = (r: RoleRow): Role => ({
   createdAt: new Date(r.created_at),
 });
 
-/** The columns a `User` is made of. Password material is deliberately not among them. */
 export const USER_COLUMNS = "id, email, role_id, disabled, created_at";
 export type UserRow = {
   id: string;
@@ -250,7 +245,6 @@ export function rowToSession(r: SessionRow): Session {
   };
 }
 
-/** Everything but `token_hash`: a listing has no use for it, so it never leaves the repo. */
 export const TOKEN_COLUMNS =
   "id, name, prefix, scopes, user_id, app_name, expires_at, last_used_at, revoked_at, created_at";
 export type TokenRow = {

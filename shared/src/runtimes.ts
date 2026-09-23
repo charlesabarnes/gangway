@@ -1,13 +1,3 @@
-/**
- * The runtime catalogue. A runtime turns a folder with no Dockerfile into an image: a
- * pinned base image, a container port, which file is the entry, and a starter to begin
- * from. What runtimes exist is code, like the permission catalogue; the server generates
- * the build files from these (`server/src/previews/runtimes.ts`).
- *
- * Adding one is a catalogue entry plus its Dockerfile. A runtime installs nothing; it only
- * builds an upload into a preview with a TTL like any other.
- */
-
 export const RUNTIME_IDS = ["static", "node", "bun", "deno", "workerd", "python", "php"] as const;
 export type RuntimeId = (typeof RUNTIME_IDS)[number];
 export type Runtime = {
@@ -15,19 +5,11 @@ export type Runtime = {
   name: string;
   language: string;
   description: string;
-  /** The pinned base image. Shown in the UI; the Dockerfile is generated from it. */
   image: string;
-  /**
-   * The versions `gangway.yml` may ask for, each a pinned image; the one whose
-   * image is `image` is the default. An allowlist, never a free image name: that is what an
-   * own Dockerfile is for. (Not "the first key": JS orders integer-like keys numerically.)
-   */
+  // The default is the entry matching `image`, not the first key: JS orders integer-like keys numerically.
   versions: Readonly<Record<string, string>>;
-  /** The port the container listens on. The runtime sets `$PORT` to it. */
   port: number;
-  /** Entry files, first match wins. Empty: the runtime has no entry (static, php). */
   entries: readonly string[];
-  /** What a new preview of this runtime starts with. */
   starter: Readonly<Record<string, string>>;
 };
 
@@ -240,13 +222,8 @@ echo "Hello from PHP " . PHP_VERSION . "! You asked for " . $_SERVER['REQUEST_UR
 
 export const runtimeById = (id: RuntimeId): Runtime => RUNTIMES.find((r) => r.id === id)!;
 
-/** `own`: the upload brings its own compose file or Dockerfile. */
 export type Detected = RuntimeId | "own";
 
-/**
- * Root-level marker files, first rule that matches wins. Data, sent to the UI by
- * `GET /v1/runtimes`, so the UI's guess and the server's choice are the same function.
- */
 export const DETECTION: readonly { runtime: Detected; markers: readonly string[] }[] = [
   {
     runtime: "own",
@@ -269,7 +246,6 @@ export const DETECTION: readonly { runtime: Detected; markers: readonly string[]
   { runtime: "bun", markers: ["index.ts", "main.ts", "worker.ts", "src/index.ts"] },
 ];
 
-/** Which runtime a set of relative file paths looks like. Anything else is a static site. */
 export function detectRuntime(paths: Iterable<string>): Detected {
   const have = new Set(paths);
   for (const rule of DETECTION) if (rule.markers.some((m) => have.has(m))) return rule.runtime;

@@ -1,7 +1,6 @@
 import { Component, computed, input } from '@angular/core';
 import type { PreviewAccess } from '../core/api.types';
 
-/** What each protected mode is called on screen. `open` shows nothing. */
 export const ACCESS_BADGE: Record<
   Exclude<PreviewAccess, 'open'>,
   { label: string; title: string }
@@ -24,10 +23,6 @@ export const ACCESS_BADGE: Record<
   },
 };
 
-/**
- * A lock pill naming who can open a preview, as the server resolved it. Nothing for an
- * open one.
- */
 @Component({
   selector: 'app-password-badge',
   template: `

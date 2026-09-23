@@ -1,19 +1,6 @@
-/**
- * The `gangway.*` container label set. A container is self-describing: the daemon holds a
- * second copy of the route record, so reconciliation has an answer when SQLite is behind or
- * gone. That requires `routeFromLabels` to build a complete `Route` from labels alone, which
- * works because gangway allocates the upstream port before `compose up`.
- *
- * Nothing here throws. A developer's compose file can set any label it likes, and the
- * reconciler must be able to say "not mine" or "newer than me" rather than crash a sweep.
- */
 import type { Route, Visibility } from "@gangway/shared/domain";
 
-/**
- * Bump when the meaning of a key changes, not when one is added. A newer gangway's
- * containers are reported distinctly (`future-version`) so an older one leaves them
- * alone instead of deciding they are unlabelled orphans and stopping them.
- */
+// Bump when a key's meaning changes, not when one is added.
 export const CURRENT_LABEL_VERSION = 1;
 
 export const LABEL = {
@@ -31,40 +18,24 @@ export const LABEL = {
   primary: "gangway.primary",
   createdAt: "gangway.created_at",
 
-  /**
-   * `Route` carries `containerPort` and `upstream.host`; without these two a rebuilt route
-   * would have to be completed from the hosts table, i.e. from SQLite, the copy being
-   * recovered from.
-   */
   containerPort: "gangway.container_port",
   upstreamHost: "gangway.upstream_host",
 } as const;
 
-/** The daemon-side filter for a managed-container scan. */
 export const MANAGED_FILTER = "gangway.managed=true";
 
 const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
 
-/**
- * The decoded label payload. This is the whole second copy of state: everything the
- * reconciler needs to rebuild a route row and to decide whose container this is.
- */
 export type GangwayLabels = {
-  /** Which gangway installation wrote this. Two installations may share one daemon. */
   instance: string;
-  /** Deployment environment (`prod`, `dev`, …). Same reason as `instance`, finer grain. */
   env: string;
   previewId: string;
-  /** Compose project name — the teardown unit (`down -v` removes all of it). */
   project: string;
   service: string;
   hostId: string;
   hostname: string;
-  /** The self-allocated published port on the host. */
   port: number;
-  /** The port inside the container that `port` is published from. */
   containerPort: number;
-  /** How the proxy dials the published port; `Host.upstream.address` at create time. */
   upstreamHost: string;
   visibility: Visibility;
   primary: boolean;
@@ -72,11 +43,8 @@ export type GangwayLabels = {
 };
 
 export type LabelParseFailure =
-  /** No `gangway.managed=true`. Someone else's container; not ours to touch. */
   | { ok: false; reason: "not-managed" }
-  /** Written by a newer gangway. Warn and leave it alone — do not stop it. */
   | { ok: false; reason: "future-version"; version: number; ours: number }
-  /** Ours, but unusable. An orphan holding a port is worse than a missing preview. */
   | { ok: false; reason: "malformed"; missing: string[]; invalid: string[] };
 
 export type LabelParseResult = { ok: true; labels: GangwayLabels } | LabelParseFailure;
@@ -107,7 +75,6 @@ export function buildLabels(l: GangwayLabels): Record<string, string> {
   };
 }
 
-/** True if the label bag claims to be ours at all. Cheap pre-filter for a scan. */
 export function isManaged(raw: Readonly<Record<string, string>> | null | undefined): boolean {
   return raw?.[LABEL.managed] === "true";
 }
@@ -118,9 +85,7 @@ export function parseLabels(
   const bag = raw ?? {};
   if (!isManaged(bag)) return { ok: false, reason: "not-managed" };
 
-  // Version is checked before the fields. A newer gangway may have renamed or dropped
-  // keys we consider mandatory; reporting that as `malformed` would invite the
-  // reconciler to treat a perfectly healthy newer preview as an orphan and stop it.
+  // Version first: a newer gangway's labels must not be read as malformed and stopped.
   const rawVersion = bag[LABEL.version];
   const version = rawVersion === undefined ? Number.NaN : Number(rawVersion);
   if (!Number.isInteger(version) || version < 1) {
@@ -219,7 +184,6 @@ export function parseLabels(
   };
 }
 
-/** Rebuilds a route for a running container that has none. No database, no daemon call. */
 export function routeFromLabels(l: GangwayLabels): Route {
   return {
     hostname: l.hostname,
@@ -240,7 +204,6 @@ export type LabelContext = {
   visibility: Visibility;
 };
 
-/** The forward direction: a route we are about to create becomes the container's labels. */
 export function labelsFromRoute(route: Route, ctx: LabelContext): GangwayLabels {
   return {
     instance: ctx.instance,
@@ -259,7 +222,6 @@ export function labelsFromRoute(route: Route, ctx: LabelContext): GangwayLabels 
   };
 }
 
-/** Convenience for the compose/create path: labels for a container, as Docker wants them. */
 export function containerLabels(route: Route, ctx: LabelContext): Record<string, string> {
   return buildLabels(labelsFromRoute(route, ctx));
 }

@@ -1,7 +1,3 @@
-/**
- * `Forge` for GitHub. Everything here is one of six REST calls on top of
- * `GitHubApp`; the lifecycle decisions live in `forge/pr-previews.ts`.
- */
 import { internal, notFound } from "../../errors.ts";
 import type { DeploymentState, Forge, ForgeEvent, ForgeRepo, PullRequest } from "../forge.ts";
 import type { GitHubApp } from "./app.ts";
@@ -14,12 +10,10 @@ import {
   verifySignature,
 } from "./webhook.ts";
 
-/** Marks the comment as ours. Invisible on GitHub; found by substring, never by position. */
 export const COMMENT_MARKER = "<!-- gangway -->";
 
 export type GitHubForgeOptions = {
   app: GitHubApp;
-  /** Read per delivery: a rotated webhook secret applies to the next one. */
   webhookSecret: () => string;
 };
 
@@ -88,7 +82,6 @@ export class GitHubForge implements Forge {
         { body: marked },
       );
       if (r.status === 200) return existingId;
-      // Deleted by a human: fall through and make a new one. Anything else is an error.
       if (r.status !== 404)
         throw internal(`GitHub answered ${r.status} editing comment ${existingId}`, {
           status: r.status,

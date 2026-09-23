@@ -24,18 +24,11 @@ export type CreatePreview = {
   secretLevel?: Clearance | null;
   templateId?: string | null;
   projectId?: string | null;
-  /**
-   * Who deployed it (`principalOf` in auth/actor.ts). Not on `Preview`: only
-   * `previews.update_own` asks.
-   */
   owner?: string | null;
-  /** Omitted: inherit. */
   password?: StoredPreviewPassword;
-  /** Omitted: inherit. */
   passwordLogin?: PasswordLogin;
 };
 
-/** A preview's password as stored: the mode, and the scrypt hash for `set` / `generated`. */
 export type StoredPreviewPassword = {
   mode: PasswordMode;
   secret: { hash: string; salt: string } | null;
@@ -100,7 +93,6 @@ export class PreviewsRepo {
     return r ? rowToPreview(r) : undefined;
   }
 
-  /** Who deployed it, or null (a PR, a workflow, a row from before migration 0010). */
   ownerOf(id: string): string | null {
     return (
       this.#db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = $id", { id })
@@ -108,7 +100,6 @@ export class PreviewsRepo {
     );
   }
 
-  /** The mode and hash. Not on `Preview`: only the gate reads the hash. */
   passwordOf(id: string): StoredPreviewPassword {
     const r = this.#db.get<{
       password_mode: string | null;
@@ -134,7 +125,6 @@ export class PreviewsRepo {
     );
   }
 
-  /** `only` is its own column (migration 0013); anything else clears it and sets the rule. */
   setPasswordLogin(id: string, login: PasswordLogin): void {
     if (login === "only")
       this.#db.run("UPDATE previews SET signed_in_only = 1, updated_at = $now WHERE id = $id", {
@@ -193,7 +183,6 @@ export class PreviewsRepo {
     );
   }
 
-  /** A redeploy that changed the runtime. The kind never changes: an upload stays one. */
   setSource(id: string, source: PreviewSource): void {
     const { source_kind, source_json } = sourceToColumns(source);
     this.#db.run(
@@ -202,15 +191,11 @@ export class PreviewsRepo {
     );
   }
 
-  /**
-   * Written on every proxied request, so it must be as cheap as possible and must never
-   * bump updated_at -- that column means "the lifecycle changed", not "someone visited".
-   */
+  // Runs on every proxied request: keep it cheap and never bump updated_at.
   touch(id: string, at: number = this.#now()): void {
     this.#db.run("UPDATE previews SET last_seen_at = $at WHERE id = $id", { id, at });
   }
 
-  /** The batched form: one transaction for the whole flush. Never moves a timestamp backwards. */
   touchMany(seen: ReadonlyMap<string, number>): number {
     if (seen.size === 0) return 0;
     return this.#db.transaction(() => {
@@ -225,7 +210,6 @@ export class PreviewsRepo {
     });
   }
 
-  /** For the TTL sweeper. Destroyed previews are already gone and never re-expire. */
   expired(now: number = this.#now()): Preview[] {
     return this.#db
       .query<PreviewRow>(
@@ -238,7 +222,6 @@ export class PreviewsRepo {
       .map(rowToPreview);
   }
 
-  /** For the idle-sleep sweeper: awake previews untouched since the cutoff. */
   idleSince(cutoff: number): Preview[] {
     return this.#db
       .query<PreviewRow>(
@@ -250,11 +233,7 @@ export class PreviewsRepo {
       .map(rowToPreview);
   }
 
-  /**
-   * The live preview of a pull request, by its source. Not by name: an unlisted
-   * preview's project carries an unguessable suffix, so the name is not stable across
-   * deploys of the same PR; the repository and number are.
-   */
+  // By source, not name: an unlisted preview's name changes across deploys.
   findPullRequest(repo: string, number: number): Preview | undefined {
     const r = this.#db.get<PreviewRow>(
       `SELECT * FROM previews
@@ -266,7 +245,6 @@ export class PreviewsRepo {
     return r ? rowToPreview(r) : undefined;
   }
 
-  /** The forge-side objects a PR preview keeps current: ids only. */
   forgeRefs(id: string): { commentId: number | null; deploymentId: number | null } {
     const r = this.#db.get<{ forge_comment_id: number | null; forge_deployment_id: number | null }>(
       "SELECT forge_comment_id, forge_deployment_id FROM previews WHERE id = $id",

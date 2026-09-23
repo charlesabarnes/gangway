@@ -1,13 +1,3 @@
-/**
- * Which template a deploy follows, and which project it belongs to.
- *
- * The project: named outright by the request, else found from the source's repository (a
- * PR by full name, a git clone URL by the name inside it). The template: named by the
- * request, else the project's, else the trigger's default from settings -- a pull
- * request, a session user at the Deploy screen, or a token (CI, a script, an agent). A
- * setting that names a template which no longer exists resolves to `default` and says so
- * once in the log.
- */
 import type { Project, Template, Trigger } from "@gangway/shared/domain";
 import type { Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
@@ -24,17 +14,13 @@ export type ResolvedPolicy = { template: Template; project: Project | undefined;
 
 export interface Policy {
   resolve(input: PolicyInput): ResolvedPolicy;
-  /** The built-in template: the sweep's window for rows deployed before templates existed. */
   default(): Template;
 }
 
 export type PolicyDeps = {
   templates: { get(id: string): Template | undefined; default(): Template };
-  /** A project by id or slug, for a request that names one. */
   project: (ref: string) => Project | undefined;
-  /** The project whose repository the source is; undefined when it has none. */
   projectForSource: (source: DeploySource) => Project | undefined;
-  /** The trigger defaults from settings, read on every deploy. */
   defaultFor: (trigger: Trigger) => string;
   logger?: Logger | undefined;
 };
@@ -77,8 +63,6 @@ export class PolicyResolver implements Policy {
     const wanted = project?.templateId ?? this.#d.defaultFor(trigger);
     const found = this.#d.templates.get(wanted);
     if (found) return { template: found, project, trigger };
-    // A stale name: the project's template was deleted (ON DELETE SET NULL should have
-    // caught it) or a setting points nowhere. Never fail a deploy for that.
     if (!this.#warned.has(wanted)) {
       this.#warned.add(wanted);
       this.#d.logger?.warn("template not found; deploying with the default template", {
@@ -95,7 +79,6 @@ export class PolicyResolver implements Policy {
   }
 }
 
-/** For tests and tools that need no database: one template for everything, no projects. */
 export function fixedPolicy(
   fields: Partial<Omit<Template, "id" | "createdAt" | "updatedAt">> = {},
 ): Policy {

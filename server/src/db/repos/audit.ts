@@ -11,12 +11,6 @@ export type AppendAudit = {
   new?: unknown;
 };
 
-/**
- * The audit log. Append-only: there is no update and no delete here, on purpose. Not the
- * events table -- that one is preview-scoped, cascades away with its preview, and has no
- * actor. Callers redact `old`/`new` before they arrive (audit/audit.ts); this repo stores
- * what it is given.
- */
 export class AuditRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -43,7 +37,6 @@ export class AuditRepo {
     ).lastInsertRowid;
   }
 
-  /** Newest first. `nextBefore` is the cursor for the following page, or null at the end. */
   page(q: { before?: number; limit: number; action?: string }): {
     entries: AuditEntry[];
     nextBefore: number | null;

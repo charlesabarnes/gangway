@@ -8,16 +8,6 @@ import { SETTINGS, SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
-/**
- * `/v1/settings`. GET reports every setting with its source; a secret is
- * reported as `set: true|false` and never as a value. PUT takes a partial map and writes
- * each value through its own schema. A key pinned in config is a 409: the API must not
- * pretend to change what the config will keep overriding.
- *
- * `surfaces.*` are refused here: they change only through `PUT /v1/surfaces`, which holds
- * the lockout guard and its own permission (`surfaces.manage`). `previews.password.*` too:
- * the shared password must be hashed on the way in, so it has its own route.
- */
 export function settingsRoutes(
   api: Hono<AppEnv>,
   settings: Settings,
@@ -34,7 +24,6 @@ export function settingsRoutes(
     const { values } = SetSettingsSchema.parse(body);
     const actor = c.get("actor");
 
-    // Validate everything before writing anything: a PUT is applied whole or not at all.
     const writes: { key: string; value: unknown; secret: boolean; old: unknown }[] = [];
     for (const [key, raw] of Object.entries(values)) {
       const def = SETTINGS_BY_KEY.get(key);
@@ -49,7 +38,6 @@ export function settingsRoutes(
       const parsed = def.schema.safeParse(raw);
       if (!parsed.success)
         throw unprocessable(`"${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`, { key });
-      // A trigger default must name a template that exists.
       if (
         key.startsWith("templates.default.") &&
         templates &&
@@ -65,7 +53,6 @@ export function settingsRoutes(
     }
     for (const w of writes) settings.set(SETTINGS_BY_KEY.get(w.key)!, w.value);
 
-    // Secrets are audited as changed, never as what they changed to.
     const shown = (w: (typeof writes)[number], v: unknown) =>
       w.secret ? (v === "" ? "[unset]" : "[set]") : v;
     audit.record(actor, "settings.changed", null, {
@@ -75,11 +62,6 @@ export function settingsRoutes(
     return c.json({ settings: settings.view() });
   });
 
-  /**
-   * The password previews that inherit are behind. `off`; `shared`, one password for all
-   * of them (a value is needed unless one is already set -- switching back to `shared`
-   * keeps the old one); `generated`, each new preview gets its own, in its log.
-   */
   api.put("/settings/preview-password", requirePermission("settings.write"), async (c) => {
     const body = await readJson(c);
     const { mode, value, login } = DefaultPasswordSchema.parse(body);

@@ -11,20 +11,11 @@ import {
 import { toProblem, type ProblemError } from '../../core/problem';
 import { SseService, type SseHandle, type SseStatus } from '../../core/sse.service';
 
-/** How long a preview that was destroyed while you watched stays on screen, greyed, before it goes. */
 export const DESTROYED_LINGER_MS = 10_000;
 
 type Patch = Omit<StreamEvent, 'type'> & { type: StreamEvent['type'] };
 export type RedeployEvent = Extract<StreamEvent, { type: 'preview.redeploy' }>;
 
-/**
- * The previews on screen, kept live. One fetch, then `/v1/events` from the cursor that
- * fetch returned -- the server reads that cursor before the list, so a change landing in
- * between is replayed onto a list that already has it, never missed.
- *
- * Shared by the list and the detail page (root-provided, ref-counted), so going from one
- * to the other neither refetches nor opens a second stream.
- */
 @Injectable({ providedIn: 'root' })
 export class PreviewsStore {
   readonly #http = inject(HttpClient);
@@ -36,7 +27,6 @@ export class PreviewsStore {
   readonly error = signal<ProblemError | null>(null);
   readonly includeDestroyed = signal(false);
 
-  /** Newest first: ids are ULIDs, so they sort by creation time. */
   readonly previews = computed(() =>
     [...this.#byId().values()].sort((a, b) => (a.id < b.id ? 1 : -1)),
   );
@@ -50,7 +40,6 @@ export class PreviewsStore {
     return computed(() => this.#byId().get(id));
   }
 
-  /** Call from a component that shows previews; pair with `disconnect()` on destroy. */
   connect(): void {
     if (++this.#users === 1) void this.reload();
   }
@@ -63,7 +52,6 @@ export class PreviewsStore {
     this.#dropTimers.clear();
   }
 
-  /** Fetch everything and (re)start following. Also what a `reset` event asks for. */
   async reload(): Promise<void> {
     this.loading.set(true);
     try {
@@ -85,7 +73,6 @@ export class PreviewsStore {
     await this.reload();
   }
 
-  /** One preview into the store: a deep link to a detail page, or an event about an id not held yet. */
   load(id: string): Promise<Preview | undefined> {
     const running = this.#fetching.get(id);
     if (running) return running;
@@ -100,10 +87,6 @@ export class PreviewsStore {
     return p;
   }
 
-  /**
-   * Optimistic: the row says `destroying` at once, and goes back to what it was if the
-   * server refuses. Rejects with a ProblemError the caller can show.
-   */
   async destroy(id: string): Promise<void> {
     const before = this.#byId().get(id);
     if (before) this.#put({ ...before, state: 'destroying' });
@@ -113,13 +96,11 @@ export class PreviewsStore {
       );
       this.#put(preview);
     } catch (e) {
-      // Only if nothing newer arrived meanwhile: an event may already have moved it on.
       if (before && this.#byId().get(id)?.state === 'destroying') this.#put(before);
       throw toProblem(e);
     }
   }
 
-  /** Change a preview's password and/or its login rule. Rejects with a ProblemError the caller can show. */
   async setPassword(id: string, change: PasswordChange): Promise<Preview> {
     try {
       const { preview } = await firstValueFrom(
@@ -153,13 +134,11 @@ export class PreviewsStore {
       this.#noteRedeploy(e);
       return;
     }
-    // created/adopted carry no preview; an event about an id not held is the same problem.
     const held = this.#byId().get(e.previewId);
     if (e.type !== 'preview.state' || !held) {
       void this.load(e.previewId);
       return;
     }
-    // The replay after a reconnect can include events older than the row just fetched.
     if (Date.parse(e.at) < Date.parse(held.updatedAt)) return;
     this.#put({
       ...held,
@@ -170,7 +149,6 @@ export class PreviewsStore {
     });
   }
 
-  /** The latest `preview.redeploy` per preview: the Source panel shows its phase. */
   readonly #redeploys = signal<ReadonlyMap<string, RedeployEvent>>(new Map());
 
   redeployOf(id: string): Signal<RedeployEvent | undefined> {

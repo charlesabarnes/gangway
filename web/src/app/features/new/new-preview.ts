@@ -36,14 +36,8 @@ import { deployQuery, formatBytes, problemNotes } from './upload';
 const FIELD =
   'block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent/30 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900';
 
-/** `own` is not a runtime: the upload's own compose file or Dockerfile. */
 export const OWN_LABEL = 'Own Dockerfile / compose';
 
-/**
- * New preview: the Deploy screen. Two ways in on one page: start from a
- * runtime's starter, or drop files, folders or a zip. Both become one tar.gz posted to
- * `/v1/previews` -- the same upload path an agent or a script uses.
- */
 @Component({
   selector: 'app-new-preview',
   imports: [Btn, BrandIcon, RouterLink],
@@ -538,7 +532,6 @@ export class NewPreview {
   protected readonly looks = RUNTIME_LOOKS;
   protected readonly addonLooks = ADDON_LOOKS;
   protected readonly tint = tint;
-  /** The runtime whose starter is being deployed, for its card's spinner. */
   protected readonly starting = signal<RuntimeId | null>(null);
   protected chip(on: boolean): string {
     return `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
@@ -560,26 +553,21 @@ export class NewPreview {
 
   protected readonly upload = signal<Collected | null>(null);
   protected readonly dragging = signal(false);
-  /** '' = auto. */
   protected readonly choice = signal<Detected | ''>('');
-  /** The server's plan for the upload under the current choice; null while it is asked. */
   readonly plan = signal<AppPlan | null>(null);
   protected readonly planning = signal(false);
-  /** What `auto` resolved to, from the last auto plan; the local marker check until one arrives. */
   readonly #autoPlan = signal<AppPlan | null>(null);
   protected readonly detected = computed<Detected>(() => {
     const auto = this.#autoPlan();
     if (auto) return auto.kind === 'own' ? 'own' : (auto.runtime ?? 'static');
     return detect(this.upload()?.files.map((f) => f.path) ?? [], this.list()?.detection ?? []);
   });
-  /** A plan that cannot run: the server would refuse it, so the button says so first. */
   protected readonly blocked = computed(() => {
     const p = this.plan();
     return p !== null && (p.issues.length > 0 || p.reasons.some((r) => r.level === 'error'));
   });
   #planSeq = 0;
 
-  /** The add-on catalogue, and which are ticked. Untouched, the plan decides (gangway.yml + suggestions). */
   protected readonly addons = computed<AddonInfo[]>(() => this.list()?.addons ?? []);
   readonly addonChecks = signal<AddonId[]>([]);
   readonly #addonsTouched = signal(false);
@@ -591,7 +579,6 @@ export class NewPreview {
     const next = this.addonChecks().filter((a) => a !== id);
     this.addonChecks.set(on ? [...next, id] : next);
   }
-  /** What `?addons=` says: omitted when untouched and nothing is ticked (gangway.yml decides), `none` to clear. */
   #addonsParam(): string | undefined {
     const checks = this.addonChecks();
     if (checks.length > 0) return checks.join(',');
@@ -601,7 +588,6 @@ export class NewPreview {
   protected readonly name = signal('');
   protected readonly visibility = signal('');
   protected readonly ttl = signal('');
-  /** Who can open it ('' is the server default); a chosen password goes in a header, never the URL. */
   protected readonly who = signal<'' | 'open' | 'password' | 'signed-in' | 'either'>('');
   protected readonly passwordSource = signal<'generate' | 'set' | 'shared'>('generate');
   protected readonly passwordValue = signal('');
@@ -617,12 +603,10 @@ export class NewPreview {
   protected readonly notes = signal<string[]>([]);
 
   constructor() {
-    // From an effect, not the constructor: the session (and so the permission) may arrive after the page.
     effect(() => {
       if (!this.canDeploy()) return;
       untracked(() => void this.#load());
     });
-    // Re-plan whenever the files or the choice change -- and once the catalogue says which files to send.
     effect(() => {
       const u = this.upload(),
         choice = this.choice(),
@@ -652,7 +636,6 @@ export class NewPreview {
       if (seq !== this.#planSeq) return;
       this.plan.set(p);
       if (choice === '' && !addons) this.#autoPlan.set(p);
-      // Untouched: tick what gangway.yml asks for, and what the dependencies suggest.
       if (!this.#addonsTouched())
         this.addonChecks.set([
           ...new Set([...p.addons.map((a) => a.id), ...p.suggested.map((s) => s.id)]),
@@ -664,7 +647,6 @@ export class NewPreview {
     }
   }
 
-  /** `node:24-alpine · npm ci · npm run build · npm start` -- the plan in one line. */
   protected summary(p: AppPlan): string {
     const cmd = (c: Command | null) =>
       c === null ? null : typeof c === 'string' ? c : c.join(' ');
@@ -689,7 +671,6 @@ export class NewPreview {
     } catch (e) {
       this.runtimesError.set(`Could not load runtimes: ${toProblem(e).detail}`);
     }
-    // Optional pickers: a role that cannot list them still deploys.
     void firstValueFrom(this.#http.get<{ projects: Project[] }>('/v1/projects')).then(
       (r) => this.projects.set(r.projects),
       () => {},
@@ -722,7 +703,6 @@ export class NewPreview {
     if (files.length > 0) await this.#collect(() => collectFromFiles(files));
   }
 
-  /** Public for tests: what a drop or a pick ends in. */
   async accept(c: Collected): Promise<void> {
     await this.#collect(() => Promise.resolve(c));
   }
@@ -773,7 +753,6 @@ export class NewPreview {
   protected deployUpload(): Promise<void> {
     const u = this.upload();
     if (!u) return Promise.resolve();
-    // `auto`, not our label for it: the server plans again, and a gangway.yml may name the runtime.
     return this.#post(packFiles(u.files), this.choice() || 'auto');
   }
 
@@ -804,7 +783,6 @@ export class NewPreview {
       project: this.project(),
       template: this.template(),
       addons: this.#addonsParam(),
-      // open and signed-in take no password; generate rides the query; a chosen one the header.
       password:
         who === 'open' || who === 'signed-in' ? 'none' : src === 'generate' ? 'generate' : '',
       passwordLogin: { '': '', open: '', password: 'off', 'signed-in': 'only', either: 'on' }[who],

@@ -1,12 +1,3 @@
-/**
- * The MCP tools: `deploy`, `status`, `logs`, `destroy`, and no more. A big tool surface
- * crowds an agent's context and it starts picking wrong; everything else is a parameter.
- * Each answers with a URL and a short status string, never a JSON dump.
- *
- * A thin adapter over the service layer, like the REST routes. There is no
- * `requirePermission` here, so each tool asks `can()` itself; `TOOL_PERMISSIONS` is pinned
- * by a test the way `route-permissions.test.ts` pins the routes.
- */
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { addonQuery, VISIBILITY_VALUES } from "@gangway/shared/api";
@@ -35,11 +26,6 @@ export const TOOL_PERMISSIONS = {
   destroy: "previews.destroy",
 } as const satisfies Record<string, Permission>;
 export type ToolName = keyof typeof TOOL_PERMISSIONS;
-/**
- * `deploy` with `preview` rebuilds an existing one in place, which is its own permission:
- * `previews.update` for any preview, `previews.update_own` for one this credential's owner
- * deployed.
- */
 const REDEPLOY_PERMISSION: Permission = "previews.update";
 const REDEPLOY_OWN_PERMISSION: Permission = "previews.update_own";
 
@@ -50,7 +36,6 @@ const MAX_CHECKS = 20;
 const MANIFEST_SHOWN = 40;
 const PLAN_REASONS_SHOWN = 8;
 
-/** Refused before the tool starts. */
 class MissingPermission extends Error {
   readonly permission: Permission;
   constructor(permission: Permission, why?: string) {
@@ -63,11 +48,9 @@ export type ToolDeps = {
   ctx: PreviewContext;
   deploys: IdempotentDeploys;
   logger: Logger;
-  /** Upload by reference. Absent: `upload` is refused and `files` is the way. */
   uploads?: Uploads | undefined;
 };
 
-/** Per call: who is asking, and the signal that fires when MCP is switched off. */
 export type CallScope = { actor: Actor; signal: AbortSignal };
 
 const text = (t: string): CallToolResult => ({ content: [{ type: "text", text: t }] });
@@ -98,7 +81,6 @@ function describePreview(ctx: PreviewContext, p: Preview): string {
   return parts.join(" — ");
 }
 
-/** A plan that cannot run says why in its reasons and gangway.yml issues; the agent needs them more than the headline. */
 export function refusalDetail(detail: Record<string, unknown> | undefined): string {
   if (!detail) return "";
   const lines: string[] = [];
@@ -120,7 +102,6 @@ export function refusalDetail(detail: Record<string, unknown> | undefined): stri
   return lines.length ? `\n${lines.slice(0, 20).join("\n")}` : "";
 }
 
-/** How an upload was read, in the words the New screen uses. */
 function describePlan(plan: AppPlan): string {
   const what =
     plan.kind === "own"
@@ -158,7 +139,6 @@ function logTail(ctx: PreviewContext, id: string, n: number): string {
     : lines.map((l) => `${l.stream}: ${l.line}`).join("\n");
 }
 
-/** Settles with the preview, or null at the deadline or when MCP is switched off. */
 async function waitFor<T>(
   done: Promise<T>,
   seconds: number,
@@ -296,10 +276,8 @@ export class Tools {
     this.#d = d;
   }
 
-  /** One server per request (stateless): its tools are closed over this request's actor. */
   server(scope: CallScope): McpServer {
     const s = new McpServer({ name: "gangway", version: "1" }, { instructions: INSTRUCTIONS });
-    // The workflow, for any client, with nothing installed. A prompt, not a fifth tool.
     s.registerPrompt(
       "generate-artifact",
       {
@@ -402,11 +380,6 @@ export class Tools {
     return s;
   }
 
-  /**
-   * The permission a `tools/call` lacks before it starts, for the surface's step-up:
-   * an OAuth client answers a 403 naming a scope by asking the person again. Null when the
-   * call may go ahead -- or fails for some other reason, which the tool itself reports.
-   */
   missingFor(actor: Actor, tool: string, args: unknown): Permission | null {
     const base = (TOOL_PERMISSIONS as Record<string, Permission>)[tool];
     if (!base) return null;
@@ -422,7 +395,6 @@ export class Tools {
     return mayRebuild(actor, owner) ? null : REDEPLOY_PERMISSION;
   }
 
-  /** A refusal or a bad request is a tool error the agent can read, never a protocol error it cannot. */
   async #guard(tool: ToolName, run: () => Promise<string>): Promise<CallToolResult> {
     try {
       return text(await run());
@@ -509,9 +481,8 @@ export class Tools {
       ...(args.password ? { password: { mode: args.password } } : {}),
       ...(args.passwordLogin ? { passwordLogin: args.passwordLogin } : {}),
     };
-    // Agents retry. With no key of their own, an identical request is the retry.
+    // Agents retry, so without a key an identical request is treated as the retry.
     const key = args.idempotencyKey ?? `auto:${requestHash(input).slice(0, 40)}`;
-    // The archive is unpacked before deploy() returns: the bytes on disk can go either way.
     const res = await this.#d.deploys.deploy(input, key).finally(() => taken?.done());
     progress(0, `${res.preview.state}: ${nameOf(ctx, res.preview)}`);
 
@@ -581,11 +552,6 @@ export class Tools {
     return `ready: ${url} (rebuilt)\n${describePreview(ctx, outcome.preview)}${await this.#report(outcome.preview, res.plan, args.check)}`;
   }
 
-  /**
-   * What an agent otherwise finds out by reading gangway's source, curling each
-   * route and hashing each file -- how the upload was read, what exactly is deployed, and
-   * what the paths it cares about answer.
-   */
   async #report(
     p: Preview,
     plan: AppPlan | undefined,
@@ -639,7 +605,6 @@ export class Tools {
     return this.#uploads().take(id, actor);
   }
 
-  /** The first half of upload by reference: a URL, and the exact command that fills it. */
   #issueUpload(scope: CallScope, args: DeployArgs): string {
     const others = (["files", "image", "git", "remove"] as const).filter(
       (k) => args[k] !== undefined,

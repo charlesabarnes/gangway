@@ -24,7 +24,6 @@ export class App {
     { initialValue: this.#router.url },
   );
 
-  /** Login and setup bring their own frame; the app header is for people who are in. */
   protected readonly chrome = computed(
     () => this.auth.authenticated() && !/^\/(login|setup)(\?|\/|$)/.test(this.#url()),
   );

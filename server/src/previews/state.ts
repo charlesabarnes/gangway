@@ -1,10 +1,3 @@
-/**
- * The preview state machine. One function changes a preview's state, and it changes all
- * three copies together: the SQLite row (truth), the route table entries (what the proxy
- * reads per request) and the event stream (what the UI reads). Anything that set one
- * without the others would show up as a preview the UI calls awake and the proxy calls
- * building.
- */
 import type { Preview, PreviewState } from "@gangway/shared/domain";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
 import { AppError, notFound } from "../errors.ts";
@@ -13,15 +6,10 @@ import type { RouteTable } from "../routing/table.ts";
 
 const LEGAL: Record<PreviewState, readonly PreviewState[]> = {
   building: ["starting", "failed", "destroying"],
-  // starting -> asleep: a wake that did not get there. The containers are as they
-  // were; the next request tries again. A deploy never takes this edge.
   starting: ["awake", "asleep", "failed", "destroying"],
-  // awake -> starting: a rebuild in place swapping in its new containers.
   awake: ["asleep", "starting", "failed", "destroying", "building"],
   asleep: ["starting", "failed", "destroying"],
   failed: ["building", "destroying"],
-  // A teardown that could not reach the daemon is a failure, not a success: the
-  // containers are still there, so the routes and their ports stay claimed.
   destroying: ["destroyed", "failed"],
   destroyed: [],
 };
@@ -48,7 +36,7 @@ export class PreviewStates {
         state: current.state,
       });
     }
-    // Synchronous, no await between the three: no request can observe them disagreeing.
+    // No await between these three updates, so no request sees them disagree.
     this.#previews.setState(id, to, error);
     this.#table.setState(id, to);
     this.#bus.publish(

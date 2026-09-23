@@ -23,7 +23,6 @@ export class HostsRepo {
     return r ? rowToHost(r) : undefined;
   }
 
-  /** Idempotent: re-seeding the local host from config on every boot must not fail. */
   upsert(h: HostInput): Host {
     this.#db.run(
       `INSERT INTO hosts (id, name, docker_host, expect_name, capabilities, publish_bind,
@@ -62,11 +61,6 @@ export class HostsRepo {
     return this.get(h.id)!;
   }
 
-  /**
-   * Reachability is a first-class host property, not an exception. An unreachable host is
-   * not an empty host: the reconciler must never treat "I could not ask" as "the answer
-   * was nothing", or a network blip deletes every route.
-   */
   setState(id: string, state: HostState, lastError: string | null = null): void {
     this.#db.run(
       `UPDATE hosts SET state = $state, last_error = $err,

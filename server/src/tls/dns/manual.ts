@@ -1,9 +1,3 @@
-/**
- * The escape hatch for anyone not on Cloudflare: print the record, wait for a human.
- *
- * Deliberately the same interface as the Cloudflare provider, so the ACME flow has one code
- * path and `tlsMode: "acme"` works on any DNS host before a second API integration exists.
- */
 import { Logger } from "../../logger.ts";
 import {
   nodeDnsQueries,
@@ -15,7 +9,6 @@ import {
 export type ManualOptions = {
   log?: Logger;
   dns?: DnsQueries;
-  /** Minutes, not the Cloudflare default of two: a person has to read this and go and type it. */
   timeoutMs?: number;
   intervalMs?: number;
 };
@@ -38,7 +31,6 @@ export class ManualDnsProvider implements DnsProvider {
   async createTxt(name: string, value: string): Promise<{ recordId: string }> {
     const recordId = `manual-${++this.#seq}`;
     this.#pending.set(recordId, { name, value });
-    // Add, do not replace: a wildcard order asks for two records at this same name.
     this.#log.info(
       `ACTION REQUIRED: add TXT ${name} = "${value}" (ttl 60), in ADDITION to any existing record at that name`,
       {

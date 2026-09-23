@@ -1,8 +1,3 @@
-/**
- * GitHub's webhook wire format, and nothing else: the signature over the raw body, and the
- * three payloads we act on turned into `ForgeEvent`s. Pure functions; the fixtures in
- * the tests are trimmed real deliveries.
- */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   parsePreviewCommand,
@@ -16,7 +11,6 @@ export const SIGNATURE_HEADER = "x-hub-signature-256";
 export const EVENT_HEADER = "x-github-event";
 export const DELIVERY_HEADER = "x-github-delivery";
 
-/** `https://github.com/acme/web-app(.git)` -> `acme/web-app`; anything else -> null. */
 export function githubFullName(cloneUrl: string): string | null {
   let u: URL;
   try {
@@ -33,10 +27,7 @@ export function signPayload(secret: string, rawBody: Uint8Array): string {
   return `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;
 }
 
-/**
- * Constant-time on the digest. The header is parsed first so a wrong length is a plain
- * "no" and not an exception -- `timingSafeEqual` throws on unequal lengths.
- */
+// timingSafeEqual throws on unequal lengths, so the length is checked first.
 export function verifySignature(
   secret: string,
   rawBody: Uint8Array,
@@ -49,9 +40,6 @@ export function verifySignature(
   const presented = Buffer.from(m[1]!, "hex");
   return presented.length === expected.length && timingSafeEqual(presented, expected);
 }
-
-/* ------------------------------------------------------------------ payload shapes */
-/* Only the fields read. GitHub sends far more; none of it is trusted beyond these. */
 
 type GhUser = { login?: string };
 type GhRepo = {
@@ -104,7 +92,6 @@ function repoOf(r: GhRepo | undefined, installationId: string): ForgeRepo | null
   };
 }
 
-/** Same reader for a webhook's `pull_request` and the REST `GET /pulls/{n}` body. */
 export function pullRequestOf(p: GhPullRequest | undefined, repo: ForgeRepo): PullRequest | null {
   if (
     !p ||
@@ -121,7 +108,7 @@ export function pullRequestOf(p: GhPullRequest | undefined, repo: ForgeRepo): Pu
     headSha: p.head.sha,
     headRef: p.head.ref,
     baseRef: p.base?.ref ?? "",
-    // A deleted head repository is `null`; treat what cannot be seen as foreign.
+    // A deleted head repository is null; treat it as foreign.
     fromFork: headRepo === undefined || headRepo === null || headRepo !== repo.fullName,
     draft: p.draft === true,
     author: p.user?.login ?? "",

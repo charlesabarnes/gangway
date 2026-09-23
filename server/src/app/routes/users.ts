@@ -5,10 +5,6 @@ import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
-/**
- * `/v1/users`. Thin: the last-admin guard, session revocation and the
- * audit trail are all in auth/accounts.ts. There is no DELETE -- an account is disabled.
- */
 export function userRoutes(api: Hono<AppEnv>, accounts: Accounts): void {
   api.get("/users", requirePermission("users.read"), (c) =>
     c.json({ users: accounts.listUsers() }),

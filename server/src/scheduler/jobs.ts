@@ -1,7 +1,3 @@
-/**
- * The periodic jobs themselves. Each is a plain function of its dependencies so it can
- * be tested without a scheduler, and the scheduler without them.
- */
 import { systemActor } from "../auth/actor.ts";
 import type { Logger } from "../logger.ts";
 import type { PreviewContext } from "../previews/context.ts";
@@ -14,15 +10,7 @@ export type SweepReport = {
   failed: string[];
 };
 
-/**
- * TTL sweep: destroy what has outlived `ttl_expires_at`. Goes through the same `destroy`
- * a DELETE does -- one lifecycle, whoever pulls the trigger.
- *
- * A preview on an unreachable host is skipped, not attempted: `down` would fail, the
- * preview would be marked `failed`, and a dev machine waking from sleep with a dead tunnel
- * would turn every expired preview into an error. It stays expired; the next sweep after
- * the reconciler sees the host again takes it.
- */
+// Previews on unreachable hosts are skipped: down would fail and mark them failed.
 export async function sweepExpired(
   ctx: PreviewContext,
   logger: Logger,
@@ -42,7 +30,6 @@ export async function sweepExpired(
       await destroy(ctx, p.id, actor);
       report.destroyed.push(p.id);
     } catch (err) {
-      // One stuck preview must not shield the ones behind it.
       report.failed.push(p.id);
       logger.warn("ttl sweep could not destroy a preview", {
         previewId: p.id,
@@ -61,7 +48,6 @@ export async function sweepExpired(
   return report;
 }
 
-/** What `onProxied` noted in memory, written to `previews.last_seen_at` in one transaction. */
 export function flushLastSeen(ctx: Pick<PreviewContext, "table" | "previews">): number {
   return ctx.previews.touchMany(ctx.table.drainSeen());
 }

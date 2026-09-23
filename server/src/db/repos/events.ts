@@ -2,10 +2,6 @@ import type { GangwayEvent } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToEvent, type EventRow } from "./mappers.ts";
 
-/**
- * The events table is the SSE backlog. `seq` is AUTOINCREMENT and is handed to clients as
- * Last-Event-ID, so a reconnecting browser replays exactly what it missed and no more.
- */
 export class EventsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -31,7 +27,6 @@ export class EventsRepo {
     return rowToEvent(row!);
   }
 
-  /** Replay after `afterSeq`, capped so a long-disconnected client cannot pull everything. */
   since(afterSeq: number, limit = 200, previewId?: string): GangwayEvent[] {
     const sql = previewId
       ? `SELECT * FROM events WHERE seq > $seq AND preview_id = $p ORDER BY seq LIMIT $limit`
@@ -54,7 +49,6 @@ export class EventsRepo {
       .reverse();
   }
 
-  /** Retention: streaming is cheap, storage after teardown is a product decision. */
   pruneBefore(cutoff: number): number {
     return this.#db.run("DELETE FROM events WHERE created_at < $c", { c: cutoff }).changes;
   }

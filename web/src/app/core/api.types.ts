@@ -1,13 +1,3 @@
-/**
- * The wire shapes of `/v1`, as the browser sees them. Hand-written on purpose: the server's
- * domain types carry `Date`s and Bun-only import conventions, and what crosses the network
- * is JSON -- every timestamp here is an ISO string.
- *
- * Kept honest by `src/testing/fixtures/*.json`: the server's test suite asserts its real
- * output matches those files, and this project's specs assert the files satisfy these
- * types. Change either side alone and a test fails.
- */
-
 export type PreviewState =
   'building' | 'starting' | 'awake' | 'asleep' | 'failed' | 'destroying' | 'destroyed';
 export const PREVIEW_STATES: readonly PreviewState[] = [
@@ -35,17 +25,12 @@ export type SourceKind = PreviewSource['kind'];
 
 export type PreviewUrl = { service: string; url: string; primary: boolean };
 
-/** `inherit` follows Settings -> Preview passwords; `set` / `generated` are the preview's own. */
 export type PasswordMode = 'inherit' | 'none' | 'set' | 'generated';
 export type PasswordChoice =
   { mode: 'inherit' } | { mode: 'none' } | { mode: 'generate' } | { mode: 'set'; value: string };
-/** off = the password for everyone; on = signed in or the password; only = signed in, no password. */
 export type PasswordLogin = 'inherit' | 'on' | 'off' | 'only';
-/** Who can open a preview right now, with every default resolved by the server. */
 export type PreviewAccess = 'open' | 'password' | 'signed-in' | 'either' | 'signed-in+password';
-/** `PUT /v1/previews/:id/password`: what is left out is kept. */
 export type PasswordChange = { password?: PasswordChoice; login?: PasswordLogin };
-/** The server-wide default: off, one shared password, or one generated per new preview. */
 export type DefaultPasswordMode = 'off' | 'shared' | 'generated';
 
 export type Preview = {
@@ -57,19 +42,12 @@ export type Preview = {
   source: PreviewSource;
   visibility: Visibility;
   ttlExpiresAt: string | null;
-  /** Idle-sleep after this many ms without a request, pinned at deploy; 0: never; null: before templates. */
   idleAfterMs: number | null;
-  /** The clearance this preview was deployed with. */
   secretLevel: Clearance | null;
-  /** The template it was deployed with; null on previews from before templates. */
   templateId: string | null;
-  /** The project it belongs to; null for one deployed outside any. */
   projectId: string | null;
-  /** Its password's mode -- never the password. */
   password: PasswordMode;
-  /** Whether a signed-in gangway user skips that password. */
   passwordLogin: PasswordLogin;
-  /** Who can open it right now, resolved by the server. */
   access: PreviewAccess;
   lastSeenAt: string | null;
   error: string | null;
@@ -79,7 +57,6 @@ export type Preview = {
   urls: PreviewUrl[];
 };
 
-/** `seq` is the event cursor to follow `/v1/events` from -- read by the server before the list. */
 export type PreviewList = { seq: number; previews: Preview[] };
 
 export type PreviewEvent = {
@@ -108,7 +85,6 @@ export type LogStream = 'system' | 'build' | 'seed' | 'stdout' | 'stderr';
 export const LOG_STREAMS: readonly LogStream[] = ['system', 'build', 'seed', 'stdout', 'stderr'];
 export type LogLine = { n: number; at: string; stream: LogStream; line: string };
 
-/** What `/v1/events` carries. `reset` is synthetic: drop local state, refetch, keep following. */
 export type StreamEvent =
   | { type: 'preview.created'; previewId: string; at: string }
   | { type: 'preview.adopted'; previewId: string; at: string }
@@ -138,11 +114,6 @@ export const STREAM_EVENT_TYPES = [
   'reset',
 ] as const;
 
-/**
- * Permissions are what the UI gates on -- never a role name, because which role holds what
- * is the operator's to change. Mirrors `shared/src/permissions.ts`; pinned by
- * `fixtures/permissions.json`.
- */
 export const PERMISSIONS = [
   'previews.read',
   'previews.deploy',
@@ -185,11 +156,6 @@ const READ_BUNDLE: readonly Permission[] = [
   'events.read',
   'hosts.read',
 ];
-/**
- * What each token scope grants. The server refuses to mint a scope the role does not fully
- * cover (a do-nothing "admin" token would turn real the day its owner was promoted), so
- * the form greys those out -- from this table, pinned by `contract.json`.
- */
 export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   read: READ_BUNDLE,
   deploy: [...READ_BUNDLE, 'previews.deploy', 'previews.destroy', 'previews.update_own'],
@@ -199,7 +165,6 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
 
 export type SessionUser = { id: string; email: string; role: { id: string; name: string } };
 
-/** `GET /v1/auth/session` is always 200; this is its whole range. */
 export type SessionInfo =
   | { authenticated: false; setupRequired: boolean }
   | {
@@ -225,9 +190,6 @@ export type ApiToken = {
   createdAt: string;
 };
 
-/* ---- GitHub and repositories */
-
-/** `GET /v1/github`: connected or not, and where to go next. Never a secret. */
 export type GitHubStatus = {
   configured: boolean;
   appId: string;
@@ -239,28 +201,20 @@ export type GitHubStatus = {
   managedByConfig: boolean;
 };
 
-/** `GET /v1/github/manifest`: what the browser posts to GitHub as a form, and the state GitHub echoes back. */
 export type ManifestStart = { action: string; manifest: Record<string, unknown>; state: string };
 
 export type ForkPolicy = 'ask' | 'auto' | 'never';
 export const FORK_POLICIES: readonly ForkPolicy[] = ['ask', 'auto', 'never'];
 
-/** Secrets have a level; a preview has a clearance and gets every secret at or below it. */
 export type SecretLevel = 'low' | 'standard' | 'high';
 export type Clearance = 'none' | SecretLevel;
 export const CLEARANCES: readonly Clearance[] = ['none', 'low', 'standard', 'high'];
 export const SECRET_LEVELS: readonly SecretLevel[] = ['low', 'standard', 'high'];
 export type SecretListing = { name: string; level: SecretLevel };
 
-/** How a project's pull requests arrive: its own GitHub Actions workflow, or the GitHub App's webhook. */
 export type PrTrigger = 'workflow' | 'webhook';
 export const PR_TRIGGERS: readonly PrTrigger[] = ['workflow', 'webhook'];
 
-/**
- * The thing you preview. `forge`/`fullName` are both null for a project with
- * no repository. `templateId` names its template; `visibility`, `ttl` and `prClearance`
- * override it (null: the template's).
- */
 export type Project = {
   id: string;
   name: string;
@@ -304,12 +258,8 @@ export type ProjectCreate = {
   prTrigger?: PrTrigger;
   templateId?: string | null;
 };
-/** `GET /v1/github/repositories`: where the App is installed. */
 export type InstalledRepository = { fullName: string; installationId: string; private: boolean };
 
-/* ---- Templates */
-
-/** A named preview policy. `default` is built in. */
 export type Template = {
   id: string;
   name: string;
@@ -331,11 +281,9 @@ export type TemplatePatch = Partial<
 >;
 export type TemplateCreate = TemplatePatch & { id: string; name: string };
 
-/** The deploy triggers a default template is set for: `templates.default.<trigger>` in settings. */
 export type Trigger = 'pr' | 'api' | 'manual';
 export const TRIGGERS: readonly Trigger[] = ['pr', 'api', 'manual'];
 
-/** One row of `GET /v1/settings`. A secret's value is never sent, only whether one is set. */
 export type SettingView = {
   key: string;
   value: unknown;
@@ -345,25 +293,17 @@ export type SettingView = {
   set: boolean;
 };
 
-/* ---- Surfaces */
-
 export type SurfaceState = { enabled: boolean; managedByConfig: boolean };
-/** `GET|PUT /v1/surfaces`. `reenableUi` is the exact curl the disable dialog shows. */
 export type Surfaces = {
   ui: SurfaceState;
   mcp: SurfaceState & { url: string };
   adminTokenExists: boolean;
   reenableUi: string;
 };
-/** `GET /v1/capabilities`: what is live, for anyone who can see previews. */
 export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: string };
-/** The server checks it: turning the UI off without it is a 422. */
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
-/* ---- OAuth for MCP clients */
-
 export type OAuthScope = 'read' | 'deploy' | 'update';
-/** `GET /v1/oauth/requests/:id`: what the consent page shows. */
 export type ConsentRequest = {
   id: string;
   client: { id: string; name: string; host: string };
@@ -371,12 +311,10 @@ export type ConsentRequest = {
   redirectHost: string;
   resource: string;
   requested: OAuthScope[];
-  /** The requested scopes your role fully covers: the only ones you can grant. */
   grantable: OAuthScope[];
   scopePermissions: Record<OAuthScope, Permission[]>;
   expiresAt: string;
 };
-/** A connected agent. The tokens are never sent. */
 export type OAuthGrant = {
   id: string;
   userId: string;
@@ -390,8 +328,6 @@ export type OAuthGrant = {
   revokedAt: string | null;
 };
 
-/* ---- Runtimes and editable previews */
-
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';
 export const RUNTIME_IDS: readonly RuntimeId[] = [
   'static',
@@ -402,10 +338,8 @@ export const RUNTIME_IDS: readonly RuntimeId[] = [
   'python',
   'php',
 ];
-/** `own`: the upload brings its own compose file or Dockerfile. */
 export type Detected = RuntimeId | 'own';
 
-/** One entry of `GET /v1/runtimes`: a way to build a folder with no Dockerfile. */
 export type Runtime = {
   id: RuntimeId;
   name: string;
@@ -413,14 +347,10 @@ export type Runtime = {
   description: string;
   image: string;
   port: number;
-  /** What a new preview of this runtime starts with: path -> text. */
   starter: Record<string, string>;
-  /** The versions `gangway.yml` may ask for. */
   versions: string[];
 };
-/** Root-level marker files; the first rule with any marker present wins, else `static`. */
 export type DetectionRule = { runtime: Detected; markers: string[] };
-/** `planFiles`: whose contents `POST /v1/runtimes/plan` wants (root and one level down); the rest are only named. */
 export type RuntimeList = {
   runtimes: Runtime[];
   detection: DetectionRule[];
@@ -428,13 +358,9 @@ export type RuntimeList = {
   addons: AddonInfo[];
 };
 
-/* ---- Add-ons: throwaway databases beside a preview */
-
 export type AddonId = 'postgres' | 'mysql' | 'redis';
 export const ADDON_IDS: readonly AddonId[] = ['postgres', 'mysql', 'redis'];
-/** What a preview runs, at the major it was created with. */
 export type AddonChoice = { id: AddonId; version: string };
-/** One entry of `GET /v1/runtimes` `addons`. `env`: the variables the app receives. */
 export type AddonInfo = {
   id: AddonId;
   name: string;
@@ -444,12 +370,8 @@ export type AddonInfo = {
   env: string[];
 };
 
-/* ---- The data browser: needs `previews.data` */
-
-/** `GET /v1/previews/:id/addons` (previews.read). */
 export type PreviewAddon = AddonChoice & { name: string; service: string; env: string[] };
 export type DataTable = { schema: string; name: string };
-/** A query's answer. A cell is null for SQL NULL. `message`: what the database said on stderr (notices). */
 export type DataResult = {
   columns: string[];
   rows: (string | null)[][];
@@ -460,19 +382,14 @@ export type DataResult = {
 export type RedisKeys = { cursor: string; keys: string[] };
 export type RedisKey = { type: string; ttl: string; value: DataResult };
 
-/* ---- The app plan: what the server will do with an upload, and why */
-
-/** A shell command, or an argv run as it is. */
 export type Command = string | string[];
 export type PlanReason = { level: 'info' | 'warn' | 'error'; found: string; then: string };
-/** A gangway.yml problem at a dotted key path ('' for the file as a whole). */
 export type PlanIssue = { path: string; message: string };
 export type AppPlan = {
   kind: 'own' | 'runtime';
   runtime: RuntimeId | null;
   version: string | null;
   image: string | null;
-  /** The app's directory within the upload; '' is its root. */
   root: string;
   install: Command | null;
   build: Command | null;
@@ -489,13 +406,11 @@ export type AppPlan = {
   stack: { ttl?: string; visibility?: Visibility; idle?: string; seed?: string };
   configFile: string | null;
   addons: AddonChoice[];
-  /** Add-ons the dependencies point at; the New screen pre-ticks them. */
   suggested: { id: AddonId; because: string }[];
   sqlSeed: string | null;
   reasons: PlanReason[];
   issues: PlanIssue[];
 };
-/** `POST /v1/runtimes/plan`. */
 export type PlanRequest = {
   paths: string[];
   files: Record<string, string>;
@@ -503,7 +418,6 @@ export type PlanRequest = {
   addons?: AddonId[];
 };
 
-/** `GET /v1/previews/:id/source`. `text` is absent on a binary or too-large file: listed, not editable. */
 export type SourceFile = { path: string; size: number; text?: string };
 export type PreviewSourceFiles = {
   runtime: RuntimeId | null;
@@ -511,7 +425,6 @@ export type PreviewSourceFiles = {
   truncated: boolean;
 };
 
-/** `PATCH /v1/previews/:id/source`: text sets a file, null deletes it. */
 export type SourcePatch = {
   files: Record<string, string | null>;
   runtime?: Detected;
@@ -519,7 +432,5 @@ export type SourcePatch = {
 };
 
 export type RedeployPhase = 'started' | 'succeeded' | 'failed';
-/** 202 from PATCH/PUT `…/source` (with `preview`). */
 export type RedeployAccepted = { buildId: string };
-/** `?wait=true` (with `preview`). */
 export type RedeployDone = { buildId: string; outcome: 'succeeded' | 'failed'; error?: string };

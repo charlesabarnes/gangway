@@ -1,14 +1,6 @@
 import { Component, ElementRef, computed, input, output, signal, viewChild } from '@angular/core';
 import { Btn } from './button';
 
-/**
- * A native <dialog>. `showModal()` gives the things a hand-rolled modal gets wrong for
- * free: focus is trapped, Esc cancels, the page behind is inert, and focus returns to
- * whatever opened it. Focus starts on Cancel -- this is only used for destructive things,
- * and Enter on a reflex must not destroy anything.
- *
- * `phrase`, for a one-way door: Confirm stays disabled until it is typed exactly.
- */
 @Component({
   selector: 'app-confirm-dialog',
   imports: [Btn],
@@ -79,7 +71,7 @@ export class ConfirmDialog {
     return p === null || this.typed() === p;
   });
 
-  // `viewChild` cannot sit on an ES #private member (NG1053), hence TypeScript `private`.
+  // viewChild cannot target an ES #private field (NG1053).
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
   private readonly cancelRef = viewChild.required<ElementRef<HTMLButtonElement>>('cancel');
 
@@ -96,7 +88,6 @@ export class ConfirmDialog {
       this.confirmed.emit();
   }
 
-  /** A click on the backdrop lands on the <dialog> itself; one inside lands on a child. */
   protected backdrop(e: MouseEvent): void {
     if (e.target === this.dialogRef().nativeElement) this.dialogRef().nativeElement.close('cancel');
   }

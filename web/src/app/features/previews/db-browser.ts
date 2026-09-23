@@ -15,14 +15,6 @@ import { Btn } from '../../ui/button';
 
 const PAGE = 50;
 
-/**
- * A preview's throwaway databases, from the inside: tables or keys, a page of
- * rows, and a console. Read-only unless writes are switched on -- a read-only transaction
- * for SQL, a read allowlist for Redis. Every query is audited on the server.
- *
- * Shown on the preview page when the preview has add-ons. Needs `previews.data` (admin
- * until granted); without it the section says so and asks for nothing.
- */
 @Component({
   selector: 'app-db-browser',
   imports: [Btn],
@@ -264,7 +256,6 @@ export class DbBrowser {
   #base = (): string => `/v1/previews/${this.previewId()}/addons`;
 
   constructor() {
-    // From an effect: the session (and the permission) may arrive after the page.
     effect(() => {
       const id = this.previewId();
       if (!this.#auth.can('previews.read')) return;
@@ -357,7 +348,6 @@ export class DbBrowser {
         this.#http.post<DataResult>(`${this.#base()}/${a}/query`, { text, write: this.write() }),
       ),
     );
-    // A write may have made a table or a key: list them again.
     if (this.write() && !this.error()) {
       if (a === 'redis') void this.loadKeys(true);
       else void this.#refreshTables(a);
@@ -378,7 +368,6 @@ export class DbBrowser {
     if (r) this.tables.set(r.tables);
   }
 
-  /** One request at a time; its result (if any) replaces the grid, its problem is shown as it came. */
   async #call(fn: () => Promise<DataResult | null>): Promise<void> {
     this.busy.set(true);
     this.error.set(null);

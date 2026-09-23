@@ -1,12 +1,3 @@
-/**
- * Streaming tarball extraction, for the upload path.
- *
- * The archive is attacker-controlled: an agent posts it, and nothing upstream has looked
- * inside. So it is never buffered to disk and re-read, never handed to `tar(1)`, and every
- * limit is enforced against bytes as they arrive rather than against a header field the
- * archive itself supplied. A gzip bomb must die a few hundred kilobytes in, not after it
- * has filled the state volume.
- */
 import { chmod, lstat, mkdir, open, realpath, symlink, link } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -25,7 +16,6 @@ import {
   type ResolvedLimits,
 } from "./types.ts";
 
-/** tar-stream exports the entry stream only through its event map. */
 type TarEntry = ExtractEvents["entry"][1];
 
 export type TarballSource = Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>;
@@ -33,7 +23,6 @@ export type TarballSource = Uint8Array | ReadableStream<Uint8Array> | AsyncItera
 type Context = {
   dest: string;
   limits: ResolvedLimits;
-  /** Directories already created and proven to be real directories, not symlinks. */
   dirs: Set<string>;
   result: ExtractResult;
 };
@@ -45,8 +34,6 @@ export async function extractTarball(
 ): Promise<ExtractResult> {
   const resolved = resolveLimits(limits);
   await mkdir(destDir, { recursive: true });
-  // Resolve once: macOS hands out /var/... symlinks for temp dirs, and every containment
-  // check below compares against this string.
   const dest = await realpath(destDir);
 
   const ctx: Context = {
@@ -74,8 +61,6 @@ export async function extractTarball(
       }
       ex.end(null);
     } catch (err) {
-      // Hand the reason to the consumer: destroying the extract stream makes the
-      // `for await` below throw, which is how a mid-stream abort surfaces.
       feedError = err;
       ex.destroy(err instanceof Error ? err : new Error(String(err)));
     }
@@ -101,7 +86,6 @@ export async function extractTarball(
 async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
   const name = entry.header.name ?? "";
 
-  // Cheap string checks first: a hostile name should never reach the filesystem layer.
   if (name.includes("\u0000"))
     throw rejectTarball("invalid_path", "entry path contains a NUL byte", name);
   if (name.length === 0) throw rejectTarball("invalid_path", "entry path is empty");
@@ -123,7 +107,6 @@ async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
 
   const type = entry.header.type ?? "file";
 
-  // "./" and "" after normalisation mean the archive root, which already exists.
   if (segments.length === 0) {
     if (type !== "directory")
       throw rejectTarball("invalid_path", "entry path resolves to the root", name);
@@ -158,8 +141,7 @@ async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
 async function writeFileEntry(ctx: Context, entry: TarEntry, target: string): Promise<void> {
   await ensureDir(ctx, path.dirname(target));
 
-  // "wx" is O_EXCL: it refuses to follow or clobber anything already at this path, which
-  // is what stops a later entry from writing through a symlink an earlier one planted.
+  // wx (O_EXCL) stops a later entry from writing through a symlink an earlier one planted.
   const handle = await open(target, "wx", FILE_MODE).catch((err: unknown) => {
     if (isErrno(err, "EEXIST")) {
       throw rejectTarball("duplicate_entry", "two entries claim the same path", entry.header.name);
@@ -201,8 +183,6 @@ async function writeLinkEntry(
     );
   }
 
-  // A hardlink target is relative to the archive root; a symlink target is relative to the
-  // link's own directory. Either way it has to land inside the destination.
   const base = type === "link" ? ctx.dest : path.dirname(target);
   const resolvedTarget = path.isAbsolute(linkname) ? linkname : path.resolve(base, linkname);
   if (!containedIn(ctx.dest, resolvedTarget)) {
@@ -225,11 +205,6 @@ async function writeLinkEntry(
   }
 }
 
-/**
- * Creates each level itself rather than leaning on `mkdir -p`, because every level has to
- * be proven a real directory: a symlinked component would silently redirect the write,
- * and `mkdir` follows symlinks without complaint.
- */
 async function ensureDir(ctx: Context, dir: string): Promise<void> {
   if (ctx.dirs.has(dir)) return;
 
@@ -263,7 +238,6 @@ async function ensureDir(ctx: Context, dir: string): Promise<void> {
   }
 }
 
-/** Resolves when the stream will accept more bytes, or when it has been torn down. */
 function writable(ex: Extract): Promise<void> {
   if (ex.destroyed) return Promise.resolve();
   return new Promise<void>((resolve) => {
@@ -279,7 +253,6 @@ function writable(ex: Extract): Promise<void> {
   });
 }
 
-/** Sniffs the gzip magic on the first chunk; everything downstream counts inflated bytes. */
 async function* decompressed(source: TarballSource): AsyncGenerator<Uint8Array> {
   const bytes = iterate(source);
   const first = await bytes.next();
@@ -288,9 +261,7 @@ async function* decompressed(source: TarballSource): AsyncGenerator<Uint8Array> 
   const head = first.value;
   const all = prepend(head, bytes);
   if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
-    // node:zlib, not DecompressionStream: macOS's bsdtar pads what it writes to a pipe with
-    // zeros to a 10240-byte record after the gzip stream (`tar -czf - . | curl`), and
-    // DecompressionStream fails that as "inflate failed" where zlib stops at the member's end.
+    // Not DecompressionStream: it rejects the zero padding macOS bsdtar writes after the gzip stream.
     const src = Readable.from(all);
     const gz = createGunzip();
     src.on("error", (e) => gz.destroy(e));
@@ -326,10 +297,6 @@ function isErrno(err: unknown, code: string): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === code;
 }
 
-/**
- * Anything that is not already a classified rejection is the archive's fault, not ours:
- * a truncated stream, a bad gzip trailer, a header tar-stream cannot parse.
- */
 function asTarballError(err: unknown): unknown {
   if (err instanceof AppError) return err;
   const message = errorMessage(err);

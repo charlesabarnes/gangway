@@ -1,14 +1,3 @@
-/**
- * The app plan: from what an upload holds, how gangway will build and run it --
- * and why. One pure function over the file list and a few small files' contents, so the
- * server (which reads them from disk) and the New screen (which asks the server before it
- * uploads) can never disagree.
- *
- * The conventions are Heroku's: install by lockfile, `build` if there is one, `start` to
- * run it. `gangway.yml` overrides any of them (shared/src/gangway-file.ts), and a Procfile's
- * `web:` is honoured. What this decides, the server turns into `.gangway/` build files
- * (server/src/previews/runtimes.ts); nothing here touches a disk or a process.
- */
 import {
   GANGWAY_FILES,
   isRelPath,
@@ -27,7 +16,6 @@ import {
   type RuntimeId,
 } from "./runtimes.ts";
 
-/** Files whose contents the plan reads, at the app root (or one directory down, for a nested app). */
 export const PLAN_FILES = [
   ...GANGWAY_FILES,
   "package.json",
@@ -41,81 +29,52 @@ export const PLAN_FILES = [
   "requirements.txt",
   "pyproject.toml",
 ] as const;
-/** Per file. package.json files are small; a larger one is read as absent and says so. */
 export const MAX_PLAN_FILE_BYTES = 256 * 1024;
 
 export type PlanChoice = RuntimeId | "auto" | "own";
 
 export type PlanInput = {
-  /** Every file in the upload, relative, forward-slashed. */
   paths: readonly string[];
-  /** Contents of PLAN_FILES by path, at the root and one directory down. Missing: not read. */
   files: Readonly<Partial<Record<string, string>>>;
-  /** What was asked for. Omitted: `auto`. */
   runtime?: PlanChoice | undefined;
-  /**
-   * A rebuild's previous runtime (`own` for an own stack). Under `auto` it beats detection --
-   * an edit does not re-guess -- but not a `runtime:` in gangway.yml, which is the upload
-   * saying what it wants.
-   */
   previous?: Detected | undefined;
-  /** Add-ons asked for with the request; given -- even empty -- it beats gangway.yml. */
   addons?: readonly AddonRequest[] | undefined;
-  /** A rebuild's add-ons, kept unless the request or gangway.yml says otherwise. A major is never changed in place. */
   previousAddons?: readonly AddonChoice[] | undefined;
 };
 
 export type AddonRequest = AddonId | { id: AddonId; version?: string | undefined };
 
-/** One line of "what was found, so what will happen". `error` means the plan cannot run. */
 export type Reason = { level: "info" | "warn" | "error"; found: string; then: string };
 
 export type AppPlan = {
-  /** `own`: the upload's compose file or Dockerfile; everything below is advisory. */
   kind: "own" | "runtime";
   runtime: RuntimeId | null;
   version: string | null;
-  /** The pinned base image the build starts from. */
   image: string | null;
-  /** The app's directory within the upload; "" is its root. The build context. */
   root: string;
   install: Command | null;
   build: Command | null;
-  /** Null when nginx or Apache serves it (static, php, a static build) or workerd runs it. */
   start: Command | null;
   release: Command | null;
-  /**
-   * `server`: a process listens on $PORT. `static`: nginx serves files -- the upload's own
-   * (runtime static) or a build's output (`output`: a directory, or null to find one).
-   */
   serve:
     | { kind: "server" }
     | { kind: "static"; output: string | null | false; fallback: "spa" | "404" | "listing" };
-  /** PHP: the directory Apache serves, relative to root. "" is root itself. */
   docroot: string;
-  /** The file the runtime's own wrapper runs (bun, deno, workerd), when no start command does. */
   entry: string | null;
-  /** From gangway.yml. Null: the runtime's own. */
   port: number | null;
   health: string | null;
   env: Record<string, string>;
-  /** Stack-level policy from gangway.yml; the generated compose file carries it as `x-gangway`. */
   stack: {
     ttl?: string;
     visibility?: "public" | "unlisted" | "private";
     idle?: string;
     seed?: string;
   };
-  /** Which gangway.yml was read, if any. */
   configFile: string | null;
-  /** Throwaway databases beside the app. */
   addons: AddonChoice[];
-  /** Add-ons the dependencies point at, not chosen. The New screen pre-ticks them; the server never adds one. */
   suggested: { id: AddonId; because: string }[];
-  /** A SQL file the first SQL add-on loads on its first start, relative to root. */
   sqlSeed: string | null;
   reasons: Reason[];
-  /** gangway.yml problems, by key path. Non-empty means the plan cannot run. */
   issues: FileIssue[];
 };
 
@@ -124,7 +83,6 @@ export const cmdText = (c: Command): string =>
 const shellQuote = (s: string): string =>
   /^[A-Za-z0-9_./:=@%+,-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 
-/** The first error, as the message a refusal carries. */
 export function planError(p: AppPlan): string | null {
   if (p.issues.length > 0)
     return `gangway.yml: ${p.issues.map((i) => (i.path ? `${i.path}: ${i.message}` : i.message)).join("; ")}`;
@@ -132,7 +90,6 @@ export function planError(p: AppPlan): string | null {
   return e ? `${e.found}: ${e.then}` : null;
 }
 
-/** Dev servers refuse a preview's hostname (Vite's host check) and are not what to ship. */
 const DEV_SERVER =
   /^\s*(?:npx\s+)?(?:vite(?:\s+dev)?|next\s+dev|nuxt\s+dev|ng\s+serve|react-scripts\s+start|vue-cli-service\s+serve|astro\s+dev|svelte-kit\s+dev|webpack(?:-dev-server|\s+serve)|parcel(?!\s+build))(?:\s|$)/;
 
@@ -170,11 +127,10 @@ type Json = Record<string, unknown>;
 function readJson(text: string | undefined, name: string, reasons: Reason[]): Json | null {
   if (text === undefined) return null;
   try {
-    // JSONC (deno.jsonc, wrangler.jsonc): line comments off, well enough for the keys we read.
     const v = JSON.parse(name.endsWith("c") ? text.replace(/^\s*\/\/.*$/gm, "") : text) as unknown;
     if (v && typeof v === "object" && !Array.isArray(v)) return v as Json;
   } catch {
-    /* below */
+    // reported below
   }
   reasons.push({
     level: "error",
@@ -190,7 +146,6 @@ const scriptsOf = (pkg: Json | null): Record<string, string> =>
     Object.entries((pkg?.["scripts"] ?? {}) as Json).filter(([, v]) => typeof v === "string"),
   ) as Record<string, string>;
 
-/** `web: gunicorn app:app` -> { web: "gunicorn app:app" }. */
 function parseProcfile(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of text.split(/\r?\n/)) {
@@ -200,7 +155,6 @@ function parseProcfile(text: string): Record<string, string> {
   return out;
 }
 
-/** A path named in the upload's own config (package.json `main`), checked to stay inside it and to exist. */
 function entryFrom(have: Set<string>, rel: unknown): string | null {
   if (typeof rel !== "string" || rel === "") return null;
   const parts: string[] = [];
@@ -225,7 +179,6 @@ const noEntry = (rt: Runtime, extra = ""): Reason => ({
   then: `the ${rt.name} runtime needs an entry file${extra}: one of ${rt.entries.join(", ")}`,
 });
 
-/** Markers that make a directory an app (not `own`: a Dockerfile counts only at the root). */
 const APP_MARKERS = new Set([
   ...DETECTION.filter((r) => r.runtime !== "own").flatMap((r) => r.markers),
   ...GANGWAY_FILES,
@@ -233,11 +186,6 @@ const APP_MARKERS = new Set([
   "Procfile",
 ]);
 
-/**
- * With nothing recognisable at the root and exactly one top-level directory that looks like
- * an app, that directory is the app: `my-repo/web/package.json` in a folder that also holds
- * a README and some docs.
- */
 function nestedRoot(paths: readonly string[]): string | null {
   if (paths.some((p) => !p.includes("/") && APP_MARKERS.has(p))) return null;
   const dirs = new Set<string>();
@@ -276,7 +224,6 @@ export function planApp(input: PlanInput): AppPlan {
     sqlSeed: null,
   };
 
-  // ---- the config file: at the upload root, else (below) at a nested app's root
   const readConfig = (dir: string): { name: string; file: GangwayFile | null } | null => {
     const at = (n: string) => (dir ? `${dir}/${n}` : n);
     const present = GANGWAY_FILES.filter((n) => input.paths.includes(at(n)));
@@ -309,7 +256,6 @@ export function planApp(input: PlanInput): AppPlan {
   const hasCompose = COMPOSE_NAMES.some((m) => rootPaths.has(m));
   let cfg = readConfig("");
 
-  // ---- own stack: a compose file or Dockerfile at the root, asked for or detected
   const detectedAtRoot = detectRuntime(input.paths.filter((p) => !p.includes("/")));
   const autoOwn =
     input.previous !== undefined ? input.previous === "own" : detectedAtRoot === "own";
@@ -361,7 +307,6 @@ export function planApp(input: PlanInput): AppPlan {
     return plan;
   }
 
-  // ---- the app's root
   const explicitRoot = cfg?.file?.root;
   if (explicitRoot !== undefined) {
     if (!input.paths.some((p) => p.startsWith(`${explicitRoot}/`))) {
@@ -408,7 +353,6 @@ export function planApp(input: PlanInput): AppPlan {
     });
   }
 
-  // ---- which runtime: asked for, gangway.yml's, detected
   let runtime: RuntimeId;
   if (choice !== "auto") {
     runtime = choice;
@@ -434,7 +378,7 @@ export function planApp(input: PlanInput): AppPlan {
     });
   } else {
     const d: Detected = detectRuntime(paths);
-    runtime = d === "own" ? "static" : d; // own only at the root, handled above
+    runtime = d === "own" ? "static" : d;
     const marker = DETECTION.filter((r) => r.runtime === runtime)
       .flatMap((r) => r.markers)
       .find((m) => have.has(m));
@@ -447,7 +391,6 @@ export function planApp(input: PlanInput): AppPlan {
   const rt = runtimeById(runtime);
   plan.runtime = runtime;
 
-  // ---- version
   const defaultVersion =
     Object.keys(rt.versions).find((v) => rt.versions[v] === rt.image) ??
     Object.keys(rt.versions)[0]!;
@@ -464,7 +407,6 @@ export function planApp(input: PlanInput): AppPlan {
   }
   plan.image = rt.versions[plan.version]!;
 
-  // ---- the rest of gangway.yml, runtime-independent
   plan.env = file?.env ?? {};
   plan.health = file?.healthcheck ?? null;
   plan.port = file?.port ?? null;
@@ -488,7 +430,6 @@ export function planApp(input: PlanInput): AppPlan {
       then: `runs \`${cmdText(plan.release)}\` before each version goes live`,
     });
 
-  /** gangway.yml > Procfile web: > the runtime's own idea. */
   const startOverride = (): Command | null => {
     if (file?.start !== undefined) {
       reasons.push({
@@ -515,7 +456,6 @@ export function planApp(input: PlanInput): AppPlan {
         then: `ignored: ${why}`,
       });
   };
-  /** A build's output served by nginx. */
   const serveBuilt = (why: string, reasonFound: string) => {
     const out = file?.static === undefined || file.static === true ? null : file.static;
     plan.serve = { kind: "static", output: out, fallback: "spa" };
@@ -761,7 +701,6 @@ export function planApp(input: PlanInput): AppPlan {
   return plan;
 }
 
-/** Request > gangway.yml > the previous build's > none. A major is never changed in place. */
 function resolveAddons(
   plan: AppPlan,
   input: PlanInput,
@@ -833,7 +772,6 @@ function resolveAddons(
   }
 }
 
-/** Drivers in the dependencies that point at an add-on not already chosen. */
 function suggestAddons(plan: AppPlan, text: (n: string) => string | undefined): void {
   const npm = new Set<string>();
   const pkgText = text("package.json");
@@ -843,7 +781,7 @@ function suggestAddons(plan: AppPlan, text: (n: string) => string | undefined): 
       for (const k of ["dependencies", "devDependencies"])
         for (const d of Object.keys(pkg[k] ?? {})) npm.add(d);
     } catch {
-      /* reported by the runtime's own read */
+      // the runtime's own read reports it
     }
   }
   const pip = new Set<string>();
@@ -860,7 +798,7 @@ function suggestAddons(plan: AppPlan, text: (n: string) => string | undefined): 
     ))
       composer.add(d);
   } catch {
-    /* ignore */
+    // unreadable composer.json: no suggestions from it
   }
   for (const a of ADDONS) {
     if (plan.addons.some((c) => c.id === a.id)) continue;
@@ -882,7 +820,6 @@ function stackOf(file: GangwayFile | null | undefined): AppPlan["stack"] {
   };
 }
 
-/** wrangler's `main`, from toml or json(c), read with a regex: the only key we want. */
 function wranglerMain(have: Set<string>, text: (n: string) => string | undefined): string | null {
   for (const name of ["wrangler.toml", "wrangler.json", "wrangler.jsonc"]) {
     const t = text(name);
@@ -896,10 +833,8 @@ function wranglerMain(have: Set<string>, text: (n: string) => string | undefined
   return null;
 }
 
-/** Candidate output directories for a static build, in order. Shared with the generated collect script. */
 export const STATIC_BUILD_OUTPUTS: readonly string[] = STATIC_OUTPUTS;
 
-/** Which PLAN_FILES paths a client should send contents for, given the upload's paths. */
 export function planFilePaths(paths: readonly string[]): string[] {
   const names = new Set<string>(PLAN_FILES);
   return paths.filter((p) => {

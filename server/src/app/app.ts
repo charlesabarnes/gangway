@@ -1,11 +1,3 @@
-/**
- * The application router: everything behind a reserved label. Hono is a leaf -- it never
- * sees a preview request, because the dispatcher has already decided this one is ours.
- *
- * One Hono app serves both the `app` and `api` surfaces. `/v1` answers on both, so the
- * Angular UI calls its own origin and there is no CORS anywhere; the static shell
- * answers on `app` only, so `api.<domain>/` is never a web page.
- */
 import { Hono } from "hono";
 import { AppError, notFound } from "../errors.ts";
 import type { Logger } from "../logger.ts";
@@ -18,23 +10,11 @@ import { serveStatic } from "./static.ts";
 
 export type AppDeps = AuthDeps & {
   logger: Logger;
-  /** The built Angular app. Absent: the `app` surface serves only /v1. */
   staticDir?: string | undefined;
-  /** Mounted under /v1, behind authentication. Every route here names a permission. */
   v1: (api: Hono<AppEnv>) => void;
-  /**
-   * Mounted under /v1 before authentication: login, setup, "who am I". Each handler here
-   * answers for its own access. Registered first, so these paths never reach `authenticate`
-   * -- and anything that is not one of them still does, so an unknown /v1 path stays a 401.
-   */
   publicV1?: ((pub: Hono<AppEnv>) => void) | undefined;
-  /**
-   * Routes outside /v1 that are not the static shell: the OAuth authorization server's
-   * metadata, authorize and token endpoints. Each answers for its own access.
-   */
   root?: ((app: Hono<AppEnv>) => void) | undefined;
   health?: () => Record<string, unknown>;
-  /** True once shutdown has begun: the control plane answers 503 while previews keep serving. */
   draining?: () => boolean;
 };
 
@@ -42,8 +22,7 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.use(async (c, next) => {
-    // Always ours, never the caller's: an inbound X-Request-Id is attacker-controlled
-    // text that would otherwise land in our logs.
+    // Never reuse an inbound X-Request-Id: it is attacker-controlled text bound for the logs.
     const id = ulid();
     c.set("requestId", id);
     await next();
@@ -52,10 +31,6 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
 
   app.onError(errorHandler(d.logger));
 
-  // gangway frames previews; nothing may frame gangway. A preview
-  // is same-site with the app, so without this a hostile one could frame the UI under its
-  // own buttons (clickjacking). The one exception is the private-preview gate, which the
-  // workspace's iframe passes through on its way to the preview.
   app.use(async (c, next) => {
     await next();
     if (new URL(c.req.url).pathname === "/v1/auth/gate") return;
@@ -63,18 +38,16 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
       c.res.headers.set("x-frame-options", "DENY");
       c.res.headers.append("content-security-policy", "frame-ancestors 'none'");
     } catch {
-      // A response with immutable headers (a proxied fetch) is not a page anyone frames.
+      // Immutable headers mean a proxied fetch, which nobody frames.
     }
   });
 
-  // Unauthenticated by design: an orchestrator's healthcheck has no token.
   app.get("/healthz", (c) =>
     d.draining?.()
       ? c.json({ ok: false, draining: true }, 503)
       : c.json({ ok: true, ...(d.health?.() ?? {}) }),
   );
 
-  // Work accepted now would be cut off seconds later. Say so, and say when to come back.
   app.use(async (c, next) => {
     if (!d.draining?.()) return next();
     return problemResponse(c, new AppError("unavailable", "gangway is shutting down"), {
@@ -109,7 +82,6 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
   return app;
 }
 
-/** Adapts the Hono app to the dispatcher's handler shape for one surface. */
 export function surfaceHandler(app: Hono<AppEnv>, surface: Surface): SurfaceHandler {
   return (req, ctx) => app.fetch(req, { surface, clientIp: ctx.clientIp });
 }

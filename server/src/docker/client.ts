@@ -1,13 +1,3 @@
-/**
- * The Docker port: a deliberately narrow surface over dockerode, one instance per host.
- *
- * dockerode is replaceable (Bun's `fetch(url, { unix })` speaks the engine API directly), so
- * its types never escape this file: everything crossing the `DockerClient` boundary is a plain
- * structural type or inspect JSON (see inspect.ts), and nothing above here imports dockerode.
- *
- * Hosts are just connection strings -- no agent, no control channel -- so `dockerHost` from
- * the host record is the whole configuration.
- */
 import Dockerode from "dockerode";
 import type { Host } from "@gangway/shared/domain";
 import { badRequest } from "../errors.ts";
@@ -25,10 +15,8 @@ export type ContainerPort = {
 
 export type ContainerSummary = {
   id: string;
-  /** Leading slashes stripped. First entry is the one people recognise. */
   names: string[];
   image: string;
-  /** `running`, `exited`, `created`, … */
   state: string;
   status: string;
   labels: Record<string, string>;
@@ -36,7 +24,6 @@ export type ContainerSummary = {
   createdAt: Date;
 };
 
-/** Daemon-side filters, as the engine API wants them: key -> allowed values. */
 export type DockerFilters = Record<string, string[]>;
 
 export type ListOptions = {
@@ -49,13 +36,11 @@ export type LogStream = "stdout" | "stderr";
 export type LogLine = {
   stream: LogStream;
   line: string;
-  /** Present only when `timestamps` was requested and the daemon emitted one. */
   at?: Date;
 };
 
 export type LogOptions = {
   follow?: boolean | undefined;
-  /** Number of trailing lines, or "all". */
   tail?: number | "all" | undefined;
   since?: Date | undefined;
   timestamps?: boolean | undefined;
@@ -76,34 +61,18 @@ export type EventOptions = {
   signal?: AbortSignal | undefined;
 };
 
-/**
- * The entire Docker surface the rest of gangway is allowed to see.
- * Lifecycle (`up`, `down`, `build`) is not here: compose.ts shells out to the compose binary
- * for that.
- */
 export type DockerClient = {
   readonly hostId: string;
   ping(): Promise<void>;
   info(): Promise<DockerInfo>;
   listContainers(opts?: ListOptions): Promise<ContainerSummary[]>;
   inspectContainer(id: string): Promise<InspectJson>;
-  /**
-   * The only mutating call on this surface, used to stop orphaned containers.
-   * Stops, never removes: a stopped container releases its port -- the whole argument
-   * for touching it -- and is still there to be looked at afterwards.
-   */
   stopContainer(id: string, timeoutSeconds?: number): Promise<void>;
   containerLogs(id: string, opts?: LogOptions): AsyncIterable<LogLine>;
   events(opts?: EventOptions): AsyncIterable<DockerEvent>;
   close(): void;
 };
 
-/* ------------------------------------------------------------------ connection */
-
-/**
- * `DOCKER_HOST` grammar, as dockerode wants it. A bare path is accepted because
- * `/var/run/docker.sock` is what people actually type.
- */
 function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
   const s = dockerHost.trim();
   if (s === "") throw badRequest("dockerHost is empty");
@@ -132,9 +101,7 @@ function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
     };
   }
   if (scheme === "tcp" || scheme === "http" || scheme === "https") {
-    // `tcp://` is plain HTTP unless the operator terminates TLS; spelling it `https://`
-    // is how they say so. Guessing from DOCKER_TLS_VERIFY here would reintroduce exactly
-    // the ambient-environment coupling guard.ts and compose.ts exist to remove.
+    // https:// is how the operator says TLS; do not guess from DOCKER_TLS_VERIFY.
     return {
       protocol: scheme === "https" ? "https" : "http",
       host,
@@ -143,8 +110,6 @@ function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
   }
   throw badRequest(`unsupported dockerHost scheme: ${JSON.stringify(scheme)}`);
 }
-
-/* ------------------------------------------------------------------ stream plumbing */
 
 type NodeReadableLike = {
   on(event: string, listener: (...args: never[]) => void): unknown;
@@ -155,12 +120,7 @@ const asIterable = (s: unknown): AsyncIterable<Uint8Array> => s as AsyncIterable
 
 const DEMUX_HEADER = 8;
 
-/**
- * Docker frames non-TTY logs as `[stream(1) 0 0 0 size(4, BE)]` + payload; with a TTY
- * the bytes are raw. This sniffs rather than asks, because asking costs an inspect call per
- * log stream and gets it wrong anyway the moment the container is recreated with a
- * different TTY setting.
- */
+// Non-TTY logs carry an 8-byte frame header and TTY logs are raw; sniff rather than inspect.
 export async function* demultiplex(
   chunks: AsyncIterable<Uint8Array>,
 ): AsyncGenerator<{ stream: LogStream; bytes: Uint8Array }> {
@@ -199,7 +159,6 @@ export async function* demultiplex(
 
 const TS_RE = /^(\d{4}-\d{2}-\d{2}T\S+)\s(.*)$/s;
 
-/** Splits demultiplexed bytes into lines, holding a partial trailing line back. */
 export async function* toLogLines(
   frames: AsyncIterable<{ stream: LogStream; bytes: Uint8Array }>,
   timestamps: boolean,
@@ -227,10 +186,7 @@ export async function* toLogLines(
   }
 }
 
-/* ------------------------------------------------------------------ implementation */
-
 export type DockerClientOptions = {
-  /** Socket/connect timeout in ms. */
   timeoutMs?: number | undefined;
 };
 
@@ -257,8 +213,6 @@ class DockerodeClient implements DockerClient {
 
   async listContainers(opts: ListOptions = {}): Promise<ContainerSummary[]> {
     const query: Record<string, unknown> = { all: opts.all ?? false };
-    // The engine wants filters as a JSON string; dockerode will accept an object and
-    // stringify it, but the string form is stable across dockerode majors.
     if (opts.filters) query["filters"] = JSON.stringify(opts.filters);
     const raw = await this.#docker.listContainers(query);
     return raw.map(toSummary);
@@ -272,7 +226,7 @@ class DockerodeClient implements DockerClient {
     try {
       await this.#docker.getContainer(id).stop({ t: timeoutSeconds });
     } catch (e) {
-      // 304: already stopped. That is the outcome we wanted.
+      // 304 means already stopped.
       if ((e as { statusCode?: number }).statusCode === 304) return;
       throw e;
     }
@@ -284,7 +238,6 @@ class DockerodeClient implements DockerClient {
 
   async *#containerLogs(id: string, opts: LogOptions): AsyncGenerator<LogLine> {
     const container = this.#docker.getContainer(id);
-    // dockerode's overloads key the return type on `follow`; both are a stream here.
     const logs = container.logs.bind(container) as (o: object) => Promise<unknown>;
     const stream = (await logs({
       stdout: true,
@@ -331,7 +284,6 @@ class DockerodeClient implements DockerClient {
     }
   }
 
-  /** Drops every follow stream. dockerode has no connection to close beyond these. */
   close(): void {
     for (const s of this.#open) s.destroy?.();
     this.#open.clear();
@@ -368,7 +320,6 @@ function toSummary(c: ContainerInfoLike): ContainerSummary {
   };
 }
 
-/** The events endpoint is newline-delimited JSON, one object per event. */
 export async function* parseEventStream(
   chunks: AsyncIterable<Uint8Array>,
 ): AsyncGenerator<DockerEvent> {
@@ -409,8 +360,6 @@ function parseEventLine(line: string): DockerEvent | null {
   };
 }
 
-/* ------------------------------------------------------------------ construction */
-
 export type HostConnection = Pick<Host, "id" | "dockerHost" | "expectName">;
 
 function createDockerClient(
@@ -420,11 +369,7 @@ function createDockerClient(
   return new DockerodeClient(host.id, host.dockerHost, opts);
 }
 
-/**
- * One client per host, rebuilt when the connection string changes. Hosts are edited at
- * runtime, and a cached client still pointed at the old `dockerHost` would keep
- * working against the previous daemon without ever erroring.
- */
+// Rebuilt when dockerHost changes, or a cached client would silently keep using the old daemon.
 export class DockerClients {
   readonly #clients = new Map<string, { dockerHost: string; client: DockerClient }>();
   readonly #opts: DockerClientOptions;
@@ -453,10 +398,6 @@ export class DockerClients {
   }
 }
 
-/**
- * `docker info` + the guard, in the order every caller needs them. Nothing should reach
- * for a client and start creating things without having been through here first.
- */
 export async function verifyDaemon(
   client: Pick<DockerClient, "info">,
   host: HostConnection,

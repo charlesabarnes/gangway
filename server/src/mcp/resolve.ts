@@ -1,15 +1,8 @@
-/**
- * What an agent calls a preview: whatever it last saw. An id, the URL it was handed, a
- * hostname, or the name it asked for -- which for an unlisted preview is only the stem of
- * the hostname (`shop` for `shop-k3v9x…`). Ambiguity is an error that lists the candidates;
- * guessing which preview to destroy is not a feature.
- */
 import { type Preview, projectNameFor } from "@gangway/shared/domain";
 import { notFound, unprocessable } from "../errors.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { isUlid } from "../util/ulid.ts";
 
-/** The hostname-ish name a preview goes by: its project name without `gw-<instance>-`. */
 export function nameOf(ctx: Pick<PreviewContext, "instance">, p: Preview): string {
   const prefix = projectNameFor(ctx.instance, "");
   return p.project.startsWith(prefix) ? p.project.slice(prefix.length) : p.project;
@@ -26,7 +19,6 @@ export function resolvePreview(ctx: PreviewContext, ref: string): Preview {
     if (live(p)) return p;
   }
 
-  // A URL or a hostname: the route table knows it exactly.
   let host = text.toLowerCase();
   if (/^https?:\/\//.test(host)) {
     try {
@@ -45,7 +37,6 @@ export function resolvePreview(ctx: PreviewContext, ref: string): Preview {
   const all = ctx.previews.list({}).filter(live);
   const exact = all.filter((p) => nameOf(ctx, p) === host);
   if (exact.length === 1) return exact[0]!;
-  // Unlisted: `<stem>-<suffix>`. The suffix is 10 characters from the unguessable alphabet.
   const stem =
     exact.length === 0
       ? all.filter((p) =>

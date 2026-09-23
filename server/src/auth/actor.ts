@@ -1,11 +1,3 @@
-/**
- * Who is making a request. Lives below app/ because the service layer takes an actor for
- * audit and must not import HTTP types to get one. Call sites ask `can(actor, permission)`
- * and do not care which kind of actor it is.
- *
- * `permissions` is resolved per request when the actor is built: a role edit, a demotion or
- * a disabled account takes effect on the next request, not the next login.
- */
 import { timingSafeEqual } from "node:crypto";
 import type { ForgeId } from "@gangway/shared/domain";
 import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
@@ -17,10 +9,8 @@ export type Actor =
   | {
       kind: "token";
       tokenId: string;
-      /** What the token was minted with. For display; `permissions` is what is enforced. */
       scopes: readonly Scope[];
       permissions: ReadonlySet<Permission>;
-      /** The owning account, for a database token. Absent on the env token and system actors. */
       userId?: string;
     }
   | {
@@ -30,17 +20,7 @@ export type Actor =
       permissions: ReadonlySet<Permission>;
       sessionId: string;
     }
-  /**
-   * A forge acting on a webhook. `login` is whoever caused it (the PR author, the commenter)
-   * for the audit line. The permissions are fixed, not a role, so editing `member` never
-   * changes what a pull request may do.
-   */
   | { kind: "forge"; forge: ForgeId; login: string; permissions: ReadonlySet<Permission> }
-  /**
-   * A GitHub Actions run, proved by its OIDC token. Confined by the auth
-   * middleware to `/v1/projects/:ref/pulls/:n`, and by that route to the project whose
-   * repository is `repository`. `pull` is the PR number its `ref` names, if any.
-   */
   | {
       kind: "workflow";
       repository: string;
@@ -55,7 +35,6 @@ export function permissionsForScopes(scopes: readonly Scope[]): ReadonlySet<Perm
   return new Set(scopes.flatMap((s) => SCOPE_PERMISSIONS[s]));
 }
 
-/** An ownerless token actor whose permissions are exactly its scopes' bundles. */
 export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor => ({
   kind: "token",
   tokenId,
@@ -63,11 +42,6 @@ export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor => 
   permissions: permissionsForScopes(scopes),
 });
 
-/**
- * Work gangway does on its own behalf, such as the TTL sweep. Still a `token`
- * actor so audit lines have one shape; the `system:` prefix cannot collide with a real
- * token id and no verifier ever returns one.
- */
 export const systemActor = (job: string): Actor => tokenActor(`system:${job}`, ["admin"]);
 
 const FORGE_PERMISSIONS: readonly Permission[] = [
@@ -84,7 +58,6 @@ export const forgeActor = (forge: ForgeId, login: string): Actor => ({
   permissions: new Set(FORGE_PERMISSIONS),
 });
 
-/** Fixed, like a forge's: what a workflow may do inside the one route it can reach. */
 const WORKFLOW_PERMISSIONS: readonly Permission[] = [
   "previews.deploy",
   "previews.destroy",
@@ -112,10 +85,6 @@ export function workflowActor(c: {
 
 export const can = (actor: Actor, needed: Permission): boolean => actor.permissions.has(needed);
 
-/**
- * One stable string per principal: the idempotency-key owner, the `by` on events, log
- * lines. A user's id is prefixed so it can never equal a token id.
- */
 export const actorId = (a: Actor): string =>
   a.kind === "user"
     ? `user:${a.userId}`
@@ -125,12 +94,6 @@ export const actorId = (a: Actor): string =>
         ? `actions:${a.repository}#${a.runId}`
         : a.tokenId;
 
-/**
- * Who a preview belongs to. A person behind the credential -- a session, their
- * API token, their OAuth grant -- is `user:<id>`, so an agent that reconnects (a new grant)
- * still owns what it made. An ownerless token is itself; gangway's own jobs, a forge and a
- * workflow own nothing.
- */
 export function principalOf(a: Actor): string | null {
   if (a.kind === "user") return `user:${a.userId}`;
   if (a.kind !== "token") return null;
@@ -138,13 +101,11 @@ export function principalOf(a: Actor): string | null {
   return a.tokenId.startsWith("system:") ? null : a.tokenId;
 }
 
-/** Rebuild in place: any preview with `previews.update`, your own with `previews.update_own`. */
 export function mayRebuild(a: Actor, owner: string | null): boolean {
   if (can(a, "previews.update")) return true;
   return can(a, "previews.update_own") && owner !== null && owner === principalOf(a);
 }
 
-/** The `audit.actor_type` / `actor_id` pair. */
 export function auditActor(a: Actor): { type: "user" | "token" | "system" | "github"; id: string } {
   if (a.kind === "user") return { type: "user", id: a.userId };
   if (a.kind === "forge") return { type: a.forge, id: a.login };
@@ -154,10 +115,8 @@ export function auditActor(a: Actor): { type: "user" | "token" | "system" | "git
     : { type: "token", id: a.tokenId };
 }
 
-/** Resolves a presented bearer credential to an actor, or null. Never throws. */
 export type TokenVerifier = (presented: string) => Actor | null | Promise<Actor | null>;
 
-/** The first verifier to recognise the credential answers; none does, and it is nobody's. */
 export function chainVerifiers(...verifiers: TokenVerifier[]): TokenVerifier {
   return async (presented) => {
     for (const verify of verifiers) {
@@ -168,14 +127,9 @@ export function chainVerifiers(...verifiers: TokenVerifier[]): TokenVerifier {
   };
 }
 
-/** The env admin token's id. It is the one token that may mint others: it is the operator. */
 export const ENV_ADMIN_TOKEN_ID = "env:admin";
 
-/**
- * The headless-bootstrap verifier: one static token from `GANGWAY_ADMIN_TOKEN`.
- * Compared as digests so the comparison is constant-time and length-independent --
- * timingSafeEqual throws on a length mismatch, which would itself leak the length.
- */
+// Digests are compared because timingSafeEqual throws on a length mismatch, which would leak the length.
 export function staticTokenVerifier(adminToken: string): TokenVerifier {
   const expected = sha256(adminToken);
   const actor = tokenActor(ENV_ADMIN_TOKEN_ID, ["admin"]);

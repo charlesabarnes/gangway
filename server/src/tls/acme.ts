@@ -1,22 +1,3 @@
-/**
- * ACME over DNS-01: one wildcard certificate for the base domain (never per preview),
- * renewed on a timer, stored in SQLite.
- *
- * The order of operations is the whole file, and each step is there because skipping it
- * fails in production in a way a fake never shows:
- *
- *  1. Create every TXT record before completing any challenge. A wildcard order has two
- *     authorizations that validate at the same `_acme-challenge` name with different
- *     values. Both must be visible at once.
- *  2. Wait for propagation on the zone's authoritative servers before telling the CA to
- *     look. The CA looks once; a miss is a failed authorization and a rate-limit strike.
- *  3. Remove the records in a `finally`. A failed order must not leave stale values that
- *     the next attempt's propagation check would happily match.
- *  4. Store first, swap second. A certificate that exists only in memory is reissued on
- *     every restart, and Let's Encrypt allows 5 duplicates a week.
- *
- * The account key is persisted too: a new account per boot is its own rate limit.
- */
 import acme from "acme-client";
 import type { CertificatesRepo } from "../db/repos/certificates.ts";
 import type { Logger } from "../logger.ts";
@@ -25,7 +6,6 @@ import type { DnsProvider } from "./dns/provider.ts";
 import { RENEWAL_WINDOW_MS } from "./provider.ts";
 import type { CertBundle, CertProvider } from "./types.ts";
 
-/** The slice of acme-client's Client this file uses. The real Client satisfies it as is. */
 export type AcmeApi = Pick<
   acme.Client,
   | "createAccount"
@@ -47,11 +27,9 @@ export type AcmeConnect = (o: {
 
 export type AcmeOptions = {
   directoryUrl: string;
-  /** Optional. Let's Encrypt no longer sends expiry mail, but other CAs use it. */
   email: string;
   dns: DnsProvider;
   certs: CertificatesRepo;
-  /** Where the account key lives: the settings table, so one file is the whole backup. */
   store: SettingsStore;
   logger: Logger;
   now?: () => number;
@@ -75,12 +53,7 @@ export class AcmeProvider implements CertProvider {
     this.#connect = o.connect ?? ((c) => new acme.Client(c));
   }
 
-  /**
-   * Due when less than a third of the lifetime remains, capped at 30 days. A fixed 30-day
-   * window is wrong for anything but 90-day certificates: a 6-day one (Let's Encrypt's
-   * short-lived profile) would be "due" from the moment it was issued and reordered every
-   * hour, forever.
-   */
+  // A third of the lifetime, capped at 30 days, so short-lived certs are not reordered hourly.
   isDue(bundle: CertBundle, now = this.#now()): boolean {
     if (bundle.materials.length === 0) return true;
     return bundle.materials.some((m) => {
@@ -90,11 +63,6 @@ export class AcmeProvider implements CertProvider {
     });
   }
 
-  /**
-   * What is already in the database, if it is usable as is: issued by this directory,
-   * covering these names, and not expired. (Due-for-renewal is still usable -- serve it
-   * while the renewal runs.) Never touches the network, so boot can call it.
-   */
   load(domains: string[]): CertBundle | null {
     const row = this.#o.certs.get(domains[0]!);
     if (
@@ -131,7 +99,6 @@ export class AcmeProvider implements CertProvider {
     return stored && !this.isDue(stored) ? stored : this.issue(domains, signal);
   }
 
-  /** The renewal job: a new bundle if one was needed and obtained, else null. */
   async renewIfDue(domains: string[], signal?: AbortSignal): Promise<CertBundle | null> {
     const stored = this.load(domains);
     return stored && !this.isDue(stored) ? null : this.issue(domains, signal);
@@ -171,7 +138,7 @@ export class AcmeProvider implements CertProvider {
 
     const created: { recordId: string; name: string }[] = [];
     try {
-      // Step 1: every record, before any challenge.
+      // Every record before any challenge: both wildcard authorizations validate at one name.
       const pending: {
         authz: acme.Authorization;
         challenge: (typeof authzs)[number]["challenges"][number];
@@ -190,7 +157,7 @@ export class AcmeProvider implements CertProvider {
         pending.push({ authz, challenge });
       }
 
-      // Step 2: visible everywhere, or do not bother the CA.
+      // The CA looks once, and a miss is a failed authorization and a rate-limit strike.
       for (const [name, values] of byName) {
         signal?.throwIfAborted();
         if (!(await dns.waitForPropagation(name, values))) {
@@ -222,7 +189,7 @@ export class AcmeProvider implements CertProvider {
       const info = acme.crypto.readCertificateInfo(leaf);
       const chainPem = chain.join("");
 
-      // Step 4: durable before it is live.
+      // Stored before it goes live: a certificate only in memory is reissued on every restart.
       certs.put({
         domain: domains[0]!,
         certPem: leaf,
@@ -252,7 +219,7 @@ export class AcmeProvider implements CertProvider {
         ],
       };
     } finally {
-      // Step 3: remove the records.
+      // Always removed, or the next attempt's propagation check matches stale values.
       for (const r of created) {
         await dns
           .removeTxt(r.recordId, r.name)

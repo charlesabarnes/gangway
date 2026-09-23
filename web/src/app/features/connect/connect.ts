@@ -13,12 +13,6 @@ const SCOPE_HELP: Record<OAuthScope, string> = {
   update: 'Also rebuild any preview in place, including ones other people deployed.',
 };
 
-/**
- * An MCP client (claude.ai, Claude Code) asks to act as you. The server has
- * already checked the client and where it will send you back; this page is the person's
- * part: who is asking and where the answer goes, said plainly, because anyone can publish
- * a client document that calls itself "Claude". Not a screen of its own: a step, like login.
- */
 @Component({
   selector: 'app-connect',
   imports: [Btn],
@@ -163,7 +157,6 @@ export class Connect {
     this.chosen.set(next);
   }
 
-  /** Either way the answer goes back to the client with a real navigation: it is another site. */
   protected async answer(approve: boolean): Promise<void> {
     const r = this.request();
     if (!r || this.busy()) return;

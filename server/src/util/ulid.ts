@@ -1,7 +1,3 @@
-/**
- * ULID: lexicographically sortable, time-prefixed ids. Sortability is load-bearing --
- * `ORDER BY id` on previews and events is chronological with no extra index.
- */
 const ENCODING = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; // Crockford base32
 const TIME_LEN = 10;
 const RAND_LEN = 16;
@@ -24,7 +20,6 @@ function randomChars(): number[] {
   return Array.from(bytes, (b) => b % 32);
 }
 
-/** Monotonic within a millisecond: increments the random part rather than colliding. */
 export function ulid(now: number = Date.now()): string {
   if (now === lastTime) {
     for (let i = RAND_LEN - 1; i >= 0; i--) {

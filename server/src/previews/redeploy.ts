@@ -1,19 +1,3 @@
-/**
- * Rebuild in place: an uploaded preview's source changes -- edited in the UI, or
- * replaced by a new upload -- and the same preview is rebuilt: same id, hostname, ports,
- * routes, template, TTL and clearance.
- *
- * Like a deploy, two halves:
- *
- *   plan   (awaited)     new source on disk -> runtime -> `compose config` -> the same
- *                        services on the same ports? -> the new source is kept
- *   run    (background)  build (the old version keeps serving) -> swap (`starting`, the
- *                        proxy shows its building page for the second `up` takes) -> awake
- *
- * A plan that fails changes nothing: not the kept source, not the preview. A build that
- * fails leaves the old version serving and says so. A failure after `up` is `failed`, like
- * a deploy's, and the next save can recover it.
- */
 import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -46,19 +30,13 @@ import { GENERATED_DIR } from "./source/store.ts";
 import { extractTarball, type TarballSource } from "./source/tarball.ts";
 import { DIR_MODE, FILE_MODE, resolveWithin } from "./source/types.ts";
 
-/** One file's new text, or null to delete it. */
 export type SourceEdits = Record<string, string | null>;
 
 export type RedeployInput = {
   actor: Actor;
   previewId: string;
   change: { kind: "replace"; archive: TarballSource } | { kind: "edit"; files: SourceEdits };
-  /** Omitted: the runtime the preview was built with. */
   runtime?: RuntimeChoice | undefined;
-  /**
-   * Add-ons. Omitted: gangway.yml's, else the ones it has. `[]` removes them (their data stays
-   * until destroy).
-   */
   addons?: readonly AddonRequest[] | undefined;
 };
 
@@ -75,14 +53,9 @@ export type RedeployResult = {
   plan?: AppPlan | undefined;
 };
 
-/** Said the same way by REST and MCP. */
 const REBUILD_REFUSAL =
   'this preview was deployed by someone else: "previews.update_own" covers only your own, and rebuilding any preview needs "previews.update" (the `update` scope for a token or an agent)';
 
-/**
- * Paths an edit may name: relative, forward-slashed, no `..`, nothing in a `.gangway/` (at any
- * depth: a nested app's root has one).
- */
 export function checkEditPath(p: string): string {
   const bad = (why: string) =>
     unprocessable(`cannot write ${JSON.stringify(p.slice(0, 200))}: ${why}`);
@@ -96,7 +69,6 @@ export function checkEditPath(p: string): string {
   return p;
 }
 
-/** Applies edits to a copy of the kept source. No component on the way may be a symlink. */
 async function applyEdits(srcDir: string, files: SourceEdits): Promise<number> {
   let n = 0;
   for (const [rel, text] of Object.entries(files)) {
@@ -120,7 +92,6 @@ async function applyEdits(srcDir: string, files: SourceEdits): Promise<number> {
     if (text === null) {
       await rm(abs, { force: true });
     } else {
-      // The extractor's modes: COPY keeps them, and a web server in the image may not be root.
       await mkdir(dirname(abs), { recursive: true, mode: DIR_MODE });
       await writeFile(abs, text, { mode: FILE_MODE });
     }
@@ -143,8 +114,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const id = input.previewId;
   const current = ctx.previews.get(id);
   if (!current || current.state === "destroyed") throw notFound(`no such preview: ${id}`);
-  // One check for every adapter. The routes and tools only know the actor may rebuild
-  // something; whose preview this is needs the row.
   if (!mayRebuild(input.actor, ctx.previews.ownerOf(id))) throw forbidden(REBUILD_REFUSAL);
   if (current.source.kind !== "tarball" || !ctx.sources || !(await ctx.sources.has(id))) {
     throw conflict(
@@ -154,7 +123,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const host = ctx.hosts.get(current.hostId);
   if (!host) throw new AppError("internal", `preview ${id} is on unknown host ${current.hostId}`);
 
-  // ---- synchronous from the checks to the claim: two saves cannot both get past here.
+  // No await from these checks until the inflight claim, so two saves can't both get past.
   const preview = ctx.previews.get(id)!;
   if (!["awake", "asleep", "failed"].includes(preview.state)) {
     throw conflict(`the preview is ${preview.state}; wait for it to settle`, {
@@ -169,7 +138,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     settle = r;
   });
   ctx.inflight.set(id, { abort, done: done.then((o) => o.preview) });
-  // ---- end synchronous block
 
   const buildId = ulid(ctx.now());
   const wd = await ctx.workdirs.create(buildId).catch((e) => {
@@ -203,14 +171,11 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
         `rebuilding with ${n} edited file${n === 1 ? "" : "s"} (requested by ${actorId(input.actor)})`,
       );
     }
-    // Asked for, else the upload's gangway.yml, else what it was built as before.
     const choice: RuntimeChoice = input.runtime ?? "auto";
     const env =
       preview.secretLevel === null || preview.secretLevel === "none"
         ? {}
         : ctx.secretsFor?.(preview.projectId, preview.secretLevel);
-    // The port the preview already routes to: an own Dockerfile needs it, and a runtime
-    // listens on it, so switching runtimes keeps the preview.
     const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
     const up = await prepareUpload(ctx, id, wd, choice, env, port, {
       previous: source.runtime ?? "own",
@@ -219,8 +184,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     });
     const { model, resolved } = await readModel(ctx, host, wd, up.composeFile);
 
-    // The same services on the same ports, or it is a new preview: its routes, hostnames
-    // and ports were settled when it was deployed.
     const want = new Set(routes.map((r) => `${r.service}:${r.containerPort}`));
     const got = new Set(selectExposed(model).map((e) => `${e.service}:${e.containerPort}`));
     if (want.size !== got.size || [...want].some((k) => !got.has(k))) {
@@ -233,7 +196,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
       );
     }
 
-    // Accepted: this is the source now, whether or not it builds.
     if (up.pristine) await ctx.sources.adopt(id, up.pristine);
     const next: PreviewSource = {
       kind: "tarball",
@@ -293,7 +255,6 @@ type RunInput = {
   signal: AbortSignal;
   resolved: unknown;
   model: Awaited<ReturnType<typeof readModel>>["model"];
-  /** Started (or left running) and healthy before the release, while the old app still serves. */
   addonServices: string[];
 };
 
@@ -319,7 +280,6 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
     };
   };
 
-  // A failed preview has nothing serving: say "building" while it does.
   if (ctx.previews.get(id)?.state === "failed") ctx.states.transition(id, "building");
 
   let upAttempted = false;
@@ -362,8 +322,6 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
       }
     }
 
-    // The add-ons first, alone. Running ones are left as they are (same config,
-    // no recreate); a new one starts on its volume. The app is not touched yet.
     if (r.addonServices.length > 0) {
       await step(
         "up (add-ons)",
@@ -380,8 +338,6 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
       });
     }
 
-    // The release runs against the new image while the old version still serves.
-    // Failing it is failing the build: nothing has been swapped yet.
     const release = releaseFor(r.model, r.routes);
     if (release) {
       log(`release: ${release.command} (in ${release.service})`);
@@ -412,7 +368,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
     await removeReplaced(ctx, host, base, wd.srcDir, before, id);
     return outcome("succeeded");
   } catch (e) {
-    // destroy() aborted us and owns the preview from here.
+    // destroy() aborted the run and owns the preview from here.
     if (r.signal.aborted)
       return {
         preview: ctx.previews.get(id) ?? preview,
@@ -444,9 +400,6 @@ type Base = {
   docker: string | undefined;
 };
 
-/**
- * The image ids the project's containers run now. Empty on any failure: cleanup is best-effort.
- */
 async function imageIds(
   ctx: PreviewContext,
   host: Host,
@@ -472,11 +425,6 @@ async function imageIds(
   }
 }
 
-/**
- * The rebuild moved `<project>-<service>` to a new image; the old one is left with no tag.
- * Removed only when it has no tag and no digest -- an image built here and now unreferenced.
- * A pulled image, even one pinned by digest, has a digest, and may be the operator's.
- */
 async function removeReplaced(
   ctx: PreviewContext,
   host: Host,

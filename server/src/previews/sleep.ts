@@ -1,10 +1,3 @@
-/**
- * Idle-sleep and wake. Sleep acts on the whole project: `compose stop`, file-less by `-p`,
- * from an empty directory like teardown. Routes stay, ports stay claimed, the row says
- * `asleep`; TTL keeps counting. Wake is the reverse -- `compose start`, then the same health
- * wait and HTTP probe a deploy uses -- and happens only on a request, so nothing bulk-starts
- * sixty stacks just because their routes exist.
- */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,7 +17,6 @@ export type IdleReport = {
   failed: string[];
 };
 
-/** Stops an awake preview's project and marks it asleep. Leaves it awake if `stop` fails. */
 export async function sleepPreview(
   ctx: PreviewContext,
   previewId: string,
@@ -54,13 +46,6 @@ export async function sleepPreview(
   return ctx.states.transition(previewId, "asleep");
 }
 
-/**
- * The `idle-sleep` job. Every awake preview whose last request is older than its idle
- * window -- the row's own (pinned from `x-gangway.idle` or its template), else the default
- * template's for rows older than templates -- is put to sleep.
- * What the proxy noted in memory is flushed first, or a preview visited a second ago
- * would look idle since its last flush.
- */
 export async function sweepIdle(
   ctx: PreviewContext,
   logger: Logger,
@@ -108,12 +93,6 @@ export async function sweepIdle(
   return report;
 }
 
-/**
- * Wakes a preview on request: one wake per preview at a time, and every request that
- * arrives while it runs waits on the same promise. A wake that fails puts the preview
- * back to `asleep` with the reason in its log -- not `failed`, which would 502 every
- * later request for a transient cause.
- */
 export class Waker {
   readonly #ctx: PreviewContext;
   readonly #log: Logger;
@@ -153,10 +132,7 @@ export class Waker {
     const base = { project: preview.project, files: [], docker: ctx.docker };
     const empty = await mkdtemp(join(tmpdir(), "gangway-wake-"));
     const abort = new AbortController();
-    // In flight like a deploy: the reconciler must not read this `starting` as a pipeline a
-    // restart interrupted (a slow start, such as a Postgres add-on's, lets a pass land in the
-    // middle, mark the preview failed and `down` it under the wake), and a destroy can abort
-    // it and wait.
+    // Registered as inflight so the reconciler doesn't fail a slow wake and destroy can abort it.
     let settle!: (p: Preview) => void;
     const done = new Promise<Preview>((r) => {
       settle = r;
@@ -190,7 +166,6 @@ export class Waker {
       const message = redactString(errorMessage(e));
       ctx.logs.append(previewId, "system", `wake failed: ${message}`);
       this.#log.warn("wake failed", { previewId, project: preview.project, err: e });
-      // Still asleep -- unless destroy took it while we were trying.
       const now = ctx.previews.get(previewId);
       if (now?.state === "starting") ctx.states.transition(previewId, "asleep");
       throw e;

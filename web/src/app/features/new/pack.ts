@@ -1,15 +1,6 @@
 import { gzipSync, unzipSync } from 'fflate';
 import type { Detected, DetectionRule } from '../../core/api.types';
 
-/**
- * Turning what was dropped into what the server takes: one tar.gz. Files,
- * folders and zips are all flattened here, in the browser -- the server keeps one hardened
- * archive reader, and zip (its directory is at the end of the file) cannot be read
- * streaming, so it never reaches the server as a zip.
- *
- * Everything below `collect*` is pure and synchronous, and unit-tested as such.
- */
-
 export type UploadFile = { path: string; data: Uint8Array };
 export type Collected = {
   files: UploadFile[];
@@ -18,7 +9,6 @@ export type Collected = {
   name: string | null;
 };
 
-/** Client-side cap. The server enforces its own (larger) limits; this one fails fast and says why. */
 export const MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
 export const MAX_UPLOAD_FILES = 20_000;
 
@@ -26,7 +16,6 @@ export class UploadError extends Error {}
 
 const mib = (n: number) => `${Math.round((n / 1024 / 1024) * 10) / 10} MiB`;
 
-/** Things no preview wants: OS litter, a VCS, and dependencies the runtime reinstalls. */
 const JUNK_SEGMENTS = new Set(['__MACOSX', '.git', 'node_modules']);
 const JUNK_NAMES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
 
@@ -39,7 +28,6 @@ export function isJunk(path: string): boolean {
   );
 }
 
-/** A relative, forward-slash path with no `.`/`..` segments -- or an error that names it. */
 export function normalizePath(raw: string): string {
   const parts = raw
     .replace(/\\/g, '/')
@@ -50,11 +38,6 @@ export function normalizePath(raw: string): string {
   return parts.join('/');
 }
 
-/**
- * A folder dropped whole, or a zip of one, puts every path under the same first segment.
- * The server looks for markers (package.json, index.html) at the root, so that one segment
- * is removed -- and remembered, as a name for the preview.
- */
 export function stripCommonRoot<T extends { path: string }>(
   files: T[],
 ): { files: T[]; root: string | null } {
@@ -65,7 +48,6 @@ export function stripCommonRoot<T extends { path: string }>(
   return { files: files.map((f) => ({ ...f, path: f.path.slice(first.length + 1) })), root: first };
 }
 
-/** Exactly the server's `detectRuntime` (shared/src/runtimes.ts), over the rules it sends. */
 export function detect(paths: Iterable<string>, rules: readonly DetectionRule[]): Detected {
   const have = new Set(paths);
   for (const rule of rules) if (rule.markers.some((m) => have.has(m))) return rule.runtime;
@@ -74,13 +56,8 @@ export function detect(paths: Iterable<string>, rules: readonly DetectionRule[])
 
 export const isZip = (name: string) => /\.zip$/i.test(name);
 
-/** Server-side cap per file (`MAX_PLAN_FILE_BYTES`): a larger one is sent by name only. */
 export const MAX_PLAN_FILE_BYTES = 256 * 1024;
 
-/**
- * The body of `POST /v1/runtimes/plan`: every path, and the text of the few files
- * the plan reads -- at the root and one directory down, as `planFilePaths` picks them.
- */
 export function planPayload(
   files: readonly UploadFile[],
   planFiles: readonly string[],
@@ -104,7 +81,6 @@ export function planPayload(
   return { paths: files.map((f) => f.path), files: contents };
 }
 
-/** The entries of a zip, directories dropped. */
 export function unzip(bytes: Uint8Array): UploadFile[] {
   let entries: Record<string, Uint8Array>;
   try {
@@ -117,10 +93,6 @@ export function unzip(bytes: Uint8Array): UploadFile[] {
     .map(([name, data]) => ({ path: name, data }));
 }
 
-/**
- * Cleans and checks a raw list: normalises paths, drops junk, strips one common root,
- * refuses duplicates and anything over the caps.
- */
 export function finish(raw: UploadFile[], fallbackName: string | null = null): Collected {
   const kept: UploadFile[] = [];
   let skipped = 0;
@@ -154,8 +126,6 @@ export function finish(raw: UploadFile[], fallbackName: string | null = null): C
   };
 }
 
-/* ------------------------------------------------------------------ tar */
-
 const enc = new TextEncoder();
 
 function field(h: Uint8Array, offset: number, length: number, value: string): void {
@@ -164,7 +134,6 @@ function field(h: Uint8Array, offset: number, length: number, value: string): vo
 }
 const octal = (n: number, length: number) => n.toString(8).padStart(length - 1, '0');
 
-/** ustar splits a long path into `prefix/name`: name <= 100 bytes, prefix <= 155. */
 function splitPath(path: string): { name: string; prefix: string } {
   if (enc.encode(path).length <= 100) return { name: path, prefix: '' };
   for (let i = path.indexOf('/'); i !== -1; i = path.indexOf('/', i + 1)) {
@@ -187,7 +156,8 @@ function header(path: string, size: number, type: '0', mode: number, mtime: numb
   field(h, 116, 8, octal(0, 8));
   field(h, 124, 12, octal(size, 12));
   field(h, 136, 12, octal(mtime, 12));
-  field(h, 148, 8, '        '); // checksum is computed over spaces here
+  // The checksum is summed with its own field filled with spaces.
+  field(h, 148, 8, '        ');
   field(h, 156, 1, type);
   field(h, 257, 6, 'ustar\0');
   field(h, 263, 2, '00');
@@ -198,11 +168,6 @@ function header(path: string, size: number, type: '0', mode: number, mtime: numb
   return h;
 }
 
-/**
- * A ustar archive of regular files, owned by 0:0, 0644. No directory entries: the server's
- * extractor creates (and checks) every parent itself, and a directory entry would only
- * add a second way to be too long.
- */
 export function writeTar(
   files: readonly UploadFile[],
   mtime = Math.floor(Date.now() / 1000),
@@ -214,7 +179,7 @@ export function writeTar(
     const pad = (512 - (f.data.byteLength % 512)) % 512;
     if (pad) parts.push(new Uint8Array(pad));
   }
-  parts.push(new Uint8Array(1024)); // two zero blocks end the archive
+  parts.push(new Uint8Array(1024));
   const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
   let at = 0;
   for (const p of parts) {
@@ -229,7 +194,6 @@ export function packFiles(files: readonly UploadFile[]): Blob {
   return new Blob([gz as Uint8Array<ArrayBuffer>], { type: 'application/gzip' });
 }
 
-/** A runtime's starter (path -> text) as an upload. */
 export function packStarter(starter: Record<string, string>): Blob {
   return packFiles(
     Object.entries(starter).map(([path, text]) => ({
@@ -239,13 +203,10 @@ export function packStarter(starter: Record<string, string>): Blob {
   );
 }
 
-/* ------------------------------------------------------------------ collecting from the browser */
-
 async function bytesOf(file: Blob): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());
 }
 
-/** A file, or a zip's contents placed under its own name (so strip-root sees one folder). */
 async function expand(
   path: string,
   file: File,
@@ -267,11 +228,9 @@ async function expand(
   }
 }
 
-/** Only a single zip dropped on its own names the preview after the zip; a folder names it after itself. */
 const zipName = (files: readonly File[]) =>
   files.length === 1 && isZip(files[0]!.name) ? files[0]!.name.replace(/\.zip$/i, '') : null;
 
-/** From `<input type=file multiple>` (or `webkitdirectory`, whose files carry `webkitRelativePath`). */
 export async function collectFromFiles(list: readonly File[]): Promise<Collected> {
   const raw: UploadFile[] = [];
   const budget = { bytes: 0 };
@@ -297,7 +256,6 @@ async function walk(
   }
   if (!entry.isDirectory) return;
   const reader = (entry as DirEntry).createReader();
-  // readEntries returns a batch at a time (100 in Chrome) until it returns none.
   for (;;) {
     const batch = await new Promise<Entry[]>((ok, err) => reader.readEntries(ok, err));
     if (batch.length === 0) break;
@@ -305,7 +263,6 @@ async function walk(
   }
 }
 
-/** From a drop: files, whole folders (walked), and zips (expanded). */
 export async function collectFromDrop(dt: DataTransfer): Promise<Collected> {
   const entries: Entry[] = [];
   for (const item of Array.from(dt.items ?? [])) {
@@ -315,7 +272,6 @@ export async function collectFromDrop(dt: DataTransfer): Promise<Collected> {
     ).webkitGetAsEntry?.();
     if (e) entries.push(e);
   }
-  // No entry API (or a synthetic drop): the flat file list is all there is.
   if (entries.length === 0) return collectFromFiles(Array.from(dt.files ?? []));
 
   const found: { path: string; file: File }[] = [];

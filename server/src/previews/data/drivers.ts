@@ -1,13 +1,3 @@
-/**
- * The data browser's drivers: for each add-on, the argv that runs a query inside
- * its container, and a parser for what comes back. Pure -- no process, no daemon.
- *
- * Nothing secret is ever on a command line: every command runs as `sh -c '<fixed script>'`
- * and reads the password from the container's own environment (the add-on's service was
- * given it at deploy). The query text arrives as a positional argument (`"$1"`), never
- * spliced into the script, so no shell or SQL quoting of ours is involved in carrying it.
- * Table names come from the add-on's own listing and are quoted by doubling.
- */
 import type { AddonId } from "@gangway/shared/addons";
 import { ADDON_USER } from "../addons.ts";
 
@@ -20,19 +10,14 @@ export type QueryResult = {
 };
 export type Table = { schema: string; name: string };
 
-/** Hard limits, shared with the service. */
 export const MAX_ROWS = 1000;
 const STATEMENT_TIMEOUT_S = 15;
 
-/* ------------------------------------------------------------------ argv */
-
-/** `sh -c <script> sh <args...>`: the script is ours and fixed; what follows it is data. */
 const sh = (script: string, ...args: string[]) => ["sh", "-c", script, "sh", ...args];
 
 export function queryArgv(addon: AddonId, text: string, write: boolean): string[] {
   switch (addon) {
     case "postgres":
-      // Local socket: the official image trusts it, so no password is needed at all.
       return [
         "psql",
         "-X",
@@ -68,7 +53,6 @@ export function tablesQuery(addon: Exclude<AddonId, "redis">): string {
     : `select table_schema as \`schema\`, table_name as name from information_schema.tables where table_schema = '${ADDON_USER}' order by 2`;
 }
 
-/** Only ever called with a name the add-on listed itself; quoted by doubling anyway. */
 export function rowsQuery(
   addon: Exclude<AddonId, "redis">,
   t: Table,
@@ -82,12 +66,6 @@ export function rowsQuery(
   return `select * from ${q(t.schema)}.${q(t.name)} limit ${Math.trunc(limit)} offset ${Math.trunc(offset)}`;
 }
 
-/* ------------------------------------------------------------------ redis */
-
-/**
- * Words, with double or single quotes grouping and backslash escapes inside double quotes:
- * redis-cli's own rules, roughly.
- */
 export function tokenize(text: string): string[] {
   const out: string[] = [];
   let cur = "",
@@ -124,7 +102,6 @@ export function tokenize(text: string): string[] {
   return out;
 }
 
-/** What read-only mode lets through. Anything else needs the write switch. */
 const REDIS_READ = new Set([
   "GET",
   "MGET",
@@ -173,7 +150,6 @@ const REDIS_READ = new Set([
   "TIME",
   "DUMP",
 ]);
-/** Never, write switch or not: they block, stream forever, or reach past this one database. */
 const REDIS_NEVER = new Set([
   "MONITOR",
   "SUBSCRIBE",
@@ -214,7 +190,6 @@ function redisArgv(text: string): string[] {
   return argv;
 }
 
-/** null: allowed. Otherwise why not. */
 export function redisRefusal(text: string, write: boolean): string | null {
   let argv: string[];
   try {
@@ -228,12 +203,6 @@ export function redisRefusal(text: string, write: boolean): string | null {
   return null;
 }
 
-/* ------------------------------------------------------------------ parsing */
-
-/**
- * psql's CSV: RFC 4180. A NULL is an empty unquoted field; an empty string is `""`. The
- * first record is the header. No output at all is a statement that returns no rows.
- */
 export function parseCsv(text: string): { columns: string[]; rows: Cell[][] } {
   const records: Cell[][] = [];
   let rec: Cell[] = [],
@@ -275,10 +244,6 @@ export function parseCsv(text: string): { columns: string[]; rows: Cell[][] } {
   return { columns: (header ?? []).map((h) => h ?? ""), rows };
 }
 
-/**
- * mysql --batch: tab-separated, a header first; `\t \n \\ \0` escaped; NULL is the text NULL,
- * which is ambiguous with the string "NULL".
- */
 export function parseBatch(text: string): { columns: string[]; rows: Cell[][] } {
   const unescape = (s: string): Cell =>
     s === "NULL"
@@ -292,7 +257,6 @@ export function parseBatch(text: string): { columns: string[]; rows: Cell[][] } 
   return { columns: header!.split("\t"), rows: rest.map((l) => l.split("\t").map(unescape)) };
 }
 
-/** redis-cli's non-tty output: one line per value. Shown as a one-column table. */
 function parseRedis(text: string): { columns: string[]; rows: Cell[][] } {
   const lines = text.split("\n");
   if (lines.at(-1) === "") lines.pop();

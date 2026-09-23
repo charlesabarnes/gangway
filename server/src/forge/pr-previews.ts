@@ -1,16 +1,3 @@
-/**
- * Pull-request previews: a `ForgeEvent` in, a preview deployed, redeployed, destroyed or
- * left alone, and the forge told about it. Forge-agnostic: nothing here knows about GitHub.
- *
- * The rules, all of them here:
- *   - only an existing project that takes pull requests by webhook is acted for
- *   - a fork's PR builds only under `repos.forks = auto`, or after `/preview deploy`
- *     from an owner, member or collaborator (public visibility, fork clearance)
- *   - a new head is destroy-then-deploy under the same name; the same head already
- *     building or awake is a no-op (webhook redeliveries, `synchronize` storms)
- *   - the forge is told after the preview exists and again when it settles; a forge
- *     call failing never fails the deploy
- */
 import type { Clearance, RepoProject, Preview } from "@gangway/shared/domain";
 import { slugify } from "@gangway/shared/hostname";
 import { forgeActor, type Actor } from "../auth/actor.ts";
@@ -21,7 +8,7 @@ import type { DeployInput, DeployResult, DeploySource, PreviewUrl } from "../pre
 import type { Policy } from "../previews/policy.ts";
 import type { Association, Forge, ForgeEvent, ForgeRepo, PullRequest } from "./forge.ts";
 
-/** `<slug>-pr-<n>-<service>` has to fit a 63-character DNS label; this leaves room. */
+// <slug>-pr-<n>-<service> has to fit a 63-character DNS label.
 export const MAX_REPO_SLUG = 24;
 
 export type PrPreviewsDeps = {
@@ -39,14 +26,8 @@ export type PrPreviewsDeps = {
       refs: { commentId?: number | null; deploymentId?: number | null },
     ): void;
   };
-  /** The repository's secrets at or below a clearance. */
   secretsFor?: ((repo: RepoProject, clearance: Clearance) => Record<string, string>) | undefined;
-  /**
-   * The template a pull request follows: its clearance is the fallback when the repository
-   * has no override.
-   */
   policy: Policy;
-  /** Where a human reads the build log: the UI's preview page, when the UI is on. */
   logUrlFor?: ((previewId: string) => string | undefined) | undefined;
   logger: Logger;
   now?: (() => number) | undefined;
@@ -55,7 +36,6 @@ export type PrPreviewsDeps = {
 export type Outcome =
   | { action: "deployed"; previewId: string; name: string; settled: Promise<void> }
   | { action: "destroyed"; previewId: string }
-  /** The plan refused the source (a bad compose file, the policy) -- said on the PR, nothing deployed. */
   | { action: "refused"; reason: string }
   | { action: "commented"; previewId: string | null }
   | { action: "ignored"; reason: string };
@@ -82,13 +62,6 @@ export class PrPreviews {
     }
   }
 
-  /* ---------------------------------------------------------------- repositories */
-
-  /**
-   * The project for a repository, or why there is none to act for. Nothing is
-   * made here: a project is made on purpose, and one that takes pull requests from its
-   * own workflow must not get a second preview from the webhook.
-   */
   projectFor(fr: ForgeRepo): RepoProject | string {
     const existing = this.#d.repos.getByFullName(fr.forge, fr.fullName);
     if (!existing)
@@ -106,12 +79,9 @@ export class PrPreviews {
     return `${repo.slug}-pr-${number}`;
   }
 
-  /** By source, not by name: an unlisted preview's name carries a suffix that changes per deploy. */
   current(repo: RepoProject, number: number): Preview | undefined {
     return this.#d.previews.findPullRequest(repo.fullName, number);
   }
-
-  /* ---------------------------------------------------------------- events */
 
   async #onUpdated(pr: PullRequest): Promise<Outcome> {
     const repo = this.projectFor(pr.repo);
@@ -146,7 +116,7 @@ export class PrPreviews {
   }
 
   async #onCommand(ev: Extract<ForgeEvent, { type: "pr.command" }>): Promise<Outcome> {
-    // Anyone else is answered with nothing: an error comment is an amplifier.
+    // No reply to anyone else: an error comment is an amplifier.
     if (!SPEAKS_FOR_REPO.has(ev.association))
       return {
         action: "ignored",
@@ -169,7 +139,6 @@ export class PrPreviews {
       return { action: "commented", previewId: existing?.id ?? null };
     }
     if (ev.command === "secrets") {
-      // Raise or lower this pull request's clearance: a redeploy at that level, and it sticks.
       if (!repo.enabled)
         return {
           action: "ignored",
@@ -193,7 +162,6 @@ export class PrPreviews {
       const pr = await this.#d.forge.pullRequest(ev.repo, ev.number);
       return this.#destroy(repo, pr, existing, actor, "destroyed on request");
     }
-    // deploy | redeploy
     if (!repo.enabled)
       return {
         action: "ignored",
@@ -211,8 +179,6 @@ export class PrPreviews {
     }
     return this.#deploy(repo, pr, actor, { force: ev.command === "redeploy" });
   }
-
-  /* ---------------------------------------------------------------- the two moves */
 
   #refsOf(
     repo: RepoProject,
@@ -241,8 +207,6 @@ export class PrPreviews {
       cloneUrl: pr.repo.cloneUrl,
       credential: undefined,
     };
-    // The clearance: asked for now, else what this PR already had, else the repository's
-    // policy -- a fork's clearance, or the override on top of the template's.
     const { template } = this.#d.policy.resolve({ source, actor, projectId: repo.id });
     const clearance: Clearance =
       o.clearance ??
@@ -259,19 +223,15 @@ export class PrPreviews {
           action: "ignored",
           reason: `#${pr.number} is already ${existing.state} at ${pr.headSha.slice(0, 7)}`,
         };
-      // The comment outlives the preview it was made for: the thread stays one comment.
       refs = this.#d.previews.forgeRefs(existing.id);
       await this.#retireDeployment(pr.repo, refs.deploymentId);
       await this.#d.previews.destroy(existing.id, actor);
     }
 
-    // Minted for public repositories too: one code path, and authenticated fetches are not rate-limited like anonymous ones.
     const credential = await this.#d.forge.cloneCredential(pr.repo);
-    // A fork is public, whatever the repository or template says. Everything else --
-    // the repository's overrides, the template -- the pipeline resolves from the source.
     let result: DeployResult;
     try {
-      // Given explicitly, even as {}: the pipeline's by-source lookup must not fill it in.
+      // Given even as {} so the pipeline's by-source lookup does not fill it in.
       const env = clearance === "none" ? {} : (this.#d.secretsFor?.(repo, clearance) ?? {});
       result = await this.#d.previews.deploy({
         actor,
@@ -283,8 +243,6 @@ export class PrPreviews {
         source: { ...source, credential },
       });
     } catch (e) {
-      // Refused before a preview existed: no row, no deployment, and -- unless said here --
-      // no word to the author. A policy refusal would otherwise be silence on the PR.
       if (!(e instanceof AppError) || e.status >= 500) throw e;
       const why = this.#refusal(e);
       await this.#say(
@@ -296,7 +254,6 @@ export class PrPreviews {
     }
     const id = result.preview.id;
 
-    // Tell the forge. Failures are logged and do not touch the preview.
     const commentId = await this.#say(
       pr,
       refs.commentId,
@@ -363,8 +320,6 @@ export class PrPreviews {
     return { action: "destroyed", previewId: existing.id };
   }
 
-  /* ---------------------------------------------------------------- forge helpers */
-
   async #say(
     pr: Pick<PullRequest, "repo" | "number">,
     existingId: number | null,
@@ -395,13 +350,12 @@ export class PrPreviews {
     }
   }
 
-  /** The message, and the part of the detail a human can act on (compose's stderr, a policy note). */
   #refusal(e: AppError): string {
     const d = e.detail ?? {};
     const text = [d["compose"], d["reason"], d["message"]].find(
       (v) => typeof v === "string" && v.trim() !== "",
     ) as string | undefined;
-    // Compose warns about every unset `${VAR}` before saying what is wrong; the warnings are not it.
+    // Compose lists unset-variable warnings before the actual error.
     const shown = text
       ?.split(/\r?\n/)
       .filter((l) => !/^time="[^"]*" level=warning /.test(l))
@@ -449,7 +403,6 @@ export class PrPreviews {
   }
 }
 
-/** The default hostname stem for a repository: its name, slugified, at most MAX_REPO_SLUG. */
 export function slugFor(repoName: string): string {
   const s = slugify(repoName).slice(0, MAX_REPO_SLUG).replace(/-+$/, "");
   return s === "" ? "repo" : s;

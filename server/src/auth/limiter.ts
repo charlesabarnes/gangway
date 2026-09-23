@@ -1,21 +1,9 @@
-/**
- * Login throttling. Two independent counters, for two independent attacks:
- *  - per source: one address spraying many accounts. 10 failures in 15 minutes.
- *  - per account: many addresses guessing one password. 5 free failures, then a lock that
- *    doubles -- 1, 2, 4, 8 minutes -- capped at 15.
- *
- * Checked before scrypt runs, so a locked-out attacker costs a Map lookup, not 32 MiB.
- *
- * In memory on purpose: a persisted lock would be a durable denial of service against the
- * only admin, written by whoever wants to. The env admin token is break-glass either way.
- */
 export type LimiterOptions = {
   ipMax?: number;
   ipWindowMs?: number;
   emailFree?: number;
   emailBaseLockMs?: number;
   emailMaxLockMs?: number;
-  /** A failure streak is forgotten after this long without another failure. */
   forgetAfterMs?: number;
   maxKeys?: number;
 };
@@ -27,11 +15,7 @@ type EmailState = { failures: number; lockedUntil: number; lastFailure: number }
 
 const MIN = 60_000;
 
-/**
- * One IPv6 customer is a /64, not an address: keying on the full address hands an
- * attacker 2^64 fresh counters. IPv4 is keyed whole. The input is already trusted-proxy
- * resolved and `::ffff:`-unmapped (net/trusted-proxy.ts).
- */
+// IPv6 is keyed by /64, since keying the full address hands an attacker 2^64 fresh counters.
 export function sourceKey(ip: string): string {
   if (!ip.includes(":")) return ip;
   const [head = "", tail = ""] = ip.toLowerCase().split("%")[0]!.split("::");
@@ -46,7 +30,6 @@ export function sourceKey(ip: string): string {
     .join(":")}::/64`;
 }
 
-/** Insertion-ordered Map as an LRU: a flood of fresh keys evicts the oldest, not the process. */
 class Bounded<V> {
   readonly #max: number;
   readonly #map = new Map<string, V>();
@@ -86,7 +69,7 @@ export class LoginLimiter {
       maxKeys: o.maxKeys ?? 10_000,
     };
     this.#now = now;
-    // Separate bounds: spraying 10,000 addresses must not evict one account's lock.
+    // Separate bounds, so spraying many addresses cannot evict an account's lock.
     this.#ips = new Bounded(this.#o.maxKeys);
     this.#emails = new Bounded(this.#o.maxKeys);
   }
@@ -122,10 +105,7 @@ export class LoginLimiter {
     this.#emails.set(email, { failures, lockedUntil: now + lock, lastFailure: now });
   }
 
-  /**
-   * Clears the account's streak only. Clearing the source's too would let anyone with one
-   * valid login reset their own counter between guesses at someone else's.
-   */
+  // Clearing the source too would let one valid login reset its counter between guesses at another account.
   succeed(email: string): void {
     this.#emails.delete(email);
   }

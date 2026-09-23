@@ -1,17 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-/**
- * Every error the API returns is problem+json (RFC 9457) with a `requestId`. This turns
- * whatever was thrown into one shape the UI can show -- including the two failures that
- * are not problem+json at all: no response, and a proxy's error page.
- */
 export type ProblemError = {
   status: number;
   title: string;
   detail: string;
-  /** Present when the server answered. It is what to quote when asking what went wrong. */
   requestId: string | null;
-  /** Seconds, from `Retry-After` (a lockout) or the body. */
   retryAfter: number | null;
   issues: { path: string; message: string }[];
 };
@@ -30,7 +23,6 @@ export function toProblem(e: unknown): ProblemError {
   if (!(e instanceof HttpErrorResponse))
     return { ...base, detail: e instanceof Error ? e.message : base.detail };
 
-  // status 0: the request never got an answer -- offline, DNS, or the server is gone.
   if (e.status === 0)
     return {
       ...base,
@@ -58,7 +50,6 @@ export function toProblem(e: unknown): ProblemError {
       )
     : [];
 
-  // 502/503/504 with no problem body is a reverse proxy talking, not gangway.
   const restarting =
     (e.status === 502 || e.status === 503 || e.status === 504) && str(body['detail']) === null;
   return {

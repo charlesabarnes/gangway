@@ -1,13 +1,4 @@
-/**
- * The permission catalogue. A permission is the unit of enforcement: routes and services
- * ask "may this actor do X", never "is this actor an admin". Which role holds which
- * permission is data (the `role_permissions` table) and the operator's to change; what
- * permissions exist is code, because a permission nothing checks is a lie.
- *
- * The `permissions` table is seeded from this list and re-synced at boot.
- *
- * Ids are `<feature>.<verb>`. Never rename one: grants reference it.
- */
+// Never rename an id: grants reference it.
 export const PERMISSIONS = [
   {
     id: "previews.read",
@@ -115,16 +106,6 @@ export const ALL_PERMISSIONS: readonly Permission[] = PERMISSIONS.map((p) => p.i
 const KNOWN: ReadonlySet<string> = new Set(ALL_PERMISSIONS);
 export const isPermission = (s: string): s is Permission => KNOWN.has(s);
 
-/**
- * Token scopes. A scope is a fixed bundle of permissions, so a token stays a few-word
- * thing to reason about while enforcement stays fine-grained. A user-owned token never
- * exceeds its owner: the effective set is the bundle intersected with the owner's role,
- * at verify time.
- *
- * `deploy` carries `previews.update_own` (an agent iterates on what it made); `update` is
- * `previews.update` alone -- rebuild any preview -- added to the others, never useful by
- * itself.
- */
 export const SCOPES = ["read", "deploy", "update", "admin"] as const;
 export type Scope = (typeof SCOPES)[number];
 
@@ -137,15 +118,9 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   admin: ALL_PERMISSIONS,
 };
 
-/** The three roles every install starts with. `admin` holds everything, always, in code. */
 export type BuiltinRole = "admin" | "member" | "viewer";
 export const ADMIN_ROLE_ID: BuiltinRole = "admin";
 
-/**
- * What `member` and `viewer` are seeded with. Defaults only -- the matrix is the
- * operator's. The migrations insert exactly this (0003, and 0010 for `update_own`), and a
- * test holds the two together.
- */
 export const DEFAULT_ROLE_PERMISSIONS: Record<
   Exclude<BuiltinRole, "admin">,
   readonly Permission[]

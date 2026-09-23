@@ -15,7 +15,6 @@ import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
 import { displayName, primaryUrl, sourceLabel } from './source-label';
 
-/** Chips group the two "not ready yet" states: nobody filters for `starting` on its own. */
 const STATE_CHIPS: { key: string; label: string; states: PreviewState[] }[] = [
   { key: 'awake', label: 'awake', states: ['awake'] },
   { key: 'asleep', label: 'asleep', states: ['asleep'] },
@@ -260,7 +259,7 @@ export class PreviewList {
   readonly #toasts = inject(ToastService);
   readonly #router = inject(Router);
   readonly #route = inject(ActivatedRoute);
-  // `viewChild` cannot sit on an ES #private member (NG1053), hence TypeScript `private`.
+  // viewChild cannot target an ES #private field (NG1053).
   private readonly dialog = viewChild.required(ConfirmDialog);
 
   protected readonly chips = STATE_CHIPS;
@@ -275,7 +274,6 @@ export class PreviewList {
       return u;
     }
   };
-  /** The API answers on this origin too, so the hint is copy-pasteable as it stands. */
   protected readonly curl = [
     `curl -X POST ${typeof location === 'undefined' ? '' : location.origin}/v1/previews \\`,
     `  -H "Authorization: Bearer $GANGWAY_TOKEN" -H 'content-type: application/json' \\`,
@@ -287,7 +285,6 @@ export class PreviewList {
   protected readonly query = signal('');
   protected readonly pending = signal<Preview | null>(null);
 
-  /** Advice about what to show. The server refuses a DELETE the role does not allow, whatever this says. */
   protected readonly canDestroy = computed(() => this.#auth.can('previews.destroy'));
   protected readonly canDeploy = computed(() => this.#auth.can('previews.deploy'));
   protected readonly filtered = computed(
@@ -302,7 +299,7 @@ export class PreviewList {
     const q = this.query().trim().toLowerCase();
     return this.store.previews().filter(
       (p) =>
-        // `destroyed` rows are governed by their own checkbox, not by the state chips.
+        // Destroyed rows follow their own checkbox, not the state chips.
         (wanted.size === 0 ||
           p.state === 'destroyed' ||
           p.state === 'destroying' ||
@@ -370,12 +367,10 @@ export class PreviewList {
       await this.store.destroy(p.id);
     } catch (e) {
       this.#toasts.problem(`Could not destroy ${displayName(p)}`, e as ProblemError);
-      // A 403 here means the operator changed what this role may do, under an open tab.
       if ((e as ProblemError).status === 403) void this.#auth.refresh();
     }
   }
 
-  /** Filters live in the URL so a filtered view can be bookmarked, shared, and survives a reload. */
   #syncUrl(destroyed = this.store.includeDestroyed()): void {
     void this.#router.navigate([], {
       relativeTo: this.#route,

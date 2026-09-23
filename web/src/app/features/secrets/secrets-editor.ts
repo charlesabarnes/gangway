@@ -13,11 +13,6 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
   high: 'border-red-400 text-red-700 dark:text-red-300',
 };
 
-/**
- * One secrets map: the global one at `/v1/secrets`, or a repository's at
- * `/v1/repos/:id/env`. Names and levels are shown; a value is typed once and never seen
- * again. Same wire shape on both, so the same editor.
- */
 @Component({
   selector: 'app-secrets-editor',
   imports: [Btn],
@@ -143,16 +138,13 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
   `,
 })
 export class SecretsEditor {
-  /** `/v1/secrets` or `/v1/repos/<id>/env`. */
   readonly url = input.required<string>();
-  /** The listing, loaded by the parent (one request per map, up front). */
   readonly initial = input<SecretListing[]>([]);
   readonly #http = inject(HttpClient);
 
   protected readonly field = FIELD;
   protected readonly levels = SECRET_LEVELS;
   protected readonly levelClass = LEVEL_CLASS;
-  /** Follows `initial` until this editor has written its own listing. */
   protected readonly secrets = linkedSignal<SecretListing[]>(() => this.initial());
   protected readonly draft = signal<{ name: string; value: string; level: SecretLevel }>({
     name: '',
@@ -186,7 +178,6 @@ export class SecretsEditor {
     return this.#patch({ unset: [name] });
   }
 
-  /** `KEY=value` lines, as a .env file has them: comments and blanks skipped, one layer of quotes removed. */
   protected parseDotenv(text: string): [string, string][] {
     const out: [string, string][] = [];
     for (const raw of text.split(/\r?\n/)) {
@@ -199,8 +190,7 @@ export class SecretsEditor {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
       const q = value[0];
       const close = q === '"' || q === "'" ? value.indexOf(q, 1) : -1;
-      if (close > 0)
-        value = value.slice(1, close); // quoted: everything after the closing quote is a comment
+      if (close > 0) value = value.slice(1, close);
       else value = value.replace(/\s+#.*$/, '');
       if (q === '"' && close > 0) value = value.replace(/\\n/g, '\n').replace(/\\"/g, '"');
       out.push([name, value]);

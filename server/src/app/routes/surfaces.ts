@@ -10,12 +10,9 @@ import { requirePermission } from "../middleware/auth.ts";
 export type SurfacesDeps = {
   settings: Settings;
   audit: AuditSink;
-  /** An unexpired, unrevoked `admin`-scoped database token whose owner can still use it. */
   hasActiveAdmin: () => boolean;
-  /** Public origins, for the MCP URL and the re-enable `curl` the UI shows. */
   apiOrigin: () => string;
   mcpOrigin: () => string;
-  /** Turning MCP off drops in-flight sessions, not only new ones. */
   onMcpDisabled?: (() => void) | undefined;
 };
 
@@ -25,16 +22,6 @@ const SURFACES = { ui: SETTINGS.surfacesUi, mcp: SETTINGS.surfacesMcp } as const
 >;
 type SurfaceName = keyof typeof SURFACES;
 
-/**
- * Surface toggles. Flags the dispatcher reads per request: no restart, and a disabled
- * surface is a 404, not a 503.
- *
- * `PUT /v1/surfaces` is the only way to change them at runtime -- `/v1/settings` refuses
- * `surfaces.*` -- because the lockout guard lives here. Disabling the UI from the UI is a
- * one-way door, so it is refused unless an admin-scoped API token exists, and needs a typed
- * phrase. The env admin token does not count: when GANGWAY_ADMIN_TOKEN is unset it is made
- * up per boot, and the operator may never have seen it.
- */
 export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
   const state = (name: SurfaceName) => {
     const e = d.settings.effective(SURFACES[name]);
@@ -47,7 +34,6 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
     reenableUi: `curl -X PUT ${d.apiOrigin()}/v1/surfaces -H "Authorization: Bearer <admin token>" -H "content-type: application/json" -d '{"ui":true}'`,
   });
 
-  // What is live, for anyone who can see previews: the UI's nav and an agent's own checks.
   api.get("/capabilities", requirePermission("previews.read"), (c) =>
     c.json({
       surfaces: {
@@ -64,7 +50,6 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
     const body = await readJson(c);
     const req = SetSurfacesSchema.parse(body);
 
-    // Validate everything before writing anything.
     const changes: { name: SurfaceName; old: boolean; value: boolean }[] = [];
     for (const name of ["ui", "mcp"] as const) {
       const value = req[name];
@@ -93,7 +78,7 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
 
     for (const ch of changes) {
       d.settings.set(SURFACES[ch.name], ch.value);
-      // `setting`, never `key`: redact() hides a field named key.
+      // Named setting, not key, because redact() hides a field named key.
       d.audit.record(c.get("actor"), "surface.changed", ch.name, {
         old: { setting: SURFACES[ch.name].key, enabled: ch.old },
         new: { setting: SURFACES[ch.name].key, enabled: ch.value },

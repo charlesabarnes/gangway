@@ -16,12 +16,7 @@ type Row = {
   created_at: number;
 };
 
-/**
- * Which preview a caller-supplied Idempotency-Key already produced. Scoped per principal
- * (`actorId`: a token id or `user:<id>`) -- one agent's retry must not collide with
- * another's key. The column is called `token_id` but holds any actor id. `response_json`
- * is deliberately left NULL: a replay answers with the preview as it is now.
- */
+// The token_id column holds any actor id, not only a token id.
 export class IdempotencyRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -47,7 +42,6 @@ export class IdempotencyRepo {
       : undefined;
   }
 
-  /** Upsert: a key whose preview is gone is free to mean something new. */
   put(r: { key: string; ownerId: string; previewId: string; requestHash: string }): void {
     this.#db.run(
       `INSERT INTO idempotency_keys (key, token_id, preview_id, request_hash, created_at)

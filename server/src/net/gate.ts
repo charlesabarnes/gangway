@@ -1,15 +1,3 @@
-/**
- * The `private` and password gates in front of a preview.
- *
- * The session cookie stays on `app.<base>`: widening it to `.<base>` would hand the operator's
- * session to every preview, which runs someone else's code. Instead app checks the session and
- * mints a single-use, 60-second ticket bound to the hostname and preview id; the preview's
- * `/__gangway/auth` redeems it for a host-only `__Host-gw_pv` cookie. A password-protected
- * preview serves its own form at `/__gangway/password`, earning `__Host-gw_pw`, bound to the
- * preview id and a fingerprint of the password hash so changing the password voids old cookies;
- * where a gangway login may skip the password, the same ticket handshake runs first.
- * `__Host-gw_*` cookies are stripped before forwarding and `/__gangway/*` never reaches a preview.
- */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { sourceKey, type LoginLimiter } from "../auth/limiter.ts";
 import type { Passwords } from "../auth/password.ts";
@@ -19,30 +7,21 @@ import { sha256 } from "../util/hash.ts";
 export const GATE_COOKIE = "__Host-gw_pv";
 export const PASSWORD_COOKIE = "__Host-gw_pw";
 const PASSWORD_PATH = "/__gangway/password";
-/** The form's body is one password and one path: anything bigger is not the form. */
 const MAX_FORM_BYTES = 8 * 1024;
 const GATE_PREFIX = "/__gangway/";
 const AUTH_PATH = "/__gangway/auth";
 
 export type GateOptions = {
-  /** 32 random bytes, stable across restarts (or every visitor re-authenticates on each one). */
   key: Buffer;
-  /** `https://app.<base>` -- where the session lives. Read per request: the base domain is a setting. */
   appOrigin: () => string;
   now?: () => number;
   ticketTtlMs?: number;
   cookieTtlMs?: number;
-  /** How long a correct password is remembered. Default 7 days. */
   passwordCookieTtlMs?: number;
-  /** The server-wide shared password, read per request; null when the default is not `shared`. */
   sharedPassword?: () => { hash: string; salt: string } | null;
-  /** Verifies a submitted password. Absent: password-protected previews cannot be opened. */
   passwords?: Pick<Passwords, "verify">;
-  /** Guessing limits, per source address and per preview. */
   limiter?: Pick<LoginLimiter, "check" | "fail" | "succeed">;
-  /** A failed or throttled attempt, for the operator's log. */
   onPasswordFailure?: (entry: RouteEntry, clientIp: string, reason: "wrong" | "throttled") => void;
-  /** The server-wide switch for previews whose `passwordLogin` is `inherit`, read per request. */
   loginDefault?: () => boolean;
 };
 
@@ -50,12 +29,10 @@ type ResolvedOptions = Required<Omit<GateOptions, "passwords" | "limiter" | "onP
   Pick<GateOptions, "passwords" | "limiter" | "onPasswordFailure">;
 type Secret = { hash: string; salt: string; fp: string };
 
-/** `s`: the visitor may skip this preview's password (signed in with `previews.skip_password`). */
 type TicketBody = { h: string; p: string; exp: number; n: string; s?: 1 };
 
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
 
-/** Only ever a same-origin path: `to` arrives in a URL, and this is a redirect. */
 export function safePath(raw: string | null | undefined): string {
   if (
     !raw ||
@@ -70,9 +47,7 @@ export function safePath(raw: string | null | undefined): string {
 
 export class PreviewGate {
   readonly #o: ResolvedOptions;
-  /** Fingerprints by hash: one sha256 per password, not per request. */
   readonly #fps = new Map<string, string>();
-  /** Tickets already spent, until they would have expired anyway. */
   readonly #used = new Map<string, number>();
 
   constructor(o: GateOptions) {
@@ -88,7 +63,6 @@ export class PreviewGate {
     };
   }
 
-  /** Domain-separated, so a cookie can never be replayed as a ticket or the reverse. */
   #mac(kind: "ticket" | "cookie" | "password", payload: string): Buffer {
     return createHmac("sha256", this.#o.key).update(`${kind}|${payload}`).digest();
   }
@@ -99,7 +73,6 @@ export class PreviewGate {
     return given.length === want.length && timingSafeEqual(given, want);
   }
 
-  /** Called by the app surface after it has checked the session and the permission. */
   issueTicket(
     entry: Pick<RouteEntry, "hostname" | "previewId">,
     o: { skipPassword?: boolean } = {},
@@ -115,7 +88,6 @@ export class PreviewGate {
     return `${payload}.${b64(this.#mac("ticket", payload))}`;
   }
 
-  /** The ticket's body when it is good for this entry (and now spent), else null. */
   #redeem(ticket: string, entry: RouteEntry): TicketBody | null {
     const [payload, sig, extra] = ticket.split(".");
     if (!payload || !sig || extra !== undefined || !this.#verify("ticket", payload, sig))
@@ -134,13 +106,11 @@ export class PreviewGate {
     return body;
   }
 
-  /** `previewId.exp.skip.sig`: `skip` is 1 when the ticket said the visitor may skip the password. */
   #cookieFor(entry: RouteEntry, skip: boolean): string {
     const payload = `${entry.previewId}.${this.#o.now() + this.#o.cookieTtlMs}.${skip ? 1 : 0}`;
     return `${payload}.${b64(this.#mac("cookie", payload))}`;
   }
 
-  /** Signed in for this preview at all, and whether that sign-in may skip its password. */
   #gateCookie(req: Request, entry: RouteEntry): { valid: boolean; skip: boolean } {
     const header = req.headers.get("cookie");
     const out = { valid: false, skip: false };
@@ -152,7 +122,6 @@ export class PreviewGate {
         .slice(eq + 1)
         .trim()
         .split(".");
-      // Three fields: an older cookie format, which never skips a password.
       if (fields.length !== 3 && fields.length !== 4) continue;
       const sig = fields.pop()!;
       const [previewId, exp, skip] = fields;
@@ -165,16 +134,11 @@ export class PreviewGate {
     return out;
   }
 
-  /** Does a gangway login get past this preview's password right now? */
   #loginSkips(entry: RouteEntry): boolean {
     const login = entry.passwordLogin ?? "inherit";
     return login === "on" || (login === "inherit" && this.#o.loginDefault());
   }
 
-  /**
-   * For app's /v1/auth/gate: may this host be sent a ticket at all -- private, or behind a
-   * password a gangway login gets past. Anything else, and the gate is not an open redirect.
-   */
   gateable(entry: RouteEntry): { private: boolean; passwordSkippable: boolean } {
     return {
       private: isPrivate(entry),
@@ -182,7 +146,6 @@ export class PreviewGate {
     };
   }
 
-  /** The password this preview is behind right now, or null when it is open (or login-only). */
   #secretFor(entry: RouteEntry): Secret | null {
     if (entry.passwordLogin === "only") return null;
     const pw: EntryPassword = entry.password ?? { mode: "inherit" };
@@ -224,15 +187,10 @@ export class PreviewGate {
     return false;
   }
 
-  /** True when this preview is behind a password right now (for the UI and the log, not the gate). */
   isProtected(entry: RouteEntry): boolean {
     return this.#secretFor(entry) !== null;
   }
 
-  /**
-   * The dispatcher's hook: `check`, plus the one request that must be awaited -- the
-   * password form's POST. Kept apart so `check` stays synchronous for the WebSocket path.
-   */
   readonly handle = (
     entry: RouteEntry,
     req: Request,
@@ -256,14 +214,13 @@ export class PreviewGate {
     clientIp: string,
     secret: Secret,
   ): Promise<Response> {
-    // A cross-site form must not sign a visitor in (or burn their guesses).
     const origin = req.headers.get("origin");
     if (origin !== null && origin !== "null") {
       let host = "";
       try {
         host = new URL(origin).hostname;
       } catch {
-        /* unparseable: refused below */
+        // unparseable: refused below
       }
       if (host !== entry.hostname)
         return plain(403, "This form must be sent from the preview's own page.");
@@ -309,13 +266,8 @@ export class PreviewGate {
     });
   }
 
-  /**
-   * The dispatcher's hook (and the WebSocket path's). null means "let it through".
-   * `/__gangway/*` is answered here for every preview, so the prefix can never reach an
-   * upstream and a preview cannot serve a convincing fake of it.
-   */
+  // /__gangway/* is answered here for every preview so it never reaches an upstream.
   readonly check = (entry: RouteEntry, req: Request): Response | null => {
-    // The hot path: a public preview with no password, an ordinary path. No URL parse, no HMAC.
     const secret = this.#secretFor(entry);
     const priv = isPrivate(entry);
     if (!priv && secret === null && !req.url.includes("/__gangway")) return null;
@@ -326,13 +278,11 @@ export class PreviewGate {
     const loginSkips = secret !== null && this.#loginSkips(entry);
 
     if (url.pathname.startsWith(GATE_PREFIX) || url.pathname === GATE_PREFIX.slice(0, -1)) {
-      // app sent a visitor back who cannot skip the password: the form, and no bounce.
       if (url.pathname === PASSWORD_PATH && req.method === "GET" && secret !== null) {
         if (this.#hasPasswordCookie(req, entry, secret.fp))
           return redirect(safePath(url.searchParams.get("to")));
         return passwordPage(entry.hostname, safePath(url.searchParams.get("to")), null, 401);
       }
-      // The form's POST goes through `handle`; anything else at this path is a 404 like the rest.
       if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET")
         return plain(404, "not found");
       const ticket = this.#redeem(url.searchParams.get("ticket") ?? "", entry);
@@ -348,15 +298,12 @@ export class PreviewGate {
           location: safePath(url.searchParams.get("to")),
           "set-cookie": `${GATE_COOKIE}=${this.#cookieFor(entry, ticket.s === 1)}; Max-Age=${Math.floor(this.#o.cookieTtlMs / 1000)}; Path=/; HttpOnly; Secure; SameSite=Lax`,
           "cache-control": "no-store",
-          // The ticket is in this URL. Do not let the next page's requests carry it onward.
           "referrer-policy": "no-referrer",
         },
       });
     }
 
-    // Only a top-level page load can usefully be sent to log in. A fetch, an <img>, a
-    // WebSocket or a POST cannot follow a cross-origin redirect to an HTML login page and
-    // come back -- tell those plainly instead.
+    // Only a top-level navigation can follow a cross-origin redirect to the login page and come back.
     const mode = req.headers.get("sec-fetch-mode");
     const navigation =
       (req.method === "GET" || req.method === "HEAD") &&
@@ -365,7 +312,6 @@ export class PreviewGate {
     const back = safePath(`${url.pathname}${url.search}`);
 
     if (!priv || gate.valid) {
-      // Signed in (or not private): the password, if there is one, comes next.
       if (secret === null || this.#hasPasswordCookie(req, entry, secret.fp)) return null;
       if (loginSkips && gate.skip) return null;
       if (!navigation)
@@ -373,8 +319,6 @@ export class PreviewGate {
           401,
           "This preview is password-protected. Open it in a browser tab and enter the password first.",
         );
-      // Not signed in here yet, and a login would do: ask app once. It sends a stranger
-      // straight back to the form.
       if (loginSkips && !gate.valid) return redirect(this.#appGate(entry, back));
       return passwordPage(entry.hostname, back, null, 401);
     }
@@ -392,7 +336,6 @@ export class PreviewGate {
   }
 }
 
-/** Private visibility, or login-only access: a gangway login is the only way in. */
 function isPrivate(entry: RouteEntry): boolean {
   return entry.visibility === "private" || entry.passwordLogin === "only";
 }
@@ -401,7 +344,6 @@ function redirect(location: string): Response {
   return new Response(null, { status: 302, headers: { location, "cache-control": "no-store" } });
 }
 
-/** The form body, read with a cap: a preview visitor is untrusted and this runs in the proxy. */
 async function readForm(req: Request): Promise<URLSearchParams | null> {
   const declared = Number(req.headers.get("content-length") ?? "0");
   if (declared > MAX_FORM_BYTES) return null;
@@ -424,10 +366,6 @@ async function readForm(req: Request): Promise<URLSearchParams | null> {
 
 const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-/**
- * The password form. Served by gangway on the preview's own hostname, before anything of the
- * preview's runs: no scripts, no external resources, nothing the preview can style or read.
- */
 function passwordPage(
   host: string,
   to: string,
@@ -481,11 +419,6 @@ function plain(status: number, message: string): Response {
   });
 }
 
-/**
- * Removes gangway's own cookies from a Cookie header bound for a preview. Everything named
- * `__Host-gw_*`: the gate cookie above, and -- belt and braces, a browser would never send
- * it to this host -- the session cookie. Returns null when nothing is left.
- */
 export function stripGangwayCookies(header: string | null | undefined): string | null {
   if (!header) return null;
   const kept = header
@@ -495,7 +428,6 @@ export function stripGangwayCookies(header: string | null | undefined): string |
   return kept.length > 0 ? kept.join("; ") : null;
 }
 
-/** The gate key lives with everything else that must survive a restart and ride in a backup. */
 export function loadOrCreateGateKey(store: {
   get(key: string): unknown;
   set(key: string, value: unknown): void;

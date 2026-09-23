@@ -1,14 +1,3 @@
-/**
- * GitHub Actions OIDC: a workflow run proves which repository it runs in with
- * a JWT GitHub signs, minted for the audience we name (our API origin) and valid for
- * minutes. Nothing is stored and nothing is rotated: the key set is GitHub's, fetched
- * and cached, and the token is checked on every request like any bearer credential.
- *
- * What is checked: RS256 against a key from the issuer's JWKS, `iss` exactly, `aud`
- * exactly, `exp`/`nbf`/`iat` with a minute of skew, and a `repository` claim shaped like
- * `owner/name`. What the run may do is decided elsewhere: its actor reaches only
- * `/v1/projects/:ref/pulls/:n`, for the project whose repository the claim names.
- */
 import {
   createPublicKey,
   verify as verifySignature,
@@ -24,16 +13,13 @@ export type WorkflowClaims = {
   repository: string;
   repositoryId: string;
   eventName: string;
-  /** `refs/pull/<n>/merge` on a pull_request event. */
   ref: string;
   sha: string;
   runId: string;
-  /** Whoever triggered the run. For the audit line. */
   actor: string;
 };
 
 export type OidcOptions = {
-  /** The audience a token must carry: our public API origin. Read per request. */
   audience: () => string;
   issuer?: string;
   fetch?: (url: string) => Promise<Response>;
@@ -59,7 +45,6 @@ export class GitHubOidc {
     this.#o = { issuer: GITHUB_ACTIONS_ISSUER, fetch: (u) => fetch(u), now: Date.now, ...o };
   }
 
-  /** The claims, or null for anything that is not a valid token of ours. Never throws. */
   async verify(token: string): Promise<WorkflowClaims | null> {
     if (!looksLikeJwt(token)) return null;
     try {
@@ -67,7 +52,7 @@ export class GitHubOidc {
       const header = JSON.parse(b64url(h).toString("utf8")) as { alg?: string; kid?: string };
       if (header.alg !== "RS256" || typeof header.kid !== "string") return null;
       const claims = JSON.parse(b64url(p).toString("utf8")) as Record<string, unknown>;
-      // Cheap checks before a network fetch: a stranger's JWT must not make us fetch keys.
+      // Cheap checks first, so a stranger's JWT cannot make us fetch keys.
       if (claims["iss"] !== this.#o.issuer) return null;
       const aud = claims["aud"];
       const audience = this.#o.audience();
@@ -100,7 +85,6 @@ export class GitHubOidc {
     }
   }
 
-  /** From the cache; an unknown kid refetches the set at most once a minute (keys rotate). */
   async #key(kid: string): Promise<KeyObject | undefined> {
     const now = this.#o.now();
     const stale = now - this.#fetchedAt > CACHE_MS;
@@ -128,7 +112,6 @@ export class GitHubOidc {
         this.#keys = next;
         this.#fetchedAt = this.#o.now();
       } catch (e) {
-        // Keep the old set: a GitHub blip must not log every workflow out.
         this.#fetchedAt = this.#o.now();
         this.#o.logger?.warn("could not fetch GitHub's OIDC keys", { err: e });
       } finally {

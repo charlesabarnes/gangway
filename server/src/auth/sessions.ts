@@ -1,12 +1,3 @@
-/**
- * Sessions. The cookie carries 32 random bytes; the table is keyed on their sha256.
- * A stolen database -- or a backup of one -- therefore holds nothing that can be presented.
- *
- * `resolve` runs on every cookie-authenticated request and builds the actor fresh: the
- * account and its role are read now, and the role's permissions come from the in-memory
- * matrix. Disabling a user, changing their role, or editing what a role may do all take
- * effect on the next request. Nothing about authority is cached in the session.
- */
 import { randomBytes } from "node:crypto";
 import type { Session, User } from "@gangway/shared/domain";
 import type { SessionsRepo } from "../db/repos/sessions.ts";
@@ -18,11 +9,8 @@ const MIN = 60_000,
   DAY = 86_400_000;
 
 export type SessionTimings = {
-  /** Unused this long, a session is over. */
   idleMs: number;
-  /** However busy, a session ends this long after login. */
   absoluteMs: number;
-  /** The sliding-expiry write happens at most this often per session. */
   touchEveryMs: number;
 };
 
@@ -53,7 +41,6 @@ export class Sessions {
     this.timings = { ...DEFAULT_SESSION_TIMINGS, ...timings };
   }
 
-  /** `secret` goes into the cookie and is never seen again; only its hash is kept. */
   issue(
     userId: string,
     meta: { ip: string | null; userAgent: string | null },
@@ -70,7 +57,6 @@ export class Sessions {
   }
 
   resolve(secret: string): { actor: Actor; user: User; session: Session } | null {
-    // Shape first: a cookie is attacker-controlled, and this saves hashing megabytes of junk.
     if (!SECRET_RE.test(secret)) return null;
     const now = this.#now();
     const id = idFor(secret);
@@ -107,7 +93,6 @@ export class Sessions {
     return this.#repo.deleteForUser(userId, exceptSessionId);
   }
 
-  /** The scheduler's hourly job. Expired rows are already refused; this only reclaims them. */
   purge(): number {
     return this.#repo.purgeExpired(this.#now());
   }

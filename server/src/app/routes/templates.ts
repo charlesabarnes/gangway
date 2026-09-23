@@ -14,15 +14,9 @@ export type TemplateRouteDeps = {
   templates: TemplatesRepo;
   hosts: Pick<HostsRepo, "get">;
   audit: AuditSink;
-  /** The trigger defaults from settings: a template one of them names cannot be deleted. */
   namedByTrigger: (id: string) => string[];
 };
 
-/**
- * `/v1/templates`: named preview policies. Anyone who can read previews can
- * list them -- a deployer picks one; changing them is `templates.manage`. `default` is
- * edited like any other and never deleted.
- */
 export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
   api.get("/templates", requirePermission("previews.read"), (c) =>
     c.json({ templates: d.templates.list() }),
@@ -78,7 +72,6 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
   });
 }
 
-/** What the schema cannot say: durations parse, and a named host exists. */
 function check(
   v: {
     ttl?: string | null | undefined;

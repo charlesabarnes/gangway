@@ -1,6 +1,5 @@
 import type { Preview, PreviewSource } from '../../core/api.types';
 
-/** One short line for "where did this come from". */
 export function sourceLabel(s: PreviewSource): string {
   switch (s.kind) {
     case 'pr':
@@ -11,7 +10,6 @@ export function sourceLabel(s: PreviewSource): string {
       return s.image;
     case 'tarball': {
       const base = s.runtime ? `uploaded files · ${s.runtime}` : 'uploaded archive';
-      // The throwaway databases beside it.
       return s.addons?.length
         ? `${base} + ${s.addons.map((a) => `${a.id} ${a.version}`).join(', ')}`
         : base;
@@ -23,7 +21,6 @@ export function sourceLabel(s: PreviewSource): string {
   }
 }
 
-/** `gw-` is gangway's namespace on the Docker host, not part of the name a person chose. */
 export const displayName = (p: Pick<Preview, 'project'>): string => p.project.replace(/^gw-/, '');
 
 export const primaryUrl = (p: Pick<Preview, 'urls'>): string | null =>

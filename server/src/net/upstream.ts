@@ -1,8 +1,3 @@
-/**
- * The proxy's upstream leg, over node:http. Bun's fetch does not work as a proxy client:
- * it decompresses bodies but leaves Content-Encoding on the response, and it buffers
- * streamed uploads in memory.
- */
 import http from "node:http";
 import type net from "node:net";
 import type { RouteEntry } from "../routing/table.ts";
@@ -26,7 +21,7 @@ function forwardContext(entry: RouteEntry, o: UpstreamOptions, clientIp: string)
   return { clientHost: entry.hostname, clientIp, publicPort: o.publicPort };
 }
 
-/** Agent that routes every connection through dial.ts, so SOCKS5 and direct look alike. */
+// node:http rather than fetch: Bun's fetch decompresses but keeps Content-Encoding, and buffers streamed uploads.
 function agentFor(o: UpstreamOptions): http.Agent {
   const agent = new http.Agent({ keepAlive: true, maxSockets: 64 });
   // @ts-expect-error -- createConnection is a documented Agent hook, loosely typed.
@@ -60,8 +55,7 @@ export class NodeHttpUpstream implements Upstream {
     });
 
     return new Promise<Response>((resolve, reject) => {
-      // Destroying a pooled socket surfaces ECONNRESET rather than our own error, so the
-      // reason has to be tracked out of band or a timeout is misreported as a bad gateway.
+      // Destroying a pooled socket surfaces ECONNRESET, so a timeout has to be tracked separately.
       let timedOut = false;
       const creq = http.request(
         {
@@ -86,14 +80,14 @@ export class NodeHttpUpstream implements Upstream {
                 try {
                   c.close();
                 } catch {
-                  /* already closed */
+                  // already closed
                 }
               });
               cres.on("error", (e) => {
                 try {
                   c.error(e);
                 } catch {
-                  /* already errored */
+                  // already errored
                 }
               });
             },
@@ -161,11 +155,6 @@ export function isTimeout(e: unknown): boolean {
   );
 }
 
-/**
- * One upstream per Docker host, built on first use and kept (each owns a keep-alive
- * agent). Hosts differ in how they are reached -- directly, or through a SOCKS tunnel --
- * and a single shared dial config sends the second host's traffic down the first's path.
- */
 export class PerHostUpstream implements Upstream {
   readonly name = "per-host";
   readonly #make: (hostId: string) => Upstream | null;
@@ -179,8 +168,6 @@ export class PerHostUpstream implements Upstream {
     let upstream = this.#byHost.get(entry.hostId);
     if (!upstream) {
       const made = this.#make(entry.hostId);
-      // A route on a host that no longer exists: there is nowhere to send this. The
-      // dispatcher turns the throw into its 502 page.
       if (!made) return Promise.reject(new Error(`no such host: ${entry.hostId}`));
       this.#byHost.set(entry.hostId, (upstream = made));
     }

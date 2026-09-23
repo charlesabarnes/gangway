@@ -1,16 +1,3 @@
-/**
- * The audit log: who did what, to what, and what it was before.
- *
- * Written from the service layer, never from a route: the webhook receiver and the MCP
- * tools deploy too, and they do not come through a route.
- *
- * `record` is synchronous and never throws. The action it describes has already happened,
- * and failing the request because the note could not be written would make the log a
- * liability. A failure is logged loudly instead.
- *
- * Everything is redacted on the way in. One trap: `redact()` treats a field named `key` as
- * a secret, so a settings change must be recorded as `{ setting: "surfaces.ui" }`.
- */
 import { auditActor, type Actor } from "../auth/actor.ts";
 import type { AuditRepo } from "../db/repos/audit.ts";
 import { redact, type Logger } from "../logger.ts";
@@ -51,7 +38,6 @@ export type AuditAction =
 
 export type AuditChange = { old?: unknown; new?: unknown };
 
-/** What the service layer depends on, so a context built without a database still works. */
 export interface AuditSink {
   record(
     actor: Actor | null,
@@ -70,11 +56,7 @@ export class Audit implements AuditSink {
     this.#logger = logger;
   }
 
-  /**
-   * `actor` is null when nobody is authenticated -- a failed login, the first-run setup.
-   * The schema has no "anonymous" actor type, so those are `system` with no id, and the
-   * target says who it was about.
-   */
+  // redact() treats a field named key as a secret, so record a setting as { setting: ... }.
   record(
     actor: Actor | null,
     action: AuditAction,

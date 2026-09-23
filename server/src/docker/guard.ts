@@ -1,18 +1,5 @@
-/**
- * Checks a daemon's `docker info` before anything is created on it. With a Docker Desktop
- * context active, an unset or overridden `DOCKER_HOST` does not error -- it succeeds against
- * the wrong daemon, and previews land on the local machine instead of the real host.
- *
- * Two independent checks, because each catches what the other misses:
- *
- *  1. The daemon is Docker Desktop -- catches the case where no host record has an
- *     `expectName` yet. Overridable with `GANGWAY_ALLOW_LOCAL_DOCKER=1`.
- *  2. `Info.Name` matches the host record's `expectName` -- catches the wrong remote, which
- *     check 1 cannot see. No override: there is no benign reading of a mismatch.
- */
 import { AppError } from "../errors.ts";
 
-/** The fields of `GET /info` we actually read. Deliberately structural — no dockerode. */
 export type DockerInfo = {
   Name?: string | undefined;
   OperatingSystem?: string | undefined;
@@ -42,24 +29,17 @@ export const ALLOW_LOCAL_ENV = "GANGWAY_ALLOW_LOCAL_DOCKER";
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-/** The opt-in is exactly `1`. "true", "yes" and "0" are all refusals, on purpose. */
 export function localDockerAllowed(env: Env = process.env): boolean {
   return env[ALLOW_LOCAL_ENV] === "1";
 }
 
-/**
- * Docker Desktop is identifiable two ways and either is accepted, because a version bump
- * that reworded `OperatingSystem` must not silently disarm the guard:
- *   - `OperatingSystem: "Docker Desktop"` / `"Docker Desktop 4.39.0 (…)"`
- *   - `Name: "docker-desktop"` — the VM's hostname, stable across releases.
- */
+// Also match Name, so a reworded OperatingSystem cannot disarm the guard.
 export function looksLikeDockerDesktop(info: DockerInfo): boolean {
   const os = (info.OperatingSystem ?? "").toLowerCase();
   if (os.includes("docker desktop")) return true;
   return (info.Name ?? "").toLowerCase() === "docker-desktop";
 }
 
-/** Non-throwing form. `assertRemoteDaemon` is this plus a throw. */
 export function checkDaemon(
   info: DockerInfo,
   expectName?: string | null,
@@ -67,8 +47,6 @@ export function checkDaemon(
 ): GuardResult {
   const name = info.Name ?? null;
 
-  // Desktop first: when both checks fail it is the headline, and the one an operator
-  // needs to read to understand that the request never left the local machine.
   if (looksLikeDockerDesktop(info) && !localDockerAllowed(env)) {
     return {
       ok: false,
@@ -95,10 +73,7 @@ export function checkDaemon(
   return { ok: true, name };
 }
 
-/**
- * Refuse to proceed unless this daemon is the one intended. Call before the first
- * mutating operation on a host, and again after a host reconnects.
- */
+// The daemon Name must match before anything touches it.
 export function assertRemoteDaemon(
   info: DockerInfo,
   expectName?: string | null,
@@ -109,7 +84,6 @@ export function assertRemoteDaemon(
   return r;
 }
 
-/** The same check, reading `expectName` off the host record where it lives. */
 export function assertHostDaemon(
   host: { id: string; expectName: string | null },
   info: DockerInfo,
@@ -128,7 +102,6 @@ export function assertHostDaemon(
   }
 }
 
-/** A one-line daemon identity for logs. Never includes credentials. */
 export function describeDaemon(info: DockerInfo): string {
   const bits = [
     info.Name ?? "?",

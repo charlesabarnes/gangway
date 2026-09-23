@@ -304,7 +304,6 @@ import { displayName, sourceLabel } from './source-label';
   `,
 })
 export class PreviewDetail {
-  /** From the route, via withComponentInputBinding. */
   readonly id = input.required<string>();
 
   protected readonly clock = inject(Clock);
@@ -334,9 +333,6 @@ export class PreviewDetail {
     this.#store.connect();
     inject(DestroyRef).onDestroy(() => this.#store.disconnect());
 
-    // A deep link, or a reload. Wait for the list first: it usually holds this preview, and
-    // asking for it separately as well would be a wasted request on every page load. Only
-    // what the list does not have -- a destroyed preview, which it omits -- is fetched alone.
     effect(() => {
       const id = this.id();
       if (this.#store.loading() || this.#store.byId(id)()) return;
@@ -348,7 +344,6 @@ export class PreviewDetail {
       });
     });
 
-    // History and builds are not on the event stream; refetch them when the preview moves.
     effect(() => {
       const p = this.preview();
       if (!p) return;
@@ -367,7 +362,7 @@ export class PreviewDetail {
       get<Build>('builds', 'builds'),
     ]);
     if (this.id() !== id) return;
-    this.events.set([...events].reverse()); // newest first: what just happened is what you came for
+    this.events.set([...events].reverse());
     this.builds.set(builds);
   }
 

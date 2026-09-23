@@ -1,8 +1,3 @@
-/**
- * `/v1/previews/:id/addons`: a preview's throwaway databases, and a way to look inside
- * them. Listing them is `previews.read`; reading or changing their data
- * is `previews.data` -- admin only until granted, and every query audited.
- */
 import type { Hono } from "hono";
 import { z } from "zod";
 import { ADDON_IDS, type AddonId } from "@gangway/shared/addons";

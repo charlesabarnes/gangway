@@ -5,13 +5,11 @@ import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
-/** `/v1/tokens`. Thin: who may touch which token is decided in auth/tokens.ts. */
 export function tokenRoutes(api: Hono<AppEnv>, tokens: Tokens): void {
   api.get("/tokens", requirePermission("tokens.manage_own"), (c) =>
     c.json({ tokens: tokens.list(c.get("actor"), { all: c.req.query("all") === "true" }) }),
   );
 
-  /** The only response that ever contains the secret. */
   api.post("/tokens", requirePermission("tokens.manage_own"), async (c) => {
     const body = await readJson(c);
     const { token, secret } = tokens.mint(c.get("actor"), CreateTokenSchema.parse(body));

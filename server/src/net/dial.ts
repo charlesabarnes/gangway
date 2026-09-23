@@ -1,13 +1,3 @@
-/**
- * How the proxy reaches a preview's published port.
- *
- * Production dials the port directly on the same machine. In development gangway can run on
- * another machine while the containers sit on a remote Docker host whose ports are bound to its
- * loopback; one `ssh -D` SOCKS5 tunnel covers every port, where `ssh -L` cannot forward a range.
- *
- * SOCKS5 CONNECT (RFC 1928, no-auth) is a ~60 line handshake, implemented here rather than
- * pulled in as a dependency.
- */
 import net from "node:net";
 import type { UpstreamDial } from "@gangway/shared/domain";
 
@@ -15,7 +5,6 @@ export type DialTarget = { host: string; port: number };
 
 export type DialConfig = {
   dial: UpstreamDial;
-  /** socks5://127.0.0.1:1080 -- required when dial is "socks5". */
   proxy?: string | null | undefined;
   timeoutMs?: number;
 };
@@ -64,13 +53,7 @@ function connectTcp(target: DialTarget, timeoutMs: number): Promise<net.Socket> 
   });
 }
 
-/**
- * Reads the SOCKS handshake through one listener that stays attached for the whole exchange.
- *
- * A `data` listener per read that detaches and `unshift`s the surplus loses bytes: a flowing
- * stream does not pause when its last listener detaches, so the surplus is emitted to nobody.
- * OpenSSH sends its whole 10-byte CONNECT reply in one chunk, so the handshake would hang.
- */
+// One listener for the whole handshake: a detached data listener does not pause the stream, so unshifted bytes are lost and OpenSSH's single-chunk reply hangs.
 function handshakeReader(socket: net.Socket, timeoutMs: number) {
   let buffered: Buffer = Buffer.alloc(0);
   let failure: Error | null = null;
@@ -115,14 +98,11 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
         pump();
       });
     },
-    /** Hands the socket over. The caller attaches its own listeners in the same tick. */
     release(): void {
       clearTimeout(timer);
       socket.removeListener("data", onData);
       socket.removeListener("error", onError);
       socket.removeListener("end", onEnd);
-      // HTTP and WebSocket clients speak first, so there is normally nothing here. If a
-      // server-speaks-first protocol ever rides this, its opening bytes are not lost.
       if (buffered.length > 0) socket.unshift(buffered);
     },
   };
@@ -136,7 +116,6 @@ async function socks5Connect(
   const socket = await connectTcp(proxy, timeoutMs);
   const reader = handshakeReader(socket, timeoutMs);
 
-  // Greeting: version, one method, "no authentication".
   socket.write(Buffer.from([SOCKS_VERSION, 0x01, 0x00]));
   const greeting = await reader.read(2);
   if (greeting[0] !== SOCKS_VERSION) {
@@ -159,7 +138,6 @@ async function socks5Connect(
     atyp = ATYP_IPV6;
     const parts = target.host.split(":");
     addr = Buffer.alloc(16);
-    // Only fully-expanded addresses reach here in practice (we dial numeric hosts).
     for (let i = 0; i < 8; i++) addr.writeUInt16BE(parseInt(parts[i] || "0", 16), i * 2);
   } else {
     atyp = ATYP_DOMAIN;
@@ -177,7 +155,6 @@ async function socks5Connect(
       `SOCKS CONNECT to ${target.host}:${target.port} failed: ${SOCKS_ERRORS[reply[1]!] ?? `code ${reply[1]}`}`,
     );
   }
-  // Consume the bound address so the stream starts at the tunnelled payload.
   const boundAtyp = reply[3];
   const len =
     boundAtyp === ATYP_IPV4 ? 4 : boundAtyp === ATYP_IPV6 ? 16 : (await reader.read(1))[0]!;
@@ -186,7 +163,6 @@ async function socks5Connect(
   return socket;
 }
 
-/** Returns a connected socket to the upstream, whichever transport the host uses. */
 export async function dialUpstream(target: DialTarget, cfg: DialConfig): Promise<net.Socket> {
   const timeoutMs = cfg.timeoutMs ?? 10_000;
   if (cfg.dial === "direct") return connectTcp(target, timeoutMs);

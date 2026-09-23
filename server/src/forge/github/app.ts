@@ -1,13 +1,3 @@
-/**
- * A GitHub App, on plain `fetch`. Two credentials, in order:
- *
- *   the App's private key  ->  a 10-minute RS256 JWT       (identifies the App)
- *   the JWT + an installation id  ->  an installation token (acts on that account's repos)
- *
- * Installation tokens live an hour; they are cached here until a minute before expiry and
- * minted once at a time per installation. They are what `git clone` and every REST call
- * present, and they never leave this process except inside those.
- */
 import { createSign } from "node:crypto";
 import { AppError, internal } from "../../errors.ts";
 import { Logger } from "../../logger.ts";
@@ -15,7 +5,7 @@ import { SingleFlight } from "../../util/async.ts";
 
 const GITHUB_API = "https://api.github.com";
 const API_VERSION = "2022-11-28";
-/** GitHub rejects a JWT issued "in the future"; a minute of clock skew is its own advice. */
+// GitHub rejects a JWT issued in the future, so backdate for clock skew.
 const JWT_SKEW_S = 60;
 const JWT_LIFETIME_S = 600;
 const TOKEN_MARGIN_MS = 60_000;
@@ -24,12 +14,10 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export type GitHubAppCredentials = {
   appId: string;
-  /** PEM, PKCS#1 (`BEGIN RSA PRIVATE KEY`) as GitHub issues it, or PKCS#8. */
   privateKey: string;
 };
 
 export type GitHubAppOptions = {
-  /** Read on every use, so a credential rotated in settings applies without a restart. */
   credentials: () => GitHubAppCredentials;
   fetch?: FetchLike | undefined;
   baseUrl?: string | undefined;
@@ -74,7 +62,6 @@ export class GitHubApp {
     return this.#base;
   }
 
-  /** The App's own JWT. Cheap to make; not cached, so a rotated key is used immediately. */
   jwt(): string {
     const { appId, privateKey } = this.#credentials();
     if (appId === "" || privateKey === "")
@@ -89,7 +76,6 @@ export class GitHubApp {
     return `${header}.${claims}.${b64url(signature)}`;
   }
 
-  /** An installation token, from the cache while it has a minute left. */
   async installationToken(installationId: string): Promise<string> {
     const cached = this.#tokens.get(installationId);
     if (cached && cached.expiresAt - TOKEN_MARGIN_MS > this.#now()) return cached.token;
@@ -118,16 +104,10 @@ export class GitHubApp {
     return fresh.token;
   }
 
-  /** Drops a cached token -- after a 401, so the next call mints instead of retrying a dead one. */
   forget(installationId: string): void {
     this.#tokens.delete(installationId);
   }
 
-  /**
-   * One REST call, JSON in and out. `auth` is the full Authorization value; callers pass
-   * the JWT for App endpoints and `token <installation token>` for everything else.
-   * Non-2xx is returned, not thrown: whether 404 is an error depends on the caller.
-   */
   async request<T = unknown>(
     method: string,
     path: string,
@@ -161,10 +141,6 @@ export class GitHubApp {
     return { status: res.status, body, headers: res.headers };
   }
 
-  /**
-   * The manifest flow's last step: the one-time `code` GitHub redirected back with
-   * becomes the App's credentials. Unauthenticated; the code is the credential, once.
-   */
   async convertManifest(code: string): Promise<ManifestConversion> {
     const r = await this.request<
       Partial<
@@ -205,10 +181,6 @@ export class GitHubApp {
     };
   }
 
-  /**
-   * Every repository the App is installed on, across installations: what the
-   * New project form offers. The first 100 per installation; past that, type the name.
-   */
   async installedRepositories(): Promise<
     { fullName: string; installationId: string; private: boolean }[]
   > {
@@ -234,7 +206,6 @@ export class GitHubApp {
     return out.sort((x, y) => x.fullName.localeCompare(y.fullName));
   }
 
-  /** As an installation: mints (or reuses) the token and makes the call. */
   async asInstallation<T = unknown>(
     installationId: string,
     method: string,

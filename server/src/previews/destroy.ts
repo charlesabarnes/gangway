@@ -1,17 +1,3 @@
-/**
- * Teardown: `docker compose -p <project> down -v`, routes removed.
- *
- * Addressed by project name alone, with no compose files: a file-less
- * `down -v --remove-orphans` removes the containers, the named volumes and the network, found
- * through the labels compose itself wrote. Scratch does not survive a restart
- * (Workdirs.prune), and a compose file that no longer parses must never block a destroy.
- *
- * It runs from a fresh empty directory: given no `-f`, compose searches the cwd and its
- * parents for a compose.yaml, and this repository has one.
- *
- * Routes are removed only after the daemon confirms. If `down` fails the containers may
- * still hold their ports, so the ledger must keep saying so.
- */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,22 +22,14 @@ export async function destroy(
   if (!host)
     throw new AppError("internal", `preview ${previewId} is on unknown host ${preview.hostId}`);
 
-  // Claim it first (synchronously), so a second DELETE gets the 409 above.
   ctx.states.transition(previewId, "destroying");
   ctx.logs.append(previewId, "system", `destroying (requested by ${actorId(actor)})`);
-  // The TTL sweep comes through here too, as `system:ttl-sweep`, so an expired preview is
-  // audited as well.
   ctx.audit.record(actor, "preview.destroy", previewId, {
     old: { project: preview.project, state: preview.state, hostId: preview.hostId },
   });
   return teardown(ctx, preview, host);
 }
 
-/**
- * The part of a destroy that happens after the preview is `destroying`. Separate so the
- * reconciler can finish a teardown that a restart interrupted: the row already says
- * `destroying`, nobody is coming back for it, and `down` is idempotent.
- */
 export async function teardown(
   ctx: PreviewContext,
   preview: Preview,
@@ -69,14 +47,14 @@ export async function teardown(
 async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host): Promise<Preview> {
   const previewId = preview.id;
 
-  // Stop a deploy that is still running, and let it unwind before we `down`: otherwise
-  // its `up` can recreate what we are removing.
+  // Let a running deploy unwind first, or its up can recreate what down removes.
   const running = ctx.inflight.get(previewId);
   if (running) {
     running.abort.abort();
     await running.done.catch(() => {});
   }
 
+  // Without -f, compose searches the cwd and its parents for a compose file.
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
   try {
     const res = await ctx.compose.capture(
@@ -103,25 +81,14 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   ctx.table.removePreview(previewId);
   const gone = ctx.states.transition(previewId, "destroyed");
   await ctx.workdirs.remove(previewId);
-  await ctx.sources?.remove(previewId); // the kept upload goes with it
+  await ctx.sources?.remove(previewId);
   ctx.logs.remove(previewId);
   return gone;
 }
 
-/**
- * `all` only for an image pushed for this preview's commit: unique to it, and
- * left behind by `local`. Anything else may be an image the operator's own containers share.
- */
 export const rmiFor = (p: Preview): "local" | "all" =>
   p.source.kind === "pr" && p.source.image ? "all" : "local";
 
-/**
- * A file-less `down -v` finds volumes through the project's containers. After a failed
- * rebuild kept an add-on's volume and removed its containers, there are none to
- * find it by -- so anything still labelled with the project goes by name: volumes, and
- * untagged images compose built for it. The label is compose's own, and the project name
- * is `gw-<instance>-...`: only ever ours.
- */
 async function removeLeftovers(
   ctx: PreviewContext,
   preview: Preview,
@@ -149,8 +116,6 @@ async function removeLeftovers(
         err: rm.stderr.slice(-300),
       });
   }
-  // A rebuild that failed after `up` never got to remove the image it replaced; `--rmi local`
-  // only takes tagged images. Untagged ones that compose built for this project are ours.
   const images = await listed([
     docker,
     "image",
@@ -174,10 +139,6 @@ async function removeLeftovers(
   }
 }
 
-/**
- * Best-effort `down` for a stack nobody is going to finish starting. Never throws: the
- * caller has already decided the preview's fate, and this only returns its resources.
- */
 export async function releaseStack(
   ctx: PreviewContext,
   preview: Preview,
@@ -185,7 +146,6 @@ export async function releaseStack(
 ): Promise<boolean> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
   try {
-    // Containers and ports, not data: the preview still exists, and its add-on's volume with it.
     const res = await ctx.compose.capture(
       downArgv({ project: preview.project, files: [], docker: ctx.docker }, [], rmiFor(preview), {
         volumes: false,

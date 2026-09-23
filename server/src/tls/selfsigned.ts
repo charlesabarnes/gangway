@@ -1,14 +1,3 @@
-/**
- * A local development CA and wildcard leaf, generated in-process.
- *
- * @peculiar/x509 over WebCrypto: pure JS, no native addon, and it works inside the
- * shipped container -- which the `openssl` CLI does not. Note `node:crypto` cannot issue
- * certificates at all (X509Certificate is parse-only), so a hand-rolled CA is not an
- * option without an ASN.1 encoder.
- *
- * A real CA -> leaf chain rather than a bare self-signed cert, because then the operator
- * trusts one certificate once and every future wildcard is trusted automatically.
- */
 import "reflect-metadata"; // @peculiar/x509 pulls in tsyringe, which throws on load without it
 import * as x509 from "@peculiar/x509";
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -56,7 +45,6 @@ export async function createCa(commonName = "gangway development CA"): Promise<D
   return { certPem: cert.toString("pem"), keyPem: await exportKey(keys.privateKey) };
 }
 
-/** Issues a leaf for `sans`, signed by the CA. sans[0] becomes the SNI serverName. */
 export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<CertMaterial> {
   const caCert = new x509.X509Certificate(ca.certPem);
   const caKey = await importKey(ca.keyPem);
@@ -85,9 +73,7 @@ export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<
     ],
   });
 
-  // Normalise: @peculiar/x509's PEM has no trailing newline, so a naive concat yields
-  // "-----END CERTIFICATE----------BEGIN CERTIFICATE-----" and OpenSSL rejects the chain
-  // with BAD_END_LINE.
+  // @peculiar/x509's PEM has no trailing newline, and OpenSSL rejects a chain glued END-to-BEGIN.
   const chain = [cert.toString("pem"), ca.certPem].map((p) => p.trimEnd() + "\n").join("");
 
   return {
@@ -103,8 +89,6 @@ export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<
   };
 }
 
-/** Loads the CA from the state dir, creating it on first run. Stable across restarts so
- *  the operator trusts it once. */
 export async function loadOrCreateCa(stateDir: string): Promise<{ ca: DevCa; caPath: string }> {
   const dir = join(stateDir, "dev-ca");
   const certPath = join(dir, "ca.pem");

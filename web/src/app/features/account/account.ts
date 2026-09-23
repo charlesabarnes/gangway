@@ -35,10 +35,6 @@ const EXPIRY = [
   { value: '365d', label: '1 year' },
 ];
 
-/**
- * Who you are, what your role lets you do, your password, your API tokens and connected
- * agents. Deliberately small.
- */
 @Component({
   selector: 'app-account',
   imports: [Btn, ConfirmDialog, ConnectAgent, RelativeTimePipe],
@@ -377,7 +373,6 @@ export class Account {
   protected readonly clock = inject(Clock);
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
-  // Two dialogs on this page: each by its own template ref.
   private readonly tokenDialog = viewChild<ConfirmDialog>('tokenDialog');
   private readonly grantDialog = viewChild<ConfirmDialog>('grantDialog');
 
@@ -403,7 +398,6 @@ export class Account {
   protected readonly chosen = signal<ReadonlySet<Scope>>(new Set());
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  /** Held in memory for as long as this page is open and not a moment longer. */
   protected readonly minted = signal<{ name: string; secret: string } | null>(null);
   protected readonly pending = signal<ApiToken | null>(null);
   protected readonly grants = signal<OAuthGrant[]>([]);
@@ -419,8 +413,6 @@ export class Account {
   );
 
   constructor() {
-    // An effect, not a one-off check: the permission can be granted (or taken) while this
-    // page is open, and the section appearing with an empty list would be a lie.
     effect(() => {
       if (this.canTokens()) untracked(() => void this.#load());
     });
@@ -496,7 +488,6 @@ export class Account {
       this.error.set(
         p.issues.length ? p.issues.map((i) => `${i.path}: ${i.message}`).join('; ') : p.detail,
       );
-      // 422 "your role does not cover…": the role changed under this tab. Learn the new truth.
       if (p.status === 422 || p.status === 403) void this.auth.refresh();
     } finally {
       this.busy.set(false);

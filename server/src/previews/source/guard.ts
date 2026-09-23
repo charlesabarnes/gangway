@@ -1,15 +1,3 @@
-/**
- * What must be true of an unpacked source before `docker compose config` is allowed to
- * read it. `config` is not a parser: it opens files. `env_file`, `extends.file` and
- * `include` are all read on this machine, merged into the output, and then vanish from
- * it -- so the policy in compose-model.ts, which sees only the output, cannot catch them.
- *
- *   env_file: /proc/self/environ     -> gangway's environment, as the container's
- *   .env -> ../../gangway.db         -> a symlink in a git checkout does the same thing
- *
- * So: no symlink may leave the tree, and every path the compose file names must stay
- * inside it.
- */
 import { lstat, readdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -24,7 +12,6 @@ export const COMPOSE_FILENAMES = [
   "docker-compose.yml",
 ] as const;
 
-/** Every symlink must resolve to something inside `root`. Dangling links are refused too. */
 export async function assertNoEscapingSymlinks(root: string, maxEntries = 200_000): Promise<void> {
   const real = await realpath(root);
   let seen = 0;
@@ -51,7 +38,6 @@ export async function assertNoEscapingSymlinks(root: string, maxEntries = 200_00
 const list = (v: unknown): unknown[] =>
   Array.isArray(v) ? v : v === undefined || v === null ? [] : [v];
 
-/** The file paths a raw compose document asks `config` to open, with where each was found. */
 export function referencedFiles(doc: unknown): { where: string; path: string }[] {
   const out: { where: string; path: string }[] = [];
   const d = obj(doc);
@@ -78,10 +64,7 @@ export function referencedFiles(doc: unknown): { where: string; path: string }[]
   return out;
 }
 
-/**
- * Finds the compose file in `srcDir` and checks every file it references. Returns the
- * file's name, or null when the source has none (the caller may synthesize one).
- */
+// compose config opens env_file, extends and include files on this machine, so every path must stay inside the tree.
 export async function inspectComposeFile(srcDir: string): Promise<string | null> {
   let found: string | null = null;
   for (const name of COMPOSE_FILENAMES) {
@@ -102,7 +85,6 @@ export async function inspectComposeFile(srcDir: string): Promise<string | null>
     });
   }
   for (const ref of referencedFiles(doc)) {
-    // `${VAR}` in a path is interpolated by compose after this check could see it.
     if (ref.path.includes("$"))
       throw unprocessable(`${ref.where}: variables are not allowed in file paths`);
     if (!containedIn(srcDir, path.resolve(srcDir, ref.path))) {

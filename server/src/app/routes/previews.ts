@@ -1,8 +1,3 @@
-/**
- * `/v1/previews`. A thin adapter: parse, call the service layer, shape the response. Logic
- * belongs in the service layer, because the webhook receiver and the MCP tools need it too
- * and do not come through here.
- */
 import type { Context, Hono } from "hono";
 import type { Preview } from "@gangway/shared/domain";
 import {
@@ -48,7 +43,7 @@ export function previewRoutes(
   });
 
   const find = (id: string): Preview => {
-    // Checked before it goes anywhere: the id names a log file on disk.
+    // The id names a log file on disk.
     const p = isUlid(id) ? ctx.previews.get(id) : undefined;
     if (!p) throw notFound(`no such preview: ${id}`);
     return p;
@@ -58,7 +53,6 @@ export function previewRoutes(
     const contentType = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
     let req: Omit<DeployInput, "actor">;
     if (isTarball(contentType)) {
-      // The body is the archive, streamed straight into the extractor -- never buffered.
       const {
         ttl,
         project,
@@ -71,7 +65,6 @@ export function previewRoutes(
       } = TarballDeployQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
       if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      // A chosen password comes in a header, never the query string.
       const chosen = c.req.header(PREVIEW_PASSWORD_HEADER);
       if (chosen !== undefined && passwordMode !== undefined)
         throw badRequest(
@@ -105,15 +98,12 @@ export function previewRoutes(
       const { project, ...parsed } = DeployRequestSchema.parse(body);
       req = { ...parsed, ...(project ? { projectId: project } : {}) };
     }
-    // Idempotency-Key: a retried POST returns the preview the first one made.
     const res = await deploys.deploy(
       { ...req, actor: c.get("actor") },
       c.req.header("idempotency-key"),
     );
     if (res.replayed) c.header("idempotency-replayed", "true");
 
-    // `?wait=true` holds the request until the pipeline settles, so a script gets a URL
-    // that actually serves.
     if (c.req.query("wait") === "true") {
       const final = await res.done;
       return c.json({ preview: wire(final) }, final.state === "awake" ? 201 : 502);
@@ -131,8 +121,7 @@ export function previewRoutes(
       ...c.req.query(),
       state: states?.length ? states : undefined,
     });
-    // Before the list: the UI follows /v1/events from `seq`, so a change landing between
-    // the two reads is replayed onto a list that already has it, never missed.
+    // Read seq before the list so a change between the two reads is replayed, never missed.
     const seq = ctx.bus.latestSeq();
     const list = ctx.previews.list({
       ...(q.state ? { state: q.state } : {}),
@@ -151,7 +140,6 @@ export function previewRoutes(
     return c.json({ preview: wire(await destroy(ctx, c.req.param("id"), c.get("actor"))) });
   });
 
-  /** State changes, oldest first. Deleted with the preview row, like its log. */
   api.get("/previews/:id/events", requirePermission("events.read"), (c) => {
     const p = find(c.req.param("id"));
     return c.json({
@@ -161,13 +149,11 @@ export function previewRoutes(
     });
   });
 
-  /** One row per build attempt. The output is in the log, on the `build` stream. */
   api.get("/previews/:id/builds", requirePermission("previews.read"), (c) => {
     const p = find(c.req.param("id"));
     return c.json({ builds: ctx.builds.forPreview(p.id) ?? [] });
   });
 
-  /** The kept upload, for the editor. 404 when nothing is kept (git, image, PR previews). */
   api.get("/previews/:id/source", requirePermission("previews.read"), async (c) => {
     const p = find(c.req.param("id"));
     if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id)))
@@ -176,7 +162,6 @@ export function previewRoutes(
     return c.json({ runtime: p.source.runtime ?? null, ...listing });
   });
 
-  /** How the kept source builds now, and why -- the same plan a save would follow. */
   api.get("/previews/:id/plan", requirePermission("previews.read"), async (c) => {
     const p = find(c.req.param("id"));
     if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id)))
@@ -189,7 +174,6 @@ export function previewRoutes(
     );
   });
 
-  /** Rebuild in place from edits (JSON) or a whole new upload (tar.gz body). Same URL. */
   const rebuild = async (
     c: Context<AppEnv, "/previews/:id">,
     change: RedeployInput["change"],
@@ -245,11 +229,6 @@ export function previewRoutes(
     },
   );
 
-  /**
-   * Put a running preview behind a password, change it, generate a new one (it is
-   * printed in the preview's log), or open it; and/or say whether a gangway login gets past
-   * it. Who may: whoever may rebuild it.
-   */
   api.put(
     "/previews/:id/password",
     requirePermission("previews.update_own", "previews.update"),
@@ -274,7 +253,6 @@ export function previewRoutes(
     const p = find(c.req.param("id"));
     const after = resumeCursor(c);
     const { tail } = PreviewLogsQuerySchema.parse(c.req.query());
-    // Two short of the queue: one for the "earlier lines not shown" line, one spare.
     const maxReplay = (o.maxQueue ?? SSE_MAX_QUEUE) - 2;
     return sse(
       c,

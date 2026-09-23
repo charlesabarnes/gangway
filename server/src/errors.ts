@@ -1,7 +1,3 @@
-/**
- * Error taxonomy. Every error crossing the API boundary becomes problem+json (RFC 9457),
- * never a stack trace -- preview visitors are untrusted and see these pages.
- */
 export type ErrorCode =
   | "bad_request"
   | "unauthorized"
@@ -35,7 +31,6 @@ export class AppError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly detail: Record<string, unknown> | undefined;
-  /** Response headers that are part of the error's meaning (`Retry-After` on a 429). */
   readonly headers: Record<string, string> | undefined;
 
   constructor(
@@ -81,5 +76,4 @@ export const rateLimited = (retryAfterSec: number, m = "too many attempts; try a
     { "retry-after": String(Math.max(1, Math.ceil(retryAfterSec))) },
   );
 
-/** The message of anything thrown, Error or not. */
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));

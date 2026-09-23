@@ -1,17 +1,3 @@
-/**
- * The OAuth 2.1 authorization server's HTTP face, on the `app` host -- the issuer is
- * `https://app.<base>`, because consent needs the session cookie, which is host-only there.
- *
- *   GET  /.well-known/oauth-authorization-server  RFC 8414 metadata
- *   GET  /oauth/authorize                  validate, park the request, redirect to /connect
- *   POST /oauth/token                      form-encoded; codes and refreshes
- *   GET  /v1/oauth/requests/:id            what the consent page shows (a session user)
- *   POST /v1/oauth/requests/:id            approve or deny (a session user)
- *   GET|DELETE /v1/oauth/grants[/:id]      the Account page's "Connected agents"
- *
- * All of it is a 404 while MCP is switched off: an authorization server for a surface that
- * is not there is not advertised.
- */
 import type { Hono } from "hono";
 import { z } from "zod";
 import { notFound } from "../../errors.ts";
@@ -22,7 +8,6 @@ import { problemResponse, readJson } from "../problem.ts";
 
 export type OAuthRouteDeps = {
   oauth: OAuthServer;
-  /** MCP switched on: otherwise every path here is a 404. */
   enabled: () => boolean;
 };
 
@@ -33,7 +18,6 @@ const DecideSchema = z.strictObject({
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
-/** Before the redirect is trusted there is nowhere to send an error but the person's own screen. */
 function errorPage(message: string): Response {
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cannot connect</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;color:#171717}@media(prefers-color-scheme:dark){body{background:#0a0a0a;color:#e5e5e5}}</style>
@@ -48,10 +32,8 @@ function errorPage(message: string): Response {
   });
 }
 
-/** Tokens and their errors are never cached (RFC 6749 sections 5.1 and 5.2). */
 const NO_STORE = { "cache-control": "no-store", pragma: "no-cache" };
 
-/** A small per-source budget for the token endpoint: it is unauthenticated by design. */
 class Budget {
   readonly #hits = new Map<string, { n: number; since: number }>();
   readonly #perMinute: number;
@@ -72,7 +54,6 @@ class Budget {
   }
 }
 
-/** The routes outside `/v1`, on the app host. */
 export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
   const budget = new Budget(60);
   const on = (surface: string) => surface === "app" && d.enabled();
@@ -114,7 +95,6 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
     const text = await c.req.text();
     if (text.length > 16 * 1024) return fail("invalid_request", "the request is too large");
     const form = new URLSearchParams(text);
-    // A parameter may not repeat (RFC 6749 section 3.2).
     for (const k of new Set(form.keys()))
       if (form.getAll(k).length > 1)
         return fail("invalid_request", `${k} was given more than once`);
@@ -133,7 +113,6 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
   });
 }
 
-/** The routes under `/v1`, behind authentication. */
 export function oauthRoutes(api: Hono<AppEnv>, d: OAuthRouteDeps): void {
   const guard = () => {
     if (!d.enabled()) throw notFound("MCP is switched off");

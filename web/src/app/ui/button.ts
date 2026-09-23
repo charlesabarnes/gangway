@@ -14,7 +14,6 @@ const VARIANT: Record<ButtonVariant, string> = {
   danger: 'bg-red-600 text-white hover:bg-red-700',
 };
 
-/** One look for every button and button-shaped link. `<button appBtn variant="danger">`. */
 @Directive({ selector: 'button[appBtn], a[appBtn]', host: { '[class]': 'classes()' } })
 export class Btn {
   readonly variant = input<ButtonVariant>('primary');

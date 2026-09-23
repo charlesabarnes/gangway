@@ -1,19 +1,9 @@
-/**
- * Static assets for the Angular build, with SPA fallback: served by the server itself,
- * with no SSR framework or second runtime.
- *
- * Hand-rolled rather than hono/serve-static because the three rules that matter are short:
- * never escape the root, never serve index.html for a missing asset (a 200 text/html for a
- * missing .js is a miserable bug to chase), and cache hashed files forever while never
- * caching index.html.
- */
 import { join, normalize, sep } from "node:path";
 
 const HASHED = /[.-][A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|png|svg|jpg|webp|ico|map)$/;
 
 export type StaticOptions = { root: string; index?: string };
 
-/** Returns null when the request is not this handler's business (non-GET, no such file). */
 export async function serveStatic(req: Request, o: StaticOptions): Promise<Response | null> {
   if (req.method !== "GET" && req.method !== "HEAD") return null;
 
@@ -40,7 +30,6 @@ export async function serveStatic(req: Request, o: StaticOptions): Promise<Respo
       HASHED.test(pathname) ? "public, max-age=31536000, immutable" : "no-cache",
     );
   }
-  // A path with an extension that does not exist is a missing asset, not a client route.
   if (hasExtension) return null;
 
   const shell = Bun.file(index);

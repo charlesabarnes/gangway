@@ -1,6 +1,3 @@
-/**
- * Every error leaving the API is problem+json (RFC 9457), never a stack trace.
- */
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
@@ -52,7 +49,6 @@ export function errorHandler(logger: Logger) {
   return (e: unknown, c: Context<AppEnv>): Response => {
     const known = toAppError(e);
     if (known && known.status < 500) return problemResponse(c, known);
-    // 5xx: the cause goes to the log, keyed by request id; the client gets no detail.
     logger.error("unhandled request error", {
       requestId: c.get("requestId"),
       method: c.req.method,
@@ -66,7 +62,6 @@ export function errorHandler(logger: Logger) {
   };
 }
 
-/** The request body as JSON, or a 400 if it is not JSON. Callers validate the shape. */
 export function readJson(c: { req: { json(): Promise<unknown> } }): Promise<unknown> {
   return c.req.json().catch(() => {
     throw badRequest("the request body is not JSON");

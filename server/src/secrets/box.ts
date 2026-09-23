@@ -1,11 +1,3 @@
-/**
- * Secrets at rest: AES-256-GCM under a key that lives in the state directory
- * (`secrets.key`, 0600), not in the database -- so a copy of `gangway.db` alone, which is
- * what a backup is, reveals nothing. Lose the key and the secrets are gone; they were
- * never readable back anyway, so they are re-entered.
- *
- * Wire form: `v1.<iv>.<tag>.<ciphertext>`, base64url. Small, self-describing, versioned.
- */
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -47,7 +39,6 @@ export class SecretBox {
   }
 }
 
-/** The key file, made on first use. Owner-readable only. */
 export function loadOrCreateSecretsKey(stateDir: string): Buffer {
   const file = join(stateDir, "secrets.key");
   if (existsSync(file)) {

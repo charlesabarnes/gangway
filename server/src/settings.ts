@@ -1,13 +1,3 @@
-/**
- * Effective-settings resolver.
- *
- *   effective(key) = config/env override, if present
- *                    else the database value
- *                    else the built-in default
- *
- * A setting pinned in config reports managedByConfig, so the UI renders it disabled and
- * labelled *managed by config* rather than silently failing when clicked.
- */
 import { z } from "zod";
 
 export type SettingSource = "config" | "database" | "default";
@@ -19,13 +9,8 @@ export type Effective<T> = {
   managedByConfig: boolean;
 };
 
-/**
- * `secret`: the value is never reported, only whether one is set, so `GET /v1/settings`
- * cannot leak the Cloudflare token or the GitHub App's private key.
- */
 export type SettingDef<T> = { key: string; schema: z.ZodType<T>; fallback: T; secret: boolean };
 
-/** What the API reports: a secret's value is withheld, its presence is not. */
 export type SettingView = {
   key: string;
   source: SettingSource;
@@ -51,26 +36,17 @@ const templateRef = z
     "a template id is 1-32 lowercase letters, digits and hyphens",
   );
 
-/** A PEM pasted into an env var arrives with literal `\n`; GitHub's download has real newlines. */
+// A PEM pasted into an env var arrives with literal \n sequences.
 const pem = z.string().transform((v) => v.replace(/\\n/g, "\n").trim());
 
 export const SETTINGS = {
   baseDomain: def("baseDomain", z.string().min(1), "preview.localhost"),
   surfacesUi: def("surfaces.ui", z.boolean(), true),
-  // Defaults: UI on, MCP off. MCP is an additional public auth surface that matters only
-  // once a token exists for an agent, so opt-in is the safer posture.
   surfacesMcp: def("surfaces.mcp", z.boolean(), false),
-  // The template each trigger deploys with unless the request or the repository names one.
   templatePr: def("templates.default.pr", templateRef, "default"),
   templateApi: def("templates.default.api", templateRef, "default"),
   templateManual: def("templates.default.manual", templateRef, "default"),
-  // The password a preview that inherits is behind. `shared` is one password for all of
-  // them (its scrypt hash, never the text); `generated` gives each new preview its
-  // own, printed in its log. Written only through PUT /v1/settings/preview-password.
   previewPasswordMode: def("previews.password.mode", z.enum(["off", "shared", "generated"]), "off"),
-  // Whether a signed-in gangway user (with `previews.skip_password`) gets past the password
-  // of a preview that follows this default. A preview can say on or off for itself. Off by
-  // default: a password means everyone is asked, until the owner says otherwise.
   previewPasswordLogin: def("previews.password.login", z.boolean(), false),
   previewPasswordShared: def(
     "previews.password.shared",
@@ -81,14 +57,12 @@ export const SETTINGS = {
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),
-    // Staging by default. Production is an explicit opt-in: 50 certs per registered
-    // domain per week, and a renewal-loop bug burns that budget for the whole domain.
+    // Staging by default: production allows 50 certs per domain per week.
     "https://acme-staging-v02.api.letsencrypt.org/directory",
   ),
   acmeEmail: def("acme.email", z.string().email().or(z.literal("")), ""),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
-  // The GitHub App. Filled by the manifest flow, or pinned from the environment.
   githubAppId: def("github.appId", z.string(), ""),
   githubAppSlug: def("github.appSlug", z.string(), ""),
   githubClientId: def("github.clientId", z.string(), ""),
@@ -103,7 +77,6 @@ export const SETTINGS_BY_KEY: ReadonlyMap<string, SettingDef<unknown>> = new Map
 
 export type SettingKey = (typeof SETTINGS)[keyof typeof SETTINGS]["key"];
 
-/** The database side. Kept as an interface so unit tests need no SQLite. */
 export interface SettingsStore {
   get(key: string): unknown;
   set(key: string, value: unknown): void;
@@ -141,8 +114,7 @@ export class Settings {
 
     if (managedByConfig) {
       const parsed = d.schema.safeParse(this.#overrides[d.key]);
-      // An invalid override must not silently fall through to the database: that would
-      // make a typo in an env var look like it worked.
+      // Throw rather than fall through, or an env var typo would look like it worked.
       if (!parsed.success) {
         throw new Error(
           `config override for "${d.key}" is invalid: ${parsed.error.issues[0]?.message ?? "bad value"}`,
@@ -154,8 +126,6 @@ export class Settings {
     const stored = this.#store.get(d.key);
     if (stored !== undefined) {
       const parsed = d.schema.safeParse(stored);
-      // A corrupt database row falls back to the default rather than taking the server
-      // down; it is recoverable from the UI, which a crash loop is not.
       if (parsed.success) {
         return { key: d.key, value: parsed.data, source: "database", managedByConfig: false };
       }
@@ -168,10 +138,6 @@ export class Settings {
     return this.effective(d).value;
   }
 
-  /**
-   * Writes a setting. Refuses when the key is pinned in config, so the API cannot
-   * pretend to change something the config will keep overriding on the next read.
-   */
   set<T>(d: SettingDef<T>, value: T): void {
     if (this.isManagedByConfig(d.key)) {
       throw new Error(`"${d.key}" is managed by config and cannot be changed at runtime`);
@@ -179,12 +145,10 @@ export class Settings {
     this.#store.set(d.key, d.schema.parse(value));
   }
 
-  /** Everything, values included. For the process itself -- never for a response. */
   snapshot(): Effective<unknown>[] {
     return Object.values(SETTINGS).map((d) => this.effective(d as SettingDef<unknown>));
   }
 
-  /** `GET /v1/settings` and the Settings screen: secrets reported as set or not, never values. */
   view(): SettingView[] {
     return Object.values(SETTINGS).map((d) => {
       // TypeScript 7 needs the widening; the TypeScript 6 that ESLint runs does not.

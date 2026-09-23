@@ -1,14 +1,3 @@
-/**
- * What an agent should know before its first call. Served by the MCP server itself
- * -- `instructions`, which every client loads on connect, and the `generate-artifact` prompt --
- * so Claude Code, Codex, Cursor or anything else that speaks MCP works well with nothing
- * installed. The Claude Code plugin's skill (plugin/gangway/skills/generate-artifact) says the
- * same things in its own words; a test holds the rules that matter in both.
- *
- * `instructions` is in every session's context, forever: short, rules only. The prompt is
- * fetched on purpose and may be long.
- */
-
 export const INSTRUCTIONS = `gangway gives an app a public HTTPS URL on the user's own server. deploy blocks until the URL answers, usually in about 10 seconds -- the preview is your test environment, so write each file once and deploy it.
 - A page or two: deploy with files. Bigger, or already on disk: deploy with upload: "new", run the tar | curl line it prints, then deploy with upload: "<id>". Never retype files that are on disk.
 - Pass check: ["/", "/api/..."] and the answer carries each path's HTTP status, the plan gangway followed and a sha256 of every deployed file. No need to curl each route or hash files yourself.
@@ -17,7 +6,6 @@ export const INSTRUCTIONS = `gangway gives an app a public HTTPS URL on the user
 - Something wrong: logs with source: "runtime" shows what the app printed.
 The generate-artifact prompt has the whole workflow.`;
 
-/** The `generate-artifact` prompt: the workflow for building something artifact-sized and shipping it here. */
 export function artifactPrompt(what: string | undefined): string {
   const task = what?.trim() ? `What to build: ${what.trim()}\n\n` : "";
   return `${task}Build this as you would a Claude artifact, then ship it to a real HTTPS URL with gangway's deploy tool. Treat the preview as a very fast artifact host: a deploy answers in about 10 seconds, so the slow part is always you. Write every file once, deploy it, and test the live preview.

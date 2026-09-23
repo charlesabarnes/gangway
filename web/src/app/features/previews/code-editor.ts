@@ -22,7 +22,6 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView, keymap } from '@codemirror/view';
 import { basicSetup } from 'codemirror';
 
-/** The grammar for a path, by extension. Anything unknown is plain text. */
 export function languageFor(path: string): Extension {
   const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
   switch (ext) {
@@ -61,10 +60,6 @@ export function languageFor(path: string): Extension {
 const dark = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
 
-/**
- * CodeMirror 6, one file at a time. Only ever loaded through `@defer` from the Source panel,
- * so neither the list page nor a preview without a kept source downloads it.
- */
 @Component({
   selector: 'app-code-editor',
   template: `<div
@@ -93,8 +88,6 @@ export class CodeEditor {
     });
     inject(DestroyRef).onDestroy(() => this.#view?.destroy());
 
-    // A new file replaces the whole state (its own undo history); the same file only
-    // takes a value that differs from what is on screen -- i.e. not an echo of typing.
     effect(() => {
       const path = this.path(),
         value = this.value(),

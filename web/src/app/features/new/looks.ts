@@ -13,12 +13,6 @@ import {
 } from 'simple-icons';
 import type { AddonId, Detected } from '../../core/api.types';
 
-/**
- * How each runtime and add-on looks on screen: a mark, its colour, and a line short enough
- * to read at a glance. Presentation only -- what a runtime does is the server's catalogue.
- * `color: null` is a black mark drawn in the text colour, so it survives dark mode.
- */
-/** `name`: a short label for tight spots (a card, a chip); the catalogue's full name goes in the tooltip. */
 export type Look = { path: string; color: string | null; tagline: string; name: string };
 
 const hex = (h: string) => (h === '000000' ? null : `#${h}`);
@@ -85,7 +79,6 @@ export const ADDON_LOOKS: Record<AddonId, Look> = {
   redis: { name: 'Redis', path: siRedis.path, color: hex(siRedis.hex), tagline: 'REDIS_URL' },
 };
 
-/** A brand colour at low strength, for a tile behind its mark. */
 export const tint = (color: string | null, pct = 16): string =>
   color
     ? `color-mix(in oklch, ${color} ${pct}%, transparent)`

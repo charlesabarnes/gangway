@@ -1,10 +1,3 @@
-/**
- * Process-level configuration: env and file. Anything here is a config override and
- * therefore outranks the database. Operator-tunable values that should be editable from
- * the UI live in settings.ts instead.
- *
- * Never assume ownership of :80 and :443: listen address and ports are configuration.
- */
 import { z } from "zod";
 
 const port = z.coerce.number().int().min(1).max(65535);
@@ -12,14 +5,10 @@ const port = z.coerce.number().int().min(1).max(65535);
 export const HostConfigSchema = z.object({
   id: z.string().min(1).default("local"),
   name: z.string().min(1).default("local"),
-  /** How we talk to the daemon. */
   dockerHost: z.string().min(1).default("unix:///var/run/docker.sock"),
-  /** Guard: assert `docker info`.Name matches before doing anything (see docker/guard.ts). */
   expectName: z.string().optional(),
   capabilities: z.array(z.enum(["preview", "runner"])).default(["preview"]),
-  /** The IP dockerd binds published ports to. */
   publishBind: z.string().default("127.0.0.1"),
-  /** How the proxy reaches those published ports. Dev uses socks5 over the SSH tunnel. */
   upstreamDial: z.enum(["direct", "socks5"]).default("direct"),
   upstreamAddress: z.string().default("127.0.0.1"),
   upstreamProxy: z.string().optional(),
@@ -29,10 +18,6 @@ export const HostConfigSchema = z.object({
 export type HostConfig = z.infer<typeof HostConfigSchema>;
 
 const ConfigSchema = z.object({
-  /**
-   * Written into every container label. Two gangway installations can share one
-   * daemon; these are how each tells its containers from the other's.
-   */
   instanceId: z
     .string()
     .regex(/^[a-z0-9][a-z0-9_-]{0,31}$/)
@@ -47,7 +32,6 @@ const ConfigSchema = z.object({
 
   listenAddress: z.string().default("::"),
   listenPort: port.default(8443),
-  /** null disables the plain-HTTP redirect listener entirely. */
   listenHttpPort: port.nullable().default(8080),
 
   publicScheme: z.enum(["http", "https"]).default("https"),
@@ -61,24 +45,14 @@ const ConfigSchema = z.object({
   upstreamTimeoutMs: z.coerce.number().int().positive().default(30_000),
   previewInflightCap: z.coerce.number().int().positive().default(256),
 
-  /** Each pass also re-probes every host, so this bounds reconnect detection. 0 disables. */
   reconcileIntervalMs: z.coerce.number().int().min(0).default(60_000),
-  /** `report` logs what the reconciler would stop and stops nothing. */
   reconcileOrphans: z.enum(["stop", "report"]).default("stop"),
 
-  /** How often expired previews are destroyed. 0 disables the sweep (TTLs are then advisory). */
   ttlSweepIntervalMs: z.coerce.number().int().min(0).default(60_000),
   idleSweepIntervalMs: z.coerce.number().int().min(0).default(60_000),
-  /** How long a request waits for a wake before it gets the 202 page. */
   wakeWaitMs: z.coerce.number().int().min(0).default(3_000),
-  /** How often in-memory "last visited" marks reach SQLite. Also flushed once at shutdown. */
   lastSeenFlushIntervalMs: z.coerce.number().int().min(0).default(30_000),
 
-  /**
-   * Reverse proxies in front of gangway (Nginx Proxy Manager, a load balancer), as IPs or
-   * CIDRs. X-Forwarded-For is believed only from these. Empty -- the default -- means
-   * gangway faces the internet itself and believes no one. See net/trusted-proxy.ts.
-   */
   trustedProxies: z.preprocess(
     (v) =>
       typeof v === "string"
@@ -90,10 +64,7 @@ const ConfigSchema = z.object({
     z.array(z.string()).default([]),
   ),
 
-  /**
-   * How long a SIGTERM waits for in-flight requests and pipelines before closing them.
-   * Keep it under the orchestrator's kill timeout (Docker's default is 10s).
-   */
+  // Keep under the orchestrator's kill timeout (Docker's default is 10s).
   shutdownGraceMs: z.coerce.number().int().min(0).default(8_000),
 
   tlsMode: z.enum(["acme", "selfsigned", "file"]).default("selfsigned"),
@@ -102,20 +73,14 @@ const ConfigSchema = z.object({
 
   hosts: z.array(HostConfigSchema).default([HostConfigSchema.parse({})]),
 
-  /** A static admin bearer token (`GANGWAY_ADMIN_TOKEN`) for headless bootstrap. */
   adminToken: z.string().optional(),
 
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
-  /**
-   * Config overrides for database-backed settings. Present here means "managed by
-   * config": the UI renders the control disabled rather than failing silently on click.
-   */
   overrides: z.record(z.string(), z.unknown()).default({}),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
-/** env var -> config field. Only these are readable from the environment. */
 const ENV_MAP = {
   GANGWAY_INSTANCE: "instanceId",
   GANGWAY_ENV: "environment",
@@ -143,7 +108,6 @@ const ENV_MAP = {
   GANGWAY_LOG_LEVEL: "logLevel",
 } as const satisfies Record<string, keyof Config>;
 
-/** Settings-table keys that may be pinned from the environment, outranking the database. */
 const SETTING_ENV_MAP = {
   GANGWAY_BASE_DOMAIN: "baseDomain",
   GANGWAY_SURFACE_UI: "surfaces.ui",

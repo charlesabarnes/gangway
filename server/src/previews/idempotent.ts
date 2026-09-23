@@ -1,19 +1,3 @@
-/**
- * `Idempotency-Key` for REST deploys and the MCP `deploy` tool's key. Agents retry; without a
- * key, three retries means three previews and three URLs.
- *
- * In the service layer, not the REST adapter, so both get the same semantics:
- *
- *   same key, same request     -> the preview that request already made, as it is now
- *                                 (still building, awake, or failed -- a failure is
- *                                 replayed too; a retry is not a redeploy)
- *   same key, other request    -> 422. The caller has a bug; guessing which it meant is worse.
- *   same key, preview destroyed-> the key is free again
- *   same key, at the same time -> one deploy; every caller gets its result
- *
- * A deploy that is rejected (422, 409) records nothing: there is no preview to return,
- * and the retry deserves the same honest error.
- */
 import { createHash } from "node:crypto";
 import { actorId } from "../auth/actor.ts";
 import type { IdempotencyRepo } from "../db/repos/idempotency.ts";
@@ -24,10 +8,8 @@ import { deploy, urlsFor, type DeployInput, type DeployResult } from "./deploy.t
 
 export const IDEMPOTENCY_TTL_MS = 24 * 3_600_000;
 
-/** Visible ASCII, 1-255: it is a header value and half of a primary key. */
 const KEY_RE = /^[\x21-\x7e]{1,255}$/;
 
-/** Key order must not matter: two JSON encoders may disagree about it. */
 function canonical(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
   if (v && typeof v === "object") {
@@ -40,11 +22,6 @@ function canonical(v: unknown): string {
   return JSON.stringify(v);
 }
 
-/**
- * An archive cannot be hashed without buffering up to half a gigabyte, so a tarball is
- * fingerprinted by its options plus whatever the adapter knows cheaply (`digest`: the
- * Content-Length). The mismatch check is a guard against caller bugs, not an integrity check.
- */
 export const requestHash = ({ actor: _actor, ...request }: DeployInput): string => {
   const source =
     request.source.kind === "tarball" ? { ...request.source, archive: undefined } : request.source;
@@ -89,7 +66,6 @@ export class IdempotentDeploys {
       }
     }
 
-    // Concurrent retries, before any row exists: planning is awaited and takes a while.
     const flightKey = `${ownerId}\n${key}`;
     const joined = this.#flight.has(flightKey);
     const result = await this.#flight.run(flightKey, async () => {
@@ -101,7 +77,6 @@ export class IdempotentDeploys {
     return { ...result, replayed: joined };
   }
 
-  /** The scheduler's hourly job. */
   purge(): number {
     return this.#keys.purge(this.#ctx.now() - IDEMPOTENCY_TTL_MS);
   }

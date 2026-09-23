@@ -1,10 +1,3 @@
-/**
- * The composition root: the one place that knows about every module, and therefore the
- * one file allowed to import both `app/` and everything beneath it.
- *
- * Order matters: load routes and serve immediately. Nothing here waits on a Docker daemon,
- * so an unreachable host delays no request.
- */
 import { randomBytes, createHmac } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -115,13 +108,10 @@ import { publicOriginFor } from "@gangway/shared/url";
 export type BootOverrides = {
   logger?: Logger;
   compose?: ComposeRunner;
-  /** Tests inject this: the default would dial whatever Docker socket the machine has. */
   clients?: ClientSource;
   probe?: RouteProbe;
   timings?: Partial<PreviewContext["timings"]>;
-  /** Where the secret-bearing first-run banner goes. Not the logger: it would redact it. */
   announce?: (text: string) => void;
-  /** tlsMode=acme only. Tests and the Pebble check supply their own DNS and ACME client. */
   acme?: { dns?: DnsProvider; connect?: AcmeConnect };
 };
 
@@ -129,19 +119,12 @@ export type Running = {
   listener: RunningListener;
   ctx: PreviewContext;
   adminToken: string;
-  /** First run: where the first admin is created. null once any account exists. */
   setupUrl: string | null;
   origin: (label: string) => string;
   caPath: string | null;
   reconciler: Reconciler;
   scheduler: Scheduler;
-  /** The boot-time reconcile pass. Serving does not wait on it; tests do. */
   reconciled: Promise<ReconcileReport | null>;
-  /**
-   * Graceful: stop taking control-plane work, let in-flight requests and pipelines finish
-   * for up to `graceMs` (default `config.shutdownGraceMs`), then close what is left.
-   * Previews keep being proxied until the very end. Idempotent.
-   */
   stop(o?: { graceMs?: number }): Promise<void>;
 };
 
@@ -166,7 +149,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const stateDir = resolve(config.stateDir);
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
 
-  /* ---- storage */
   const { db, journalMode } = openDatabase({
     path: config.databasePath ?? join(stateDir, "gangway.db"),
   });
@@ -197,7 +179,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     }
   }
 
-  /* ---- routes into memory, before anything else can fail */
   const all = new Map(previews.list({ includeDestroyed: true }).map((p) => [p.id, p]));
   table.hydrate(
     routes.all().flatMap((route) => {
@@ -219,7 +200,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   );
   const workdirs = new Workdirs(stateDir);
   await workdirs.prune();
-  // A kept upload whose preview is gone -- destroyed, or its row lost -- goes too.
   const sources = new SourceStore(stateDir);
   for (const id of await sources.ids()) {
     const p = all.get(id);
@@ -233,7 +213,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       builds: orphanedBuilds,
     });
 
-  /* ---- docker */
   const dockerClients = new DockerClients();
   const compose =
     o.compose ??
@@ -241,9 +220,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       hosts.setState(hostId, ok ? "ready" : "unreachable", err),
     );
 
-  /* ---- which project a deploy belongs to and which template it follows.
-     Named by the request, else the project whose repository the source is: a PR by full
-     name, a git deploy by the name in its clone URL; images and tarballs have none. */
   const projects = new ProjectsRepo(db);
   const templates = new TemplatesRepo(db);
   const templateSetting = {
@@ -288,8 +264,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     audit,
     sources,
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
-    // Cheaper than a login's scrypt (these guard previews, not accounts) and its
-    // own semaphore, so a burst of password forms never queues an operator's login.
+    // A separate semaphore, so a burst of preview password forms never queues an operator's login.
     passwords: {
       passwords: previewPasswords,
       defaultMode: () => settings.get(SETTINGS.previewPasswordMode),
@@ -300,18 +275,14 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
 
-  /* ---- pull requests. Credentials are read from settings on every use. */
   const secretsKey = loadOrCreateSecretsKey(stateDir);
   const secrets = new Secrets(projects, settingsStore, new SecretBox(secretsKey), audit);
-  // An add-on's password, the same on every rebuild (so compose never recreates the
-  // database) and stored nowhere. Losing secrets.key changes it; the volume keeps the old one.
+  // Derived, not stored: it must be the same on every rebuild or compose recreates the database.
   ctx.addonSecret = (previewId, addon) =>
     createHmac("sha256", secretsKey)
       .update(`gangway-addon\0${previewId}\0${addon}`)
       .digest("base64url")
       .slice(0, 32);
-  // The global map, plus the repository's when the deploy has one, at the clearance the
-  // pipeline resolved.
   ctx.secretsFor = (repoId, clearance) => secrets.valuesFor(repoId, clearance);
   const githubApp = new GitHubApp({
     credentials: () => ({
@@ -346,12 +317,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   });
   const hooks = new Hooks({ forge, service: prPreviews, logger: logger.child({ mod: "hooks" }) });
 
-  /* ---- accounts. The permission matrix is loaded once and kept write-through. */
   const users = new UsersRepo(db);
   const rolesRepo = new RolesRepo(db);
   const roles = new RolePermissions(rolesRepo, audit);
   const sessions = new Sessions(new SessionsRepo(db), roles);
-  /* ---- the OAuth 2.1 authorization server for MCP clients. Issuer `app`, resource `mcp`. */
   const mcpOrigin = () => publicOriginFor(`mcp.${baseDomain()}`, ctx.origin);
   const oauthGrants = new OAuthGrantsRepo(db);
   const oauth = new OAuthServer({
@@ -376,7 +345,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const tokens = new Tokens(tokensRepo, roles, audit);
   const bootstrap = new Bootstrap(() => users.count());
 
-  /* ---- headless bootstrap: the env token works whether or not anyone has an account */
   let adminToken = config.adminToken;
   if (!adminToken) {
     adminToken = `gw_${randomBytes(24).toString("base64url")}`;
@@ -385,21 +353,17 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     );
   }
 
-  /* ---- shutdown state, read by the surfaces built below */
   const shutdown = new AbortController();
   const draining = () => shutdown.signal.aborted;
 
-  /* ---- private previews. The session never leaves `app`; a preview gets its own cookie. */
   const gate = new PreviewGate({
     key: loadOrCreateGateKey(settingsStore),
     appOrigin: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin),
-    // The shared password applies only while the default says `shared`.
     sharedPassword: () =>
       settings.get(SETTINGS.previewPasswordMode) === "shared"
         ? settings.get(SETTINGS.previewPasswordShared)
         : null,
     passwords: previewPasswords,
-    // Per source and per preview; a preview's counter locks after 10 misses, doubling to 15 minutes.
     limiter: new LoginLimiter({ emailFree: 10 }),
     loginDefault: () => settings.get(SETTINGS.previewPasswordLogin),
     onPasswordFailure: (entry, clientIp, reason) =>
@@ -411,8 +375,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       }),
   });
 
-  /* ---- pull requests from a project's own workflow. The workflow's OIDC
-     audience is gangway's public API origin, so a token minted for anything else is refused. */
   const apiOrigin = () => publicOriginFor(`api.${baseDomain()}`, ctx.origin);
   const oidc = new GitHubOidc({ audience: apiOrigin, logger: logger.child({ mod: "oidc" }) });
   const pulls = new Pulls({
@@ -424,10 +386,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     },
   });
 
-  /* ---- application surfaces */
   const auth = {
-    // Database tokens first: they are the common case. The env token always works.
-    // Last: a GitHub Actions run's OIDC token, confined to its project's pull routes.
     verifyToken: chainVerifiers(
       tokens.verify,
       staticTokenVerifier(adminToken),
@@ -437,12 +396,9 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       },
     ),
     resolveSession: (secret: string) => sessions.resolve(secret)?.actor ?? null,
-    // What a browser on this Host sends as `Origin`. From the public scheme and port, never
-    // the listener's: behind a reverse proxy they differ, and the browser only knows one.
+    // From the public scheme and port, not the listener's: behind a reverse proxy they differ.
     originFor: (host: string) => publicOriginFor(normalizeHost(host) ?? "", ctx.origin),
   };
-  /* ---- the MCP surface: bearer only. A workflow's OIDC token is not in its chain. */
-  // An agent's shell PUTs a tarball here, and `deploy` builds exactly those bytes.
   const uploads = new Uploads({
     dir: join(stateDir, "uploads"),
     url: (id) => `${mcpOrigin()}/uploads/${id}`,
@@ -450,10 +406,9 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const mcp = new McpSurface({
     tools: new Tools({ ctx, deploys, uploads, logger: logger.child({ mod: "mcp" }) }),
     uploads,
-    // OAuth access tokens are good here and nowhere else: `/v1`'s chain does not know them.
+    // OAuth access tokens are accepted only here; the /v1 chain does not know them.
     verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken), oauth.verify),
     logger: logger.child({ mod: "mcp" }),
-    // No UI, no consent page: MCP is then bearer-only and advertises no OAuth.
     oauth: {
       available: () => settings.get(SETTINGS.surfacesUi),
       resource: mcpOrigin,
@@ -537,7 +492,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     },
   });
 
-  /* ---- TLS */
   const domains = [`*.${baseDomain()}`, baseDomain()];
   let caPath: string | null = null;
   let bundle;
@@ -553,7 +507,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     acmeProvider = new AcmeProvider({
       directoryUrl: settings.get(SETTINGS.acmeDirectoryUrl),
       email: settings.get(SETTINGS.acmeEmail),
-      // No Cloudflare token: print the records and wait for a human. Slow, but it works on any DNS host.
       dns:
         o.acme?.dns ??
         (token
@@ -568,9 +521,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       logger: tlsLog,
       ...(o.acme?.connect ? { connect: o.acme.connect } : {}),
     });
-    // "Serve immediately" applies to certificates too: what is stored is served now;
-    // with nothing stored, the dev CA stands in until the first order completes (a minute
-    // or two), and the `cert-renew` job swaps the real one in without a restart.
+    // With nothing stored, the dev CA serves until cert-renew swaps in the first real one.
     const stored = acmeProvider.load(domains);
     if (stored) {
       bundle = stored;
@@ -589,7 +540,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     bundle = selfSigned;
   }
 
-  /* ---- the listener */
   const surfaceEnabled = (s: Surface): boolean => {
     if (s === "app") return settings.get(SETTINGS.surfacesUi);
     if (s === "mcp") return settings.get(SETTINGS.surfacesMcp);
@@ -598,14 +548,13 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const origin = (label: string) =>
     publicOriginFor(label ? `${label}.${baseDomain()}` : baseDomain(), ctx.origin);
 
-  // Throws at boot on a malformed entry: a typo must not quietly mean "trust nobody".
+  // Throws at boot so a typo can't silently mean trust nobody.
   const resolveClientIp = clientIpResolver(config.trustedProxies);
   if (config.trustedProxies.length > 0)
     logger.info("trusting X-Forwarded-For from reverse proxies", {
       trustedProxies: config.trustedProxies,
     });
 
-  // The request that finds a preview asleep starts the wake and waits a little.
   const waker = new Waker(ctx, logger.child({ mod: "wake" }));
   const deps: DispatchDeps = {
     baseDomain,
@@ -623,7 +572,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       ]);
       return woke ? null : wakingPage(entry.hostname);
     },
-    // Each host is dialed its own way: one directly, another through a SOCKS tunnel.
     upstream: new PerHostUpstream((hostId) => {
       const host = hosts.get(hostId);
       return host
@@ -657,7 +605,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     onError: (e) => logger.error("listener error", { err: e }),
   });
 
-  // Plain HTTP exists only to say "use HTTPS". It serves nothing.
   const redirect =
     config.listenHttpPort === null
       ? null
@@ -672,8 +619,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
           },
         });
 
-  // Reconcile after the listener is up, never blocking it. Interrupted pipelines, orphans
-  // and moved ports are all its job.
   const reconciler = new Reconciler({
     ctx,
     routes,
@@ -686,10 +631,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     return null;
   });
 
-  // Everything periodic lives on the one scheduler: no overlap, jitter, and a stop()
-  // that waits -- so nothing below is still touching the database when it closes.
+  // stop() waits for running jobs, so nothing touches the database after it closes.
   const scheduler = new Scheduler({ logger: logger.child({ mod: "scheduler" }) });
-  // Periodic passes double as the reconnect detector: each one re-probes every host.
   scheduler.register({
     name: "reconcile",
     intervalMs: config.reconcileIntervalMs,
@@ -698,7 +641,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   scheduler.register({
     name: "ttl-sweep",
     intervalMs: config.ttlSweepIntervalMs,
-    // The first sweep waits for the boot reconcile: that is what learns which hosts are reachable.
+    // The first sweep waits for the boot reconcile, which learns which hosts are reachable.
     run: async (signal) => {
       await reconciled;
       await sweepExpired(ctx, logger.child({ mod: "ttl" }), signal);
@@ -718,8 +661,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   if (acmeProvider) {
     const provider = acmeProvider;
     certStore.onSwap(() => listener.swapCerts());
-    // Hourly, and cheap when nothing is due. One failed order an hour stays far inside
-    // Let's Encrypt's failed-validation limit (5/hour); a tighter retry loop would not.
+    // Hourly because Let's Encrypt allows 5 failed validations per hour.
     scheduler.register({
       name: "cert-renew",
       intervalMs: 3_600_000,
@@ -735,7 +677,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     intervalMs: 3_600_000,
     run: () => deploys.purge(),
   });
-  // Expired sessions are already refused; this only reclaims the rows.
   scheduler.register({
     name: "session-purge",
     intervalMs: 3_600_000,
@@ -743,7 +684,6 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       sessions.purge();
     },
   });
-  // Grants past their end, or revoked, a week ago (the Account page stops showing them at once).
   scheduler.register({
     name: "oauth-purge",
     intervalMs: 3_600_000,
@@ -753,16 +693,12 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   });
   scheduler.start();
 
-  // First run. After the listener is up, so the link works the moment it is read, and
-  // through `announce`: the logger would redact it. Not printed when the UI is off -- there
-  // is no page to open, and the env admin token is the way in.
+  // Through announce, not the logger, which would redact the setup link.
   const setupUrl = surfaceEnabled("app") ? bootstrap.url(origin("app")) : null;
   if (setupUrl)
     announce(
       `\n  No accounts exist yet. Create the first admin here (one use, this run only):\n\n    ${setupUrl}\n`,
     );
-  // Behind a reverse proxy with nobody trusted, every visitor has the proxy's address: one
-  // person failing to log in would lock out everyone, and the audit log would name nobody.
   if (users.count() > 0 && config.trustedProxies.length === 0) {
     logger.warn(
       "accounts exist but GANGWAY_TRUSTED_PROXIES is empty; if a reverse proxy sits in front, login rate limits and audit IPs will all be the proxy's",
@@ -780,14 +716,10 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   let stopped: Promise<void> | null = null;
   const stop = async (graceMs: number): Promise<void> => {
     const began = Date.now();
-    // 1. No new control-plane work: /v1 answers 503, /healthz goes unready, SSE streams
-    //    end (their clients resume by Last-Event-ID). No new connections either -- but
-    //    requests on connections that already exist, previews above all, are still served.
     shutdown.abort();
     void redirect?.stop(true);
     void listener.stop(false);
 
-    // 2. Let what is running finish: scheduled jobs, requests, deploys. One shared deadline.
     const left = () => Math.max(0, graceMs - (Date.now() - began));
     await scheduler.stop(graceMs);
     await reconciled;
@@ -796,8 +728,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       { timeoutMs: left() },
     );
 
-    // 3. Out of patience. An aborted pipeline leaves its row `building`/`starting`, which
-    //    is exactly what the next boot's reconciler rescues -- from evidence.
+    // The next boot's reconciler rescues pipelines aborted here.
     const cut = {
       requests: listener.pending().requests,
       webSockets: listener.pending().webSockets,

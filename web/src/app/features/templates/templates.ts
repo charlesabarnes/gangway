@@ -26,11 +26,6 @@ const CLEARANCE_HELP: Record<Clearance, string> = {
 };
 const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 
-/**
- * Templates: named preview policies. What a deploy gets unless the request,
- * its project or the stack file says otherwise. `default` is built in and can be edited
- * but never removed; Settings picks one per trigger, a project picks its own.
- */
 @Component({
   selector: 'app-templates',
   imports: [Btn, ConfirmDialog, RouterLink],
@@ -245,7 +240,7 @@ export class TemplatesPage {
   protected readonly auth = inject(AuthService);
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
-  // `viewChild` cannot sit on an ES #private member (NG1053), hence TypeScript `private`.
+  // viewChild cannot target an ES #private field (NG1053).
   private readonly dialog = viewChild.required(ConfirmDialog);
 
   protected readonly field = FIELD;
@@ -282,7 +277,6 @@ export class TemplatesPage {
     }
   }
 
-  /** One line a person can read: "unlisted · lives 7d · sleeps after 30m · host local". */
   protected summary(t: Pick<Template, 'visibility' | 'ttl' | 'idleAfter' | 'hostId'>): string {
     return [
       t.visibility,

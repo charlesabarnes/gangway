@@ -1,36 +1,21 @@
-/**
- * Shared vocabulary for source ingestion: the two ways bytes get onto the box --
- * a git clone the server performs itself, and a tarball an agent POSTs.
- *
- * Both paths take untrusted input and turn it into files on disk, so every limit and
- * rejection reason a caller can hit is named here rather than buried in a thrown string.
- */
 import path from "node:path";
 import { AppError, type ErrorCode } from "../../errors.ts";
 
-/**
- * The guard that the whole extractor rests on. `child.startsWith(parent)` is the bug that
- * this exists to prevent: it matches "/tmp/foobar" against "/tmp/foo" and hands an
- * attacker a write outside the destination. Both sides must already be resolved.
- */
+// A bare startsWith would accept /tmp/foobar as inside /tmp/foo.
 export function containedIn(parent: string, child: string): boolean {
   if (child === parent) return true;
   return child.startsWith(parent.endsWith(path.sep) ? parent : parent + path.sep);
 }
 
-/** Resolves `rel` against `base`, returning undefined when the result escapes `base`. */
 export function resolveWithin(base: string, rel: string): string | undefined {
   const resolved = path.resolve(base, rel);
   return containedIn(base, resolved) ? resolved : undefined;
 }
 
 export type ExtractLimits = {
-  /** Entry-count cap. Zip-bomb archives are usually millions of tiny files, not one big one. */
   maxEntries?: number;
   maxFileBytes?: number;
-  /** Cap on decompressed bytes, enforced as they stream past -- never after the fact. */
   maxTotalBytes?: number;
-  /** Bytes, not characters: a tar header name field is 100 bytes plus PAX extensions. */
   maxPathBytes?: number;
 };
 
@@ -47,9 +32,6 @@ export function resolveLimits(l: ExtractLimits = {}): ResolvedLimits {
   return { ...DEFAULT_LIMITS, ...l };
 }
 
-/**
- * Extracted files are ours, not the archive's: uploads do not get to set the executable bit.
- */
 export const FILE_MODE = 0o644;
 export const DIR_MODE = 0o755;
 
@@ -82,10 +64,6 @@ const REJECTION_STATUS: Record<TarballRejection, ErrorCode> = {
   archive_too_large: "payload_too_large",
 };
 
-/**
- * One class per rejection so callers (and tests) can tell a hostile archive from a merely
- * oversized one. The entry name reaches the API response, so it is truncated here.
- */
 export class TarballError extends AppError {
   readonly reason: TarballRejection;
 
@@ -107,7 +85,6 @@ export type ExtractResult = {
   files: number;
   directories: number;
   links: number;
-  /** Decompressed bytes seen on the wire, which is what the bomb guard counts. */
   totalBytes: number;
 };
 

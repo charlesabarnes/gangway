@@ -1,17 +1,3 @@
-/**
- * API tokens: `gw_` + 32 random bytes, shown once, stored as a sha256, scoped.
- *
- * A token never exceeds its owner. Its scopes are bundles of permissions, and what it may
- * do is those bundles intersected with the owner's role, worked out on every request.
- * Demote or disable the owner and their tokens shrink or stop on the next call.
- *
- * Minting is stricter than verifying: a scope is refused unless the role covers its whole
- * bundle. Otherwise a member's "admin" token that does nothing now would silently become a
- * real admin token the day they are promoted.
- *
- * Only a person, or the env admin token, can mint. A database token cannot: a leaked CI
- * token must not be able to issue itself a successor.
- */
 import { randomBytes } from "node:crypto";
 import type { ApiToken } from "@gangway/shared/domain";
 import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
@@ -31,7 +17,6 @@ import type { RolePermissions } from "./roles.ts";
 import { sha256 } from "../util/hash.ts";
 
 const SHAPE = /^gw_[A-Za-z0-9_-]{43}$/;
-/** `gw_` + 8: enough to tell two tokens apart in a list, far too little to guess the rest. */
 const PREFIX_LEN = 11;
 const TOUCH_EVERY_MS = 60_000;
 
@@ -55,7 +40,6 @@ export class Tokens {
     this.#now = now;
   }
 
-  /** For the verifier chain. Anything not shaped like one of ours is refused without a read. */
   readonly verify: TokenVerifier = (presented) => {
     if (!SHAPE.test(presented)) return null;
     const now = this.#now();
@@ -126,10 +110,6 @@ export class Tokens {
     return { token, secret };
   }
 
-  /**
-   * Your own; or, asked for and permitted, everyone's. The env token owns none, so it sees
-   * all or nothing.
-   */
   list(actor: Actor, o: { all?: boolean } = {}): ApiToken[] {
     if (o.all) {
       if (!can(actor, "tokens.manage_all"))
@@ -143,7 +123,6 @@ export class Tokens {
         : [];
   }
 
-  /** Someone else's token is a 404, not a 403: whether an id exists is not yours to learn. */
   revoke(actor: Actor, id: string): ApiToken {
     const token = this.#repo.get(id);
     const mine = token !== undefined && actor.kind === "user" && token.userId === actor.userId;

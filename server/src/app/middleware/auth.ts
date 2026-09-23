@@ -1,18 +1,3 @@
-/**
- * Authentication and authorization. A credential resolves to an Actor, handlers read
- * `c.get("actor")`, and `requirePermission` gates every route. A route asks for a permission,
- * never a role or a scope: which role holds it is the operator's data.
- *
- * Credentials: a bearer token anywhere, or the session cookie on the `app` surface only.
- * When both are present the bearer wins.
- *
- * SameSite is not enough for the cookie: every preview is the same site as the app, and a
- * preview is somebody else's code. So the cookie uses the `__Host-` prefix (a preview cannot
- * plant a `Domain=` cookie over ours), and every cookie-authenticated non-read must carry a
- * matching `Origin` -- a preview can make the browser send our cookie with a plain form POST,
- * but cannot forge `Origin`. Bearer requests are exempt: a page cannot attach an
- * Authorization header cross-origin without a preflight we never answer.
- */
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { can, type Actor, type Permission, type TokenVerifier } from "../../auth/actor.ts";
@@ -23,22 +8,16 @@ import { problemResponse } from "../problem.ts";
 const BEARER = /^Bearer\s+(\S+)$/i;
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 
-/** Sent as `__Host-gw_session`. */
+// Sent as __Host-gw_session so a same-site preview running someone else's code cannot plant a Domain cookie over it.
 const SESSION_COOKIE = "gw_session";
 
 export type AuthDeps = {
   verifyToken: TokenVerifier;
-  /** Absent: bearer tokens only (the UI is off, or a test does not need it). */
   resolveSession?: ((secret: string) => Actor | null) | undefined;
-  /** The public origin a browser on `host` would send as `Origin`. */
   originFor?: ((host: string) => string) | undefined;
 };
 
-/**
- * True when the request could only have come from our own pages. `Sec-Fetch-Site` is
- * checked when the browser sends it -- a sibling preview is `same-site`, never
- * `same-origin` -- and `Origin` must match exactly. A missing Origin is a no.
- */
+// A sibling preview is same-site, never same-origin. Bearer requests skip this: a page cannot send Authorization cross-origin without a preflight.
 export function isSameOrigin(
   c: Context<AppEnv>,
   originFor: NonNullable<AuthDeps["originFor"]>,
@@ -49,14 +28,10 @@ export function isSameOrigin(
   return origin !== undefined && origin === originFor(c.req.header("host") ?? "");
 }
 
-/**
- * The actor for this request, or null. Throws 403 for a cookie that arrived cross-origin
- * on a mutation -- distinct from 401 on purpose: the credential was fine, the request was not.
- */
 export async function resolveActor(c: Context<AppEnv>, d: AuthDeps): Promise<Actor | null> {
   const header = c.req.header("authorization");
   if (header !== undefined) {
-    // A presented-but-wrong bearer never falls through to the cookie.
+    // A presented-but-wrong bearer never falls back to the cookie.
     const presented = BEARER.exec(header)?.[1];
     return presented ? await d.verifyToken(presented) : null;
   }
@@ -75,12 +50,9 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const actor = await resolveActor(c, d);
     if (!actor) {
-      // One response for "no credential" and "wrong credential": do not tell a scanner
-      // which of the two it has.
+      // Missing and wrong credentials get the same 401; a workflow token is only valid on its one route.
       return problemResponse(c, unauthorized(), { "www-authenticate": 'Bearer realm="gangway"' });
     }
-    // A workflow run is a credential for one route. Anywhere else it is nobody --
-    // a leaked token from a PR's CI must not list previews, read logs or deploy an image.
     if (actor.kind === "workflow" && !WORKFLOW_PATH.test(c.req.path)) {
       return problemResponse(
         c,
@@ -92,17 +64,10 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
   };
 }
 
-/** The only path a workflow actor reaches. The route checks the project is its repository's. */
 const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
 
-/** Marks the middleware so a test can prove no `/v1` route was registered without one. */
 export const PERMISSION_GUARD = Symbol("gangway.permission");
 
-/**
- * `alternatives`: a broader permission that also lets the actor in, where the narrow one is
- * checked again below with the row in hand -- `previews.update_own` or `previews.update`,
- * and the service decides whose preview it is. The route is marked with the first.
- */
 export function requirePermission(
   permission: Permission,
   ...alternatives: Permission[]
@@ -116,10 +81,6 @@ export function requirePermission(
   return Object.assign(guard, { [PERMISSION_GUARD]: permission });
 }
 
-/**
- * `Max-Age` is the absolute cap; the server decides when a session is really over, so the
- * cookie never has to be re-sent as the expiry slides.
- */
 export function setSessionCookie(c: Context<AppEnv>, secret: string, maxAgeSec: number): void {
   setCookie(c, SESSION_COOKIE, secret, {
     prefix: "host",

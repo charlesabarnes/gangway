@@ -4,16 +4,6 @@ import { Router } from '@angular/router';
 import { tap } from 'rxjs';
 import { AuthService } from './auth.service';
 
-/**
- * A 401 from the API means the session ended under an open tab -- expired, revoked by a
- * password reset, or the account was disabled. Forget it and go to login, remembering where
- * the person was.
- *
- * Not for `/v1/auth/*`: a 401 from login is the answer ("wrong password"), not a lost session.
- *
- * There is deliberately no CSRF header to add. The server checks `Origin`, which the
- * browser sends on its own and a hostile page cannot forge.
- */
 export const apiInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const router = inject(Router);
