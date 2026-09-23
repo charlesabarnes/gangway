@@ -15,6 +15,8 @@ import { roleRoutes } from "./app/routes/roles.ts";
 import { githubRoutes } from "./app/routes/github.ts";
 import { projectRoutes } from "./app/routes/projects.ts";
 import { surfaceRoutes } from "./app/routes/surfaces.ts";
+import { McpSurface } from "./app/mcp-surface.ts";
+import { Tools } from "./mcp/tools.ts";
 import { settingsRoutes } from "./app/routes/settings.ts";
 import { templateRoutes } from "./app/routes/templates.ts";
 import { tokenRoutes } from "./app/routes/tokens.ts";
@@ -298,6 +300,13 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     // the listener's: behind a reverse proxy they differ, and the browser only knows one.
     originFor: (host: string) => publicOriginFor(normalizeHost(host) ?? "", ctx.origin),
   };
+  /* ---- §10.2 the MCP surface (ADR-0019): bearer only. A workflow's OIDC token is not in its chain. */
+  const mcp = new McpSurface({
+    tools: new Tools({ ctx, deploys, logger: logger.child({ mod: "mcp" }) }),
+    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken)),
+    logger: logger.child({ mod: "mcp" }),
+  });
+
   const staticDir = resolve(import.meta.dir, "../../web/dist/browser");
   const app = createApp({
     logger: logger.child({ mod: "app" }),
@@ -320,6 +329,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
         settings, audit, apiOrigin,
         hasActiveAdmin: () => tokensRepo.hasActiveAdmin(Date.now()),
         mcpOrigin: () => publicOriginFor(`mcp.${baseDomain()}`, ctx.origin),
+        onMcpDisabled: () => mcp.dropAll(),
       });
       projectRoutes(api, {
         projects, audit, secrets, templates, pulls, apiOrigin,
@@ -404,7 +414,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
         limits: DEFAULT_LIMITS, timeoutMs: config.upstreamTimeoutMs, publicPort: config.publicPort,
       }) : null;
     }),
-    handlers: { app: surfaceHandler(app, "app"), api: surfaceHandler(app, "api"), hooks: hooks.handler() },
+    handlers: { app: surfaceHandler(app, "app"), api: surfaceHandler(app, "api"), hooks: hooks.handler(), mcp: mcp.handler() },
     logTailFor: (id) => ctx.logs.tail(id, 50),
     clientIpFor: (req) => resolveClientIp(clientIpOf(req), req.headers.get("x-forwarded-for")),
     onProxied: (entry) => table.touch(entry.hostname, Date.now()),

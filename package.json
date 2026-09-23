@@ -25,6 +25,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
     "@peculiar/x509": "^2.1.0",
     "acme-client": "^5.4.0",
     "dockerode": "^5.0.1",
