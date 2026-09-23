@@ -11,8 +11,8 @@ import {
   type Actor,
 } from "../../src/auth/actor.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
-import { Logger } from "../../src/logger.ts";
 import { META, PASSWORD, setupAccounts } from "../helpers/accounts.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 const DAY = 86_400_000;
 const ENV = tokenActor("env:admin", ["admin"]);
@@ -250,7 +250,7 @@ describe("listing and revoking", () => {
 describe("/v1/tokens", () => {
   const http = (tokens: Tokens, actor: Actor) => {
     const api = new Hono<AppEnv>();
-    api.onError(errorHandler(new Logger("error", {}, () => {})));
+    api.onError(errorHandler(silentLogger()));
     api.use(async (c, next) => {
       c.set("requestId", "r");
       c.set("actor", actor);

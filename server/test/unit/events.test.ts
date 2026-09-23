@@ -1,40 +1,28 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { eventRoutes } from "../../src/app/routes/events.ts";
 import { hostRoutes } from "../../src/app/routes/hosts.ts";
 import { staticTokenVerifier } from "../../src/auth/actor.ts";
 import { HostConfigSchema } from "../../src/config.ts";
-import { migrate } from "../../src/db/migrate.ts";
 import { EventsRepo, HostsRepo } from "../../src/db/repos/index.ts";
-import { openDatabase } from "../../src/db/sqlite.ts";
 import { EventBus } from "../../src/events/bus.ts";
 import { seedHosts } from "../../src/hosts/seed.ts";
-import { Logger } from "../../src/logger.ts";
 import { PreviewLogs } from "../../src/previews/logs.ts";
 import { place } from "../../src/scheduler/placement.ts";
 import { ulid } from "../../src/util/ulid.ts";
 import type { GangwayEvent, Host } from "@gangway/shared/domain";
+import { silentLogger } from "../helpers/logger.ts";
+import { tempDb } from "../helpers/db.ts";
 
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
 const TOKEN = "gw_test_admin_token_0123456789";
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
 
 function setup() {
-  const dir = mkdtempSync(join(tmpdir(), "gangway-events-"));
-  tmps.push(dir);
-  const { db } = openDatabase({ path: join(dir, "g.db") });
-  migrate(db, MIGRATIONS);
+  const { db, dir } = tempDb();
   const events = new EventsRepo(db);
   const hosts = new HostsRepo(db);
   const bus = new EventBus(events);
   const app = createApp({
-    logger: new Logger("error", {}, () => {}),
+    logger: silentLogger(),
     verifyToken: staticTokenVerifier(TOKEN),
     v1: (api) => {
       eventRoutes(api, bus, { heartbeatMs: 40 });

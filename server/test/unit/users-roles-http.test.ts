@@ -5,34 +5,20 @@
  */
 import { describe, expect, test } from "bun:test";
 import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "@gangway/shared/permissions";
-import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { requirePermission } from "../../src/app/middleware/auth.ts";
-import { authRoutes } from "../../src/app/routes/auth.ts";
 import { roleRoutes } from "../../src/app/routes/roles.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { userRoutes } from "../../src/app/routes/users.ts";
-import { chainVerifiers, staticTokenVerifier } from "../../src/auth/actor.ts";
-import { Bootstrap } from "../../src/auth/bootstrap.ts";
-import { Tokens } from "../../src/auth/tokens.ts";
-import { Logger } from "../../src/logger.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
+import { signedInApp } from "../helpers/http.ts";
 
 const ENV_TOKEN = "gw_users_roles_env_token_0123456789";
-const HOST = "app.preview.localhost:8443";
-const ORIGIN = `https://${HOST}`;
 
 async function make() {
   const s = setupAccounts();
-  const tokens = new Tokens(s.tokensRepo, s.roles, s.audit, s.now);
-  const auth = {
-    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(ENV_TOKEN)),
-    resolveSession: (secret: string) => s.sessions.resolve(secret)?.actor ?? null,
-    originFor: (host: string) => `https://${host}`,
-  };
-  const app = createApp({
-    ...auth,
-    logger: new Logger("error", {}, () => {}),
-    v1: (api) => {
+  const { call, login, ada } = await signedInApp(s, {
+    envToken: ENV_TOKEN,
+    v1: (api, tokens) => {
       userRoutes(api, s.accounts);
       roleRoutes(api, s.roles);
       tokenRoutes(api, tokens);
@@ -40,41 +26,7 @@ async function make() {
         c.json({ destroyed: c.req.param("id") }),
       );
     },
-    publicV1: (pub) =>
-      authRoutes(pub, {
-        auth,
-        accounts: s.accounts,
-        bootstrap: new Bootstrap(() => s.users.count()),
-        roles: s.roles,
-        sessionMaxAgeSec: 60,
-      }),
   });
-  const handle = surfaceHandler(app, "app");
-  const call = (path: string, init: RequestInit & { json?: unknown; as?: string } = {}) => {
-    const headers = new Headers(init.headers);
-    headers.set("host", HOST);
-    headers.set("origin", ORIGIN);
-    if (init.as?.startsWith("gw_")) headers.set("authorization", `Bearer ${init.as}`);
-    else if (init.as) headers.set("cookie", init.as);
-    if (init.json !== undefined) headers.set("content-type", "application/json");
-    return Promise.resolve(
-      handle(
-        new Request(`https://${HOST}${path}`, {
-          ...init,
-          headers,
-          ...(init.json === undefined ? {} : { body: JSON.stringify(init.json) }),
-        }),
-        { clientIp: "203.0.113.7" },
-      ),
-    );
-  };
-  const login = async (email: string, password = PASSWORD) =>
-    (await call("/v1/auth/login", { method: "POST", json: { email, password } })).headers
-      .get("set-cookie")!
-      .split(";")[0]!;
-
-  await s.admin();
-  const ada = await login("ada@example.com");
   const addUser = async (email: string, roleId: string) =>
     (
       (await (

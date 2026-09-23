@@ -13,7 +13,6 @@ import { chainVerifiers, staticTokenVerifier, type Actor } from "../../src/auth/
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
 import { IdempotencyRepo, OAuthGrantsRepo } from "../../src/db/repos/index.ts";
-import { Logger } from "../../src/logger.ts";
 import { Tools } from "../../src/mcp/tools.ts";
 import {
   checkClientIdUrl,
@@ -36,8 +35,9 @@ import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
 import { dirname } from "node:path";
+import { silentLogger } from "../helpers/logger.ts";
 
-const quiet = new Logger("error", {}, () => {});
+const quiet = silentLogger();
 const CLAUDE = "https://claude.ai/oauth/claude-code-client-metadata";
 const CONNECTOR = "https://claude.ai/api/mcp/auth_callback";
 const ISSUER = "https://app.preview.localhost:8443";

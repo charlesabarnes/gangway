@@ -5,6 +5,7 @@ import path from "node:path";
 import { cloneRepo, DEFAULT_ALLOWED_HOSTS } from "../../src/previews/source/git.ts";
 import { GitError, type CloneRejection } from "../../src/previews/source/types.ts";
 import { Logger, redactString } from "../../src/logger.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 /** Shaped like a real GitHub App installation token so the redactor recognises it. */
 const TOKEN = `ghs_${"A1b2C3d4E5f6G7h8".repeat(2)}`;
@@ -277,7 +278,7 @@ describe("cloneRepo credential handling", () => {
       destDir: dest,
       allowedHosts: ["file"],
       gitPath: await spyGit(spyOut),
-      logger: new Logger("error", {}, () => {}),
+      logger: silentLogger(),
     });
     const env = await readFile(path.join(spyOut, "env.txt"), "utf8");
     expect(env).not.toContain("GIT_ASKPASS=");
@@ -308,7 +309,7 @@ describe("cloneRepo timeout", () => {
           allowedHosts: ["file"],
           gitPath: hangingGit,
           timeoutMs: 300,
-          logger: new Logger("error", {}, () => {}),
+          logger: silentLogger(),
         }),
       "clone_timeout",
     );
@@ -346,7 +347,7 @@ describe("cloneRepo by commit sha (a pull request's head)", () => {
           ref: "0123456789abcdef0123456789abcdef01234567",
           destDir: dest,
           allowedHosts: ["file"],
-          logger: new Logger("error", {}, () => {}),
+          logger: silentLogger(),
         }),
       "clone_failed",
     );

@@ -1,11 +1,11 @@
 /** Idle-sleep and wake through the real pipeline with a fake compose. */
 import { describe, expect, test } from "bun:test";
-import { Logger } from "../../src/logger.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
 import { Waker, sleepPreview, sweepIdle } from "../../src/previews/sleep.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
-const quiet = new Logger("error", {}, () => {});
+const quiet = silentLogger();
 const MIN = 60_000;
 
 describe("sleepPreview", () => {

@@ -1,11 +1,7 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import { openDatabase as openBun } from "../../src/db/sqlite.ts";
 import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import type { Db, OpenOptions } from "../../src/db/types.ts";
-import { migrate } from "../../src/db/migrate.ts";
 import {
   CertificatesRepo,
   EventsRepo,
@@ -16,12 +12,7 @@ import {
   SqliteSettingsStore,
 } from "../../src/db/repos/index.ts";
 import { SETTINGS, Settings } from "../../src/settings.ts";
-
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
+import { tempDb } from "../helpers/db.ts";
 
 const DRIVERS: [string, (o: OpenOptions) => { db: Db }][] = [
   ["bun", openBun],
@@ -45,10 +36,7 @@ for (const [name, open] of DRIVERS) {
     const now = () => clock;
 
     const setup = () => {
-      const d = mkdtempSync(join(tmpdir(), "gangway-repo-"));
-      tmps.push(d);
-      const { db } = open({ path: join(d, "g.db") });
-      migrate(db, MIGRATIONS, now);
+      const { db } = tempDb({ open, now });
       return {
         db,
         hosts: new HostsRepo(db, now),

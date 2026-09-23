@@ -1,21 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as x509 from "@peculiar/x509";
 import { createCa, issueLeaf, loadOrCreateCa } from "../../src/tls/selfsigned.ts";
 import { CertStore } from "../../src/tls/certstore.ts";
 import { FileProvider, SelfSignedProvider, RENEWAL_WINDOW_MS } from "../../src/tls/provider.ts";
-
-const tmps: string[] = [];
-const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), "gangway-tls-"));
-  tmps.push(d);
-  return d;
-};
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
+import { tempDir } from "../helpers/db.ts";
 
 const sans = (pem: string) => {
   const c = new x509.X509Certificate(
@@ -68,7 +58,7 @@ describe("dev CA", () => {
   });
 
   test("the CA persists across restarts so it is trusted once, not every boot", async () => {
-    const dir = tmp();
+    const dir = tempDir();
     const a = await loadOrCreateCa(dir);
     const b = await loadOrCreateCa(dir);
     expect(a.ca.certPem).toBe(b.ca.certPem);
@@ -87,7 +77,7 @@ describe("dev CA", () => {
 
 describe("SelfSignedProvider", () => {
   test("produces a bundle Bun.serve can consume", async () => {
-    const p = new SelfSignedProvider(tmp());
+    const p = new SelfSignedProvider(tempDir());
     const bundle = await p.ensure(["*.preview.localhost", "preview.localhost"]);
     expect(bundle.materials).toHaveLength(1);
     // Bun requires serverName on every tls array entry or it throws ERR_INVALID_ARG_TYPE.
@@ -96,7 +86,7 @@ describe("SelfSignedProvider", () => {
   });
 
   test("renewal is due when expiry falls inside the window", async () => {
-    const p = new SelfSignedProvider(tmp());
+    const p = new SelfSignedProvider(tempDir());
     const bundle = await p.ensure(["*.preview.localhost"]);
     expect(p.isDue(bundle)).toBe(false);
     const nearExpiry = bundle.materials[0]!.notAfter!.getTime() - RENEWAL_WINDOW_MS + 1000;
@@ -107,7 +97,7 @@ describe("SelfSignedProvider", () => {
 
 describe("FileProvider", () => {
   test("loads material from disk and never auto-renews", async () => {
-    const dir = tmp();
+    const dir = tempDir();
     const ca = await createCa();
     const leaf = await issueLeaf(ca, ["*.preview.test"]);
     await Bun.write(join(dir, "c.pem"), leaf.cert);

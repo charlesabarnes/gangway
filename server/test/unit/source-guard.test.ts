@@ -1,20 +1,15 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   assertNoEscapingSymlinks,
   inspectComposeFile,
   referencedFiles,
 } from "../../src/previews/source/guard.ts";
+import { tempDir } from "../helpers/db.ts";
 
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
 const tree = (files: Record<string, string> = {}) => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "gangway-guard-")));
-  tmps.push(dir);
+  const dir = realpathSync(tempDir());
   for (const [name, content] of Object.entries(files)) {
     mkdirSync(join(dir, name, ".."), { recursive: true });
     writeFileSync(join(dir, name), content);

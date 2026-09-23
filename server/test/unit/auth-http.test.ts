@@ -4,8 +4,8 @@ import { requirePermission } from "../../src/app/middleware/auth.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
 import { actorId, staticTokenVerifier } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
-import { Logger } from "../../src/logger.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
+import { silentLogger } from "../helpers/logger.ts";
 
 const TOKEN = "gw_http_test_admin_token_0123456789";
 const APP = "https://app.preview.localhost:8443";
@@ -21,7 +21,7 @@ function make() {
   };
   const app = createApp({
     ...auth,
-    logger: new Logger("error", {}, () => {}),
+    logger: silentLogger(),
     v1: (api) => {
       api.get("/whoami", requirePermission("previews.read"), (c) =>
         c.json({ id: actorId(c.get("actor")) }),

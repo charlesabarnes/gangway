@@ -1,14 +1,10 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import {
   ALL_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
   PERMISSIONS,
 } from "@gangway/shared/permissions";
 import { RolePermissions } from "../../src/auth/roles.ts";
-import { migrate } from "../../src/db/migrate.ts";
 import {
   AuditRepo,
   RolesRepo,
@@ -19,12 +15,7 @@ import {
 import { openDatabase as openBun } from "../../src/db/sqlite.ts";
 import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import type { Db, OpenOptions } from "../../src/db/types.ts";
-
-const MIGRATIONS = join(import.meta.dir, "../../migrations");
-const tmps: string[] = [];
-afterEach(() => {
-  for (const d of tmps.splice(0)) rmSync(d, { recursive: true, force: true });
-});
+import { tempDb } from "../helpers/db.ts";
 
 const DRIVERS: [string, (o: OpenOptions) => { db: Db }][] = [
   ["bun", openBun],
@@ -40,10 +31,7 @@ for (const [name, open] of DRIVERS) {
 
     const setup = () => {
       clock = 1_700_000_000_000;
-      const d = mkdtempSync(join(tmpdir(), "gangway-acct-"));
-      tmps.push(d);
-      const { db } = open({ path: join(d, "g.db") });
-      migrate(db, MIGRATIONS, now);
+      const { db } = tempDb({ open, now });
       const users = new UsersRepo(db, now);
       const ada = () =>
         users.create({

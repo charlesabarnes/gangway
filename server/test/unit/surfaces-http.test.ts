@@ -3,33 +3,20 @@
  * the audit row, and the MCP drop hook.
  */
 import { describe, expect, test } from "bun:test";
-import { createApp, surfaceHandler } from "../../src/app/app.ts";
-import { authRoutes } from "../../src/app/routes/auth.ts";
 import { surfaceRoutes } from "../../src/app/routes/surfaces.ts";
-import { chainVerifiers, staticTokenVerifier } from "../../src/auth/actor.ts";
-import { Bootstrap } from "../../src/auth/bootstrap.ts";
-import { Tokens } from "../../src/auth/tokens.ts";
-import { Logger } from "../../src/logger.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
+import { signedInApp } from "../helpers/http.ts";
 
 const ENV_TOKEN = "gw_surfaces_env_token_0123456789abcdef";
-const HOST = "app.preview.localhost:8443";
 const PHRASE = "disable the UI";
 
 async function make(pins: Record<string, unknown> = {}) {
   const s = setupAccounts();
   const settings = new Settings(pins, new MemorySettingsStore());
-  const tokens = new Tokens(s.tokensRepo, s.roles, s.audit, s.now);
-  const auth = {
-    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(ENV_TOKEN)),
-    resolveSession: (secret: string) => s.sessions.resolve(secret)?.actor ?? null,
-    originFor: (host: string) => `https://${host}`,
-  };
   let drops = 0;
-  const app = createApp({
-    ...auth,
-    logger: new Logger("error", {}, () => {}),
+  const { call, login, ada, tokens, admin } = await signedInApp(s, {
+    envToken: ENV_TOKEN,
     v1: (api) =>
       surfaceRoutes(api, {
         settings,
@@ -41,43 +28,10 @@ async function make(pins: Record<string, unknown> = {}) {
           drops++;
         },
       }),
-    publicV1: (pub) =>
-      authRoutes(pub, {
-        auth,
-        accounts: s.accounts,
-        bootstrap: new Bootstrap(() => s.users.count()),
-        roles: s.roles,
-        sessionMaxAgeSec: 60,
-      }),
   });
-  const handle = surfaceHandler(app, "app");
-  const call = (path: string, init: RequestInit & { json?: unknown; as?: string } = {}) => {
-    const headers = new Headers(init.headers);
-    headers.set("host", HOST);
-    headers.set("origin", `https://${HOST}`);
-    if (init.as?.startsWith("gw_")) headers.set("authorization", `Bearer ${init.as}`);
-    else if (init.as) headers.set("cookie", init.as);
-    if (init.json !== undefined) headers.set("content-type", "application/json");
-    return Promise.resolve(
-      handle(
-        new Request(`https://${HOST}${path}`, {
-          ...init,
-          headers,
-          ...(init.json === undefined ? {} : { body: JSON.stringify(init.json) }),
-        }),
-        { clientIp: "203.0.113.7" },
-      ),
-    );
-  };
-  const { user } = await s.admin();
-  const login = async (email: string) =>
-    (await call("/v1/auth/login", { method: "POST", json: { email, password: PASSWORD } })).headers
-      .get("set-cookie")!
-      .split(";")[0]!;
-  const ada = await login("ada@example.com");
   const adaActor = {
     kind: "user",
-    userId: user.id,
+    userId: admin.id,
     roleId: "admin",
     sessionId: "x",
     permissions: s.roles.for("admin"),
