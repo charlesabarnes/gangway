@@ -1,4 +1,3 @@
-/** Tarball and git sources through the real pipeline (fake compose, real extraction). */
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { pack } from "tar-stream";
@@ -24,7 +23,7 @@ const COMPOSE = `services:\n  web:\n    build: .\n    x-gangway: { expose: true,
 const base = { actor: ACTOR, visibility: "public" as const };
 
 describe("tarball source", () => {
-  test("compose.yaml + Dockerfile: built, started, awake -- and the build is on record", async () => {
+  test("compose.yaml and a Dockerfile are built and started, and the build is on record", async () => {
     const s = setupPreviewContext();
     const archive = await tarball([
       { name: "compose.yaml", content: COMPOSE },
@@ -69,7 +68,7 @@ describe("tarball source", () => {
     });
   });
 
-  test("a failed build fails the preview, is recorded with its exit code, and nothing is started", async () => {
+  test("a failed build fails the preview, is recorded with its exit code, starts nothing", async () => {
     const s = setupPreviewContext();
     s.fake.buildExit = 17;
     const res = await deploy(s.ctx, {
@@ -127,7 +126,7 @@ describe("tarball source", () => {
       "may not have",
     ],
   ])(
-    "refused: %s -- as a 422, leaving no preview, no workdir and no log behind",
+    "refuses %s as a 422, leaving no preview, workdir or log behind",
     async (_what, entries, message) => {
       const s = setupPreviewContext();
       await expect(
@@ -215,7 +214,7 @@ describe("git source", () => {
 describe("the seed hook", () => {
   const SEEDED = `services:\n  web:\n    build: .\n    x-gangway: { expose: true, port: 3000 }\n  db:\n    image: postgres:16\nx-gangway:\n  seed: ./scripts/seed.sh --fast\n`;
 
-  test("runs once in the primary service after the stack is healthy and before the URL answers; its output is the `seed` stream", async () => {
+  test("runs once in the primary service between healthy and awake, logged as `seed`", async () => {
     const s = setupPreviewContext();
     const archive = await tarball([
       { name: "compose.yaml", content: SEEDED },
@@ -242,7 +241,6 @@ describe("the seed hook", () => {
     ]);
     const lines = s.ctx.logs.read(res.preview.id);
     const at = (needle: string) => lines.findIndex((l) => l.line.includes(needle));
-    // Order: up, then healthy, then the seed, then awake.
     expect(at("$ compose up")).toBeLessThan(at("seeding: ./scripts/seed.sh --fast (in web)"));
     expect(at("seeding:")).toBeLessThan(at("awake"));
     expect(lines.some((l) => l.stream === "seed" && l.line === "seeded 3 rows")).toBe(true);
@@ -303,7 +301,7 @@ describe("repository secrets become .env", () => {
     return () => seen;
   };
 
-  test("`env` on the input is written before compose reads anything; a committed .env is kept and the secrets appended", async () => {
+  test("`env` is appended to a committed .env before compose reads anything", async () => {
     const s = setupPreviewContext();
     const read = dotenvAtConfig(s);
     const archive = await tarball([
@@ -327,7 +325,7 @@ describe("repository secrets become .env", () => {
     expect(s.ctx.logs.tail(res.preview.id).join("\n")).not.toContain("fa-real");
   });
 
-  test("no env and no lookup: no .env; an empty env given explicitly: no .env either (a fork)", async () => {
+  test("an explicitly empty env, as a fork gets, writes no .env despite a lookup", async () => {
     const s = setupPreviewContext();
     const read = dotenvAtConfig(s);
     s.ctx.secretsFor = () => ({ LEAK: "no" });
@@ -341,7 +339,7 @@ describe("repository secrets become .env", () => {
     expect(read()).toBeNull();
   });
 
-  test("absent on the input, the context supplies the secrets at the template's clearance", async () => {
+  test("without `env`, the context supplies secrets at the template's clearance", async () => {
     const s = setupPreviewContext();
     const read = dotenvAtConfig(s);
     const asked: [string | null, string][] = [];
@@ -362,7 +360,7 @@ describe("repository secrets become .env", () => {
     await res.done;
     expect(asked).toEqual([[null, "low"]]); // no repository: the global map alone
     expect(read()).toContain('FROM_CTX="1"');
-    expect(s.previews.get(res.preview.id)!.secretLevel).toBe("low"); // the clearance the template gave is what the row records
+    expect(s.previews.get(res.preview.id)!.secretLevel).toBe("low");
     expect(s.previews.get(res.preview.id)!.templateId).toBe("default");
   });
 
