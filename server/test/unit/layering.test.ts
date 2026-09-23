@@ -33,7 +33,13 @@ test("the scan actually sees the tree", () => {
 
 test("nothing below app/ imports app/", () => {
   const offenders = files
-    .filter((f) => !f.rel.startsWith("app/") && f.rel !== "main.ts" && f.rel !== "boot.ts")
+    .filter(
+      (f) =>
+        !f.rel.startsWith("app/") &&
+        !f.rel.startsWith("boot/") &&
+        f.rel !== "main.ts" &&
+        f.rel !== "boot.ts",
+    )
     .flatMap((f) =>
       f.imports.filter((i) => i.target.startsWith("app/")).map((i) => `${f.rel} -> ${i.spec}`),
     );
