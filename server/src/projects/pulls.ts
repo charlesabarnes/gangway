@@ -1,7 +1,7 @@
 import { hasRepo, type Preview, type Project } from "@gangway/shared/domain";
 import type { Actor } from "../auth/actor.ts";
 import { AppError, conflict, forbidden, notFound } from "../errors.ts";
-import type { DeployInput, DeployResult, RegistryLogin } from "../previews/deploy.ts";
+import type { DeployInput, DeployResult, RegistryLogin } from "../previews/deploy-types.ts";
 
 export type PullDeployRequest = {
   image: string;

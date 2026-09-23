@@ -3,9 +3,11 @@ import type { Preview } from "@gangway/shared/domain";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { unprocessable } from "../errors.ts";
-import { urlsFor, type DeploySource } from "../previews/deploy.ts";
+import { urlsFor } from "../previews/deploy-names.ts";
+import type { DeploySource } from "../previews/deploy-types.ts";
 import { requestHash } from "../previews/idempotent.ts";
-import { redeploy, type RedeployInput } from "../previews/redeploy.ts";
+import type { RedeployInput } from "../previews/redeploy-input.ts";
+import { redeploy } from "../previews/redeploy.ts";
 import { httpStatus } from "../previews/probe.ts";
 import { describePlan, describePreview, logTail } from "./describe.ts";
 import { packFiles } from "./pack.ts";
@@ -18,7 +20,7 @@ import {
   TOOL_PERMISSIONS,
 } from "./tool-access.ts";
 import { DEFAULT_WAIT_S, type DeployArgs } from "./tool-specs.ts";
-import type { CallScope, ToolDeps } from "./tools.ts";
+import type { CallScope, ToolDeps } from "./tool-deps.ts";
 import type { Taken, Uploads } from "./uploads.ts";
 
 const FAIL_TAIL = 20;

@@ -6,7 +6,7 @@ import { createComposeRunner, type ComposeRunner } from "../docker/runner.ts";
 import { githubFullName } from "../forge/github/webhook.ts";
 import type { Logger } from "../logger.ts";
 import { DEFAULT_TIMINGS, type PreviewContext } from "../previews/context.ts";
-import type { DeploySource } from "../previews/deploy.ts";
+import type { DeploySource } from "../previews/deploy-types.ts";
 import { PreviewLogs } from "../previews/logs.ts";
 import { PolicyResolver } from "../previews/policy.ts";
 import { httpProbe, type RouteProbe } from "../previews/probe.ts";

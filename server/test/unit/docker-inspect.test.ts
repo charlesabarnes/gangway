@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ContainerSummary } from "../../src/docker/client.ts";
+import type { ContainerSummary } from "../../src/docker/client-types.ts";
 import { buildLabels, type GangwayLabels } from "../../src/docker/labels.ts";
 import {
   classifyContainer,
@@ -12,8 +12,8 @@ import {
   portDrift,
   publishedPorts,
   scanManaged,
-  type InspectJson,
 } from "../../src/docker/inspect.ts";
+import type { InspectJson } from "../../src/docker/inspect-json.ts";
 
 /* A captured-shape inspect payload. Everything here is a judgement about JSON, which is
    why none of it needs a daemon. */

@@ -16,7 +16,7 @@ import type { Workdirs } from "./source/workdir.ts";
 import type { SourceStore } from "./source/store.ts";
 import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
-import type { PreviewPasswordDeps } from "./password.ts";
+import type { PreviewPasswordDeps } from "./password-deps.ts";
 
 export type PreviewTimings = {
   startTimeoutMs: number;

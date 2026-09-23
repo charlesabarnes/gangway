@@ -1,7 +1,7 @@
 import type { DockerClients } from "../docker/client.ts";
 import type { Hooks } from "../forge/hooks.ts";
 import type { PreviewContext } from "../previews/context.ts";
-import type { ReconcileReport } from "../reconcile/reconciler.ts";
+import type { ReconcileReport } from "../reconcile/reconciler-types.ts";
 import { flushLastSeen } from "../scheduler/jobs.ts";
 import type { Scheduler } from "../scheduler/scheduler.ts";
 import { drain } from "../util/async.ts";

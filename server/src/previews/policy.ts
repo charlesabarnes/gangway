@@ -2,7 +2,7 @@ import type { Project, Template, Trigger } from "@gangway/shared/domain";
 import type { Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
 import type { Logger } from "../logger.ts";
-import type { DeploySource } from "./deploy.ts";
+import type { DeploySource } from "./deploy-types.ts";
 
 export type PolicyInput = {
   source: DeploySource;

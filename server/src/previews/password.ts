@@ -1,24 +1,12 @@
 import { randomInt } from "node:crypto";
 import type { PasswordChoice } from "@gangway/shared/api";
-import type {
-  DefaultPasswordMode,
-  PasswordLogin,
-  Preview,
-  PreviewAccess,
-} from "@gangway/shared/domain";
+import type { PasswordLogin, Preview, PreviewAccess } from "@gangway/shared/domain";
 import { actorId, type Actor } from "../auth/actor.ts";
-import type { Passwords } from "../auth/password.ts";
 import type { StoredPreviewPassword } from "../db/repos/previews.ts";
 import { notFound, unprocessable } from "../errors.ts";
 import type { EntryPassword } from "../routing/table.ts";
 import type { PreviewContext } from "./context.ts";
-
-export type PreviewPasswordDeps = {
-  passwords: Pick<Passwords, "hash">;
-  defaultMode: () => DefaultPasswordMode;
-  sharedSet?: () => boolean;
-  loginDefault?: () => boolean;
-};
+import type { PreviewPasswordDeps } from "./password-deps.ts";
 
 export function previewAccess(
   deps: PreviewPasswordDeps | undefined,

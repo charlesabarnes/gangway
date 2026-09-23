@@ -1,11 +1,12 @@
 import type { Host, Visibility } from "@gangway/shared/domain";
-import { verifyDaemon, type ContainerSummary } from "../docker/client.ts";
+import { verifyDaemon } from "../docker/client.ts";
+import type { ContainerSummary } from "../docker/client-types.ts";
 import { DockerGuardError } from "../docker/guard.ts";
 import { LABEL, MANAGED_FILTER } from "../docker/labels.ts";
 import { errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import type { ScannedContainer, ScannedLabels } from "./diff.ts";
-import type { HostScan, ReconcilerDeps } from "./reconciler.ts";
+import type { HostScan, ReconcilerDeps } from "./reconciler-types.ts";
 
 const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
 

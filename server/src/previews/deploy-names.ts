@@ -3,7 +3,7 @@ import { slugify } from "@gangway/shared/hostname";
 import type { RuntimeId } from "@gangway/shared/runtimes";
 import { publicOriginFor } from "@gangway/shared/url";
 import type { PreviewContext } from "./context.ts";
-import type { DeploySource, PreviewUrl } from "./deploy.ts";
+import type { DeploySource, PreviewUrl } from "./deploy-types.ts";
 
 export function unguessable(): string {
   const alphabet = "abcdefghjkmnpqrstvwxyz0123456789";

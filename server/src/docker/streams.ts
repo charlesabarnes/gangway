@@ -1,4 +1,4 @@
-import type { DockerEvent, LogLine, LogStream } from "./client.ts";
+import type { DockerEvent, LogLine, LogStream } from "./client-types.ts";
 
 const DEMUX_HEADER = 8;
 

@@ -6,7 +6,7 @@ import { composeArgv } from "../docker/compose.ts";
 import { AppError, unprocessable } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { buildStack, parseComposeModel, type ComposeModel } from "./compose-model.ts";
-import type { PlannedRoute } from "./compose-routes.ts";
+import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
 import type { Workdir } from "./source/workdir.ts";
 

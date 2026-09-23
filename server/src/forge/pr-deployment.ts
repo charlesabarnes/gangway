@@ -1,6 +1,6 @@
-import type { PreviewUrl } from "../previews/deploy.ts";
+import type { PreviewUrl } from "../previews/deploy-types.ts";
 import type { ForgeRepo, PullRequest } from "./forge.ts";
-import type { PrPreviewsDeps } from "./pr-previews.ts";
+import type { PrPreviewsDeps } from "./pr-previews-deps.ts";
 
 type DeploymentDeps = Pick<PrPreviewsDeps, "forge" | "logger" | "logUrlFor">;
 

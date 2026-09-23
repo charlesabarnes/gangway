@@ -6,12 +6,8 @@ import { can, permissionsForScopes, type Actor, type TokenVerifier } from "../au
 import type { RolePermissions } from "../auth/roles.ts";
 import type { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { forbidden, notFound, unprocessable } from "../errors.ts";
-import {
-  checkAuthorizeRequest,
-  OAUTH_SCOPES,
-  singleParams,
-  type OAuthScope,
-} from "./authorize-request.ts";
+import { checkAuthorizeRequest, singleParams } from "./authorize-request.ts";
+import { OAUTH_SCOPES, type OAuthScope } from "./scopes.ts";
 import {
   ClientMetadataError,
   redirectAllowed,

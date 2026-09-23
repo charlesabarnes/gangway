@@ -1,10 +1,10 @@
-import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
+import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Host, Preview } from "@gangway/shared/domain";
-import { actorId, mayRebuild, type Actor } from "../auth/actor.ts";
+import { actorId, mayRebuild } from "../auth/actor.ts";
 import { psArgv, upArgv } from "../docker/compose.ts";
 import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors.ts";
 import { ulid } from "../util/ulid.ts";
-import type { PlannedRoute } from "./compose-routes.ts";
+import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
 import {
   buildImages,
@@ -18,24 +18,14 @@ import {
   type RunPlan,
 } from "./pipeline.ts";
 import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
+import type { RedeployInput } from "./redeploy-input.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
-import type { RuntimeChoice } from "./runtimes.ts";
-import type { SourceEdits } from "./source-edits.ts";
 import type { SourceStore } from "./source/store.ts";
-import type { TarballSource } from "./source/tarball.ts";
 import { writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
 
 export { checkEditPath, type SourceEdits } from "./source-edits.ts";
-
-export type RedeployInput = {
-  actor: Actor;
-  previewId: string;
-  change: { kind: "replace"; archive: TarballSource } | { kind: "edit"; files: SourceEdits };
-  runtime?: RuntimeChoice | undefined;
-  addons?: readonly AddonRequest[] | undefined;
-};
 
 export type RedeployOutcome = {
   preview: Preview;
