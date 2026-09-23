@@ -25,7 +25,8 @@ export type AuditAction =
   | "github.connected" | "repo.updated" | "repo.deleted" | "repo.env.changed" | "secrets.changed"
   | "project.created" | "project.updated" | "project.deleted" | "project.env.changed"
   | "template.created" | "template.updated" | "template.deleted"
-  | "token.created" | "token.revoked";
+  | "token.created" | "token.revoked"
+  | "oauth.grant.created" | "oauth.grant.revoked";
 
 export type AuditChange = { old?: unknown; new?: unknown };
 

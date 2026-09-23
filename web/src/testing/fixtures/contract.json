@@ -467,5 +467,59 @@
     },
     "mcpUrl": "https://mcp.preview.localhost:8443"
   },
-  "disableUiPhrase": "disable the UI"
+  "disableUiPhrase": "disable the UI",
+  "oauthRequest": {
+    "id": "Zm9vYmFyYmF6cXV4cXV1eHF1dXhxdXV4",
+    "client": {
+      "id": "https://claude.ai/oauth/claude-code-client-metadata",
+      "name": "Claude",
+      "host": "claude.ai"
+    },
+    "redirectUri": "https://claude.ai/api/mcp/auth_callback",
+    "redirectHost": "claude.ai",
+    "resource": "https://mcp.preview.localhost:8443",
+    "requested": [
+      "read",
+      "deploy"
+    ],
+    "grantable": [
+      "read",
+      "deploy"
+    ],
+    "scopePermissions": {
+      "read": [
+        "previews.read",
+        "logs.read",
+        "events.read",
+        "hosts.read"
+      ],
+      "deploy": [
+        "previews.read",
+        "logs.read",
+        "events.read",
+        "hosts.read",
+        "previews.deploy",
+        "previews.destroy"
+      ]
+    },
+    "expiresAt": "2026-09-22T12:10:00.000Z"
+  },
+  "oauthGrant": {
+    "id": "01K5AAAAAAAAAAAAAAAAAAAAAA",
+    "userId": "01K5BBBBBBBBBBBBBBBBBBBBBB",
+    "clientId": "https://claude.ai/oauth/claude-code-client-metadata",
+    "clientName": "Claude",
+    "redirectUri": "https://claude.ai/api/mcp/auth_callback",
+    "scopes": [
+      "read",
+      "deploy"
+    ],
+    "createdAt": "2026-09-22T12:00:00.000Z",
+    "lastUsedAt": null,
+    "expiresAt": "2026-12-21T12:00:00.000Z",
+    "revokedAt": null
+  },
+  "oauthDecided": {
+    "redirect": "https://claude.ai/api/mcp/auth_callback?code=abc&state=xyz&iss=https%3A%2F%2Fapp.preview.localhost%3A8443"
+  }
 }

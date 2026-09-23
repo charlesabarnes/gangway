@@ -29,6 +29,11 @@ export type AppDeps = AuthDeps & {
    * -- and anything that is not one of them still does, so an unknown /v1 path stays a 401.
    */
   publicV1?: ((pub: Hono<AppEnv>) => void) | undefined;
+  /**
+   * Routes OUTSIDE /v1 that are not the static shell: the OAuth authorization server's
+   * metadata, authorize and token endpoints (ADR-0020). Each answers for its own access.
+   */
+  root?: ((app: Hono<AppEnv>) => void) | undefined;
   health?: () => Record<string, unknown>;
   /** True once shutdown has begun: the control plane answers 503 while previews keep serving. */
   draining?: () => boolean;
@@ -73,6 +78,8 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
     if (!d.draining?.()) return next();
     return problemResponse(c, new AppError("unavailable", "gangway is shutting down"), { "retry-after": "5", connection: "close" });
   });
+
+  d.root?.(app);
 
   if (d.publicV1) {
     const pub = new Hono<AppEnv>();

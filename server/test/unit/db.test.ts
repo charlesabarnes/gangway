@@ -86,7 +86,7 @@ for (const [name, open] of DRIVERS) {
     test("the real 0001 schema applies and enforces its constraints", () => {
       const { db } = fresh();
       const res = migrate(db, MIGRATIONS);
-      expect(res.applied).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(res.applied).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
       const now = Date.now();
       db.run(`INSERT INTO hosts (id, name, docker_host, created_at)
@@ -121,12 +121,12 @@ for (const [name, open] of DRIVERS) {
     test("migrate is idempotent across reopen", () => {
       const dir = tmp();
       const a = open({ path: join(dir, "g.db") });
-      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(migrate(a.db, MIGRATIONS).applied).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
       a.db.close();
       const b = open({ path: join(dir, "g.db") });
       const r = migrate(b.db, MIGRATIONS);
       expect(r.applied).toEqual([]);
-      expect(r.alreadyApplied).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(r.alreadyApplied).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
       b.db.close();
     });
 
@@ -178,7 +178,7 @@ for (const [name, open] of DRIVERS) {
         a.db.close();
 
         const b = open({ path });
-        expect(migrate(b.db, MIGRATIONS).applied).toEqual([3, 4, 5, 6, 7, 8]);
+        expect(migrate(b.db, MIGRATIONS).applied).toEqual([3, 4, 5, 6, 7, 8, 9]);
         expect(b.db.get<Record<string, unknown>>("SELECT id, email, role_id, disabled, created_at FROM users")).toEqual(
           { id: "u1", email: "ada@example.com", role_id: "member", disabled: 1, created_at: 42 });
         expect(b.db.query("PRAGMA foreign_key_check")).toEqual([]);
@@ -247,7 +247,7 @@ for (const [name, open] of DRIVERS) {
         a.db.close();
 
         const b = open({ path });
-        expect(migrate(b.db, MIGRATIONS).applied).toEqual([8]);
+        expect(migrate(b.db, MIGRATIONS).applied).toEqual([8, 9]);
         expect(b.db.get<Record<string, unknown>>("SELECT id, name, slug, forge, full_name, installation_id, pr_trigger, template_id, visibility, pr_clearance, env_ciphertext FROM projects")).toEqual({
           id: "r1", name: "store-admin", slug: "store-admin", forge: "github", full_name: "charlesabarnes/store-admin", installation_id: "42",
           pr_trigger: "webhook", template_id: "default", visibility: "private", pr_clearance: "high", env_ciphertext: "sealed",

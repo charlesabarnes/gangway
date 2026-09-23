@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
 import contract from '../../../testing/fixtures/contract.json';
 import { render, type Rendered } from '../../../testing/render';
-import { PERMISSIONS, type ApiToken, type Permission } from '../../core/api.types';
+import { PERMISSIONS, type ApiToken, type OAuthGrant, type Permission } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { Toasts } from '../../ui/toast';
 import { Account } from './account';
@@ -14,13 +14,19 @@ class Host {}
 const MEMBER: Permission[] = ['previews.read', 'logs.read', 'events.read', 'hosts.read', 'previews.deploy', 'previews.destroy', 'previews.view_private', 'tokens.manage_own'];
 const token = (over: Partial<ApiToken> = {}): ApiToken => ({ ...(contract.token as ApiToken), ...over });
 
-async function open(o: { permissions?: Permission[]; tokens?: ApiToken[]; role?: string } = {}) {
+const grant = (over: Partial<OAuthGrant> = {}): OAuthGrant => ({ ...(contract.oauthGrant as OAuthGrant), ...over });
+
+async function open(o: { permissions?: Permission[]; tokens?: ApiToken[]; grants?: OAuthGrant[]; role?: string } = {}) {
   const r = await render(Host);
   const loading = TestBed.inject(AuthService).refresh();
   r.http.expectOne('/v1/auth/session').flush({ authenticated: true, setupRequired: false, user: { id: 'u1', email: 'ada@example.com', role: { id: o.role ?? 'member', name: o.role ?? 'member' } }, permissions: o.permissions ?? MEMBER });
   await loading;
   await r.settle();
-  if ((o.permissions ?? MEMBER).includes('tokens.manage_own')) { r.http.expectOne('/v1/tokens').flush({ tokens: o.tokens ?? [] }); await r.settle(); }
+  if ((o.permissions ?? MEMBER).includes('tokens.manage_own')) {
+    r.http.expectOne('/v1/tokens').flush({ tokens: o.tokens ?? [] });
+    r.http.expectOne('/v1/oauth/grants').flush({ grants: o.grants ?? [] });
+    await r.settle();
+  }
   return r;
 }
 
@@ -47,6 +53,7 @@ describe('Account', () => {
     r.http.expectOne('/v1/auth/session').flush({ authenticated: true, setupRequired: false, permissions: MEMBER });
     await again; await r.settle();
     r.http.expectOne('/v1/tokens').flush({ tokens: [token({ name: 'already-there' })] });
+    r.http.expectOne('/v1/oauth/grants').flush({ grants: [] });
     await r.settle();
     expect(r.text('tokens')).toContain('already-there');
   });
@@ -55,6 +62,28 @@ describe('Account', () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.byTestId('token-form')).toBeNull();
     r.http.expectNone('/v1/tokens');
+  });
+
+  describe('connected agents (ADR-0020)', () => {
+    it('lists each by name and publisher; disconnecting asks first, then DELETEs it', async () => {
+      const r = await open({ grants: [grant()] });
+      expect(r.text('grants')).toContain('Claude');
+      expect(r.text('grants')).toContain('claude.ai');
+      expect(r.text('grants')).toContain('read, deploy');
+      (r.byTestId('disconnect') as HTMLButtonElement).click(); await r.settle();
+      const dialogs = r.el.querySelectorAll('[data-testid="confirm"]');
+      const open_ = Array.from(dialogs).find((d) => (d as HTMLDialogElement).open)!;
+      expect(open_.textContent).toContain('Disconnect Claude?');
+      (open_.querySelector('[data-testid="confirm-ok"]') as HTMLButtonElement).click(); await r.settle();
+      r.http.expectOne({ method: 'DELETE', url: `/v1/oauth/grants/${grant().id}` }).flush({ grant: grant({ revokedAt: '2026-09-22T13:00:00.000Z' }) });
+      await r.settle();
+      expect(r.byTestId('no-grants')).not.toBeNull();
+    });
+
+    it('none: says how an agent connects', async () => {
+      const r = await open();
+      expect(r.text('no-grants')).toContain('connects from its own side');
+    });
   });
 
   describe('tokens', () => {

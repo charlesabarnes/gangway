@@ -169,7 +169,7 @@ test("T26: the scheduler owns the periodic work -- visits reach SQLite, an expir
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
   const call = client(running);
-  expect(running.scheduler.status().map((j) => [j.name, j.enabled])).toEqual([["reconcile", true], ["ttl-sweep", true], ["lastseen-flush", true], ["idle-sleep", true], ["idempotency-purge", true], ["session-purge", true]]);
+  expect(running.scheduler.status().map((j) => [j.name, j.enabled])).toEqual([["reconcile", true], ["ttl-sweep", true], ["lastseen-flush", true], ["idle-sleep", true], ["idempotency-purge", true], ["session-purge", true], ["oauth-purge", true]]);
 
   const res = await call("api.preview.localhost", "/v1/previews?wait=true", {
     method: "POST", headers: { "content-type": "application/json" },

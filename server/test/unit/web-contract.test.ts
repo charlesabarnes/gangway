@@ -22,6 +22,10 @@ import { templateRoutes } from "../../src/app/routes/templates.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { surfaceRoutes } from "../../src/app/routes/surfaces.ts";
+import { oauthRoutes } from "../../src/app/routes/oauth.ts";
+import { OAuthServer } from "../../src/oauth/server.ts";
+import { OAuthGrantsRepo } from "../../src/db/repos/oauth-grants.ts";
+import { createHash } from "node:crypto";
 import { staticTokenVerifier, tokenActor } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
@@ -139,6 +143,35 @@ describe("surface wire shapes (§10.5)", () => {
     expect(surfaces).toEqual(contract["surfaces"]);
     expect(shapeOf(await (await api.request("/capabilities")).json())).toEqual(shapeOf(contract["capabilities"]));
     expect(contract["disableUiPhrase"]).toBe(DISABLE_UI_PHRASE);
+  });
+});
+
+describe("oauth wire shapes (ADR-0020)", () => {
+  test("the consent view, the decision, and a connected agent", async () => {
+    const s = setupAccounts();
+    const { user } = await s.admin();
+    const CLIENT = "https://claude.ai/oauth/claude-code-client-metadata", CB = "https://claude.ai/api/mcp/auth_callback";
+    const oauth = new OAuthServer({
+      grants: new OAuthGrantsRepo(s.db, s.now), roles: s.roles, audit: s.audit, now: s.now,
+      issuer: () => "https://app.preview.localhost:8443", resource: () => "https://mcp.preview.localhost:8443",
+      clients: { get: async (id) => ({ clientId: id, clientName: "Claude", redirectUris: [CB] }) },
+    });
+    const actor = { kind: "user", userId: user.id, roleId: "admin", sessionId: "s", permissions: s.roles.for("admin") } as const;
+    const api = new Hono<AppEnv>();
+    api.onError(errorHandler(quiet));
+    api.use(async (c, next) => { c.set("actor", actor); await next(); });
+    oauthRoutes(api, { oauth, enabled: () => true });
+    const verifier = "v".repeat(43);
+    const out = await oauth.authorize(new URLSearchParams({ response_type: "code", client_id: CLIENT, redirect_uri: CB, code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256", state: "xyz" }));
+    const id = (out as { requestId: string }).requestId;
+    const view = (await (await api.request(`/oauth/requests/${id}`)).json()) as { request: unknown };
+    expect(shapeOf(view.request)).toEqual(shapeOf(contract["oauthRequest"]));
+    const decided = await (await api.request(`/oauth/requests/${id}`, { method: "POST", body: JSON.stringify({ approve: true }), headers: { "content-type": "application/json" } })).json() as { redirect: string };
+    expect(shapeOf(decided)).toEqual(shapeOf(contract["oauthDecided"]));
+    oauth.token(new URLSearchParams({ grant_type: "authorization_code", code: new URL(decided.redirect).searchParams.get("code")!, client_id: CLIENT, redirect_uri: CB, code_verifier: verifier }));
+    const { grants } = (await (await api.request("/oauth/grants")).json()) as { grants: unknown[] };
+    // lastUsedAt is null until the first call, as in the fixture.
+    expect(shapeOf(grants[0])).toEqual(shapeOf(contract["oauthGrant"]));
   });
 });
 

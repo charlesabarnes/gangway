@@ -42,6 +42,7 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
                   <p class="mt-3 text-sm">URL: <code class="font-mono" data-testid="mcp-url">{{ sf.mcp.url }}</code></p>
                   <p class="mt-2 text-xs text-neutral-500">Claude Code, with an API token that has the deploy scope:</p>
                   <pre class="mt-1 overflow-x-auto rounded-md bg-neutral-100 p-2 font-mono text-xs dark:bg-neutral-800" data-testid="mcp-snippet">claude mcp add --transport http gangway {{ sf.mcp.url }} --header "Authorization: Bearer gw_…"</pre>
+                  <p class="mt-2 text-xs text-neutral-500" data-testid="mcp-oauth">Or with no token: add the URL as a custom connector in claude.ai (or <code class="font-mono">claude mcp add --transport http gangway {{ sf.mcp.url }}</code> and <code class="font-mono">/mcp</code> in Claude Code). You will be sent here to approve it, and can disconnect it under Account.</p>
                 }
               </div>
               @if (sf.mcp.managedByConfig) { <span class="text-xs text-neutral-500" data-testid="mcp-managed">managed by config</span> }

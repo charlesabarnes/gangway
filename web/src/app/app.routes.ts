@@ -22,6 +22,8 @@ export const routes: Routes = [
   // path is registered with GitHub: it stays, whatever the page it lands on is called.
   { path: 'github/callback', title: 'GitHub · gangway', canActivate: [authGuard], loadComponent: () => import('./features/settings/github-callback').then((m) => m.GitHubCallback) },
   { path: 'github', redirectTo: 'settings' },
+  // ADR-0020: /oauth/authorize parks an MCP client's request and sends the browser here.
+  { path: 'connect', title: 'Connect an app · gangway', canActivate: [authGuard], loadComponent: () => import('./features/connect/connect').then((m) => m.Connect) },
   // The server answers every unknown path on the `app` surface with index.html (SPA
   // fallback), so an unknown path is the router's to handle, not a 404 page's.
   { path: '**', redirectTo: '' },

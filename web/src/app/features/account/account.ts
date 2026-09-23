@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { SCOPES, SCOPE_PERMISSIONS, type ApiToken, type Permission, type Scope } from '../../core/api.types';
+import { SCOPES, SCOPE_PERMISSIONS, type ApiToken, type OAuthGrant, type Permission, type Scope } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { Clock } from '../../core/clock';
 import { toProblem } from '../../core/problem';
@@ -112,8 +112,26 @@ const EXPIRY = [{ value: '', label: 'never' }, { value: '30d', label: '30 days' 
           } @empty { <li class="px-4 py-6 text-center text-sm text-neutral-500" data-testid="no-tokens">No tokens yet.</li> }
         </ul>
 
-        <app-confirm-dialog [heading]="'Revoke ' + (pending()?.name ?? '') + '?'" confirmLabel="Revoke" (confirmed)="revoke()">
+        <app-confirm-dialog #tokenDialog [heading]="'Revoke ' + (pending()?.name ?? '') + '?'" confirmLabel="Revoke" (confirmed)="revoke()">
           Anything using this token stops working immediately. It cannot be un-revoked; create a new one instead.
+        </app-confirm-dialog>
+
+        <h2 class="mt-10 text-base font-semibold">Connected agents</h2>
+        <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Apps you let act as you over MCP, such as claude.ai. They can do no more than you can.</p>
+        <ul class="mt-3 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800" data-testid="grants">
+          @for (g of grants(); track g.id) {
+            <li class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm" data-testid="grant">
+              <span class="font-medium">{{ g.clientName }}</span>
+              <span class="font-mono text-xs text-neutral-500">{{ hostOf(g.clientId) }}</span>
+              <span class="text-xs text-neutral-500">{{ g.scopes.join(', ') }}</span>
+              <span class="ml-auto text-xs text-neutral-500">connected {{ g.createdAt | relativeTime: clock.now() }} · {{ g.lastUsedAt ? 'used ' + (g.lastUsedAt | relativeTime: clock.now()) : 'not used yet' }}</span>
+              <button type="button" (click)="askDisconnect(g)" class="text-neutral-500 hover:text-red-600 dark:hover:text-red-400" data-testid="disconnect">Disconnect</button>
+            </li>
+          } @empty { <li class="px-4 py-6 text-center text-sm text-neutral-500" data-testid="no-grants">None. An agent connects from its own side, and you approve it here.</li> }
+        </ul>
+
+        <app-confirm-dialog #grantDialog [heading]="'Disconnect ' + (disconnecting()?.clientName ?? '') + '?'" confirmLabel="Disconnect" (confirmed)="disconnect()">
+          It loses access at once. To use it again, connect it again from its side.
         </app-confirm-dialog>
       }
     </section>
@@ -124,7 +142,9 @@ export class Account {
   protected readonly clock = inject(Clock);
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
-  private readonly dialog = viewChild(ConfirmDialog);
+  // Two dialogs on this page: each by its own template ref.
+  private readonly tokenDialog = viewChild<ConfirmDialog>('tokenDialog');
+  private readonly grantDialog = viewChild<ConfirmDialog>('grantDialog');
 
   protected readonly field = FIELD;
   protected readonly label = LABEL;
@@ -151,6 +171,8 @@ export class Account {
   /** Held in memory for as long as this page is open and not a moment longer. */
   protected readonly minted = signal<{ name: string; secret: string } | null>(null);
   protected readonly pending = signal<ApiToken | null>(null);
+  protected readonly grants = signal<OAuthGrant[]>([]);
+  protected readonly disconnecting = signal<OAuthGrant | null>(null);
 
   protected readonly current = signal('');
   protected readonly next = signal('');
@@ -176,8 +198,34 @@ export class Account {
   }
 
   async #load(): Promise<void> {
-    try { this.tokens.set((await firstValueFrom(this.#http.get<{ tokens: ApiToken[] }>('/v1/tokens'))).tokens); }
-    catch (e) { this.error.set(toProblem(e).detail); }
+    try {
+      const [{ tokens }, { grants }] = await Promise.all([
+        firstValueFrom(this.#http.get<{ tokens: ApiToken[] }>('/v1/tokens')),
+        firstValueFrom(this.#http.get<{ grants: OAuthGrant[] }>('/v1/oauth/grants')),
+      ]);
+      this.tokens.set(tokens);
+      this.grants.set(grants);
+    } catch (e) { this.error.set(toProblem(e).detail); }
+  }
+
+  protected hostOf(url: string): string {
+    try { return new URL(url).host; } catch { return url; }
+  }
+
+  protected askDisconnect(g: OAuthGrant): void {
+    this.disconnecting.set(g);
+    this.grantDialog()?.open();
+  }
+
+  protected async disconnect(): Promise<void> {
+    const g = this.disconnecting();
+    if (!g) return;
+    try {
+      await firstValueFrom(this.#http.delete(`/v1/oauth/grants/${g.id}`));
+      this.grants.update((gs) => gs.filter((x) => x.id !== g.id));
+    } catch (err) {
+      this.#toasts.problem(`Could not disconnect ${g.clientName}`, toProblem(err));
+    }
   }
 
   protected async create(e: Event): Promise<void> {
@@ -204,7 +252,7 @@ export class Account {
 
   protected askRevoke(t: ApiToken): void {
     this.pending.set(t);
-    this.dialog()?.open();
+    this.tokenDialog()?.open();
   }
 
   protected async revoke(): Promise<void> {

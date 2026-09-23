@@ -16,6 +16,10 @@ import { githubRoutes } from "./app/routes/github.ts";
 import { projectRoutes } from "./app/routes/projects.ts";
 import { surfaceRoutes } from "./app/routes/surfaces.ts";
 import { McpSurface } from "./app/mcp-surface.ts";
+import { oauthRootRoutes, oauthRoutes } from "./app/routes/oauth.ts";
+import { OAuthGrantsRepo } from "./db/repos/oauth-grants.ts";
+import { ClientMetadataStore } from "./oauth/client-metadata.ts";
+import { OAuthServer } from "./oauth/server.ts";
 import { Tools } from "./mcp/tools.ts";
 import { settingsRoutes } from "./app/routes/settings.ts";
 import { templateRoutes } from "./app/routes/templates.ts";
@@ -249,9 +253,17 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const rolesRepo = new RolesRepo(db);
   const roles = new RolePermissions(rolesRepo, audit);
   const sessions = new Sessions(new SessionsRepo(db), roles);
+  /* ---- ADR-0020: the OAuth 2.1 authorization server for MCP clients. Issuer `app`, resource `mcp`. */
+  const mcpOrigin = () => publicOriginFor(`mcp.${baseDomain()}`, ctx.origin);
+  const oauthGrants = new OAuthGrantsRepo(db);
+  const oauth = new OAuthServer({
+    grants: oauthGrants, clients: new ClientMetadataStore(), roles, audit,
+    issuer: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin), resource: mcpOrigin,
+  });
   const accounts = new Accounts({
     db, users, roles: rolesRepo, sessions, audit,
     passwords: new Passwords(), limiter: new LoginLimiter(),
+    onCredentialsRevoked: (userId) => oauth.revokeAllFor(userId),
   });
   const tokensRepo = new TokensRepo(db);
   const tokens = new Tokens(tokensRepo, roles, audit);
@@ -303,9 +315,13 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   /* ---- §10.2 the MCP surface (ADR-0019): bearer only. A workflow's OIDC token is not in its chain. */
   const mcp = new McpSurface({
     tools: new Tools({ ctx, deploys, logger: logger.child({ mod: "mcp" }) }),
-    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken)),
+    // OAuth access tokens are good HERE and nowhere else: `/v1`'s chain does not know them.
+    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken), oauth.verify),
     logger: logger.child({ mod: "mcp" }),
+    // No UI, no consent page: MCP is then bearer-only and advertises no OAuth.
+    oauth: { available: () => settings.get(SETTINGS.surfacesUi), resource: mcpOrigin, resourceMetadata: () => oauth.resourceMetadata() },
   });
+  const mcpOn = () => settings.get(SETTINGS.surfacesMcp);
 
   const staticDir = resolve(import.meta.dir, "../../web/dist/browser");
   const app = createApp({
@@ -314,6 +330,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     staticDir: existsSync(staticDir) ? staticDir : undefined,
     health: () => ({ routes: table.size }),
     draining,
+    root: (root) => oauthRootRoutes(root, { oauth, enabled: mcpOn }),
     v1: (api) => {
       hostRoutes(api, hosts);
       eventRoutes(api, bus, { signal: shutdown.signal });
@@ -325,10 +342,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       userRoutes(api, accounts);
       roleRoutes(api, roles);
       settingsRoutes(api, settings, audit, templates);
+      oauthRoutes(api, { oauth, enabled: mcpOn });
       surfaceRoutes(api, {
         settings, audit, apiOrigin,
         hasActiveAdmin: () => tokensRepo.hasActiveAdmin(Date.now()),
-        mcpOrigin: () => publicOriginFor(`mcp.${baseDomain()}`, ctx.origin),
+        mcpOrigin,
         onMcpDisabled: () => mcp.dropAll(),
       });
       projectRoutes(api, {
@@ -479,6 +497,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   scheduler.register({ name: "idempotency-purge", intervalMs: 3_600_000, run: () => deploys.purge() });
   // Expired sessions are already refused; this only reclaims the rows.
   scheduler.register({ name: "session-purge", intervalMs: 3_600_000, run: () => { sessions.purge(); } });
+  // ADR-0020: grants past their end, or revoked, a week ago (the Account page stops showing them at once).
+  scheduler.register({ name: "oauth-purge", intervalMs: 3_600_000, run: () => { oauthGrants.purge(Date.now() - 7 * 86_400_000); } });
   scheduler.start();
 
   // §8.1 first run. AFTER the listener is up, so the link works the moment it is read, and

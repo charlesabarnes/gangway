@@ -243,6 +243,25 @@ export type ApiToken = {
   createdAt: Date;
 };
 
+/**
+ * ADR-0020: a user let an OAuth client (an MCP client such as claude.ai, named by its
+ * Client ID Metadata Document URL) act as them. The tokens are never part of this type.
+ */
+export type OAuthGrant = {
+  id: string;
+  userId: string;
+  /** An https URL: the client's metadata document. Its host is what the user should recognise. */
+  clientId: string;
+  clientName: string;
+  redirectUri: string;
+  scopes: Scope[];
+  createdAt: Date;
+  lastUsedAt: Date | null;
+  /** The absolute end: no refresh carries a grant past it. */
+  expiresAt: Date;
+  revokedAt: Date | null;
+};
+
 export type AuditActorType = "user" | "token" | "app" | "system" | "github";
 
 /** §10.5.2. Append-only; `old`/`new` are redacted before they are written. */

@@ -187,6 +187,28 @@ export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: st
 /** The server checks it: turning the UI off without it is a 422. */
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
+/* ---- OAuth for MCP clients (ADR-0020) */
+
+export type OAuthScope = 'read' | 'deploy';
+/** `GET /v1/oauth/requests/:id`: what the consent page shows. */
+export type ConsentRequest = {
+  id: string;
+  client: { id: string; name: string; host: string };
+  redirectUri: string;
+  redirectHost: string;
+  resource: string;
+  requested: OAuthScope[];
+  /** The requested scopes your role fully covers: the only ones you can grant. */
+  grantable: OAuthScope[];
+  scopePermissions: Record<OAuthScope, Permission[]>;
+  expiresAt: string;
+};
+/** A connected agent. The tokens are never sent. */
+export type OAuthGrant = {
+  id: string; userId: string; clientId: string; clientName: string; redirectUri: string; scopes: OAuthScope[];
+  createdAt: string; lastUsedAt: string | null; expiresAt: string; revokedAt: string | null;
+};
+
 /* ---- Runtimes and editable previews (ADR-0015) */
 
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';

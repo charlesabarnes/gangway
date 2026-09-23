@@ -33,6 +33,8 @@ export type AccountsDeps = {
   passwords: Passwords;
   limiter: LoginLimiter;
   audit: AuditSink;
+  /** ADR-0020: a reset or a disable also ends the user's agent connections (OAuth grants). */
+  onCredentialsRevoked?: ((userId: string) => void) | undefined;
   now?: () => number;
 };
 
@@ -139,7 +141,10 @@ export class Accounts {
 
     // A reset or a disable ends every session NOW. A role change does not need to: the
     // actor is rebuilt on every request, so the new role already applies.
-    if (credentials || patch.disabled === true) sessions.revokeAllFor(id);
+    if (credentials || patch.disabled === true) {
+      sessions.revokeAllFor(id);
+      this.#d.onCredentialsRevoked?.(id);
+    }
     audit.record(actor, "user.updated", id, {
       old: { roleId: before.roleId, disabled: before.disabled },
       new: { roleId: after.roleId, disabled: after.disabled, ...(credentials ? { passwordReset: true } : {}) },

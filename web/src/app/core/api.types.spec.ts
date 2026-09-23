@@ -3,7 +3,7 @@ import {
   LOG_STREAMS, PERMISSIONS, PREVIEW_STATES, SCOPE_PERMISSIONS, STREAM_EVENT_TYPES,
   CLEARANCES, FORK_POLICIES, PR_TRIGGERS, RUNTIME_IDS, TRIGGERS, type Template,
   type PreviewSource, type PreviewSourceFiles, type RedeployAccepted, type RedeployDone, type Runtime, type RuntimeList, type AppPlan, type AddonInfo, ADDON_IDS, type DataResult, type PreviewAddon, type SourceFile, type StreamEvent,
-  type Surfaces, type Capabilities, DISABLE_UI_PHRASE,
+  type Surfaces, type Capabilities, DISABLE_UI_PHRASE, type ConsentRequest, type OAuthGrant,
   type ApiToken, type GitHubStatus, type LoginResponse, type Preview, type PreviewEvent, type PreviewList, type Project, type Scope, type SessionInfo, type Visibility,
 } from './api.types';
 
@@ -54,6 +54,16 @@ describe('the /v1 wire contract', () => {
     expect(keys(surfaces.mcp)).toEqual(['enabled', 'managedByConfig', 'url']);
     expect(keys(caps)).toEqual(['mcpUrl', 'surfaces']);
     expect(contract.disableUiPhrase).toBe(DISABLE_UI_PHRASE);
+  });
+
+  it('oauth consent and connected agents (ADR-0020)', () => {
+    const keys = (o: object) => Object.keys(o).sort();
+    const req: ConsentRequest = contract.oauthRequest as ConsentRequest;
+    const grant: OAuthGrant = contract.oauthGrant as OAuthGrant;
+    expect(keys(req)).toEqual(['client', 'expiresAt', 'grantable', 'id', 'redirectHost', 'redirectUri', 'requested', 'resource', 'scopePermissions']);
+    const GRANT_KEYS: (keyof OAuthGrant)[] = ['id', 'userId', 'clientId', 'clientName', 'redirectUri', 'scopes', 'createdAt', 'lastUsedAt', 'expiresAt', 'revokedAt'];
+    expect(keys(grant)).toEqual([...GRANT_KEYS].sort());
+    expect(keys(contract.oauthDecided)).toEqual(['redirect']);
   });
 
   it('runtimes, a kept source and a redeploy (ADR-0015)', () => {
