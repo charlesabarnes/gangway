@@ -10,12 +10,12 @@ import { requirePermission } from "../middleware/auth.ts";
 export type SurfacesDeps = {
   settings: Settings;
   audit: AuditSink;
-  /** §10.5.1: an unexpired, unrevoked `admin`-scoped DATABASE token whose owner can still use it. */
+  /** An unexpired, unrevoked `admin`-scoped database token whose owner can still use it. */
   hasActiveAdmin: () => boolean;
   /** Public origins, for the MCP URL and the re-enable `curl` the UI shows. */
   apiOrigin: () => string;
   mcpOrigin: () => string;
-  /** §10.5: turning MCP off drops in-flight sessions, not only new ones. */
+  /** Turning MCP off drops in-flight sessions, not only new ones. */
   onMcpDisabled?: (() => void) | undefined;
 };
 
@@ -26,10 +26,10 @@ const SURFACES = { ui: SETTINGS.surfacesUi, mcp: SETTINGS.surfacesMcp } as const
 type SurfaceName = keyof typeof SURFACES;
 
 /**
- * §10.5 surface toggles. Flags the dispatcher reads per request: no restart, and a disabled
+ * Surface toggles. Flags the dispatcher reads per request: no restart, and a disabled
  * surface is a 404, not a 503.
  *
- * `PUT /v1/surfaces` is the ONLY way to change them at runtime -- `/v1/settings` refuses
+ * `PUT /v1/surfaces` is the only way to change them at runtime -- `/v1/settings` refuses
  * `surfaces.*` -- because the lockout guard lives here. Disabling the UI from the UI is a
  * one-way door, so it is refused unless an admin-scoped API token exists, and needs a typed
  * phrase. The env admin token does not count: when GANGWAY_ADMIN_TOKEN is unset it is made

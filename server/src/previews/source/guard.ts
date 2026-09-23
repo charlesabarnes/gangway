@@ -1,7 +1,7 @@
 /**
- * What must be true of an unpacked source BEFORE `docker compose config` is allowed to
+ * What must be true of an unpacked source before `docker compose config` is allowed to
  * read it. `config` is not a parser: it opens files. `env_file`, `extends.file` and
- * `include` are all read on THIS machine, merged into the output, and then vanish from
+ * `include` are all read on this machine, merged into the output, and then vanish from
  * it -- so the policy in compose-model.ts, which sees only the output, cannot catch them.
  *
  *   env_file: /proc/self/environ     -> gangway's environment, as the container's
@@ -106,7 +106,7 @@ export async function inspectComposeFile(srcDir: string): Promise<string | null>
     });
   }
   for (const ref of referencedFiles(doc)) {
-    // `${VAR}` in a path is interpolated by compose AFTER this check could see it.
+    // `${VAR}` in a path is interpolated by compose after this check could see it.
     if (ref.path.includes("$"))
       throw unprocessable(`${ref.where}: variables are not allowed in file paths`);
     if (!containedIn(srcDir, path.resolve(srcDir, ref.path))) {

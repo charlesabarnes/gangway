@@ -14,10 +14,10 @@ const SCOPE_HELP: Record<OAuthScope, string> = {
 };
 
 /**
- * ADR-0020: an MCP client (claude.ai, Claude Code) asks to act as you. The server has
+ * An MCP client (claude.ai, Claude Code) asks to act as you. The server has
  * already checked the client and where it will send you back; this page is the person's
- * part: WHO is asking and WHERE the answer goes, said plainly, because anyone can publish
- * a client document that calls itself "Claude". Not a ninth screen: a step, like login.
+ * part: who is asking and where the answer goes, said plainly, because anyone can publish
+ * a client document that calls itself "Claude". Not a screen of its own: a step, like login.
  */
 @Component({
   selector: 'app-connect',

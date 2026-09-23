@@ -1,6 +1,6 @@
 /**
- * State-aware pages (§6.1, §6.3). A preview visitor is untrusted, so these never leak a
- * stack trace -- and "building" must SAY so with a link to its logs, because a bare 502
+ * State-aware pages. A preview visitor is untrusted, so these never leak a
+ * stack trace -- and "building" must say so with a link to its logs, because a bare 502
  * during a two-minute build is the single most confusing thing this system can do.
  */
 import { escapeHtml } from "../util/html.ts";
@@ -39,7 +39,7 @@ a{color:inherit}
 <body><main>${o.body}</main></body></html>`;
   return new Response(html, {
     status: o.status,
-    // gangway's own pages are served on preview hostnames, unlisted ones included (§8.3):
+    // gangway's own pages are served on preview hostnames, unlisted ones included:
     // "building", "failed" and "not found" are not things to index under somebody's URL.
     headers: {
       "content-type": "text/html; charset=utf-8",

@@ -5,7 +5,7 @@ import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
-/** §10.1 `/v1/tokens`. Thin (ADR-0003): who may touch WHICH token is decided in auth/tokens.ts. */
+/** `/v1/tokens`. Thin: who may touch which token is decided in auth/tokens.ts. */
 export function tokenRoutes(api: Hono<AppEnv>, tokens: Tokens): void {
   api.get("/tokens", requirePermission("tokens.manage_own"), (c) =>
     c.json({ tokens: tokens.list(c.get("actor"), { all: c.req.query("all") === "true" }) }),

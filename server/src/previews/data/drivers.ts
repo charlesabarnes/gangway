@@ -1,9 +1,9 @@
 /**
- * The data browser's drivers (ADR-0018): for each add-on, the argv that runs a query INSIDE
+ * The data browser's drivers: for each add-on, the argv that runs a query inside
  * its container, and a parser for what comes back. Pure -- no process, no daemon.
  *
  * Nothing secret is ever on a command line: every command runs as `sh -c '<fixed script>'`
- * and reads the password from the container's OWN environment (the add-on's service was
+ * and reads the password from the container's own environment (the add-on's service was
  * given it at deploy). The query text arrives as a positional argument (`"$1"`), never
  * spliced into the script, so no shell or SQL quoting of ours is involved in carrying it.
  * Table names come from the add-on's own listing and are quoted by doubling.
@@ -84,7 +84,10 @@ export function rowsQuery(
 
 /* ------------------------------------------------------------------ redis */
 
-/** Words, with double or single quotes grouping and backslash escapes inside double quotes: redis-cli's own rules, roughly. */
+/**
+ * Words, with double or single quotes grouping and backslash escapes inside double quotes:
+ * redis-cli's own rules, roughly.
+ */
 export function tokenize(text: string): string[] {
   const out: string[] = [];
   let cur = "",
@@ -228,7 +231,7 @@ export function redisRefusal(text: string, write: boolean): string | null {
 /* ------------------------------------------------------------------ parsing */
 
 /**
- * psql's CSV: RFC 4180. A NULL is an EMPTY UNQUOTED field; an empty string is `""`. The
+ * psql's CSV: RFC 4180. A NULL is an empty unquoted field; an empty string is `""`. The
  * first record is the header. No output at all is a statement that returns no rows.
  */
 export function parseCsv(text: string): { columns: string[]; rows: Cell[][] } {
@@ -272,7 +275,10 @@ export function parseCsv(text: string): { columns: string[]; rows: Cell[][] } {
   return { columns: (header ?? []).map((h) => h ?? ""), rows };
 }
 
-/** mysql --batch: tab-separated, a header first; `\t \n \\ \0` escaped; NULL is the text NULL (ambiguous with the string, and said so in the ADR). */
+/**
+ * mysql --batch: tab-separated, a header first; `\t \n \\ \0` escaped; NULL is the text NULL,
+ * which is ambiguous with the string "NULL".
+ */
 export function parseBatch(text: string): { columns: string[]; rows: Cell[][] } {
   const unescape = (s: string): Cell =>
     s === "NULL"

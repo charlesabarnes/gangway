@@ -1,5 +1,5 @@
 /**
- * The app plan (ADR-0016): from what an upload holds, HOW gangway will build and run it --
+ * The app plan: from what an upload holds, how gangway will build and run it --
  * and why. One pure function over the file list and a few small files' contents, so the
  * server (which reads them from disk) and the New screen (which asks the server before it
  * uploads) can never disagree.
@@ -27,7 +27,7 @@ import {
   type RuntimeId,
 } from "./runtimes.ts";
 
-/** Files whose CONTENTS the plan reads, at the app root (or one directory down, for a nested app). */
+/** Files whose contents the plan reads, at the app root (or one directory down, for a nested app). */
 export const PLAN_FILES = [
   ...GANGWAY_FILES,
   "package.json",
@@ -59,7 +59,7 @@ export type PlanInput = {
    * saying what it wants.
    */
   previous?: Detected | undefined;
-  /** Add-ons asked for with the request (ADR-0017); given -- even empty -- it beats gangway.yml. */
+  /** Add-ons asked for with the request; given -- even empty -- it beats gangway.yml. */
   addons?: readonly AddonRequest[] | undefined;
   /** A rebuild's add-ons, kept unless the request or gangway.yml says otherwise. A major is never changed in place. */
   previousAddons?: readonly AddonChoice[] | undefined;
@@ -75,7 +75,7 @@ export type AppPlan = {
   kind: "own" | "runtime";
   runtime: RuntimeId | null;
   version: string | null;
-  /** The pinned base image the build starts FROM. */
+  /** The pinned base image the build starts from. */
   image: string | null;
   /** The app's directory within the upload; "" is its root. The build context. */
   root: string;
@@ -108,7 +108,7 @@ export type AppPlan = {
   };
   /** Which gangway.yml was read, if any. */
   configFile: string | null;
-  /** Throwaway databases beside the app (ADR-0017). */
+  /** Throwaway databases beside the app. */
   addons: AddonChoice[];
   /** Add-ons the dependencies point at, not chosen. The New screen pre-ticks them; the server never adds one. */
   suggested: { id: AddonId; because: string }[];
@@ -234,7 +234,7 @@ const APP_MARKERS = new Set([
 ]);
 
 /**
- * With nothing recognisable at the root and exactly ONE top-level directory that looks like
+ * With nothing recognisable at the root and exactly one top-level directory that looks like
  * an app, that directory is the app: `my-repo/web/package.json` in a folder that also holds
  * a README and some docs.
  */

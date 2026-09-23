@@ -1,9 +1,9 @@
 /**
- * The kept source of an uploaded preview (ADR-0015): what the user sent, so it can be read
+ * The kept source of an uploaded preview: what the user sent, so it can be read
  * back into the editor and rebuilt at the same URL.
  *
- * `state/sources/<previewId>/`, 0700. Written from a deploy's source directory AFTER the
- * symlink guard and BEFORE gangway adds `.env` or `.gangway/`, so it never holds a secret
+ * `state/sources/<previewId>/`, 0700. Written from a deploy's source directory after the
+ * symlink guard and before gangway adds `.env` or `.gangway/`, so it never holds a secret
  * gangway put there. A replacement is swapped in with renames: a crash leaves the old tree
  * or the new one (possibly as `<id>.old`), never half of each.
  */
@@ -75,7 +75,9 @@ export class SourceStore {
     return entries.filter((e) => e.isDirectory() && isUlid(e.name)).map((e) => e.name);
   }
 
-  /** Regular files, sorted, text inlined where it is small and really text. Symlinks are skipped. */
+  /**
+   * Regular files, sorted, text inlined where it is small and really text. Symlinks are skipped.
+   */
   async list(previewId: string): Promise<SourceListing> {
     const root = this.dirFor(previewId);
     const files: SourceFile[] = [];
@@ -110,8 +112,8 @@ export class SourceStore {
   }
 
   /**
-   * ADR-0021: what is really deployed, file by file -- sha256 over the bytes gangway kept, so
-   * a caller can check them against what it meant to send (`shasum -a 256`). Sorted like `list`.
+   * What is really deployed, file by file -- sha256 over the bytes gangway kept, so a caller
+   * can check them against what it meant to send (`shasum -a 256`). Sorted like `list`.
    */
   async manifest(
     previewId: string,

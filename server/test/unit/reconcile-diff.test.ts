@@ -102,7 +102,7 @@ const only = (a: readonly Action[], kind: Action["kind"]): Action => {
 };
 
 // --------------------------------------------------------------------------------------------
-// The §11 case table, one entry per row, plus the rows the spec's prose implies.
+// The case table: one entry per situation the reconciler must decide.
 // --------------------------------------------------------------------------------------------
 
 type Case = readonly [name: string, input: DiffInput, assert: (a: Action[]) => void];
@@ -163,7 +163,7 @@ const CASES: readonly Case[] = [
     },
   ],
   [
-    "no route + running + complete labels + hostname unclaimed -> AdoptRoute from labels (§4.1)",
+    "no route + running + complete labels + hostname unclaimed -> AdoptRoute from labels",
     mkInput({
       containers: [
         mkContainer("c1", fullLabels("p9", "new.example.com"), { publishedPort: 40123 }),
@@ -374,7 +374,7 @@ const CASES: readonly Case[] = [
   ["empty input -> no actions", mkInput(), (a) => expect(a).toEqual([])],
 ];
 
-describe("spec §11 case table", () => {
+describe("the case table", () => {
   for (const [name, input, assert] of CASES) test(name, () => assert(diff(input)));
 });
 

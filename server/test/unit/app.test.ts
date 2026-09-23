@@ -136,7 +136,7 @@ describe("app root", () => {
   });
 });
 
-describe("auth (T14)", () => {
+describe("auth", () => {
   test("missing, malformed and wrong credentials are indistinguishable 401s", async () => {
     const { api } = make();
     const bodies: unknown[] = [];

@@ -1,11 +1,9 @@
 /**
  * Holds the current certificate material and notifies the listener when it changes.
  *
- * The swap MECHANISM lives in net/listener.ts, not here, because spike S0 found that
- * `server.reload({ tls })` does NOT swap the certificate on Bun 1.4.2 -- new connections
- * still presented the old serial. The listener therefore rebinds with SO_REUSEPORT and
- * drains the old listener (ADR-0002, measured 12-18ms). Isolating that here means the
- * day Bun fixes reload(), only the listener changes.
+ * The swap itself lives in net/listener.ts: `server.reload({ tls })` does not replace the
+ * certificate, so the listener rebinds with SO_REUSEPORT and drains the old one. If Bun's
+ * reload() ever does, only the listener changes.
  */
 import type { CertBundle } from "./types.ts";
 

@@ -37,10 +37,10 @@ const STREAM_CLASS: Record<LogStream, string> = {
 };
 
 /**
- * A live log. Build output and runtime output are ONE stream on the server, told apart by
+ * A live log. Build output and runtime output are one stream on the server, told apart by
  * `stream`, so "the build log" is a filter here and not a second endpoint.
  *
- * A build can emit hundreds of lines a second. Each one is NOT a change-detection pass:
+ * A build can emit hundreds of lines a second. Each one is not a change-detection pass:
  * lines collect in a plain array and are flushed once per animation frame into one signal
  * write. Rows are `content-visibility: auto`, so the browser skips layout and paint for
  * the thousands that are off-screen -- most of what a virtual scroller buys, with no

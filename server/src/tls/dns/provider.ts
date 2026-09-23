@@ -1,11 +1,11 @@
 /**
- * DNS-01 provider contract (§6.2), plus the propagation poller both implementations share.
+ * DNS-01 provider contract, plus the propagation poller both implementations share.
  *
  * Two properties of DNS-01 shape this interface and are easy to get wrong:
  *
- * 1. `createTxt` ADDS a record; it is not an upsert. A wildcard order covers two
+ * 1. `createTxt` adds a record; it is not an upsert. A wildcard order covers two
  *    identifiers (`*.preview.example.com` and `preview.example.com`) that validate at the
- *    SAME `_acme-challenge.preview.example.com` name with DIFFERENT values. Replacing
+ *    same `_acme-challenge.preview.example.com` name with different values. Replacing
  *    instead of adding passes or fails depending on which authorization Let's Encrypt
  *    checks first, i.e. about half the time. Hence a record id per call, so cleanup can
  *    remove exactly what it created rather than everything at that name.
@@ -104,8 +104,8 @@ export type PropagationOptions = {
 };
 
 /**
- * Polls the zone's authoritative nameservers until EVERY expected value is visible on
- * EVERY one of them.
+ * Polls the zone's authoritative nameservers until every expected value is visible on
+ * every one of them.
  *
  * Every server, not the first to answer: Let's Encrypt queries the authoritative set and
  * an unlucky pick against a server that has not caught up yet fails the whole order. Every

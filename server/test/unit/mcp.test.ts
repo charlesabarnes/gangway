@@ -1,7 +1,6 @@
 /**
- * §10.2 the MCP tools and the `mcp` surface (ADR-0019). The tools run over a real
- * PreviewContext with only compose faked; the surface is driven with real JSON-RPC in both
- * protocol eras.
+ * The MCP tools and the `mcp` surface. The tools run over a real PreviewContext with only
+ * compose faked; the surface is driven with real JSON-RPC in both protocol eras.
  */
 import { describe, expect, test } from "bun:test";
 import { dirname, join } from "node:path";
@@ -209,7 +208,7 @@ describe("the tools", () => {
     ).rejects.toThrow('lacks the "previews.update" permission');
   });
 
-  test("ADR-0021: the deploy scope rebuilds what its person deployed -- through any of their credentials -- and nothing else", async () => {
+  test("the deploy scope rebuilds what its person deployed -- through any of their credentials -- and nothing else", async () => {
     const s = setup();
     const own = (tokenId: string, userId: string) =>
       ({ ...tokenActor(tokenId, ["deploy"]), userId }) as Actor;
@@ -241,7 +240,7 @@ describe("the tools", () => {
     ).rejects.toThrow('"previews.deploy"');
   });
 
-  test("ADR-0021: a preview with no owner (a PR, a row from before 0010) is rebuilt only with previews.update", async () => {
+  test("a preview with no owner (a PR, a row from before 0010) is rebuilt only with previews.update", async () => {
     const s = setup();
     await s.tools.deploy(s.scope(), {
       files: { "index.html": "v1" },
@@ -290,7 +289,7 @@ describe("the tools", () => {
     await s.tools.destroy(s.scope(), "shop-api");
   });
 
-  test("ADR-0021: ready says how the upload was read, hashes what is deployed, and GETs the paths asked for", async () => {
+  test("ready says how the upload was read, hashes what is deployed, and GETs the paths asked for", async () => {
     const s = setup();
     const asked: string[] = [];
     s.ctx.statusProbe = async (route, _host, path) => {
@@ -510,7 +509,7 @@ describe("the mcp surface", () => {
     expect(s.mcp.open).toBe(0);
   });
 
-  test("ADR-0022: the workflow comes with the server -- instructions on connect, and a generate-artifact prompt, for any client", async () => {
+  test("the workflow comes with the server -- instructions on connect, and a generate-artifact prompt, for any client", async () => {
     const s = surface();
     const init = await s.messages(
       await s.call({

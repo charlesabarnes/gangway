@@ -1,4 +1,4 @@
-/** Idle-sleep and wake (§7.4, ADR-0012) through the real pipeline with a fake compose. */
+/** Idle-sleep and wake through the real pipeline with a fake compose. */
 import { describe, expect, test } from "bun:test";
 import { Logger } from "../../src/logger.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
@@ -114,7 +114,7 @@ describe("Waker", () => {
     expect(s.fake.starts).toHaveLength(1);
   });
 
-  test("a wake is IN FLIGHT while it runs, so the reconciler leaves its `starting` alone (found live with a slow Postgres add-on)", async () => {
+  test("a wake is in flight while it runs, so the reconciler leaves its `starting` alone", async () => {
     const s = setupPreviewContext();
     const p = await s.deployed("slow");
     await sleepPreview(s.ctx, p.id, "idle");

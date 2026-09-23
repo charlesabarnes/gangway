@@ -16,7 +16,7 @@ import { Btn } from '../../ui/button';
 const PAGE = 50;
 
 /**
- * A preview's throwaway databases, from the inside (ADR-0018): tables or keys, a page of
+ * A preview's throwaway databases, from the inside: tables or keys, a page of
  * rows, and a console. Read-only unless writes are switched on -- a read-only transaction
  * for SQL, a read allowlist for Redis. Every query is audited on the server.
  *

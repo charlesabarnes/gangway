@@ -1,9 +1,8 @@
 /**
- * The entire proxy, end to end, with NO Docker: a real Bun.serve upstream on loopback, a
+ * The entire proxy, end to end, with no Docker: a real Bun.serve upstream on loopback, a
  * real gangway listener with a real TLS cert, and a client that does not decompress.
- *
- * These are spike S0's assertions made permanent. They would have caught every bug that
- * spike was built to look for, and they run in CI forever.
+ * Covers the proxy behaviour that fails silently when wrong: forwarded headers, gzip
+ * passthrough, certificate hot-swap, streaming, body limits and the WebSocket relay.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Server } from "bun";
@@ -219,7 +218,7 @@ afterAll(() => {
   void upstream?.stop(true);
 });
 
-describe("headers (§6.4)", () => {
+describe("headers", () => {
   test("the ORIGINAL Host reaches the upstream, and X-Forwarded-* are set", async () => {
     const r = await raw({ host: PREVIEW, path: "/echo?a=1" });
     const j = JSON.parse(r.body.toString());
@@ -306,7 +305,7 @@ describe("TLS", () => {
   });
 
   test("hot-swap: a NEW connection sees the new certificate, via SO_REUSEPORT rebind", async () => {
-    // server.reload({tls}) does not do this on Bun 1.4.2 -- see ADR-0002.
+    // Bun's server.reload({ tls }) does not swap the certificate, hence the rebind.
     const serialOf = () =>
       new Promise<string>((res, rej) => {
         const s = tls.connect(
@@ -390,7 +389,7 @@ describe("streaming and limits", () => {
   });
 });
 
-describe("WebSocket relay (§6.4 -- fails silently when wrong)", () => {
+describe("WebSocket relay (fails silently when wrong)", () => {
   test("echoes text and binary, negotiates a subprotocol, propagates close", async () => {
     const ws = new WebSocket(`wss://127.0.0.1:${listener.port}/ws`, {
       protocols: ["gangway-v1"],

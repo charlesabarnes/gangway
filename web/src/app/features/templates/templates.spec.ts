@@ -83,7 +83,7 @@ describe('Templates', () => {
     idle.value = 'never';
     idle.dispatchEvent(new Event('input'));
     await choose(r, 'clearance', 'high');
-    // The SECOND row's name: must not leak into the first row's patch.
+    // The second row's name: must not leak into the first row's patch.
     const other = inRow(r, 1, 'name') as HTMLInputElement;
     other.value = 'Other';
     other.dispatchEvent(new Event('input'));

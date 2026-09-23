@@ -1,23 +1,14 @@
 /**
- * The blast-door between "DOCKER_HOST wasn't exported" and forty containers on the
- * developer's laptop.
- *
- * Every path into Docker — dockerode, `docker compose`, a raw socket — is preceded by a
- * `docker info` whose answer is checked HERE before anything is created. The failure
- * mode this exists for is silent and expensive: with a Docker Desktop context active,
- * an unset or overridden `DOCKER_HOST` does not error, it succeeds against the wrong
- * daemon. The laptop then acquires a preview estate, and the operator's real host is
- * untouched and looks idle.
+ * Checks a daemon's `docker info` before anything is created on it. With a Docker Desktop
+ * context active, an unset or overridden `DOCKER_HOST` does not error -- it succeeds against
+ * the wrong daemon, and previews land on the local machine instead of the real host.
  *
  * Two independent checks, because each catches what the other misses:
  *
- *  1. `Info.OperatingSystem` contains "Docker Desktop" — catches the case where no host
- *     record has an `expectName` yet (first run, a freshly added host, a test fixture).
- *     Refusable with `GANGWAY_ALLOW_LOCAL_DOCKER=1` for people who genuinely do run
- *     previews on their laptop.
- *  2. `Info.Name` matches the host record's `expectName` — catches pointing at the
- *     *wrong remote*, which check 1 cannot see: two Linux daemons look identical.
- *     There is no escape hatch, because there is no benign reading of it.
+ *  1. The daemon is Docker Desktop -- catches the case where no host record has an
+ *     `expectName` yet. Overridable with `GANGWAY_ALLOW_LOCAL_DOCKER=1`.
+ *  2. `Info.Name` matches the host record's `expectName` -- catches the wrong remote, which
+ *     check 1 cannot see. No override: there is no benign reading of a mismatch.
  */
 import { AppError } from "../errors.ts";
 
@@ -57,7 +48,7 @@ export function localDockerAllowed(env: Env = process.env): boolean {
 }
 
 /**
- * Docker Desktop is identifiable two ways and we accept either, because a version bump
+ * Docker Desktop is identifiable two ways and either is accepted, because a version bump
  * that reworded `OperatingSystem` must not silently disarm the guard:
  *   - `OperatingSystem: "Docker Desktop"` / `"Docker Desktop 4.39.0 (…)"`
  *   - `Name: "docker-desktop"` — the VM's hostname, stable across releases.
@@ -77,7 +68,7 @@ export function checkDaemon(
   const name = info.Name ?? null;
 
   // Desktop first: when both checks fail it is the headline, and the one an operator
-  // needs to read to understand that the request never left the laptop.
+  // needs to read to understand that the request never left the local machine.
   if (looksLikeDockerDesktop(info) && !localDockerAllowed(env)) {
     return {
       ok: false,
@@ -105,8 +96,8 @@ export function checkDaemon(
 }
 
 /**
- * Refuse to proceed unless this daemon is the one we meant. Call before the first
- * mutating operation on a host, and again after a host reconnects (§11).
+ * Refuse to proceed unless this daemon is the one intended. Call before the first
+ * mutating operation on a host, and again after a host reconnects.
  */
 export function assertRemoteDaemon(
   info: DockerInfo,

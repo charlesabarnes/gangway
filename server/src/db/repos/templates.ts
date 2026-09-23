@@ -15,7 +15,7 @@ export type CreateTemplate = {
   hostId?: string | null | undefined;
 };
 
-/** Absent AND undefined both mean "leave it": zod's optional output is passed straight through. */
+/** Absent and undefined both mean "leave it": zod's optional output is passed straight through. */
 export type TemplatePatch = {
   name?: string | undefined;
   description?: string | undefined;
@@ -36,7 +36,7 @@ const COLUMNS: Record<keyof TemplatePatch, string> = {
   hostId: "host_id",
 };
 
-/** Named preview policies (ADR-0013). `default` is seeded by migration 0007 and never deleted. */
+/** Named preview policies. `default` is seeded by migration 0007 and never deleted. */
 export class TemplatesRepo {
   readonly #db: Db;
   readonly #now: () => number;

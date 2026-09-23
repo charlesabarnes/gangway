@@ -1,5 +1,5 @@
 /**
- * The PR lifecycle (ADR-0011) against a fake forge and a fake preview service, with a real
+ * The PR lifecycle against a fake forge and a fake preview service, with a real
  * repos table. Every rule in pr-previews.ts has a case here.
  */
 import { afterEach, describe, expect, test } from "bun:test";
@@ -118,7 +118,7 @@ function fakePreviews(instance = "test") {
     async deploy(input: DeployInput): Promise<DeployResult> {
       deploys.push(input);
       const id = `P${++seq}`;
-      // Like deploy.ts: an unlisted preview's name gets an unguessable suffix, so the project is NOT the PR's stable name.
+      // Like deploy.ts: an unlisted preview's name gets an unguessable suffix, so the project is not the PR's stable name.
       const slug =
         (input.visibility ?? "unlisted") === "unlisted"
           ? `${input.name}-${id.toLowerCase()}x`
@@ -260,7 +260,7 @@ describe("a pull request opens", () => {
     expect(t.deploys[0]!.visibility).toBeUndefined(); // the server default
     // Told the forge as soon as the preview row existed.
     expect([...t.comments.values()][0]).toContain("🚧 Building preview for `aaaaaaa`");
-    // The server default is unlisted: the URL carries the unguessable suffix, and is found again by SOURCE, not name.
+    // The server default is unlisted: the URL carries the unguessable suffix, and is found again by source, not name.
     expect([...t.comments.values()][0]).toContain(
       "https://web-app-pr-123-p1x.preview.example.com/",
     );
@@ -392,7 +392,7 @@ describe("closing", () => {
   });
 });
 
-describe("forks and drafts (§9)", () => {
+describe("forks and drafts", () => {
   test("a fork's PR is ignored under `ask` (the default) and `never`; deployed PUBLIC under `auto`", async () => {
     const t = make();
     const fork = pull({ fromFork: true });
@@ -571,7 +571,7 @@ describe("/preview commands", () => {
 });
 
 describe("projects", () => {
-  test("a repository that is no project is ignored and nothing is made; `/preview` there is ignored too (ADR-0014)", async () => {
+  test("a repository that is no project is ignored and nothing is made; `/preview` there is ignored too", async () => {
     const t = make({ project: false, prs: { 123: pull() } });
     expect(await t.service.handle(updated())).toMatchObject({
       action: "ignored",

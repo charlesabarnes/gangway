@@ -192,7 +192,7 @@ export function rowToCert(r: CertRow): Certificate {
   };
 }
 
-/* ------------------------------------------------------------------ accounts (§8) */
+/* ------------------------------------------------------------------ accounts */
 
 export type RoleRow = {
   id: string;
@@ -210,7 +210,7 @@ export const rowToRole = (r: RoleRow): Role => ({
   createdAt: new Date(r.created_at),
 });
 
-/** The columns a `User` is made of. Password material is deliberately NOT among them. */
+/** The columns a `User` is made of. Password material is deliberately not among them. */
 export const USER_COLUMNS = "id, email, role_id, disabled, created_at";
 export type UserRow = {
   id: string;

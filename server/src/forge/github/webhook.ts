@@ -34,7 +34,7 @@ export function signPayload(secret: string, rawBody: Uint8Array): string {
 }
 
 /**
- * Constant-time on the digest. The header is parsed first so a wrong LENGTH is a plain
+ * Constant-time on the digest. The header is parsed first so a wrong length is a plain
  * "no" and not an exception -- `timingSafeEqual` throws on unequal lengths.
  */
 export function verifySignature(
@@ -121,7 +121,7 @@ export function pullRequestOf(p: GhPullRequest | undefined, repo: ForgeRepo): Pu
     headSha: p.head.sha,
     headRef: p.head.ref,
     baseRef: p.base?.ref ?? "",
-    // A deleted head repository is `null`; treat what we cannot see as foreign.
+    // A deleted head repository is `null`; treat what cannot be seen as foreign.
     fromFork: headRepo === undefined || headRepo === null || headRepo !== repo.fullName,
     draft: p.draft === true,
     author: p.user?.login ?? "",

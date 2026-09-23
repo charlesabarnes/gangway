@@ -1,10 +1,10 @@
 /**
- * §8.1 local accounts: logging in, the first admin, and administering the rest. No HTTP
- * types (ADR-0003) -- a route parses, calls one of these, and shapes the answer.
+ * Local accounts: logging in, the first admin, and administering the rest. No HTTP types --
+ * a route parses, calls one of these, and shapes the answer.
  *
  * Two rules shape this file:
- *  - `Db.transaction` is SYNCHRONOUS. Password hashing is async and slow, so it always
- *    happens BEFORE the transaction; there is never an await inside one.
+ *  - `Db.transaction` is synchronous. Password hashing is async and slow, so it always
+ *    happens before the transaction; there is never an await inside one.
  *  - A failed login says one thing, whatever went wrong, and costs the same whatever went
  *    wrong. Unknown email, wrong password and disabled account are indistinguishable from
  *    outside, in both the response and the time it takes.
@@ -41,7 +41,7 @@ export type AccountsDeps = {
   passwords: Passwords;
   limiter: LoginLimiter;
   audit: AuditSink;
-  /** ADR-0020: a reset or a disable also ends the user's agent connections (OAuth grants). */
+  /** A reset or a disable also ends the user's agent connections (OAuth grants). */
   onCredentialsRevoked?: ((userId: string) => void) | undefined;
   now?: () => number;
 };
@@ -170,7 +170,7 @@ export class Accounts {
     const { before, after } = db.transaction(() => {
       const before = users.get(id);
       if (!before) throw notFound(`no such user: ${id}`);
-      // "Who is left if THIS account stops being an enabled admin?" Asked inside the
+      // "Who is left if this account stops being an enabled admin?" Asked inside the
       // transaction, so two admins demoting each other cannot both succeed.
       const isAdminNow = before.roleId === ADMIN_ROLE_ID && !before.disabled;
       const stopsBeingOne =
@@ -186,7 +186,7 @@ export class Accounts {
       return { before, after };
     });
 
-    // A reset or a disable ends every session NOW. A role change does not need to: the
+    // A reset or a disable ends every session now. A role change does not need to: the
     // actor is rebuilt on every request, so the new role already applies.
     if (credentials || patch.disabled === true) {
       sessions.revokeAllFor(id);
@@ -203,7 +203,7 @@ export class Accounts {
     return after;
   }
 
-  /** Session-authenticated users only. Every OTHER session ends; the one in hand survives. */
+  /** Session-authenticated users only. Every other session ends; the one in hand survives. */
   async changeOwnPassword(
     actor: Actor,
     current: string,

@@ -71,7 +71,7 @@ describe("minting", () => {
     const t = await make();
     const { secret } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["admin"] });
     const asToken = (await t.tokens.verify(secret))!;
-    expect(asToken.permissions.has("tokens.manage_own")).toBe(true); // it HAS the permission...
+    expect(asToken.permissions.has("tokens.manage_own")).toBe(true); // it has the permission...
     expect(() => t.tokens.mint(asToken, { name: "child", scopes: ["read"] })).toThrow(
       /cannot create API tokens/,
     ); // ...and still may not

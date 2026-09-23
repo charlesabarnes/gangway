@@ -40,8 +40,8 @@ const FIELD =
 export const OWN_LABEL = 'Own Dockerfile / compose';
 
 /**
- * New preview (ADR-0015; the spec's Deploy screen). Two ways in on one page: start from a
- * runtime's starter, or drop files, folders or a zip. Both become ONE tar.gz posted to
+ * New preview: the Deploy screen. Two ways in on one page: start from a
+ * runtime's starter, or drop files, folders or a zip. Both become one tar.gz posted to
  * `/v1/previews` -- the same upload path an agent or a script uses.
  */
 @Component({
@@ -562,7 +562,7 @@ export class NewPreview {
   protected readonly dragging = signal(false);
   /** '' = auto. */
   protected readonly choice = signal<Detected | ''>('');
-  /** The server's plan for the upload under the current choice (ADR-0016); null while it is asked. */
+  /** The server's plan for the upload under the current choice; null while it is asked. */
   readonly plan = signal<AppPlan | null>(null);
   protected readonly planning = signal(false);
   /** What `auto` resolved to, from the last auto plan; the local marker check until one arrives. */
@@ -579,7 +579,7 @@ export class NewPreview {
   });
   #planSeq = 0;
 
-  /** ADR-0017: the add-on catalogue, and which are ticked. Untouched, the plan decides (gangway.yml + suggestions). */
+  /** The add-on catalogue, and which are ticked. Untouched, the plan decides (gangway.yml + suggestions). */
   protected readonly addons = computed<AddonInfo[]>(() => this.list()?.addons ?? []);
   readonly addonChecks = signal<AddonId[]>([]);
   readonly #addonsTouched = signal(false);
@@ -601,7 +601,7 @@ export class NewPreview {
   protected readonly name = signal('');
   protected readonly visibility = signal('');
   protected readonly ttl = signal('');
-  /** ADR-0023: who can open it ('' is the server default); a chosen password goes in a header, never the URL. */
+  /** Who can open it ('' is the server default); a chosen password goes in a header, never the URL. */
   protected readonly who = signal<'' | 'open' | 'password' | 'signed-in' | 'either'>('');
   protected readonly passwordSource = signal<'generate' | 'set' | 'shared'>('generate');
   protected readonly passwordValue = signal('');

@@ -120,7 +120,7 @@ describe("the handshake", () => {
     expect(res.headers.get("set-cookie")).toMatch(
       /^__Host-gw_pv=01SHOP0000000000000000000A\.\d+\.0\.[A-Za-z0-9_-]{43}; Max-Age=28800; Path=\/; HttpOnly; Secure; SameSite=Lax$/,
     );
-    expect(res.headers.get("referrer-policy")).toBe("no-referrer"); // the ticket is in THIS url
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer"); // the ticket is in this url
   });
 
   test("with the cookie, requests pass -- page loads, fetches, POSTs and WebSocket upgrades alike", () => {
@@ -155,7 +155,7 @@ describe("the handshake", () => {
       previewId: "01BLOG0000000000000000000B",
     });
     expect(t.get(blog, `/__gangway/auth?ticket=${t.gate.issueTicket(shop)}`)?.status).toBe(403);
-    // Same hostname, a NEW preview behind it (destroyed and redeployed): still no.
+    // Same hostname, a new preview behind it (destroyed and redeployed): still no.
     expect(
       t.get(
         entry({ previewId: "01SHOP0000000000000000NEW2" }),

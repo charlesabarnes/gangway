@@ -1,5 +1,5 @@
 /**
- * ADR-0021 upload by reference: `deploy` with `upload: "new"` hands out a one-use URL, the
+ * Upload by reference: `deploy` with `upload: "new"` hands out a one-use URL, the
  * agent's shell PUTs a tar.gz there, and `deploy` with `upload: <id>` builds those bytes.
  */
 import { describe, expect, test } from "bun:test";

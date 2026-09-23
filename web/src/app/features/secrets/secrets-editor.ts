@@ -14,7 +14,7 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
 };
 
 /**
- * One secrets map (ADR-0012): the global one at `/v1/secrets`, or a repository's at
+ * One secrets map: the global one at `/v1/secrets`, or a repository's at
  * `/v1/repos/:id/env`. Names and levels are shown; a value is typed once and never seen
  * again. Same wire shape on both, so the same editor.
  */

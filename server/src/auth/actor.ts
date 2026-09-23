@@ -1,13 +1,10 @@
 /**
- * Who is making a request. Lives BELOW app/ because the service layer takes an actor for
- * audit (§10.5.2) and must not import HTTP types to get one (ADR-0003).
+ * Who is making a request. Lives below app/ because the service layer takes an actor for
+ * audit and must not import HTTP types to get one. Call sites ask `can(actor, permission)`
+ * and do not care which kind of actor it is.
  *
- * Two kinds: a `token` (bearer credential -- the env admin token, a database token, or
- * gangway acting for itself) and a `user` (session cookie). Phase 6 adds `app`. The union
- * grows; call sites ask `can(actor, permission)` and do not change.
- *
- * `permissions` is RESOLVED when the actor is built, per request: a role edit, a demotion
- * or a disabled account takes effect on the next request, not the next login.
+ * `permissions` is resolved per request when the actor is built: a role edit, a demotion or
+ * a disabled account takes effect on the next request, not the next login.
  */
 import { timingSafeEqual } from "node:crypto";
 import type { ForgeId } from "@gangway/shared/domain";
@@ -20,7 +17,7 @@ export type Actor =
   | {
       kind: "token";
       tokenId: string;
-      /** What the token was minted with (§8.2). For display; `permissions` is what is enforced. */
+      /** What the token was minted with. For display; `permissions` is what is enforced. */
       scopes: readonly Scope[];
       permissions: ReadonlySet<Permission>;
       /** The owning account, for a database token. Absent on the env token and system actors. */
@@ -34,13 +31,13 @@ export type Actor =
       sessionId: string;
     }
   /**
-   * A forge acting on a webhook (ADR-0011). `login` is whoever caused it -- the PR author,
-   * the commenter -- for the audit line; the permissions are FIXED and not a role, so the
-   * owner editing `member` never changes what a pull request may do.
+   * A forge acting on a webhook. `login` is whoever caused it (the PR author, the commenter)
+   * for the audit line. The permissions are fixed, not a role, so editing `member` never
+   * changes what a pull request may do.
    */
   | { kind: "forge"; forge: ForgeId; login: string; permissions: ReadonlySet<Permission> }
   /**
-   * A GitHub Actions run, proved by its OIDC token (ADR-0014). Confined by the auth
+   * A GitHub Actions run, proved by its OIDC token. Confined by the auth
    * middleware to `/v1/projects/:ref/pulls/:n`, and by that route to the project whose
    * repository is `repository`. `pull` is the PR number its `ref` names, if any.
    */
@@ -67,7 +64,7 @@ export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor => 
 });
 
 /**
- * Work gangway does on its own behalf (the TTL sweep, later idle-sleep). Still a `token`
+ * Work gangway does on its own behalf, such as the TTL sweep. Still a `token`
  * actor so audit lines have one shape; the `system:` prefix cannot collide with a real
  * token id and no verifier ever returns one.
  */
@@ -129,7 +126,7 @@ export const actorId = (a: Actor): string =>
         : a.tokenId;
 
 /**
- * ADR-0021: who a preview belongs to. A person behind the credential -- a session, their
+ * Who a preview belongs to. A person behind the credential -- a session, their
  * API token, their OAuth grant -- is `user:<id>`, so an agent that reconnects (a new grant)
  * still owns what it made. An ownerless token is itself; gangway's own jobs, a forge and a
  * workflow own nothing.
@@ -141,7 +138,7 @@ export function principalOf(a: Actor): string | null {
   return a.tokenId.startsWith("system:") ? null : a.tokenId;
 }
 
-/** Rebuild in place (ADR-0015): any preview with `previews.update`, your own with `previews.update_own`. */
+/** Rebuild in place: any preview with `previews.update`, your own with `previews.update_own`. */
 export function mayRebuild(a: Actor, owner: string | null): boolean {
   if (can(a, "previews.update")) return true;
   return can(a, "previews.update_own") && owner !== null && owner === principalOf(a);
@@ -175,8 +172,8 @@ export function chainVerifiers(...verifiers: TokenVerifier[]): TokenVerifier {
 export const ENV_ADMIN_TOKEN_ID = "env:admin";
 
 /**
- * The headless-bootstrap verifier (§8.1): one static token from `GANGWAY_ADMIN_TOKEN`.
- * Compared as digests so the comparison is constant-time AND length-independent --
+ * The headless-bootstrap verifier: one static token from `GANGWAY_ADMIN_TOKEN`.
+ * Compared as digests so the comparison is constant-time and length-independent --
  * timingSafeEqual throws on a length mismatch, which would itself leak the length.
  */
 export function staticTokenVerifier(adminToken: string): TokenVerifier {

@@ -1,8 +1,8 @@
 /**
- * §8.1 sessions. The cookie carries 32 random bytes; the table is keyed on their sha256.
+ * Sessions. The cookie carries 32 random bytes; the table is keyed on their sha256.
  * A stolen database -- or a backup of one -- therefore holds nothing that can be presented.
  *
- * `resolve` runs on every cookie-authenticated request and builds the actor FRESH: the
+ * `resolve` runs on every cookie-authenticated request and builds the actor fresh: the
  * account and its role are read now, and the role's permissions come from the in-memory
  * matrix. Disabling a user, changing their role, or editing what a role may do all take
  * effect on the next request. Nothing about authority is cached in the session.

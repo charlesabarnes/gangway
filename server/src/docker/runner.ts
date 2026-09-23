@@ -33,7 +33,7 @@ export function createComposeRunner(
   clients: DockerClients,
   onHostState?: (hostId: string, ok: boolean, error: string | null) => void,
 ): ComposeRunner {
-  // EVERY invocation is preceded by `docker info` + the guard. It costs one round trip
+  // Every invocation is preceded by `docker info` + the guard. It costs one round trip
   // and it is the only thing standing between a dropped tunnel and a preview deployed to
   // whatever daemon the CLI found instead.
   const preflight = (host: ComposeTarget) => async () => {

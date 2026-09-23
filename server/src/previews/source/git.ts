@@ -1,5 +1,5 @@
 /**
- * Server-side git clone (§5.1, the PR and "deploy a branch" paths).
+ * Server-side git clone, for the PR and "deploy a branch" paths.
  *
  * The credential is a GitHub App installation token, and the whole shape of this module is
  * about where that token is allowed to exist. Not in the URL: git copies remote URLs into

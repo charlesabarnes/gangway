@@ -64,8 +64,8 @@ export class HostsRepo {
 
   /**
    * Reachability is a first-class host property, not an exception. An unreachable host is
-   * NOT an empty host: the reconciler must never treat "I could not ask" as "the answer
-   * was nothing", or a network blip deletes every route (§11).
+   * not an empty host: the reconciler must never treat "I could not ask" as "the answer
+   * was nothing", or a network blip deletes every route.
    */
   setState(id: string, state: HostState, lastError: string | null = null): void {
     this.#db.run(

@@ -1,6 +1,6 @@
 /**
- * §10.5 surface toggles through the real app: the lockout guard (§10.5.1), the typed phrase,
- * config pins, the audit row (§10.5.2), and the MCP drop hook.
+ * Surface toggles through the real app: the lockout guard, the typed phrase, config pins,
+ * the audit row, and the MCP drop hook.
  */
 import { describe, expect, test } from "bun:test";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
@@ -131,7 +131,7 @@ describe("/v1/surfaces", () => {
     expect(s.auditRepo.page({ limit: 200 }).entries.length).toBe(before);
   });
 
-  test("§10.5.1: the UI stays on without the phrase, and without a live admin token", async () => {
+  test("the UI stays on without the phrase, and without a live admin token", async () => {
     const { put, settings, tokens, adaActor, s } = await make();
     expect((await put({ ui: false })).status).toBe(422);
     expect((await put({ ui: false, confirm: "yes" })).status).toBe(422);
@@ -140,7 +140,7 @@ describe("/v1/surfaces", () => {
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ reason: "no_admin_token" });
 
-    // Tokens that are NOT a way back in: a deploy-only one, an expired one, a revoked one.
+    // Tokens that are not a way back in: a deploy-only one, an expired one, a revoked one.
     tokens.mint(adaActor, { name: "deploy only", scopes: ["deploy"] });
     tokens.mint(adaActor, { name: "short", scopes: ["admin"], expiresIn: "1h" });
     const revoked = tokens.mint(adaActor, { name: "revoked", scopes: ["admin"] });

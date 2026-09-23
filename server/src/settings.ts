@@ -1,13 +1,12 @@
 /**
- * Effective-settings resolver (§10.5).
+ * Effective-settings resolver.
  *
  *   effective(key) = config/env override, if present
  *                    else the database value
  *                    else the built-in default
  *
- * "One rule, and it is what makes the server declaratively deployable." A setting pinned
- * in config reports managedByConfig, so the UI renders it disabled and labelled
- * *managed by config* rather than silently failing when clicked.
+ * A setting pinned in config reports managedByConfig, so the UI renders it disabled and
+ * labelled *managed by config* rather than silently failing when clicked.
  */
 import { z } from "zod";
 import { parseDuration } from "./util/duration.ts";
@@ -28,9 +27,8 @@ export type Effective<T> = {
 };
 
 /**
- * `secret`: the value is never reported, only whether one is set. A snapshot of settings
- * with the Cloudflare token or the GitHub App's private key in it is exactly the leak
- * `GET /v1/settings` was deferred over (ADR-0011).
+ * `secret`: the value is never reported, only whether one is set, so `GET /v1/settings`
+ * cannot leak the Cloudflare token or the GitHub App's private key.
  */
 export type SettingDef<T> = { key: string; schema: z.ZodType<T>; fallback: T; secret: boolean };
 
@@ -67,19 +65,18 @@ export const SETTINGS = {
   baseDomain: def("baseDomain", z.string().min(1), "preview.localhost"),
   surfacesUi: def("surfaces.ui", z.boolean(), true),
   // Defaults: UI on, MCP off. MCP is an additional public auth surface that matters only
-  // once a token exists for an agent, so opt-in is the safer posture (§10.5).
+  // once a token exists for an agent, so opt-in is the safer posture.
   surfacesMcp: def("surfaces.mcp", z.boolean(), false),
-  // ADR-0013: the template each trigger deploys with unless the request or the repository
-  // names one. The old `defaults.*` keys became the `default` template's fields.
+  // The template each trigger deploys with unless the request or the repository names one.
   templatePr: def("templates.default.pr", templateRef, "default"),
   templateApi: def("templates.default.api", templateRef, "default"),
   templateManual: def("templates.default.manual", templateRef, "default"),
-  // ADR-0023: the password a preview that inherits is behind. `shared` is one password for
-  // all of them (its scrypt hash, never the text); `generated` gives each NEW preview its
+  // The password a preview that inherits is behind. `shared` is one password for all of
+  // them (its scrypt hash, never the text); `generated` gives each new preview its
   // own, printed in its log. Written only through PUT /v1/settings/preview-password.
   previewPasswordMode: def("previews.password.mode", z.enum(["off", "shared", "generated"]), "off"),
   // Whether a signed-in gangway user (with `previews.skip_password`) gets past the password
-  // of a preview that follows this default. A preview can say on or off for itself. OFF by
+  // of a preview that follows this default. A preview can say on or off for itself. Off by
   // default: a password means everyone is asked, until the owner says otherwise.
   previewPasswordLogin: def("previews.password.login", z.boolean(), false),
   previewPasswordShared: def(
@@ -98,7 +95,7 @@ export const SETTINGS = {
   acmeEmail: def("acme.email", z.string().email().or(z.literal("")), ""),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
-  // The GitHub App (ADR-0011). Filled by the manifest flow, or pinned from the environment.
+  // The GitHub App. Filled by the manifest flow, or pinned from the environment.
   githubAppId: def("github.appId", z.string(), ""),
   githubAppSlug: def("github.appSlug", z.string(), ""),
   githubClientId: def("github.clientId", z.string(), ""),
@@ -194,7 +191,7 @@ export class Settings {
     return Object.values(SETTINGS).map((d) => this.effective(d as SettingDef<unknown>));
   }
 
-  /** `GET /v1/settings` and the Settings screen: secrets reported as set or not, never as values. */
+  /** `GET /v1/settings` and the Settings screen: secrets reported as set or not, never values. */
   view(): SettingView[] {
     return Object.values(SETTINGS).map((d) => {
       // TypeScript 7 needs the widening; the TypeScript 6 that ESLint runs does not.

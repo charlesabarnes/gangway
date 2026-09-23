@@ -1,7 +1,7 @@
 /**
- * The ORDER of operations in tls/acme.ts, against a fake CA that signs with the dev CA.
+ * The order of operations in tls/acme.ts, against a fake CA that signs with the dev CA.
  * This proves the sequencing; scripts/acme-pebble-check.ts proves it against a real
- * ACME server. Both are needed -- see "a green fake proves nothing" in docs/STATUS.md.
+ * ACME server. A passing fake alone proves nothing about the real protocol.
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";

@@ -1,4 +1,4 @@
-/** ADR-0015: runtimes, the kept source, and rebuilding a preview in place (fake compose, real files). */
+/** Runtimes, the kept source, and rebuilding a preview in place (fake compose, real files). */
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -119,7 +119,7 @@ describe("generated build files", () => {
     }
   });
 
-  test("every generated script parses (found live: a quoting slip broke workerd's bundler)", async () => {
+  test("every generated script parses", async () => {
     const ts = new Bun.Transpiler({ loader: "ts" });
     for (const rt of RUNTIMES) {
       const dir = await folder(rt.starter);
@@ -195,7 +195,7 @@ describe("generated build files", () => {
     expect(readFileSync(join(dir, ".gangway/Dockerfile.dockerignore"), "utf8")).toContain(
       "node_modules",
     );
-    // Found live: nginx runs unprivileged and could not read a 0600 config.
+    // nginx runs unprivileged and cannot read a 0600 config.
     expect(statSync(join(dir, ".gangway/Dockerfile")).mode & 0o777).toBe(0o644);
     expect(statSync(join(out, "c.yaml")).mode & 0o777).toBe(0o600);
     expect(readFileSync(join(dir, composeFile), "utf8")).toContain("s3cret");
@@ -538,7 +538,7 @@ describe("HTTP", () => {
   });
 });
 
-describe("ADR-0016: conventions, gangway.yml, scripts", () => {
+describe("conventions, gangway.yml, scripts", () => {
   test("no upload-supplied command reaches the Dockerfile; scripts carry them, quoted", async () => {
     const evil = 'echo $(id) `x` "; RUN rm -rf /';
     const dir = await folder({
@@ -770,7 +770,7 @@ describe("ADR-0016: conventions, gangway.yml, scripts", () => {
   });
 });
 
-describe("ADR-0016 HTTP", () => {
+describe("plans and schema over HTTP", () => {
   const quiet = new Logger("error", {}, () => {});
   const api = (s: ReturnType<typeof setup>) => {
     const app = new Hono<AppEnv>();

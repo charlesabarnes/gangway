@@ -1,14 +1,12 @@
 /**
  * The Docker port: a deliberately narrow surface over dockerode, one instance per host.
  *
- * NARROW IS THE POINT. dockerode is the expedient choice today, not a commitment: the
- * spike found that Bun's `fetch(url, { unix })` speaks the engine API directly and is a
- * viable replacement. That option only survives if dockerode's types never escape this
- * file — so everything crossing the `DockerClient` boundary is a plain structural type
- * or plain inspect JSON (see inspect.ts), and nothing above here imports dockerode.
+ * dockerode is replaceable (Bun's `fetch(url, { unix })` speaks the engine API directly), so
+ * its types never escape this file: everything crossing the `DockerClient` boundary is a plain
+ * structural type or inspect JSON (see inspect.ts), and nothing above here imports dockerode.
  *
- * §3.2: additional hosts are just connection strings. There is no agent and no control
- * channel, so `dockerHost` from the host record is the whole configuration.
+ * Hosts are just connection strings -- no agent, no control channel -- so `dockerHost` from
+ * the host record is the whole configuration.
  */
 import Dockerode from "dockerode";
 import type { Host } from "@gangway/shared/domain";
@@ -80,8 +78,8 @@ export type EventOptions = {
 
 /**
  * The entire Docker surface the rest of gangway is allowed to see.
- * Lifecycle (`up`, `down`, `build`) is NOT here: §7.1 says shell out to the compose
- * binary for that, and compose.ts does.
+ * Lifecycle (`up`, `down`, `build`) is not here: compose.ts shells out to the compose binary
+ * for that.
  */
 export type DockerClient = {
   readonly hostId: string;
@@ -90,7 +88,7 @@ export type DockerClient = {
   listContainers(opts?: ListOptions): Promise<ContainerSummary[]>;
   inspectContainer(id: string): Promise<InspectJson>;
   /**
-   * The ONE mutating call on this surface, and it exists for §11's orphan row only.
+   * The only mutating call on this surface, used to stop orphaned containers.
    * Stops, never removes: a stopped container releases its port -- the whole argument
    * for touching it -- and is still there to be looked at afterwards.
    */
@@ -159,7 +157,7 @@ const DEMUX_HEADER = 8;
 
 /**
  * Docker frames non-TTY logs as `[stream(1) 0 0 0 size(4, BE)]` + payload; with a TTY
- * the bytes are raw. We sniff rather than ask, because asking costs an inspect call per
+ * the bytes are raw. This sniffs rather than asks, because asking costs an inspect call per
  * log stream and gets it wrong anyway the moment the container is recreated with a
  * different TTY setting.
  */
@@ -424,7 +422,7 @@ export function createDockerClient(
 
 /**
  * One client per host, rebuilt when the connection string changes. Hosts are edited at
- * runtime (§9), and a cached client still pointed at the old `dockerHost` would keep
+ * runtime, and a cached client still pointed at the old `dockerHost` would keep
  * working against the previous daemon without ever erroring.
  */
 export class DockerClients {

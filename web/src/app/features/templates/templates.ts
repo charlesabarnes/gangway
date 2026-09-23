@@ -27,7 +27,7 @@ const CLEARANCE_HELP: Record<Clearance, string> = {
 const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 
 /**
- * Templates (ADR-0013): named preview policies. What a deploy gets unless the request,
+ * Templates: named preview policies. What a deploy gets unless the request,
  * its project or the stack file says otherwise. `default` is built in and can be edited
  * but never removed; Settings picks one per trigger, a project picks its own.
  */

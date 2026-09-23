@@ -1,5 +1,5 @@
 /**
- * §8.1 first run, through everything real: boot(), the TLS listener, Host-header dispatch,
+ * First run, through everything real: boot(), the TLS listener, Host-header dispatch,
  * the Hono app, SQLite. Docker is never reached -- nothing here deploys.
  */
 import { afterEach, expect, test } from "bun:test";
@@ -113,7 +113,7 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
   const cookie = made.headers.get("set-cookie")!.split(";")[0]!;
 
   // The cookie is a real credential through the real dispatcher: reads work, and a
-  // mutation needs the PUBLIC origin -- built from the public port, not a guess.
+  // mutation needs the public origin -- built from the public port, not a guess.
   expect((await first.call("app", "/v1/previews", { headers: { cookie } })).status).toBe(200);
   expect((await first.call("app", "/v1/audit", { headers: { cookie } })).status).toBe(200);
   expect(
@@ -121,7 +121,7 @@ test("first run: the setup URL is announced, never logged; it makes the admin; t
   ).toBe(403);
   expect((await first.call("api", "/v1/previews", { headers: { cookie } })).status).toBe(401);
 
-  // The env token is untouched by any of this (§8.1 headless bootstrap).
+  // The env token (headless bootstrap) is untouched by any of this.
   expect(
     (
       await first.call("api", "/v1/previews", {

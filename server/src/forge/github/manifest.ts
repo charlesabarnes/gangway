@@ -1,5 +1,5 @@
 /**
- * The App-manifest flow (§10.4): gangway writes the manifest, the browser posts it to
+ * The App-manifest flow: gangway writes the manifest, the browser posts it to
  * GitHub, GitHub creates the App and sends the browser back with a one-time code, and
  * gangway turns the code into credentials. No secret is ever typed or copied by hand.
  *
@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 export const MANIFEST_STATE_TTL_MS = 10 * 60_000;
 
 /** What `pull_request` + `issue_comment` and the six REST calls need, and nothing more. */
-// `issues: read` is what the issue_comment EVENT needs (GitHub refuses the manifest without
+// `issues: read` is what the issue_comment event needs (GitHub refuses the manifest without
 // it, whatever the docs say); commenting on a PR is covered by pull_requests: write.
 export const APP_PERMISSIONS = {
   contents: "read",

@@ -74,7 +74,7 @@ describe("Docker Desktop detection", () => {
     expect(looksLikeDockerDesktop({ OperatingSystem: "Docker Engine - Community" })).toBe(false);
   });
 
-  /* "desktop-linux" is the CONTEXT name on this machine, not a daemon OperatingSystem.
+  /* "desktop-linux" is a Docker context name, not a daemon OperatingSystem.
      Matching on it would be matching the wrong string. */
   test("a host merely named like a desktop context is not Desktop", () => {
     expect(looksLikeDockerDesktop({ Name: "desktop-linux", OperatingSystem: "Debian 12" })).toBe(
@@ -180,7 +180,7 @@ describe("expectName", () => {
 });
 
 /* The scenario the guard exists for, end to end: DOCKER_HOST is set to docker-host but
-   DOCKER_CONTEXT=desktop-linux quietly wins, so `docker info` answers from the laptop.
+   DOCKER_CONTEXT=desktop-linux quietly wins, so `docker info` answers from the local machine.
    Without this check the next call creates containers there and reports success. */
 describe("the actual accident", () => {
   test("DOCKER_CONTEXT beating DOCKER_HOST is caught by both checks", () => {

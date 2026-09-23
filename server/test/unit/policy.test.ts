@@ -1,4 +1,4 @@
-/** Which template a deploy follows (ADR-0013): the request, the repository, the trigger; and what the pipeline does with it. */
+/** Which template a deploy follows: the request, the repository, the trigger; and what the pipeline does with it. */
 import { describe, expect, test } from "bun:test";
 import { AppError } from "../../src/errors.ts";
 import { Logger } from "../../src/logger.ts";

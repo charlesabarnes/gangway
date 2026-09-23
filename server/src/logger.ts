@@ -53,8 +53,7 @@ export function redact(value: unknown, depth = 0): unknown {
   if (typeof value === "string") return redactString(value);
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
-  // A Date has no own enumerable properties: walked as an object it becomes `{}`. The first
-  // production audit row (token.created, expiresAt) stored exactly that.
+  // A Date has no own enumerable properties: walked as an object it would become `{}`.
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (value instanceof Error) {
     // An AppError's `code` and `detail` are the part worth reading -- `compose config`'s

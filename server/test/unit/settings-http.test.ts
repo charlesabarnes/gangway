@@ -1,5 +1,5 @@
 /**
- * /v1/settings through the real app (ADR-0011): secrets never come back, a config-pinned
+ * /v1/settings through the real app: secrets never come back, a config-pinned
  * key is refused, a PUT is whole-or-nothing, and surfaces are not changed here.
  */
 import { describe, expect, test } from "bun:test";

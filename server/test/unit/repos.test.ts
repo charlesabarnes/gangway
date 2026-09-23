@@ -463,7 +463,7 @@ for (const [name, open] of DRIVERS) {
         sha: "abc",
       });
 
-      // Found by source: the NAME of an unlisted preview is not stable, the PR is.
+      // Found by source: the name of an unlisted preview is not stable, the PR is.
       expect(previews.findPullRequest("acme/web-app", 7)?.id).toBe(p.id);
       expect(previews.findPullRequest("acme/web-app", 8)).toBeUndefined();
       expect(previews.findPullRequest("other/web-app", 7)).toBeUndefined();

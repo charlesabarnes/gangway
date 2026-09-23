@@ -1,5 +1,5 @@
 /**
- * ADR-0020: the OAuth 2.1 authorization server for MCP clients. The CIMD fetcher's address
+ * The OAuth 2.1 authorization server for MCP clients. The CIMD fetcher's address
  * rules, the authorize endpoint's validation, codes, PKCE, refresh rotation and replay, the
  * audience rule (an OAuth token opens MCP and nothing else), and the whole flow over HTTP.
  */
@@ -698,7 +698,7 @@ describe("the flow over HTTP, as claude.ai drives it", () => {
     expect((await h.toolCall(t.access_token, "status", {})).status).toBe(200);
   });
 
-  test("ADR-0021: a deploy grant rebuilds its own preview; someone else's steps up to update, and an update grant may", async () => {
+  test("a deploy grant rebuilds its own preview; someone else's steps up to update, and an update grant may", async () => {
     const h = await http();
     h.p.ctx.sources = new SourceStore(dirname(h.p.ctx.workdirs.root));
     const t = h.exchange(await h.code(h.ada, ["read", "deploy"]));

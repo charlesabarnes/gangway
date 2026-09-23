@@ -1,10 +1,7 @@
 /**
- * WebSocket relay. This is a TERMINATION and RE-ORIGINATION, not a byte pipe: gangway
- * accepts the client's upgrade itself, then opens its own connection upstream. Spike S0
- * measured the fidelity that requires -- 1000 echoes, a 1 MiB frame, subprotocol
- * negotiation and close-code propagation in both directions.
- *
- * §6.4 warns this fails SILENTLY when wrong: HMR simply stops working and nothing logs.
+ * WebSocket relay. This terminates and re-originates rather than piping bytes: gangway accepts
+ * the client's upgrade itself, then opens its own connection upstream, relaying frames,
+ * subprotocol and close codes both ways. It fails silently when wrong: HMR just stops working.
  */
 import type { ServerWebSocket } from "bun";
 import type { RouteEntry } from "../routing/table.ts";

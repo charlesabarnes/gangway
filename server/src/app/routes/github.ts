@@ -29,7 +29,7 @@ const GITHUB_KEYS = [
 ];
 
 /**
- * `/v1/github` (§10.4, ADR-0011): is the App connected, and the manifest flow that
+ * `/v1/github`: is the App connected, and the manifest flow that
  * connects it. Every route needs `github.manage`; the status answer carries no secret.
  */
 export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
@@ -59,7 +59,7 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
 
   api.get("/github", requirePermission("github.manage"), (c) => c.json(status()));
 
-  // ADR-0014: what the New project form offers -- repositories the App is installed on.
+  // What the New project form offers: repositories the App is installed on.
   // Readable by whoever may make a project; empty (not an error) when the App is not connected.
   api.get("/github/repositories", requirePermission("repos.manage"), async (c) => {
     if (!status().configured) return c.json({ repositories: [] });

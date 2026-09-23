@@ -1,6 +1,5 @@
 /**
- * What the Previews and Preview-detail screens read (T46), and the log stream that could
- * not be opened once a build got long.
+ * What the Previews and Preview-detail screens read, and the log stream for a long build.
  */
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
@@ -178,7 +177,7 @@ describe("GET /v1/previews/:id/logs", () => {
     return p;
   };
 
-  test("REGRESSION: a log longer than the SSE queue still opens -- it used to close before its first frame, forever", async () => {
+  test("a log longer than the SSE queue still opens and streams", async () => {
     const t = make(ACTOR, 500);
     const p = await longLog(t, 1200);
     const { out, ended } = await frames(await t.get(`/previews/${p.id}/logs`), 499);

@@ -11,7 +11,7 @@ describe("precedence: config ?? database ?? default", () => {
   test("default when nothing is set", () => {
     const { settings } = mk();
     const e = settings.effective(SETTINGS.surfacesMcp);
-    expect(e.value).toBe(false); // MCP is opt-in (§10.5)
+    expect(e.value).toBe(false); // MCP is opt-in
     expect(e.source).toBe("default");
     expect(e.managedByConfig).toBe(false);
   });

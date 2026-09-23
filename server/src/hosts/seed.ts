@@ -1,5 +1,5 @@
 /**
- * Hosts declared in config are upserted on every boot. Config is authoritative for HOW we
+ * Hosts declared in config are upserted on every boot. Config is authoritative for how we
  * reach a host; the row's `state` is owned by the reconciler and is deliberately left
  * untouched by a re-seed.
  */

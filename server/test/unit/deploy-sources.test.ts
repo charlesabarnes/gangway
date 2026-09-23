@@ -1,4 +1,4 @@
-/** T23: tarball and git sources through the real pipeline (fake compose, real extraction). */
+/** Tarball and git sources through the real pipeline (fake compose, real extraction). */
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { pack } from "tar-stream";
@@ -212,7 +212,7 @@ describe("git source", () => {
   });
 });
 
-describe("the seed hook (§7.3, ADR-0012)", () => {
+describe("the seed hook", () => {
   const SEEDED = `services:\n  web:\n    build: .\n    x-gangway: { expose: true, port: 3000 }\n  db:\n    image: postgres:16\nx-gangway:\n  seed: ./scripts/seed.sh --fast\n`;
 
   test("runs once in the primary service after the stack is healthy and before the URL answers; its output is the `seed` stream", async () => {
@@ -283,7 +283,7 @@ describe("the seed hook (§7.3, ADR-0012)", () => {
   });
 });
 
-describe("repository secrets become .env (ADR-0012)", () => {
+describe("repository secrets become .env", () => {
   // The fake `config` returns the compose file as-is; what matters is what is on disk when it runs.
   const dotenvAtConfig = (s: ReturnType<typeof setupPreviewContext>) => {
     let seen: string | null = null;
@@ -341,7 +341,7 @@ describe("repository secrets become .env (ADR-0012)", () => {
     expect(read()).toBeNull();
   });
 
-  test("absent on the input, the context supplies the secrets at the template's clearance (ADR-0013)", async () => {
+  test("absent on the input, the context supplies the secrets at the template's clearance", async () => {
     const s = setupPreviewContext();
     const read = dotenvAtConfig(s);
     const asked: [string | null, string][] = [];

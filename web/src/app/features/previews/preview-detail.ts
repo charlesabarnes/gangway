@@ -334,7 +334,7 @@ export class PreviewDetail {
     this.#store.connect();
     inject(DestroyRef).onDestroy(() => this.#store.disconnect());
 
-    // A deep link, or a reload. WAIT for the list first: it usually holds this preview, and
+    // A deep link, or a reload. Wait for the list first: it usually holds this preview, and
     // asking for it separately as well would be a wasted request on every page load. Only
     // what the list does not have -- a destroyed preview, which it omits -- is fetched alone.
     effect(() => {

@@ -1,10 +1,9 @@
 /**
- * Process-level configuration: env and file. Anything here is a CONFIG OVERRIDE and
- * therefore outranks the database (§10.5 precedence). Operator-tunable values that should
- * be editable from the UI live in settings.ts instead.
+ * Process-level configuration: env and file. Anything here is a config override and
+ * therefore outranks the database. Operator-tunable values that should be editable from
+ * the UI live in settings.ts instead.
  *
- * §13: "Never assume ownership of :80 and :443. Listen address and ports are
- * configuration, not constants."
+ * Never assume ownership of :80 and :443: listen address and ports are configuration.
  */
 import { z } from "zod";
 
@@ -31,7 +30,7 @@ export type HostConfig = z.infer<typeof HostConfigSchema>;
 
 export const ConfigSchema = z.object({
   /**
-   * Written into every container label (§4.1). Two gangway installations can share one
+   * Written into every container label. Two gangway installations can share one
    * daemon; these are how each tells its containers from the other's.
    */
   instanceId: z
@@ -62,21 +61,21 @@ export const ConfigSchema = z.object({
   upstreamTimeoutMs: z.coerce.number().int().positive().default(30_000),
   previewInflightCap: z.coerce.number().int().positive().default(256),
 
-  /** §11. Each pass also re-probes every host, so this bounds reconnect detection. 0 disables. */
+  /** Each pass also re-probes every host, so this bounds reconnect detection. 0 disables. */
   reconcileIntervalMs: z.coerce.number().int().min(0).default(60_000),
-  /** `report` logs what the reconciler WOULD stop and stops nothing. */
+  /** `report` logs what the reconciler would stop and stops nothing. */
   reconcileOrphans: z.enum(["stop", "report"]).default("stop"),
 
   /** How often expired previews are destroyed. 0 disables the sweep (TTLs are then advisory). */
   ttlSweepIntervalMs: z.coerce.number().int().min(0).default(60_000),
   idleSweepIntervalMs: z.coerce.number().int().min(0).default(60_000),
-  /** How long a request waits for a wake before it gets the 202 page (§6.3: ~3 s). */
+  /** How long a request waits for a wake before it gets the 202 page. */
   wakeWaitMs: z.coerce.number().int().min(0).default(3_000),
   /** How often in-memory "last visited" marks reach SQLite. Also flushed once at shutdown. */
   lastSeenFlushIntervalMs: z.coerce.number().int().min(0).default(30_000),
 
   /**
-   * Reverse proxies in FRONT of gangway (Nginx Proxy Manager, a load balancer), as IPs or
+   * Reverse proxies in front of gangway (Nginx Proxy Manager, a load balancer), as IPs or
    * CIDRs. X-Forwarded-For is believed only from these. Empty -- the default -- means
    * gangway faces the internet itself and believes no one. See net/trusted-proxy.ts.
    */
@@ -103,7 +102,7 @@ export const ConfigSchema = z.object({
 
   hosts: z.array(HostConfigSchema).default([HostConfigSchema.parse({})]),
 
-  /** Phase 1 only: a static bearer token standing in for real auth (T14). */
+  /** A static admin bearer token (`GANGWAY_ADMIN_TOKEN`) for headless bootstrap. */
   adminToken: z.string().optional(),
 
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
@@ -144,7 +143,7 @@ const ENV_MAP = {
   GANGWAY_LOG_LEVEL: "logLevel",
 } as const satisfies Record<string, keyof Config>;
 
-/** Settings-table keys that may be pinned from the environment (§10.5 precedence). */
+/** Settings-table keys that may be pinned from the environment, outranking the database. */
 const SETTING_ENV_MAP = {
   GANGWAY_BASE_DOMAIN: "baseDomain",
   GANGWAY_SURFACE_UI: "surfaces.ui",

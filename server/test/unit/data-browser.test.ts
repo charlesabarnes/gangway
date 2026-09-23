@@ -1,4 +1,4 @@
-/** ADR-0018: the data browser -- drivers (pure) and the service (limits, refusals, audit) over a stubbed runner. */
+/** The data browser -- drivers (pure) and the service (limits, refusals, audit) over a stubbed runner. */
 import { describe, expect, test } from "bun:test";
 import { dirname } from "node:path";
 import { gzipSync } from "node:zlib";

@@ -9,7 +9,7 @@ export type UserCredentials = { hash: string; salt: string };
 export type CreateUser = { id: string; email: string; roleId: string } & UserCredentials;
 
 /**
- * §8.1 local accounts. `email` arrives already trimmed and lowercased (the zod schema does
+ * Local accounts. `email` arrives already trimmed and lowercased (the zod schema does
  * it): the UNIQUE column has no NOCASE collation, so the repo compares bytes.
  *
  * There is no `delete`. An account is disabled, never removed: audit rows keep pointing at
@@ -81,7 +81,7 @@ export class UsersRepo {
 
   /**
    * Enabled accounts holding the builtin `admin` role, optionally not counting one. The
-   * last-admin guard asks "who is left if THIS account stops being one?".
+   * last-admin guard asks "who is left if this account stops being one?".
    */
   countActiveAdmins(exceptId?: string): number {
     return this.#db.get<{ n: number }>(

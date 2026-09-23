@@ -1,5 +1,5 @@
 /**
- * Streaming tarball extraction (§5.1, the agent upload path).
+ * Streaming tarball extraction, for the upload path.
  *
  * The archive is attacker-controlled: an agent posts it, and nothing upstream has looked
  * inside. So it is never buffered to disk and re-read, never handed to `tar(1)`, and every
@@ -289,7 +289,7 @@ async function* decompressed(source: TarballSource): AsyncGenerator<Uint8Array> 
   const all = prepend(head, bytes);
   if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
     // node:zlib, not DecompressionStream: macOS's bsdtar pads what it writes to a pipe with
-    // zeros to a 10240-byte record AFTER the gzip stream (`tar -czf - . | curl`), and
+    // zeros to a 10240-byte record after the gzip stream (`tar -czf - . | curl`), and
     // DecompressionStream fails that as "inflate failed" where zlib stops at the member's end.
     const src = Readable.from(all);
     const gz = createGunzip();

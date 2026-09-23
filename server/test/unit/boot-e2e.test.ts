@@ -1,5 +1,5 @@
 /**
- * The Phase 1 milestone, end to end, with everything real except the Docker daemon:
+ * The core flow, end to end, with everything real except the Docker daemon:
  * real TLS listener, real Host-header dispatch, real Hono app, real SQLite, real proxy.
  * "compose up" is a fake that starts an HTTP fixture on the port gangway allocated --
  * which is exactly the contract a real container has to meet.
@@ -247,7 +247,7 @@ test("MILESTONE: deploy an image over REST, get a URL, open it, destroy it", asy
   expect(await (await call(API, "/healthz")).json()).toEqual({ ok: true, routes: 0 });
 });
 
-test("§11 step 1: a restart serves existing routes immediately, and rescues interrupted pipelines", async () => {
+test("a restart serves existing routes immediately, and rescues interrupted pipelines", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const upstreamPort = await freePort();
@@ -275,13 +275,13 @@ test("§11 step 1: a restart serves existing routes immediately, and rescues int
 
   // The containers outlive the process; the second boot's daemon still lists them.
   const two = await start(dir, upstreamPort, [...one.daemon.values()]);
-  // §11 step 1: served from SQLite the moment boot returns, before any daemon has answered.
+  // Served from SQLite the moment boot returns, before any daemon has answered.
   expect(two.ctx.table.lookup("survivor.preview.localhost")).toMatchObject({
     previewId: preview.id,
     state: "awake",
     upstreamPort,
   });
-  // Steps 2-3 happen behind the listener.
+  // Reconciliation happens behind the listener.
   const report = await two.reconciled;
   expect(report!.hosts[0]).toMatchObject({ reachable: true, containers: 1 });
   expect(two.ctx.previews.get(preview.id)!.state).toBe("awake");
@@ -291,7 +291,7 @@ test("§11 step 1: a restart serves existing routes immediately, and rescues int
   });
 });
 
-test("T26: the scheduler owns the periodic work -- visits reach SQLite, an expired preview is swept", async () => {
+test("the scheduler owns the periodic work -- visits reach SQLite, an expired preview is swept", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
@@ -330,7 +330,7 @@ test("T26: the scheduler owns the periodic work -- visits reach SQLite, an expir
   expect(running.daemon.size).toBe(0);
 });
 
-describe("T29: graceful shutdown", () => {
+describe("graceful shutdown", () => {
   const deployHello = async (running: Running) => {
     const res = await client(running)("api.preview.localhost", "/v1/previews?wait=true", {
       method: "POST",
@@ -391,7 +391,7 @@ describe("T29: graceful shutdown", () => {
   });
 });
 
-test("T35: a retried POST with the same Idempotency-Key returns the same preview, marked as a replay", async () => {
+test("a retried POST with the same Idempotency-Key returns the same preview, marked as a replay", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
@@ -443,10 +443,10 @@ test("behind a reverse proxy: a preview sees the VISITOR in X-Forwarded-For only
     ).xff;
   };
   expect(await deployAndAsk({})).toBe("127.0.0.1"); // facing the internet: believe no one
-  expect(await deployAndAsk({ GANGWAY_TRUSTED_PROXIES: "127.0.0.1" })).toBe("198.51.100.7"); // behind NPM: the hop NPM vouched for
+  expect(await deployAndAsk({ GANGWAY_TRUSTED_PROXIES: "127.0.0.1" })).toBe("198.51.100.7"); // behind a proxy: the hop the proxy vouched for
 });
 
-test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and a container that sees neither", async () => {
+test("a PRIVATE preview -- login on app, a ticket, a cookie of its own, and a container that sees neither", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
@@ -494,12 +494,12 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
     401,
   );
 
-  // 2. app, not logged in: go and log in, and come back HERE.
+  // 2. app, not logged in: go and log in, and come back here.
   const anonymous = await raw(APP, `${toGate.pathname}${toGate.search}`);
   expect(anonymous.status).toBe(302);
   expect(anonymous.headers.get("location")).toStartWith("/login?returnUrl=%2Fv1%2Fauth%2Fgate");
 
-  // ...the gate is not an open redirect: only a LIVE, PRIVATE preview will do.
+  // ...the gate is not an open redirect: only a live, private preview will do.
   for (const host of ["evil.example", "api.preview.localhost", "nope.preview.localhost", ""]) {
     expect(
       (await raw(APP, `/v1/auth/gate?host=${host}&to=/`, { headers: { cookie: session } })).status,
@@ -515,7 +515,7 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
   expect(`${toPreview.host}${toPreview.pathname}`).toBe(`${SECRET}:${port}/__gangway/auth`);
   expect(ticketed.headers.get("referrer-policy")).toBe("no-referrer");
 
-  // 4. The preview host trades the ticket for ITS OWN cookie, once.
+  // 4. The preview host trades the ticket for its own cookie, once.
   const redeemed = await raw(SECRET, `${toPreview.pathname}${toPreview.search}`);
   expect(redeemed.status).toBe(302);
   expect(redeemed.headers.get("location")).toBe("/cookie?x=1");
@@ -523,14 +523,14 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
   expect(gateCookie).toStartWith("__Host-gw_pv=");
   expect((await raw(SECRET, `${toPreview.pathname}${toPreview.search}`)).status).toBe(403);
 
-  // 5. In -- and the container sees the visitor's own cookies, and NOT gangway's.
+  // 5. In -- and the container sees the visitor's own cookies, and not gangway's.
   const inside = await raw(SECRET, "/cookie?x=1", {
     headers: { cookie: `theme=dark; ${gateCookie}` },
   });
   expect(inside.status).toBe(200);
   expect(await inside.json()).toEqual({ cookie: "theme=dark", path: "/cookie?x=1" });
 
-  // The app SESSION cookie is not a key to the preview, and the preview's is not a session.
+  // The app session cookie is not a key to the preview, and the preview's is not a session.
   expect((await raw(SECRET, "/cookie", { headers: { cookie: session } })).status).toBe(302);
   expect((await raw(APP, "/v1/previews", { headers: { cookie: gateCookie } })).status).toBe(401);
 
@@ -539,7 +539,7 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
     (await raw(SECRET, "/__gangway/whatever", { headers: { cookie: gateCookie } })).status,
   ).toBe(404);
 
-  // A role WITHOUT previews.view_private is refused at the gate, by name.
+  // A role without previews.view_private is refused at the gate, by name.
   const roles = await raw(APP, "/v1/roles/viewer/permissions", {
     method: "PUT",
     headers: {
@@ -579,7 +579,7 @@ test("T48: a PRIVATE preview -- login on app, a ticket, a cookie of its own, and
   expect(((await refused.json()) as { detail: string }).detail).toContain("previews.view_private");
 }, 30_000);
 
-test("ADR-0023: a password preview whose login rule is on lets a signed-in user through automatically, a stranger gets the form, and the preview can say no", async () => {
+test("a password preview whose login rule is on lets a signed-in user through automatically, a stranger gets the form, and the preview can say no", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort());
@@ -623,7 +623,7 @@ test("ADR-0023: a password preview whose login rule is on lets a signed-in user 
   const toGate = new URL(bounced.headers.get("location")!);
   expect(`${toGate.host}${toGate.pathname}`).toBe(`${APP}:${port}/v1/auth/gate`);
 
-  // 2. A stranger is NOT sent to log in: straight back to the preview's form.
+  // 2. A stranger is not sent to log in: straight back to the preview's form.
   const stranger = await raw(APP, `${toGate.pathname}${toGate.search}`);
   expect(stranger.status).toBe(302);
   const back = new URL(stranger.headers.get("location")!);
@@ -700,7 +700,7 @@ test("ADR-0023: a password preview whose login rule is on lets a signed-in user 
   });
   expect(new URL(vicBack.headers.get("location")!).pathname).toBe("/__gangway/password");
 
-  // 6. The server-wide switch starts OFF: an `inherit` preview asks everyone until it is turned on.
+  // 6. The server-wide switch starts off: an `inherit` preview asks everyone until it is turned on.
   const inherited = await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -721,7 +721,7 @@ test("ADR-0023: a password preview whose login rule is on lets a signed-in user 
     access: "either",
   });
 
-  // 7. Only people signed in: a stranger is sent to LOG IN (not the form), the admin walks in.
+  // 7. Only people signed in: a stranger is sent to log in (not the form), the admin walks in.
   const only = await client(running)("api.preview.localhost", `/v1/previews/${id}/password`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -757,7 +757,7 @@ test("ADR-0023: a password preview whose login rule is on lets a signed-in user 
   ).toBe(404);
 }, 30_000);
 
-test("T53: the hooks surface is dispatched -- a signed delivery is 202'd on hooks.<base>, an unsigned one 401'd, and nothing else answers there", async () => {
+test("the hooks surface is dispatched -- a signed delivery is 202'd on hooks.<base>, an unsigned one 401'd, and nothing else answers there", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const running = await start(dir, await freePort(), undefined, {
@@ -800,7 +800,7 @@ test("T53: the hooks surface is dispatched -- a signed delivery is 202'd on hook
   ).toBe(404);
 });
 
-test("T57/T58: idle-sleep stops the stack; the next request wakes it and is answered by the container", async () => {
+test("idle-sleep stops the stack; the next request wakes it and is answered by the container", async () => {
   const dir = mkdtempSync(join(tmpdir(), "gangway-boot-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const upstreamPort = await freePort();
@@ -812,7 +812,7 @@ test("T57/T58: idle-sleep stops the stack; the next request wakes it and is answ
   });
   const call = client(running);
   const API = "api.preview.localhost";
-  // A one-second idle window comes from the template (ADR-0013), edited through the API.
+  // A one-second idle window comes from the template, edited through the API.
   const edited = await call(API, "/v1/templates/default", {
     method: "PATCH",
     headers: { "content-type": "application/json" },

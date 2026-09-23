@@ -1,5 +1,5 @@
 /**
- * Scratch working directories, one per deploy (§5.1).
+ * Scratch working directories, one per deploy.
  *
  * Source ingestion needs somewhere to put a clone or an extracted tarball before the build
  * reads it. That somewhere lives under the state dir, not /tmp: it can hold a repo's worth

@@ -1,5 +1,5 @@
 /**
- * What an agent should know before its first call (ADR-0022). Served by the MCP server itself
+ * What an agent should know before its first call. Served by the MCP server itself
  * -- `instructions`, which every client loads on connect, and the `generate-artifact` prompt --
  * so Claude Code, Codex, Cursor or anything else that speaks MCP works well with nothing
  * installed. The Claude Code plugin's skill (plugin/gangway/skills/generate-artifact) says the

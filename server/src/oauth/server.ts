@@ -1,15 +1,13 @@
 /**
- * The OAuth 2.1 authorization server (ADR-0020), for MCP clients: claude.ai's custom
- * connectors and Claude Code. Authorization code + PKCE (S256 only), public clients named
- * by Client ID Metadata Documents, refresh tokens rotated on every use, and access tokens
- * that are good on ONE resource: the MCP surface.
+ * The OAuth 2.1 authorization server for MCP clients. Authorization code + PKCE (S256 only),
+ * public clients named by Client ID Metadata Documents, refresh tokens rotated on every use,
+ * and access tokens good on one resource only: the MCP surface.
  *
- * A grant is a credential of the user's own, like an API token (ADR-0010), and follows
- * its rules: its scopes are bundles, what it may do is those bundles INTERSECTED with the
- * owner's role on every request, and consenting is strict -- a scope is offered only if the
- * role covers its whole bundle. Only a logged-in person can consent; no token can.
+ * A grant follows the same rules as an API token: its scopes are bundles, what it may do is
+ * those bundles intersected with the owner's role on every request, and a scope is offered at
+ * consent only if the role covers its whole bundle. Only a logged-in person can consent.
  *
- * Nothing here knows HTTP. The routes (`app/routes/oauth.ts`) and the MCP surface adapt it.
+ * Nothing here knows HTTP; `app/routes/oauth.ts` and the MCP surface adapt it.
  */
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { OAuthGrant } from "@gangway/shared/domain";
@@ -27,21 +25,20 @@ import {
 } from "./client-metadata.ts";
 import { sha256 } from "../util/hash.ts";
 
-/** What OAuth may grant. Never `admin`: an agent holding the keys to the server is not a feature. */
+/** What OAuth may grant. Never `admin`: an agent should not hold the keys to the server. */
 export const OAUTH_SCOPES = ["read", "deploy", "update"] as const satisfies readonly Scope[];
 export type OAuthScope = (typeof OAUTH_SCOPES)[number];
 /**
- * A request that names no scope. Not `update` (ADR-0021): `deploy` already rebuilds your own.
- * All three ARE advertised, so a client that asks for every `scopes_supported` (Codex does)
- * gets `update` offered on its first consent, where the page pre-ticks what the role covers.
- * The owner chose that over holding it back for a step-up.
+ * Scopes for a request that names none. Not `update`: `deploy` already rebuilds your own.
+ * All three are advertised, so a client that asks for every `scopes_supported` gets `update`
+ * offered on its first consent, where the page pre-ticks what the role covers.
  */
 export const DEFAULT_OAUTH_SCOPES: readonly OAuthScope[] = ["read", "deploy"];
 
 export const ACCESS_TTL_MS = 3_600_000;
 export const REFRESH_IDLE_MS = 30 * 86_400_000;
 export const GRANT_ABSOLUTE_MS = 90 * 86_400_000;
-/** A rotated-away refresh token back this soon is the client racing itself: refused, not revoked. */
+/** A rotated-away refresh token back this soon is the client racing itself: refuse, not revoke. */
 export const REFRESH_REUSE_GRACE_MS = 60_000;
 const PENDING_TTL_MS = 10 * 60_000;
 const CODE_TTL_MS = 60_000;
@@ -53,7 +50,7 @@ const REFRESH_SHAPE = /^gwr_[A-Za-z0-9_-]{43}$/;
 const secret = (prefix: string) => `${prefix}_${randomBytes(32).toString("base64url")}`;
 const pkce = (verifier: string) => sha256(verifier, "base64url");
 
-/** RFC 6749 §5.2 / §4.1.2.1 error codes, plus RFC 8707's `invalid_target`. */
+/** RFC 6749 error codes (sections 5.2 and 4.1.2.1), plus RFC 8707's `invalid_target`. */
 export type OAuthErrorCode =
   | "invalid_request"
   | "invalid_client"
@@ -200,7 +197,7 @@ export class OAuthServer {
     return u.href;
   }
 
-  /** `GET /oauth/authorize`. RFC 6749 §4.1.2.1: until the redirect is trusted, redirect nowhere. */
+  /** `GET /oauth/authorize`. Until the redirect is trusted, redirect nowhere (RFC 6749 4.1.2.1). */
   async authorize(q: URLSearchParams): Promise<AuthorizeOutcome> {
     this.#sweep();
     const one = (k: string) => {
@@ -319,7 +316,7 @@ export class OAuthServer {
     };
   }
 
-  /** Approve or deny. Either way the request is spent, and the answer is where to send the browser. */
+  /** Approve or deny. Either way the request is spent; the answer is where to send the browser. */
   decide(
     actor: Actor,
     id: string,
@@ -364,7 +361,7 @@ export class OAuthServer {
     return { redirect: this.#redirect(p.redirectUri, { code, state: p.state }) };
   }
 
-  /** `POST /oauth/token`, form-encoded. Throws OAuthError; the route renders RFC 6749 §5.2. */
+  /** `POST /oauth/token`, form-encoded. Throws OAuthError, which the route renders per RFC 6749. */
   token(form: URLSearchParams): TokenResponse {
     this.#sweep();
     const grantType = form.get("grant_type");
@@ -392,7 +389,7 @@ export class OAuthServer {
     if (!c || c.expiresAt <= this.#now())
       throw new OAuthError("invalid_grant", "the authorization code is unknown or expired");
     if (c.used) {
-      // RFC 6749 §4.1.2: a code used twice means someone else has it. Kill what it made.
+      // A code used twice means someone else has it: revoke what it made (RFC 6749 4.1.2).
       if (c.grantId && this.#d.grants.revoke(c.grantId))
         this.#d.audit.record(null, "oauth.grant.revoked", c.grantId, {
           new: { reason: "authorization code replayed" },
@@ -470,8 +467,8 @@ export class OAuthServer {
         replayed.grant.revokedAt === null &&
         this.#d.grants.revoke(replayed.grant.id)
       ) {
-        // OAuth 2.1 §4.3.1: a rotated-away refresh token came back. One of the two holders is
-        // not the client; there is no telling which, so neither keeps the grant.
+        // A rotated-away refresh token came back. One of the two holders is not the client and
+        // there is no telling which, so neither keeps the grant (OAuth 2.1 4.3.1).
         this.#d.audit.record(null, "oauth.grant.revoked", replayed.grant.id, {
           new: { reason: "refresh token replayed", client: replayed.grant.clientId },
         });
@@ -489,7 +486,7 @@ export class OAuthServer {
       throw new OAuthError("invalid_grant", "the grant has expired; connect again");
     if (rec.owner.disabled)
       throw new OAuthError("invalid_grant", "the account behind this grant is disabled");
-    // Asked for fewer scopes: allowed (RFC 6749 §6); more: never.
+    // Fewer scopes than the grant is allowed (RFC 6749 section 6); more never is.
     const asked = (form.get("scope") ?? "")
       .split(" ")
       .filter((s) => s !== "" && s !== "offline_access");
@@ -518,7 +515,7 @@ export class OAuthServer {
   }
 
   /**
-   * For the MCP surface's verifier chain, ONLY. An access token is good for one resource;
+   * For the MCP surface's verifier chain only. An access token is good for one resource;
    * `/v1` never sees this verifier, so a token minted for MCP opens nothing else.
    */
   readonly verify: TokenVerifier = (presented) => {
@@ -569,7 +566,7 @@ export class OAuthServer {
   }
 }
 
-/** `oauth:<grantId>`: how an OAuth actor's tokenId reads, in the audit log and in the MCP surface's step-up. */
+/** An OAuth actor's tokenId is `oauth:<grantId>`, in the audit log and the MCP step-up. */
 export const OAUTH_TOKEN_PREFIX = "oauth:";
 export const isOAuthActor = (a: Actor): a is Extract<Actor, { kind: "token" }> =>
   a.kind === "token" && a.tokenId.startsWith(OAUTH_TOKEN_PREFIX);

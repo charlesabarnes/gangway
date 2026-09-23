@@ -1,9 +1,8 @@
 /**
- * Upload by reference (ADR-0021). `files` makes an agent write every byte of its app INTO
- * the tool call -- the slowest thing it does, and a retyped copy of files it already has
- * on disk, which can drift from what it tested. Instead: `deploy` with `upload: "new"`
- * hands out a one-use URL, the agent's shell sends a tar.gz there (`tar | curl`), and
- * `deploy` with `upload: "<id>"` builds exactly those bytes.
+ * Upload by reference. `files` makes an agent retype every byte of its app into the tool
+ * call, slowly, and the copy can drift from what it tested. Instead `deploy` with
+ * `upload: "new"` hands out a one-use URL, the agent's shell sends a tar.gz there
+ * (`tar | curl`), and `deploy` with `upload: "<id>"` builds exactly those bytes.
  *
  * The URL is a capability: 256 bits, one PUT, 15 minutes, no bearer (the agent's shell has
  * no token; its MCP client holds it). Whoever PUTs, only the credential that asked for the

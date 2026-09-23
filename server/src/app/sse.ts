@@ -20,7 +20,7 @@ export type SseOptions = {
 };
 
 /**
- * How far behind a client may fall before it is disconnected. A source that REPLAYS on
+ * How far behind a client may fall before it is disconnected. A source that replays on
  * subscribe must deliver fewer than this synchronously, or the stream closes before its
  * first frame (previews/logs.ts bounds its replay for exactly this reason).
  */
@@ -57,11 +57,10 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
     if (o.signal?.aborted) close();
 
     try {
-      // Say something at once. An idle stream otherwise sends no BODY byte until its first
-      // event or heartbeat, and an intermediary may sit on the response headers until it
-      // has one -- so the browser's `onopen` fires 15 seconds late and the UI says
-      // "connecting" on a connection that is fine. Seen through the Angular dev proxy;
-      // a comment line is invisible to EventSource and costs nothing.
+      // Say something at once. An idle stream otherwise sends no body byte until its first
+      // event or heartbeat, and an intermediary (the Angular dev proxy, for one) may hold
+      // the response headers until it has one, so `onopen` fires 15 seconds late. A comment
+      // line is invisible to EventSource and costs nothing.
       await stream.write(": connected\n\n");
       while (open) {
         const batch = queue.splice(0);

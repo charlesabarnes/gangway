@@ -1,5 +1,5 @@
 /**
- * `Forge` for GitHub (ADR-0011). Everything here is one of six REST calls on top of
+ * `Forge` for GitHub. Everything here is one of six REST calls on top of
  * `GitHubApp`; the lifecycle decisions live in `forge/pr-previews.ts`.
  */
 import { internal, notFound } from "../../errors.ts";

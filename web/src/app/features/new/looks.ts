@@ -14,8 +14,8 @@ import {
 import type { AddonId, Detected } from '../../core/api.types';
 
 /**
- * How each runtime and add-on LOOKS on screen: a mark, its colour, and a line short enough
- * to read at a glance. Presentation only -- what a runtime DOES is the server's catalogue.
+ * How each runtime and add-on looks on screen: a mark, its colour, and a line short enough
+ * to read at a glance. Presentation only -- what a runtime does is the server's catalogue.
  * `color: null` is a black mark drawn in the text colour, so it survives dark mode.
  */
 /** `name`: a short label for tight spots (a card, a chip); the catalogue's full name goes in the tooltip. */

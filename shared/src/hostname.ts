@@ -1,7 +1,7 @@
 /**
- * Hostname scheme and label rules (spec §6.2, §6.2.1).
+ * Hostname scheme and label rules.
  *
- * The wildcard certificate `*.preview.example.com` matches EXACTLY ONE label, which is
+ * The wildcard certificate `*.preview.example.com` matches exactly one label, which is
  * the constraint everything here exists to enforce:
  *   ok   acme-pr-123-api.preview.example.com
  *   no   api.acme-pr-123.preview.example.com   <- needs a per-PR wildcard, hits ACME rate limits
@@ -14,7 +14,7 @@
  * Subdomains the system owns. A PR on a repo named `api` must not be able to hijack the
  * control plane.
  *
- * This list is STATIC and independent of which surfaces are currently enabled (§6.2.1):
+ * This list is static and independent of which surfaces are currently enabled:
  * if `mcp` became a valid preview label while MCP was switched off, re-enabling it later
  * would collide with a live preview.
  */
@@ -119,11 +119,10 @@ export type LabelSource =
 
 /**
  * Builds a preview label. The service segment is dropped for single-service stacks and
- * for the service marked `primary` (§6.2), so the common case is a short, bare hostname.
+ * for the service marked `primary`, so the common case is a short, bare hostname.
  *
- * Deliberately REJECTS rather than silently truncating when the result exceeds the DNS
- * limit — silent truncation collides across PRs. (§15.5, truncate-with-hash vs a required
- * short slug, is decided in Phase 3; until then the error names the problem.)
+ * Rejects rather than silently truncating when the result exceeds the DNS limit: silent
+ * truncation collides across PRs.
  */
 export function buildLabel(
   source: LabelSource,

@@ -7,9 +7,9 @@ import type { LoginResponse, Permission, SessionInfo, SessionUser } from './api.
  * Who is using the UI, and what they may do. The session itself is an httpOnly cookie this
  * code can never read; what it knows comes from `GET /v1/auth/session`, which is always 200.
  *
- * The UI gates on PERMISSIONS, never on a role name: which role holds what is the
+ * The UI gates on permissions, never on a role name: which role holds what is the
  * operator's to change, and the server re-resolves it on every request. So `can()` is
- * advice about what to SHOW -- the server still refuses what is not allowed -- and
+ * advice about what to show -- the server still refuses what is not allowed -- and
  * `refresh()` exists because the answer can change under an open tab.
  */
 @Injectable({ providedIn: 'root' })

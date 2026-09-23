@@ -36,9 +36,8 @@ const EXPIRY = [
 ];
 
 /**
- * Who you are, what your role lets you do, your password, and your API tokens. Not one of
- * §10.3's eight screens on its own -- it stands in for "Tokens" until Phase 5 -- and it
- * is deliberately small.
+ * Who you are, what your role lets you do, your password, your API tokens and connected
+ * agents. Deliberately small.
  */
 @Component({
   selector: 'app-account',

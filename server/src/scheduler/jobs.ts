@@ -18,8 +18,8 @@ export type SweepReport = {
  * TTL sweep: destroy what has outlived `ttl_expires_at`. Goes through the same `destroy`
  * a DELETE does -- one lifecycle, whoever pulls the trigger.
  *
- * A preview on an unreachable host is SKIPPED, not attempted: `down` would fail, the
- * preview would be marked `failed`, and a laptop waking from sleep with a dead tunnel
+ * A preview on an unreachable host is skipped, not attempted: `down` would fail, the
+ * preview would be marked `failed`, and a dev machine waking from sleep with a dead tunnel
  * would turn every expired preview into an error. It stays expired; the next sweep after
  * the reconciler sees the host again takes it.
  */
@@ -61,7 +61,7 @@ export async function sweepExpired(
   return report;
 }
 
-/** T34: what `onProxied` noted in memory, written to `previews.last_seen_at` in one transaction. */
+/** What `onProxied` noted in memory, written to `previews.last_seen_at` in one transaction. */
 export function flushLastSeen(ctx: Pick<PreviewContext, "table" | "previews">): number {
   return ctx.previews.touchMany(ctx.table.drainSeen());
 }

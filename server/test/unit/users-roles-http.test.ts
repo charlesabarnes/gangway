@@ -1,6 +1,6 @@
 /**
  * /v1/users and /v1/roles through the real app: authenticate, permissions, sessions and
- * tokens are all live, because the point of these routes is what they do to OTHER
+ * tokens are all live, because the point of these routes is what they do to other
  * people's already-open sessions.
  */
 import { describe, expect, test } from "bun:test";

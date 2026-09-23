@@ -1,16 +1,14 @@
 /**
- * Pull-request previews (ADR-0011): a `ForgeEvent` in, a preview deployed, redeployed,
- * destroyed or left alone, and the forge told about it. Forge-agnostic: this file knows
- * `Forge`, `Project` and the preview service, and nothing about GitHub.
+ * Pull-request previews: a `ForgeEvent` in, a preview deployed, redeployed, destroyed or
+ * left alone, and the forge told about it. Forge-agnostic: nothing here knows about GitHub.
  *
  * The rules, all of them here:
- *   - only a PROJECT that takes pull requests by webhook is acted for; nothing is made here (ADR-0014);
- *     a taken slug leaves it DISABLED with the reason, for the operator to resolve
+ *   - only an existing project that takes pull requests by webhook is acted for
  *   - a fork's PR builds only under `repos.forks = auto`, or after `/preview deploy`
- *     from an owner, member or collaborator (§9: public visibility, no secrets)
+ *     from an owner, member or collaborator (public visibility, fork clearance)
  *   - a new head is destroy-then-deploy under the same name; the same head already
  *     building or awake is a no-op (webhook redeliveries, `synchronize` storms)
- *   - the forge is told AFTER the preview exists and again when it settles; a forge
+ *   - the forge is told after the preview exists and again when it settles; a forge
  *     call failing never fails the deploy
  */
 import type { Clearance, RepoProject, Preview } from "@gangway/shared/domain";
@@ -41,9 +39,12 @@ export type PrPreviewsDeps = {
       refs: { commentId?: number | null; deploymentId?: number | null },
     ): void;
   };
-  /** The repository's secrets at or below a clearance (ADR-0012). */
+  /** The repository's secrets at or below a clearance. */
   secretsFor?: ((repo: RepoProject, clearance: Clearance) => Record<string, string>) | undefined;
-  /** The template a pull request follows (ADR-0013): its clearance is the fallback when the repository has no override. */
+  /**
+   * The template a pull request follows: its clearance is the fallback when the repository
+   * has no override.
+   */
   policy: Policy;
   /** Where a human reads the build log: the UI's preview page, when the UI is on. */
   logUrlFor?: ((previewId: string) => string | undefined) | undefined;
@@ -84,7 +85,7 @@ export class PrPreviews {
   /* ---------------------------------------------------------------- repositories */
 
   /**
-   * The project for a repository, or why there is none to act for (ADR-0014). Nothing is
+   * The project for a repository, or why there is none to act for. Nothing is
    * made here: a project is made on purpose, and one that takes pull requests from its
    * own workflow must not get a second preview from the webhook.
    */
@@ -145,7 +146,7 @@ export class PrPreviews {
   }
 
   async #onCommand(ev: Extract<ForgeEvent, { type: "pr.command" }>): Promise<Outcome> {
-    // Anyone else is answered with nothing: an error comment is an amplifier (ADR-0011).
+    // Anyone else is answered with nothing: an error comment is an amplifier.
     if (!SPEAKS_FOR_REPO.has(ev.association))
       return {
         action: "ignored",
@@ -168,7 +169,7 @@ export class PrPreviews {
       return { action: "commented", previewId: existing?.id ?? null };
     }
     if (ev.command === "secrets") {
-      // Raise or lower THIS pull request's clearance: a redeploy at that level, and it sticks.
+      // Raise or lower this pull request's clearance: a redeploy at that level, and it sticks.
       if (!repo.enabled)
         return {
           action: "ignored",
@@ -266,7 +267,7 @@ export class PrPreviews {
 
     // Minted for public repositories too: one code path, and authenticated fetches are not rate-limited like anonymous ones.
     const credential = await this.#d.forge.cloneCredential(pr.repo);
-    // §9: a fork is public, whatever the repository or template says. Everything else --
+    // A fork is public, whatever the repository or template says. Everything else --
     // the repository's overrides, the template -- the pipeline resolves from the source.
     let result: DeployResult;
     try {

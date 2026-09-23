@@ -1,12 +1,11 @@
 /**
- * The `hooks` surface (ADR-0011): `POST /github` on `hooks.<base>`, and nothing else.
+ * The `hooks` surface: `POST /github` on `hooks.<base>`, and nothing else.
  *
- * Not a Hono app on purpose. The one thing this endpoint must get right is reading the
- * body as the bytes GitHub signed, and answering 202 BEFORE any work -- GitHub's delivery
- * timeout is 10 s and a build is minutes. Everything else is refusal: the wrong path,
- * the wrong method, a body too large, a bad signature (401, body unparsed), a repeated
- * delivery id (202, nothing done). No authentication middleware sits in front: the
- * signature IS the authentication, and there is no actor until the payload is verified.
+ * Not a Hono app on purpose. This endpoint must read the body as the bytes GitHub signed and
+ * answer 202 before any work -- GitHub's delivery timeout is 10 s and a build is minutes.
+ * Everything else is refusal: wrong path or method, a body too large, a bad signature (401,
+ * body unparsed), a repeated delivery id (202, nothing done). No authentication middleware:
+ * the signature is the authentication, and there is no actor until the payload is verified.
  */
 import type { Logger } from "../logger.ts";
 import type { SurfaceHandler } from "../net/dispatch.ts";

@@ -2,8 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 /**
  * What a refused upload says beyond its `detail`: the compose policy's violations, and
- * compose's own stderr. The server spreads them into the problem body (ADR-0015 changes
- * nothing about that); `toProblem` keeps only the common fields, so they are read here.
+ * compose's own stderr. The server spreads them into the problem body; `toProblem` keeps
+ * only the common fields, so they are read here.
  */
 export function problemNotes(e: unknown): string[] {
   if (!(e instanceof HttpErrorResponse) || e.error === null || typeof e.error !== 'object')

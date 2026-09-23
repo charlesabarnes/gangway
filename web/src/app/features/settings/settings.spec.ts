@@ -108,7 +108,7 @@ const choose = async (r: Rendered<unknown>, id: string, v: string) => {
   await r.settle();
 };
 
-describe('Settings: surfaces (§10.5)', () => {
+describe('Settings: surfaces', () => {
   const put = async (r: Rendered<unknown>, testId: string) => {
     (r.byTestId(testId) as HTMLButtonElement).click();
     await r.settle();
@@ -236,7 +236,7 @@ describe('Settings: GitHub', () => {
   });
 });
 
-describe('Settings: default templates (ADR-0013)', () => {
+describe('Settings: default templates', () => {
   const two = [template(), template({ id: 'staging', name: 'Staging', builtin: false })];
 
   it('one select per trigger, showing what settings say; a change is one PUT of that key', async () => {
@@ -371,7 +371,7 @@ describe('GitHubCallback', () => {
   });
 });
 
-describe('Settings: preview passwords (ADR-0023)', () => {
+describe('Settings: preview passwords', () => {
   const type = async (r: Rendered<unknown>, id: string, v: string) => {
     const i = r.byTestId(id) as HTMLInputElement;
     i.value = v;

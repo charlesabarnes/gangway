@@ -35,7 +35,7 @@ describe("compareVersion", () => {
   ])("%s meets the floor: %s", (v, want) => expect(compareVersion(v, [3, 38, 0])).toBe(want));
 });
 
-// The whole suite runs against BOTH drivers. That is the only thing that keeps the
+// The whole suite runs against both drivers. That is the only thing that keeps the
 // portability promise honest rather than aspirational.
 for (const [name, open] of DRIVERS) {
   describe(`driver ${name}`, () => {
@@ -279,7 +279,7 @@ for (const [name, open] of DRIVERS) {
       });
     });
 
-    describe("0007 templates (ADR-0013)", () => {
+    describe("0007 templates", () => {
       test("a fresh database has the built-in template at the old defaults, and nothing deletes it", () => {
         const { db } = fresh();
         migrate(db, MIGRATIONS);
@@ -370,7 +370,7 @@ for (const [name, open] of DRIVERS) {
       });
     });
 
-    describe("0010 preview owner (ADR-0021)", () => {
+    describe("0010 preview owner", () => {
       test("every role that could deploy -- a custom one too -- can still mint a deploy token: it gets previews.update_own; old previews own nothing", () => {
         const upTo9 = tmp();
         for (const f of readdirSync(MIGRATIONS))
@@ -408,7 +408,7 @@ for (const [name, open] of DRIVERS) {
       });
     });
 
-    describe("0008 projects (ADR-0014)", () => {
+    describe("0008 projects", () => {
       test("upgrades a populated 0007 database: each repository becomes a project named after it, still on the webhook; its PR previews are filed under it; its secrets come along", () => {
         const upTo7 = tmp();
         for (const f of readdirSync(MIGRATIONS))

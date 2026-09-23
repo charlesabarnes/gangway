@@ -103,7 +103,7 @@ describe("findPublishedPort", () => {
   });
 });
 
-/* §7.4 gates wake on healthchecks. A service that declares none must read as ready,
+/* Wake is gated on healthchecks. A service that declares none must read as ready,
    or the wake hangs forever on a container that is working perfectly. */
 describe("health", () => {
   test("the three real statuses", () => {
@@ -144,9 +144,9 @@ describe("health", () => {
   });
 });
 
-/* ADR-0004: we allocate the port, so agreement is the normal case. `UpdateUpstream`
+/* We allocate the port, so agreement is the normal case. `UpdateUpstream`
    exists because a human can recreate a container by hand and move it. */
-describe("portDrift (§11 row 1: verify port, continue)", () => {
+describe("portDrift (verify port, continue)", () => {
   const route = { containerPort: 8080, upstream: { host: "10.0.0.4", port: 31042 } };
 
   test("agreement is null", () => {
@@ -217,7 +217,7 @@ describe("scanning a daemon for our containers", () => {
     expect(row.project).toBe("gw-acme-pr-123");
   });
 
-  /* §11: malformed means orphan (stop it); future-version means stranger (leave it
+  /* Malformed means orphan (stop it); future-version means stranger (leave it
      alone). Merging the two loses the distinction that decides whether we destroy
      someone's running preview. */
   test("future-version and malformed stay separable in the scan output", async () => {
@@ -258,7 +258,7 @@ describe("scanning a daemon for our containers", () => {
         return [];
       },
     });
-    // A stopped container still owns its published-port allocation (ADR-0004).
+    // A stopped container still owns its published-port allocation.
     expect(seen).toEqual({ all: true, filters: { label: ["gangway.managed=true"] } });
   });
 });

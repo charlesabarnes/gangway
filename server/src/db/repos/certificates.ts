@@ -4,7 +4,7 @@ import { fromDate, rowToCert, type CertRow } from "./mappers.ts";
 
 /**
  * Certificates and the ACME account key live in SQLite so "back up gangway" is
- * "copy one file" (§7.1 of the plan / §13's single-image install story).
+ * "copy one file".
  */
 export class CertificatesRepo {
   readonly #db: Db;

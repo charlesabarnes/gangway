@@ -25,8 +25,8 @@ export const ACCESS_BADGE: Record<
 };
 
 /**
- * ADR-0023: a lock pill naming who can open a preview, as the server resolved it. Nothing
- * for an open one.
+ * A lock pill naming who can open a preview, as the server resolved it. Nothing for an
+ * open one.
  */
 @Component({
   selector: 'app-password-badge',

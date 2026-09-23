@@ -18,7 +18,7 @@ import {
 const dec = new TextDecoder();
 const file = (path: string, text = path): UploadFile => ({ path, data: strToU8(text) });
 
-/** A minimal ustar reader, written from the spec rather than from the writer. */
+/** A minimal ustar reader, written from the format rather than from the writer. */
 function readTar(
   tar: Uint8Array,
 ): { path: string; type: string; size: number; mode: number; text: string }[] {

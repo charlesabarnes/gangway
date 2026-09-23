@@ -219,7 +219,7 @@ describe("administering users", () => {
       roleId: "admin",
     });
     await s.accounts.updateUser(s.actor, bob.id, { disabled: true });
-    // a DISABLED second admin is not a way back in
+    // a disabled second admin is not a way back in
     await expect(
       s.accounts.updateUser(s.actor, s.ada.id, { roleId: "member" }),
     ).rejects.toMatchObject({ status: 409 });

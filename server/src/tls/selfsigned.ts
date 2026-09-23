@@ -7,7 +7,7 @@
  * option without an ASN.1 encoder.
  *
  * A real CA -> leaf chain rather than a bare self-signed cert, because then the operator
- * trusts ONE certificate once and every future wildcard is trusted automatically.
+ * trusts one certificate once and every future wildcard is trusted automatically.
  */
 import "reflect-metadata"; // @peculiar/x509 pulls in tsyringe, which throws on load without it
 import * as x509 from "@peculiar/x509";

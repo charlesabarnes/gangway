@@ -1,5 +1,5 @@
 /**
- * Per-preview resource caps (§6.4: "One preview must not exhaust the server").
+ * Per-preview resource caps: one preview must not exhaust the server.
  *
  * Counters live on the RouteEntry, so enforcement on the hot path is a field increment
  * rather than a map lookup into a rate-limiting library.
@@ -39,9 +39,8 @@ export function release(entry: RouteEntry): void {
 /**
  * Counts bytes as they stream and aborts past the cap.
  *
- * Deliberately a TransformStream rather than a Content-Length check: a chunked upload
- * declares no length, so the only honest enforcement is to count what actually arrives
- * and tear the request down mid-stream.
+ * A TransformStream rather than a Content-Length check: a chunked upload declares no length,
+ * so the only honest enforcement is to count what arrives and tear the request down mid-stream.
  */
 export function capBody(
   body: ReadableStream<Uint8Array>,

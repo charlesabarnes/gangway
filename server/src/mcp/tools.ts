@@ -1,10 +1,9 @@
 /**
- * §10.2 the MCP tools. FOUR, a hard ceiling: `deploy`, `status`, `logs`, `destroy`. A big
- * tool surface poisons an agent's context and it starts picking wrong; everything else is a
- * parameter. Each answers with a URL and a short status string -- never a JSON dump, which
- * the agent would paste into its own reasoning.
+ * The MCP tools: `deploy`, `status`, `logs`, `destroy`, and no more. A big tool surface
+ * crowds an agent's context and it starts picking wrong; everything else is a parameter.
+ * Each answers with a URL and a short status string, never a JSON dump.
  *
- * A thin adapter over the service layer (ADR-0003), like the REST routes. There is no
+ * A thin adapter over the service layer, like the REST routes. There is no
  * `requirePermission` here, so each tool asks `can()` itself; `TOOL_PERMISSIONS` is pinned
  * by a test the way `route-permissions.test.ts` pins the routes.
  */
@@ -37,9 +36,9 @@ export const TOOL_PERMISSIONS = {
 } as const satisfies Record<string, Permission>;
 export type ToolName = keyof typeof TOOL_PERMISSIONS;
 /**
- * `deploy` with `preview` rebuilds an existing one in place, which is its own permission
- * (ADR-0015): `previews.update` for any preview, `previews.update_own` for one this
- * credential's owner deployed (ADR-0021).
+ * `deploy` with `preview` rebuilds an existing one in place, which is its own permission:
+ * `previews.update` for any preview, `previews.update_own` for one this credential's owner
+ * deployed.
  */
 export const REDEPLOY_PERMISSION: Permission = "previews.update";
 export const REDEPLOY_OWN_PERMISSION: Permission = "previews.update_own";
@@ -64,11 +63,11 @@ export type ToolDeps = {
   ctx: PreviewContext;
   deploys: IdempotentDeploys;
   logger: Logger;
-  /** ADR-0021 upload by reference. Absent: `upload` is refused and `files` is the way. */
+  /** Upload by reference. Absent: `upload` is refused and `files` is the way. */
   uploads?: Uploads | undefined;
 };
 
-/** Per call: who is asking, and the signal that fires when MCP is switched off (§10.5). */
+/** Per call: who is asking, and the signal that fires when MCP is switched off. */
 export type CallScope = { actor: Actor; signal: AbortSignal };
 
 const text = (t: string): CallToolResult => ({ content: [{ type: "text", text: t }] });
@@ -121,7 +120,7 @@ export function refusalDetail(detail: Record<string, unknown> | undefined): stri
   return lines.length ? `\n${lines.slice(0, 20).join("\n")}` : "";
 }
 
-/** How an upload was read (ADR-0016), in the words the New screen uses. */
+/** How an upload was read, in the words the New screen uses. */
 export function describePlan(plan: AppPlan): string {
   const what =
     plan.kind === "own"
@@ -297,11 +296,10 @@ export class Tools {
     this.#d = d;
   }
 
-  /** One server per request (stateless): its tools are closed over THIS request's actor. */
+  /** One server per request (stateless): its tools are closed over this request's actor. */
   server(scope: CallScope): McpServer {
     const s = new McpServer({ name: "gangway", version: "1" }, { instructions: INSTRUCTIONS });
-    // ADR-0022: the workflow, for any client, with nothing installed. A prompt is not a tool:
-    // §10.2's four stands.
+    // The workflow, for any client, with nothing installed. A prompt, not a fifth tool.
     s.registerPrompt(
       "generate-artifact",
       {
@@ -405,7 +403,7 @@ export class Tools {
   }
 
   /**
-   * The permission a `tools/call` lacks before it starts, for the surface's step-up (ADR-0020):
+   * The permission a `tools/call` lacks before it starts, for the surface's step-up:
    * an OAuth client answers a 403 naming a scope by asking the person again. Null when the
    * call may go ahead -- or fails for some other reason, which the tool itself reports.
    */
@@ -511,7 +509,7 @@ export class Tools {
       ...(args.password ? { password: { mode: args.password } } : {}),
       ...(args.passwordLogin ? { passwordLogin: args.passwordLogin } : {}),
     };
-    // §10.2: agents retry. With no key of their own, an identical request is the retry.
+    // Agents retry. With no key of their own, an identical request is the retry.
     const key = args.idempotencyKey ?? `auto:${requestHash(input).slice(0, 40)}`;
     // The archive is unpacked before deploy() returns: the bytes on disk can go either way.
     const res = await this.#d.deploys.deploy(input, key).finally(() => taken?.done());
@@ -584,7 +582,7 @@ export class Tools {
   }
 
   /**
-   * ADR-0021: what an agent otherwise finds out by reading gangway's source, curling each
+   * What an agent otherwise finds out by reading gangway's source, curling each
    * route and hashing each file -- how the upload was read, what exactly is deployed, and
    * what the paths it cares about answer.
    */

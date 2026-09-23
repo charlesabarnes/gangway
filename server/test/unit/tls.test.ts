@@ -38,7 +38,7 @@ describe("dev CA", () => {
   });
 
   test("the leaf covers BOTH the wildcard and the apex", async () => {
-    // A wildcard does not match the apex, and the reserved labels need the apex form (§6.2).
+    // A wildcard does not match the apex, and the reserved labels need the apex form.
     const ca = await createCa();
     const leaf = await issueLeaf(ca, ["*.preview.test", "preview.test"]);
     expect(sans(leaf.cert)).toEqual(["*.preview.test", "preview.test"]);
@@ -90,7 +90,7 @@ describe("SelfSignedProvider", () => {
     const p = new SelfSignedProvider(tmp());
     const bundle = await p.ensure(["*.preview.localhost", "preview.localhost"]);
     expect(bundle.materials).toHaveLength(1);
-    // Bun REQUIRES serverName on every tls array entry or it throws ERR_INVALID_ARG_TYPE.
+    // Bun requires serverName on every tls array entry or it throws ERR_INVALID_ARG_TYPE.
     expect(bundle.materials[0]!.serverName).toBe("*.preview.localhost");
     expect(bundle.caPath).toBeDefined();
   });

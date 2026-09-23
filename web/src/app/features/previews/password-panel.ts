@@ -41,10 +41,10 @@ export const ACCESS_EFFECT: Record<PreviewAccess, string> = {
 };
 
 /**
- * ADR-0023: who can open a running preview. One choice -- the link, the password, a gangway
+ * Who can open a running preview. One choice -- the link, the password, a gangway
  * login, or either -- and, when the choice needs a password, where it comes from. Takes
  * effect on the next request; a new password signs out everyone who used the old one. A
- * generated password is printed ONLY in the preview's log below; this panel never shows it.
+ * generated password is printed only in the preview's log below; this panel never shows it.
  */
 @Component({
   selector: 'app-password-panel',

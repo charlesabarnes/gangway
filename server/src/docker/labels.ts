@@ -1,25 +1,16 @@
 /**
- * The `gangway.*` container label set (spec §4.1).
+ * The `gangway.*` container label set. A container is self-describing: the daemon holds a
+ * second copy of the route record, so reconciliation has an answer when SQLite is behind or
+ * gone. That requires `routeFromLabels` to build a complete `Route` from labels alone, which
+ * works because gangway allocates the upstream port before `compose up`.
  *
- * §4.1's claim is that a container is *self-describing*: the Docker daemon holds an
- * independent second copy of the route record, so reconciliation (§11) always has an
- * answer when SQLite is behind or gone. That claim only holds if the label set is
- * SUFFICIENT — `routeFromLabels` must produce a complete `Route` with nothing else in
- * hand, not "a Route, if you also still have the database row".
- *
- * ADR-0004 is what makes that possible: because we allocate the upstream port ourselves
- * before `compose up`, `gangway.port` is knowable at container-create time and can go
- * into the labels. Reading the port back off the daemon afterwards would have left the
- * labels incomplete at exactly the moment they matter.
- *
- * Nothing here throws. Labels are attacker-adjacent data (a developer's compose file can
- * set any label it likes) and the reconciler must be able to say "this is not mine" or
- * "this is newer than me" rather than crash a boot-time sweep.
+ * Nothing here throws. A developer's compose file can set any label it likes, and the
+ * reconciler must be able to say "not mine" or "newer than me" rather than crash a sweep.
  */
 import type { Route, Visibility } from "@gangway/shared/domain";
 
 /**
- * Bump when the MEANING of a key changes, not when one is added. A newer gangway's
+ * Bump when the meaning of a key changes, not when one is added. A newer gangway's
  * containers are reported distinctly (`future-version`) so an older one leaves them
  * alone instead of deciding they are unlabelled orphans and stopping them.
  */
@@ -41,17 +32,15 @@ export const LABEL = {
   createdAt: "gangway.created_at",
 
   /**
-   * Extensions beyond the thirteen keys in the spec's illustrative list. Both are
-   * required by §4.1's *sufficiency* claim and by nothing else: `Route` carries
-   * `containerPort` and `upstream.host`, and without these two a rebuilt route would
-   * have to be completed from the hosts table — i.e. from SQLite, the copy we are
-   * recovering from.
+   * `Route` carries `containerPort` and `upstream.host`; without these two a rebuilt route
+   * would have to be completed from the hosts table, i.e. from SQLite, the copy being
+   * recovered from.
    */
   containerPort: "gangway.container_port",
   upstreamHost: "gangway.upstream_host",
 } as const;
 
-/** The daemon-side filter for a managed-container scan (§11 step 2). */
+/** The daemon-side filter for a managed-container scan. */
 export const MANAGED_FILTER = "gangway.managed=true";
 
 const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
@@ -66,12 +55,12 @@ export type GangwayLabels = {
   /** Deployment environment (`prod`, `dev`, …). Same reason as `instance`, finer grain. */
   env: string;
   previewId: string;
-  /** Compose project name — the teardown unit (§7.1: `down -v` removes all of it). */
+  /** Compose project name — the teardown unit (`down -v` removes all of it). */
   project: string;
   service: string;
   hostId: string;
   hostname: string;
-  /** The self-allocated published port on the host (ADR-0004). */
+  /** The self-allocated published port on the host. */
   port: number;
   /** The port inside the container that `port` is published from. */
   containerPort: number;
@@ -85,9 +74,9 @@ export type GangwayLabels = {
 export type LabelParseFailure =
   /** No `gangway.managed=true`. Someone else's container; not ours to touch. */
   | { ok: false; reason: "not-managed" }
-  /** Written by a newer gangway. WARN and leave it alone — do not stop it. */
+  /** Written by a newer gangway. Warn and leave it alone — do not stop it. */
   | { ok: false; reason: "future-version"; version: number; ours: number }
-  /** Ours, but unusable. §11: an orphan holding a port is worse than a missing preview. */
+  /** Ours, but unusable. An orphan holding a port is worse than a missing preview. */
   | { ok: false; reason: "malformed"; missing: string[]; invalid: string[] };
 
 export type LabelParseResult = { ok: true; labels: GangwayLabels } | LabelParseFailure;
@@ -129,7 +118,7 @@ export function parseLabels(
   const bag = raw ?? {};
   if (!isManaged(bag)) return { ok: false, reason: "not-managed" };
 
-  // Version is checked BEFORE the fields. A newer gangway may have renamed or dropped
+  // Version is checked before the fields. A newer gangway may have renamed or dropped
   // keys we consider mandatory; reporting that as `malformed` would invite the
   // reconciler to treat a perfectly healthy newer preview as an orphan and stop it.
   const rawVersion = bag[LABEL.version];
@@ -230,10 +219,7 @@ export function parseLabels(
   };
 }
 
-/**
- * §11, row 3: "No route / Container running -> Rebuild the route from labels."
- * No database, no host record, no daemon round-trip.
- */
+/** Rebuilds a route for a running container that has none. No database, no daemon call. */
 export function routeFromLabels(l: GangwayLabels): Route {
   return {
     hostname: l.hostname,

@@ -42,9 +42,9 @@ import {
 } from './api.types';
 
 /**
- * The UI's half of the wire contract. The server's test suite asserts that its REAL output
+ * The UI's half of the wire contract. The server's test suite asserts that its real output
  * matches `contract.json`; this asserts that file satisfies the types written here. The
- * assignments below are the test -- they fail at COMPILE time, which `ng test` runs.
+ * assignments below are the test -- they fail at compile time, which `ng test` runs.
  */
 describe('the /v1 wire contract', () => {
   it('the fixture satisfies the hand-written types', () => {
@@ -153,7 +153,7 @@ describe('the /v1 wire contract', () => {
     expect(user.authenticated && user.user?.role.id).toBe('admin');
   });
 
-  it('surfaces and capabilities (§10.5)', () => {
+  it('surfaces and capabilities', () => {
     const keys = (o: object) => Object.keys(o).sort();
     const surfaces: Surfaces = contract.surfaces as Surfaces;
     const caps: Capabilities = contract.capabilities as Capabilities;
@@ -163,7 +163,7 @@ describe('the /v1 wire contract', () => {
     expect(contract.disableUiPhrase).toBe(DISABLE_UI_PHRASE);
   });
 
-  it('oauth consent and connected agents (ADR-0020)', () => {
+  it('oauth consent and connected agents', () => {
     const keys = (o: object) => Object.keys(o).sort();
     const req: ConsentRequest = contract.oauthRequest as ConsentRequest;
     const grant: OAuthGrant = contract.oauthGrant as OAuthGrant;
@@ -194,7 +194,7 @@ describe('the /v1 wire contract', () => {
     expect(keys(contract.oauthDecided)).toEqual(['redirect']);
   });
 
-  it('runtimes, a kept source and a redeploy (ADR-0015)', () => {
+  it('runtimes, a kept source and a redeploy', () => {
     const keys = (o: object) => Object.keys(o).sort();
     const list: RuntimeList = contract.runtimeList as RuntimeList;
     const RUNTIME_KEYS: (keyof Runtime)[] = [
@@ -220,12 +220,12 @@ describe('the /v1 wire contract', () => {
     expect([...ADDON_IDS]).toEqual(contract.addonIds);
     expect(keys(list.runtimes[0]!)).toEqual([...RUNTIME_KEYS].sort());
     expect(keys(list.detection[0]!)).toEqual(['markers', 'runtime']);
-    // ADR-0018: the data browser's answer, and a preview's add-ons.
+    // The data browser's answer, and a preview's add-ons.
     const result: DataResult = contract.dataResult as DataResult;
     expect(keys(result)).toEqual(['columns', 'message', 'ms', 'rows', 'truncated']);
     const addon: PreviewAddon = (contract.previewAddons as PreviewAddon[])[0]!;
     expect(keys(addon)).toEqual(['env', 'id', 'name', 'service', 'version']);
-    // ADR-0016: the plan, as the New screen reads it.
+    // The plan, as the New screen reads it.
     const plan: AppPlan = contract.appPlan as AppPlan;
     const PLAN_KEYS: (keyof AppPlan)[] = [
       'kind',

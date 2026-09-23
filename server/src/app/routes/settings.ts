@@ -9,14 +9,14 @@ import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
 /**
- * `/v1/settings` (§10.1, §10.5). GET reports every setting with its source; a secret is
+ * `/v1/settings`. GET reports every setting with its source; a secret is
  * reported as `set: true|false` and never as a value. PUT takes a partial map and writes
  * each value through its own schema. A key pinned in config is a 409: the API must not
  * pretend to change what the config will keep overriding.
  *
  * `surfaces.*` are refused here: they change only through `PUT /v1/surfaces`, which holds
  * the lockout guard and its own permission (`surfaces.manage`). `previews.password.*` too:
- * the shared password must be HASHED on the way in, so it has its own route (ADR-0023).
+ * the shared password must be hashed on the way in, so it has its own route.
  */
 export function settingsRoutes(
   api: Hono<AppEnv>,
@@ -39,7 +39,7 @@ export function settingsRoutes(
     for (const [key, raw] of Object.entries(values)) {
       const def = SETTINGS_BY_KEY.get(key);
       if (!def) throw unprocessable(`"${key}" is not a setting`, { key });
-      // §10.5.1: the lockout guard lives on /v1/surfaces; this door must not go round it.
+      // The lockout guard lives on /v1/surfaces; this route must not bypass it.
       if (key.startsWith("surfaces."))
         throw conflict(`"${key}" is changed through PUT /v1/surfaces`, { key });
       if (key.startsWith("previews.password."))
@@ -49,7 +49,7 @@ export function settingsRoutes(
       const parsed = def.schema.safeParse(raw);
       if (!parsed.success)
         throw unprocessable(`"${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`, { key });
-      // ADR-0013: a trigger default must name a template that exists.
+      // A trigger default must name a template that exists.
       if (
         key.startsWith("templates.default.") &&
         templates &&
@@ -76,9 +76,9 @@ export function settingsRoutes(
   });
 
   /**
-   * ADR-0023: the password previews that inherit are behind. `off`; `shared`, one password
-   * for all of them (a value is needed unless one is already set -- switching back to
-   * `shared` keeps the old one); `generated`, each NEW preview gets its own, in its log.
+   * The password previews that inherit are behind. `off`; `shared`, one password for all
+   * of them (a value is needed unless one is already set -- switching back to `shared`
+   * keeps the old one); `generated`, each new preview gets its own, in its log.
    */
   api.put("/settings/preview-password", requirePermission("settings.write"), async (c) => {
     const body = await readJson(c);

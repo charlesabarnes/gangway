@@ -241,7 +241,7 @@ describe("rule 1: provably ours, or not at all", () => {
     expect(report.hosts[0]!.containers).toBe(1);
   });
 
-  test("OUR container with incomplete labels is an orphan holding a port: stopped (§11)", async () => {
+  test("OUR container with incomplete labels is an orphan holding a port: stopped", async () => {
     const s = setup();
     const { route, preview } = await s.deployed("hello");
     const orphan = s.containerFor(
@@ -330,7 +330,7 @@ describe("rule 3: work in flight is untouchable", () => {
   });
 });
 
-describe("§11's table", () => {
+describe("the reconciliation table", () => {
   test("route exists, no container: marked asleep -- and NOTHING is started", async () => {
     const s = setup();
     const { preview } = await s.deployed("hello");
@@ -353,7 +353,7 @@ describe("§11's table", () => {
     expect(s.daemon.stopped).toEqual([]);
   });
 
-  test("T37: asleep, and the container came back by other hands: marked awake once it ANSWERS -- and nothing is started", async () => {
+  test("asleep, and the container came back by other hands: marked awake once it ANSWERS -- and nothing is started", async () => {
     const s = setup();
     const { preview } = await s.deployed("hello");
     s.daemon.containers[0]!.state = "exited";
@@ -382,7 +382,7 @@ describe("§11's table", () => {
     expect((await s.reconciler.run()).changes).toEqual([]); // idempotent
   });
 
-  test("T37: an asleep preview on an unreachable host stays asleep", async () => {
+  test("an asleep preview on an unreachable host stays asleep", async () => {
     const s = setup();
     const { preview } = await s.deployed("hello");
     s.daemon.containers[0]!.state = "exited";

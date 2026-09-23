@@ -9,10 +9,10 @@ import { AuthService } from './auth.service';
  * password reset, or the account was disabled. Forget it and go to login, remembering where
  * the person was.
  *
- * Not for `/v1/auth/*`: a 401 from login IS the answer ("wrong password"), not a lost session.
+ * Not for `/v1/auth/*`: a 401 from login is the answer ("wrong password"), not a lost session.
  *
  * There is deliberately no CSRF header to add. The server checks `Origin`, which the
- * browser sends on its own and a hostile page cannot forge (ADR-0010).
+ * browser sends on its own and a hostile page cannot forge.
  */
 export const apiInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);

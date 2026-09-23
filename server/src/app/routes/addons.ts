@@ -1,6 +1,6 @@
 /**
- * `/v1/previews/:id/addons` (ADR-0017, ADR-0018): a preview's throwaway databases, and a
- * way to look inside them. Listing them is `previews.read`; reading or changing their DATA
+ * `/v1/previews/:id/addons`: a preview's throwaway databases, and a way to look inside
+ * them. Listing them is `previews.read`; reading or changing their data
  * is `previews.data` -- admin only until granted, and every query audited.
  */
 import type { Hono } from "hono";

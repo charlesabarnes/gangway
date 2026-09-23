@@ -1,6 +1,6 @@
 /**
  * jsdom has no <dialog> behaviour: no showModal(), no close(). Every browser gangway
- * supports does, so the component calls them directly and SPECS get the minimum that makes
+ * supports does, so the component calls them directly and specs get the minimum that makes
  * them observable -- the `open` attribute, `returnValue`, and the `close` event.
  * Focus trapping, Esc and the inert backdrop are the browser's and are not faked here.
  */

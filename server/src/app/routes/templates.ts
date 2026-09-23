@@ -19,7 +19,7 @@ export type TemplateRouteDeps = {
 };
 
 /**
- * `/v1/templates` (ADR-0013): named preview policies. Anyone who can read previews can
+ * `/v1/templates`: named preview policies. Anyone who can read previews can
  * list them -- a deployer picks one; changing them is `templates.manage`. `default` is
  * edited like any other and never deleted.
  */

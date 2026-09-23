@@ -1,7 +1,7 @@
 /**
  * The proxy's upstream leg, over node:http. Bun's fetch does not work as a proxy client:
  * it decompresses bodies but leaves Content-Encoding on the response, and it buffers
- * streamed uploads (tens of MB of RSS for a 50 MiB upload, against 3-4 MB here).
+ * streamed uploads in memory.
  */
 import http from "node:http";
 import type net from "node:net";
@@ -163,7 +163,7 @@ export function isTimeout(e: unknown): boolean {
 
 /**
  * One upstream per Docker host, built on first use and kept (each owns a keep-alive
- * agent). Hosts differ in HOW they are reached -- directly, or through a SOCKS tunnel --
+ * agent). Hosts differ in how they are reached -- directly, or through a SOCKS tunnel --
  * and a single shared dial config sends the second host's traffic down the first's path.
  */
 export class PerHostUpstream implements Upstream {

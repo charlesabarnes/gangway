@@ -1,7 +1,7 @@
 /**
- * Request schemas for the public API. ADR-0003: the REST handler, the webhook receiver
- * and the MCP `deploy` tool all validate with THESE, so there is one definition of what a
- * deploy request is, shared with the Angular client for free.
+ * Request schemas for the public API. The REST handler, the webhook receiver and the MCP
+ * `deploy` tool all validate with these, so there is one definition of what a deploy
+ * request is, shared with the Angular client.
  */
 import { z } from "zod";
 import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
@@ -39,7 +39,7 @@ export const DeploySourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("image"),
     image: imageRef,
-    /** The port the app listens on INSIDE the container. */
+    /** The port the app listens on inside the container. */
     port: z.number().int().min(1).max(65535),
     env: envMap.optional(),
   }),
@@ -60,7 +60,7 @@ const templateId = z
     "a template id is 1-32 lowercase letters, digits and hyphens",
   );
 
-/** ADR-0017: an add-on by id, optionally at a major version. */
+/** An add-on by id, optionally at a major version. */
 const addonRequest = z.union([
   z.enum(ADDON_IDS),
   z.strictObject({
@@ -103,7 +103,7 @@ export const addonQuery = z
   .pipe(addonArray);
 
 /**
- * A tarball deploy has no JSON body -- the body IS the archive -- so its options ride in
+ * A tarball deploy has no JSON body -- the body is the archive -- so its options ride in
  * the query string:  curl --data-binary @src.tgz -H 'content-type: application/gzip' '.../v1/previews?name=x'
  */
 export const TarballDeployQuerySchema = z.object({
@@ -115,11 +115,11 @@ export const TarballDeployQuerySchema = z.object({
   template: templateId.optional(),
   project: z.string().min(1).max(64).optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
-  /** ADR-0015: build with a runtime, `auto` to detect one; absent or `own`, the upload's own stack. */
+  /** Build with a runtime, `auto` to detect one; absent or `own`, the upload's own stack. */
   runtime: z.enum([...RUNTIME_IDS, "auto", "own"]).optional(),
-  /** ADR-0017: throwaway databases, `postgres,redis`. Absent: gangway.yml's, if any. */
+  /** Throwaway databases, `postgres,redis`. Absent: gangway.yml's, if any. */
   addons: addonQuery.optional(),
-  /** ADR-0023: `inherit`, `none` or `generate`. A chosen password rides in PREVIEW_PASSWORD_HEADER. */
+  /** `inherit`, `none` or `generate`. A chosen password rides in PREVIEW_PASSWORD_HEADER. */
   password: z.enum(["inherit", "none", "generate"]).optional(),
   passwordLogin: z.enum(["inherit", "on", "off", "only"]).optional(),
 });
@@ -132,7 +132,7 @@ export const SourceReplaceQuerySchema = z.object({
   addons: addonQuery.optional(),
 });
 
-/** `PATCH /v1/previews/:id/source` (ADR-0015): each path's new text, or null to delete it. */
+/** `PATCH /v1/previews/:id/source`: each path's new text, or null to delete it. */
 export const SourceEditSchema = z
   .strictObject({
     files: z
@@ -145,7 +145,7 @@ export const SourceEditSchema = z
       )
       .refine((f) => Object.keys(f).length <= 500, "at most 500 files per edit"),
     runtime: runtimeChoice.optional(),
-    /** ADR-0017. Omitted: as gangway.yml says, else as before. `[]` removes them. */
+    /** Omitted: as gangway.yml says, else as before. `[]` removes them. */
     addons: addonArray.optional(),
   })
   .refine(
@@ -155,7 +155,7 @@ export const SourceEditSchema = z
 export type SourceEdit = z.infer<typeof SourceEditSchema>;
 
 /**
- * `POST /v1/runtimes/plan` (ADR-0016): what the server WOULD do with these files, asked
+ * `POST /v1/runtimes/plan`: what the server would do with these files, asked
  * before uploading them. `files` holds the contents of the few files the plan reads
  * (`planFiles` in `GET /v1/runtimes`); the rest are only named.
  */
@@ -180,12 +180,12 @@ export const TARBALL_CONTENT_TYPES = [
   "application/octet-stream",
 ] as const;
 
+/** Any length; the cap only keeps a huge body out of the proxy (the gate reads at most 1024). */
+export const PREVIEW_PASSWORD_MAX = 1024;
 /**
- * ADR-0023: a preview's password. `inherit` (the default) follows Settings; `none` opens it;
+ * A preview's password. `inherit` (the default) follows Settings; `none` opens it;
  * `set` takes a value; `generate` has gangway make one and print it in the preview's log.
  */
-/** Any length the person wants; the cap only keeps a huge body out of the proxy (the gate reads at most 1024). */
-export const PREVIEW_PASSWORD_MAX = 1024;
 export const PasswordChoiceSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("inherit") }),
   z.strictObject({ mode: z.literal("none") }),
@@ -225,7 +225,7 @@ export const DefaultPasswordSchema = z.strictObject({
 });
 
 /**
- * A tarball deploy carries a CHOSEN password in the `gangway-preview-password` header, never
+ * A tarball deploy carries a chosen password in the `gangway-preview-password` header, never
  * the query string (query strings end up in logs); the query names the other modes.
  */
 export const PREVIEW_PASSWORD_HEADER = "gangway-preview-password";
@@ -237,13 +237,13 @@ export const DeployRequestSchema = z.strictObject({
   /** `12h`, `7d`; null for no expiry. Omitted means the server default. */
   ttl: z.string().max(16).nullable().optional(),
   hostId: z.string().min(1).max(64).optional(),
-  /** A template by id (ADR-0013). Omitted: the project's, else the trigger's default. */
+  /** A template by id. Omitted: the project's, else the trigger's default. */
   template: templateId.optional(),
-  /** A project by id or slug (ADR-0014): the preview is filed under it and follows its policy. */
+  /** A project by id or slug: the preview is filed under it and follows its policy. */
   project: z.string().min(1).max(64).optional(),
-  /** ADR-0023. Omitted: inherit the server-wide default. */
+  /** Omitted: inherit the server-wide default. */
   password: PasswordChoiceSchema.optional(),
-  /** ADR-0023: whether a gangway login gets past the password. Omitted: the server default. */
+  /** Whether a gangway login gets past the password. Omitted: the server default. */
   passwordLogin: PasswordLoginSchema.optional(),
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
@@ -263,7 +263,7 @@ export const PreviewLogsQuerySchema = z.object({
   tail: z.coerce.number().int().min(1).max(5_000).optional(),
 });
 
-/* ------------------------------------------------------------------ accounts (§8) */
+/* ------------------------------------------------------------------ accounts */
 
 /** Lowercased here because `users.email` is UNIQUE without NOCASE: Ada@ and ada@ are one person. */
 const email = z.string().trim().toLowerCase().pipe(z.string().email().max(254));
@@ -276,7 +276,7 @@ const password = z.string().min(12, "at least 12 characters").max(256);
 
 export const LoginRequestSchema = z.strictObject({
   email,
-  /** NOT the `password` schema: a login must never reveal the rules by failing validation. */
+  /** Not the `password` schema: a login must never reveal the rules by failing validation. */
   password: z.string().min(1).max(1024),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
@@ -317,7 +317,7 @@ export const CreateTokenSchema = z.strictObject({
 });
 export type CreateTokenRequest = z.infer<typeof CreateTokenSchema>;
 
-/** The COMPLETE set a role should hold afterwards -- a PUT, not a patch. */
+/** The complete set a role should hold afterwards -- a PUT, not a patch. */
 export const SetRolePermissionsSchema = z.strictObject({
   permissions: z
     .array(z.string().refine((s): s is Permission => isPermission(s), "not a known permission"))
@@ -334,8 +334,8 @@ export const SetSettingsSchema = z.strictObject({
 export type SetSettingsRequest = z.infer<typeof SetSettingsSchema>;
 
 /**
- * `PUT /v1/surfaces` (§10.5). Turning the UI off is the one-way door, so it carries a typed
- * phrase the SERVER checks: the ceremony is not a client-side courtesy.
+ * `PUT /v1/surfaces`. Turning the UI off is the one-way door, so it carries a typed
+ * phrase the server checks: the ceremony is not a client-side courtesy.
  */
 export const DISABLE_UI_PHRASE = "disable the UI";
 export const SetSurfacesSchema = z
@@ -354,7 +354,6 @@ export const ManifestExchangeSchema = z.strictObject({
 });
 export type ManifestExchangeRequest = z.infer<typeof ManifestExchangeSchema>;
 
-/** `PATCH /v1/repos/:id`: the per-repository knobs (ADR-0011). */
 const projectSlug = z
   .string()
   .regex(
@@ -368,7 +367,7 @@ const repository = z
   .regex(/^[\w.-]+\/[\w.-]+$/, "a repository is owner/name");
 const prTrigger = z.enum(["workflow", "webhook"]);
 
-/** `POST /v1/projects` (ADR-0014). A project is made on purpose; the slug defaults from the name. */
+/** `POST /v1/projects`. A project is made on purpose; the slug defaults from the name. */
 export const ProjectCreateSchema = z.strictObject({
   name: z.string().trim().min(1).max(64),
   slug: projectSlug.optional(),
@@ -380,7 +379,7 @@ export const ProjectCreateSchema = z.strictObject({
 export type ProjectCreateRequest = z.infer<typeof ProjectCreateSchema>;
 
 /**
- * `PUT /v1/projects/:ref/pulls/:n` (ADR-0014): the image a workflow pushed for the PR's
+ * `PUT /v1/projects/:ref/pulls/:n`: the image a workflow pushed for the PR's
  * head. `registry` logs in for this one pull and is never stored.
  */
 export const PullDeploySchema = z.strictObject({
@@ -414,7 +413,7 @@ export const ProjectPatchSchema = z.strictObject({
 });
 export type ProjectPatchRequest = z.infer<typeof ProjectPatchSchema>;
 
-/* ------------------------------------------------------------------ templates (ADR-0013) */
+/* ------------------------------------------------------------------ templates */
 
 const templateFields = {
   name: z.string().trim().min(1).max(64),
@@ -468,7 +467,7 @@ export const EnvPatchSchema = z
 export type EnvPatchRequest = z.infer<typeof EnvPatchSchema>;
 
 export const AuditQuerySchema = z.object({
-  /** Entries with a seq BELOW this one: the log is read newest-first. */
+  /** Entries with a seq below this one: the log is read newest-first. */
   before: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   action: z.string().max(64).optional(),

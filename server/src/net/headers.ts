@@ -1,5 +1,5 @@
 /**
- * Header handling for the proxy leg. Every rule here is a bug report if missed (§6.4).
+ * Header handling for the proxy leg. Every rule here is a bug report if missed.
  */
 import { stripGangwayCookies } from "./gate.ts";
 
@@ -42,9 +42,9 @@ export type ForwardContext = {
 /**
  * Builds the upstream request headers.
  *
- * Two rules matter most. The original Host is PRESERVED -- frameworks build absolute URLs
+ * Two rules matter most. The original Host is preserved -- frameworks build absolute URLs
  * from it and will otherwise redirect visitors to http://localhost. And client-supplied
- * X-Forwarded-* are stripped BEFORE ours are set, so a visitor cannot spoof their way past
+ * X-Forwarded-* are stripped before ours are set, so a visitor cannot spoof their way past
  * a framework's trusted-proxy check.
  */
 export function buildUpstreamHeaders(req: Request, ctx: ForwardContext): Headers {
@@ -53,7 +53,7 @@ export function buildUpstreamHeaders(req: Request, ctx: ForwardContext): Headers
   for (const k of FORWARDED) h.delete(k);
 
   // gangway's own cookies are not the preview's to read: the gate cookie is what lets a
-  // visitor into a PRIVATE preview, and the preview's code must not be able to lift it.
+  // visitor into a private preview, and the preview's code must not be able to lift it.
   const cookie = stripGangwayCookies(h.get("cookie"));
   if (cookie === null) h.delete("cookie");
   else h.set("cookie", cookie);
@@ -70,7 +70,7 @@ export function buildUpstreamHeaders(req: Request, ctx: ForwardContext): Headers
 export function buildResponseHeaders(src: Headers, opts: { unlisted: boolean }): Headers {
   const out = new Headers(src);
   stripHopByHop(out);
-  // unlisted previews are unauthenticated but must not be indexed (§8.3).
+  // unlisted previews are unauthenticated but must not be indexed.
   if (opts.unlisted) out.set("x-robots-tag", "noindex, nofollow");
   return out;
 }

@@ -1,12 +1,12 @@
 /**
- * Rebuild in place (ADR-0015): an uploaded preview's source changes -- edited in the UI, or
- * replaced by a new upload -- and the SAME preview is rebuilt: same id, hostname, ports,
+ * Rebuild in place: an uploaded preview's source changes -- edited in the UI, or
+ * replaced by a new upload -- and the same preview is rebuilt: same id, hostname, ports,
  * routes, template, TTL and clearance.
  *
  * Like a deploy, two halves:
  *
  *   plan   (awaited)     new source on disk -> runtime -> `compose config` -> the same
- *                        services on the same ports? -> the new source is KEPT
+ *                        services on the same ports? -> the new source is kept
  *   run    (background)  build (the old version keeps serving) -> swap (`starting`, the
  *                        proxy shows its building page for the second `up` takes) -> awake
  *
@@ -55,7 +55,10 @@ export type RedeployInput = {
   change: { kind: "replace"; archive: TarballSource } | { kind: "edit"; files: SourceEdits };
   /** Omitted: the runtime the preview was built with. */
   runtime?: RuntimeChoice | undefined;
-  /** ADR-0017. Omitted: gangway.yml's, else the ones it has. `[]` removes them (their data stays until destroy). */
+  /**
+   * Add-ons. Omitted: gangway.yml's, else the ones it has. `[]` removes them (their data stays
+   * until destroy).
+   */
   addons?: readonly AddonRequest[] | undefined;
 };
 
@@ -79,7 +82,10 @@ const unprocessable = (m: string, d?: Record<string, unknown>) =>
 export const REBUILD_REFUSAL =
   'this preview was deployed by someone else: "previews.update_own" covers only your own, and rebuilding any preview needs "previews.update" (the `update` scope for a token or an agent)';
 
-/** Paths an edit may name: relative, forward-slashed, no `..`, nothing in a `.gangway/` (at any depth: a nested app's root has one). */
+/**
+ * Paths an edit may name: relative, forward-slashed, no `..`, nothing in a `.gangway/` (at any
+ * depth: a nested app's root has one).
+ */
 export function checkEditPath(p: string): string {
   const bad = (why: string) =>
     unprocessable(`cannot write ${JSON.stringify(p.slice(0, 200))}: ${why}`);
@@ -140,8 +146,8 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const id = input.previewId;
   const current = ctx.previews.get(id);
   if (!current || current.state === "destroyed") throw notFound(`no such preview: ${id}`);
-  // ADR-0021: one check for every adapter. The routes and tools only knew the actor may
-  // rebuild SOMETHING; whose preview this is needs the row.
+  // One check for every adapter. The routes and tools only know the actor may rebuild
+  // something; whose preview this is needs the row.
   if (!mayRebuild(input.actor, ctx.previews.ownerOf(id))) throw forbidden(REBUILD_REFUSAL);
   if (current.source.kind !== "tarball" || !ctx.sources || !(await ctx.sources.has(id))) {
     throw conflict(
@@ -200,7 +206,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
         `rebuilding with ${n} edited file${n === 1 ? "" : "s"} (requested by ${actorId(input.actor)})`,
       );
     }
-    // Asked for, else the upload's gangway.yml, else what it was built as before (ADR-0016).
+    // Asked for, else the upload's gangway.yml, else what it was built as before.
     const choice: RuntimeChoice = input.runtime ?? "auto";
     const env =
       preview.secretLevel === null || preview.secretLevel === "none"
@@ -230,7 +236,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
       );
     }
 
-    // Accepted: this is the source now, whether or not it builds (ADR-0015).
+    // Accepted: this is the source now, whether or not it builds.
     if (up.pristine) await ctx.sources.adopt(id, up.pristine);
     const next: PreviewSource = {
       kind: "tarball",
@@ -290,7 +296,7 @@ type RunInput = {
   signal: AbortSignal;
   resolved: unknown;
   model: Awaited<ReturnType<typeof readModel>>["model"];
-  /** ADR-0017: started (or left running) and healthy BEFORE the release, while the old app still serves. */
+  /** Started (or left running) and healthy before the release, while the old app still serves. */
   addonServices: string[];
 };
 
@@ -359,7 +365,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
       }
     }
 
-    // ADR-0017: the add-ons first, alone. Running ones are left as they are (same config,
+    // The add-ons first, alone. Running ones are left as they are (same config,
     // no recreate); a new one starts on its volume. The app is not touched yet.
     if (r.addonServices.length > 0) {
       await step(
@@ -377,7 +383,7 @@ async function run(ctx: PreviewContext, r: RunInput): Promise<RedeployOutcome> {
       });
     }
 
-    // ADR-0016: the release runs against the NEW image while the old version still serves.
+    // The release runs against the new image while the old version still serves.
     // Failing it is failing the build: nothing has been swapped yet.
     const release = releaseFor(r.model, r.routes);
     if (release) {
@@ -441,7 +447,9 @@ type Base = {
   docker: string | undefined;
 };
 
-/** The image ids the project's containers run now. Empty on any failure: cleanup is best-effort. */
+/**
+ * The image ids the project's containers run now. Empty on any failure: cleanup is best-effort.
+ */
 async function imageIds(
   ctx: PreviewContext,
   host: Host,
@@ -469,7 +477,7 @@ async function imageIds(
 
 /**
  * The rebuild moved `<project>-<service>` to a new image; the old one is left with no tag.
- * Removed only when it has NO tag and NO digest -- an image built here and now unreferenced.
+ * Removed only when it has no tag and no digest -- an image built here and now unreferenced.
  * A pulled image, even one pinned by digest, has a digest, and may be the operator's.
  */
 async function removeReplaced(

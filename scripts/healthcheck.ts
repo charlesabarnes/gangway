@@ -1,5 +1,5 @@
 /**
- * The container HEALTHCHECK. Asks the real listener -- TLS, Host dispatch and all -- for
+ * The container healthcheck. Asks the real listener -- TLS, Host dispatch and all -- for
  * /healthz on the `api` surface. Certificate verification is off on purpose: this checks
  * that gangway is serving, not that the certificate chains (it may be the dev CA).
  * Exit 0 healthy, 1 not. A draining server answers 503, which is "not healthy": correct.

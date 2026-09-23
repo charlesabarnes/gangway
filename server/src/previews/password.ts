@@ -1,5 +1,5 @@
 /**
- * ADR-0023: a preview's password. One function turns what was asked for into what is
+ * A preview's password. One function turns what was asked for into what is
  * stored, so a deploy, a change on a running preview and the MCP tool all agree:
  *
  *   inherit   the server-wide default -- which, when that default is `generated`, means
@@ -7,7 +7,7 @@
  *             request (net/gate.ts), so changing the shared password moves every preview
  *   none      open, whatever the default says
  *   set       the person's own password, hashed here
- *   generate  gangway makes one, and it is written ONCE, to the preview's log. It is
+ *   generate  gangway makes one, and it is written once, to the preview's log. It is
  *             stored only as a hash: lose the log line and the answer is a new password.
  *
  * The plain text never reaches the database, the audit log, an event or an API response.
@@ -31,14 +31,16 @@ import type { PreviewContext } from "./context.ts";
 export type PreviewPasswordDeps = {
   passwords: Pick<Passwords, "hash">;
   defaultMode: () => DefaultPasswordMode;
-  /** Is a shared password set? Only then does `shared` protect an inheriting preview. Absent: no. */
+  /**
+   * Is a shared password set? Only then does `shared` protect an inheriting preview. Absent: no.
+   */
   sharedSet?: () => boolean;
   /** The server-wide "signed-in users skip the password" switch. Absent: off. */
   loginDefault?: () => boolean;
 };
 
 /**
- * Who can open a preview RIGHT NOW (ADR-0023), resolved the way the gate resolves it: the
+ * Who can open a preview right now, resolved the way the gate resolves it: the
  * mode alone cannot say, because `inherit` is open or shut depending on Settings.
  */
 export function previewAccess(
@@ -100,7 +102,8 @@ export async function resolvePassword(
 export function entryPassword(p: StoredPreviewPassword): EntryPassword {
   if (p.mode === "none") return { mode: "none" };
   if ((p.mode === "set" || p.mode === "generated") && p.secret) return { mode: "own", ...p.secret };
-  // `set` with no hash cannot happen through this module; if a row says so, fail towards the default.
+  // `set` with no hash cannot happen through this module; if a row says so, fail towards the
+  // default.
   return { mode: "inherit" };
 }
 
@@ -118,8 +121,8 @@ export function logGenerated(
 }
 
 /**
- * Change a running preview's password, whether a gangway login gets past it, or both
- * (ADR-0023). What is left out is kept. Takes effect on the next request.
+ * Change a running preview's password, whether a gangway login gets past it, or both.
+ * What is left out is kept. Takes effect on the next request.
  */
 export async function setPreviewPassword(
   ctx: PreviewContext,

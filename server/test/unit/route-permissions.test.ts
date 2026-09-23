@@ -27,7 +27,7 @@ import { userRoutes } from "../../src/app/routes/users.ts";
 
 const none = {} as never;
 
-/** Everything mounted behind `authenticate`. Add a new route module HERE when boot.ts gains one. */
+/** Everything mounted behind `authenticate`. Add a new route module here when boot.ts gains one. */
 export function registerAuthenticated(api: Hono<AppEnv>): void {
   hostRoutes(api, none);
   eventRoutes(api, none);

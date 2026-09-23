@@ -1,14 +1,12 @@
 /**
- * What a preview's containers are printing (ADR-0021). The preview log (logs.ts) holds the
- * pipeline -- build output, compose, gangway's own lines -- and, for a stack that failed,
- * its last words. A HEALTHY stack's stdout was nowhere: an agent asking "did my server
- * start?" got the build. This reads it on demand with `compose logs`, which the daemon
+ * What a preview's containers are printing. The preview log (logs.ts) holds the pipeline --
+ * build output, compose, gangway's own lines -- and a failed stack's last words, but not a
+ * healthy stack's stdout. This reads that on demand with `compose logs`, which the daemon
  * keeps for as long as the containers exist (a sleeping preview's too).
  *
- * Read, never stored: the container's own log is the record, and copying it into ours
- * would grow without bound on a chatty app. It is scrubbed like every stored line --
- * redacted, and an add-on's password masked -- because an app printing its DATABASE_URL
- * is the common case, not the exotic one.
+ * Read, never stored: copying it would grow without bound on a chatty app. It is scrubbed
+ * like every stored line -- redacted, and add-on passwords masked -- because an app printing
+ * its DATABASE_URL is the common case.
  */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -71,7 +69,10 @@ export async function runtimeLogs(
   }
 }
 
-/** Derived, not remembered (logs.ts forgets its masks on a restart): the same key gives the same password. */
+/**
+ * Derived, not remembered (logs.ts forgets its masks on a restart): the same key gives the
+ * same password.
+ */
 function addonPasswords(ctx: PreviewContext, p: Preview): string[] {
   if (p.source.kind !== "tarball" || !p.source.addons?.length || !ctx.addonSecret) return [];
   return p.source.addons.map((a) => ctx.addonSecret!(p.id, a.id)).filter((s) => s.length >= 8);

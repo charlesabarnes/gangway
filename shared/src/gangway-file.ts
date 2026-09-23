@@ -1,9 +1,9 @@
 /**
- * `gangway.yml` (ADR-0016): how an upload with no compose file says what the conventions
+ * `gangway.yml`: how an upload with no compose file says what the conventions
  * would get wrong -- the command to start it, a build to run first, a directory of built
  * files to serve, a runtime version. Heroku's Procfile and app.json, in one small file.
  *
- * A compose file has `x-gangway` for this; an upload WITH one ignores `gangway.yml`.
+ * A compose file has `x-gangway` for this; an upload with one ignores `gangway.yml`.
  *
  * Every field is optional: an empty file means "the conventions". The schema is strict, so
  * a typo is an error that names the key, not a setting silently ignored. Published as JSON
@@ -97,7 +97,7 @@ export const GangwayFileSchema = z.strictObject({
     .refine((e) => Object.keys(e).length <= 100, "at most 100 variables")
     .optional(),
   /**
-   * Throwaway databases beside the app (ADR-0017): `[postgres]`, or `[{ id: postgres, version: 17 }]`.
+   * Throwaway databases beside the app: `[postgres]`, or `[{ id: postgres, version: 17 }]`.
    * Gone with the preview. `[]` removes them.
    */
   addons: z
@@ -116,7 +116,7 @@ export const GangwayFileSchema = z.strictObject({
       "each add-on at most once",
     )
     .optional(),
-  /** Runs once after the first deploy is healthy (§7.3), in the app's container. */
+  /** Runs once after the first deploy is healthy, in the app's container. */
   seed: z.string().min(1).max(8192).optional(),
   ttl: duration("12h or 7d").optional(),
   visibility: z.enum(["public", "unlisted", "private"]).optional(),
@@ -180,6 +180,6 @@ export function gangwayJsonSchema(): Record<string, unknown> {
   return {
     ...z.toJSONSchema(GangwayFileSchema, { io: "input", unrepresentable: "any" }),
     title: "gangway.yml",
-    description: "How gangway builds and runs an upload that has no compose file (ADR-0016).",
+    description: "How gangway builds and runs an upload that has no compose file.",
   };
 }

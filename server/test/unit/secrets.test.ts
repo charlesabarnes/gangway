@@ -1,4 +1,4 @@
-/** Secrets at rest and the repository env (ADR-0012). */
+/** Secrets at rest and the repository env. */
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";

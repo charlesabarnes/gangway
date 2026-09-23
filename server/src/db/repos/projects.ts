@@ -24,7 +24,7 @@ export type CreateProject = {
   templateId?: string | null | undefined;
 };
 
-/** Absent AND undefined both mean "leave it": zod's optional output is passed straight through. */
+/** Absent and undefined both mean "leave it": zod's optional output is passed straight through. */
 export type ProjectPatch = {
   name?: string | undefined;
   slug?: string | undefined;
@@ -57,7 +57,7 @@ const COLUMNS: Record<keyof ProjectPatch, string> = {
   forkClearance: "fork_clearance",
 };
 
-/** Projects: the things you preview, and how their previews are shaped (ADR-0014). */
+/** Projects: the things you preview, and how their previews are shaped. */
 export class ProjectsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -146,7 +146,7 @@ export class ProjectsRepo {
     return this.get(id);
   }
 
-  /** The sealed secrets map (ADR-0012); the repo never sees plaintext. */
+  /** The sealed secrets map; the repo never sees plaintext. */
   envCiphertext(id: string): string | null {
     return (
       this.#db.get<{ env_ciphertext: string | null }>(

@@ -1,8 +1,8 @@
-# gangway: one image, one process (spec §13).
+# gangway: one image, one process.
 #
 # The docker CLI is here because gangway drives hosts by shelling out to `docker compose`
-# against DOCKER_HOST (ADR-0007). The COMPOSE PLUGIN is a separate package and the one
-# people forget; git is for git sources, openssh-client for `ssh://` docker hosts.
+# against DOCKER_HOST. The compose plugin is a separate package and the one people forget;
+# git is for git sources, openssh-client for `ssh://` docker hosts.
 FROM node:24-alpine AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./

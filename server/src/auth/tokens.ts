@@ -1,15 +1,13 @@
 /**
- * §8.2 API tokens: `gw_` + 32 random bytes, shown once, stored as a sha256, scoped.
+ * API tokens: `gw_` + 32 random bytes, shown once, stored as a sha256, scoped.
  *
  * A token never exceeds its owner. Its scopes are bundles of permissions, and what it may
- * actually do is those bundles INTERSECTED with the owner's role -- worked out on every
- * request. Demote the owner, tighten their role, disable them: their tokens shrink or stop
- * on the next call, with nothing to revoke by hand.
+ * do is those bundles intersected with the owner's role, worked out on every request.
+ * Demote or disable the owner and their tokens shrink or stop on the next call.
  *
- * Minting is stricter than verifying, on purpose. A scope is refused unless the role
- * covers its WHOLE bundle. Verification would clamp a too-big token anyway, so a lenient
- * mint would be harmless today -- and a trap tomorrow: a member's "admin" token that does
- * nothing now would silently become a real admin token the day they are promoted.
+ * Minting is stricter than verifying: a scope is refused unless the role covers its whole
+ * bundle. Otherwise a member's "admin" token that does nothing now would silently become a
+ * real admin token the day they are promoted.
  *
  * Only a person, or the env admin token, can mint. A database token cannot: a leaked CI
  * token must not be able to issue itself a successor.
@@ -128,7 +126,10 @@ export class Tokens {
     return { token, secret };
   }
 
-  /** Your own; or, asked for and permitted, everyone's. The env token owns none, so it sees all or nothing. */
+  /**
+   * Your own; or, asked for and permitted, everyone's. The env token owns none, so it sees
+   * all or nothing.
+   */
   list(actor: Actor, o: { all?: boolean } = {}): ApiToken[] {
     if (o.all) {
       if (!can(actor, "tokens.manage_all"))

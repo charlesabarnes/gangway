@@ -1,7 +1,7 @@
 /**
  * The UI's types are hand-written (web/src/app/core/api.types.ts): what crosses the network
  * is JSON, and the server's domain types are not. This is the server's half of keeping them
- * honest. It asserts that REAL output has exactly the shape and literals recorded in
+ * honest. It asserts that real output has exactly the shape and literals recorded in
  * web/src/testing/fixtures/contract.json; the web project's spec asserts that file
  * satisfies its types. Rename a field or add a state on either side alone: a test fails.
  */
@@ -43,7 +43,7 @@ const contract = JSON.parse(
 ) as Record<string, unknown>;
 const quiet = new Logger("error", {}, () => {});
 
-/** Keys and value TYPES, recursively; an array is the shape of its first element. Values do not matter. */
+/** Keys and value types, recursively; an array is the shape of its first element. Values do not matter. */
 function shapeOf(v: unknown): unknown {
   if (v === null) return "null";
   if (Array.isArray(v)) return v.length === 0 ? [] : [shapeOf(v[0])];
@@ -194,7 +194,7 @@ describe("account wire shapes", () => {
   });
 });
 
-describe("surface wire shapes (§10.5)", () => {
+describe("surface wire shapes", () => {
   test("GET /v1/surfaces, GET /v1/capabilities, and the phrase", async () => {
     const settings = new Settings({}, new MemorySettingsStore());
     const api = new Hono<AppEnv>();
@@ -220,7 +220,7 @@ describe("surface wire shapes (§10.5)", () => {
   });
 });
 
-describe("oauth wire shapes (ADR-0020)", () => {
+describe("oauth wire shapes", () => {
   test("the consent view, the decision, and a connected agent", async () => {
     const s = setupAccounts();
     const { user } = await s.admin();
@@ -288,7 +288,7 @@ describe("oauth wire shapes (ADR-0020)", () => {
   });
 });
 
-describe("github wire shapes (ADR-0011)", () => {
+describe("github wire shapes", () => {
   test("the status and a repository", async () => {
     const s = setupAccounts();
     const settings = new Settings({}, new MemorySettingsStore());
@@ -343,7 +343,7 @@ describe("github wire shapes (ADR-0011)", () => {
     expect(bare).toMatchObject({ forge: null, fullName: null });
     expect(contract["forkPolicies"]).toEqual(["ask", "auto", "never"]);
     expect(contract["clearances"]).toEqual([...CLEARANCES]);
-    // ADR-0013: a template, and the triggers a default is set for.
+    // A template, and the triggers a default is set for.
     const { template } = (await (await app.request("/templates/default")).json()) as {
       template: unknown;
     };
@@ -352,7 +352,7 @@ describe("github wire shapes (ADR-0011)", () => {
   });
 });
 
-describe("runtime wire shapes (ADR-0015)", () => {
+describe("runtime wire shapes", () => {
   test("the catalogue, a kept source, a redeploy event, an upload's source, and the runtime ids", async () => {
     const { SourceStore } = await import("../../src/previews/source/store.ts");
     const { runtimeRoutes } = await import("../../src/app/routes/runtimes.ts");
@@ -381,14 +381,14 @@ describe("runtime wire shapes (ADR-0015)", () => {
     };
     const want = contract["runtimeList"] as { runtimes: unknown[]; detection: unknown[] };
     expect(Object.keys(list).sort()).toEqual(Object.keys(want).sort());
-    // Starter maps differ per runtime; their VALUES are strings -- compare the rest of the shape.
+    // Starter maps differ per runtime; their values are strings -- compare the rest of the shape.
     const noStarter = (r: unknown) => {
       const { starter, ...rest } = r as Record<string, unknown>;
       return shapeOf({ ...rest, starterIsObject: typeof starter === "object" });
     };
     expect(noStarter(list.runtimes[0])).toEqual(noStarter(want.runtimes[0]));
     expect(shapeOf(list.detection[0])).toEqual(shapeOf(want.detection[0]));
-    // ADR-0016: the files a plan reads, and the plan itself, for a Vite app.
+    // The files a plan reads, and the plan itself, for a Vite app.
     expect((list as unknown as { planFiles: string[] }).planFiles).toEqual(
       (want as unknown as { planFiles: string[] }).planFiles,
     );
@@ -404,7 +404,7 @@ describe("runtime wire shapes (ADR-0015)", () => {
       })
     ).json();
     expect(planned).toEqual(contract["appPlan"]);
-    // ADR-0017: the add-on catalogue the New screen offers.
+    // The add-on catalogue the New screen offers.
     const addons = (list as unknown as { addons: unknown[] }).addons;
     expect(shapeOf(addons[0])).toEqual(
       shapeOf((want as unknown as { addons: unknown[] }).addons[0]),

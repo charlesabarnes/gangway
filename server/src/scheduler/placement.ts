@@ -1,5 +1,5 @@
 /**
- * Placement (§9): "The scheduler is the ONLY place placement is decided."
+ * Placement: the scheduler is the only place where work is placed on a host.
  *
  * Trivial while there is one host, and every call site goes through it anyway -- that is
  * the point. As long as no other code assumes where work runs, collapsing to one host
@@ -30,7 +30,7 @@ export function place(req: PlacementRequest, hosts: readonly Host[]): Host {
 
   // `unknown` is placeable: a freshly seeded host has not been probed yet, and refusing
   // it would make the first deploy after boot fail for no reason. `unreachable` and
-  // `error` are not -- we asked, and the answer was no.
+  // `error` are not -- the host was asked, and the answer was no.
   const usable = capable.filter((h) => h.state === "ready" || h.state === "unknown");
   const pick = usable.find((h) => h.state === "ready") ?? usable[0];
   if (!pick) {

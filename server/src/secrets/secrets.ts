@@ -1,6 +1,6 @@
 /**
- * Secrets (ADR-0012): two scopes, one shape. The GLOBAL map reaches every preview; a
- * REPOSITORY's map reaches previews of that repository and wins on a name both hold.
+ * Secrets: two scopes, one shape. The global map reaches every preview; a repository's
+ * map reaches previews of that repository and wins on a name both hold.
  * Every entry has a value and a level; a preview is deployed with a clearance and
  * receives the entries at or below it.
  *
@@ -59,7 +59,7 @@ export class SecretMap {
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
     const out: Record<string, SecretEntry> = {};
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      // The first shape was a bare string; it meant what `standard` means now.
+      // A bare string is the older shape, read as `standard`.
       if (typeof v === "string") out[k] = { value: v, level: "standard" };
       else if (
         typeof v === "object" &&

@@ -1,5 +1,5 @@
 /**
- * Which template a deploy follows (ADR-0013), and which project it belongs to (ADR-0014).
+ * Which template a deploy follows, and which project it belongs to.
  *
  * The project: named outright by the request, else found from the source's repository (a
  * PR by full name, a git clone URL by the name inside it). The template: named by the

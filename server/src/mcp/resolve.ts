@@ -1,6 +1,6 @@
 /**
  * What an agent calls a preview: whatever it last saw. An id, the URL it was handed, a
- * hostname, or the name it asked for -- which for an unlisted preview is only the STEM of
+ * hostname, or the name it asked for -- which for an unlisted preview is only the stem of
  * the hostname (`shop` for `shop-k3v9x…`). Ambiguity is an error that lists the candidates;
  * guessing which preview to destroy is not a feature.
  */

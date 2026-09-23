@@ -1,5 +1,5 @@
 /**
- * Everything the preview service layer needs, in one bag. NO HTTP types (ADR-0003): the
+ * Everything the preview service layer needs, in one bag. No HTTP types: the
  * REST handler, the webhook receiver and the MCP tool are each a thin adapter over the
  * functions that take this.
  */
@@ -42,7 +42,7 @@ export type PreviewContext = {
   env: string;
   origin: PublicOrigin;
   baseDomain: () => string;
-  /** The template a deploy follows, and its repository if any (ADR-0013). */
+  /** The template a deploy follows, and its repository if any. */
   policy: Policy;
   hosts: HostsRepo;
   previews: PreviewsRepo;
@@ -53,7 +53,7 @@ export type PreviewContext = {
   workdirs: Workdirs;
   compose: ComposeRunner;
   probe: RouteProbe;
-  /** ADR-0021: one GET's status, for `deploy`'s `check` paths. Absent: `httpStatus`. */
+  /** One GET's status, for `deploy`'s `check` paths. Absent: `httpStatus`. */
   statusProbe?: StatusProbe | undefined;
   logger: Logger;
   timings: PreviewTimings;
@@ -67,22 +67,24 @@ export type PreviewContext = {
   builds?: BuildsRepo | undefined;
   /** False when `private` previews could not be opened: the UI (and its login page) is off. */
   privateAvailable?: (() => boolean) | undefined;
-  /** §10.5.2. Optional for the same reason; boot always supplies it. */
+  /** Audit log. Optional for the same reason; boot always supplies it. */
   audit?: AuditSink | undefined;
   /**
-   * The secrets a preview receives at a clearance (ADR-0012): the global map, plus the
+   * The secrets a preview receives at a clearance: the global map, plus the
    * repository's when it has one. Absent: no `.env` is written.
    */
   secretsFor?:
     ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
   /**
-   * An add-on's password for a preview (ADR-0017): derived, so the sidecar's config is the
+   * An add-on's password for a preview: derived, so the sidecar's config is the
    * same on every rebuild and compose never recreates the database. Absent: add-ons are refused.
    */
   addonSecret?: ((previewId: string, addon: AddonId) => string) | undefined;
-  /** Uploaded sources, kept for the editor and for rebuilds (ADR-0015). Absent: nothing is kept. */
+  /** Uploaded sources, kept for the editor and for rebuilds. Absent: nothing is kept. */
   sources?: SourceStore | undefined;
-  /** ADR-0023: hashing preview passwords, and the server-wide default. Absent: only `inherit`/`none` work. */
+  /**
+   * Hashing preview passwords, and the server-wide default. Absent: only `inherit`/`none` work.
+   */
   passwords?: PreviewPasswordDeps | undefined;
   /** Overrides for `git clone`: the allowed hosts, and (in tests) a stand-in binary. */
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;

@@ -1,9 +1,8 @@
 /**
- * Add-ons (ADR-0017): a throwaway database next to a preview. NOT an app from spec §12's
- * catalogue -- nothing is installed, nothing outlives anything. An add-on is a pinned
- * sidecar in ONE preview's compose project: no URL, no published port, its data in a
- * volume that `down -v` removes with the preview. It survives saves, rebuilds and
- * idle-sleep; it does not survive destroy.
+ * Add-ons: a throwaway database next to a preview. Nothing is installed and nothing
+ * outlives the preview. An add-on is a pinned sidecar in one preview's compose project:
+ * no URL, no published port, its data in a volume that `down -v` removes with the preview.
+ * It survives saves, rebuilds and idle-sleep; it does not survive destroy.
  *
  * Adding one is a catalogue entry here plus its service in server/src/previews/addons.ts,
  * like a runtime.
@@ -13,7 +12,7 @@ export const ADDON_IDS = ["postgres", "mysql", "redis"] as const;
 export type AddonId = (typeof ADDON_IDS)[number];
 export const isAddonId = (s: string): s is AddonId => (ADDON_IDS as readonly string[]).includes(s);
 
-/** What a preview runs: the add-on at a MAJOR version, recorded so an upgrade of gangway never changes it. */
+/** What a preview runs: the add-on at a major version, recorded so an upgrade of gangway never changes it. */
 export type AddonChoice = { id: AddonId; version: string };
 
 export type Addon = {
@@ -26,11 +25,11 @@ export type Addon = {
   /** Major -> pinned image. `defaultVersion` is what a new preview gets. */
   versions: Readonly<Record<string, string>>;
   defaultVersion: string;
-  /** SQL add-ons load the first of these on their FIRST start only (a fresh volume). */
+  /** SQL add-ons load the first of these on their first start only (a fresh volume). */
   seedFiles: readonly string[];
   /** The variables the app receives. */
   env: readonly string[];
-  /** What in an upload suggests it: DRIVER names by ecosystem (a suggestion is pre-ticked in the UI). */
+  /** What in an upload suggests it: driver names by ecosystem (a suggestion is pre-ticked in the UI). */
   hints: { npm: readonly string[]; pip: readonly string[]; composer: readonly string[] };
 };
 

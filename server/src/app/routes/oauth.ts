@@ -1,17 +1,16 @@
 /**
- * The OAuth 2.1 authorization server's HTTP face (ADR-0020), on the `app` host -- the
- * issuer is `https://app.<base>`, because consent needs the session cookie, which is
- * host-only there.
+ * The OAuth 2.1 authorization server's HTTP face, on the `app` host -- the issuer is
+ * `https://app.<base>`, because consent needs the session cookie, which is host-only there.
  *
- *   GET  /.well-known/oauth-authorization-server   RFC 8414 metadata
- *   GET  /oauth/authorize                           validate, park the request, send the browser to /connect
- *   POST /oauth/token                               form-encoded; codes and refreshes
- *   GET  /v1/oauth/requests/:id                     what the consent page shows   (a session user)
- *   POST /v1/oauth/requests/:id                     approve or deny               (a session user)
- *   GET|DELETE /v1/oauth/grants[/:id]               the Account page's "Connected agents"
+ *   GET  /.well-known/oauth-authorization-server  RFC 8414 metadata
+ *   GET  /oauth/authorize                  validate, park the request, redirect to /connect
+ *   POST /oauth/token                      form-encoded; codes and refreshes
+ *   GET  /v1/oauth/requests/:id            what the consent page shows (a session user)
+ *   POST /v1/oauth/requests/:id            approve or deny (a session user)
+ *   GET|DELETE /v1/oauth/grants[/:id]      the Account page's "Connected agents"
  *
  * All of it is a 404 while MCP is switched off: an authorization server for a surface that
- * is not there is not advertised (§10.5).
+ * is not there is not advertised.
  */
 import type { Hono } from "hono";
 import { z } from "zod";
@@ -49,7 +48,7 @@ function errorPage(message: string): Response {
   });
 }
 
-/** RFC 6749 §5.1/§5.2: tokens and their errors are never cached. */
+/** Tokens and their errors are never cached (RFC 6749 sections 5.1 and 5.2). */
 const NO_STORE = { "cache-control": "no-store", pragma: "no-cache" };
 
 /** A small per-source budget for the token endpoint: it is unauthenticated by design. */
@@ -115,7 +114,7 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
     const text = await c.req.text();
     if (text.length > 16 * 1024) return fail("invalid_request", "the request is too large");
     const form = new URLSearchParams(text);
-    // RFC 6749 §3.2: a parameter may not repeat.
+    // A parameter may not repeat (RFC 6749 section 3.2).
     for (const k of new Set(form.keys()))
       if (form.getAll(k).length > 1)
         return fail("invalid_request", `${k} was given more than once`);

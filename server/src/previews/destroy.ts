@@ -1,16 +1,15 @@
 /**
- * Teardown (§5 step 11): `docker compose -p <project> down -v`, routes removed.
+ * Teardown: `docker compose -p <project> down -v`, routes removed.
  *
- * Addressed by PROJECT NAME ALONE, with no compose files. Verified against Compose
- * v2.29.2: a file-less `down -v --remove-orphans` removes the containers, the named
- * volumes and the network, found through the labels compose itself wrote. That matters
- * because scratch does not survive a restart (Workdirs.prune) and a compose file that no
- * longer parses must never be able to block a destroy.
+ * Addressed by project name alone, with no compose files: a file-less
+ * `down -v --remove-orphans` removes the containers, the named volumes and the network, found
+ * through the labels compose itself wrote. Scratch does not survive a restart
+ * (Workdirs.prune), and a compose file that no longer parses must never block a destroy.
  *
- * It runs from a fresh empty directory: given no `-f`, compose searches the cwd AND ITS
- * PARENTS for a compose.yaml, and this repository has one.
+ * It runs from a fresh empty directory: given no `-f`, compose searches the cwd and its
+ * parents for a compose.yaml, and this repository has one.
  *
- * Routes are removed only AFTER the daemon confirms. If `down` fails the containers may
+ * Routes are removed only after the daemon confirms. If `down` fails the containers may
  * still hold their ports, so the ledger must keep saying so.
  */
 import { mkdtemp, rm } from "node:fs/promises";
@@ -40,7 +39,8 @@ export async function destroy(
   // Claim it first (synchronously), so a second DELETE gets the 409 above.
   ctx.states.transition(previewId, "destroying");
   ctx.logs.append(previewId, "system", `destroying (requested by ${actorId(actor)})`);
-  // The TTL sweep comes through here too, as `system:ttl-sweep`: "why did it vanish" has an answer.
+  // The TTL sweep comes through here too, as `system:ttl-sweep`, so an expired preview is
+  // audited as well.
   ctx.audit?.record(actor, "preview.destroy", previewId, {
     old: { project: preview.project, state: preview.state, hostId: preview.hostId },
   });
@@ -49,7 +49,7 @@ export async function destroy(
 
 /**
  * The part of a destroy that happens after the preview is `destroying`. Separate so the
- * reconciler can FINISH a teardown that a restart interrupted: the row already says
+ * reconciler can finish a teardown that a restart interrupted: the row already says
  * `destroying`, nobody is coming back for it, and `down` is idempotent.
  */
 export async function teardown(
@@ -103,21 +103,21 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   ctx.table.removePreview(previewId);
   const gone = ctx.states.transition(previewId, "destroyed");
   await ctx.workdirs.remove(previewId);
-  await ctx.sources?.remove(previewId); // ADR-0015: the kept upload goes with it
-  ctx.logs.remove(previewId); // §15.4 default: discard on destroy
+  await ctx.sources?.remove(previewId); // the kept upload goes with it
+  ctx.logs.remove(previewId);
   return gone;
 }
 
 /**
- * `all` only for an image pushed for this preview's commit (ADR-0014): unique to it, and
+ * `all` only for an image pushed for this preview's commit: unique to it, and
  * left behind by `local`. Anything else may be an image the operator's own containers share.
  */
 export const rmiFor = (p: Preview): "local" | "all" =>
   p.source.kind === "pr" && p.source.image ? "all" : "local";
 
 /**
- * A file-less `down -v` finds volumes through the project's CONTAINERS. After a failed
- * rebuild kept an add-on's volume and removed its containers (ADR-0017), there are none to
+ * A file-less `down -v` finds volumes through the project's containers. After a failed
+ * rebuild kept an add-on's volume and removed its containers, there are none to
  * find it by -- so anything still labelled with the project goes by name: volumes, and
  * untagged images compose built for it. The label is compose's own, and the project name
  * is `gw-<instance>-...`: only ever ours.
@@ -150,7 +150,7 @@ async function removeLeftovers(
       });
   }
   // A rebuild that failed after `up` never got to remove the image it replaced; `--rmi local`
-  // only takes TAGGED images. Untagged ones that compose built for this project are ours.
+  // only takes tagged images. Untagged ones that compose built for this project are ours.
   const images = await listed([
     docker,
     "image",
@@ -185,7 +185,7 @@ export async function releaseStack(
 ): Promise<boolean> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
   try {
-    // Containers and ports, not data (ADR-0017): the preview still exists, and its add-on's volume with it.
+    // Containers and ports, not data: the preview still exists, and its add-on's volume with it.
     const res = await ctx.compose.capture(
       downArgv({ project: preview.project, files: [], docker: ctx.docker }, [], rmiFor(preview), {
         volumes: false,

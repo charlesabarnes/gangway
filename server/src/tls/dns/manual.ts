@@ -38,7 +38,7 @@ export class ManualDnsProvider implements DnsProvider {
   async createTxt(name: string, value: string): Promise<{ recordId: string }> {
     const recordId = `manual-${++this.#seq}`;
     this.#pending.set(recordId, { name, value });
-    // ADD, do not replace: a wildcard order asks for two records at this same name.
+    // Add, do not replace: a wildcard order asks for two records at this same name.
     this.#log.info(
       `ACTION REQUIRED: add TXT ${name} = "${value}" (ttl 60), in ADDITION to any existing record at that name`,
       {

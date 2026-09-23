@@ -1,14 +1,14 @@
 /**
- * ACME over DNS-01 (§6.2): ONE wildcard certificate for the base domain, renewed on a
- * timer, stored in SQLite. "Do not do per-preview ACME."
+ * ACME over DNS-01: one wildcard certificate for the base domain (never per preview),
+ * renewed on a timer, stored in SQLite.
  *
  * The order of operations is the whole file, and each step is there because skipping it
  * fails in production in a way a fake never shows:
  *
- *  1. Create EVERY TXT record before completing ANY challenge. A wildcard order has two
+ *  1. Create every TXT record before completing any challenge. A wildcard order has two
  *     authorizations that validate at the same `_acme-challenge` name with different
- *     values (spike/acme-wildcard.ts). Both must be visible at once.
- *  2. Wait for propagation on the zone's AUTHORITATIVE servers before telling the CA to
+ *     values. Both must be visible at once.
+ *  2. Wait for propagation on the zone's authoritative servers before telling the CA to
  *     look. The CA looks once; a miss is a failed authorization and a rate-limit strike.
  *  3. Remove the records in a `finally`. A failed order must not leave stale values that
  *     the next attempt's propagation check would happily match.
@@ -76,10 +76,10 @@ export class AcmeProvider implements CertProvider {
   }
 
   /**
-   * Due when less than a THIRD of the lifetime remains, capped at 30 days. A fixed 30-day
+   * Due when less than a third of the lifetime remains, capped at 30 days. A fixed 30-day
    * window is wrong for anything but 90-day certificates: a 6-day one (Let's Encrypt's
-   * short-lived profile; Pebble hands them out at random, which is how this was found)
-   * would be "due" from the moment it was issued and reordered every hour, forever.
+   * short-lived profile) would be "due" from the moment it was issued and reordered every
+   * hour, forever.
    */
   isDue(bundle: CertBundle, now = this.#now()): boolean {
     if (bundle.materials.length === 0) return true;
@@ -91,8 +91,8 @@ export class AcmeProvider implements CertProvider {
   }
 
   /**
-   * What is already in the database, IF it is usable as is: issued by THIS directory,
-   * covering THESE names, and not expired. (Due-for-renewal is still usable -- serve it
+   * What is already in the database, if it is usable as is: issued by this directory,
+   * covering these names, and not expired. (Due-for-renewal is still usable -- serve it
    * while the renewal runs.) Never touches the network, so boot can call it.
    */
   load(domains: string[]): CertBundle | null {
@@ -252,7 +252,7 @@ export class AcmeProvider implements CertProvider {
         ],
       };
     } finally {
-      // Step 3.
+      // Step 3: remove the records.
       for (const r of created) {
         await dns
           .removeTxt(r.recordId, r.name)

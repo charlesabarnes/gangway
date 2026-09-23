@@ -7,12 +7,12 @@ import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
 /**
- * `/v1/roles` (ADR-0009): what each role may do, and the one call that changes it.
+ * `/v1/roles`: what each role may do, and the one call that changes it.
  *
  *   curl -X PUT $API/v1/roles/viewer/permissions -H "Authorization: Bearer $TOKEN" \
  *     -H 'content-type: application/json' -d '{"permissions":["previews.read","logs.read"]}'
  *
- * A PUT of the COMPLETE set, not a patch: what is sent is what the role holds afterwards,
+ * A PUT of the complete set, not a patch: what is sent is what the role holds afterwards,
  * so the request can be read on its own. `catalogue` is everything that can be granted.
  */
 export function roleRoutes(api: Hono<AppEnv>, roles: RolePermissions): void {

@@ -67,7 +67,7 @@ describe('LogBuffer', () => {
 });
 
 describe('LogViewer', () => {
-  /** FRAME, by hand: nothing reaches the screen until the spec says a frame happened. */
+  /** Frame, by hand: nothing reaches the screen until the spec says a frame happened. */
   let frames: (() => void)[] = [];
   const nextFrame = () => {
     const run = frames;
@@ -115,7 +115,7 @@ describe('LogViewer', () => {
     for (let n = 1; n <= 500; n++) emit(n);
     await r.settle();
     expect(shown(r)).toHaveLength(0); // nothing yet: no frame has happened
-    expect(frames).toHaveLength(1); // and 500 lines scheduled exactly ONE
+    expect(frames).toHaveLength(1); // and 500 lines scheduled exactly one
 
     nextFrame();
     await r.settle();

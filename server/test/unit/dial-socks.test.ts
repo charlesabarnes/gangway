@@ -1,9 +1,8 @@
 /**
  * The SOCKS5 client, against a real (tiny) SOCKS5 server on a real socket.
  *
- * This file exists because the client once shipped with none, and hung against OpenSSH:
- * `ssh -D` sends its 10-byte CONNECT reply in ONE chunk, and the client lost the bytes
- * after the first 4. The `chunking: "whole"` cases are that regression, pinned.
+ * `ssh -D` sends its 10-byte CONNECT reply in one chunk, so the client must not drop the bytes
+ * after the first 4. The `chunking: "whole"` cases pin that.
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import net from "node:net";
@@ -197,7 +196,7 @@ describe("SOCKS5 dial", () => {
     expect(Date.now() - started).toBeLessThan(1_000);
   });
 
-  test("no proxy down: the dial fails fast (the tunnel drops on every laptop sleep)", async () => {
+  test("proxy down: the dial fails fast", async () => {
     await expect(
       dialUpstream(
         { host: "127.0.0.1", port: 9 },

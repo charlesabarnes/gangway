@@ -36,7 +36,7 @@ export type ProjectRouteDeps = {
 const MAX_SLUG = 24;
 
 /**
- * `/v1/projects` (ADR-0014): the things you preview. Made on purpose; tuned, given
+ * `/v1/projects`: the things you preview. Made on purpose; tuned, given
  * secrets, and deleted here. `/pulls/:n` is where a project's workflow deploys and tears
  * down its pull requests' previews -- the one path a workflow token reaches.
  */
@@ -120,7 +120,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     return c.body(null, 204);
   });
 
-  // ADR-0012: names in, names out. `repos.secrets` is its own authority.
+  // Names in, names out: values are never returned. `repos.secrets` is its own authority.
   api.get("/projects/:ref/env", requirePermission("repos.secrets"), (c) => {
     const project = find(c.req.param("ref"));
     return c.json({ secrets: d.secrets ? d.secrets.project(project.id).list() : [] });
@@ -144,7 +144,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     return c.body(workflowFor(project, d.apiOrigin?.() ?? "", port));
   });
 
-  /* ---- ADR-0014: a pull request's preview, from its workflow (or a person, by hand) */
+  /* ---- A pull request's preview, from its workflow (or a person, by hand) */
 
   api.put("/projects/:ref/pulls/:n", requirePermission("previews.deploy"), async (c) => {
     if (!d.pulls || !d.wire)

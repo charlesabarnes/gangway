@@ -1,12 +1,12 @@
 /**
- * GitHub Actions OIDC (ADR-0014): a workflow run proves which repository it runs in with
+ * GitHub Actions OIDC: a workflow run proves which repository it runs in with
  * a JWT GitHub signs, minted for the audience we name (our API origin) and valid for
  * minutes. Nothing is stored and nothing is rotated: the key set is GitHub's, fetched
  * and cached, and the token is checked on every request like any bearer credential.
  *
  * What is checked: RS256 against a key from the issuer's JWKS, `iss` exactly, `aud`
  * exactly, `exp`/`nbf`/`iat` with a minute of skew, and a `repository` claim shaped like
- * `owner/name`. What the run may DO is decided elsewhere: its actor reaches only
+ * `owner/name`. What the run may do is decided elsewhere: its actor reaches only
  * `/v1/projects/:ref/pulls/:n`, for the project whose repository the claim names.
  */
 import {
@@ -100,7 +100,7 @@ export class GitHubOidc {
     }
   }
 
-  /** From the cache; an unknown kid refetches the set, at most once a minute (GitHub rotates keys). */
+  /** From the cache; an unknown kid refetches the set at most once a minute (keys rotate). */
   async #key(kid: string): Promise<KeyObject | undefined> {
     const now = this.#o.now();
     const stale = now - this.#fetchedAt > CACHE_MS;

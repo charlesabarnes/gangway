@@ -1,4 +1,4 @@
-/** ADR-0017: add-ons -- throwaway databases as sidecars that survive rebuilds and die with the preview. */
+/** Add-ons: throwaway databases as sidecars that survive rebuilds and die with the preview. */
 import { describe, expect, test } from "bun:test";
 import { gzipSync } from "node:zlib";
 import { dirname } from "node:path";
@@ -409,7 +409,7 @@ test("?addons= parses ids, @majors and none", () => {
   expect(() => TarballDeployQuerySchema.parse({ addons: "redis,redis" })).toThrow();
 });
 
-test("a user's compose sidecar keeps its ports deleted and gets ownership labels (unchanged by ADR-0017)", () => {
+test("a user's compose sidecar keeps its ports deleted and gets ownership labels", () => {
   const resolved = {
     services: {
       web: { image: "x", ports: [{ target: 80, protocol: "tcp" }] },

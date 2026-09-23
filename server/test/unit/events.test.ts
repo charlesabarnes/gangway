@@ -203,7 +203,7 @@ describe("GET /v1/events", () => {
   });
 });
 
-describe("hosts (T16)", () => {
+describe("hosts", () => {
   const cfg = (o: Record<string, unknown> = {}) => HostConfigSchema.parse(o);
 
   test("seeding is idempotent and does not clobber reconciler-owned state", () => {

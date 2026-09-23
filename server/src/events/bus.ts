@@ -1,5 +1,5 @@
 /**
- * The event bus: every state change is appended to SQLite FIRST and fanned out to live
+ * The event bus: every state change is appended to SQLite first and fanned out to live
  * subscribers second. The table is the SSE backlog, so a client that reconnects with
  * Last-Event-ID replays exactly what it missed (see db/repos/events.ts).
  */
@@ -43,8 +43,8 @@ export class EventBus {
   }
 
   /**
-   * The cursor to follow FROM. A client that lists previews and then opens the stream must
-   * read this BEFORE the list: a change landing in between is then replayed (harmlessly,
+   * The cursor to follow from. A client that lists previews and then opens the stream must
+   * read this before the list: a change landing in between is then replayed (harmlessly,
    * it is already in the list) rather than missed.
    */
   latestSeq(): number {
@@ -61,7 +61,7 @@ export class EventBus {
   }
 
   /**
-   * Replay-then-follow with no gap and no duplicate: subscribe BEFORE reading the
+   * Replay-then-follow with no gap and no duplicate: subscribe before reading the
    * backlog, buffer what arrives meanwhile, then drop anything the backlog already
    * covered. A client more than 1000 events behind gets one synthetic `reset` instead of
    * the backlog. Returns the unsubscribe function.

@@ -1,5 +1,5 @@
 /**
- * The data browser (ADR-0018): look inside a preview's add-on databases without a port
+ * The data browser: look inside a preview's add-on databases without a port
  * ever being published. Every command is `docker exec` into the add-on's container, through
  * the same runner (and the same daemon guard) as every compose command, bounded in time,
  * output and concurrency, and audited -- the query text, never the results.
@@ -66,7 +66,8 @@ export class DataBrowser {
     offset: number,
   ): Promise<TimedResult> {
     if (addon === "redis") throw unprocessable("Redis has keys, not tables: use /keys");
-    // Only a name the database itself listed: the quoting in rowsQuery is the second line of defence, not the first.
+    // Only a name the database itself listed: the quoting in rowsQuery is the second line of
+    // defence, not the first.
     const known = await this.tables(actor, previewId, addon);
     if (!known.some((t) => t.schema === table.schema && t.name === table.name))
       throw notFound(`no table ${table.schema}.${table.name}`);
@@ -80,7 +81,10 @@ export class DataBrowser {
     );
   }
 
-  /** A page of keys: `SCAN <cursor> MATCH <pattern> COUNT 200`. The first row is the next cursor ("0": done). */
+  /**
+   * A page of keys: `SCAN <cursor> MATCH <pattern> COUNT 200`. The first row is the next cursor
+   * ("0": done).
+   */
   async keys(
     actor: Actor,
     previewId: string,
@@ -126,7 +130,10 @@ export class DataBrowser {
     return { type, ttl, value };
   }
 
-  /** The console. `write: false` (the default) runs read-only: a read-only transaction, or the read allowlist for Redis. */
+  /**
+   * The console. `write: false` (the default) runs read-only: a read-only transaction, or the
+   * read allowlist for Redis.
+   */
   async query(
     actor: Actor,
     previewId: string,
@@ -261,7 +268,8 @@ export class DataBrowser {
       clearTimeout(timer);
       this.#busy.delete(previewId);
       await rm(empty, { recursive: true, force: true });
-      // What was asked, and how it went -- never what came back. Not `key`: redact() hides a field of that name.
+      // What was asked, and how it went -- never what came back. Not `key`: redact() hides a
+      // field of that name.
       if (kind === "query" || kind === "rows") {
         ctx.audit?.record(actor, "preview.data.query", previewId, {
           new: {

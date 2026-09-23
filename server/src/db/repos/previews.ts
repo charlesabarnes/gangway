@@ -24,15 +24,18 @@ export type CreatePreview = {
   secretLevel?: Clearance | null;
   templateId?: string | null;
   projectId?: string | null;
-  /** ADR-0021: who deployed it (`principalOf` in auth/actor.ts). Not on `Preview`: only `previews.update_own` asks. */
+  /**
+   * Who deployed it (`principalOf` in auth/actor.ts). Not on `Preview`: only
+   * `previews.update_own` asks.
+   */
   owner?: string | null;
-  /** ADR-0023. Omitted: inherit. */
+  /** Omitted: inherit. */
   password?: StoredPreviewPassword;
-  /** ADR-0023. Omitted: inherit. */
+  /** Omitted: inherit. */
   passwordLogin?: PasswordLogin;
 };
 
-/** A preview's password as the database holds it: the mode, and the scrypt hash for `set` / `generated`. */
+/** A preview's password as stored: the mode, and the scrypt hash for `set` / `generated`. */
 export type StoredPreviewPassword = {
   mode: PasswordMode;
   secret: { hash: string; salt: string } | null;
@@ -97,7 +100,7 @@ export class PreviewsRepo {
     return r ? rowToPreview(r) : undefined;
   }
 
-  /** ADR-0021: who deployed it, or null (a PR, a workflow, a row from before 0010). */
+  /** Who deployed it, or null (a PR, a workflow, a row from before migration 0010). */
   ownerOf(id: string): string | null {
     return (
       this.#db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = $id", { id })
@@ -105,7 +108,7 @@ export class PreviewsRepo {
     );
   }
 
-  /** ADR-0023: the mode and hash. Not on `Preview`: only the gate reads the hash. */
+  /** The mode and hash. Not on `Preview`: only the gate reads the hash. */
   passwordOf(id: string): StoredPreviewPassword {
     const r = this.#db.get<{
       password_mode: string | null;
@@ -190,7 +193,7 @@ export class PreviewsRepo {
     );
   }
 
-  /** A redeploy that changed the runtime (ADR-0015). The kind never changes: an upload stays one. */
+  /** A redeploy that changed the runtime. The kind never changes: an upload stays one. */
   setSource(id: string, source: PreviewSource): void {
     const { source_kind, source_json } = sourceToColumns(source);
     this.#db.run(
@@ -222,7 +225,7 @@ export class PreviewsRepo {
     });
   }
 
-  /** TTL sweeper (Phase 3). Destroyed previews are already gone and never re-expire. */
+  /** For the TTL sweeper. Destroyed previews are already gone and never re-expire. */
   expired(now: number = this.#now()): Preview[] {
     return this.#db
       .query<PreviewRow>(
@@ -235,7 +238,7 @@ export class PreviewsRepo {
       .map(rowToPreview);
   }
 
-  /** Idle-sleep sweeper (Phase 4): awake previews untouched since the cutoff. */
+  /** For the idle-sleep sweeper: awake previews untouched since the cutoff. */
   idleSince(cutoff: number): Preview[] {
     return this.#db
       .query<PreviewRow>(
@@ -248,7 +251,7 @@ export class PreviewsRepo {
   }
 
   /**
-   * The live preview of a pull request, by its SOURCE (ADR-0011). Not by name: an unlisted
+   * The live preview of a pull request, by its source. Not by name: an unlisted
    * preview's project carries an unguessable suffix, so the name is not stable across
    * deploys of the same PR; the repository and number are.
    */
@@ -263,7 +266,7 @@ export class PreviewsRepo {
     return r ? rowToPreview(r) : undefined;
   }
 
-  /** The forge-side objects a PR preview keeps current (ADR-0011): ids only. */
+  /** The forge-side objects a PR preview keeps current: ids only. */
   forgeRefs(id: string): { commentId: number | null; deploymentId: number | null } {
     const r = this.#db.get<{ forge_comment_id: number | null; forge_deployment_id: number | null }>(
       "SELECT forge_comment_id, forge_deployment_id FROM previews WHERE id = $id",

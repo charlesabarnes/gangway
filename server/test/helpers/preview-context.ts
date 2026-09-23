@@ -70,7 +70,7 @@ export function setupPreviewContext() {
     /** What each `up` was given: its extra env, and the registry login it could read at that moment. */
     upLogins: [] as { env: Record<string, string> | undefined; config: string | null }[],
     downArgvs: [] as string[][],
-    /** The stack file each `up` was given, parsed (ADR-0017 tests read the sidecars from it). */
+    /** The stack file each `up` was given, parsed (add-on tests read the sidecars from it). */
     stacks: [] as Record<string, unknown>[],
     /** Every argv the fake saw, in order. */
     all: [] as string[][],

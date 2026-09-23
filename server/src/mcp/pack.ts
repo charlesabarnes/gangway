@@ -1,6 +1,6 @@
 /**
  * The MCP `deploy` tool's `files`: an agent has text, not a tarball. They are packed here
- * into the same tar.gz a browser upload is, and go down the ONE tarball path (ADR-0003) --
+ * into the same tar.gz a browser upload is, and go down the one tarball path --
  * the extractor, the guard and the planner all see an ordinary upload.
  */
 import { createHash } from "node:crypto";

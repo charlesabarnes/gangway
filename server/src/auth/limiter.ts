@@ -1,19 +1,13 @@
 /**
- * Login throttling (§8.1: "Rate-limit login. Lock after repeated failures"). Two
- * independent counters, because there are two independent attacks:
- *  - per SOURCE: one address spraying many accounts. 10 failures in 15 minutes.
- *  - per ACCOUNT: many addresses guessing one password. 5 free failures, then a lock that
+ * Login throttling. Two independent counters, for two independent attacks:
+ *  - per source: one address spraying many accounts. 10 failures in 15 minutes.
+ *  - per account: many addresses guessing one password. 5 free failures, then a lock that
  *    doubles -- 1, 2, 4, 8 minutes -- capped at 15.
  *
- * Checked BEFORE scrypt runs, so a locked-out attacker costs a Map lookup, not 32 MiB.
+ * Checked before scrypt runs, so a locked-out attacker costs a Map lookup, not 32 MiB.
  *
- * In memory, on purpose. A persisted lock is a durable denial of service against the only
- * admin, written by whoever wants to write it; a restart clearing these counters is an
- * acceptable price for one process. The env admin token is break-glass either way.
- *
- * The per-account lock DOES let a stranger delay a known admin's UI login by up to 15
- * minutes a cycle. That is the trade every lockout makes; the alternative is unlimited
- * guessing against that same admin.
+ * In memory on purpose: a persisted lock would be a durable denial of service against the
+ * only admin, written by whoever wants to. The env admin token is break-glass either way.
  */
 export type LimiterOptions = {
   ipMax?: number;
@@ -129,7 +123,7 @@ export class LoginLimiter {
   }
 
   /**
-   * Clears the ACCOUNT's streak only. Clearing the source's too would let anyone with one
+   * Clears the account's streak only. Clearing the source's too would let anyone with one
    * valid login reset their own counter between guesses at someone else's.
    */
   succeed(email: string): void {

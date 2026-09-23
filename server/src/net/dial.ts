@@ -1,15 +1,12 @@
 /**
  * How the proxy reaches a preview's published port.
  *
- * This is the one place dev and production differ, and it is exactly §3.2's Host record
- * doing its job: production dials the port directly on the same machine, while in
- * development gangway runs on a laptop and the containers are on a remote Docker host
- * whose ports are bound to ITS loopback. A single `ssh -D` SOCKS5 tunnel covers every
- * port, where `ssh -L` cannot forward a range and preview ports are dynamic.
+ * Production dials the port directly on the same machine. In development gangway can run on
+ * another machine while the containers sit on a remote Docker host whose ports are bound to its
+ * loopback; one `ssh -D` SOCKS5 tunnel covers every port, where `ssh -L` cannot forward a range.
  *
- * SOCKS5 CONNECT (RFC 1928, no-auth) is implemented here rather than pulled in as a
- * dependency: it is a ~60 line handshake, and §13 requires every dependency to be
- * addon-free.
+ * SOCKS5 CONNECT (RFC 1928, no-auth) is a ~60 line handshake, implemented here rather than
+ * pulled in as a dependency.
  */
 import net from "node:net";
 import type { UpstreamDial } from "@gangway/shared/domain";
@@ -68,14 +65,11 @@ function connectTcp(target: DialTarget, timeoutMs: number): Promise<net.Socket> 
 }
 
 /**
- * Reads the SOCKS handshake through ONE listener that stays attached for the whole
- * exchange.
+ * Reads the SOCKS handshake through one listener that stays attached for the whole exchange.
  *
- * The obvious shape -- attach a `data` listener per read, detach it, `unshift` any
- * surplus -- loses bytes: once a stream is flowing, detaching the last listener does not
- * pause it, so the pushed-back surplus is emitted to nobody before the next read
- * attaches. OpenSSH sends its whole 10-byte CONNECT reply in one chunk; read 4 of those
- * that way and the other 6 are gone, and the handshake hangs until it times out.
+ * A `data` listener per read that detaches and `unshift`s the surplus loses bytes: a flowing
+ * stream does not pause when its last listener detaches, so the surplus is emitted to nobody.
+ * OpenSSH sends its whole 10-byte CONNECT reply in one chunk, so the handshake would hang.
  */
 function handshakeReader(socket: net.Socket, timeoutMs: number) {
   let buffered: Buffer = Buffer.alloc(0);
@@ -154,7 +148,6 @@ async function socks5Connect(
     throw new Error("SOCKS proxy requires authentication, which is not supported");
   }
 
-  // CONNECT request.
   const isIpv4 = net.isIPv4(target.host);
   const isIpv6 = net.isIPv6(target.host);
   let addr: Buffer;

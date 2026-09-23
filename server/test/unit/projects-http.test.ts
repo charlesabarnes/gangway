@@ -1,5 +1,5 @@
 /**
- * /v1/projects through the real app (ADR-0014): made on purpose, tuned, given secrets; and
+ * /v1/projects through the real app: made on purpose, tuned, given secrets; and
  * `/pulls/:n`, where a workflow run -- identified by its OIDC token -- deploys and tears
  * down its pull requests' previews, and can do nothing else.
  */

@@ -1,4 +1,4 @@
-/** GitHub Actions OIDC (ADR-0014): real RS256 tokens against a key set served by a fake fetch. */
+/** GitHub Actions OIDC: real RS256 tokens against a key set served by a fake fetch. */
 import { describe, expect, test } from "bun:test";
 import { createSign, generateKeyPairSync, type KeyObject } from "node:crypto";
 import { GITHUB_ACTIONS_ISSUER, GitHubOidc } from "../../src/auth/oidc.ts";

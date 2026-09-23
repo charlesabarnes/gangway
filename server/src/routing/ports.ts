@@ -1,12 +1,11 @@
 /**
- * Upstream port allocation (ADR-0004).
+ * Upstream port allocation.
  *
- * We allocate the published port ourselves rather than publishing `0:<port>` and reading
- * back what Docker chose. §5 requires the route row to exist BEFORE containers start, and
- * container labels are fixed at create time -- so a port we do not yet know could be in
- * neither. Allocating first makes the row and the label both complete before `compose up`.
+ * gangway allocates the published port itself rather than publishing `0:<port>` and reading
+ * back what Docker chose: the route row must exist before containers start, and container
+ * labels are fixed at create time, so an unknown port could be in neither.
  *
- * There is no separate allocator state to drift or leak: the routes table IS the ledger,
+ * There is no separate allocator state to drift or leak: the routes table is the ledger,
  * and a UNIQUE(upstream_host, upstream_port) index turns a double allocation into a
  * constraint violation rather than a silent conflict.
  */

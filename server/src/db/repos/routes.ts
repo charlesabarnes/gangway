@@ -76,7 +76,7 @@ export class RoutesRepo {
   }
 
   /**
-   * Ports in use on a host. The routes table IS the port allocation record (ADR-0004),
+   * Ports in use on a host. The routes table is the port allocation record,
    * so there is no separate allocator state to drift or leak.
    */
   usedPorts(upstreamHost: string): Set<number> {

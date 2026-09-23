@@ -4,8 +4,8 @@ import type { Db } from "../types.ts";
 import { rowToRole, type RoleRow } from "./mappers.ts";
 
 /**
- * Roles and the role -> permission matrix (ADR-0009). The matrix is the operator's data;
- * the catalogue of what CAN be granted is code, synced into `permissions` at boot.
+ * Roles and the role -> permission matrix. The matrix is the operator's data; the
+ * catalogue of what can be granted is code, synced into `permissions` at boot.
  */
 export class RolesRepo {
   readonly #db: Db;
@@ -54,7 +54,7 @@ export class RolesRepo {
   }
 
   /**
-   * Boot-time: make the table agree with the code. A permission added in a later phase
+   * Boot-time: make the table agree with the code. A newly added permission
    * appears here (and is granted to `admin`, so the table stays truthful for anyone
    * querying it) without a migration. Nothing is ever deleted: a grant on a retired id is
    * inert, and deleting it would silently lose an operator's decision if the id came back.

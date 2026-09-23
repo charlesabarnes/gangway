@@ -2,8 +2,8 @@
  * The composition root: the one place that knows about every module, and therefore the
  * one file allowed to import both `app/` and everything beneath it.
  *
- * Order matters and follows §11: load routes and SERVE IMMEDIATELY -- nothing here waits
- * on a Docker daemon, so an unreachable host delays no request.
+ * Order matters: load routes and serve immediately. Nothing here waits on a Docker daemon,
+ * so an unreachable host delays no request.
  */
 import { randomBytes, createHmac } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
@@ -119,7 +119,7 @@ export type BootOverrides = {
   clients?: ClientSource;
   probe?: RouteProbe;
   timings?: Partial<PreviewContext["timings"]>;
-  /** Where the secret-bearing first-run banner goes. NOT the logger: it would redact it. */
+  /** Where the secret-bearing first-run banner goes. Not the logger: it would redact it. */
   announce?: (text: string) => void;
   /** tlsMode=acme only. Tests and the Pebble check supply their own DNS and ACME client. */
   acme?: { dns?: DnsProvider; connect?: AcmeConnect };
@@ -129,13 +129,13 @@ export type Running = {
   listener: RunningListener;
   ctx: PreviewContext;
   adminToken: string;
-  /** §8.1 first run: where the first admin is created. null once any account exists. */
+  /** First run: where the first admin is created. null once any account exists. */
   setupUrl: string | null;
   origin: (label: string) => string;
   caPath: string | null;
   reconciler: Reconciler;
   scheduler: Scheduler;
-  /** The boot-time pass (§11 step 2-3). Serving does NOT wait on it; tests do. */
+  /** The boot-time reconcile pass. Serving does not wait on it; tests do. */
   reconciled: Promise<ReconcileReport | null>;
   /**
    * Graceful: stop taking control-plane work, let in-flight requests and pipelines finish
@@ -178,13 +178,13 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   for (const h of seeded) {
     if (h.capabilities.includes("preview") && h.capabilities.includes("runner")) {
       logger.warn(
-        "host declares both preview and runner capabilities; see spec §9.1 before accepting untrusted PRs",
+        "host declares both preview and runner capabilities: untrusted PR code would share a host with CI jobs",
         { hostId: h.id },
       );
     }
   }
 
-  /* ---- §11 step 1: routes into memory, before anything else can fail */
+  /* ---- routes into memory, before anything else can fail */
   const all = new Map(previews.list({ includeDestroyed: true }).map((p) => [p.id, p]));
   table.hydrate(
     routes.all().flatMap((route) => {
@@ -206,7 +206,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   );
   const workdirs = new Workdirs(stateDir);
   await workdirs.prune();
-  // ADR-0015: a kept upload whose preview is gone -- destroyed, or its row lost -- goes too.
+  // A kept upload whose preview is gone -- destroyed, or its row lost -- goes too.
   const sources = new SourceStore(stateDir);
   for (const id of await sources.ids()) {
     const p = all.get(id);
@@ -228,7 +228,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       hosts.setState(hostId, ok ? "ready" : "unreachable", err),
     );
 
-  /* ---- ADR-0013/0014: which project a deploy belongs to and which template it follows.
+  /* ---- which project a deploy belongs to and which template it follows.
      Named by the request, else the project whose repository the source is: a PR by full
      name, a git deploy by the name in its clone URL; images and tarballs have none. */
   const projects = new ProjectsRepo(db);
@@ -284,7 +284,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     audit,
     sources,
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
-    // ADR-0023: cheaper than a login's scrypt (these guard previews, not accounts) and its
+    // Cheaper than a login's scrypt (these guard previews, not accounts) and its
     // own semaphore, so a burst of password forms never queues an operator's login.
     passwords: {
       passwords: previewPasswords,
@@ -296,17 +296,18 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   const deploys = new IdempotentDeploys(ctx, new IdempotencyRepo(db));
 
-  /* ---- pull requests (ADR-0011). Credentials are read from settings on every use. */
+  /* ---- pull requests. Credentials are read from settings on every use. */
   const secretsKey = loadOrCreateSecretsKey(stateDir);
   const secrets = new Secrets(projects, settingsStore, new SecretBox(secretsKey), audit);
-  // ADR-0017: an add-on's password, the same on every rebuild (so compose never recreates the
+  // An add-on's password, the same on every rebuild (so compose never recreates the
   // database) and stored nowhere. Losing secrets.key changes it; the volume keeps the old one.
   ctx.addonSecret = (previewId, addon) =>
     createHmac("sha256", secretsKey)
       .update(`gangway-addon\0${previewId}\0${addon}`)
       .digest("base64url")
       .slice(0, 32);
-  // ADR-0012: the global map, plus the repository's when the deploy has one, at the clearance the pipeline resolved.
+  // The global map, plus the repository's when the deploy has one, at the clearance the
+  // pipeline resolved.
   ctx.secretsFor = (repoId, clearance) => secrets.valuesFor(repoId, clearance);
   const githubApp = new GitHubApp({
     credentials: () => ({
@@ -341,12 +342,12 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   });
   const hooks = new Hooks({ forge, service: prPreviews, logger: logger.child({ mod: "hooks" }) });
 
-  /* ---- accounts (§8.1). The matrix is loaded once and kept write-through (ADR-0009). */
+  /* ---- accounts. The permission matrix is loaded once and kept write-through. */
   const users = new UsersRepo(db);
   const rolesRepo = new RolesRepo(db);
   const roles = new RolePermissions(rolesRepo, audit);
   const sessions = new Sessions(new SessionsRepo(db), roles);
-  /* ---- ADR-0020: the OAuth 2.1 authorization server for MCP clients. Issuer `app`, resource `mcp`. */
+  /* ---- the OAuth 2.1 authorization server for MCP clients. Issuer `app`, resource `mcp`. */
   const mcpOrigin = () => publicOriginFor(`mcp.${baseDomain()}`, ctx.origin);
   const oauthGrants = new OAuthGrantsRepo(db);
   const oauth = new OAuthServer({
@@ -371,7 +372,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const tokens = new Tokens(tokensRepo, roles, audit);
   const bootstrap = new Bootstrap(() => users.count());
 
-  /* ---- headless bootstrap (§8.1): the env token works whether or not anyone has an account */
+  /* ---- headless bootstrap: the env token works whether or not anyone has an account */
   let adminToken = config.adminToken;
   if (!adminToken) {
     adminToken = `gw_${randomBytes(24).toString("base64url")}`;
@@ -384,11 +385,11 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const shutdown = new AbortController();
   const draining = () => shutdown.signal.aborted;
 
-  /* ---- §8.3 private previews. The session never leaves `app`; a preview gets its own cookie. */
+  /* ---- private previews. The session never leaves `app`; a preview gets its own cookie. */
   const gate = new PreviewGate({
     key: loadOrCreateGateKey(settingsStore),
     appOrigin: () => publicOriginFor(`app.${baseDomain()}`, ctx.origin),
-    // ADR-0023: the shared password applies only while the default says `shared`.
+    // The shared password applies only while the default says `shared`.
     sharedPassword: () =>
       settings.get(SETTINGS.previewPasswordMode) === "shared"
         ? settings.get(SETTINGS.previewPasswordShared)
@@ -406,8 +407,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       }),
   });
 
-  /* ---- ADR-0014: pull requests from a project's own workflow. The workflow's OIDC
-     audience is our public API origin, so a token minted for anything else is refused. */
+  /* ---- pull requests from a project's own workflow. The workflow's OIDC
+     audience is gangway's public API origin, so a token minted for anything else is refused. */
   const apiOrigin = () => publicOriginFor(`api.${baseDomain()}`, ctx.origin);
   const oidc = new GitHubOidc({ audience: apiOrigin, logger: logger.child({ mod: "oidc" }) });
   const pulls = new Pulls({
@@ -421,8 +422,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
 
   /* ---- application surfaces */
   const auth = {
-    // Database tokens first: they are the common case. The env token stays, always (§8.1).
-    // Last: a GitHub Actions run's OIDC token (ADR-0014), confined to its project's pull routes.
+    // Database tokens first: they are the common case. The env token always works.
+    // Last: a GitHub Actions run's OIDC token, confined to its project's pull routes.
     verifyToken: chainVerifiers(
       tokens.verify,
       staticTokenVerifier(adminToken),
@@ -432,12 +433,12 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       },
     ),
     resolveSession: (secret: string) => sessions.resolve(secret)?.actor ?? null,
-    // What a browser on this Host sends as `Origin`. From the PUBLIC scheme and port, never
+    // What a browser on this Host sends as `Origin`. From the public scheme and port, never
     // the listener's: behind a reverse proxy they differ, and the browser only knows one.
     originFor: (host: string) => publicOriginFor(normalizeHost(host) ?? "", ctx.origin),
   };
-  /* ---- §10.2 the MCP surface (ADR-0019): bearer only. A workflow's OIDC token is not in its chain. */
-  // ADR-0021: an agent's shell PUTs a tarball here, and `deploy` builds exactly those bytes.
+  /* ---- the MCP surface: bearer only. A workflow's OIDC token is not in its chain. */
+  // An agent's shell PUTs a tarball here, and `deploy` builds exactly those bytes.
   const uploads = new Uploads({
     dir: join(stateDir, "uploads"),
     url: (id) => `${mcpOrigin()}/uploads/${id}`,
@@ -445,7 +446,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const mcp = new McpSurface({
     tools: new Tools({ ctx, deploys, uploads, logger: logger.child({ mod: "mcp" }) }),
     uploads,
-    // OAuth access tokens are good HERE and nowhere else: `/v1`'s chain does not know them.
+    // OAuth access tokens are good here and nowhere else: `/v1`'s chain does not know them.
     verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(adminToken), oauth.verify),
     logger: logger.child({ mod: "mcp" }),
     // No UI, no consent page: MCP is then bearer-only and advertises no OAuth.
@@ -563,7 +564,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       logger: tlsLog,
       ...(o.acme?.connect ? { connect: o.acme.connect } : {}),
     });
-    // §11 "serve immediately" applies to certificates too: what is stored is served now;
+    // "Serve immediately" applies to certificates too: what is stored is served now;
     // with nothing stored, the dev CA stands in until the first order completes (a minute
     // or two), and the `cert-renew` job swaps the real one in without a restart.
     const stored = acmeProvider.load(domains);
@@ -601,7 +602,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       trustedProxies: config.trustedProxies,
     });
 
-  // ADR-0012: the request that finds a preview asleep starts the wake and waits a little.
+  // The request that finds a preview asleep starts the wake and waits a little.
   const waker = new Waker(ctx, logger.child({ mod: "wake" }));
   const deps: DispatchDeps = {
     baseDomain,
@@ -668,8 +669,8 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
           },
         });
 
-  // §11 steps 2-3, AFTER the listener is up: "Serve immediately -- do not block on
-  // reconciliation." Interrupted pipelines, orphans and moved ports are all its job.
+  // Reconcile after the listener is up, never blocking it. Interrupted pipelines, orphans
+  // and moved ports are all its job.
   const reconciler = new Reconciler({
     ctx,
     routes,
@@ -685,7 +686,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   // Everything periodic lives on the one scheduler: no overlap, jitter, and a stop()
   // that waits -- so nothing below is still touching the database when it closes.
   const scheduler = new Scheduler({ logger: logger.child({ mod: "scheduler" }) });
-  // Periodic passes double as the reconnect detector (§11): each one re-probes every host.
+  // Periodic passes double as the reconnect detector: each one re-probes every host.
   scheduler.register({
     name: "reconcile",
     intervalMs: config.reconcileIntervalMs,
@@ -739,7 +740,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
       sessions.purge();
     },
   });
-  // ADR-0020: grants past their end, or revoked, a week ago (the Account page stops showing them at once).
+  // Grants past their end, or revoked, a week ago (the Account page stops showing them at once).
   scheduler.register({
     name: "oauth-purge",
     intervalMs: 3_600_000,
@@ -749,7 +750,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   });
   scheduler.start();
 
-  // §8.1 first run. AFTER the listener is up, so the link works the moment it is read, and
+  // First run. After the listener is up, so the link works the moment it is read, and
   // through `announce`: the logger would redact it. Not printed when the UI is off -- there
   // is no page to open, and the env admin token is the way in.
   const setupUrl = surfaceEnabled("app") ? bootstrap.url(origin("app")) : null;
@@ -757,7 +758,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     announce(
       `\n  No accounts exist yet. Create the first admin here (one use, this run only):\n\n    ${setupUrl}\n`,
     );
-  // Behind a reverse proxy with nobody trusted, every visitor has the PROXY's address: one
+  // Behind a reverse proxy with nobody trusted, every visitor has the proxy's address: one
   // person failing to log in would lock out everyone, and the audit log would name nobody.
   if (users.count() > 0 && config.trustedProxies.length === 0) {
     logger.warn(
@@ -793,7 +794,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     );
 
     // 3. Out of patience. An aborted pipeline leaves its row `building`/`starting`, which
-    //    is exactly what the next boot's reconciler rescues (§11) -- from evidence.
+    //    is exactly what the next boot's reconciler rescues -- from evidence.
     const cut = {
       requests: listener.pending().requests,
       webSockets: listener.pending().webSockets,

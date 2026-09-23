@@ -475,7 +475,7 @@ describe("GitHubForge", () => {
   });
 });
 
-describe("GitHubApp.installedRepositories (ADR-0014)", () => {
+describe("GitHubApp.installedRepositories", () => {
   test("every repository across installations, sorted, each with its installation", async () => {
     const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const calls: string[] = [];

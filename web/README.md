@@ -3,7 +3,7 @@
 Angular 22, standalone components, signals, **zoneless**; Tailwind 4 (CSS-first, no config
 file); hand-rolled components, no component library. **npm**, not bun, in this directory.
 Built to static files that the gangway server itself serves on the `app` hostname — no SSR,
-no second runtime (spec §10.3).
+no second runtime.
 
 ```bash
 npm ci
@@ -11,9 +11,10 @@ npm run build                    # -> dist/browser, which server/src/boot.ts ser
 npm test -- --watch=false        # vitest, jsdom
 ```
 
-The spec caps the product at eight screens: _"a dashboard is how this becomes Coolify."_
-Today: login, first-run setup, **Previews**, **Preview detail**, and an account page that
-stands in for Tokens.
+Keep the number of screens small; a dashboard is how a tool like this sprawls. The screens:
+login, first-run setup, **Previews**, **New preview**, **Preview detail**, **Projects** and
+a project, **Templates**, **Settings**, and **Account**, plus two steps rather than screens:
+the GitHub App callback and **Connect** (OAuth consent for MCP clients).
 
 ## Running it against a real server
 
@@ -30,7 +31,7 @@ On first run it prints a one-time **setup URL**. Then either:
 origin of the printed URL: `http://localhost:4200/setup?token=gw_setup_…`.
 `proxy.conf.json` forwards `/v1` and `/healthz` to `https://app.preview.localhost:8443` and
 rewrites `Origin`, because the server refuses a cookie-authenticated mutation whose Origin is
-not its own (ADR-0010) and the browser honestly sends `http://localhost:4200`.
+not its own and the browser honestly sends `http://localhost:4200`.
 Works in Chrome and Firefox, which treat `localhost` as a secure context and so accept the
 `Secure`, `__Host-` session cookie over plain http. **Safari does not** — use B.
 
@@ -42,9 +43,9 @@ certificate is from gangway's dev CA (`state/dev-ca/ca.pem`); trust it or click 
 
 - **Zoneless.** Nothing re-renders unless a signal changed. A countdown needs its own
   interval writing a signal; "3 h ago" re-renders because `Clock.now` is one. A plain field
-  mutated in a spec's host component is NOT picked up — use a signal.
+  mutated in a spec's host component is not picked up — use a signal.
 - **Gate on permissions, never a role name.** `auth.can('previews.destroy')`. Which role
-  holds what is the operator's data (ADR-0009) and can change under an open tab; the account
+  holds what is the operator's data and can change under an open tab; the account
   page renders a role it has never heard of correctly. `can()` is advice about what to show —
   the server still refuses.
 - **`core/api.types.ts` is hand-written** (the wire is JSON: every timestamp is a string).
@@ -55,7 +56,7 @@ certificate is from gangway's dev CA (`state/dev-ca/ca.pem`); trust it or click 
 - **`SseService` never trusts EventSource's own retry.** Native EventSource gives up for good
   on any non-200 — gangway's 503 while draining, a proxy's 502 while it restarts. Every
   error closes the source and reopens it with backoff and `?after=<last id>`. The cursor is
-  an OPTION to `open()`, never part of the URL: a reconnect appends its own `after`, and two
+  an option to `open()`, never part of the URL: a reconnect appends its own `after`, and two
   would mean the server reads the stale one.
 - **Named SSE events never reach `onmessage`.** Every event gangway sends is named; list the
   types.
@@ -70,4 +71,4 @@ certificate is from gangway's dev CA (`state/dev-ca/ca.pem`); trust it or click 
   reaches its `catch` several turns after the flush. Specs that fake timers fake only
   `setInterval`.
 - CI runs the **production** build: budgets are 500 kB warn / 1 MB error on the initial
-  bundle (293 kB today). Every screen is a lazy chunk; keep it that way.
+  bundle. Every screen is a lazy chunk; keep it that way.

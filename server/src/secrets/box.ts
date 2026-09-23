@@ -1,5 +1,5 @@
 /**
- * Secrets at rest (ADR-0012): AES-256-GCM under a key that lives in the STATE DIRECTORY
+ * Secrets at rest: AES-256-GCM under a key that lives in the state directory
  * (`secrets.key`, 0600), not in the database -- so a copy of `gangway.db` alone, which is
  * what a backup is, reveals nothing. Lose the key and the secrets are gone; they were
  * never readable back anyway, so they are re-entered.

@@ -1,23 +1,17 @@
 /**
  * Authentication and authorization. A credential resolves to an Actor, handlers read
- * `c.get("actor")`, and `requirePermission` gates every route. A route asks for a
- * PERMISSION, never a role or a scope: which role holds it is the operator's data.
+ * `c.get("actor")`, and `requirePermission` gates every route. A route asks for a permission,
+ * never a role or a scope: which role holds it is the operator's data.
  *
- * Two credentials (§8): a bearer token, anywhere; and the session cookie, on the `app`
- * surface only. When both are present the bearer wins -- it is the explicit one.
+ * Credentials: a bearer token anywhere, or the session cookie on the `app` surface only.
+ * When both are present the bearer wins.
  *
- * ## Why the cookie needs more than SameSite
- *
- * Every preview lives at `<name>.preview.example.com`, which is the SAME SITE as
- * `app.preview.example.com`. `SameSite=Lax` stops other sites; it does nothing about a
- * preview, which is by definition somebody else's code. Two defences follow:
- *  - the `__Host-` prefix: the browser refuses the cookie unless it is Secure, host-only
- *    and Path=/, so a preview cannot plant a `Domain=.preview.example.com` cookie over ours;
- *  - an Origin check on every cookie-authenticated request that is not a read. A preview
- *    page CAN make the browser send our cookie (a plain form POST needs no preflight), but
- *    it cannot forge `Origin`. No token, nothing for the UI to carry.
- * A bearer request is exempt: a page cannot make a browser attach an Authorization header
- * cross-origin without a preflight we never answer.
+ * SameSite is not enough for the cookie: every preview is the same site as the app, and a
+ * preview is somebody else's code. So the cookie uses the `__Host-` prefix (a preview cannot
+ * plant a `Domain=` cookie over ours), and every cookie-authenticated non-read must carry a
+ * matching `Origin` -- a preview can make the browser send our cookie with a plain form POST,
+ * but cannot forge `Origin`. Bearer requests are exempt: a page cannot attach an
+ * Authorization header cross-origin without a preflight we never answer.
  */
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -85,7 +79,7 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
       // which of the two it has.
       return problemResponse(c, unauthorized(), { "www-authenticate": 'Bearer realm="gangway"' });
     }
-    // ADR-0014: a workflow run is a credential for ONE route. Anywhere else it is nobody --
+    // A workflow run is a credential for one route. Anywhere else it is nobody --
     // a leaked token from a PR's CI must not list previews, read logs or deploy an image.
     if (actor.kind === "workflow" && !WORKFLOW_PATH.test(c.req.path)) {
       return problemResponse(
@@ -98,7 +92,7 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
   };
 }
 
-/** The only path a workflow actor reaches. The route itself checks the project is its repository's. */
+/** The only path a workflow actor reaches. The route checks the project is its repository's. */
 export const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
 
 /** Marks the middleware so a test can prove no `/v1` route was registered without one. */
@@ -107,7 +101,7 @@ export const PERMISSION_GUARD = Symbol("gangway.permission");
 /**
  * `alternatives`: a broader permission that also lets the actor in, where the narrow one is
  * checked again below with the row in hand -- `previews.update_own` or `previews.update`,
- * and the service decides whose preview it is (ADR-0021). The route is marked with the first.
+ * and the service decides whose preview it is. The route is marked with the first.
  */
 export function requirePermission(
   permission: Permission,

@@ -110,7 +110,7 @@ describe("reserved labels", () => {
   });
 
   test("a disabled surface is 404, never 503", async () => {
-    // Do not advertise what is there but switched off (§10.5).
+    // Do not advertise what is there but switched off.
     const res = await dispatch(
       get(`mcp.${BASE}`),
       deps({ surfaceEnabled: (s: Surface) => s !== "mcp" }),
@@ -315,7 +315,7 @@ describe("limits", () => {
   });
 });
 
-describe("PerHostUpstream (T36)", () => {
+describe("PerHostUpstream", () => {
   test("each host gets its OWN upstream, built once; a route on a vanished host is an error, not the first host's traffic", async () => {
     const { PerHostUpstream } = await import("../../src/net/upstream.ts");
     const made: string[] = [];

@@ -1,5 +1,5 @@
 /**
- * The preview state machine. ONE function changes a preview's state, and it changes all
+ * The preview state machine. One function changes a preview's state, and it changes all
  * three copies together: the SQLite row (truth), the route table entries (what the proxy
  * reads per request) and the event stream (what the UI reads). Anything that set one
  * without the others would show up as a preview the UI calls awake and the proxy calls
@@ -13,10 +13,10 @@ import type { RouteTable } from "../routing/table.ts";
 
 const LEGAL: Record<PreviewState, readonly PreviewState[]> = {
   building: ["starting", "failed", "destroying"],
-  // starting -> asleep: a WAKE that did not get there (ADR-0012). The containers are as they
+  // starting -> asleep: a wake that did not get there. The containers are as they
   // were; the next request tries again. A deploy never takes this edge.
   starting: ["awake", "asleep", "failed", "destroying"],
-  // awake -> starting: a rebuild in place swapping in its new containers (ADR-0015).
+  // awake -> starting: a rebuild in place swapping in its new containers.
   awake: ["asleep", "starting", "failed", "destroying", "building"],
   asleep: ["starting", "failed", "destroying"],
   failed: ["building", "destroying"],

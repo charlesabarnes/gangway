@@ -1,16 +1,16 @@
 /**
- * The `mcp` surface (§10.2, ADR-0019): `POST https://mcp.<base>/`, Streamable HTTP, served
- * stateless by the MCP SDK's `createMcpHandler` -- the 2026-07-28 revision, and the 2025
- * handshake for older clients. A fresh server per request, closed over that request's actor.
+ * The `mcp` surface: `POST https://mcp.<base>/`, Streamable HTTP, served stateless by the MCP
+ * SDK's `createMcpHandler` (the 2026-07-28 revision, and the 2025 handshake for older
+ * clients). A fresh server per request, closed over that request's actor.
  *
  * Only a bearer credential, never the session cookie: nothing a browser sends by itself
  * may reach a tool. A request that carries an `Origin` is refused outright -- the clients
  * are CLIs and servers, and a browser page (a hostile preview included) has no business here.
  *
  * Every response is an SSE stream with a keepalive comment every 15 s: `deploy` blocks for
- * minutes, and Nginx Proxy Manager's 60 s read timeout and the listener's idle timeout
- * would otherwise cut it. `dropAll()` ends every open stream at once: §10.5, turning MCP
- * off "drops in-flight sessions", not only new ones -- those 404 in the dispatcher.
+ * minutes, and a reverse proxy's read timeout (commonly 60 s) or the listener's idle timeout
+ * would otherwise cut it. `dropAll()` ends every open stream at once, so turning MCP off drops
+ * in-flight sessions too; new ones 404 in the dispatcher.
  */
 import { createMcpHandler, type McpHttpHandler } from "@modelcontextprotocol/server";
 import { Hono, type Context } from "hono";
@@ -30,13 +30,13 @@ const BEARER = /^Bearer\s+(\S+)$/i;
 
 export type McpSurfaceDeps = {
   tools: Tools;
-  /** ADR-0021: where `PUT /uploads/:id` lands. Absent: that route is a 404, like any unknown path. */
+  /** Where `PUT /uploads/:id` lands. Absent: that route is a 404, like any unknown path. */
   uploads?: Uploads | undefined;
-  /** gw_ tokens, the env token, and (ADR-0020) OAuth access tokens -- which nothing else accepts. */
+  /** gw_ tokens, the env token, and OAuth access tokens -- which nothing else accepts. */
   verifyToken: TokenVerifier;
   logger: Logger;
   /**
-   * ADR-0020. Present and `available()`: the protected-resource metadata is served, a 401
+   * Present and `available()`: the protected-resource metadata is served, a 401
    * points at it, and an OAuth grant missing a scope gets a step-up 403. Unavailable (the
    * UI is off, so there is no consent page): bearer tokens only, and nothing advertises OAuth.
    */
@@ -55,7 +55,7 @@ const SCOPE_FOR: Record<Permission, Scope | undefined> = Object.fromEntries(
     .flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const))
     .reverse(),
 ) as Record<Permission, Scope | undefined>;
-/** What a step-up asks for: the scope, and the ones it goes with, so re-consenting loses nothing. */
+/** What a step-up asks for: the scope and the ones it goes with, so re-consent loses nothing. */
 const STEP_UP_SCOPES: Record<Scope, string> = {
   read: "read",
   deploy: "read deploy",
@@ -102,7 +102,7 @@ export class McpSurface {
       () => new Response("Method not allowed.", { status: 405, headers: { allow: "POST" } }),
     );
     app.post("/", (c) => this.#serve(c.req.raw, c));
-    // Upload by reference (ADR-0021): the URL is the credential -- the agent's shell sends it,
+    // Upload by reference: the URL is the credential -- the agent's shell sends it,
     // and its MCP client, not the shell, holds the bearer. Still no browsers.
     if (d.uploads) {
       const uploads = d.uploads;
@@ -137,7 +137,7 @@ export class McpSurface {
     return this.#live.size;
   }
 
-  /** §10.5: MCP switched off. Every open stream ends and every waiting tool gives up. */
+  /** MCP switched off: every open stream ends and every waiting tool gives up. */
   dropAll(): void {
     for (const l of this.#live) l.abort.abort();
     this.#live.clear();
@@ -176,7 +176,7 @@ export class McpSurface {
     if (msg?.method !== "tools/call" || typeof msg.params?.name !== "string") return null;
     const permission = this.#d.tools.missingFor(actor, msg.params.name, msg.params.arguments);
     const scope = permission ? SCOPE_FOR[permission] : undefined;
-    // Already granted, and still not enough: the ROLE is what lacks it, and asking the person
+    // Already granted, and still not enough: the role is what lacks it, and asking the person
     // again would loop. The tool's own refusal says so instead.
     if (!scope || actor.scopes.includes(scope)) return null;
     return scope;

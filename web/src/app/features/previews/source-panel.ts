@@ -35,7 +35,7 @@ export type SourceEntry = {
 };
 
 /**
- * The kept source of an uploaded preview (ADR-0015): list it, edit it, save to rebuild at
+ * The kept source of an uploaded preview: list it, edit it, save to rebuild at
  * the same URL. Hidden entirely when the server keeps nothing (404) -- a git, image or PR
  * preview has its source somewhere else.
  *
@@ -521,7 +521,7 @@ export class SourcePanel {
       if (refetch || !b) {
         await this.#load(this.previewId());
       } else {
-        // What was saved is now the kept source (ADR-0015: a save commits when accepted).
+        // What was saved is now the kept source: a save commits when accepted.
         const changes = this.changes();
         const files = b.files
           .filter((f) => !(f.path in changes) || changes[f.path] !== null)

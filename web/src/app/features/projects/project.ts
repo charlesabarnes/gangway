@@ -55,7 +55,7 @@ const PR_CLEARANCES: { value: Clearance | ''; label: string }[] = [
 ];
 
 /**
- * One project (ADR-0014): its previews, its settings, its secrets, and -- when its pull
+ * One project: its previews, its settings, its secrets, and -- when its pull
  * requests come from a workflow -- the workflow file to put in its repository.
  */
 @Component({

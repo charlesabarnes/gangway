@@ -30,9 +30,9 @@ const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
 };
 
 /**
- * Settings (§10.5, ADR-0013): the UI and MCP surfaces, the GitHub App connection, which
- * template each trigger deploys with, and the secrets every preview may receive. Each section is gated on its
- * own permission; the page is reachable with any of them.
+ * Settings: the UI and MCP surfaces, the GitHub App connection, which template each
+ * trigger deploys with, and the secrets every preview may receive. Each section is gated
+ * on its own permission; the page is reachable with any of them.
  */
 @Component({
   selector: 'app-settings',
@@ -440,7 +440,7 @@ export class SettingsPage {
   protected readonly globalLoaded = signal(false);
   protected readonly busy = signal(false);
   protected readonly saving = signal<Trigger | 'surfaces' | 'password' | null>(null);
-  /** ADR-0023: the saved default, what the form shows, whether a shared password exists. */
+  /** Preview passwords: the saved default, what the form shows, whether a shared password exists. */
   protected readonly pwMode = signal<DefaultPasswordMode>('off');
   protected readonly pwDraft = signal<DefaultPasswordMode>('off');
   protected readonly pwSet = signal(false);
@@ -618,7 +618,7 @@ export class SettingsPage {
   }
 
   /**
-   * The manifest flow's first step: GitHub only accepts the manifest as a FORM post from the
+   * The manifest flow's first step: GitHub only accepts the manifest as a form post from the
    * browser, so a form is made and submitted. The page leaves for github.com and comes back
    * at /github/callback with a code.
    */

@@ -12,9 +12,10 @@ export type AppendAudit = {
 };
 
 /**
- * §10.5.2. Append-only: there is no update and no delete here, on purpose. Not the events
- * table -- that one is preview-scoped, cascades away with its preview, and has no actor.
- * Callers redact `old`/`new` BEFORE they arrive (audit/audit.ts); this repo stores what it is given.
+ * The audit log. Append-only: there is no update and no delete here, on purpose. Not the
+ * events table -- that one is preview-scoped, cascades away with its preview, and has no
+ * actor. Callers redact `old`/`new` before they arrive (audit/audit.ts); this repo stores
+ * what it is given.
  */
 export class AuditRepo {
   readonly #db: Db;

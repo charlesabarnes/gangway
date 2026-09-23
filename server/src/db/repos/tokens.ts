@@ -13,7 +13,7 @@ export type CreateToken = {
   expiresAt: number | null;
 };
 
-/** §8.2 API tokens. Only the sha256 is stored; `token_hash` is never selected into a domain object. */
+/** API tokens. Only the sha256 is stored; `token_hash` is never selected into a domain object. */
 export class TokensRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -50,7 +50,7 @@ export class TokensRepo {
 
   /**
    * The verifier's one read. Revoked, expired, or owned by a disabled account: all "no".
-   * `owner` is null for an ownerless token, which is NOT the same as a missing owner --
+   * `owner` is null for an ownerless token, which is not the same as a missing owner --
    * the FK cascades, so a token never outlives its account.
    */
   findActiveByHash(
@@ -126,7 +126,7 @@ export class TokensRepo {
   }
 
   /**
-   * §10.5.1 lockout guard: is there a live `admin`-scoped token? Asked before the UI may be
+   * Lockout guard: is there a live `admin`-scoped token? Asked before the UI may be
    * switched off. An owned token counts only while its owner is an enabled admin -- a token
    * whose scopes are clamped to nothing is not a way back in.
    */

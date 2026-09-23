@@ -4,10 +4,10 @@ import { Btn } from './button';
 /**
  * A native <dialog>. `showModal()` gives the things a hand-rolled modal gets wrong for
  * free: focus is trapped, Esc cancels, the page behind is inert, and focus returns to
- * whatever opened it. Focus starts on CANCEL -- this is only used for destructive things,
+ * whatever opened it. Focus starts on Cancel -- this is only used for destructive things,
  * and Enter on a reflex must not destroy anything.
  *
- * `phrase`, for a one-way door (§10.5.1): Confirm stays disabled until it is typed exactly.
+ * `phrase`, for a one-way door: Confirm stays disabled until it is typed exactly.
  */
 @Component({
   selector: 'app-confirm-dialog',

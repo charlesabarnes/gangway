@@ -1,15 +1,14 @@
 /**
- * §10.5.2 the audit log: who did what, to what, and what it was before. "Who turned MCP
- * on" is the question asked six months later, and "who deployed this" is asked at once.
+ * The audit log: who did what, to what, and what it was before.
  *
- * Written from the SERVICE layer, never from a route (ADR-0003): the webhook receiver and
- * the MCP tool deploy too, and they do not come through a route.
+ * Written from the service layer, never from a route: the webhook receiver and the MCP
+ * tools deploy too, and they do not come through a route.
  *
- * `record` is synchronous and NEVER throws. The action it describes has already happened;
- * failing the request because the note about it could not be written would make the log
- * a liability instead of a record. A failure is logged loudly instead.
+ * `record` is synchronous and never throws. The action it describes has already happened,
+ * and failing the request because the note could not be written would make the log a
+ * liability. A failure is logged loudly instead.
  *
- * Everything is redacted on the way in. One trap: `redact()` treats a field NAMED `key` as
+ * Everything is redacted on the way in. One trap: `redact()` treats a field named `key` as
  * a secret, so a settings change must be recorded as `{ setting: "surfaces.ui" }`.
  */
 import { auditActor, type Actor } from "../auth/actor.ts";

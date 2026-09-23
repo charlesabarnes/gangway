@@ -1,12 +1,10 @@
 /**
  * The permission catalogue. A permission is the unit of enforcement: routes and services
- * ask "may this actor do X", never "is this actor an admin". WHICH role holds WHICH
- * permission is data (the `role_permissions` table) and the operator's to change; WHAT
+ * ask "may this actor do X", never "is this actor an admin". Which role holds which
+ * permission is data (the `role_permissions` table) and the operator's to change; what
  * permissions exist is code, because a permission nothing checks is a lie.
  *
- * Every feature of all six phases (§14) is listed now, so the matrix an operator edits is
- * complete from the start and a later phase adds a check, not a schema change. The
- * `permissions` table is seeded from this list and re-synced at boot.
+ * The `permissions` table is seeded from this list and re-synced at boot.
  *
  * Ids are `<feature>.<verb>`. Never rename one: grants reference it.
  */
@@ -118,14 +116,14 @@ const KNOWN: ReadonlySet<string> = new Set(ALL_PERMISSIONS);
 export const isPermission = (s: string): s is Permission => KNOWN.has(s);
 
 /**
- * §8.2 token scopes. A scope is a fixed BUNDLE of permissions, so a token stays a
- * few-word thing to reason about while enforcement stays fine-grained. A user-owned
- * token never exceeds its owner: the effective set is the bundle INTERSECTED with the
- * owner's role, at verify time.
+ * Token scopes. A scope is a fixed bundle of permissions, so a token stays a few-word
+ * thing to reason about while enforcement stays fine-grained. A user-owned token never
+ * exceeds its owner: the effective set is the bundle intersected with the owner's role,
+ * at verify time.
  *
- * ADR-0021: `deploy` carries `previews.update_own` (an agent iterates on what it made);
- * `update` is `previews.update` alone -- rebuild ANY preview -- added to the others, never
- * useful by itself.
+ * `deploy` carries `previews.update_own` (an agent iterates on what it made); `update` is
+ * `previews.update` alone -- rebuild any preview -- added to the others, never useful by
+ * itself.
  */
 export const SCOPES = ["read", "deploy", "update", "admin"] as const;
 export type Scope = (typeof SCOPES)[number];
@@ -145,7 +143,7 @@ export type BuiltinRole = (typeof BUILTIN_ROLES)[number];
 export const ADMIN_ROLE_ID: BuiltinRole = "admin";
 
 /**
- * What `member` and `viewer` are SEEDED with (§8.1). Defaults only -- the matrix is the
+ * What `member` and `viewer` are seeded with. Defaults only -- the matrix is the
  * operator's. The migrations insert exactly this (0003, and 0010 for `update_own`), and a
  * test holds the two together.
  */

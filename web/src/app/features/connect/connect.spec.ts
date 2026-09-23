@@ -25,7 +25,7 @@ async function open(query: Record<string, string> = { request: 'req-1' }) {
   return { r, went };
 }
 
-describe('Connect (ADR-0020 consent)', () => {
+describe('Connect (OAuth consent)', () => {
   it('says who is asking and where the answer goes; approving posts the chosen scopes and leaves for the client', async () => {
     const { r, went } = await open();
     r.http.expectOne('/v1/oauth/requests/req-1').flush({ request: request() });

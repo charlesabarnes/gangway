@@ -1,19 +1,15 @@
 /**
  * `docker compose`, split into the half that has bugs and the half that has I/O.
  *
- * §7.1 is explicit: shell out to the compose binary, do not reimplement the Compose
- * spec. That makes this module an argv builder and a stream reader, and the argv builder
- * is where everything actually goes wrong — a global flag placed after the subcommand, a
- * project name compose silently normalises, an inherited environment variable that
- * redirects the whole invocation. So `composeArgv` and `composeEnv` are PURE and tested
- * with no daemon anywhere; only `runCompose` touches a process.
+ * gangway shells out to the compose binary rather than reimplementing the Compose spec, so
+ * this module is an argv builder and a stream reader. The argv builder is where things go
+ * wrong (a global flag after the subcommand, a project name compose normalises, an inherited
+ * variable that redirects the invocation), so `composeArgv` and `composeEnv` are pure and
+ * tested with no daemon; only `runCompose` touches a process.
  *
- * The environment is the dangerous part. `DOCKER_CONTEXT` beats `DOCKER_HOST` in the
- * CLI's precedence order, and this machine has `desktop-linux` active: exporting
- * DOCKER_HOST and forgetting DOCKER_CONTEXT deploys the preview to the laptop and
- * reports success. Every child therefore gets `DOCKER_CONTEXT: ""` explicitly — not
- * "deleted", because an empty value is what actually disables it — alongside the host's
- * `DOCKER_HOST`.
+ * `DOCKER_CONTEXT` beats `DOCKER_HOST` in the CLI's precedence order, so an active local
+ * context would silently win. Every child gets `DOCKER_CONTEXT: ""` explicitly (an empty
+ * value is what disables it, not deleting it) alongside the host's `DOCKER_HOST`.
  */
 import { badRequest } from "../errors.ts";
 
@@ -41,7 +37,7 @@ export type ComposeSpec = {
 
 /**
  * Commands that address a project purely by `-p`, through the labels compose put on what
- * it created. Teardown MUST be one of them: after a crash the workdir may be gone, and a
+ * it created. Teardown must be one of them: after a crash the workdir may be gone, and a
  * compose file that no longer parses must never be able to block `down`.
  */
 const FILELESS_COMMANDS: ReadonlySet<string> = new Set(["down", "ps", "logs", "stop", "start"]);
@@ -58,7 +54,7 @@ const assertFlagSafe = (value: string, what: string): string => {
 /**
  * The full argv, binary included, ready for `Bun.spawn`.
  *
- * Global flags come BEFORE the subcommand. This is not stylistic: `docker compose up -p
+ * Global flags come before the subcommand. This is not stylistic: `docker compose up -p
  * foo` is a parse error and `docker compose up -f x.yaml` means something else entirely.
  */
 export function composeArgv(spec: ComposeSpec): string[] {
@@ -89,22 +85,19 @@ export function composeArgv(spec: ComposeSpec): string[] {
 
 type Base = Omit<ComposeSpec, "command" | "args">;
 
-/** §5 step 6. Detached: we watch healthchecks ourselves (§5 step 7), not compose's. */
+/** Detached: gangway watches healthchecks itself, not compose's. */
 export const upArgv = (base: Base, args: string[] = []): string[] =>
   composeArgv({ ...base, command: "up", args: ["-d", ...args] });
 
-/** §7.1: teardown is `down -v`. Orphans are removed because a renamed service otherwise
- *  leaves a container holding its published port forever. */
 /**
- * `volumes: false` (ADR-0017) keeps named volumes: a failed rebuild, or a rescue of an
- * interrupted one, must not take an add-on's database with it. Only a DESTROY removes them.
+ * Teardown is `down -v --remove-orphans`: a renamed service otherwise leaves a container
+ * holding its published port forever. `volumes: false` keeps named volumes, so a failed or
+ * rescued rebuild does not take an add-on's database with it; only a destroy removes them.
  *
- * `--rmi local` removes the images compose BUILT for the project and nothing else. `all`
- * is for a preview whose image was pushed for it alone, one tag per commit (ADR-0014):
- * pulled, so `local` would leave one image on the host for every push.
- * So a built `gw-x-web:latest` goes, while a pulled `traefik/whoami:v1.10` -- which the
- * operator's own containers may share -- stays.
- * Without it every build leaves an image on the host forever.
+ * `--rmi local` removes the images compose built for the project and nothing else, so a
+ * pulled image the operator's own containers may share stays. `all` is for a preview whose
+ * image was pushed for it alone, one tag per commit, where `local` would leave one image per
+ * push. Without `--rmi` every build leaves an image on the host forever.
  */
 export const downArgv = (
   base: Base,
@@ -118,11 +111,11 @@ export const downArgv = (
     args: [...(o.volumes === false ? [] : ["-v"]), "--remove-orphans", "--rmi", rmi, ...args],
   });
 
-/** §5 step 4 streams build progress to SSE; `plain` is the only parseable progress mode. */
+/** Build progress is streamed over SSE; `plain` is the only parseable progress mode. */
 export const buildArgv = (base: Base, services: string[] = [], args: string[] = []): string[] =>
   composeArgv({ ...base, command: "build", args: ["--progress=plain", ...args, ...services] });
 
-/** §7.4 idle-sleep acts on the WHOLE project. File-less, like `down`: the containers exist. */
+/** Idle sleep acts on the whole project. File-less, like `down`: the containers exist. */
 export const stopArgv = (base: Base, args: string[] = []): string[] =>
   composeArgv({ ...base, command: "stop", args });
 
@@ -132,7 +125,7 @@ export const startArgv = (base: Base, args: string[] = []): string[] =>
 export const psArgv = (base: Base, args: string[] = []): string[] =>
   composeArgv({ ...base, command: "ps", args: ["--format", "json", ...args] });
 
-/** §7.3's seed hook. `--rm` so a failed seed does not leave a container behind. */
+/** The seed hook. `--rm` so a failed seed does not leave a container behind. */
 export const runArgv = (
   base: Base,
   service: string,
@@ -162,7 +155,7 @@ export const NEUTRALISED_ENV = [
 ] as const;
 
 /**
- * What a compose child may INHERIT. An allowlist, because compose interpolates `${VAR}`
+ * What a compose child may inherit. An allowlist, because compose interpolates `${VAR}`
  * in the compose file from its own environment -- and the compose file is the
  * submitter's. Inherit everything and `environment: { X: "${GANGWAY_ADMIN_TOKEN}" }`
  * hands the admin token (or the Cloudflare token, or anything else the operator
@@ -329,8 +322,8 @@ async function* merge<T>(sources: AsyncIterator<T>[]): AsyncGenerator<T> {
 
 /**
  * Runs a compose command, yielding output lines as they arrive and an `exit` event last.
- * Nothing is buffered to completion: §5 step 4 streams build progress over SSE, and a
- * progress bar that appears after the build finishes is not progress.
+ * Nothing is buffered to completion: build progress streams over SSE, and a progress bar
+ * that appears after the build finishes is not progress.
  */
 export async function* runCompose(
   argv: string[],

@@ -1,19 +1,16 @@
 /**
- * The in-memory route table: a cache over SQLite, which remains the source of truth (§4).
+ * The in-memory route table: a cache over SQLite, which remains the source of truth.
  *
- * ONE RULE makes the cache safe: every mutation goes through apply(), which writes SQLite
- * first and memory second, inside the same SYNCHRONOUS function. No other code writes the
- * routes table.
- *
- * bun:sqlite being synchronous is what makes that atomic with respect to the event loop --
- * there is no await between the two writes, so no in-flight request can ever observe a
+ * Every mutation goes through apply(), which writes SQLite first and memory second in the
+ * same synchronous function; no other code writes the routes table. bun:sqlite being
+ * synchronous means no await separates the two writes, so no request can observe a
  * half-applied state. A promise-based driver would need a lock here.
  */
 import type { PasswordLogin, PreviewState, Route, Visibility } from "@gangway/shared/domain";
 import type { RoutesRepo } from "../db/repos/routes.ts";
 
 /**
- * ADR-0023: what the gate needs to know about a preview's password, denormalized like the
+ * What the gate needs to know about a preview's password, denormalized like the
  * rest. `inherit` is resolved against the server-wide default per request, so changing the
  * default takes effect at once; `own` carries the preview's scrypt hash.
  */
@@ -27,7 +24,7 @@ export type EntryPassword =
 export type RouteEntry = {
   readonly hostname: string;
   readonly previewId: string;
-  /** Which host's containers these are: the proxy dials each host its own way (T36). */
+  /** Which host's containers these are: the proxy dials each host its own way. */
   readonly hostId: string;
   readonly project: string;
   readonly service: string;
@@ -37,7 +34,7 @@ export type RouteEntry = {
   readonly primary: boolean;
   visibility: Visibility;
   password: EntryPassword;
-  /** ADR-0023: whether a gangway login gets past that password; `inherit` is read per request. */
+  /** Whether a gangway login gets past that password; `inherit` is read per request. */
   passwordLogin: PasswordLogin;
   state: PreviewState;
   /** Mutable per-request counters -- see net/limits.ts. */
@@ -51,7 +48,7 @@ export type RouteSeed = {
   hostId: string;
   project: string;
   visibility: Visibility;
-  /** ADR-0023. Omitted: inherit. */
+  /** Omitted: inherit. */
   password?: EntryPassword | undefined;
   passwordLogin?: PasswordLogin | undefined;
   state: PreviewState;
@@ -110,7 +107,7 @@ export class RouteTable {
       .filter((e): e is RouteEntry => e !== undefined);
   }
 
-  /** Boot load (§11 step 1). Replaces memory wholesale; does not write the database. */
+  /** Boot load. Replaces memory wholesale; does not write the database. */
   hydrate(seeds: RouteSeed[]): void {
     this.#byHostname.clear();
     this.#byPreview.clear();
@@ -145,7 +142,7 @@ export class RouteTable {
     return entry;
   }
 
-  /** Adopts a route rebuilt from container labels (§11) without re-writing the database. */
+  /** Adopts a route rebuilt from container labels without re-writing the database. */
   adopt(seed: RouteSeed): RouteEntry {
     const entry = toEntry(seed);
     this.#index(entry);

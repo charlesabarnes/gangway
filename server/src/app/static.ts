@@ -1,11 +1,11 @@
 /**
- * Static assets for the Angular build, with SPA fallback (§10.3: "served by the server
- * itself -- no SSR framework, no second runtime").
+ * Static assets for the Angular build, with SPA fallback: served by the server itself,
+ * with no SSR framework or second runtime.
  *
- * Hand-rolled rather than hono/serve-static because the three rules that matter are
- * short and worth owning: never escape the root, never serve index.html for a missing
- * ASSET (a 200 text/html for a missing .js is a miserable bug to chase), and cache hashed
- * files forever while never caching index.html.
+ * Hand-rolled rather than hono/serve-static because the three rules that matter are short:
+ * never escape the root, never serve index.html for a missing asset (a 200 text/html for a
+ * missing .js is a miserable bug to chase), and cache hashed files forever while never
+ * caching index.html.
  */
 import { join, normalize, sep } from "node:path";
 

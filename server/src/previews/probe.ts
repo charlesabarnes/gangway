@@ -4,8 +4,8 @@
  * A container being `running` does not mean the app inside has bound its port, and a TCP
  * connect proves nothing: dockerd's userland proxy accepts the connection the instant
  * the container exists, then resets it. So the probe speaks just enough HTTP to see a
- * status line. ANY status counts -- a 404 or a 500 is an app that is up -- unless a health
- * path is given (`x-gangway.health`, ADR-0016): then only 2xx/3xx from that path does.
+ * status line. Any status counts -- a 404 or a 500 is an app that is up -- unless a health
+ * path is given (`x-gangway.health`): then only 2xx/3xx from that path does.
  *
  * Goes through dial.ts like the proxy does, so it tests the path real requests will take
  * (SOCKS5 in dev, direct in production).
@@ -66,7 +66,10 @@ export const httpProbe: RouteProbe = async (route, host, healthPath) => {
   });
 };
 
-/** A path a caller may ask to have checked: absolute, printable, no spaces or CR/LF to smuggle a header. */
+/**
+ * A path a caller may ask to have checked: absolute, printable, no spaces or CR/LF to smuggle a
+ * header.
+ */
 export const CHECK_PATH = /^\/[\x21-\x7e]{0,199}$/;
 
 export type StatusProbe = (
@@ -76,7 +79,7 @@ export type StatusProbe = (
 ) => Promise<number | null>;
 
 /**
- * ADR-0021: the status line one GET of `path` gets, through the same dial as the proxy --
+ * The status line one GET of `path` gets, through the same dial as the proxy --
  * so a deploy can say "/ 200, /api/health 200, /missing 404" instead of an agent curling
  * each one after. Null: nothing answered in time.
  */

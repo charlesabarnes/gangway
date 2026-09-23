@@ -1,15 +1,14 @@
 /**
  * Who is the visitor, when gangway is not the first thing they reach?
  *
- * By default gangway faces the internet and the socket peer IS the visitor: every inbound
- * X-Forwarded-* is attacker-controlled text and is ignored. Behind a reverse proxy
- * (Nginx Proxy Manager on the same box) the peer is always the proxy, so logs, limits and
- * the X-Forwarded-For that previews receive would all say 172.17.0.x.
+ * By default gangway faces the internet and the socket peer is the visitor: every inbound
+ * X-Forwarded-* is attacker-controlled and ignored. Behind a reverse proxy the peer is always
+ * the proxy, so logs, limits and forwarded headers would all name the proxy.
  *
- * The rule: X-Forwarded-For is believed ONLY when the peer is inside a configured range,
- * and it is read RIGHT TO LEFT, skipping trusted hops. Each proxy appends the address it
- * saw, so the rightmost untrusted entry is the last thing a proxy WE trust vouched for;
- * everything to its left is whatever the visitor typed.
+ * X-Forwarded-For is believed only when the peer is inside a configured range, and it is read
+ * right to left, skipping trusted hops. Each proxy appends the address it saw, so the rightmost
+ * untrusted entry is the last thing a trusted proxy vouched for; everything to its left is
+ * whatever the visitor typed.
  */
 import { BlockList, isIP } from "node:net";
 

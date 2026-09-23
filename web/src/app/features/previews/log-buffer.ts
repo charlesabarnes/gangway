@@ -21,7 +21,7 @@ export const isStuckToBottom = (m: {
  * grow without limit, and nobody scrolls back that far in a browser -- the server has the
  * whole log.
  *
- * Lines carry the server's line number `n`. Anything not NEWER than the last line held is
+ * Lines carry the server's line number `n`. Anything not newer than the last line held is
  * dropped: a reconnect replays from the last id the browser acknowledged, which can
  * overlap what already arrived.
  */

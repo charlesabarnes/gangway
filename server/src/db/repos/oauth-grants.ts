@@ -89,7 +89,7 @@ const toRecord = (r: Joined): GrantRecord => {
   };
 };
 
-/** ADR-0020. Tokens are stored as sha256 hashes and never selected into a domain object. */
+/** OAuth grants. Tokens are stored as sha256 hashes and never selected into a domain object. */
 export class OAuthGrantsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -137,7 +137,7 @@ export class OAuthGrantsRepo {
     return r ? toRecord(r) : undefined;
   }
 
-  /** The refresh grant's read. Expiry and the owner are judged by the caller, which must say why. */
+  /** The refresh grant's read. The caller judges expiry and the owner, and says why it refuses. */
   findByRefresh(hash: string): GrantRecord | undefined {
     const r = this.#db.get<Joined>(
       `${JOIN} WHERE g.refresh_hash = $hash AND g.revoked_at IS NULL`,

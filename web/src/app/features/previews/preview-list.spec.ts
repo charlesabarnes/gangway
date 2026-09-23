@@ -68,7 +68,7 @@ async function open(
       { provide: SSE_JITTER, useValue: () => 0 },
     ],
   });
-  // The fixtures are dated around NOW; relative times must be read against it, not the wall clock.
+  // The fixtures are dated around now; relative times must be read against it, not the wall clock.
   TestBed.inject(Clock).set(NOW);
   const auth = TestBed.inject(AuthService);
   const loading = auth.refresh();
@@ -157,7 +157,7 @@ describe('PreviewList', () => {
       search.value = 'ACME/shop';
       search.dispatchEvent(new Event('input'));
       await r.settle();
-      expect(names(r)).toEqual(['bravo']); // matches the SOURCE, not just the name
+      expect(names(r)).toEqual(['bravo']); // matches the source, not just the name
     });
 
     it('live in the URL, so a filtered view survives a reload and can be shared', async () => {
@@ -317,7 +317,7 @@ describe('source labels', () => {
   });
 });
 
-describe('PreviewList: passwords (ADR-0023)', () => {
+describe('PreviewList: passwords', () => {
   it('a lock on the protected rows, naming who can open them', async () => {
     const r = await open({
       previews: [

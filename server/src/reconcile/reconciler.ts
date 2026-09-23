@@ -1,22 +1,19 @@
 /**
- * The I/O half of §11. `diff.ts` decides; this file asks the daemons, hands the diff
- * what they said, and carries out what it decided -- carefully, because two of those
- * decisions are "stop a container" and "fail a preview" on a box that also runs the
+ * The I/O half of reconciliation. `diff.ts` decides; this file asks the daemons, hands the
+ * diff what they said, and carries out what it decided -- carefully, because two of those
+ * decisions are "stop a container" and "fail a preview" on a box that may also run the
  * operator's real workloads.
  *
- * The rules this file exists to enforce, each of which the pure diff cannot:
+ * The rules this file enforces, which the pure diff cannot:
  *
- *  1. PROVABLY OURS OR NOT AT ALL. The daemon is asked only for containers labelled
- *     with THIS instance and env, and each is checked again client-side. A container
- *     whose labels are too damaged to say whose it is, is not ours to stop.
- *  2. AN UNREACHABLE HOST IS NOT AN EMPTY HOST. A host is `reachable` only if the guard
- *     passed AND the listing succeeded. Anything else reaches the diff as "could not
- *     ask", which yields zero mutating actions for that host.
- *  3. WORK IN FLIGHT IS UNTOUCHABLE. A `starting` preview has a route and, for a few
- *     seconds, no container; that is a deploy, not a discrepancy. Every action is
- *     re-checked against `inflight`/`teardowns` and the CURRENT row at apply time,
- *     because the scan that justified it is already stale.
- *  4. NEVER BULK-START (§11). Nothing here starts a container.
+ *  1. Provably ours or not at all. The daemon is asked only for containers labelled with
+ *     this instance and env, and each is checked again client-side.
+ *  2. An unreachable host is not an empty host. A host is `reachable` only if the guard
+ *     passed and the listing succeeded; anything else yields no mutating actions for it.
+ *  3. Work in flight is untouchable. A `starting` preview briefly has a route and no
+ *     container. Every action is re-checked against `inflight`/`teardowns` and the current
+ *     row at apply time, because the scan that justified it is already stale.
+ *  4. Never bulk-start. Nothing here starts a container.
  */
 import type { Host, Visibility } from "@gangway/shared/domain";
 import type { RoutesRepo } from "../db/repos/routes.ts";
@@ -52,7 +49,7 @@ export type ReconcilerDeps = {
   clients: ClientSource;
   logger: Logger;
   /**
-   * `report` logs what §11 would stop and stops nothing. The escape hatch for an operator
+   * `report` logs what would be stopped and stops nothing. The escape hatch for an operator
    * who wants to see a first run against a daemon full of real workloads before trusting it.
    */
   orphans?: "stop" | "report";
@@ -76,7 +73,7 @@ export type ReconcileReport = {
 
 const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
 
-/** Field by field, unlike `parseLabels`: the orphan rows of §11 are ABOUT partial labels. */
+/** Field by field, unlike `parseLabels`: orphan handling is about partial labels. */
 export function scanLabels(raw: Readonly<Record<string, string>>): ScannedLabels {
   const int = (v: string | undefined) =>
     v !== undefined && /^\d{1,5}$/.test(v) ? Number(v) : undefined;
@@ -143,7 +140,7 @@ export class Reconciler {
         },
       });
       // Belt and braces behind the daemon-side filter: a fake, a proxy or a future
-      // engine that ignores an unknown filter must not widen what we are willing to stop.
+      // engine that ignores an unknown filter must not widen what may be stopped.
       const ours = listed.filter(
         (c) =>
           c.labels[LABEL.managed] === "true" &&
@@ -185,7 +182,7 @@ export class Reconciler {
       }
     });
 
-    // The database is read AFTER the scan. Read before, a deploy that lands in between
+    // The database is read after the scan. Read before, a deploy that lands in between
     // shows up as a container with no route; read after, as a route with no container,
     // which the in-flight guard below already covers.
     const actions = diff({
@@ -267,7 +264,7 @@ export class Reconciler {
         if (!p || this.#busy(p.id) || p.state !== "building") return null;
         ctx.states.transition(p.id, "failed", a.error);
         ctx.logs.append(p.id, "system", `FAILED: ${a.error}`);
-        // No ROUTED container is running, but a sidecar may be: `up` starts a database
+        // No routed container is running, but a sidecar may be: `up` starts a database
         // before the app that depends on it.
         const host = hosts.get(p.hostId);
         if (host) await releaseStack(ctx, p, host);
@@ -280,7 +277,7 @@ export class Reconciler {
       case "StopOrphan": {
         const found = summaries.get(a.containerId);
         if (!found) return null;
-        // Stale-scan guard: a deploy may have claimed this hostname since we looked.
+        // Stale-scan guard: a deploy may have claimed this hostname since the scan.
         const previewId = found.summary.labels[LABEL.previewId];
         if (previewId && this.#busy(previewId)) return null;
         if (a.hostname && routes.get(a.hostname)?.previewId === previewId && previewId) return null;
@@ -310,19 +307,19 @@ export class Reconciler {
 
     let preview = ctx.previews.get(a.previewId);
     if (preview && (preview.state === "destroyed" || preview.state === "destroying")) {
-      // We already decided this preview should not exist. A container that outlived
+      // This preview was already destroyed. A container that outlived
       // its destroy is the orphan, not a route waiting to be restored.
       return this.#stop(host, found.summary, "preview-destroyed");
     }
 
     if (!preview) {
-      // SQLite is behind or gone (§4.1). The labels are the second copy; rebuild from them.
+      // SQLite is behind or gone. The labels are the second copy; rebuild from them.
       const project = raw[LABEL.project] ?? raw["com.docker.compose.project"];
       if (!isUlid(a.previewId) || !project || ctx.previews.getByProject(project)) {
         return this.#stop(host, found.summary, "unadoptable");
       }
       // The labels do not carry a TTL. An adopted preview gets the default template's from
-      // NOW, rather than living forever because nobody remembers when it was due to die.
+      // now, rather than living forever because nobody remembers when it was due to die.
       const ttlText = ctx.policy.default().ttl;
       const ttl = ttlText === null ? null : parseDuration(ttlText);
       preview = ctx.previews.create({
@@ -371,7 +368,7 @@ export class Reconciler {
 
   /**
    * A pipeline cannot outlive the process that ran it. After the diff has had its say,
-   * anything still `building`/`starting`/`destroying` that nobody in THIS process is
+   * anything still `building`/`starting`/`destroying` that nobody in this process is
    * working on was cut off by a restart. Decide it from evidence, not from the state:
    *
    *   building/starting, every route has its container  -> probe; answering => awake
@@ -433,12 +430,12 @@ export class Reconciler {
   /**
    * `asleep` is a claim about the daemon, and the daemon can stop agreeing: someone runs
    * `docker start`, or a host reboots with a restart policy. The diff calls that in-sync
-   * (route and container DO agree) and the state would stay `asleep` forever, the proxy
+   * (route and container do agree) and the state would stay `asleep` forever, the proxy
    * serving the waking page in front of an app that is up.
    *
-   * This is NOT a start -- rule 4 stands. It only records what already happened, and only
-   * on the same evidence a deploy needs: every route has its container AND answers HTTP.
-   * A stack that is half back stays asleep; wake-on-request (Phase 4) is what finishes it.
+   * This is not a start -- rule 4 stands. It only records what already happened, and only
+   * on the same evidence a deploy needs: every route has its container and answers HTTP.
+   * A stack that is half back stays asleep; wake-on-request is what finishes it.
    */
   async #wakeReturned(
     covered: ReadonlySet<string>,

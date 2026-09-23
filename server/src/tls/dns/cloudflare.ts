@@ -1,10 +1,10 @@
 /**
  * Cloudflare DNS-01 provider: plain `fetch` against the v4 REST API.
  *
- * No SDK -- spec §1 lists cloud-provider SDKs as a non-goal, and this is four endpoints.
- * Authentication is a SCOPED API token (Zone:DNS:Edit on the one zone) sent as a bearer.
- * The Global API Key is deliberately not supported: it is account-wide, cannot be scoped
- * to a zone, and would sit in the settings table next to everything else.
+ * No SDK: this is four endpoints. Authentication is a scoped API token (Zone:DNS:Edit on the
+ * one zone) sent as a bearer. The Global API Key is deliberately not supported: it is
+ * account-wide, cannot be scoped to a zone, and would sit in the settings table next to
+ * everything else.
  */
 import { AppError, internal, notFound, errorMessage } from "../../errors.ts";
 import { Logger } from "../../logger.ts";
@@ -74,13 +74,10 @@ export class CloudflareDnsProvider implements DnsProvider {
   /**
    * Adds a TXT record and returns Cloudflare's id for it.
    *
-   * ADDS. Cloudflare happily holds several TXT records with the same name and different
-   * content, and a wildcard order requires exactly that: `*.preview.example.com` and
-   * `preview.example.com` are two authorizations with two distinct key authorizations, both
-   * answered at `_acme-challenge.preview.example.com`. Verified against Let's Encrypt
-   * staging (see spike/acme-wildcard.ts). An implementation that looks for an existing
-   * record and updates it destroys the other authorization's value and fails one order in
-   * two, non-deterministically, depending on validation order.
+   * Adds, never updates. A wildcard order needs two TXT records with the same name and
+   * different content (`*.preview.example.com` and `preview.example.com` are both answered at
+   * `_acme-challenge.preview.example.com`). Updating an existing record destroys the other
+   * authorization's value and fails one order in two, depending on validation order.
    *
    * The returned id is the reason cleanup is exact: deleting by id removes only what this
    * call made, where a search by name would sweep up the sibling record -- or somebody's

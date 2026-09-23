@@ -14,7 +14,7 @@ type Recipe = { label: string; steps: Step[]; link?: { href: string; text: strin
 const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 
 /**
- * ADR-0022: how to point each agent at THIS server, with its MCP URL filled in. Every recipe
+ * How to point each agent at this server, with its MCP URL filled in. Every recipe
  * ends in the same place -- the agent's own OAuth sign-in, which lands on /connect -- and
  * the workflow comes with the server (its instructions and `generate-artifact` prompt), so a
  * plugin is a convenience, not a requirement.

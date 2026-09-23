@@ -115,7 +115,7 @@ describe('Account', () => {
     r.http.expectNone('/v1/tokens');
   });
 
-  describe('connected agents (ADR-0020)', () => {
+  describe('connected agents', () => {
     it('lists each by name and publisher; disconnecting asks first, then DELETEs it', async () => {
       const r = await open({ grants: [grant()] });
       expect(r.text('grants')).toContain('Claude');
@@ -146,7 +146,7 @@ describe('Account', () => {
       const r = await open();
       expect((r.byTestId('scope-read') as HTMLInputElement).disabled).toBe(false);
       expect((r.byTestId('scope-deploy') as HTMLInputElement).disabled).toBe(false);
-      // ADR-0021: rebuilding ANY preview is previews.update, which a member does not hold.
+      // Rebuilding any preview is previews.update, which a member does not hold.
       expect((r.byTestId('scope-update') as HTMLInputElement).disabled).toBe(true);
       expect((r.byTestId('scope-admin') as HTMLInputElement).disabled).toBe(true);
       expect(r.byTestId('token-form')!.textContent).toContain('Your role does not cover this.');

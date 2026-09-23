@@ -33,7 +33,7 @@ describe("composeArgv", () => {
   });
 
   /* `docker compose up --project-name x` is a parse error and `docker compose up -f y`
-     means something else entirely. Flag ORDER is the bug this file exists to prevent. */
+     means something else entirely. Flag order is what this file guards. */
   test("every global flag precedes the subcommand", () => {
     const argv = composeArgv({
       ...base,
@@ -115,8 +115,8 @@ describe("the five commands we actually run", () => {
     expect(upArgv(base, ["--build"]).slice(-3)).toEqual(["up", "-d", "--build"]);
   });
 
-  /* §7.1: teardown is `down -v`. Orphans go too, or a renamed service leaves a
-     container squatting on its published port forever (§11's orphan case). */
+  /* Teardown is `down -v`. Orphans go too, or a renamed service leaves a container
+     squatting on its published port forever. */
   test("down removes volumes and orphans", () => {
     expect(downArgv(base).slice(-5)).toEqual(["down", "-v", "--remove-orphans", "--rmi", "local"]);
   });
@@ -154,10 +154,9 @@ describe("the five commands we actually run", () => {
   });
 });
 
-/* The environment is the whole reason this project has a safety story. On this machine
-   `docker context ls` shows desktop-linux active, and DOCKER_CONTEXT beats DOCKER_HOST
-   in the CLI's precedence order. Exporting DOCKER_HOST and leaving DOCKER_CONTEXT set
-   deploys to the laptop and prints success. */
+/* The environment is the whole reason this project has a safety story. DOCKER_CONTEXT
+   beats DOCKER_HOST in the CLI's precedence order, so exporting DOCKER_HOST while a
+   context such as desktop-linux is active deploys to the local machine and prints success. */
 describe("composeEnv", () => {
   const ambient = {
     PATH: "/usr/bin",
@@ -295,7 +294,7 @@ describe("runCompose", () => {
     expect(events.filter((e) => e.type === "exit")).toHaveLength(1);
   });
 
-  /* §5 step 4 streams build progress over SSE. A progress bar delivered after the build
+  /* Build progress is streamed over SSE. A progress bar delivered after the build
      finishes is not progress, so this must deadlock rather than pass if the wrapper
      ever starts buffering to completion. */
   test("lines arrive incrementally, before the process has finished writing", async () => {

@@ -34,7 +34,7 @@ const toBuild = (r: Row): Build => ({
 });
 
 /**
- * One row per build attempt. The build's OUTPUT is in the preview log (stream `build`),
+ * One row per build attempt. The build's output is in the preview log (stream `build`),
  * which is already durable and resumable over SSE; this records that it happened, how
  * long it took and how it ended -- what the UI's history and "why is this slow" need.
  */

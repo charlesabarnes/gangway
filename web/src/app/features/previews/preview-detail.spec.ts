@@ -56,7 +56,7 @@ async function open(
   });
   await loading;
 
-  // Nothing is asked about this ONE preview until the list has answered.
+  // Nothing is asked about this one preview until the list has answered.
   r.http.expectNone(`/v1/previews/${ID}`);
   r.http
     .expectOne('/v1/previews')
@@ -230,7 +230,7 @@ describe('PreviewDetail', () => {
     await answerHistory(r);
     expect(r.text('logs-gone')).toContain('deleted when a preview is destroyed');
     expect(r.byTestId('destroy')).toBeNull();
-    // Found in a real browser: "Expires in 59 min" under something already gone.
+    // A destroyed preview must not say "Expires in 59 min".
     expect(r.text('facts')).toContain('Destroyed');
     expect(r.text('facts')).not.toContain('Expires');
   });
@@ -282,7 +282,7 @@ describe('PreviewDetail', () => {
   });
 });
 
-describe('PreviewDetail: who can open it (ADR-0023)', () => {
+describe('PreviewDetail: who can open it', () => {
   const pick = async (r: Awaited<ReturnType<typeof open>>, id: string, v: string) => {
     const el = r.byTestId(id) as HTMLSelectElement;
     el.value = v;

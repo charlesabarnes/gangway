@@ -1,25 +1,20 @@
 /**
- * The compose model: what we need to KNOW about a stack, and the stack file we actually
- * run, which carries everything we need to CHANGE about it.
+ * The compose model: what we need to know about a stack, and the stack file we actually
+ * run, which carries everything we need to change about it.
  *
- * §7.1 says do not reimplement the Compose spec, so we never interpret compose.yaml. We
- * read the output of `docker compose config` -- compose's own canonical view, after
- * `extends`, profiles, includes and interpolation -- and this module is pure functions
- * over that document. No process, no daemon: all unit-testable.
+ * We never interpret compose.yaml ourselves. We read the YAML output of `docker compose
+ * config` -- compose's canonical view, after `extends`, profiles, includes and
+ * interpolation -- and this module is pure functions over that document.
  *
- * §7.2 says never edit the user's compose.yaml, and we do not. What we `up` is compose's
- * canonical output with our changes applied: labels (§4.1), the self-allocated published
- * port (ADR-0004) and the public URL env (§6.4). Verified on Compose v2.22 and v2.29:
- * `config` output is a FIXPOINT -- feeding it back yields the identical document, with
- * `$` still escaped as `$$` -- so running it is running what the user wrote.
+ * The user's compose.yaml is never edited. What we `up` is the canonical output with our
+ * labels, self-allocated published ports and public URL env applied. `config` output is a
+ * fixpoint -- feeding it back yields the same document, `$` still escaped as `$$` -- so
+ * running it is running what the user wrote.
  *
- * Two things this design deliberately AVOIDS, both learned the hard way:
- *
- *  - `config --format json`. It silently DROPS service-level `x-*` keys (v2.22: always;
- *    v2.29: unless --no-interpolate). The YAML output keeps them on every version.
- *  - A second `-f` override file. Compose merges `ports` by APPENDING, so replacing a
- *    port needs the `!override` tag, which needs Compose >= 2.24 -- and Docker Desktop
- *    still ships 2.22. Owning the final document needs no merge semantics at all.
+ * Deliberately avoided:
+ *  - `config --format json`: it drops service-level `x-*` keys on some Compose versions.
+ *  - A second `-f` override file: compose merges `ports` by appending, and replacing one
+ *    needs the `!override` tag (Compose >= 2.24). Owning the final document needs no merge.
  */
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
@@ -46,7 +41,7 @@ export const ServiceExtensionSchema = z.strictObject({
   /** Which container port to route to, when the service publishes several (or none). */
   port: portNumber.optional(),
   /**
-   * A path that must answer 2xx/3xx before the service counts as up (ADR-0016). Omitted:
+   * A path that must answer 2xx/3xx before the service counts as up. Omitted:
    * any HTTP answer on `/`. Checked on deploy and rebuild; a wake uses the plain probe.
    */
   health: z
@@ -63,8 +58,8 @@ export const StackExtensionSchema = z.strictObject({
     .refine((s) => parseDuration(s) !== null, "expected a duration like 12h or 7d")
     .optional(),
   /**
-   * §7.3: run once after the stack is healthy, before routes go live (ADR-0012). A string
-   * runs in the PRIMARY service; `{ service, command }` picks another. `sh -c`, so a
+   * Run once after the stack is healthy, before routes go live. A string
+   * runs in the primary service; `{ service, command }` picks another. `sh -c`, so a
    * script path or a one-liner both work.
    */
   seed: z
@@ -74,7 +69,7 @@ export const StackExtensionSchema = z.strictObject({
     ])
     .optional(),
   visibility: z.enum(["public", "unlisted", "private"]).optional(),
-  /** Idle-sleep after this long without a request; `never` opts the stack out (ADR-0012). */
+  /** Idle-sleep after this long without a request; `never` opts the stack out. */
   idle: z
     .string()
     .refine(
@@ -83,7 +78,7 @@ export const StackExtensionSchema = z.strictObject({
     )
     .optional(),
   /**
-   * ADR-0016: runs before EVERY version goes live (migrations), in a one-off container of
+   * Runs before every version goes live (migrations), in a one-off container of
    * the primary service, `sh -c`. On a rebuild, before the swap: failing it keeps the old
    * version serving. On a first deploy, once the stack is healthy and before the seed.
    */
@@ -106,7 +101,7 @@ export type ServiceModel = {
 
 export type ComposeModel = {
   services: ServiceModel[];
-  /** KEYS as written in the file, which is what an override file addresses. */
+  /** Keys as written in the file, which is what an override file addresses. */
   networks: string[];
   volumes: string[];
   x: StackExtension;
@@ -129,8 +124,8 @@ function parseExtension<T>(schema: z.ZodType<T>, raw: unknown, where: string): T
 }
 
 /**
- * What a preview may not ask of the host. Previews are throwaway code -- in Phase 3,
- * a stranger's pull request -- on a daemon that also runs the operator's real workloads.
+ * What a preview may not ask of the host. Previews are throwaway code -- possibly a
+ * stranger's pull request -- on a daemon that also runs the operator's real workloads.
  * Each rule is a way out of the project's namespace or onto the host itself.
  */
 function policyViolations(project: string, doc: Json, sourceDirs: readonly string[]): string[] {
@@ -152,7 +147,7 @@ function policyViolations(project: string, doc: Json, sourceDirs: readonly strin
     if (arr(s["devices"]).length > 0) out.push(`${at}: devices are not allowed`);
     if (arr(s["cap_add"]).length > 0) out.push(`${at}: cap_add is not allowed`);
     if (arr(s["security_opt"]).length > 0) out.push(`${at}: security_opt is not allowed`);
-    // The build runs on THIS machine's filesystem before anything reaches the daemon: a
+    // The build runs on this machine's filesystem before anything reaches the daemon: a
     // context of `/` or `../../state` would ship gangway's own database into an image the
     // submitter then runs. `config` has already made these paths absolute.
     if (s["build"] !== undefined && s["build"] !== null) {
@@ -180,7 +175,7 @@ function policyViolations(project: string, doc: Json, sourceDirs: readonly strin
     }
     for (const v of arr(s["volumes"])) {
       const type = obj(v)["type"];
-      // The daemon is remote: a bind path names a directory on the HOST, not in the
+      // The daemon is remote: a bind path names a directory on the host, not in the
       // upload. `/var/run/docker.sock` is the famous one; none of them are safe.
       if (type !== "volume" && type !== "tmpfs")
         out.push(
@@ -275,7 +270,7 @@ export type ExposedService = {
 };
 
 /**
- * §7.2: "Default with no extension: the single service with a published port is exposed."
+ * With no extension, the single service with a published port is exposed.
  * Anything more ambiguous than that is an error naming the fix, never a guess -- a guess
  * here is a public URL pointing at somebody's database.
  */
@@ -408,8 +403,8 @@ export function buildStack(i: StackInput): string {
   const doc = structuredClone(obj(i.resolved));
   const previewId = i.routes[0]?.previewId ?? "";
   // Ownership without `gangway.managed`: enough to find and remove everything a preview
-  // created, deliberately NOT enough to look like a route. `managed=true` promises the
-  // reconciler a complete route record (§4.1); a database sidecar has none, and would be
+  // created, deliberately not enough to look like a route. `managed=true` promises the
+  // reconciler a complete route record; a database sidecar has none, and would be
   // stopped as a malformed orphan.
   const ownership = {
     [LABEL.instance]: i.ctx.instance,
@@ -431,14 +426,14 @@ export function buildStack(i: StackInput): string {
     const mine = route
       ? buildLabels(labelsFromRoute({ ...route, createdAt: i.createdAt }, i.ctx))
       : ownership;
-    // Ours LAST: a compose file may set any label it likes, including `gangway.*` ones
+    // Ours last: a compose file may set any label it likes, including `gangway.*` ones
     // that claim to be someone else's preview. It does not get to keep them.
     const theirs = Object.fromEntries(
       Object.entries(asMap(svc["labels"])).filter(([k]) => !k.startsWith("gangway.")),
     );
     svc["labels"] = { ...theirs, ...mine };
 
-    // EVERY service's ports are replaced, not just the routed one's. A sidecar's
+    // Every service's ports are replaced, not just the routed one's. A sidecar's
     // `5432:5432` would otherwise bind the operator's host -- outside our pool, and on
     // top of their real Postgres.
     if (route) {
@@ -461,7 +456,7 @@ export function buildStack(i: StackInput): string {
       ...literal(i.extraEnv),
       GANGWAY_PREVIEW_ID: previewId,
       ...urls,
-      // §6.4: Vite and Next need their own external hostname to build absolute URLs.
+      // Vite and Next need their own external hostname to build absolute URLs.
       ...(self ? { PUBLIC_URL: publicOriginFor(self.hostname, i.origin) } : {}),
     };
     services[name] = svc;
@@ -471,7 +466,7 @@ export function buildStack(i: StackInput): string {
     const section = obj(doc[kind]);
     for (const [key, raw] of Object.entries(section)) {
       const r = obj(raw);
-      // `config` bakes in names derived from the PLACEHOLDER project. Left in place,
+      // `config` bakes in names derived from the placeholder project. Left in place,
       // every preview would share one `gw-plan_default` network. Dropped, compose
       // derives them again from the real `-p`. (Policy has already refused any name
       // that was not derived, so there is nothing legitimate to lose.)
@@ -494,7 +489,7 @@ type Generated = {
   /** Stack-level `x-gangway` (ttl, visibility, idle, seed, release) from gangway.yml. */
   stack?: Record<string, string> | undefined;
   health?: string | null | undefined;
-  /** Add-on services (ADR-0017), from `renderAddons`. The app waits for them to be healthy. */
+  /** Add-on services, from `renderAddons`. The app waits for them to be healthy. */
   sidecars?: Pick<RenderedAddons, "services" | "volumes" | "dependsOn"> | undefined;
 };
 
@@ -527,7 +522,7 @@ export function composeForDockerfile(o: Generated): string {
   return generated(o, { build: { context: "." } });
 }
 
-/** An image deploy is a one-service stack (§7): same pipeline, no special case downstream. */
+/** An image deploy is a one-service stack: same pipeline, no special case downstream. */
 export function composeForImage(o: {
   image: string;
   port: number;
@@ -537,7 +532,7 @@ export function composeForImage(o: {
 }
 
 /**
- * A runtime's stack (ADR-0015): built from the generated `.gangway/Dockerfile` in the app's
+ * A runtime's stack: built from the generated `.gangway/Dockerfile` in the app's
  * root, secrets as the container's environment (never a `.env` in the build context), and
  * an init process, because `npm start` and friends make poor PID 1s.
  */

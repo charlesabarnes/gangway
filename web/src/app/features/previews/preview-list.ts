@@ -287,7 +287,7 @@ export class PreviewList {
   protected readonly query = signal('');
   protected readonly pending = signal<Preview | null>(null);
 
-  /** Advice about what to SHOW. The server refuses a DELETE the role does not allow, whatever this says. */
+  /** Advice about what to show. The server refuses a DELETE the role does not allow, whatever this says. */
   protected readonly canDestroy = computed(() => this.#auth.can('previews.destroy'));
   protected readonly canDeploy = computed(() => this.#auth.can('previews.deploy'));
   protected readonly filtered = computed(

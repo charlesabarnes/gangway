@@ -11,7 +11,7 @@ export function sourceLabel(s: PreviewSource): string {
       return s.image;
     case 'tarball': {
       const base = s.runtime ? `uploaded files · ${s.runtime}` : 'uploaded archive';
-      // ADR-0017: the throwaway databases beside it.
+      // The throwaway databases beside it.
       return s.addons?.length
         ? `${base} + ${s.addons.map((a) => `${a.id} ${a.version}`).join(', ')}`
         : base;

@@ -1,11 +1,11 @@
 /**
- * The forge abstraction (ADR-0011): what a git hosting service has to be able to do for
+ * The forge abstraction: what a git hosting service has to be able to do for
  * pull-request previews. GitHub is the only implementation; the PR lifecycle
  * (`pr-previews.ts`) is written against this and never imports it.
  *
  * Deliberately small. A forge receives a webhook, hands out a clone credential, keeps
- * ONE status comment per pull request current, and publishes a deployment status. What it
- * does NOT do is decide anything: whose PRs deploy, under what name, and whether a fork is
+ * one status comment per pull request current, and publishes a deployment status. What it
+ * does not do is decide anything: whose PRs deploy, under what name, and whether a fork is
  * built are the lifecycle's questions, answered from `repos` rows, and a second forge must
  * not get to answer them differently.
  */
@@ -34,7 +34,7 @@ export type PullRequest = {
   headSha: string;
   headRef: string;
   baseRef: string;
-  /** The head lives in another repository. §9: such a PR gets nothing unless someone asks. */
+  /** The head lives in another repository. Such a PR gets nothing unless someone asks. */
   fromFork: boolean;
   draft: boolean;
   author: string;
@@ -110,7 +110,7 @@ export type Forge = {
 };
 
 /**
- * `/preview deploy`, `/preview   status` -- the FIRST line of a comment, so a sentence that
+ * `/preview deploy`, `/preview   status` -- the first line of a comment, so a sentence that
  * mentions the command in passing is not one. Case-insensitive on the verb.
  */
 export function parsePreviewCommand(body: string): ParsedCommand | null {

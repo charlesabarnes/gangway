@@ -1,4 +1,4 @@
-/** /v1/templates, the trigger defaults in /v1/settings, and a repository's templateId (ADR-0013), through the real app. */
+/** /v1/templates, the trigger defaults in /v1/settings, and a repository's templateId, through the real app. */
 import { describe, expect, test } from "bun:test";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
@@ -97,7 +97,7 @@ async function make() {
   return { s, settings, repos, templates, call, ada, login };
 }
 
-describe("/v1/templates (ADR-0013)", () => {
+describe("/v1/templates", () => {
   test("every install has `default`; create starts from it, edit is partial, the list puts the built-in first", async () => {
     const { call, ada, s } = await make();
     let res = await call("/v1/templates", { as: ada });

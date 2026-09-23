@@ -54,7 +54,7 @@ export class EventsRepo {
       .reverse();
   }
 
-  /** Retention (§15.4): streaming is cheap, storage after teardown is a product decision. */
+  /** Retention: streaming is cheap, storage after teardown is a product decision. */
   pruneBefore(cutoff: number): number {
     return this.#db.run("DELETE FROM events WHERE created_at < $c", { c: cutoff }).changes;
   }

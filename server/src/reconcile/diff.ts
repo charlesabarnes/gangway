@@ -1,10 +1,9 @@
 /**
- * Boot reconciliation (spec §11): SQLite says what *should* exist, the daemons say what *does*.
+ * Boot reconciliation: SQLite says what *should* exist, the daemons say what *does*.
  *
- * `diff` is deliberately pure -- no dockerode, no SQLite, no clock. Everything it needs arrives
- * in one argument and everything it decides leaves as data. That is what turns §11's case table
- * into a unit test that runs in CI with no Docker daemon, and it is the only way the frightening
- * rows (stop a container, fail a preview) can be exercised at all.
+ * `diff` is pure -- no dockerode, no SQLite, no clock. Everything it needs arrives in one
+ * argument and everything it decides leaves as data, so the destructive cases (stop a
+ * container, fail a preview) are unit-tested with no Docker daemon.
  *
  * The rule the whole file is built around: an unreachable host is not an empty host. "I asked and
  * the answer was nothing" and "I could not ask" must never collapse into the same branch, because
@@ -14,7 +13,7 @@
 import type { Host, Preview, Route, Visibility } from "@gangway/shared/domain";
 
 /**
- * The `gangway.*` label schema version we write (§4.1). A container claiming a *higher* one was
+ * The `gangway.*` label schema version this build writes. A container claiming a *higher* one was
  * written by a newer gangway that knows things this build does not, so it is not ours to destroy.
  */
 export const GANGWAY_LABEL_VERSION = 1;
@@ -22,9 +21,9 @@ export const GANGWAY_LABEL_VERSION = 1;
 export type ContainerState = "running" | "exited";
 
 /**
- * The `gangway.*` labels of §4.1, already parsed out of the daemon's string map by the caller.
- * Every field is optional: the orphan rows of §11 exist precisely because a container can carry
- * a partial or garbled copy of the route record.
+ * The `gangway.*` labels, already parsed out of the daemon's string map by the caller. Every
+ * field is optional: orphans exist precisely because a container can carry a partial or
+ * garbled copy of the route record.
  */
 export type ScannedLabels = {
   previewId?: string | undefined;
@@ -75,9 +74,9 @@ export type DiffInput = {
 };
 
 export type LeaveAloneReason =
-  /** Route and container agree; §11 row 1. Verify and continue, restart nothing. */
+  /** Route and container agree. Verify and continue, restart nothing. */
   | "in-sync"
-  /** We could not ask this host. Nothing is known, so nothing is decided. */
+  /** This host could not be asked. Nothing is known, so nothing is decided. */
   | "host-unreachable"
   /** `gangway.version` above ours: a newer gangway owns it. */
   | "newer-gangway"
@@ -87,7 +86,7 @@ export type LeaveAloneReason =
   | "preview-inactive"
   /** `building` with a build actually running -- reconciliation raced a real build. */
   | "build-in-flight"
-  /** A route with no preview row. Broken, but repairing it is not §11's job. */
+  /** A route with no preview row. Broken, but repairing it is not the reconciler's job. */
   | "unknown-preview"
   /** Ours and running, but the daemon reports no published port to compare against. */
   | "container-port-unknown"
@@ -95,9 +94,9 @@ export type LeaveAloneReason =
   | "container-exited";
 
 export type StopOrphanReason =
-  /** §11: "If labels are incomplete, stop it." */
+  /** Labels are incomplete, so it is stopped. */
   | "incomplete-labels"
-  /** Two sources claim one hostname. SQLite is the source of truth (§4), so the container loses. */
+  /** Two sources claim one hostname. SQLite is the source of truth, so the container loses. */
   | "hostname-conflict"
   /** Complete labels, but no published port: it claims a hostname it cannot serve. */
   | "unroutable";
@@ -107,7 +106,7 @@ type Stamped = { at: number };
 
 export type Action = Stamped &
   /**
-   * Not in §11's table: a human can recreate a container by hand and the published port moves.
+   * A human can recreate a container by hand and the published port moves.
    * Without this row the route silently points at nothing.
    */
   (
@@ -121,7 +120,7 @@ export type Action = Stamped &
       }
     /** Never a bulk start: sixty containers at once thrashes the box. Wake-on-request handles the rest. */
     | { kind: "MarkAsleep"; previewId: string }
-    /** Rebuild the route row from the container's labels (§4.1). */
+    /** Rebuild the route row from the container's labels. */
     | {
         kind: "AdoptRoute";
         containerId: string;
@@ -156,7 +155,7 @@ export type Action = Stamped &
 /** `LeaveAlone` is the only outcome that touches nothing. Everything else writes or stops something. */
 export const isMutating = (a: Action): boolean => a.kind !== "LeaveAlone";
 
-/** Anomalies worth a log line even though we chose to do nothing about them. */
+/** Anomalies worth a log line even though nothing is done about them. */
 const WARNING_REASONS: ReadonlySet<LeaveAloneReason> = new Set<LeaveAloneReason>([
   "newer-gangway",
   "unknown-preview",
@@ -173,7 +172,7 @@ type CompleteLabels = {
 };
 
 /**
- * "Complete" means: enough to rebuild the route row of §4. `visibility` and `primary` are allowed
+ * "Complete" means enough to rebuild the route row. `visibility` and `primary` are allowed
  * to be missing and resolve to the safe side -- a preview wrongly served as private is a support
  * ticket, one wrongly served as public is a leak, and a route wrongly marked non-primary is cosmetic.
  */
@@ -233,7 +232,7 @@ export const diff = (input: DiffInput): Action[] => {
   const actions: Action[] = [];
   const claimed = new Set<string>(); // hostnames adopted during this pass
   const matched = new Set<string>(); // container ids already accounted for by a route
-  const settled = new Set<string>(); // previews whose state we have already decided
+  const settled = new Set<string>(); // previews whose state is already decided
 
   // Pass 1 -- what SQLite says should exist.
   for (const route of routes) {
@@ -249,7 +248,7 @@ export const diff = (input: DiffInput): Action[] => {
       continue;
     }
 
-    // A container matches a route only when it agrees on BOTH hostname and preview: same
+    // A container matches a route only when it agrees on both hostname and preview: same
     // hostname under a different preview is the collision case, not a match.
     const candidate = (containersByHostname.get(route.hostname) ?? []).find(
       (c) => c.state === "running" && c.labels.previewId === route.previewId,
@@ -319,7 +318,7 @@ export const diff = (input: DiffInput): Action[] => {
 
     if (!reachable(c.hostId)) {
       // Defensive: a scan of an unreachable host cannot have produced containers, but if a caller
-      // hands us stale ones we must not act on them either.
+      // passes stale ones they must not be acted on either.
       actions.push(leave("host-unreachable", { hostname: labelHostname, containerId: c.id }));
       continue;
     }

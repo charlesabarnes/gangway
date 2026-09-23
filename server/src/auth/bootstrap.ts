@@ -1,8 +1,8 @@
 /**
- * §8.1 first-run bootstrap: "server prints a one-time admin setup URL to stdout. No
- * default credentials, ever."
+ * First-run bootstrap: the server prints a one-time admin setup URL to stdout. There are
+ * no default credentials.
  *
- * The secret lives in MEMORY only and is regenerated on every boot while there are no
+ * The secret lives in memory only and is regenerated on every boot while there are no
  * users. gangway runs in a container, so stdout is `docker logs`: a URL left there must be
  * dead the moment it has been used, and dead after the next restart if it never was. A
  * hashed row in the database would stay valid for as long as nobody finished setup.

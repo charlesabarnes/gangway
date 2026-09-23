@@ -1,6 +1,6 @@
 /**
- * Host-header dispatch (§3.1, §6.1). Deliberately boring, fixed order, exhaustively
- * tested -- every branch here is a security or usability decision.
+ * Host-header dispatch. Deliberately boring, fixed order, exhaustively tested -- every branch
+ * here is a security or usability decision.
  */
 import { labelUnder, normalizeHost, RESERVED_LABELS } from "@gangway/shared/hostname";
 import type { RouteEntry, RouteTable } from "../routing/table.ts";
@@ -32,16 +32,16 @@ export type DispatchDeps = {
   table: RouteTable;
   upstream: Upstream;
   limits: Limits;
-  /** Read PER REQUEST so a toggle takes effect with no restart (§10.5). */
+  /** Read per request so a toggle takes effect with no restart. */
   surfaceEnabled: (s: Surface) => boolean;
   handlers: Partial<Record<Surface, SurfaceHandler>>;
   /**
-   * Wake-on-request (ADR-0012). Resolves with a Response to send instead (the 202 page
+   * Wake-on-request. Resolves with a Response to send instead (the 202 page
    * when the wake is taking long), or null: the preview is awake now, proxy the request.
    */
   wake?: (entry: RouteEntry, req: Request) => Promise<Response | null>;
   /**
-   * Visibility and password gate (§8.3, ADR-0023). Returning a Response short-circuits
+   * Visibility and password gate. Returning a Response short-circuits
    * before the upstream. A promise only for the password form's POST.
    */
   visibilityGate?: (
@@ -57,7 +57,7 @@ export type DispatchDeps = {
 
 /**
  * `app` and `www` are the same surface; the rest map to themselves. `registry` is
- * reserved but has no handler until the registry app exists (§12).
+ * reserved but has no handler until the registry app exists.
  */
 function surfaceFor(label: string): Surface {
   return (label === "www" ? "app" : label) as Surface;
@@ -74,12 +74,12 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
   const label = labelUnder(host, d.baseDomain());
   if (label === null) return misdirectedPage();
 
-  // 3. Reserved labels -> application surfaces. The reserved set is STATIC and
-  //    independent of which surfaces are enabled (§6.2.1): if `mcp` became a valid
+  // 3. Reserved labels -> application surfaces. The reserved set is static and
+  //    independent of which surfaces are enabled: if `mcp` became a valid
   //    preview label while MCP was off, re-enabling it would collide with a live preview.
   if (label === "" || RESERVED_LABELS.has(label)) {
     const surface = label === "" ? "app" : surfaceFor(label);
-    // Disabled surfaces return 404, NOT 503 -- do not advertise what is switched off.
+    // Disabled surfaces return 404, not 503 -- do not advertise what is switched off.
     if (!d.surfaceEnabled(surface)) return unknownPage(host);
     const handler = d.handlers[surface];
     if (!handler) return unknownPage(host);
@@ -90,11 +90,11 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
   const entry = d.table.lookup(host);
   if (!entry) return unknownPage(host);
 
-  // 5. Visibility gate BEFORE the upstream ever sees the request (§6.3).
+  // 5. Visibility gate before the upstream ever sees the request.
   const gated = d.visibilityGate?.(entry, req, clientIp);
   if (gated) return gated;
 
-  // 6. State machine (§6.1), hot path first.
+  // 6. State machine, hot path first.
   switch (entry.state) {
     case "awake":
       break;

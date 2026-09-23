@@ -1,4 +1,4 @@
-/** ADR-0016: the app plan -- conventions, gangway.yml, Procfile, nested roots -- as a pure function. */
+/** The app plan -- conventions, gangway.yml, Procfile, nested roots -- as a pure function. */
 import { describe, expect, test } from "bun:test";
 import {
   cmdText,
@@ -19,7 +19,7 @@ const plan = (
 const pkg = (o: Record<string, unknown>) => JSON.stringify(o);
 const start = (p: AppPlan) => (p.start === null ? null : cmdText(p.start));
 
-describe("detection is unchanged from ADR-0015", () => {
+describe("runtime detection", () => {
   test.each([
     [["compose.yaml", "package.json"], "own"],
     [["Dockerfile", "index.html"], "own"],

@@ -1,9 +1,6 @@
 /**
- * The single TLS listener (§3.1). One socket, dispatched on the Host header.
- *
- * ADR-0002: `Bun.serve` rather than node:tls + an SNI callback. Hono is fetch-based and
- * Bun.serve is fetch-based, so the preview proxy is just another fetch handler and there
- * is no fetch-world/raw-socket seam on the normal request path.
+ * The single TLS listener: one socket, dispatched on the Host header. `Bun.serve` rather than
+ * node:tls with an SNI callback, so the preview proxy is just another fetch handler.
  */
 import type { Server } from "bun";
 import type { CertStore } from "../tls/certstore.ts";
@@ -54,7 +51,7 @@ export function startListener(o: ListenerOptions): RunningListener {
 
     fetch(req: Request, server: Server<WsData>): Response | Promise<Response> | undefined {
       peers.set(req, server.requestIP(req)?.address ?? "");
-      // A WebSocket upgrade must be taken BEFORE dispatch, because Bun owns the socket
+      // A WebSocket upgrade must be taken before dispatch, because Bun owns the socket
       // from the moment server.upgrade() succeeds and no Response may be returned.
       if (isWebSocketUpgrade(req)) {
         const host = normalizeHost(req.headers.get("host"));
@@ -83,8 +80,7 @@ export function startListener(o: ListenerOptions): RunningListener {
         }
       }
 
-      // SSE and slow uploads must outlive the per-request idle timeout. Spike S0/P2
-      // proved a stream held 12.1s against a 10s idleTimeout once this is set.
+      // SSE and slow uploads must outlive the per-request idle timeout.
       server.timeout(req, 0);
       return dispatch(req, o.deps);
     },
@@ -108,14 +104,9 @@ export function startListener(o: ListenerOptions): RunningListener {
     },
 
     /**
-     * Certificate hot-swap.
-     *
-     * Spike S0/P6 established that `server.reload({ tls })` does NOT replace the
-     * certificate on Bun 1.4.2 -- new connections still presented the old serial. So we
-     * bind a SECOND listener on the same port with SO_REUSEPORT carrying the new
-     * material, then stop the old one WITHOUT closing its active connections, letting
-     * in-flight requests drain on the old context. Measured 12-18ms, with an in-flight
-     * SSE stream surviving intact.
+     * Certificate hot-swap. `server.reload({ tls })` does not replace the certificate, so this
+     * binds a second listener on the same port (SO_REUSEPORT) with the new material, then stops
+     * the old one without closing its active connections so in-flight requests drain.
      */
     swapCerts() {
       const old = server;

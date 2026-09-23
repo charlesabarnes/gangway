@@ -1,5 +1,5 @@
 /**
- * Import layering, as promised by ADR-0003 and docs/STATUS.md:
+ * Import layering:
  *   - nothing below app/ may import app/  (the service layer has no HTTP types)
  *   - only db/sqlite.ts may import bun:sqlite
  */

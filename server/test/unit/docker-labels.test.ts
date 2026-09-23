@@ -83,7 +83,7 @@ describe("round trip", () => {
     expect(isManaged(l)).toBe(true);
   });
 
-  test("the spec's key list is present verbatim", () => {
+  test("every documented label key is present", () => {
     const l = buildLabels(sample);
     for (const key of [
       "gangway.managed",
@@ -109,10 +109,9 @@ describe("round trip", () => {
   });
 });
 
-/* This is the whole justification for §4.1. If a route cannot be rebuilt from labels
-   alone, the daemon is not an independent second copy of state, and §11's third row
-   ("no route / container running -> rebuild the route from labels") has no answer. */
-describe("§4.1: the label set alone reconstructs a Route", () => {
+/* If a route cannot be rebuilt from labels alone, the daemon is not an independent second
+   copy of state, and the reconciler has no answer for "no route, container running". */
+describe("the label set alone reconstructs a Route", () => {
   test("a Route survives a trip through labels with nothing else in hand", () => {
     const route: Route = {
       hostname: "acme-pr-123-api.preview.example.com",
@@ -237,8 +236,8 @@ describe("failures are values, never throws", () => {
   });
 });
 
-/* §11: an orphan holding a port is worse than a missing preview, so the reconciler
-   stops malformed containers. A container written by a NEWER gangway is not an orphan,
+/* An orphan holding a port is worse than a missing preview, so the reconciler
+   stops malformed containers. A container written by a newer gangway is not an orphan,
    it is a stranger, and stopping it would be the destructive version of this bug. */
 describe("version skew", () => {
   test("a higher version is reported distinctly, not as malformed", () => {

@@ -1,17 +1,17 @@
 /**
- * `Idempotency-Key` (§10.1) -- and, in Phase 5, the MCP `deploy` tool's key (§10.2):
- * "Agents retry. Without a key, three retries means three previews and three URLs."
+ * `Idempotency-Key` for REST deploys and the MCP `deploy` tool's key. Agents retry; without a
+ * key, three retries means three previews and three URLs.
  *
- * In the service layer, not the REST adapter, so both get the same semantics (ADR-0003):
+ * In the service layer, not the REST adapter, so both get the same semantics:
  *
- *   same key, same request     -> the preview that request already made, as it is NOW
+ *   same key, same request     -> the preview that request already made, as it is now
  *                                 (still building, awake, or failed -- a failure is
  *                                 replayed too; a retry is not a redeploy)
  *   same key, other request    -> 422. The caller has a bug; guessing which it meant is worse.
  *   same key, preview destroyed-> the key is free again
  *   same key, at the same time -> one deploy; every caller gets its result
  *
- * A deploy that is REJECTED (422, 409) records nothing: there is no preview to return,
+ * A deploy that is rejected (422, 409) records nothing: there is no preview to return,
  * and the retry deserves the same honest error.
  */
 import { createHash } from "node:crypto";

@@ -1,5 +1,5 @@
 /**
- * Shared vocabulary for source ingestion (§5.1): the two ways bytes get onto the box --
+ * Shared vocabulary for source ingestion: the two ways bytes get onto the box --
  * a git clone the server performs itself, and a tarball an agent POSTs.
  *
  * Both paths take untrusted input and turn it into files on disk, so every limit and
@@ -28,7 +28,7 @@ export type ExtractLimits = {
   /** Entry-count cap. Zip-bomb archives are usually millions of tiny files, not one big one. */
   maxEntries?: number;
   maxFileBytes?: number;
-  /** Cap on DECOMPRESSED bytes, enforced as they stream past -- never after the fact. */
+  /** Cap on decompressed bytes, enforced as they stream past -- never after the fact. */
   maxTotalBytes?: number;
   /** Bytes, not characters: a tar header name field is 100 bytes plus PAX extensions. */
   maxPathBytes?: number;
@@ -47,7 +47,9 @@ export function resolveLimits(l: ExtractLimits = {}): ResolvedLimits {
   return { ...DEFAULT_LIMITS, ...l };
 }
 
-/** Extracted files are ours, not the archive's: uploads do not get to set the executable bit. */
+/**
+ * Extracted files are ours, not the archive's: uploads do not get to set the executable bit.
+ */
 export const FILE_MODE = 0o644;
 export const DIR_MODE = 0o755;
 

@@ -310,7 +310,7 @@ describe("CloudflareDnsProvider rate limits", () => {
 
 /**
  * The case that fails exactly half the time if createTxt upserts: one wildcard order,
- * two authorizations, two distinct values, ONE name.
+ * two authorizations, two distinct values, one name.
  */
 describe("wildcard order: two TXT records at one name", () => {
   test("ADDS both records at the same name and cleans up BOTH", async () => {

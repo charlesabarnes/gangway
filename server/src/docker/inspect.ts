@@ -2,15 +2,11 @@
  * Reading facts back off a container: which host port it actually published, whether it
  * is healthy, and which containers on a daemon are ours.
  *
- * Everything that decides anything is a pure function over plain inspect JSON. The
- * reconciler's hardest cases (§11) — "verify port", "rebuild the route from labels",
- * "an orphan holding a port is worse than a missing preview" — are all judgements about
- * a JSON blob, and they are worth testing against captured payloads rather than against
- * a live daemon that happens to be in the right state today.
+ * Everything that decides anything is a pure function over plain inspect JSON, so the
+ * reconciler's judgements can be tested against captured payloads rather than a live daemon.
  *
- * ADR-0004 means the published port SHOULD equal the port we allocated. `UpdateUpstream`
- * exists because a human can recreate a container by hand and move it, so we read the
- * real value rather than assuming ours.
+ * The published port should equal the one gangway allocated, but a human can recreate a
+ * container by hand and move it, so the real value is read rather than assumed.
  */
 import type { Route } from "@gangway/shared/domain";
 import type { ContainerSummary, DockerClient } from "./client.ts";
@@ -101,7 +97,7 @@ const isIpv4 = (ip: string): boolean => /^\d{1,3}(\.\d{1,3}){3}$/.test(ip);
 
 /**
  * The binding for one container port. `bind` is `Host.publishBind`: when dockerd bound
- * both families we must return the one the proxy will actually dial, not whichever the
+ * both families this returns the one the proxy will actually dial, not whichever the
  * daemon listed first.
  */
 export function findPublishedPort(
@@ -122,8 +118,8 @@ export function findPublishedPort(
 }
 
 /**
- * `none` means no healthcheck is declared, which is NOT the same as unhealthy: §7.4
- * gates wake on healthchecks, and a service without one must be treated as ready rather
+ * `none` means no healthcheck is declared, which is not the same as unhealthy: wake is
+ * gated on healthchecks, and a service without one must be treated as ready rather
  * than hanging the wake forever.
  */
 export type HealthState = "none" | "starting" | "healthy" | "unhealthy" | "unknown";
@@ -165,8 +161,8 @@ export function containerName(inspect: InspectJson): string {
 }
 
 /**
- * §11 row 1: "Route exists / container running -> verify port, continue."
- * `null` means agreement. Anything else is the `UpdateUpstream` case.
+ * A running container's published port against its route. `null` means agreement; anything
+ * else is the `UpdateUpstream` case.
  */
 export type PortDrift =
   { kind: "no-binding"; expected: number } | { kind: "moved"; expected: number; actual: number };
@@ -191,7 +187,7 @@ export type ManagedContainer = {
   project: string | null;
   state: string;
   labels: GangwayLabels;
-  /** Rebuilt purely from labels (§4.1). No database, no second daemon call. */
+  /** Rebuilt purely from labels. No database, no second daemon call. */
   route: Route;
 };
 
@@ -207,10 +203,9 @@ export type ManagedScan = {
   hostId: string;
   managed: ManagedContainer[];
   /**
-   * Kept separate and NOT merged into `managed`: `future-version` entries must make the
-   * reconciler warn and back off, and `malformed` ones are the orphans §11 says to stop.
-   * Collapsing the two loses exactly the distinction that decides whether we destroy
-   * someone's running preview.
+   * Kept separate from `managed`: `future-version` entries make the reconciler warn and back
+   * off, while `malformed` ones are orphans to stop. Collapsing the two would lose the
+   * distinction that decides whether someone's running preview gets stopped.
    */
   unusable: UnusableContainer[];
 };
@@ -235,9 +230,8 @@ const isManagedRow = (r: ManagedContainer | UnusableContainer): r is ManagedCont
   "route" in r;
 
 /**
- * §11 step 2: "query each host for containers with the `gangway.*` label prefix."
- * `all: true` on purpose — a stopped container still holds its name and, more to the
- * point, still owns its published port allocation.
+ * Every container on a host carrying the managed label. `all: true` on purpose — a stopped
+ * container still holds its name and its published port allocation.
  */
 export async function scanManaged(
   client: Pick<DockerClient, "hostId" | "listContainers">,

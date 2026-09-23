@@ -6,9 +6,9 @@ import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
 /**
- * `/v1/secrets` (ADR-0012): the GLOBAL map -- what every preview may receive, at or below
- * its clearance; a repository's own entries win over these on a name. Same shape as
- * `/v1/repos/:id/env`: names and levels out, merges in, never a value back.
+ * `/v1/secrets`: the global map -- what every preview may receive, at or below its
+ * clearance; a project's own entries win over these on a name. Same shape as
+ * `/v1/projects/:ref/env`: names and levels out, merges in, never a value back.
  */
 export function secretRoutes(api: Hono<AppEnv>, secrets: Secrets): void {
   api.get("/secrets", requirePermission("repos.secrets"), (c) =>

@@ -1,5 +1,5 @@
 /**
- * ADR-0023: password-protected previews. The gate (a form served by gangway, a cookie bound
+ * Password-protected previews. The gate (a form served by gangway, a cookie bound
  * to the password), the deploy path (inherit / none / set / generate, the generated one only
  * in the log), a running preview's change, and the server-wide default's own route.
  */
@@ -302,7 +302,7 @@ describe("signed in instead of the password", () => {
     expect(t.get(e, "/", t.signIn(e, false))!.status).toBe(401);
   });
 
-  test("a gate cookie from before ADR-0023 still opens a private preview, and never skips a password", async () => {
+  test("a gate cookie in the older format still opens a private preview, and never skips a password", async () => {
     const key = randomBytes(32);
     const { createHmac } = await import("node:crypto");
     const payload = `01SHOP0000000000000000000A.${Date.now() + 60_000}`;

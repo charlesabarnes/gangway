@@ -2,8 +2,8 @@ import { Routes } from '@angular/router';
 import { anonymousOnly, authGuard, setupOnly } from './core/auth.guard';
 
 /**
- * Every screen is a lazy chunk: the login page should not download the log viewer. The spec
- * caps the product at eight screens (§10.3) -- "a dashboard is how this becomes Coolify".
+ * Every screen is a lazy chunk: the login page should not download the log viewer. Keep the
+ * number of screens small; a dashboard is how a tool like this sprawls.
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'previews' },
@@ -68,7 +68,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
   },
-  // GitHub's manifest flow sends the browser back here with ?code=&state= (ADR-0011). The
+  // GitHub's manifest flow sends the browser back here with ?code=&state=. The
   // path is registered with GitHub: it stays, whatever the page it lands on is called.
   {
     path: 'github/callback',
@@ -78,7 +78,7 @@ export const routes: Routes = [
       import('./features/settings/github-callback').then((m) => m.GitHubCallback),
   },
   { path: 'github', redirectTo: 'settings' },
-  // ADR-0020: /oauth/authorize parks an MCP client's request and sends the browser here.
+  // /oauth/authorize parks an MCP client's request and sends the browser here.
   {
     path: 'connect',
     title: 'Connect an app · gangway',

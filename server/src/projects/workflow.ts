@@ -1,5 +1,5 @@
 /**
- * The GitHub Actions workflow a project's repository runs (ADR-0014), filled in for that
+ * The GitHub Actions workflow a project's repository runs, filled in for that
  * project. Kept as a YAML file beside this one: `${{ }}` is GitHub's syntax, and a JS
  * template literal would try to evaluate it.
  */

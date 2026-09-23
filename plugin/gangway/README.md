@@ -32,4 +32,4 @@ Nothing to install: point any MCP client at your server. It explains its workflo
 
 ## Needs
 
-A gangway server with ADR-0021: `upload`, `check` and runtime `logs`. On an older server the skill still works with `files`, but a rebuild needs a credential with `previews.update`.
+A gangway server whose MCP `deploy` tool supports `upload` and `check`, and whose `logs` tool supports runtime logs. On an older server the skill still works with `files`, but a rebuild needs a credential with `previews.update`.

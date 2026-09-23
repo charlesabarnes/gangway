@@ -19,7 +19,7 @@ export type RedeployEvent = Extract<StreamEvent, { type: 'preview.redeploy' }>;
 
 /**
  * The previews on screen, kept live. One fetch, then `/v1/events` from the cursor that
- * fetch returned -- the server reads that cursor BEFORE the list, so a change landing in
+ * fetch returned -- the server reads that cursor before the list, so a change landing in
  * between is replayed onto a list that already has it, never missed.
  *
  * Shared by the list and the detail page (root-provided, ref-counted), so going from one
@@ -119,7 +119,7 @@ export class PreviewsStore {
     }
   }
 
-  /** ADR-0023: change a preview's password and/or its login rule. Rejects with a ProblemError the caller can show. */
+  /** Change a preview's password and/or its login rule. Rejects with a ProblemError the caller can show. */
   async setPassword(id: string, change: PasswordChange): Promise<Preview> {
     try {
       const { preview } = await firstValueFrom(
@@ -159,7 +159,7 @@ export class PreviewsStore {
       void this.load(e.previewId);
       return;
     }
-    // The replay after a reconnect can include events OLDER than the row just fetched.
+    // The replay after a reconnect can include events older than the row just fetched.
     if (Date.parse(e.at) < Date.parse(held.updatedAt)) return;
     this.#put({
       ...held,
@@ -170,7 +170,7 @@ export class PreviewsStore {
     });
   }
 
-  /** The latest `preview.redeploy` per preview (ADR-0015): the Source panel shows its phase. */
+  /** The latest `preview.redeploy` per preview: the Source panel shows its phase. */
   readonly #redeploys = signal<ReadonlyMap<string, RedeployEvent>>(new Map());
 
   redeployOf(id: string): Signal<RedeployEvent | undefined> {

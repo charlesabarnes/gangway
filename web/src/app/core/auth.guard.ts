@@ -3,7 +3,7 @@ import { Router, type CanActivateFn } from '@angular/router';
 import { AuthService } from './auth.service';
 
 /**
- * Only a same-origin PATH is ever followed after login. `//evil.example` and
+ * Only a same-origin path is ever followed after login. `//evil.example` and
  * `https://evil.example` are both "URLs that start with something plausible"; a returnUrl
  * is attacker-controlled text in a link someone was sent.
  */
@@ -21,7 +21,7 @@ export function safeReturnUrl(raw: string | null | undefined): string {
 }
 
 /**
- * True for the one return URL that is a SERVER endpoint, not an SPA route: the
+ * True for the one return URL that is a server endpoint, not an SPA route: the
  * private-preview gate. It must be reached with a real navigation -- the router would
  * treat it as an unknown path and quietly go home, stranding the visitor on the list.
  */

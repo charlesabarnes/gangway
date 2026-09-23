@@ -1,9 +1,8 @@
 /**
  * The `node:sqlite` twin of sqlite.ts, behind the same Db interface.
  *
- * Its purpose is to keep the portability promise honest: the whole repository test suite
- * runs against both drivers, so a Bun-specific assumption fails a test rather than
- * discovering itself during a migration off Bun.
+ * The whole repository test suite runs against both drivers, so a Bun-specific assumption
+ * fails a test rather than surfacing during a move off Bun.
  */
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import {

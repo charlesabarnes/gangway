@@ -1,9 +1,9 @@
 /**
- * Idle-sleep and wake (§7.4, ADR-0012). Sleep acts on the WHOLE project: `compose stop`,
- * file-less by `-p`, from an empty directory like teardown. Routes stay, ports stay
- * claimed, the row says `asleep`; TTL keeps counting. Wake is the reverse -- `compose
- * start`, then the same health wait and HTTP probe a deploy uses -- and happens ONLY on a
- * request (§11: nothing bulk-starts sixty stacks because their routes exist).
+ * Idle-sleep and wake. Sleep acts on the whole project: `compose stop`, file-less by `-p`,
+ * from an empty directory like teardown. Routes stay, ports stay claimed, the row says
+ * `asleep`; TTL keeps counting. Wake is the reverse -- `compose start`, then the same health
+ * wait and HTTP probe a deploy uses -- and happens only on a request, so nothing bulk-starts
+ * sixty stacks just because their routes exist.
  */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -154,9 +154,9 @@ export class Waker {
     const empty = await mkdtemp(join(tmpdir(), "gangway-wake-"));
     const abort = new AbortController();
     // In flight like a deploy: the reconciler must not read this `starting` as a pipeline a
-    // restart interrupted (found live: a Postgres add-on's start is slow enough for a pass
-    // to land in the middle, mark the preview failed and `down` it under the wake), and a
-    // destroy can abort it and wait.
+    // restart interrupted (a slow start, such as a Postgres add-on's, lets a pass land in the
+    // middle, mark the preview failed and `down` it under the wake), and a destroy can abort
+    // it and wait.
     let settle!: (p: Preview) => void;
     const done = new Promise<Preview>((r) => {
       settle = r;

@@ -32,7 +32,7 @@ export const TRIGGER_HELP: Record<PrTrigger, { name: string; help: string }> = {
 const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
 
 /**
- * Projects (ADR-0014): the things you preview. Each names where its code comes from, the
+ * Projects: the things you preview. Each names where its code comes from, the
  * template its previews follow, and its secrets; a project is made here, on purpose --
  * a pull request from a repository that is no project's is ignored.
  */

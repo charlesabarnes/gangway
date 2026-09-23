@@ -1,45 +1,14 @@
 /**
- * §8.3 the `private` visibility gate: "requires a valid session. The proxy redirects to
- * the UI login and back."
+ * The `private` and password gates in front of a preview.
  *
- * The obvious way to do that is WRONG. The session cookie lives on `app.<base>`; a preview
- * lives on `<name>.<base>`. Widening the cookie to `.<base>` so the proxy could read it
- * would hand the operator's session to every preview container -- and a preview is, by
- * definition, somebody else's code. So the session never leaves `app`, and a preview gets
- * a credential of its own, good for that one preview:
- *
- *   1. GET https://shop.<base>/x          no gate cookie -> 302 to app's /v1/auth/gate?return=…
- *   2. app checks the SESSION and the `previews.view_private` permission, and mints a
- *      TICKET: HMAC-signed, 60 seconds, single use, bound to this hostname AND preview id.
- *   3. GET https://shop.<base>/__gangway/auth?ticket=…&to=/x
- *      -> Set-Cookie __Host-gw_pv (host-only, HttpOnly, signed, 8 h), 302 to /x
- *   4. GET https://shop.<base>/x          cookie verifies -> proxied.
- *
- * What the preview's own code can never see: the gate cookie is stripped from the request
- * before it is forwarded (net/headers.ts, and the WebSocket leg), and `/__gangway/*` is
- * never forwarded, for ANY preview. The ticket rides in a URL, which is why it is
- * single-use and short-lived: by the time it is in a log or a Referer it is dead.
- *
- * Bound to the preview ID, not just the hostname: destroy `shop` and deploy a new `shop`,
- * and an old cookie does not open the new one.
- *
- * No Hono, no database. The hot path is one HMAC over a cookie; the only await is the
- * password form's POST (below).
- *
- * ADR-0023, the PASSWORD gate, checked after the private one. A preview behind a password
- * (its own, or the server-wide shared one when it inherits) answers a page load with a
- * form served by gangway, never by the preview. The form POSTs to `/__gangway/password`;
- * the right password earns `__Host-gw_pw`, signed and bound to the preview id AND a
- * fingerprint of the password hash -- change the password and every cookie for the old one
- * stops working. Stripped before forwarding like the other (`__Host-gw_*`).
- *
- * Signed in instead of the password: when a gangway login may get past a preview's
- * password (the preview says `on`, or `inherit` and the server-wide switch is on), a page
- * load with neither cookie first goes through app's /v1/auth/gate -- the same handshake as
- * a private preview. Signed in with `previews.skip_password`, the ticket says so and the
- * gate cookie it earns carries that; not signed in (or without the permission), app sends
- * the browser straight back to `/__gangway/password`, which shows the form. One bounce per
- * browser, never a login page for a stranger.
+ * The session cookie stays on `app.<base>`: widening it to `.<base>` would hand the operator's
+ * session to every preview, which runs someone else's code. Instead app checks the session and
+ * mints a single-use, 60-second ticket bound to the hostname and preview id; the preview's
+ * `/__gangway/auth` redeems it for a host-only `__Host-gw_pv` cookie. A password-protected
+ * preview serves its own form at `/__gangway/password`, earning `__Host-gw_pw`, bound to the
+ * preview id and a fingerprint of the password hash so changing the password voids old cookies;
+ * where a gangway login may skip the password, the same ticket handshake runs first.
+ * `__Host-gw_*` cookies are stripped before forwarding and `/__gangway/*` never reaches a preview.
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { sourceKey, type LoginLimiter } from "../auth/limiter.ts";
@@ -63,7 +32,7 @@ export type GateOptions = {
   now?: () => number;
   ticketTtlMs?: number;
   cookieTtlMs?: number;
-  /** ADR-0023: how long a correct password is remembered. Default 7 days. */
+  /** How long a correct password is remembered. Default 7 days. */
   passwordCookieTtlMs?: number;
   /** The server-wide shared password, read per request; null when the default is not `shared`. */
   sharedPassword?: () => { hash: string; salt: string } | null;
@@ -86,7 +55,7 @@ type TicketBody = { h: string; p: string; exp: number; n: string; s?: 1 };
 
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
 
-/** Only ever a same-origin PATH: `to` arrives in a URL, and this is a redirect. */
+/** Only ever a same-origin path: `to` arrives in a URL, and this is a redirect. */
 export function safePath(raw: string | null | undefined): string {
   if (
     !raw ||
@@ -130,7 +99,7 @@ export class PreviewGate {
     return given.length === want.length && timingSafeEqual(given, want);
   }
 
-  /** Called by the app surface AFTER it has checked the session and the permission. */
+  /** Called by the app surface after it has checked the session and the permission. */
   issueTicket(
     entry: Pick<RouteEntry, "hostname" | "previewId">,
     o: { skipPassword?: boolean } = {},
@@ -183,7 +152,7 @@ export class PreviewGate {
         .slice(eq + 1)
         .trim()
         .split(".");
-      // Three fields: a cookie from before ADR-0023, which never skips a password.
+      // Three fields: an older cookie format, which never skips a password.
       if (fields.length !== 3 && fields.length !== 4) continue;
       const sig = fields.pop()!;
       const [previewId, exp, skip] = fields;
@@ -342,7 +311,7 @@ export class PreviewGate {
 
   /**
    * The dispatcher's hook (and the WebSocket path's). null means "let it through".
-   * `/__gangway/*` is answered here for EVERY preview, so the prefix can never reach an
+   * `/__gangway/*` is answered here for every preview, so the prefix can never reach an
    * upstream and a preview cannot serve a convincing fake of it.
    */
   readonly check = (entry: RouteEntry, req: Request): Response | null => {
@@ -423,7 +392,7 @@ export class PreviewGate {
   }
 }
 
-/** Private visibility, or login-only access (ADR-0023): a gangway login is the only way in. */
+/** Private visibility, or login-only access: a gangway login is the only way in. */
 function isPrivate(entry: RouteEntry): boolean {
   return entry.visibility === "private" || entry.passwordLogin === "only";
 }

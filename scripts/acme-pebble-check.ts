@@ -1,9 +1,10 @@
 /**
- * tls/acme.ts against a REAL ACME server: Pebble (Let's Encrypt's test CA) plus its
+ * tls/acme.ts against a real ACME server: Pebble (Let's Encrypt's test CA) plus its
  * challenge DNS server, both on a Docker host reachable over SSH as $DOCKER_HOST_SSH. The
- * unit test proves the sequencing against a fake; this proves the protocol -- nonces, JWS, order finalization, a real chain -- and
- * then the part no unit test can: gangway boots on the dev CA, the `cert-renew` job
- * obtains the certificate, and the LISTENER starts presenting it without a restart.
+ * unit test covers the sequencing against a fake; this covers the protocol -- nonces, JWS,
+ * order finalization, a real chain -- and then the part no unit test can: gangway boots on
+ * the dev CA, the `cert-renew` job obtains the certificate, and the listener starts
+ * presenting it without a restart.
  *
  *   ssh $DOCKER_HOST_SSH 'docker run --rm -d --name gw-acme-challtestsrv \
  *       -p 127.0.0.1:31900:14000 -p 127.0.0.1:31901:8055 ghcr.io/letsencrypt/pebble-challtestsrv:latest \
@@ -51,7 +52,7 @@ const dns: DnsProvider = {
   },
 };
 
-/** What the listener presents RIGHT NOW for this SNI name. */
+/** What the listener presents right now for this SNI name. */
 const presented = (port: number, servername: string) =>
   new Promise<{ issuer: string; sans: string }>((resolve, reject) => {
     const s = tlsConnect({ host: "127.0.0.1", port, servername, rejectUnauthorized: false }, () => {

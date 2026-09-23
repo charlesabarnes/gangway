@@ -1,17 +1,17 @@
 /**
  * Named periodic jobs for the one process: reconcile, the TTL sweep, the lastSeen flush,
- * and later certificate renewal and idle-sleep.
+ * certificate renewal and the like.
  *
  * What it guarantees, each of which a bare `setInterval` does not:
  *
- *  1. A JOB NEVER OVERLAPS ITSELF. The next run is scheduled when the previous one
- *     SETTLES, so a pass that outlives its interval delays the next instead of stacking
+ *  1. A job never overlaps itself. The next run is scheduled when the previous one
+ *     settles, so a pass that outlives its interval delays the next instead of stacking
  *     on it. `trigger()` joins a run in flight rather than starting a second.
- *  2. JITTER. Every delay is spread by +/- `jitter`, so jobs sharing an interval do not
+ *  2. Jitter. Every delay is spread by +/- `jitter`, so jobs sharing an interval do not
  *     fire in the same tick forever, and two instances on one daemon do not scan in step.
- *  3. A THROWING JOB IS A LOG LINE, not an unhandled rejection and not the end of the job.
- *  4. STOP IS GRACEFUL. No new runs, running jobs are told through their AbortSignal and
- *     WAITED for up to a deadline -- so the database is never closed under a job's feet.
+ *  3. A throwing job is a log line, not an unhandled rejection and not the end of the job.
+ *  4. Stop is graceful. No new runs; running jobs are told through their AbortSignal and
+ *     waited for up to a deadline, so the database is never closed under a job's feet.
  *
  * Timers are unref'd: the scheduler never keeps the process alive on its own.
  */
@@ -20,7 +20,7 @@ import { errorMessage } from "../errors.ts";
 
 export type Job = {
   name: string;
-  /** Time from the END of one run to the start of the next. <= 0 registers the job disabled. */
+  /** Time from the end of one run to the start of the next. <= 0 registers the job disabled. */
   intervalMs: number;
   /** Fraction of the interval, 0..1. Default 0.1: a 60s job runs every 54-66s. */
   jitter?: number;
@@ -170,7 +170,7 @@ export class Scheduler {
         : jittered(e.job.intervalMs, e.job.jitter ?? 0.1, this.#random);
     e.timer = this.#setTimer(() => {
       e.timer = null;
-      // Re-armed from the END of the run, whoever started it: that is rule 1.
+      // Re-armed from the end of the run, whoever started it: that is rule 1.
       this.#run(e)
         .catch(() => {})
         .finally(() => this.#arm(e, false));

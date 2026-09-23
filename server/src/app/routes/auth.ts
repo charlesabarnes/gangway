@@ -1,11 +1,10 @@
 /**
- * §8.1 `/v1/auth/*`. A THIN adapter (ADR-0003) over auth/accounts.ts.
+ * `/v1/auth/*`: a thin adapter over auth/accounts.ts.
  *
- * All of these live in the PUBLIC mount: login and setup have no credential yet, "who am
- * I" must answer an anonymous caller, and logout and change-password are for any
- * logged-in person whatever their role -- there is no permission to name. So each handler
- * here answers for its own access, and the rule that every route behind `authenticate`
- * names a permission stays without an exception.
+ * All of these live in the public mount: login and setup have no credential yet, "who am I"
+ * must answer an anonymous caller, and logout and change-password are for any logged-in
+ * person whatever their role. So each handler answers for its own access, and every route
+ * behind `authenticate` still names a permission.
  */
 import type { Context, Hono } from "hono";
 import { ChangePasswordSchema, LoginRequestSchema, SetupRequestSchema } from "@gangway/shared/api";
@@ -29,7 +28,7 @@ import {
 export type GateDeps = {
   /** The live route for a preview hostname, if there is one. */
   lookup(host: string): { hostname: string; previewId: string; visibility: string } | undefined;
-  /** ADR-0023: private, and/or behind a password a gangway login gets past. Absent: private only. */
+  /** Private, and/or behind a password a gangway login gets past. Absent: private only. */
   gateable?(host: string): { private: boolean; passwordSkippable: boolean };
   issueTicket(
     entry: { hostname: string; previewId: string },
@@ -57,13 +56,13 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     userAgent: c.req.header("user-agent") ?? null,
   });
 
-  /** Sessions belong to the `app` hostname, where the cookie is host-only. Elsewhere these do not exist. */
+  /** Sessions belong to the `app` hostname, where the cookie is host-only; elsewhere, 404. */
   const appOnly = (c: Context<AppEnv>) => {
     if (c.env.surface !== "app") throw notFound(`no such resource: ${new URL(c.req.url).pathname}`);
   };
 
   /**
-   * Login CSRF: a hostile page logging YOUR browser into THEIR account, so that what you do
+   * Login CSRF: a hostile page logging your browser into their account, so that what you do
    * next lands in it. There is no session to protect yet, so the check is on Origin alone,
    * and only when a browser sent one -- curl sends none, and scripts must keep working.
    */
@@ -124,7 +123,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     return c.json({ user: wireUser(user), permissions: [...d.roles.for(user.roleId)].sort() });
   });
 
-  /** 404 -- not 403, not 409 -- whenever setup is not pending: a finished setup was never there. */
+  /** 404 (not 403 or 409) whenever setup is not pending: a finished setup was never there. */
   pub.post("/auth/setup", async (c) => {
     appOnly(c);
     if (!d.bootstrap.pending) throw notFound("no such resource: /v1/auth/setup");
@@ -139,18 +138,17 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   });
 
   /**
-   * §8.3, step 2 of the private-preview handshake (net/gate.ts has the whole picture). A
-   * preview host sent the browser here because it had no gate cookie. This is the only
-   * place the SESSION is consulted: the preview never sees it.
+   * Step 2 of the private-preview handshake (net/gate.ts has the whole picture). A preview
+   * host sent the browser here because it had no gate cookie. This is the only place the
+   * session is consulted: the preview never sees it.
    *
-   * A GET that redirects, so it must not be steerable. `host` has to be a LIVE preview that
-   * is private or behind a password a login gets past (ADR-0023) -- not any hostname, which
-   * would make this an open redirect with a gangway URL on the front -- and `to` is reduced
-   * to a same-origin path.
+   * A GET that redirects, so it must not be steerable. `host` has to be a live preview that
+   * is private or behind a password a login gets past -- not any hostname, which would make
+   * this an open redirect -- and `to` is reduced to a same-origin path.
    *
-   * ADR-0023: for a password-protected preview that is NOT private, nobody is sent to log
-   * in. Signed in with `previews.skip_password`, the ticket says so; anyone else goes
-   * straight back to the preview's password form.
+   * For a password-protected preview that is not private, nobody is sent to log in. Signed
+   * in with `previews.skip_password`, the ticket says so; anyone else goes straight back to
+   * the preview's password form.
    */
   pub.get("/auth/gate", async (c) => {
     appOnly(c);
@@ -183,7 +181,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
       return c.redirect(target.toString(), 302);
     }
     if (!actor) {
-      // Come back HERE after login, with the same two parameters and nothing else.
+      // Come back here after login, with the same two parameters and nothing else.
       const back = `/v1/auth/gate?host=${encodeURIComponent(entry.hostname)}&to=${encodeURIComponent(to)}`;
       return c.redirect(`/login?returnUrl=${encodeURIComponent(back)}`, 302);
     }

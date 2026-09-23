@@ -11,7 +11,7 @@ import {
 import { parseLabels } from "../../src/docker/labels.ts";
 import { parseDuration } from "../../src/util/duration.ts";
 
-/** Shaped like the parsed output of a real `docker compose config` (v2.22 and v2.29 agree). */
+/** Shaped like the parsed output of a real `docker compose config`. */
 const resolved = (services: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
   name: "gw-x",
   networks: { default: { name: "gw-x_default", ipam: {} } },
@@ -69,7 +69,7 @@ describe("parseComposeModel", () => {
   });
 
   test("reads x-gangway from real `compose config` YAML, at both levels", () => {
-    // Verbatim v2.29.2 output. YAML, because `--format json` drops the service-level key.
+    // Verbatim `compose config` output. YAML, because `--format json` drops the service-level key.
     const m = parseComposeModel(
       "gw-plan",
       parseYaml(`
@@ -214,7 +214,7 @@ describe("selectExposed", () => {
   });
 });
 
-describe("planRoutes (§6.2: flat labels, one wildcard)", () => {
+describe("planRoutes (flat labels, one wildcard)", () => {
   test("a single service drops its segment and is primary", () => {
     expect(plan(model({ web: { image: "n", ports: [port(3000)] } }))).toEqual([
       {

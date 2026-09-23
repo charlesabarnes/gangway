@@ -11,7 +11,7 @@ export type CreateSession = {
 };
 
 /**
- * §8.1 sessions. `id` is the sha256 of the cookie's secret, so this table -- and every
+ * Sessions. `id` is the sha256 of the cookie's secret, so this table -- and every
  * backup of it -- holds nothing a thief could present.
  */
 export class SessionsRepo {
@@ -36,7 +36,7 @@ export class SessionsRepo {
   }
 
   /**
-   * The session AND its account in one read, because this runs on every cookie request:
+   * The session and its account in one read, because this runs on every cookie request:
    * an expired session, a disabled account and an unknown id are all simply "no".
    */
   findActive(id: string, now: number = this.#now()): { session: Session; user: User } | undefined {
@@ -66,7 +66,7 @@ export class SessionsRepo {
   }
 
   /**
-   * Sliding expiry, throttled: ONE conditional UPDATE that does nothing unless the session
+   * Sliding expiry, throttled: one conditional UPDATE that does nothing unless the session
    * was last seen before `staleBefore`. A busy tab costs a write every few minutes, not
    * one per request. The new expiry never passes the absolute cap.
    */
@@ -89,7 +89,7 @@ export class SessionsRepo {
     return this.#db.run("DELETE FROM sessions WHERE id = $id", { id }).changes > 0;
   }
 
-  /** A password change ends every OTHER session; a reset or a disable ends all of them. */
+  /** A password change ends every other session; a reset or a disable ends all of them. */
   deleteForUser(userId: string, exceptId?: string): number {
     return this.#db.run("DELETE FROM sessions WHERE user_id = $u AND id != $except", {
       u: userId,

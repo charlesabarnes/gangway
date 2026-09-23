@@ -1,7 +1,6 @@
 /**
- * The application router: everything behind a RESERVED label (§3.1). Hono is a leaf --
- * it never sees a preview request, because the dispatcher has already decided this one
- * is ours by the time it arrives here.
+ * The application router: everything behind a reserved label. Hono is a leaf -- it never
+ * sees a preview request, because the dispatcher has already decided this one is ours.
  *
  * One Hono app serves both the `app` and `api` surfaces. `/v1` answers on both, so the
  * Angular UI calls its own origin and there is no CORS anywhere; the static shell
@@ -19,19 +18,19 @@ import { serveStatic } from "./static.ts";
 
 export type AppDeps = AuthDeps & {
   logger: Logger;
-  /** The built Angular app. Absent until T33; the `app` surface then serves only /v1. */
+  /** The built Angular app. Absent: the `app` surface serves only /v1. */
   staticDir?: string | undefined;
   /** Mounted under /v1, behind authentication. Every route here names a permission. */
   v1: (api: Hono<AppEnv>) => void;
   /**
-   * Mounted under /v1 BEFORE authentication: login, setup, "who am I". Each handler here
+   * Mounted under /v1 before authentication: login, setup, "who am I". Each handler here
    * answers for its own access. Registered first, so these paths never reach `authenticate`
    * -- and anything that is not one of them still does, so an unknown /v1 path stays a 401.
    */
   publicV1?: ((pub: Hono<AppEnv>) => void) | undefined;
   /**
-   * Routes OUTSIDE /v1 that are not the static shell: the OAuth authorization server's
-   * metadata, authorize and token endpoints (ADR-0020). Each answers for its own access.
+   * Routes outside /v1 that are not the static shell: the OAuth authorization server's
+   * metadata, authorize and token endpoints. Each answers for its own access.
    */
   root?: ((app: Hono<AppEnv>) => void) | undefined;
   health?: () => Record<string, unknown>;
@@ -53,7 +52,7 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
 
   app.onError(errorHandler(d.logger));
 
-  // ADR-0016 (the workspace): gangway frames PREVIEWS; nothing may frame gangway. A preview
+  // gangway frames previews; nothing may frame gangway. A preview
   // is same-site with the app, so without this a hostile one could frame the UI under its
   // own buttons (clickjacking). The one exception is the private-preview gate, which the
   // workspace's iframe passes through on its way to the preview.

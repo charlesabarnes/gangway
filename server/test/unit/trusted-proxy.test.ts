@@ -27,7 +27,7 @@ describe("clientIpResolver", () => {
     const ip = clientIpResolver(NPM);
     // The visitor sent `X-Forwarded-For: 10.0.0.1`; the proxy appended what it really saw.
     expect(ip("172.17.0.2", "10.0.0.1, 198.51.100.7")).toBe("198.51.100.7");
-    // Two trusted hops (a CDN range in front of NPM): both are skipped.
+    // Two trusted hops (a CDN range in front of the proxy): both are skipped.
     expect(
       clientIpResolver([...NPM, "192.0.2.0/24"])("172.17.0.2", "6.6.6.6, 198.51.100.7, 192.0.2.10"),
     ).toBe("198.51.100.7");

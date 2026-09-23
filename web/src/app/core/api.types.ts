@@ -3,7 +3,7 @@
  * domain types carry `Date`s and Bun-only import conventions, and what crosses the network
  * is JSON -- every timestamp here is an ISO string.
  *
- * Kept honest by `src/testing/fixtures/*.json`: the SERVER's test suite asserts its real
+ * Kept honest by `src/testing/fixtures/*.json`: the server's test suite asserts its real
  * output matches those files, and this project's specs assert the files satisfy these
  * types. Change either side alone and a test fails.
  */
@@ -28,18 +28,18 @@ export type PreviewSource =
   | { kind: 'manual'; userId: string }
   | { kind: 'agent'; tokenId: string; idempotencyKey: string }
   | { kind: 'image'; image: string }
-  /** `runtime` absent: the upload brought its own compose file or Dockerfile (ADR-0015). */
+  /** `runtime` absent: the upload brought its own compose file or Dockerfile. */
   | { kind: 'tarball'; uploadId: string; runtime?: RuntimeId; addons?: AddonChoice[] }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];
 
 export type PreviewUrl = { service: string; url: string; primary: boolean };
 
-/** ADR-0023: `inherit` follows Settings -> Preview passwords; `set` / `generated` are the preview's own. */
+/** `inherit` follows Settings -> Preview passwords; `set` / `generated` are the preview's own. */
 export type PasswordMode = 'inherit' | 'none' | 'set' | 'generated';
 export type PasswordChoice =
   { mode: 'inherit' } | { mode: 'none' } | { mode: 'generate' } | { mode: 'set'; value: string };
-/** ADR-0023: off = the password for everyone; on = signed in OR the password; only = signed in, no password. */
+/** off = the password for everyone; on = signed in or the password; only = signed in, no password. */
 export type PasswordLogin = 'inherit' | 'on' | 'off' | 'only';
 /** Who can open a preview right now, with every default resolved by the server. */
 export type PreviewAccess = 'open' | 'password' | 'signed-in' | 'either' | 'signed-in+password';
@@ -61,15 +61,15 @@ export type Preview = {
   idleAfterMs: number | null;
   /** The clearance this preview was deployed with. */
   secretLevel: Clearance | null;
-  /** The template it was deployed with (ADR-0013); null on previews from before templates. */
+  /** The template it was deployed with; null on previews from before templates. */
   templateId: string | null;
-  /** The project it belongs to (ADR-0014); null for one deployed outside any. */
+  /** The project it belongs to; null for one deployed outside any. */
   projectId: string | null;
-  /** ADR-0023: its password's mode -- never the password. */
+  /** Its password's mode -- never the password. */
   password: PasswordMode;
-  /** ADR-0023: whether a signed-in gangway user skips that password. */
+  /** Whether a signed-in gangway user skips that password. */
   passwordLogin: PasswordLogin;
-  /** Who can open it right now (ADR-0023), resolved by the server. */
+  /** Who can open it right now, resolved by the server. */
   access: PreviewAccess;
   lastSeenAt: string | null;
   error: string | null;
@@ -79,7 +79,7 @@ export type Preview = {
   urls: PreviewUrl[];
 };
 
-/** `seq` is the event cursor to follow `/v1/events` from -- read by the server BEFORE the list. */
+/** `seq` is the event cursor to follow `/v1/events` from -- read by the server before the list. */
 export type PreviewList = { seq: number; previews: Preview[] };
 
 export type PreviewEvent = {
@@ -225,7 +225,7 @@ export type ApiToken = {
   createdAt: string;
 };
 
-/* ---- Phase 3: GitHub and repositories (ADR-0011) */
+/* ---- GitHub and repositories */
 
 /** `GET /v1/github`: connected or not, and where to go next. Never a secret. */
 export type GitHubStatus = {
@@ -252,13 +252,12 @@ export const CLEARANCES: readonly Clearance[] = ['none', 'low', 'standard', 'hig
 export const SECRET_LEVELS: readonly SecretLevel[] = ['low', 'standard', 'high'];
 export type SecretListing = { name: string; level: SecretLevel };
 
-/** `templateId` names the template its previews follow; `visibility`, `ttl` and `prClearance` override it (null: the template's). */
-/** How a project's pull requests arrive (ADR-0014): its own GitHub Actions workflow, or the GitHub App's webhook. */
+/** How a project's pull requests arrive: its own GitHub Actions workflow, or the GitHub App's webhook. */
 export type PrTrigger = 'workflow' | 'webhook';
 export const PR_TRIGGERS: readonly PrTrigger[] = ['workflow', 'webhook'];
 
 /**
- * The thing you preview (ADR-0014). `forge`/`fullName` are both null for a project with
+ * The thing you preview. `forge`/`fullName` are both null for a project with
  * no repository. `templateId` names its template; `visibility`, `ttl` and `prClearance`
  * override it (null: the template's).
  */
@@ -308,7 +307,7 @@ export type ProjectCreate = {
 /** `GET /v1/github/repositories`: where the App is installed. */
 export type InstalledRepository = { fullName: string; installationId: string; private: boolean };
 
-/* ---- Templates (ADR-0013) */
+/* ---- Templates */
 
 /** A named preview policy. `default` is built in. */
 export type Template = {
@@ -346,7 +345,7 @@ export type SettingView = {
   set: boolean;
 };
 
-/* ---- Surfaces (§10.5) */
+/* ---- Surfaces */
 
 export type SurfaceState = { enabled: boolean; managedByConfig: boolean };
 /** `GET|PUT /v1/surfaces`. `reenableUi` is the exact curl the disable dialog shows. */
@@ -361,7 +360,7 @@ export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: st
 /** The server checks it: turning the UI off without it is a 422. */
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
-/* ---- OAuth for MCP clients (ADR-0020) */
+/* ---- OAuth for MCP clients */
 
 export type OAuthScope = 'read' | 'deploy' | 'update';
 /** `GET /v1/oauth/requests/:id`: what the consent page shows. */
@@ -391,7 +390,7 @@ export type OAuthGrant = {
   revokedAt: string | null;
 };
 
-/* ---- Runtimes and editable previews (ADR-0015) */
+/* ---- Runtimes and editable previews */
 
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';
 export const RUNTIME_IDS: readonly RuntimeId[] = [
@@ -416,12 +415,12 @@ export type Runtime = {
   port: number;
   /** What a new preview of this runtime starts with: path -> text. */
   starter: Record<string, string>;
-  /** The versions `gangway.yml` may ask for (ADR-0016). */
+  /** The versions `gangway.yml` may ask for. */
   versions: string[];
 };
 /** Root-level marker files; the first rule with any marker present wins, else `static`. */
 export type DetectionRule = { runtime: Detected; markers: string[] };
-/** `planFiles`: whose CONTENTS `POST /v1/runtimes/plan` wants (root and one level down); the rest are only named. */
+/** `planFiles`: whose contents `POST /v1/runtimes/plan` wants (root and one level down); the rest are only named. */
 export type RuntimeList = {
   runtimes: Runtime[];
   detection: DetectionRule[];
@@ -429,7 +428,7 @@ export type RuntimeList = {
   addons: AddonInfo[];
 };
 
-/* ---- Add-ons (ADR-0017): throwaway databases beside a preview */
+/* ---- Add-ons: throwaway databases beside a preview */
 
 export type AddonId = 'postgres' | 'mysql' | 'redis';
 export const ADDON_IDS: readonly AddonId[] = ['postgres', 'mysql', 'redis'];
@@ -445,7 +444,7 @@ export type AddonInfo = {
   env: string[];
 };
 
-/* ---- The data browser (ADR-0018): needs `previews.data` */
+/* ---- The data browser: needs `previews.data` */
 
 /** `GET /v1/previews/:id/addons` (previews.read). */
 export type PreviewAddon = AddonChoice & { name: string; service: string; env: string[] };
@@ -461,7 +460,7 @@ export type DataResult = {
 export type RedisKeys = { cursor: string; keys: string[] };
 export type RedisKey = { type: string; ttl: string; value: DataResult };
 
-/* ---- The app plan (ADR-0016): what the server will do with an upload, and why */
+/* ---- The app plan: what the server will do with an upload, and why */
 
 /** A shell command, or an argv run as it is. */
 export type Command = string | string[];

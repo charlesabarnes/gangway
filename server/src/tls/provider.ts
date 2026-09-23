@@ -29,7 +29,7 @@ export class SelfSignedProvider implements CertProvider {
   async ensure(domains: string[]): Promise<CertBundle> {
     const { ca, caPath } = await loadOrCreateCa(this.#stateDir);
     // One leaf covering every domain: the wildcard does not match the apex, so both
-    // "*.preview.x" and "preview.x" must be present as SANs (§6.2).
+    // "*.preview.x" and "preview.x" must be present as SANs.
     const material = await issueLeaf(ca, domains);
     return { materials: [material], caPath };
   }

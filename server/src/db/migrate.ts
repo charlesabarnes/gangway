@@ -1,13 +1,11 @@
 /**
  * Numbered-SQL-file migration runner.
  *
- * Tracked in a TABLE rather than PRAGMA user_version, because the checksum is what
- * catches the commonest hand-rolled-runner bug: someone edits an already-applied
- * migration and dev and production silently diverge.
+ * Tracked in a table rather than PRAGMA user_version, so each migration's checksum is
+ * recorded: editing an already-applied migration is refused instead of letting dev and
+ * production silently diverge.
  *
- * There are no down-migrations. For a self-hosted single-binary product "restore the
- * backup" is the correct rollback story, and pretending otherwise adds code that is
- * never tested.
+ * There are no down-migrations; the rollback story is restoring a backup.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

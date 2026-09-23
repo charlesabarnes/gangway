@@ -94,8 +94,8 @@ describe("Passwords", () => {
       p.hash("second of two at production cost"),
     ]);
     clearInterval(probe);
-    // Measured on Bun 1.4.2: ~1 ms of lag with the async scrypt, ~48 ms with scryptSync.
-    // The bound sits between them, so swapping in the sync call FAILS this test.
+    // The async scrypt lags ~1 ms, scryptSync ~48 ms. The bound sits between them, so
+    // swapping in the sync call fails this test.
     expect(worst).toBeLessThan(20);
   });
 

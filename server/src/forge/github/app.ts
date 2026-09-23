@@ -1,5 +1,5 @@
 /**
- * A GitHub App, on plain `fetch` (ADR-0011). Two credentials, in order:
+ * A GitHub App, on plain `fetch`. Two credentials, in order:
  *
  *   the App's private key  ->  a 10-minute RS256 JWT       (identifies the App)
  *   the JWT + an installation id  ->  an installation token (acts on that account's repos)
@@ -162,7 +162,7 @@ export class GitHubApp {
   }
 
   /**
-   * The manifest flow's last step (§10.4): the one-time `code` GitHub redirected back with
+   * The manifest flow's last step: the one-time `code` GitHub redirected back with
    * becomes the App's credentials. Unauthenticated; the code is the credential, once.
    */
   async convertManifest(code: string): Promise<ManifestConversion> {
@@ -206,7 +206,7 @@ export class GitHubApp {
   }
 
   /**
-   * Every repository the App is installed on, across installations (ADR-0014): what the
+   * Every repository the App is installed on, across installations: what the
    * New project form offers. The first 100 per installation; past that, type the name.
    */
   async installedRepositories(): Promise<

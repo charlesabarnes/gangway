@@ -17,10 +17,10 @@ type Row = {
 };
 
 /**
- * §10.1/§10.2: which preview a caller-supplied key already produced. Scoped per PRINCIPAL
+ * Which preview a caller-supplied Idempotency-Key already produced. Scoped per principal
  * (`actorId`: a token id or `user:<id>`) -- one agent's retry must not collide with
- * another's key. The column is still called `token_id`; it predates user actors. `response_json` is deliberately
- * left NULL: a replay answers with the preview as it is NOW, not as it was.
+ * another's key. The column is called `token_id` but holds any actor id. `response_json`
+ * is deliberately left NULL: a replay answers with the preview as it is now.
  */
 export class IdempotencyRepo {
   readonly #db: Db;

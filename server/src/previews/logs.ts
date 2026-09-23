@@ -2,12 +2,12 @@
  * Per-preview logs: build output, compose stderr, pipeline steps. One JSONL file per
  * preview under `<state>/logs/`, numbered lines, live fan-out.
  *
- * NOT the events table: a build emits thousands of lines, and events are the low-volume
+ * Not the events table: a build emits thousands of lines, and events are the low-volume
  * state stream every UI tab replays on reconnect. The line number is the SSE id, so
  * `Last-Event-ID` resumes a log exactly where the browser lost it.
  *
- * Every line is redacted on the way IN -- these go to disk, to SSE clients and into the
- * proxy's failure page (§6.1), and a clone URL with an installation token is one
+ * Every line is redacted on the way in -- these go to disk, to SSE clients and into the
+ * proxy's failure page, and a clone URL with an installation token is one
  * `git fetch` error away.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
@@ -27,7 +27,7 @@ export class PreviewLogs {
   readonly #now: () => number;
   readonly #next = new Map<string, number>();
   readonly #listeners = new Map<string, Set<LogListener>>();
-  /** Exact values to blank in a preview's lines -- an add-on's derived password (ADR-0017). */
+  /** Exact values to blank in a preview's lines -- an add-on's derived password. */
   readonly #masks = new Map<string, string[]>();
 
   constructor(stateDir: string, now: () => number = Date.now) {
@@ -107,7 +107,7 @@ export class PreviewLogs {
     return out;
   }
 
-  /** The proxy's failure page shows these (§6.1: "502 + last 50 log lines"). */
+  /** The proxy's failure page shows these: a 502 plus the last 50 log lines. */
   tail(previewId: string, count = 50): string[] {
     return this.read(previewId)
       .slice(-count)
@@ -115,16 +115,15 @@ export class PreviewLogs {
   }
 
   /**
-   * Replay what is on disk after `afterLine`, then follow. Subscribed BEFORE the read, so a
+   * Replay what is on disk after `afterLine`, then follow. Subscribed before the read, so a
    * line appended in between is neither lost nor doubled.
    *
    * The replay is delivered synchronously, into a consumer with a bounded queue (app/sse.ts
-   * disconnects a client that falls 5000 behind). A build log longer than that used to
-   * overflow the queue before a single frame had been written: the stream closed empty, the
-   * browser reconnected with no Last-Event-ID, and did it again, forever. So the replay is
-   * bounded HERE -- by `tail` (what the caller asked for) and `maxReplay` (what the consumer
-   * can take) -- and the cut is said out loud: one `system` line, numbered as the last line
-   * skipped, so resuming from it lands exactly on the first line that was shown.
+   * disconnects a client that falls 5000 behind). An unbounded replay of a long build log
+   * would overflow it before a frame was written, and the browser would reconnect forever. So
+   * the replay is bounded here -- by `tail` (what the caller asked for) and `maxReplay` (what
+   * the consumer can take) -- and the cut is announced: one `system` line, numbered as the last
+   * line skipped, so resuming from it lands exactly on the first line that was shown.
    */
   follow(
     previewId: string,
@@ -163,7 +162,7 @@ export class PreviewLogs {
     };
   }
 
-  /** §15.4 default: discard on destroy. */
+  /** Logs are discarded on destroy. */
   remove(previewId: string): void {
     rmSync(this.#path(previewId), { force: true });
     this.#next.delete(previewId);

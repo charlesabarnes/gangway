@@ -1,14 +1,13 @@
 /**
- * Password hashing: scrypt from `node:crypto` (§8.1, §13 -- no native addon).
+ * Password hashing: scrypt from `node:crypto`, so no native addon.
  *
  * The stored hash is self-describing, `scrypt$ln=15,r=8,p=1$<base64 key>`, with the salt
- * in its own column. Cost can therefore be raised later without a migration: old rows
- * keep verifying at the cost they were made with, and `needsRehash` upgrades them at the
- * next successful login.
+ * in its own column. Cost can be raised without a migration: old rows keep verifying at
+ * their own cost, and `needsRehash` upgrades them at the next successful login.
  *
  * scrypt is deliberately expensive, and this process is also a reverse proxy. Two rules
  * keep a login storm from becoming a proxy outage:
- *  - the ASYNC scrypt, which runs on the libuv threadpool, never the event loop;
+ *  - the async scrypt, which runs on the libuv threadpool, never the event loop;
  *  - a small semaphore. The pool has four threads and `dns.lookup` and `fs` share it, so
  *    at most two hashes run at once, a few more wait, and the rest are told to come back.
  */
@@ -27,11 +26,11 @@ type Params = { ln: number; r: number; p: number };
 const KEY_LEN = 64;
 const SALT_LEN = 16;
 const FORMAT = /^scrypt\$ln=(\d{1,2}),r=(\d{1,2}),p=(\d{1,2})\$([A-Za-z0-9+/]+=*)$/;
-/** A stored hash is data: refuse parameters that would turn verifying it into a denial of service. */
+/** A stored hash is data: refuse parameters that would make verifying it a denial of service. */
 const LIMITS = { ln: [10, 20], r: [1, 16], p: [1, 4] } as const;
 
 function derive(password: string, salt: Buffer, { ln, r, p }: Params): Promise<Buffer> {
-  // Node's default maxmem is 32 MiB, which is EXACTLY what N=2^15,r=8 needs -- so the
+  // Node's default maxmem is 32 MiB, which is exactly what N=2^15,r=8 needs -- so the
   // default throws. Ask for what the parameters require, with headroom.
   const opts: ScryptOptions = { N: 2 ** ln, r, p, maxmem: 128 * 2 ** ln * r * 2 };
   return new Promise((resolve, reject) =>
@@ -90,7 +89,7 @@ export class Passwords {
     };
   }
 
-  /** False for a wrong password AND for a stored value that does not parse: never throws on bad data. */
+  /** False for a wrong password and for a stored value that does not parse; never throws. */
   async verify(password: string, stored: { hash: string; salt: string }): Promise<boolean> {
     const parsed = parse(stored.hash);
     if (!parsed) return false;

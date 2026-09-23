@@ -2,9 +2,9 @@ import { gzipSync, unzipSync } from 'fflate';
 import type { Detected, DetectionRule } from '../../core/api.types';
 
 /**
- * Turning what was dropped into what the server takes (ADR-0015): ONE tar.gz. Files,
+ * Turning what was dropped into what the server takes: one tar.gz. Files,
  * folders and zips are all flattened here, in the browser -- the server keeps one hardened
- * archive reader, and zip (its directory is at the END of the file) cannot be read
+ * archive reader, and zip (its directory is at the end of the file) cannot be read
  * streaming, so it never reaches the server as a zip.
  *
  * Everything below `collect*` is pure and synchronous, and unit-tested as such.
@@ -52,7 +52,7 @@ export function normalizePath(raw: string): string {
 
 /**
  * A folder dropped whole, or a zip of one, puts every path under the same first segment.
- * The server looks for markers (package.json, index.html) at the ROOT, so that one segment
+ * The server looks for markers (package.json, index.html) at the root, so that one segment
  * is removed -- and remembered, as a name for the preview.
  */
 export function stripCommonRoot<T extends { path: string }>(
@@ -78,7 +78,7 @@ export const isZip = (name: string) => /\.zip$/i.test(name);
 export const MAX_PLAN_FILE_BYTES = 256 * 1024;
 
 /**
- * The body of `POST /v1/runtimes/plan` (ADR-0016): every path, and the text of the few files
+ * The body of `POST /v1/runtimes/plan`: every path, and the text of the few files
  * the plan reads -- at the root and one directory down, as `planFilePaths` picks them.
  */
 export function planPayload(

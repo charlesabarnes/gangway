@@ -1,11 +1,11 @@
 /**
- * Client ID Metadata Documents (ADR-0020; the MCP authorization spec's preferred client
- * registration). A client's `client_id` IS an https URL; the document there names the
+ * Client ID Metadata Documents, the MCP authorization spec's preferred client
+ * registration. A client's `client_id` is an https URL; the document there names the
  * client and the redirect URIs it may use. claude.ai and Claude Code both register this way.
  *
  * Fetching a URL a stranger chose is server-side request forgery waiting to happen, so:
- *  - https on 443 only, no credentials in the URL, a path required (the spec's rules);
- *  - the address is checked AT CONNECT TIME by the socket's own `lookup`, so a DNS answer
+ *  - https on 443 only, no credentials in the URL, a path required (the MCP spec's rules);
+ *  - the address is checked at connect time by the socket's own `lookup`, so a DNS answer
  *    that changes between a check and the connect (rebinding) cannot reach the host's LAN,
  *    loopback, the docker bridge or a metadata service;
  *  - no redirects, 5 s, 64 KiB, JSON;
@@ -51,7 +51,7 @@ for (const [net, bits] of [
 ] as const)
   PRIVATE.addSubnet(net, bits, "ipv4");
 for (const [net, bits] of [
-  // Not ::ffff:0:0/96: BlockList matches EVERY IPv4 address against it. Mapped addresses
+  // Not ::ffff:0:0/96: BlockList matches every IPv4 address against it. Mapped addresses
   // are unwrapped and judged as IPv4 below instead.
   ["::", 128],
   ["::1", 128],
@@ -73,7 +73,7 @@ export function isPublicAddress(address: string): boolean {
   return !PRIVATE.check(address, family === 6 ? "ipv6" : "ipv4");
 }
 
-/** The spec's shape rules for a client_id URL, before any network. */
+/** The MCP spec's shape rules for a client_id URL, before any network. */
 export function checkClientIdUrl(raw: string): URL {
   let u: URL;
   try {
@@ -256,7 +256,7 @@ export class ClientMetadataStore {
 
 /**
  * Exact match, except a loopback redirect, which matches whatever port the client opened
- * this time (RFC 8252 §7.3): Claude Code listens on an ephemeral port.
+ * this time (RFC 8252 section 7.3): Claude Code listens on an ephemeral port.
  */
 export function redirectAllowed(requested: string, registered: readonly string[]): boolean {
   if (registered.includes(requested)) return true;

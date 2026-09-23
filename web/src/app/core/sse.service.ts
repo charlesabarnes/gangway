@@ -38,8 +38,8 @@ const PROBE_AFTER_FAILURES = 2;
 /**
  * Server-sent events, for a server that restarts.
  *
- * Native EventSource reconnects on a dropped connection -- but gives up FOR GOOD on any
- * response that is not a 200. gangway answers 503 while draining, and Nginx Proxy Manager
+ * Native EventSource reconnects on a dropped connection -- but gives up for good on any
+ * response that is not a 200. gangway answers 503 while draining, and a reverse proxy
  * answers 502 while gangway is down: exactly the moments this must survive. So the native
  * retry is never relied on. Every error closes the source and this reopens it, with
  * backoff, asking for `?after=<last id>` -- one code path, and one that a spec can drive.
@@ -62,7 +62,7 @@ export class SseService {
   readonly #doc = inject(DOCUMENT);
 
   /**
-   * `types` must be listed: a NAMED event never reaches `onmessage`, and gangway names
+   * `types` must be listed: a named event never reaches `onmessage`, and gangway names
    * every event. Malformed JSON is dropped, not thrown -- one bad frame must not end a stream.
    */
   open<T>(
@@ -73,7 +73,7 @@ export class SseService {
   ): SseHandle {
     const status = signal<SseStatus>('connecting');
     let source: EventSourceLike | null = null;
-    // The cursor is an OPTION, never part of `url`: a reconnect appends its own `after`, and
+    // The cursor is an option, never part of `url`: a reconnect appends its own `after`, and
     // a URL that already carried one would send two -- the server reads the first, the stale one.
     let lastId = o.after === undefined ? '' : String(o.after);
     let failures = 0;

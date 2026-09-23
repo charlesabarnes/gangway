@@ -1,5 +1,5 @@
 /**
- * Pull requests through a workflow (ADR-0014). A GitHub Actions run in the project's
+ * Pull requests through a workflow. A GitHub Actions run in the project's
  * repository has built and pushed the head commit's image; it asks for that image to be
  * the PR's preview, and later for the preview to go. The rules, all here:
  *
@@ -8,7 +8,7 @@
  *     the project takes pull requests by workflow (the webhook would make a second preview);
  *   - one preview per pull request: a new head replaces the old one; the same head, still
  *     live, is left alone -- a re-run is not a redeploy;
- *   - the clearance a pull request was raised or lowered to sticks across pushes (ADR-0012);
+ *   - the clearance a pull request was raised or lowered to sticks across pushes;
  *   - a person or token with the permission may do the same by hand, for any project.
  *
  * Nothing forge-specific happens here: the workflow writes its own PR comment.
@@ -50,7 +50,7 @@ export function registryOf(image: string): string {
 
 export class Pulls {
   readonly #d: PullsDeps;
-  /** One operation per pull request at a time: two pushes in a row must not race each other's teardown. */
+  /** One operation per pull request at a time, so two quick pushes cannot race a teardown. */
   readonly #queues = new Map<string, Promise<unknown>>();
 
   constructor(d: PullsDeps) {
@@ -116,7 +116,7 @@ export class Pulls {
         actor,
         name: `${project.slug}-pr-${number}`,
         projectId: project.id,
-        // Sticky: a clearance someone set on this PR outlives its pushes (ADR-0012).
+        // Sticky: a clearance someone set on this PR outlives its pushes.
         ...(existing?.secretLevel ? { secretLevel: existing.secretLevel } : {}),
         source: {
           kind: "pushed",
