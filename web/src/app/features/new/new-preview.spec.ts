@@ -1,13 +1,12 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { gunzipSync, strToU8 } from 'fflate';
+import { gunzipSync } from 'fflate';
 import contract from '../../../testing/fixtures/contract.json';
-import { render } from '../../../testing/render';
+import { render, type Rendered } from '../../../testing/render';
 import type { AppPlan, Permission, Preview, RuntimeList } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { NewPreview } from './new-preview';
-import { finish } from './pack';
 
 @Component({ template: '' })
 class Blank {}
@@ -92,6 +91,18 @@ async function open(permissions: Permission[] = ['previews.read', 'previews.depl
 const gunzipText = async (body: unknown) =>
   new TextDecoder().decode(gunzipSync(new Uint8Array(await (body as Blob).arrayBuffer())));
 
+async function pickFolder(r: Rendered<NewPreview>, files: Record<string, string>) {
+  const input = r.byTestId('pick-folder') as HTMLInputElement;
+  const list = Object.entries(files).map(([path, text]) => {
+    const f = new File([text], path.split('/').pop()!);
+    Object.defineProperty(f, 'webkitRelativePath', { value: path });
+    return f;
+  });
+  Object.defineProperty(input, 'files', { value: list, configurable: true });
+  input.dispatchEvent(new Event('change'));
+  await r.until(() => r.byTestId('summary') !== null || r.byTestId('error') !== null, 'the pick');
+}
+
 describe('NewPreview', () => {
   it('without previews.deploy it says so and asks for nothing', async () => {
     const r = await open(['previews.read']);
@@ -171,13 +182,7 @@ describe('NewPreview', () => {
 
   it('dropped files show a summary and the detected runtime; the choice can be overridden; options ride the query', async () => {
     const r = await open();
-    await r.fixture.componentInstance.accept(
-      finish([
-        { path: 'api/package.json', data: strToU8('{}') },
-        { path: 'api/server.js', data: strToU8('x') },
-        { path: 'api/.DS_Store', data: strToU8('') },
-      ]),
-    );
+    await pickFolder(r, { 'api/package.json': '{}', 'api/server.js': 'x', 'api/.DS_Store': '' });
     await r.settle();
     expect(r.text('summary')).toContain('2 files');
     expect(r.text('summary')).toContain('1 skipped');
@@ -202,9 +207,7 @@ describe('NewPreview', () => {
 
   it('a refused upload shows the detail and the compose violations', async () => {
     const r = await open();
-    await r.fixture.componentInstance.accept(
-      finish([{ path: 'Dockerfile', data: strToU8('FROM scratch') }]),
-    );
+    await pickFolder(r, { Dockerfile: 'FROM scratch' });
     await r.settle();
     expect(r.text('detected')).toContain('Own Dockerfile');
     r.byTestId('deploy')!.click();
@@ -228,7 +231,7 @@ describe('NewPreview', () => {
 
   it('an empty drop is refused locally, with nothing sent', async () => {
     const r = await open();
-    await r.fixture.componentInstance.accept(finish([{ path: '.DS_Store', data: strToU8('') }]));
+    await pickFolder(r, { '.DS_Store': '' });
     await r.settle();
     expect(r.text('error')).toContain('Nothing to upload');
     r.http.verify();
@@ -236,13 +239,11 @@ describe('NewPreview', () => {
 
   it('asks the server for a plan, shows its reasons, deploys with runtime=auto; a plan that cannot run blocks Deploy', async () => {
     const r = await open();
-    await r.fixture.componentInstance.accept(
-      finish([
-        { path: 'site/package.json', data: strToU8('{"scripts":{"build":"vite build"}}') },
-        { path: 'site/index.html', data: strToU8('<div id=app></div>') },
-        { path: 'site/src/main.ts', data: strToU8('x') },
-      ]),
-    );
+    await pickFolder(r, {
+      'site/package.json': '{"scripts":{"build":"vite build"}}',
+      'site/index.html': '<div id=app></div>',
+      'site/src/main.ts': 'x',
+    });
     await r.settle();
     const ask = r.http.expectOne('/v1/runtimes/plan');
     // Paths all named; only the plan files' text sent.
@@ -302,12 +303,7 @@ describe('NewPreview', () => {
 
   it('add-ons: suggestions arrive ticked and ride the query; unticking everything sends none; a starter takes them too', async () => {
     const r = await open();
-    await r.fixture.componentInstance.accept(
-      finish([
-        { path: 'package.json', data: strToU8('{"dependencies":{"pg":"8"}}') },
-        { path: 'server.js', data: strToU8('x') },
-      ]),
-    );
+    await pickFolder(r, { 'package.json': '{"dependencies":{"pg":"8"}}', 'server.js': 'x' });
     await r.settle();
     r.http
       .expectOne('/v1/runtimes/plan')

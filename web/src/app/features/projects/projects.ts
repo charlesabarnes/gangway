@@ -10,15 +10,14 @@ import type {
   Template,
 } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
-import { toProblem } from '../../core/problem';
+import { issuesOrDetail, toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { EmptyState } from '../../ui/empty-state';
 import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
+import { FIELD } from '../../ui/field';
 import { PreviewsStore } from '../previews/previews.store';
 
-export const FIELD =
-  'block w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent/30 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900';
 export const TRIGGER_HELP: Record<PrTrigger, { name: string; help: string }> = {
   workflow: {
     name: 'A workflow in the repository',
@@ -357,9 +356,7 @@ export class ProjectsPage {
       );
     } catch (err) {
       const p = toProblem(err);
-      this.createError.set(
-        p.issues.length ? p.issues.map((i) => `${i.path}: ${i.message}`).join('; ') : p.detail,
-      );
+      this.createError.set(issuesOrDetail(p));
     } finally {
       this.busy.set(false);
     }

@@ -4,23 +4,24 @@ import { HARD_NAVIGATE, isServerReturn, safeReturnUrl } from '../../core/auth.gu
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
-import { ALERT, AuthCard, FIELD, LABEL } from './auth-card';
+import { ErrorAlert } from '../../ui/error-alert';
+import { AuthCard, FIELD, LABEL } from './auth-card';
 
 @Component({
   selector: 'app-login',
-  imports: [AuthCard, Btn],
+  imports: [AuthCard, Btn, ErrorAlert],
   template: `
     <app-auth-card heading="Log in">
       <span lede>Use the account your gangway admin gave you.</span>
 
       <form (submit)="submit($event)" novalidate class="space-y-5">
         @if (auth.unreachable()) {
-          <p [class]="alert" role="alert" data-testid="unreachable">
+          <app-error-alert class="px-3 py-2.5" data-testid="unreachable">
             Cannot reach the server. It may be restarting — try again in a moment.
-          </p>
+          </app-error-alert>
         }
         @if (error(); as e) {
-          <p [class]="alert" role="alert" data-testid="error">{{ e }}</p>
+          <app-error-alert class="px-3 py-2.5" data-testid="error">{{ e }}</app-error-alert>
         }
 
         <div>
@@ -80,7 +81,6 @@ export class Login {
 
   protected readonly field = FIELD;
   protected readonly label = LABEL;
-  protected readonly alert = ALERT;
 
   protected readonly email = signal('');
   protected readonly password = signal('');

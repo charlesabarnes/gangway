@@ -1,15 +1,16 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { toProblem } from '../../core/problem';
+import { issuesOrDetail, toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
-import { ALERT, AuthCard, FIELD, LABEL } from './auth-card';
+import { ErrorAlert } from '../../ui/error-alert';
+import { AuthCard, FIELD, LABEL } from './auth-card';
 
 const MIN_PASSWORD = 12;
 
 @Component({
   selector: 'app-setup',
-  imports: [AuthCard, Btn],
+  imports: [AuthCard, Btn, ErrorAlert],
   template: `
     <app-auth-card heading="Create the first admin">
       <span lede
@@ -17,22 +18,22 @@ const MIN_PASSWORD = 12;
       >
 
       @if (!token) {
-        <div [class]="alert" role="alert" data-testid="no-token">
+        <app-error-alert class="px-3 py-2.5" data-testid="no-token">
           <p class="font-medium">This page needs the setup link.</p>
           <p class="mt-1">
             gangway printed a one-time URL when it started. Find it in the server's output —
             <code class="font-mono text-xs">docker logs gangway</code> — and open that instead.
           </p>
-        </div>
+        </app-error-alert>
       } @else {
         <form (submit)="submit($event)" novalidate class="space-y-5">
           @if (error(); as e) {
-            <div [class]="alert" role="alert" data-testid="error">
+            <app-error-alert class="px-3 py-2.5" data-testid="error">
               <p>{{ e.message }}</p>
               @if (e.hint) {
                 <p class="mt-1 text-xs opacity-80">{{ e.hint }}</p>
               }
-            </div>
+            </app-error-alert>
           }
 
           <div>
@@ -115,7 +116,6 @@ export class Setup {
   protected readonly min = MIN_PASSWORD;
   protected readonly field = FIELD;
   protected readonly label = LABEL;
-  protected readonly alert = ALERT;
 
   protected readonly email = signal('');
   protected readonly password = signal('');
@@ -158,7 +158,7 @@ export class Setup {
         });
       } else if (p.status === 422) {
         this.error.set({
-          message: p.issues.map((i) => `${i.path}: ${i.message}`).join('; ') || p.detail,
+          message: issuesOrDetail(p),
         });
       } else {
         this.error.set({

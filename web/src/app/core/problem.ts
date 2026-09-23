@@ -63,3 +63,18 @@ export function toProblem(e: unknown): ProblemError {
     issues,
   };
 }
+
+export function localProblem(title: string, e: unknown, status = 0): ProblemError {
+  return {
+    status,
+    title,
+    detail: e instanceof Error ? e.message : String(e),
+    requestId: null,
+    retryAfter: null,
+    issues: [],
+  };
+}
+
+export function issuesOrDetail(p: ProblemError): string {
+  return p.issues.map((i) => `${i.path}: ${i.message}`).join('; ') || p.detail;
+}

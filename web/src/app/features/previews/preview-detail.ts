@@ -17,8 +17,10 @@ import { AuthService } from '../../core/auth.service';
 import { Clock } from '../../core/clock';
 import type { ProblemError } from '../../core/problem';
 import { Btn } from '../../ui/button';
+import { ClipboardService } from '../../ui/clipboard';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { EmptyState } from '../../ui/empty-state';
+import { ErrorAlert } from '../../ui/error-alert';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { PasswordBadge } from '../../ui/password-badge';
 import { StateBadge } from '../../ui/state-badge';
@@ -38,6 +40,7 @@ import { displayName, sourceLabel } from './source-label';
     ConfirmDialog,
     DbBrowser,
     EmptyState,
+    ErrorAlert,
     LogViewer,
     PasswordBadge,
     PasswordPanel,
@@ -80,14 +83,10 @@ import { displayName, sourceLabel } from './source-label';
         </div>
 
         @if (p.state === 'failed' && p.error) {
-          <div
-            class="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
-            role="alert"
-            data-testid="failure"
-          >
+          <app-error-alert class="mt-6 px-4 py-3" data-testid="failure">
             <p class="font-medium">This preview failed.</p>
             <p class="mt-1 font-mono text-xs break-words whitespace-pre-wrap">{{ p.error }}</p>
-          </div>
+          </app-error-alert>
         }
 
         <div class="mt-8 grid gap-8 md:grid-cols-3">
@@ -311,6 +310,7 @@ export class PreviewDetail {
   readonly #auth = inject(AuthService);
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
+  readonly #clipboard = inject(ClipboardService);
   protected readonly dialog = viewChild.required(ConfirmDialog);
 
   protected readonly preview = computed(() => this.#store.byId(this.id())());
@@ -366,13 +366,12 @@ export class PreviewDetail {
     this.builds.set(builds);
   }
 
-  protected async copy(url: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(url);
-      this.#toasts.info('Copied', url);
-    } catch {
-      this.#toasts.info('Could not copy', 'Select the URL and copy it by hand.');
-    }
+  protected copy(url: string): Promise<void> {
+    return this.#clipboard.copy(
+      url,
+      ['Copied', url],
+      ['Could not copy', 'Select the URL and copy it by hand.'],
+    );
   }
 
   protected async destroy(): Promise<void> {
