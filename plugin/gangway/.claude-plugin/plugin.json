@@ -1,0 +1,14 @@
+{
+  "name": "gangway",
+  "version": "0.1.0",
+  "description": "Ship what you would make as an artifact to a real HTTPS URL on your own gangway server: multi-page sites, apps with a database, prototypes with a backend.",
+  "author": { "name": "Charles Barnes" },
+  "userConfig": {
+    "mcp_url": {
+      "type": "string",
+      "title": "gangway MCP URL",
+      "description": "Your server's MCP surface, e.g. https://mcp.preview.example.com/ (sign in afterwards with /mcp)",
+      "required": true
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "gangway",
+  "owner": {
+    "name": "Charles Barnes"
+  },
+  "description": "gangway's Claude Code plugin: deploy artifact-style builds to your own preview server.",
+  "plugins": [
+    {
+      "name": "gangway",
+      "source": "./plugin/gangway",
+      "description": "Deploy artifact-style sites and apps to your gangway server, and iterate on them at the same URL."
+    }
+  ]
+}
