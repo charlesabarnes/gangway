@@ -58,6 +58,7 @@ describe('the /v1 wire contract', () => {
     const PREVIEW_KEYS: (keyof Preview)[] = [
       'id',
       'project',
+      'title',
       'hostId',
       'kind',
       'state',

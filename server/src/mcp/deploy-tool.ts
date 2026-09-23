@@ -79,6 +79,7 @@ function deployInput(scope: CallScope, args: DeployArgs, source: DeploySource) {
     actor: scope.actor,
     source,
     name: args.name,
+    title: args.title,
     visibility: args.visibility,
     ttl: args.ttl,
     template: args.template,

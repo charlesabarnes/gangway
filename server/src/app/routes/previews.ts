@@ -3,6 +3,7 @@ import type { Preview } from "@gangway/shared/domain";
 import {
   DeployRequestSchema,
   PreviewPasswordChangeSchema,
+  PreviewTitleChangeSchema,
   PREVIEW_PASSWORD_HEADER,
   PREVIEW_PASSWORD_MAX,
   PreviewListQuerySchema,
@@ -240,6 +241,28 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   );
 }
 
+function changeable(ctx: PreviewContext, c: Context<AppEnv>, p: Preview, what: string): void {
+  if (!mayRebuild(c.get("actor"), ctx.previews.ownerOf(p.id)))
+    throw forbidden(
+      `this preview was deployed by someone else: "previews.update_own" covers only your own, and changing any preview's ${what} needs "previews.update"`,
+    );
+}
+
+function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
+  api.put(
+    "/previews/:id/title",
+    requirePermission("previews.update_own", "previews.update"),
+    async (c) => {
+      const p = find(c.req.param("id"));
+      changeable(ctx, c, p, "title");
+      const { title } = PreviewTitleChangeSchema.parse(await readJson(c));
+      ctx.previews.setTitle(p.id, title);
+      ctx.audit.record(c.get("actor"), "preview.title", p.id, { old: p.title, new: title });
+      return c.json({ preview: wire(ctx.previews.get(p.id)!) });
+    },
+  );
+}
+
 function passwordRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   api.put(
     "/previews/:id/password",
@@ -247,10 +270,7 @@ function passwordRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void 
     async (c) => {
       const p = find(c.req.param("id"));
       const actor = c.get("actor");
-      if (!mayRebuild(actor, ctx.previews.ownerOf(p.id)))
-        throw forbidden(
-          'this preview was deployed by someone else: "previews.update_own" covers only your own, and changing any preview\'s password needs "previews.update"',
-        );
+      changeable(ctx, c, p, "password");
       const body = await readJson(c);
       const { password, login } = PreviewPasswordChangeSchema.parse(body);
       return c.json({
@@ -302,5 +322,6 @@ export function previewRoutes(
   readRoutes(api, previews);
   sourceRoutes(api, previews);
   passwordRoutes(api, previews);
+  titleRoutes(api, previews);
   logRoutes(api, previews, o);
 }

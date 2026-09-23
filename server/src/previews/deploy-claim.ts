@@ -37,7 +37,7 @@ export type Claim = {
 };
 
 function slugFor(c: Claim): string {
-  const stem = slugify(c.input.name ?? defaultName(c.input.source, c.runtime));
+  const stem = slugify(c.input.name ?? c.input.title ?? defaultName(c.input.source, c.runtime));
   if (stem === "") throw unprocessable("name has no usable characters");
   return c.visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
 }
@@ -47,6 +47,7 @@ function createPreview(ctx: PreviewContext, c: Claim, project: string): Preview 
   return ctx.previews.create({
     id: c.id,
     project,
+    title: c.input.title ?? null,
     hostId: c.host.id,
     state: "building",
     source: c.source,

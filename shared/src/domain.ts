@@ -99,6 +99,7 @@ export type PreviewSource =
 export type Preview = {
   id: string;
   project: string;
+  title: string | null;
   hostId: string;
   kind: PreviewKind;
   state: PreviewState;

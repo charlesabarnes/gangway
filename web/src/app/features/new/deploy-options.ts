@@ -5,6 +5,7 @@ import { deployQuery } from './upload';
 
 export type Who = '' | 'open' | 'password' | 'signed-in' | 'either';
 export type DeployOptions = {
+  title: string;
   name: string;
   visibility: string;
   ttl: string;
@@ -15,6 +16,7 @@ export type DeployOptions = {
   template: string;
 };
 export const NO_OPTIONS: DeployOptions = {
+  title: '',
   name: '',
   visibility: '',
   ttl: '',
@@ -50,6 +52,7 @@ export function optionsQuery(
 ): string {
   return deployQuery({
     runtime,
+    title: o.title.trim(),
     name: o.name.trim(),
     visibility: o.visibility,
     ttl: o.ttl.trim(),
@@ -72,12 +75,21 @@ export function optionsQuery(
         <span class="text-[10px] transition group-open:rotate-90" aria-hidden="true">▸</span
         ><span class="text-xs font-semibold tracking-[.14em] uppercase">Options</span
         ><span class="text-[13px] text-muted"
-          >name, visibility, TTL, project, template, who can open it</span
+          >name, address, visibility, TTL, project, template, who can open it</span
         >
       </summary>
       <div class="mt-4 mb-2 grid gap-x-6 gap-y-5 sm:grid-cols-5">
-        <label class="gw-label flex flex-col gap-1 sm:col-span-2"
+        <label class="gw-label flex flex-col gap-1 sm:col-span-3"
           >Name<input
+            [class]="field"
+            maxlength="100"
+            placeholder="anything, e.g. Checkout redesign"
+            [value]="options().title"
+            (input)="set('title', $any($event.target).value)"
+            data-testid="title"
+        /></label>
+        <label class="gw-label flex flex-col gap-1 sm:col-span-2"
+          >Address<input
             [class]="field"
             [placeholder]="namePlaceholder()"
             [value]="options().name"

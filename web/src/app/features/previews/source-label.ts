@@ -21,7 +21,9 @@ export function sourceLabel(s: PreviewSource): string {
   }
 }
 
-export const displayName = (p: Pick<Preview, 'project'>): string => p.project.replace(/^gw-/, '');
+export const slugOf = (p: Pick<Preview, 'project'>): string => p.project.replace(/^gw-/, '');
+
+export const displayName = (p: Pick<Preview, 'project' | 'title'>): string => p.title ?? slugOf(p);
 
 export const primaryUrl = (p: Pick<Preview, 'urls'>): string | null =>
   (p.urls.find((u) => u.primary) ?? p.urls[0])?.url ?? null;

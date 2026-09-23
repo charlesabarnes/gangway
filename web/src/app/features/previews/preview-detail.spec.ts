@@ -97,6 +97,37 @@ describe('PreviewDetail', () => {
     expect(r.text('facts')).toContain('acme/shop#42');
   });
 
+  it('shows a title over the address, and renames it', async () => {
+    const r = await open({
+      preview: { ...base, title: 'Shop redesign' },
+      permissions: ['previews.read', 'previews.update_own'],
+    });
+    await answerHistory(r);
+    expect(r.text('title')).toBe('Shop redesign');
+    expect(r.text('slug')).toBe('shop-pr-42');
+
+    r.byTestId('rename')!.click();
+    await r.settle();
+    const input = r.byTestId('title-input') as HTMLInputElement;
+    expect(input.value).toBe('Shop redesign');
+    input.value = 'Demo, Friday';
+    input.dispatchEvent(new Event('input'));
+    r.byTestId('title-save')!.click();
+    await r.settle();
+    const put = r.http.expectOne(`/v1/previews/${ID}/title`);
+    expect(put.request.body).toEqual({ title: 'Demo, Friday' });
+    put.flush({ preview: { ...base, title: 'Demo, Friday' } });
+    await r.settle();
+    expect(r.text('title')).toBe('Demo, Friday');
+  });
+
+  it('cannot rename without an update permission', async () => {
+    const r = await open();
+    await answerHistory(r);
+    expect(r.byTestId('rename')).toBeNull();
+    expect(r.byTestId('slug')).toBeNull();
+  });
+
   it('does not fetch the preview again when the list already holds it', async () => {
     const r = await open();
     await answerHistory(r);

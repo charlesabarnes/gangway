@@ -293,8 +293,9 @@ describe('source labels', () => {
     [{ kind: 'tarball', uploadId: 'u' }, 'uploaded archive'],
   ] as const)('%o -> %s', (source, want) => expect(sourceLabel(source)).toBe(want));
 
-  it('drops the gw- prefix from the name, and prefers the primary URL', () => {
-    expect(displayName({ project: 'gw-hello' })).toBe('hello');
+  it('names by title, else the slug without gw-; prefers the primary URL', () => {
+    expect(displayName({ project: 'gw-hello', title: null })).toBe('hello');
+    expect(displayName({ project: 'gw-hello', title: 'Hello, world' })).toBe('Hello, world');
     expect(
       primaryUrl({
         urls: [

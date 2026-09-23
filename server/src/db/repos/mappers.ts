@@ -90,12 +90,14 @@ export type PreviewRow = {
   password_mode?: string | null;
   password_login?: string | null;
   signed_in_only?: number | null;
+  title?: string | null;
 };
 
 export function rowToPreview(r: PreviewRow): Preview {
   return {
     id: r.id,
     project: r.project,
+    title: r.title ?? null,
     hostId: r.host_id,
     kind: r.kind as Preview["kind"],
     state: r.state as Preview["state"],

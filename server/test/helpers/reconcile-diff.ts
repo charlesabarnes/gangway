@@ -18,6 +18,7 @@ export const mkPreview = (
 ): Preview => ({
   id,
   project: `gw-${id}`,
+  title: null,
   hostId: HOST,
   kind: "preview",
   state,

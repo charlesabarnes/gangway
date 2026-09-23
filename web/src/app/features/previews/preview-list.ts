@@ -14,7 +14,7 @@ import { PasswordBadge } from '../../ui/password-badge';
 import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
-import { displayName, primaryUrl, sourceLabel } from './source-label';
+import { displayName, primaryUrl, slugOf, sourceLabel } from './source-label';
 
 const STATE_CHIPS: { key: string; label: string; states: PreviewState[] }[] = [
   { key: 'awake', label: 'awake', states: ['awake'] },
@@ -141,7 +141,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
                       <span class="flex items-center gap-2">
                         <a
                           [routerLink]="['/previews', p.id]"
-                          class="font-serif text-[19px] italic hover:underline"
+                          class="font-serif text-[19px] hover:underline"
                           data-testid="name"
                           >{{ name(p) }}</a
                         >
@@ -307,6 +307,7 @@ export class PreviewList {
         (source === '' || p.source.kind === source) &&
         (q === '' ||
           displayName(p).toLowerCase().includes(q) ||
+          slugOf(p).toLowerCase().includes(q) ||
           sourceLabel(p.source).toLowerCase().includes(q)),
     );
   });

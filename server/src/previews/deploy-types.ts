@@ -41,6 +41,7 @@ export type DeployInput = {
   env?: Record<string, string> | undefined;
   secretLevel?: Clearance | undefined;
   name?: string | undefined;
+  title?: string | undefined;
   visibility?: Visibility | undefined;
   ttl?: string | null | undefined;
   hostId?: string | undefined;

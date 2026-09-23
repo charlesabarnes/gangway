@@ -20,8 +20,8 @@ import { PreviewsStore } from '../previews/previews.store';
           data-testid="preview"
         >
           <app-state-badge class="w-[90px] shrink-0" [state]="pv.state" />
-          <span class="font-mono text-[13px]">{{
-            pv.project.replace(prefix(pv.project), '')
+          <span class="text-[13px]" [class.font-mono]="!pv.title">{{
+            pv.title ?? pv.project.replace(prefix(pv.project), '')
           }}</span>
           <span class="text-muted">{{
             pv.source.kind === 'pr' ? '#' + $any(pv.source).number : pv.source.kind

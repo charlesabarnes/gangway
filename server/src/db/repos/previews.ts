@@ -14,6 +14,7 @@ import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mapp
 export type CreatePreview = {
   id: string;
   project: string;
+  title?: string | null;
   hostId: string;
   kind?: PreviewKind;
   state: PreviewState;
@@ -55,15 +56,16 @@ export class PreviewsRepo {
     const now = this.#now();
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
-      `INSERT INTO previews (id, project, host_id, kind, state, source_kind, source_json,
+      `INSERT INTO previews (id, project, title, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner,
                              password_mode, password_hash, password_salt, password_login, signed_in_only, created_at, updated_at)
-       VALUES ($id, $project, $host_id, $kind, $state, $source_kind, $source_json,
+       VALUES ($id, $project, $title, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner,
                $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $now, $now)`,
       {
         id: p.id,
         project: p.project,
+        title: p.title ?? null,
         host_id: p.hostId,
         kind: p.kind ?? "preview",
         state: p.state,
@@ -123,6 +125,14 @@ export class PreviewsRepo {
         now: this.#now(),
       },
     );
+  }
+
+  setTitle(id: string, title: string | null): void {
+    this.#db.run("UPDATE previews SET title = $title, updated_at = $now WHERE id = $id", {
+      id,
+      title,
+      now: this.#now(),
+    });
   }
 
   setPasswordLogin(id: string, login: PasswordLogin): void {

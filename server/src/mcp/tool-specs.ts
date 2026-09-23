@@ -50,7 +50,16 @@ export const DeployArgs = z.object({
     .min(1)
     .max(40)
     .optional()
-    .describe("The first label of the hostname. Defaults to one derived from the source."),
+    .describe(
+      "The first label of the hostname. Defaults to one derived from the title, else the source.",
+    ),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('What people see it called in gangway: any text, e.g. "Checkout redesign".'),
   visibility: z
     .enum(VISIBILITY_VALUES)
     .optional()

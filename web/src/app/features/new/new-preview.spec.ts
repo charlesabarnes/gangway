@@ -192,11 +192,16 @@ describe('NewPreview', () => {
     const ttl = r.byTestId('ttl') as HTMLInputElement;
     ttl.value = '2h';
     ttl.dispatchEvent(new Event('input'));
+    const title = r.byTestId('title') as HTMLInputElement;
+    title.value = 'Billing API: v2';
+    title.dispatchEvent(new Event('input'));
     await r.settle();
     r.byTestId('deploy')!.click();
     await r.settle();
     const req = r.http.expectOne((q) => q.url.startsWith('/v1/previews'));
-    expect(req.request.urlWithParams).toBe('/v1/previews?runtime=own&name=api&ttl=2h');
+    expect(req.request.urlWithParams).toBe(
+      '/v1/previews?runtime=own&title=Billing+API%3A+v2&name=api&ttl=2h',
+    );
     const tar = await gunzipText(req.request.body);
     expect(tar).toContain('server.js');
     expect(tar).not.toContain('.DS_Store');

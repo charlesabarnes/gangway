@@ -8,6 +8,7 @@ export type AuditAction =
   | "preview.redeploy"
   | "preview.data.query"
   | "preview.password"
+  | "preview.title"
   | "auth.setup"
   | "auth.login"
   | "auth.login.failed"

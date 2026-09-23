@@ -49,7 +49,7 @@ const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
             data-testid="template"
           >
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span class="font-serif text-[26px] italic">{{ t.name }}</span>
+              <span class="font-serif text-[26px]">{{ t.name }}</span>
               <code class="font-mono text-[13px] text-muted">{{ t.id }}</code>
               @if (t.builtin) {
                 <span class="gw-tag self-center" data-testid="builtin">built in</span>

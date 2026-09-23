@@ -36,6 +36,7 @@ export type DefaultPasswordMode = 'off' | 'shared' | 'generated';
 export type Preview = {
   id: string;
   project: string;
+  title: string | null;
   hostId: string;
   kind: 'preview' | 'job';
   state: PreviewState;

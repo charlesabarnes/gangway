@@ -124,7 +124,11 @@ export function previewPasswordApi(actor: Actor = ACTOR) {
   const t = withPasswords();
   const { api, put } = apiAs(actor);
   previewRoutes(api, t.ctx, null as never);
-  return { ...t, put: (id: string, body: unknown) => put(`/previews/${id}/password`, body) };
+  return {
+    ...t,
+    put: (id: string, body: unknown) => put(`/previews/${id}/password`, body),
+    putTitle: (id: string, body: unknown) => put(`/previews/${id}/title`, body),
+  };
 }
 
 /** The settings routes over in-memory settings, recording what they audit. */

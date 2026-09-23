@@ -14,7 +14,7 @@ export const DRIVERS: [string, Open][] = [
   ["node:sqlite", openNode],
 ];
 
-export const ALL_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+export const ALL_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
 /** A directory holding the real migrations up to and including `version`. */
 export function migrationsUpTo(version: number): string {

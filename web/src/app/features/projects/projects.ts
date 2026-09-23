@@ -172,7 +172,7 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
                 data-testid="project"
               >
                 <div class="flex items-center gap-2.5">
-                  <span class="font-serif text-[26px] leading-tight italic">{{ p.name }}</span>
+                  <span class="font-serif text-[26px] leading-tight">{{ p.name }}</span>
                   @if (!p.enabled) {
                     <span class="gw-tag border-danger text-danger">disabled</span>
                   }
@@ -193,8 +193,9 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
                   @for (pv of live(p.id); track pv.id) {
                     <li class="flex items-center gap-3 text-sm">
                       <app-state-badge class="w-[90px] shrink-0" [state]="pv.state" /><span
-                        class="truncate font-mono text-xs"
-                        >{{ pv.project.replace(prefix(pv.project), '') }}</span
+                        class="truncate text-xs"
+                        [class.font-mono]="!pv.title"
+                        >{{ pv.title ?? pv.project.replace(prefix(pv.project), '') }}</span
                       >
                     </li>
                   } @empty {
@@ -222,8 +223,9 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
               <li class="flex items-center gap-3.5 border-b border-rule py-2.5 text-sm">
                 <app-state-badge class="w-[90px] shrink-0" [state]="pv.state" /><a
                   [routerLink]="['/previews', pv.id]"
-                  class="font-mono text-xs hover:underline"
-                  >{{ pv.project }}</a
+                  class="text-xs hover:underline"
+                  [class.font-mono]="!pv.title"
+                  >{{ pv.title ?? pv.project }}</a
                 ><span class="ml-auto font-mono text-xs text-muted">{{ pv.source.kind }}</span>
               </li>
             }

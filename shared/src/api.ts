@@ -91,8 +91,12 @@ export const addonQuery = z
   })
   .pipe(addonArray);
 
+export const PREVIEW_TITLE_MAX = 100;
+const previewTitle = z.string().trim().min(1, "a title cannot be empty").max(PREVIEW_TITLE_MAX);
+
 export const TarballDeployQuerySchema = z.object({
   name: z.string().min(1).max(40).optional(),
+  title: previewTitle.optional(),
   visibility: z.enum(VISIBILITY_VALUES).optional(),
   ttl: z.string().max(16).optional(),
   hostId: z.string().min(1).max(64).optional(),
@@ -183,11 +187,14 @@ export const DefaultPasswordSchema = z.strictObject({
   value: z.string().min(1, "a password cannot be empty").max(PREVIEW_PASSWORD_MAX).optional(),
 });
 
+export const PreviewTitleChangeSchema = z.strictObject({ title: previewTitle.nullable() });
+
 export const PREVIEW_PASSWORD_HEADER = "gangway-preview-password";
 
 export const DeployRequestSchema = z.strictObject({
   source: DeploySourceSchema,
   name: z.string().min(1).max(40).optional(),
+  title: previewTitle.optional(),
   visibility: z.enum(VISIBILITY_VALUES).optional(),
   ttl: z.string().max(16).nullable().optional(),
   hostId: z.string().min(1).max(64).optional(),

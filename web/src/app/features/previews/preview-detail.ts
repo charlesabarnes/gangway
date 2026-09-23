@@ -29,6 +29,7 @@ import { DbBrowser } from './db-browser';
 import { LogViewer } from './log-viewer';
 import { PasswordPanel } from './password-panel';
 import { PreviewsStore } from './previews.store';
+import { PreviewTitle } from './preview-title';
 import { SourcePanel } from './source-panel';
 import { displayName, sourceLabel } from './source-label';
 
@@ -44,6 +45,7 @@ import { displayName, sourceLabel } from './source-label';
     LogViewer,
     PasswordBadge,
     PasswordPanel,
+    PreviewTitle,
     RelativeTimePipe,
     SourcePanel,
     StateBadge,
@@ -55,12 +57,7 @@ import { displayName, sourceLabel } from './source-label';
 
         @if (preview(); as p) {
           <div class="flex flex-wrap items-end gap-5 border-b border-ink pb-5">
-            <h1
-              class="m-0 font-serif text-[40px] leading-none font-normal tracking-[-.01em] break-all italic sm:text-[52px]"
-              data-testid="title"
-            >
-              {{ name() }}
-            </h1>
+            <app-preview-title [preview]="p" />
             <div class="flex flex-wrap items-center gap-3 pb-1.5">
               <app-state-badge [state]="p.state" />
               <span class="gw-tag" data-testid="visibility">{{ p.visibility }}</span>

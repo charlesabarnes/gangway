@@ -113,6 +113,18 @@ export class PreviewsStore {
     }
   }
 
+  async setTitle(id: string, title: string | null): Promise<Preview> {
+    try {
+      const { preview } = await firstValueFrom(
+        this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/title`, { title }),
+      );
+      this.#put(preview);
+      return preview;
+    } catch (e) {
+      throw toProblem(e);
+    }
+  }
+
   #follow(seq: number): void {
     this.#handle()?.close();
     this.#handle.set(
