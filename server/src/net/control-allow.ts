@@ -2,7 +2,6 @@ import { isIP } from "node:net";
 import { FONT_PATH } from "./page-chrome.ts";
 import { parseTrustedProxies, unmap } from "./trusted-proxy.ts";
 
-/** Whether this request may reach the UI and API. */
 export type ControlGate = (req: Request, clientIp: string) => boolean;
 
 // What strangers still need from the app host: preview pages, agents' OAuth servers and health checks.
@@ -18,10 +17,7 @@ export function isPublicControlPath(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname) || pathname.startsWith(FONT_PATH);
 }
 
-/**
- * Why this allow list may let the internet in anyway: behind a proxy, a client gangway cannot
- * see past looks like the proxy itself.
- */
+// Behind a proxy, a client gangway cannot see past looks like the proxy itself.
 export function controlAllowRisk(
   allow: readonly string[],
   trusted: readonly string[],

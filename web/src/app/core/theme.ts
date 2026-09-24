@@ -6,10 +6,6 @@ export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark']
 /** Also read by the inline script in index.html, which applies the theme before the app boots. */
 export const THEME_KEY = 'gw-theme';
 
-/**
- * The colour theme. `<html data-theme>` always holds the one in effect ("light" or "dark"), and
- * the stylesheet keys off that rather than the media query, so a choice overrides the system.
- */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   readonly #doc = inject(DOCUMENT);

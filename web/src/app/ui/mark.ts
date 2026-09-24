@@ -1,10 +1,7 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { ThemeService } from '../core/theme';
 
-/**
- * The gangway mark, from public/logo.svg (navy, for paper) and public/logo-light.svg (ivory,
- * for the header bar and dark mode). `onDark` always takes the ivory one.
- */
+// logo.svg is navy, for paper; logo-light.svg is ivory, for the header bar and dark mode.
 @Component({
   selector: 'app-mark',
   host: { class: 'inline-flex shrink-0' },

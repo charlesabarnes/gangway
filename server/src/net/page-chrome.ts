@@ -2,7 +2,6 @@ import FAVICON from "../../../web/public/favicon-preview.svg" with { type: "text
 import LOGO from "../../../web/public/logo.svg" with { type: "text" };
 import LOGO_LIGHT from "../../../web/public/logo-light.svg" with { type: "text" };
 
-/** The preview favicon, inlined: these pages load nothing else. */
 export const FAVICON_LINK = `<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(FAVICON.trim())}">`;
 
 export const BRAND = `<div class="brand"><span class="mark on-light" aria-hidden="true">${LOGO}</span><span class="mark on-dark" aria-hidden="true">${LOGO_LIGHT}</span>gangway</div>`;
@@ -15,11 +14,11 @@ const FACES: [string, string, number, string][] = [
   ["IBM Plex Mono", "mono-600", 600, "normal"],
 ];
 
-/** The app host a preview host sits under: its fonts are served there, at FONT_PATH. */
+// Fonts come from the parent of the host a page stands in for: the app apex, or the preview apex.
 export const FONT_PATH = "/_gangway/fonts/";
 export const appHostOf = (previewHost: string) => previewHost.split(".").slice(1).join(".");
 
-/** Plex, loaded from the app host; a page whose host has no parent keeps the fallback fonts. */
+// A host with no parent domain keeps the fallback fonts.
 export function fontFaces(previewHost: string): string {
   const app = appHostOf(previewHost);
   if (!app.includes(".")) return "";
@@ -29,13 +28,11 @@ export function fontFaces(previewHost: string): string {
   ).join("\n");
 }
 
-/** The CSP directive that lets a locked-down page load fontFaces(). */
 export function fontSrc(previewHost: string): string {
   const app = appHostOf(previewHost);
   return app.includes(".") ? `font-src ${app};` : "";
 }
 
-/** The "Chart" look for the pages gangway serves in place of a preview: grid paper, a neatline card. */
 export const CHART_CSS = `
 :root{color-scheme:light dark;--paper:oklch(0.97 0.012 85);--ink:oklch(0.27 0.06 255);--muted:oklch(0.48 0.04 255);--rule:oklch(0.84 0.025 240);--flag:oklch(0.84 0.15 88);--danger:oklch(0.55 0.19 28);--log:oklch(0.22 0.05 255);--log-fg:oklch(0.94 0.015 85)}
 @media (prefers-color-scheme:dark){:root{--paper:oklch(0.2 0.035 255);--ink:oklch(0.94 0.015 85);--muted:oklch(0.72 0.03 250);--rule:oklch(0.36 0.04 250);--danger:oklch(0.62 0.18 28);--log:oklch(0.14 0.03 255)}.on-light{display:none!important}}
