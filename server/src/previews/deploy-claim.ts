@@ -111,7 +111,7 @@ export function claimPreview(
   const routes = planRoutes({
     previewId: c.id,
     slug,
-    baseDomain: ctx.baseDomain(),
+    previewDomain: ctx.previewDomain(),
     host: c.host,
     exposed: c.exposed,
     allocate: (n) =>

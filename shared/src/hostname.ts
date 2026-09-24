@@ -71,6 +71,36 @@ export function labelUnder(host: string, baseDomain: string): string | null {
   return label;
 }
 
+export type HostKind =
+  | { kind: "surface"; label: string }
+  | { kind: "preview" }
+  | { kind: "unknown" }
+  | { kind: "misdirected" };
+
+// Surfaces only ever answer under the control domain. Non-surface hosts there stay previews, so
+// previews named before a preview domain was set keep answering until they expire.
+export function classifyHost(host: string, controlDomain: string, previewDomain: string): HostKind {
+  const control = labelUnder(host, controlDomain);
+  if (control === "" || (control !== null && RESERVED_LABELS.has(control)))
+    return { kind: "surface", label: control };
+  const preview = labelUnder(host, previewDomain);
+  if (preview !== null && preview !== "" && !RESERVED_LABELS.has(preview))
+    return { kind: "preview" };
+  if (control !== null) return { kind: "preview" };
+  if (preview !== null) return { kind: "unknown" };
+  return { kind: "misdirected" };
+}
+
+export function domainPairProblem(controlDomain: string, previewDomain: string): string | null {
+  const control = controlDomain.toLowerCase().replace(/\.$/, "");
+  const preview = previewDomain.toLowerCase().replace(/\.$/, "");
+  if (control === preview) return null;
+  // `gw.example.com` under preview domain `example.com` is also the name of a preview called `gw`.
+  if (labelUnder(control, preview) !== null)
+    return `the control domain ${control} is a name under the preview domain ${preview}; choose domains that are not nested that way`;
+  return null;
+}
+
 export function fqdn(label: string, baseDomain: string): string {
   return `${label}.${baseDomain.toLowerCase().replace(/\.$/, "")}`;
 }

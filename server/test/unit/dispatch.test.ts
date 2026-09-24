@@ -141,6 +141,45 @@ describe("reserved labels", () => {
   });
 });
 
+describe("a separate preview domain", () => {
+  const PREVIEWS = "gangway-preview.app";
+  const two = (e: RouteEntry | null) => deps({ previewDomain: () => PREVIEWS }, e);
+
+  test("a preview answers on the preview domain", async () => {
+    const res = await dispatch(
+      get(`acme-pr-1.${PREVIEWS}`),
+      two(entry({ hostname: `acme-pr-1.${PREVIEWS}` })),
+    );
+    expect(await res.text()).toBe("upstream-ok");
+  });
+
+  test("surfaces answer on the control domain only", async () => {
+    expect(await (await dispatch(get(`app.${BASE}`), two(null))).text()).toBe("APP");
+    expect((await dispatch(get(`app.${PREVIEWS}`), two(null))).status).toBe(404);
+    expect((await dispatch(get(PREVIEWS), two(null))).status).toBe(404);
+  });
+
+  test("a preview named under the control domain before the switch still answers", async () => {
+    expect(await (await dispatch(get(`acme-pr-1.${BASE}`), two(entry()))).text()).toBe(
+      "upstream-ok",
+    );
+  });
+
+  test("the preview apex serves only the fonts gangway's own pages load", async () => {
+    const font = async (req: Request) =>
+      new URL(req.url).pathname.startsWith("/_gangway/fonts/") ? new Response("FONT") : null;
+    const d = deps({ previewDomain: () => PREVIEWS, font }, null);
+    const at = (path: string) =>
+      dispatch(new Request(`https://x${path}`, { headers: { host: PREVIEWS } }), d);
+    expect(await (await at("/_gangway/fonts/plex.woff2")).text()).toBe("FONT");
+    expect((await at("/")).status).toBe(404);
+  });
+
+  test("a host under neither domain is 421", async () => {
+    expect((await dispatch(get("evil.com"), two(null))).status).toBe(421);
+  });
+});
+
 describe("preview state machine", () => {
   test("unknown hostname is 404", async () => {
     expect((await dispatch(get(`nope.${BASE}`), deps({}, null))).status).toBe(404);

@@ -1,10 +1,10 @@
 import type { Server } from "bun";
 import type { RouteEntry } from "../routing/table.ts";
 import type { CertStore } from "../tls/certstore.ts";
-import { dispatch, type DispatchDeps } from "./dispatch.ts";
+import { dispatch, hostKind, type DispatchDeps } from "./dispatch.ts";
 import { stripGangwayCookies } from "./gate.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
-import { labelUnder, normalizeHost, RESERVED_LABELS } from "@gangway/shared/hostname";
+import { normalizeHost } from "@gangway/shared/hostname";
 import { wsRelay, type WsData } from "./ws-relay.ts";
 
 const peers = new WeakMap<Request, string>();
@@ -30,8 +30,7 @@ export type RunningListener = {
 
 function socketEntry(req: Request, deps: DispatchDeps): RouteEntry | null {
   const host = normalizeHost(req.headers.get("host"));
-  const label = host === null ? null : labelUnder(host, deps.baseDomain());
-  if (!host || label === null || label === "" || RESERVED_LABELS.has(label)) return null;
+  if (!host || hostKind(host, deps).kind !== "preview") return null;
   const entry = deps.table.lookup(host);
   if (!entry || entry.state !== "awake") return null;
   return deps.visibilityGate?.(entry, req) ? null : entry;

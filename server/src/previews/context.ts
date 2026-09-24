@@ -36,7 +36,7 @@ export type PreviewContext = {
   instance: string;
   env: string;
   origin: PublicOrigin;
-  baseDomain: () => string;
+  previewDomain: () => string;
   policy: Policy;
   hosts: HostsRepo;
   previews: PreviewsRepo;

@@ -59,7 +59,7 @@ export function selectExposed(model: ComposeModel): ExposedService[] {
 export type PlanInput = {
   previewId: string;
   slug: string;
-  baseDomain: string;
+  previewDomain: string;
   host: Pick<Host, "id" | "upstream" | "ports">;
   exposed: ExposedService[];
   allocate: (count: number) => number[];
@@ -81,7 +81,7 @@ export function planRoutes(i: PlanInput): PlannedRoute[] {
         reason: built.reason,
       });
     return {
-      hostname: fqdn(built.label, i.baseDomain),
+      hostname: fqdn(built.label, i.previewDomain),
       previewId: i.previewId,
       service: e.service,
       containerPort: e.containerPort,

@@ -105,6 +105,14 @@ describe("loadConfig", () => {
     expect(s.get(SETTINGS.baseDomain)).toBe("preview.example.com");
   });
 
+  test("the preview domain is empty unless set, and comes from the environment", () => {
+    expect(new Settings({}, new MemorySettingsStore()).get(SETTINGS.previewDomain)).toBe("");
+    const c = loadConfig({ GANGWAY_PREVIEW_DOMAIN: "gangway-preview.app" });
+    expect(new Settings(c.overrides, new MemorySettingsStore()).get(SETTINGS.previewDomain)).toBe(
+      "gangway-preview.app",
+    );
+  });
+
   test("preview limits have safe defaults and come from the environment", () => {
     const defaults = new Settings({}, new MemorySettingsStore());
     expect(defaults.get(SETTINGS.previewsMemory)).toBe("2g");

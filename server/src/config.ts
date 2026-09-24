@@ -116,6 +116,7 @@ const ENV_MAP = {
 
 const SETTING_ENV_MAP = {
   GANGWAY_BASE_DOMAIN: "baseDomain",
+  GANGWAY_PREVIEW_DOMAIN: "previewDomain",
   GANGWAY_SURFACE_UI: "surfaces.ui",
   GANGWAY_SURFACE_MCP: "surfaces.mcp",
   GANGWAY_ACME_DIRECTORY_URL: "acme.directoryUrl",

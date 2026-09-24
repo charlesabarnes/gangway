@@ -64,7 +64,7 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     instance: config.instanceId,
     env: config.environment,
     origin: core.publicOrigin,
-    baseDomain: core.baseDomain,
+    previewDomain: core.previewDomain,
     policy,
     hosts: repos.hosts,
     previews: repos.previews,

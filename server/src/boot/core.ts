@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Host } from "@gangway/shared/domain";
+import { domainPairProblem } from "@gangway/shared/hostname";
 import { publicOriginFor, type PublicOrigin } from "@gangway/shared/url";
 import { Audit } from "../audit/audit.ts";
 import type { Config } from "../config.ts";
@@ -22,6 +23,7 @@ export type Core = {
   repos: Repos;
   settings: Settings;
   baseDomain: () => string;
+  previewDomain: () => string;
   publicOrigin: PublicOrigin;
   origin: (label: string) => string;
   bus: EventBus;
@@ -44,6 +46,9 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
   const { db, repos } = openStorage(config.databasePath ?? join(stateDir, "gangway.db"), logger);
   const settings = new Settings(config.overrides, repos.settings);
   const baseDomain = () => settings.get(SETTINGS.baseDomain);
+  const previewDomain = () => settings.get(SETTINGS.previewDomain) || baseDomain();
+  const problem = domainPairProblem(baseDomain(), previewDomain());
+  if (problem) throw new Error(problem);
   const publicOrigin: PublicOrigin = { scheme: config.publicScheme, port: config.publicPort };
   const core: Core = {
     config,
@@ -53,6 +58,7 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     repos,
     settings,
     baseDomain,
+    previewDomain,
     publicOrigin,
     origin: (label) =>
       publicOriginFor(label ? `${label}.${baseDomain()}` : baseDomain(), publicOrigin),

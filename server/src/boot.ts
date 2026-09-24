@@ -67,7 +67,9 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const signal = shutdown.signal;
   const http = createHttp(core, { ...previews, ...forge, deploys, identity, adminToken, signal });
 
-  const domains = [`*.${core.baseDomain()}`, core.baseDomain()];
+  const domains = [
+    ...new Set([core.baseDomain(), core.previewDomain()].flatMap((d) => [`*.${d}`, d])),
+  ];
   const certs = await resolveCertificates(core, domains, o.acme);
   const surfaceEnabled = surfaceEnabledBy(core.settings);
   const { hooks } = forge;

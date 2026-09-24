@@ -5,6 +5,8 @@ import {
   isValidLabel,
   normalizeHost,
   labelUnder,
+  classifyHost,
+  domainPairProblem,
   fqdn,
   slugify,
   buildLabel,
@@ -157,5 +159,59 @@ describe("buildLabel", () => {
         if (r.ok) expect(isValidLabel(r.label)).toBe(true);
       }
     }
+  });
+});
+
+describe("classifyHost", () => {
+  const CONTROL = "gangway.example";
+  const PREVIEWS = "gangway-preview.app";
+  test.each<[string, string, string, string]>([
+    ["one domain: apex is the app", "preview.example.com", BASE, "surface:"],
+    ["one domain: a reserved label is a surface", "mcp.preview.example.com", BASE, "surface:mcp"],
+    ["one domain: any other label is a preview", "acme-pr-1.preview.example.com", BASE, "preview"],
+    ["one domain: a foreign host", "evil.com", BASE, "misdirected"],
+    ["two domains: control apex", CONTROL, PREVIEWS, "surface:"],
+    ["two domains: control surface", "app.gangway.example", PREVIEWS, "surface:app"],
+    ["two domains: a preview", "acme-pr-1.gangway-preview.app", PREVIEWS, "preview"],
+    [
+      "two domains: surfaces never answer on the preview domain",
+      "app.gangway-preview.app",
+      PREVIEWS,
+      "unknown",
+    ],
+    ["two domains: the preview apex", PREVIEWS, PREVIEWS, "unknown"],
+    [
+      "two domains: an older preview under the control domain",
+      "old.gangway.example",
+      PREVIEWS,
+      "preview",
+    ],
+    ["two domains: a foreign host", "evil.com", PREVIEWS, "misdirected"],
+  ])("%s", (_, host, previewDomain, want) => {
+    const control = previewDomain === BASE ? BASE : CONTROL;
+    const k = classifyHost(host, control, previewDomain);
+    expect(k.kind === "surface" ? `surface:${k.label}` : k.kind).toBe(want);
+  });
+
+  test("a preview domain nested under the control domain", () => {
+    const nested = "previews.gangway.example";
+    expect(classifyHost("x.previews.gangway.example", "gangway.example", nested).kind).toBe(
+      "preview",
+    );
+    expect(classifyHost("app.previews.gangway.example", "gangway.example", nested).kind).toBe(
+      "unknown",
+    );
+    expect(classifyHost("app.gangway.example", "gangway.example", nested).kind).toBe("surface");
+  });
+});
+
+describe("domainPairProblem", () => {
+  test.each<[string, string, boolean]>([
+    ["preview.example.com", "preview.example.com", false],
+    ["gangway.example", "gangway-preview.app", false],
+    ["gangway.example", "previews.gangway.example", false],
+    ["gw.example.com", "example.com", true],
+  ])("%s with %s", (control, preview, problem) => {
+    expect(domainPairProblem(control, preview) !== null).toBe(problem);
   });
 });

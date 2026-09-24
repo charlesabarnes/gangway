@@ -42,6 +42,8 @@ const pem = z.string().transform((v) => v.replace(/\\n/g, "\n").trim());
 
 export const SETTINGS = {
   baseDomain: def("baseDomain", z.string().min(1), "preview.localhost"),
+  // Empty names previews under baseDomain, as before a second domain existed.
+  previewDomain: def("previewDomain", z.string(), ""),
   surfacesUi: def("surfaces.ui", z.boolean(), true),
   surfacesMcp: def("surfaces.mcp", z.boolean(), false),
   templatePr: def("templates.default.pr", templateRef, "default"),

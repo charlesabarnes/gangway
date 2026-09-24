@@ -35,7 +35,7 @@ const plan = (m: ComposeModel, slug = "acme") =>
   planRoutes({
     previewId: "01J0000000000000000000000A",
     slug,
-    baseDomain: "preview.example.com",
+    previewDomain: "preview.example.com",
     host: HOST,
     exposed: selectExposed(m),
     allocate: (n) => Array.from({ length: n }, (_, i) => 31000 + i),

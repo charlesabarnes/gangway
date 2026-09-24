@@ -162,7 +162,7 @@ export function setupPreviewContext() {
     instance: "default",
     env: "test",
     origin: { scheme: "https", port: 8443 },
-    baseDomain: () => "preview.localhost",
+    previewDomain: () => "preview.localhost",
     policy: fixedPolicy(),
     hosts,
     previews,

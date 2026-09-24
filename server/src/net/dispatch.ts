@@ -1,4 +1,4 @@
-import { labelUnder, normalizeHost, RESERVED_LABELS } from "@gangway/shared/hostname";
+import { classifyHost, normalizeHost, type HostKind } from "@gangway/shared/hostname";
 import type { RouteEntry, RouteTable } from "../routing/table.ts";
 import {
   badGatewayPage,
@@ -24,6 +24,8 @@ export type SurfaceHandler = (
 
 export type DispatchDeps = {
   baseDomain: () => string;
+  /** Defaults to baseDomain. */
+  previewDomain?: () => string;
   table: RouteTable;
   upstream: Upstream;
   limits: Limits;
@@ -32,6 +34,8 @@ export type DispatchDeps = {
   controlGate?: ((req: Request, clientIp: string) => boolean) | undefined;
   handlers: Partial<Record<Surface, SurfaceHandler>>;
   wake?: (entry: RouteEntry, req: Request) => Promise<Response | null>;
+  /** The fonts gangway's own pages load from the parent of the host they stand in for. */
+  font?: (req: Request) => Promise<Response | null>;
   /** Answers a route whose files gangway serves itself. */
   site?: (req: Request, entry: RouteEntry) => Promise<Response>;
   visibilityGate?: (
@@ -44,6 +48,14 @@ export type DispatchDeps = {
   clientIpFor: (req: Request) => string;
   onProxied?: (entry: RouteEntry) => void;
 };
+
+export function hostKind(
+  host: string,
+  d: Pick<DispatchDeps, "baseDomain" | "previewDomain">,
+): HostKind {
+  const base = d.baseDomain();
+  return classifyHost(host, base, d.previewDomain?.() || base);
+}
 
 function surfaceFor(label: string): Surface {
   return (label === "www" ? "app" : label) as Surface;
@@ -136,11 +148,12 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
 
   const clientIp = d.clientIpFor(req);
 
-  const label = labelUnder(host, d.baseDomain());
-  if (label === null) return misdirectedPage();
-
-  // Reserved regardless of which surfaces are on, or re-enabling one could collide with a live preview.
-  if (label === "" || RESERVED_LABELS.has(label)) return toSurface(req, d, host, label, clientIp);
+  // Reserved labels route to surfaces regardless of which are on, or re-enabling one could collide with a live preview.
+  const kind = hostKind(host, d);
+  if (kind.kind === "misdirected") return misdirectedPage();
+  // A page on `x.<previewDomain>` loads its fonts from `<previewDomain>`, where nothing else answers.
+  if (kind.kind === "unknown") return (await d.font?.(req)) ?? unknownPage(host);
+  if (kind.kind === "surface") return toSurface(req, d, host, kind.label, clientIp);
 
   const entry = d.table.lookup(host);
   if (!entry) return unknownPage(host);

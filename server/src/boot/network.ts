@@ -18,6 +18,7 @@ import { CertStore } from "../tls/certstore.ts";
 import type { CertBundle } from "../tls/types.ts";
 import { sleep } from "../util/async.ts";
 import type { Http } from "./http.ts";
+import { serveKitFont } from "../app/kit-fonts.ts";
 
 export type NetworkDeps = {
   config: Config;
@@ -27,6 +28,7 @@ export type NetworkDeps = {
   hooks: Hooks;
   bundle: CertBundle;
   logger: Logger;
+  baseDomain: () => string;
 };
 
 export type Network = {
@@ -81,13 +83,15 @@ function dispatchDeps(
   const { ctx, http } = d;
   const { table } = ctx;
   return {
-    baseDomain: ctx.baseDomain,
+    baseDomain: d.baseDomain,
+    previewDomain: ctx.previewDomain,
     table,
     limits: DEFAULT_LIMITS,
     surfaceEnabled: d.surfaceEnabled,
     controlGate: gate,
     visibilityGate: http.gate.handle,
     wake: waker(d),
+    font: serveKitFont,
     site: siteFor(d),
     upstream: upstreamFor(d),
     handlers: {
