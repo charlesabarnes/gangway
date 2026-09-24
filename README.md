@@ -82,7 +82,8 @@ every container carries labels that describe it, so a restart reconciles the two
 
 To serve previews publicly, also:
 
-- A server reachable on port 443.
+- A server other people can reach, on 443 or any port you choose (`GANGWAY_PUBLIC_PORT`
+  puts it in the URLs gangway hands out).
 - A domain you control, with a **wildcard DNS record** such as `*.preview.example.com` and
   `preview.example.com` pointing at that server.
 - A **wildcard certificate** for it. gangway can get one itself over DNS-01 with a Cloudflare
