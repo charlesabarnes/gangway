@@ -1,11 +1,12 @@
-# Publishes site/ (the marketing pages) to GitHub Pages. There is no build step: site/ is served as is.
+# Publishes site/ (the marketing pages) to GitHub Pages. The only build step is scripts/build-site.ts,
+# which tags each stylesheet and script link with a hash of its file so browsers never mix deploys.
 # The waitlist form posts to the Cloudflare Worker in waitlist/, which is deployed separately.
 name: pages
 
 on:
   push:
     branches: [master]
-    paths: ["site/**", ".github/workflows/pages.yml"]
+    paths: ["site/**", "scripts/build-site.ts", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -26,9 +27,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun scripts/build-site.ts
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: dist/site
       - id: deployment
         uses: actions/deploy-pages@v4
