@@ -13,6 +13,7 @@ import {
   type Surfaces,
   type Template,
 } from '../../core/api.types';
+import type { UpdateStatus } from '../../core/update.types';
 import { AuthService } from '../../core/auth.service';
 import { Toasts } from '../../ui/toast';
 import { GitHubCallback } from './github-callback';
@@ -49,6 +50,11 @@ const setting = (key: string, value: unknown, managedByConfig = false): SettingV
   set: true,
 });
 
+const updates = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({
+  ...(contract.updates as UpdateStatus),
+  ...over,
+});
+
 const surfaces = (over: Partial<Surfaces> = {}): Surfaces => ({
   ...(contract.surfaces as Surfaces),
   ...over,
@@ -62,6 +68,7 @@ async function open(
     settings?: SettingView[];
     globalNames?: string[];
     surfaces?: Surfaces;
+    updates?: UpdateStatus;
   } = {},
 ) {
   const r = await render(Host);
@@ -81,6 +88,7 @@ async function open(
   if (perms.includes('github.manage')) r.http.expectOne('/v1/github').flush(o.status ?? status());
   else r.http.expectNone('/v1/github');
   if (perms.includes('settings.read')) {
+    r.http.expectOne('/v1/updates').flush(o.updates ?? updates({ available: false }));
     r.http.expectOne('/v1/templates').flush({ templates: o.templates ?? [template()] });
     r.http.expectOne('/v1/settings').flush({
       settings: o.settings ?? [
@@ -90,6 +98,7 @@ async function open(
       ],
     });
   } else {
+    r.http.expectNone('/v1/updates');
     r.http.expectNone('/v1/templates');
     r.http.expectNone('/v1/settings');
   }
@@ -182,6 +191,71 @@ describe('Settings: surfaces', () => {
   it('without surfaces.manage there is no card and no request', async () => {
     const r = await open({ permissions: ['settings.read'] });
     expect(r.byTestId('surfaces')).toBeNull();
+  });
+});
+
+describe('Settings: updates', () => {
+  it('always shows the running version', async () => {
+    const r = await open({ updates: updates({ latest: null, available: false }) });
+    expect(r.text('version')).toBe('0.1.0');
+    expect(r.byTestId('update-available')).toBeNull();
+    expect(r.byTestId('update-latest')).toBeNull();
+  });
+
+  it('a newer release names it, links its notes, and says how to upgrade', async () => {
+    const r = await open({ updates: updates() });
+    expect(r.text('update-available')).toContain('gangway 0.2.0 is available');
+    expect(r.text('update-available')).toContain(
+      'Run the installer again, or on Unraid use Update in the Docker tab.',
+    );
+    expect((r.byTestId('release-notes') as HTMLAnchorElement).href).toBe(
+      'https://github.com/charlesabarnes/gangway/releases/tag/v0.2.0',
+    );
+  });
+
+  it('an edge build is told the latest release, not to update', async () => {
+    const r = await open({ updates: updates({ current: 'edge', available: false }) });
+    expect(r.text('version')).toBe('edge');
+    expect(r.byTestId('update-available')).toBeNull();
+    expect(r.text('update-latest')).toContain('0.2.0');
+  });
+
+  it('turning the check off PUTs the setting and reloads the status', async () => {
+    const r = await open({ updates: updates(), settings: [setting('updates.check', true)] });
+    const box = r.byTestId('update-check')!.querySelector('input') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+    await r.settle();
+    const req = r.http.expectOne({ method: 'PUT', url: '/v1/settings' });
+    expect(req.request.body).toEqual({ values: { 'updates.check': false } });
+    req.flush({ settings: [] });
+    await r.settle();
+    r.http
+      .expectOne('/v1/updates')
+      .flush(updates({ enabled: false, latest: null, available: false, url: null }));
+    await r.settle();
+    expect(r.byTestId('update-available')).toBeNull();
+    expect(box.checked).toBe(false);
+  });
+
+  it('pinned by config, the check cannot be changed and says so', async () => {
+    const r = await open({ settings: [setting('updates.check', false, true)] });
+    const box = r.byTestId('update-check')!.querySelector('input') as HTMLInputElement;
+    expect(box.disabled).toBe(true);
+    expect(box.checked).toBe(false);
+    expect(r.text('update-check')).toContain('managed by config');
+  });
+
+  it('without settings.write the check cannot be changed', async () => {
+    const r = await open({ permissions: ['settings.read'] });
+    const box = r.byTestId('update-check')!.querySelector('input') as HTMLInputElement;
+    expect(box.disabled).toBe(true);
+  });
+
+  it('without settings.read there is no section and no request', async () => {
+    const r = await open({ permissions: ['github.manage'] });
+    expect(r.byTestId('updates')).toBeNull();
   });
 });
 

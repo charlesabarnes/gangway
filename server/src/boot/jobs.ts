@@ -20,7 +20,7 @@ export type CertRenewal = {
 
 export type Reconciling = { reconciler: Reconciler; reconciled: Promise<ReconcileReport | null> };
 
-export type JobDeps = Pick<Core, "config" | "logger" | "repos"> &
+export type JobDeps = Pick<Core, "config" | "logger" | "repos" | "updates"> &
   Reconciling & {
     ctx: PreviewContext;
     deploys: IdempotentDeploys;
@@ -53,6 +53,12 @@ export function startScheduler(d: JobDeps): Scheduler {
   registerPreviewJobs(scheduler, d);
   if (d.renewal) registerCertRenewal(scheduler, d.renewal);
   registerPurges(scheduler, d);
+  scheduler.register({
+    name: "update-check",
+    intervalMs: 86_400_000,
+    initialDelayMs: 60_000,
+    run: (signal) => d.updates.check(signal),
+  });
   scheduler.start();
   return scheduler;
 }

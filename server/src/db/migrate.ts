@@ -48,7 +48,13 @@ function ensureTable(db: Db) {
 
 export type MigrateResult = { applied: number[]; alreadyApplied: number[]; journalMode?: string };
 
-export function migrate(db: Db, dir: string, now: () => number = Date.now): MigrateResult {
+// beforeApply runs outside any transaction, only when an existing database has migrations due.
+export function migrate(
+  db: Db,
+  dir: string,
+  now: () => number = Date.now,
+  beforeApply?: (pending: Migration[]) => void,
+): MigrateResult {
   ensureTable(db);
   const migrations = loadMigrations(dir);
   const applied = db.query<AppliedRow>(
@@ -75,6 +81,7 @@ export function migrate(db: Db, dir: string, now: () => number = Date.now): Migr
 
   const pending = migrations.filter((m) => !byVersion.has(m.version));
   const appliedNow: number[] = [];
+  if (pending.length > 0 && applied.length > 0) beforeApply?.(pending);
 
   for (const m of pending) {
     // SQLite requires foreign_keys OFF around the table-rebuild pattern.

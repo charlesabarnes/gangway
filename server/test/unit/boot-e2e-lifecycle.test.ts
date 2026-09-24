@@ -102,6 +102,7 @@ test("the scheduler flushes visits to SQLite and sweeps an expired preview", asy
     ["idempotency-purge", true],
     ["session-purge", true],
     ["oauth-purge", true],
+    ["update-check", true],
   ]);
 
   const res = await deployPreview(running, { name: "brief", ttl: "1s" });

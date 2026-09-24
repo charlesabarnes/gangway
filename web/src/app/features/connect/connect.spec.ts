@@ -50,7 +50,7 @@ describe('Connect', () => {
     expect(went[0]).toBe(contract.oauthDecided.redirect);
   });
 
-  it('artifacts is offered in place of deploy, unchecked, and picking it grants only it', async () => {
+  it('offers artifacts unchecked in place of deploy; picking it grants only it', async () => {
     const { r } = await open();
     r.http.expectOne('/v1/oauth/requests/req-1').flush({ request: request() });
     await r.settle();

@@ -489,6 +489,14 @@
     "mcpUrl": "https://mcp.preview.localhost:8443"
   },
   "disableUiPhrase": "disable the UI",
+  "updates": {
+    "current": "0.1.0",
+    "enabled": true,
+    "latest": "0.2.0",
+    "available": true,
+    "url": "https://github.com/charlesabarnes/gangway/releases/tag/v0.2.0",
+    "checkedAt": "2026-09-24T00:00:00.000Z"
+  },
   "oauthRequest": {
     "id": "Zm9vYmFyYmF6cXV4cXV1eHF1dXhxdXV4",
     "client": {

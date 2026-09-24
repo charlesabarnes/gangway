@@ -11,6 +11,7 @@ import { GitHubSettings } from './github-settings';
 import { GlobalSecrets } from './global-secrets';
 import { PreviewPasswords } from './preview-passwords';
 import { SurfacesSettings } from './surfaces-settings';
+import { UpdateSettings } from './update-settings';
 
 @Component({
   selector: 'app-settings',
@@ -21,10 +22,14 @@ import { SurfacesSettings } from './surfaces-settings';
     GlobalSecrets,
     PreviewPasswords,
     SurfacesSettings,
+    UpdateSettings,
   ],
   template: `
     <section class="gw-page [&>:last-child>.gw-section]:border-b-0">
       <div class="gw-title-rule"><h1 class="gw-h1">Settings</h1></div>
+      @if (canReadSettings()) {
+        <app-update-settings [settings]="settings()" [(saving)]="saving" />
+      }
       @if (canSurfaces()) {
         <app-surfaces-settings [(saving)]="saving" />
       }

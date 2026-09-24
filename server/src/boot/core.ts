@@ -13,6 +13,7 @@ import type { SourceStore } from "../previews/source/store.ts";
 import type { Workdirs } from "../previews/source/workdir.ts";
 import { RouteTable } from "../routing/table.ts";
 import { SETTINGS, Settings } from "../settings.ts";
+import { UpdateCheck } from "../updates.ts";
 import { openStorage, restoreState, seedConfiguredHosts, type Repos } from "./storage.ts";
 
 export type Core = {
@@ -29,6 +30,7 @@ export type Core = {
   bus: EventBus;
   table: RouteTable;
   audit: Audit;
+  updates: UpdateCheck;
 };
 
 export type Opened = {
@@ -65,6 +67,11 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     bus: new EventBus(repos.events, (e) => logger.warn("event listener threw", { err: e })),
     table: new RouteTable(repos.routes),
     audit: new Audit(repos.audit, logger.child({ mod: "audit" })),
+    updates: new UpdateCheck({
+      current: config.version,
+      enabled: () => settings.get(SETTINGS.updatesCheck),
+      logger: logger.child({ mod: "updates" }),
+    }),
   };
   const seeded = seedConfiguredHosts(config.hosts, repos.hosts, logger);
   const { workdirs, sources, sites } = await restoreState({

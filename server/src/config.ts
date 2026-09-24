@@ -82,6 +82,9 @@ const ConfigSchema = z.object({
 
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
+  // Baked into the image: a release's semver, or edge or dev.
+  version: z.string().min(1).default("dev"),
+
   overrides: z.record(z.string(), z.unknown()).default({}),
 });
 export type Config = z.infer<typeof ConfigSchema>;
@@ -112,6 +115,7 @@ const ENV_MAP = {
   GANGWAY_TLS_KEY_PATH: "tlsKeyPath",
   GANGWAY_ADMIN_TOKEN: "adminToken",
   GANGWAY_LOG_LEVEL: "logLevel",
+  GANGWAY_VERSION: "version",
 } as const satisfies Record<string, keyof Config>;
 
 const SETTING_ENV_MAP = {
@@ -124,6 +128,7 @@ const SETTING_ENV_MAP = {
   GANGWAY_PREVIEW_MEMORY: "previews.limits.memory",
   GANGWAY_PREVIEW_CPUS: "previews.limits.cpus",
   GANGWAY_PREVIEW_PIDS: "previews.limits.pids",
+  GANGWAY_UPDATE_CHECK: "updates.check",
   GANGWAY_CF_API_TOKEN: "acme.cloudflare.apiToken",
   GANGWAY_CF_ZONE_ID: "acme.cloudflare.zoneId",
   GANGWAY_GITHUB_APP_ID: "github.appId",

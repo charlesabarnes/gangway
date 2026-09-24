@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
+import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { backupBeforeMigrating, KEEP_BACKUPS } from "../../src/db/backup.ts";
 import { checksum, loadMigrations, migrate } from "../../src/db/migrate.ts";
 import { openDatabase } from "../../src/db/sqlite.ts";
 import { tempDir } from "../helpers/db.ts";
@@ -90,5 +91,50 @@ describe("migration safety", () => {
   test("checksum is stable and content-sensitive", () => {
     expect(checksum("a")).toBe(checksum("a"));
     expect(checksum("a")).not.toBe(checksum("b"));
+  });
+});
+
+describe("backup before migrating", () => {
+  const v1 = { "0001_a.sql": "CREATE TABLE a (x); INSERT INTO a VALUES (1);" };
+  const v2 = { ...v1, "0002_b.sql": "CREATE TABLE b (x);" };
+
+  test("snapshots an existing database, as it was, before a pending migration", () => {
+    const dbPath = join(tempDir(), "gangway.db");
+    const db = openAt(dbPath);
+    migrate(db, migrationFiles(v1));
+
+    let file = "";
+    migrate(db, migrationFiles(v2), Date.now, (pending) => {
+      file = backupBeforeMigrating(db, dbPath, pending, () => 1000);
+    });
+    db.close();
+
+    expect(file).toBe(join(dbPath, "..", "backups", "gangway-pre-0002-1000.db"));
+    const copy = openAt(file);
+    expect(copy.query("SELECT x FROM a")).toEqual([{ x: 1 }]);
+    expect(copy.query("SELECT name FROM sqlite_master WHERE name = 'b'")).toHaveLength(0);
+    copy.close();
+  });
+
+  test("is not asked for on a new database or when nothing is pending", () => {
+    const db = openAt(join(tempDir(), "g.db"));
+    let calls = 0;
+    migrate(db, migrationFiles(v1), Date.now, () => calls++);
+    migrate(db, migrationFiles(v1), Date.now, () => calls++);
+    db.close();
+    expect(calls).toBe(0);
+  });
+
+  test("keeps only the newest backups", () => {
+    const dbPath = join(tempDir(), "gangway.db");
+    const db = openAt(dbPath);
+    migrate(db, migrationFiles(v1));
+    const pending = loadMigrations(migrationFiles(v2)).slice(1);
+    for (let t = 1; t <= KEEP_BACKUPS + 2; t++) backupBeforeMigrating(db, dbPath, pending, () => t);
+    db.close();
+
+    const kept = readdirSync(join(dbPath, "..", "backups")).sort();
+    expect(kept).toHaveLength(KEEP_BACKUPS);
+    expect(kept[0]).toBe("gangway-pre-0002-3.db");
   });
 });

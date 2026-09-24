@@ -20,6 +20,7 @@ import { settingsRoutes } from "../app/routes/settings.ts";
 import { surfaceRoutes } from "../app/routes/surfaces.ts";
 import { templateRoutes } from "../app/routes/templates.ts";
 import { tokenRoutes } from "../app/routes/tokens.ts";
+import { updateRoutes } from "../app/routes/updates.ts";
 import { userRoutes } from "../app/routes/users.ts";
 import type { Passwords } from "../auth/password.ts";
 import type { GitHubApp } from "../forge/github/app.ts";
@@ -37,7 +38,7 @@ import type { Identity } from "./identity.ts";
 
 export type ApiRouteDeps = Pick<
   Core,
-  "repos" | "bus" | "audit" | "settings" | "origin" | "baseDomain"
+  "repos" | "bus" | "audit" | "settings" | "origin" | "baseDomain" | "updates"
 > & {
   ctx: PreviewContext;
   deploys: IdempotentDeploys;
@@ -66,6 +67,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   userRoutes(api, identity.accounts);
   roleRoutes(api, identity.roles);
   settingsRoutes(api, settings, audit, repos.templates, (plain) => d.previewPasswords.hash(plain));
+  updateRoutes(api, d.updates);
   oauthRoutes(api, { oauth, enabled: d.mcpOn });
   surfaceRoutes(api, {
     settings,

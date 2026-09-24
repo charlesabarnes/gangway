@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import type { HostConfig } from "../config.ts";
+import { backupBeforeMigrating } from "../db/backup.ts";
 import { migrate } from "../db/migrate.ts";
 import {
   AuditRepo,
@@ -53,7 +54,13 @@ export type Repos = {
 
 export function openStorage(path: string, logger: Logger): { db: Db; repos: Repos } {
   const { db, journalMode } = openDatabase({ path });
-  const migrated = migrate(db, MIGRATIONS);
+  const migrated = migrate(db, MIGRATIONS, Date.now, (pending) => {
+    const backup = backupBeforeMigrating(db, path, pending);
+    logger.info("backed up the database before migrating", {
+      backup,
+      pending: pending.map((m) => m.version),
+    });
+  });
   logger.info("database ready", { journalMode, applied: migrated.applied });
   return { db, repos: openRepos(db) };
 }

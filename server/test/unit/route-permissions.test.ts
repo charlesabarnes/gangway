@@ -18,6 +18,7 @@ import { templateRoutes } from "../../src/app/routes/templates.ts";
 import { runtimeRoutes } from "../../src/app/routes/runtimes.ts";
 import { addonRoutes } from "../../src/app/routes/addons.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
+import { updateRoutes } from "../../src/app/routes/updates.ts";
 import { userRoutes } from "../../src/app/routes/users.ts";
 
 const none = {} as never;
@@ -32,6 +33,7 @@ export function registerAuthenticated(api: Hono<AppEnv>): void {
   userRoutes(api, none);
   roleRoutes(api, none);
   settingsRoutes(api, none, none);
+  updateRoutes(api, none);
   surfaceRoutes(api, none);
   oauthRoutes(api, none);
   projectRoutes(api, none);

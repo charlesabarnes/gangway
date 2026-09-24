@@ -43,6 +43,10 @@
 #   GANGWAY_STATE_PATH=/srv/gangway       SQLite database, logs, scratch
 #   GANGWAY_IMAGE=ghcr.io/charlesabarnes/gangway
 #   GANGWAY_TAG=latest                    optional: the image and version to run
+#   GANGWAY_CONTAINER=gangway             optional: the container and project name
+#
+# Changes of your own go in compose.override.yaml next to this file: install.sh replaces this
+# file on upgrade and leaves that one alone.
 #   GANGWAY_PREVIEW_MEMORY=1g             optional, per container; unset = 1g
 #   GANGWAY_PREVIEW_CPUS=0                optional, per container; unset = no CPU limit
 #   GANGWAY_PREVIEW_PIDS=1024             optional, per container; unset = 1024
@@ -61,11 +65,11 @@
 #   GANGWAY_LISTEN_ADDRESS=::  GANGWAY_LISTEN_PORT=443  GANGWAY_LISTEN_HTTP_PORT=80
 #   GANGWAY_TLS_MODE=acme  GANGWAY_TRUSTED_PROXIES=  GANGWAY_ACME_EMAIL=you@example.com
 #   GANGWAY_CF_API_TOKEN=...   GANGWAY_ACME_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
-name: gangway
+name: ${GANGWAY_CONTAINER:-gangway}
 services:
   gangway:
-    # One gangway per host, so a fixed name is fine here (previews may not have one).
-    container_name: gangway
+    # One name per gangway on a host (previews may not have one); install.sh --name sets it.
+    container_name: ${GANGWAY_CONTAINER:-gangway}
     image: ${GANGWAY_IMAGE:-ghcr.io/charlesabarnes/gangway}:${GANGWAY_TAG:-latest}
     network_mode: host
     restart: unless-stopped
@@ -97,6 +101,8 @@ services:
       GANGWAY_PREVIEW_CPUS: ${GANGWAY_PREVIEW_CPUS:-}
       GANGWAY_PREVIEW_PIDS: ${GANGWAY_PREVIEW_PIDS:-}
       GANGWAY_CONTROL_ALLOW: ${GANGWAY_CONTROL_ALLOW:-}
+      # false stops the daily check for a new release on GitHub, and locks it off in Settings.
+      GANGWAY_UPDATE_CHECK: ${GANGWAY_UPDATE_CHECK:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${GANGWAY_STATE_PATH:?set GANGWAY_STATE_PATH in .env}:/state

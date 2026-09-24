@@ -1,5 +1,6 @@
 import contract from '../../testing/fixtures/contract.json';
 import { PREVIEW_ICON_COLORS, PREVIEW_ICONS } from './preview-icon.types';
+import type { UpdateStatus } from './update.types';
 import {
   LOG_STREAMS,
   PERMISSIONS,
@@ -159,6 +160,18 @@ describe('the /v1 wire contract', () => {
     expect(keys(surfaces.mcp)).toEqual(['enabled', 'managedByConfig', 'url']);
     expect(keys(caps)).toEqual(['mcpUrl', 'surfaces']);
     expect(contract.disableUiPhrase).toBe(DISABLE_UI_PHRASE);
+  });
+
+  it('the update notice', () => {
+    const updates: UpdateStatus = contract.updates as UpdateStatus;
+    expect(Object.keys(updates).sort()).toEqual([
+      'available',
+      'checkedAt',
+      'current',
+      'enabled',
+      'latest',
+      'url',
+    ]);
   });
 
   it('oauth consent and connected agents', () => {

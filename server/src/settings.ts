@@ -68,6 +68,8 @@ export const SETTINGS = {
   ),
   previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 0),
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
+  // Off for installs that should make no outbound call to GitHub.
+  updatesCheck: def("updates.check", z.boolean(), true),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),

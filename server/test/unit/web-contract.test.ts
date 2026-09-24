@@ -18,6 +18,8 @@ import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { surfaceRoutes } from "../../src/app/routes/surfaces.ts";
 import { oauthRoutes } from "../../src/app/routes/oauth.ts";
+import { updateRoutes } from "../../src/app/routes/updates.ts";
+import { UpdateCheck } from "../../src/updates.ts";
 import { OAuthServer } from "../../src/oauth/server.ts";
 import { OAuthGrantsRepo } from "../../src/db/repos/oauth-grants.ts";
 import { createHash } from "node:crypto";
@@ -212,6 +214,30 @@ describe("surface wire shapes", () => {
       shapeOf(contract["capabilities"]),
     );
     expect(contract["disableUiPhrase"]).toBe(DISABLE_UI_PHRASE);
+  });
+});
+
+describe("update wire shapes", () => {
+  test("GET /v1/updates", async () => {
+    const release = {
+      tag_name: "v0.2.0",
+      html_url: "https://github.com/charlesabarnes/gangway/releases/tag/v0.2.0",
+    };
+    const updates = new UpdateCheck({
+      current: "0.1.0",
+      enabled: () => true,
+      logger: quiet,
+      fetch: () => Promise.resolve(Response.json(release)),
+      now: () => Date.UTC(2026, 8, 24),
+    });
+    await updates.check();
+    const api = new Hono<AppEnv>();
+    api.use(async (c, next) => {
+      c.set("actor", ACTOR);
+      await next();
+    });
+    updateRoutes(api, updates);
+    expect(await (await api.request("/updates")).json()).toEqual(contract["updates"]);
   });
 });
 

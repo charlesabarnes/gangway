@@ -50,7 +50,10 @@ COPY --from=render /src/render/dist render/dist
 # The Angular app: boot.ts serves web/dist/browser on the `app` surface when it exists.
 COPY --from=web /web/dist/browser web/dist/browser
 
-ENV GANGWAY_STATE_DIR=/state \
+# Set by the release workflow (a version like 0.1.0, or edge); a local build reports dev.
+ARG GANGWAY_VERSION=dev
+ENV GANGWAY_VERSION=$GANGWAY_VERSION \
+    GANGWAY_STATE_DIR=/state \
     GANGWAY_ENV=prod \
     NODE_ENV=production
 VOLUME /state
