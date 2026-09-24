@@ -60,5 +60,7 @@ export type PreviewContext = {
   addonSecret?: ((previewId: string, addon: AddonId) => string) | undefined;
   sources?: SourceStore | undefined;
   passwords?: PreviewPasswordDeps | undefined;
+  /** Whether artifacts show the gangway mark unless a preview says otherwise. */
+  brandDefault?: (() => boolean) | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

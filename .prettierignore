@@ -6,3 +6,5 @@ spec.md
 bun.lock
 # Applied migrations are checksummed: never reformat them.
 server/migrations/
+# Generated from the artifact guide: bun scripts/artifact-catalog.ts
+plugin/gangway/skills/generate-artifact/catalog.md

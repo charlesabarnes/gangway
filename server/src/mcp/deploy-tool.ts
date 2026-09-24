@@ -2,6 +2,7 @@ import { addonQuery } from "@gangway/shared/api";
 import type { Preview } from "@gangway/shared/domain";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
+import { renderTemplate, TemplateError } from "@gangway/shared/artifact/index";
 import { unprocessable } from "../errors.ts";
 import { urlsFor } from "../previews/deploy-names.ts";
 import type { DeploySource } from "../previews/deploy-types.ts";
@@ -55,6 +56,8 @@ async function waitFor<T>(
 }
 
 function checkRebuildArgs(args: DeployArgs): void {
+  if (args.artifact !== undefined && (args.files !== undefined || args.upload !== undefined))
+    throw unprocessable("preview + artifact rebuilds from the template; add files in a later call");
   if (args.image !== undefined || args.git !== undefined)
     throw unprocessable(
       "preview rebuilds from files or an upload; an image or a repository is a new deploy",
@@ -65,8 +68,18 @@ function checkRebuildArgs(args: DeployArgs): void {
     );
 }
 
+function templateFiles(input: NonNullable<DeployArgs["artifact"]>): Record<string, string> {
+  try {
+    return renderTemplate(input);
+  } catch (e) {
+    if (e instanceof TemplateError) throw unprocessable(`artifact: ${e.message}`);
+    throw e;
+  }
+}
+
 function sourcesGiven(args: DeployArgs): number {
   return [
+    args.artifact !== undefined,
     args.files !== undefined,
     args.upload !== undefined,
     args.image !== undefined,
@@ -111,7 +124,7 @@ export class DeployTool {
     if (args.remove !== undefined) throw unprocessable("remove only goes with preview");
 
     if (sourcesGiven(args) !== 1)
-      throw unprocessable("give exactly one of files, upload, image or git");
+      throw unprocessable("give exactly one of artifact, files, upload, image or git");
     const { source, taken } = await this.#source(scope, args, addons);
     const input = deployInput(scope, args, source);
     // Agents retry, so without a key an identical request is treated as the retry.
@@ -138,14 +151,16 @@ export class DeployTool {
     const extra = {
       ...(args.port === undefined ? {} : { port: args.port }),
       ...(addons === undefined ? {} : { addons }),
+      ...(args.network === undefined ? {} : { network: args.network }),
+      ...(args.brand === undefined ? {} : { brand: args.brand }),
     };
     if (args.upload !== undefined) {
       const taken = this.#take(args.upload, scope.actor);
       const { archive, digest } = taken;
       return { source: { kind: "tarball", archive, digest, runtime: "auto", ...extra }, taken };
     }
-    if (args.files) {
-      const { archive, digest } = await packFiles(args.files);
+    if (args.files || args.artifact) {
+      const { archive, digest } = await packFiles(args.files ?? templateFiles(args.artifact!));
       return { source: { kind: "tarball", archive, digest, runtime: "auto", ...extra } };
     }
     if (addons !== undefined)
@@ -153,7 +168,8 @@ export class DeployTool {
     if (args.image) {
       if (args.port === undefined)
         throw unprocessable("an image needs port: the port it listens on inside the container");
-      return { source: { kind: "image", image: args.image, port: args.port } };
+      const net = args.network === undefined ? {} : { network: args.network };
+      return { source: { kind: "image", image: args.image, port: args.port, ...net } };
     }
     const git = { kind: "git" as const, repo: args.git!.repo, ref: args.git!.ref };
     return { source: { ...git, ...(args.port === undefined ? {} : { port: args.port }) } };
@@ -181,6 +197,8 @@ export class DeployTool {
       previewId: target.id,
       change,
       ...(addons === undefined ? {} : { addons }),
+      ...(args.network === undefined ? {} : { network: args.network }),
+      ...(args.brand === undefined ? {} : { brand: args.brand }),
     }).finally(() => taken?.done());
     const outcome = await waitFor(res.done, wait, scope.signal);
     const url = urlsFor(ctx, target.id)[0]?.url ?? "(no URL)";
@@ -201,9 +219,12 @@ export class DeployTool {
       const taken = this.#take(args.upload, actor);
       return { change: { kind: "replace", archive: taken.archive }, taken };
     }
-    const files: Record<string, string | null> = { ...(args.files ?? {}) };
+    const files: Record<string, string | null> = {
+      ...(args.artifact ? templateFiles(args.artifact) : (args.files ?? {})),
+    };
     for (const p of args.remove ?? []) files[p] = null;
-    if (Object.keys(files).length === 0 && addons === undefined)
+    const settingOnly = args.network !== undefined || args.brand !== undefined;
+    if (Object.keys(files).length === 0 && addons === undefined && !settingOnly)
       throw unprocessable("nothing to change: give files, remove, upload or addons");
     return { change: { kind: "edit", files } };
   }

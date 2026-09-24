@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
 
-const ROOTS = ["server/src", "shared/src", "web/src", "scripts"];
+const ROOTS = ["server/src", "shared/src", "web/src", "render/src", "scripts"];
 const MAX_FILE_SHARE = 0.05;
 const ALLOWED_PER_FILE = 2;
 const MAX_TOTAL_SHARE = 0.02;
@@ -28,7 +28,7 @@ function commentLines(file: string, text: string): number {
 
 const files = execFileSync("git", ["ls-files", ...ROOTS], { encoding: "utf8" })
   .split("\n")
-  .filter((f) => f.endsWith(".ts") && !f.endsWith(".spec.ts"));
+  .filter((f) => /\.tsx?$/.test(f) && !f.endsWith(".spec.ts"));
 
 let total = 0;
 let comments = 0;

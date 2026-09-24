@@ -2,7 +2,12 @@ import { lstat, mkdir, symlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AppPlan } from "@gangway/shared/app-plan";
-import type { PreviewSource } from "@gangway/shared/domain";
+import type {
+  BrandChoice,
+  NetworkChoice,
+  PreviewNetwork,
+  PreviewSource,
+} from "@gangway/shared/domain";
 import type { RuntimeId } from "@gangway/shared/runtimes";
 import { composeForImage } from "./compose-generate.ts";
 import type { PreviewContext } from "./context.ts";
@@ -42,9 +47,21 @@ async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<str
   return cfg;
 }
 
+export const brandField = (b: BrandChoice | undefined): { brand?: "on" | "off" } =>
+  b === "on" || b === "off" ? { brand: b } : {};
+
+export const brandFor = (ctx: PreviewContext, b: BrandChoice | undefined): boolean =>
+  b === "on" ? true : b === "off" ? false : (ctx.brandDefault?.() ?? true);
+
+export const networkField = (n: NetworkChoice | undefined): { network?: PreviewNetwork } =>
+  n === "shared" || n === "isolated" ? { network: n } : {};
+
 async function imageSource(source: SourceOf<"image">, wd: Workdir): Promise<Materialized> {
   await writeFile(join(wd.srcDir, COMPOSE_FILE), composeForImage(source), { mode: 0o600 });
-  return { source: { kind: "image", image: source.image }, composeFile: COMPOSE_FILE };
+  return {
+    source: { kind: "image", image: source.image, ...networkField(source.network) },
+    composeFile: COMPOSE_FILE,
+  };
 }
 
 async function pushedSource(
@@ -149,6 +166,7 @@ async function tarballSource(
   ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
   const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port, {
     addons: source.addons,
+    brand: brandFor(ctx, source.brand),
   });
   return {
     source: {
@@ -156,6 +174,8 @@ async function tarballSource(
       uploadId: id,
       ...(up.runtime ? { runtime: up.runtime } : {}),
       ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
+      ...networkField(source.network),
+      ...brandField(source.brand),
     },
     composeFile: up.composeFile,
     pristine: up.pristine,

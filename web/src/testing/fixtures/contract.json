@@ -259,7 +259,9 @@
       "wrangler.json",
       "wrangler.jsonc",
       "requirements.txt",
-      "pyproject.toml"
+      "pyproject.toml",
+      "artifact.md",
+      "index.html"
     ],
     "addons": [
       {
@@ -353,13 +355,14 @@
       {
         "level": "info",
         "found": "a build script and nothing to start",
-        "then": "serves the build's output (dist/, build/, out/ …) with nginx"
+        "then": "serves the build's output (dist/, build/, out/ \u2026) with nginx"
       }
     ],
     "issues": [],
     "addons": [],
     "suggested": [],
-    "sqlSeed": null
+    "sqlSeed": null,
+    "artifact": null
   },
   "addonIds": ["postgres", "mysql", "redis"],
   "dataResult": {

@@ -118,6 +118,7 @@ export type StackInput = {
   publishBind: string;
   origin: PublicOrigin;
   extraEnv?: Record<string, string>;
+  sharedNetwork?: string | null;
 };
 
 const envKey = (service: string) =>
@@ -197,6 +198,12 @@ export function buildStack(i: StackInput): string {
     }
     if (Object.keys(section).length > 0) doc[kind] = section;
   }
+
+  if (i.sharedNetwork)
+    doc["networks"] = {
+      ...obj(doc["networks"]),
+      default: { name: i.sharedNetwork, external: true },
+    };
 
   return `${JSON.stringify(doc, null, 2)}\n`;
 }

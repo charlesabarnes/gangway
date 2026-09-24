@@ -1,6 +1,7 @@
-import { realpath, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Host, Preview, Visibility } from "@gangway/shared/domain";
+import type { Host, Preview, PreviewSource, Visibility } from "@gangway/shared/domain";
 import { parse as parseYaml } from "yaml";
 import { composeArgv } from "../docker/compose.ts";
 import { AppError, unprocessable } from "../errors.ts";
@@ -61,7 +62,10 @@ export async function writeStack(
   ctx: PreviewContext,
   stackPath: string,
   s: StackPlan,
-): Promise<void> {
+): Promise<string | null> {
+  const source = ctx.previews.get(s.preview.id)?.source ?? s.preview.source;
+  const network = sharedNetworkFor(ctx.instance, s.model, source);
+  if (network) await ensureNetwork(ctx, s.host, network);
   await writeFile(
     stackPath,
     buildStack({
@@ -79,7 +83,57 @@ export async function writeStack(
       },
       publishBind: s.host.publishBind,
       origin: ctx.origin,
+      sharedNetwork: network,
     }),
     { mode: 0o600 },
   );
+  return network;
+}
+
+/** Once a rebuilt stack is up on the shared network, its old per-project network holds an address pool for nothing. */
+export async function dropProjectNetwork(
+  ctx: PreviewContext,
+  host: Host,
+  project: string,
+): Promise<void> {
+  const docker = ctx.docker ?? "docker";
+  const cwd = await mkdtemp(join(tmpdir(), "gangway-net-"));
+  try {
+    await ctx.compose.capture([docker, "network", "rm", `${project}_default`], host, { cwd });
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
+export function sharedNetworkFor(
+  instance: string,
+  model: ComposeModel,
+  source: PreviewSource,
+): string | null {
+  const choice = "network" in source && source.network ? source.network : "auto";
+  const single = model.services.length === 1 && model.networks.every((n) => n === "default");
+  if (choice === "isolated") return null;
+  if (choice === "shared" && !single)
+    throw unprocessable(
+      "network: shared is for a single service; a preview with add-ons or several services keeps its own network",
+    );
+  return single ? `gw-${instance}-shared` : null;
+}
+
+async function ensureNetwork(ctx: PreviewContext, host: Host, name: string): Promise<void> {
+  const docker = ctx.docker ?? "docker";
+  const cwd = await mkdtemp(join(tmpdir(), "gangway-net-"));
+  try {
+    const found = await ctx.compose.capture([docker, "network", "inspect", name], host, { cwd });
+    if (found.code === 0) return;
+    const made = await ctx.compose.capture(
+      [docker, "network", "create", "--label", `gangway.instance=${ctx.instance}`, name],
+      host,
+      { cwd },
+    );
+    if (made.code !== 0 && !/already exists/.test(made.stderr))
+      throw new AppError("internal", `could not create the ${name} network: ${made.stderr.trim()}`);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 }

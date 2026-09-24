@@ -15,6 +15,15 @@ export type PlanInput = {
 
 export type AddonRequest = AddonId | { id: AddonId; version?: string | undefined };
 
+export type ArtifactMeta = {
+  kind: "document" | "dashboard" | "deck" | "prototype";
+  title: string;
+  description: string | null;
+  theme: "system" | "light" | "dark";
+  accent: "flag" | "red" | "teal" | "blue" | "green";
+  format: "markdown" | "html";
+};
+
 export type Reason = { level: "info" | "warn" | "error"; found: string; then: string };
 
 export type AppPlan = {
@@ -45,6 +54,7 @@ export type AppPlan = {
   addons: AddonChoice[];
   suggested: { id: AddonId; because: string }[];
   sqlSeed: string | null;
+  artifact: ArtifactMeta | null;
   reasons: Reason[];
   issues: FileIssue[];
 };

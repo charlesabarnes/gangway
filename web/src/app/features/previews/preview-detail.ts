@@ -27,6 +27,7 @@ import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { DbBrowser } from './db-browser';
 import { LogViewer } from './log-viewer';
+import { BrandPanel } from './brand-panel';
 import { PasswordPanel } from './password-panel';
 import { PreviewsStore } from './previews.store';
 import { PreviewTitle } from './preview-title';
@@ -44,6 +45,7 @@ import { displayName, sourceLabel } from './source-label';
     ErrorAlert,
     LogViewer,
     PasswordBadge,
+    BrandPanel,
     PasswordPanel,
     PreviewTitle,
     RelativeTimePipe,
@@ -187,6 +189,7 @@ import { displayName, sourceLabel } from './source-label';
 
         @if (p.state !== 'destroyed' && p.state !== 'destroying') {
           <app-password-panel [preview]="p" />
+          <app-brand-panel [preview]="p" />
           <app-source-panel [previewId]="p.id" [uploaded]="p.source.kind === 'tarball'" />
         }
 

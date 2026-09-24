@@ -81,6 +81,7 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     audit: core.audit,
     sources: d.sources,
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
+    brandDefault: () => settings.get(SETTINGS.artifactBrand),
     // A separate semaphore, so a burst of preview password forms never queues an operator's login.
     passwords: {
       passwords: previewPasswords,

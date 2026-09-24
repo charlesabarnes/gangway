@@ -54,6 +54,7 @@ export const SETTINGS = {
     null,
     { secret: true },
   ),
+  artifactBrand: def("artifacts.brand", z.boolean(), true),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),

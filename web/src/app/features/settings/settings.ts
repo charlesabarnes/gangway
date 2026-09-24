@@ -5,6 +5,7 @@ import type { SettingView, Template } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { ToastService } from '../../ui/toast';
+import { ArtifactSettings } from './artifact-settings';
 import { DefaultTemplates } from './default-templates';
 import { GitHubSettings } from './github-settings';
 import { GlobalSecrets } from './global-secrets';
@@ -13,7 +14,14 @@ import { SurfacesSettings } from './surfaces-settings';
 
 @Component({
   selector: 'app-settings',
-  imports: [DefaultTemplates, GitHubSettings, GlobalSecrets, PreviewPasswords, SurfacesSettings],
+  imports: [
+    ArtifactSettings,
+    DefaultTemplates,
+    GitHubSettings,
+    GlobalSecrets,
+    PreviewPasswords,
+    SurfacesSettings,
+  ],
   template: `
     <section class="gw-page [&>:last-child>.gw-section]:border-b-0">
       <div class="gw-title-rule"><h1 class="gw-h1">Settings</h1></div>
@@ -30,6 +38,7 @@ import { SurfacesSettings } from './surfaces-settings';
           [(saving)]="saving"
         />
         <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
+        <app-artifact-settings [settings]="settings()" [(saving)]="saving" />
       }
       @if (canSecrets()) {
         <app-global-secrets />

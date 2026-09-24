@@ -242,6 +242,7 @@ describe('the /v1 wire contract', () => {
       'addons',
       'suggested',
       'sqlSeed',
+      'artifact',
       'reasons',
       'issues',
     ];

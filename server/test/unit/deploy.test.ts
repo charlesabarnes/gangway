@@ -67,7 +67,7 @@ describe("deploy: the happy path", () => {
     expect(stack.services.web.ports).toEqual([
       { mode: "ingress", host_ip: "127.0.0.1", target: 3000, published: "31000", protocol: "tcp" },
     ]);
-    expect("name" in stack.networks.default).toBe(false);
+    expect(stack.networks.default).toEqual({ name: "gw-default-shared", external: true });
     expect(parseLabels(stack.services.web.labels)).toMatchObject({
       ok: true,
       labels: {

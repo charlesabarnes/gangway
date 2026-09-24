@@ -1,4 +1,11 @@
-import type { Clearance, Preview, Visibility, PasswordLogin } from "@gangway/shared/domain";
+import type {
+  BrandChoice,
+  Clearance,
+  NetworkChoice,
+  Preview,
+  Visibility,
+  PasswordLogin,
+} from "@gangway/shared/domain";
 import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
 import type { PasswordChoice } from "@gangway/shared/api";
 import type { Actor } from "../auth/actor.ts";
@@ -6,7 +13,13 @@ import type { RuntimeChoice } from "./runtimes.ts";
 import type { TarballSource } from "./source/tarball.ts";
 
 export type DeploySource =
-  | { kind: "image"; image: string; port: number; env?: Record<string, string> | undefined }
+  | {
+      kind: "image";
+      image: string;
+      port: number;
+      env?: Record<string, string> | undefined;
+      network?: NetworkChoice | undefined;
+    }
   | { kind: "git"; repo: string; ref: string; port?: number | undefined }
   | {
       kind: "pr";
@@ -24,6 +37,8 @@ export type DeploySource =
       digest?: string | undefined;
       runtime?: RuntimeChoice | undefined;
       addons?: readonly AddonRequest[] | undefined;
+      network?: NetworkChoice | undefined;
+      brand?: BrandChoice | undefined;
     }
   | {
       kind: "pushed";

@@ -5,19 +5,79 @@ import type { AppError } from "../../src/errors.ts";
 import { refusalDetail } from "../../src/mcp/describe.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { TOOL_PERMISSIONS } from "../../src/mcp/tool-access.ts";
+import { DeployArgs } from "../../src/mcp/tool-specs.ts";
 import { READ_ONLY, setupTools } from "../helpers/mcp-tools.ts";
 import { ACTOR } from "../helpers/preview-context.ts";
 
 const sha12 = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 12);
 
 describe("the tools", () => {
-  test("each of the four tools names its permission", () => {
+  test("each of the five tools names its permission", () => {
     expect(TOOL_PERMISSIONS).toEqual({
       deploy: "previews.deploy",
       status: "previews.read",
       logs: "logs.read",
       destroy: "previews.destroy",
+      catalog: "previews.read",
     });
+  });
+
+  test("catalog gives the guide, the templates and one template's files", () => {
+    const s = setupTools();
+    const out = s.tools.catalog(s.scope(), "deck");
+    expect(out).toContain("- deck/pitch:");
+    expect(out).toContain("- deck/status:");
+    expect(out).toContain("## Decks");
+    expect(out).not.toContain("## Prototypes");
+    expect(out).toContain("--- artifact.md\n---\nkind: deck");
+    expect(s.tools.catalog(s.scope(), "deck", "deck/lesson")).toContain(
+      "The deck/lesson template's files",
+    );
+    expect(() => s.tools.catalog(s.scope(), "deck", "dashboard/kpi")).toThrow(
+      'no deck template "dashboard/kpi"',
+    );
+  });
+
+  test("preview + artifact rebuilds from a template at the same URL", async () => {
+    const s = setupTools();
+    const first = await s.tools.deploy(s.scope(), {
+      artifact: { template: "deck/pitch" },
+      name: "same",
+      visibility: "public",
+    });
+    const again = await s.tools.deploy(s.scope(), {
+      preview: "same",
+      artifact: { template: "deck/pitch", title: "Renamed" },
+    });
+    expect(again).toStartWith(first.split("\n")[0]!.replace("ready: ", "ready: ").trim());
+    expect(again).toContain("(rebuilt)");
+  });
+
+  test("artifact may arrive as JSON text", () => {
+    expect(DeployArgs.parse({ artifact: '{"template":"deck/lesson"}' }).artifact).toEqual({
+      template: "deck/lesson",
+    });
+  });
+
+  test("deploy artifact builds a template with its settings", async () => {
+    const s = setupTools();
+    const out = await s.tools.deploy(s.scope(), {
+      artifact: {
+        template: "deck/status",
+        title: "Weekly",
+        accent: "red",
+        options: { streams: 2 },
+      },
+      name: "weekly",
+      visibility: "public",
+    });
+    expect(out).toStartWith("ready: https://weekly.preview.localhost:8443/");
+    expect(out).toContain("artifact.md (a deck)");
+    await expect(
+      s.tools.deploy(s.scope(), {
+        artifact: { template: "deck/status", options: { chart: "pie" } },
+      }),
+    ).rejects.toThrow("artifact: options.chart: one of line, bar, none");
   });
 
   test("deploy from files returns the URL once it answers; the rest find it by name", async () => {
@@ -102,7 +162,7 @@ describe("the tools", () => {
   });
 
   test.each([
-    ["no source", {}, "exactly one of files, upload, image or git"],
+    ["no source", {}, "exactly one of artifact, files, upload, image or git"],
     ["an image without a port", { image: "nginx" }, "needs port"],
     [
       "addons with an image",

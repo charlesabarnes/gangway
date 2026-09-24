@@ -1,8 +1,16 @@
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
+import {
+  guideText,
+  renderTemplate,
+  templateById,
+  templatesFor,
+  templatesText,
+  type ArtifactKind,
+} from "@gangway/shared/artifact/index";
 import type { Permission } from "@gangway/shared/permissions";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
-import { AppError } from "../errors.ts";
+import { AppError, unprocessable } from "../errors.ts";
 import { destroy } from "../previews/destroy.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { DeployTool } from "./deploy-tool.ts";
@@ -17,6 +25,7 @@ import {
   type ToolName,
 } from "./tool-access.ts";
 import {
+  CATALOG_TOOL,
   DEPLOY_TOOL,
   DESTROY_TOOL,
   GENERATE_ARTIFACT_PROMPT,
@@ -80,6 +89,9 @@ export class Tools {
     s.registerTool("destroy", DESTROY_TOOL, (args) =>
       this.#guard("destroy", () => this.destroy(scope, args.preview)),
     );
+    s.registerTool("catalog", CATALOG_TOOL, (args) =>
+      this.#guard("catalog", async () => this.catalog(scope, args.kind, args.template)),
+    );
     return s;
   }
 
@@ -120,6 +132,22 @@ export class Tools {
     progress: (n: number, message: string) => void = () => {},
   ): Promise<string> {
     return this.#deployTool.deploy(scope, args, progress);
+  }
+
+  catalog(scope: CallScope, kind: ArtifactKind, template?: string): string {
+    need(scope.actor, TOOL_PERMISSIONS.catalog);
+    const id = template ?? templatesFor(kind)[0]!.id;
+    const t = templateById(id);
+    if (!t || t.kind !== kind)
+      throw unprocessable(
+        `no ${kind} template "${id}"; one of ${templatesFor(kind)
+          .map((x) => x.id)
+          .join(", ")}`,
+      );
+    const example = Object.entries(renderTemplate({ template: id }))
+      .map(([path, body]) => `--- ${path}\n${body.trimEnd()}`)
+      .join("\n");
+    return `${guideText(kind)}\n\n## Templates for a ${kind}\nDeploy one with deploy artifact: {template, title, subtitle, theme, accent, options}, or change these files and deploy them.\n${templatesText(kind)}\n\n## The ${id} template's files\n${example}`;
   }
 
   async status(scope: CallScope, ref: string | undefined): Promise<string> {

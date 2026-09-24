@@ -23,6 +23,8 @@ export type PlanOptions = {
   previous?: RuntimeId | "own" | undefined;
   addons?: readonly AddonRequest[] | undefined;
   previousAddons?: readonly AddonChoice[] | undefined;
+  /** Show the gangway mark on an artifact: the preview's choice, else the setting. */
+  brand?: boolean | undefined;
 };
 
 async function keepPristine(ctx: PreviewContext, wd: Workdir): Promise<string | null> {
@@ -76,11 +78,12 @@ type Upload = {
   choice: RuntimeChoice;
   env: Record<string, string> | undefined;
   port: number | undefined;
+  brand: boolean;
 };
 
 async function writePlannedRuntime(
   ctx: PreviewContext,
-  { logId, wd, choice, env, port }: Upload,
+  { logId, wd, choice, env, port, brand }: Upload,
   plan: AppPlan,
   sidecars: RenderedAddons | undefined,
 ): Promise<string> {
@@ -91,6 +94,7 @@ async function writePlannedRuntime(
     join(wd.dir, "runtime.compose.yaml"),
     port,
     sidecars,
+    brand,
   );
   ctx.logs.append(
     logId,
@@ -137,7 +141,14 @@ export async function prepareUpload(
       plan,
     };
   }
-  const upload = { logId, wd, choice, env, port };
+  const upload = {
+    logId,
+    wd,
+    choice,
+    env,
+    port,
+    brand: opts.brand ?? ctx.brandDefault?.() ?? true,
+  };
   const composeFile = await writePlannedRuntime(ctx, upload, plan, sidecars);
   return { composeFile, runtime: plan.runtime!, pristine, plan };
 }

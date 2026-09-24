@@ -1,3 +1,11 @@
+export type {
+  ArtifactAccent,
+  ArtifactKind,
+  ArtifactMeta,
+  ArtifactTheme,
+  BrandChoice,
+} from './artifact.types';
+export type { AppPlan, Command, PlanIssue, PlanReason, PlanRequest } from './plan.types';
 export type PreviewState =
   'building' | 'starting' | 'awake' | 'asleep' | 'failed' | 'destroying' | 'destroyed';
 export const PREVIEW_STATES: readonly PreviewState[] = [
@@ -19,7 +27,14 @@ export type PreviewSource =
   | { kind: 'agent'; tokenId: string; idempotencyKey: string }
   | { kind: 'image'; image: string }
   /** `runtime` absent: the upload brought its own compose file or Dockerfile. */
-  | { kind: 'tarball'; uploadId: string; runtime?: RuntimeId; addons?: AddonChoice[] }
+  | {
+      kind: 'tarball';
+      uploadId: string;
+      runtime?: RuntimeId;
+      addons?: AddonChoice[];
+      network?: 'shared' | 'isolated';
+      brand?: 'on' | 'off';
+    }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];
 
@@ -382,42 +397,6 @@ export type DataResult = {
 };
 export type RedisKeys = { cursor: string; keys: string[] };
 export type RedisKey = { type: string; ttl: string; value: DataResult };
-
-export type Command = string | string[];
-export type PlanReason = { level: 'info' | 'warn' | 'error'; found: string; then: string };
-export type PlanIssue = { path: string; message: string };
-export type AppPlan = {
-  kind: 'own' | 'runtime';
-  runtime: RuntimeId | null;
-  version: string | null;
-  image: string | null;
-  root: string;
-  install: Command | null;
-  build: Command | null;
-  start: Command | null;
-  release: Command | null;
-  serve:
-    | { kind: 'server' }
-    | { kind: 'static'; output: string | null | false; fallback: 'spa' | '404' | 'listing' };
-  docroot: string;
-  entry: string | null;
-  port: number | null;
-  health: string | null;
-  env: Record<string, string>;
-  stack: { ttl?: string; visibility?: Visibility; idle?: string; seed?: string };
-  configFile: string | null;
-  addons: AddonChoice[];
-  suggested: { id: AddonId; because: string }[];
-  sqlSeed: string | null;
-  reasons: PlanReason[];
-  issues: PlanIssue[];
-};
-export type PlanRequest = {
-  paths: string[];
-  files: Record<string, string>;
-  runtime?: Detected | 'auto';
-  addons?: AddonId[];
-};
 
 export type SourceFile = { path: string; size: number; text?: string };
 export type PreviewSourceFiles = {

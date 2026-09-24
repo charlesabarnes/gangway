@@ -1,5 +1,6 @@
 import LOGO from "../../../web/public/logo.svg" with { type: "text" };
 import LOGO_LIGHT from "../../../web/public/logo-light.svg" with { type: "text" };
+import { FAVICON_LINK, fontFaces, fontSrc } from "./page-chrome.ts";
 
 export const PASSWORD_PATH = "/__gangway/password";
 const MAX_FORM_BYTES = 8 * 1024;
@@ -28,8 +29,8 @@ export async function readForm(req: Request): Promise<URLSearchParams | null> {
   return new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
 }
 
-// The "Chart" look of the web UI's login card. The CSP allows no fonts or images, so the mark is
-// inlined from the same files the UI serves, and the fonts fall back when Plex is not installed.
+// The "Chart" look of the web UI's login card. The CSP allows no images, so the mark is inlined from
+// the same files the UI serves; Plex comes from the app host.
 const PAGE_CSS = `
 :root{color-scheme:light dark;--paper:oklch(0.97 0.012 85);--ink:oklch(0.27 0.06 255);--muted:oklch(0.48 0.04 255);--rule:oklch(0.84 0.025 240);--primary:oklch(0.33 0.09 255);--primary-fg:oklch(0.97 0.012 85);--flag:oklch(0.84 0.15 88);--danger:oklch(0.55 0.19 28)}
 @media (prefers-color-scheme:dark){:root{--paper:oklch(0.2 0.035 255);--ink:oklch(0.94 0.015 85);--muted:oklch(0.72 0.03 250);--rule:oklch(0.36 0.04 250);--primary:oklch(0.84 0.15 88);--primary-fg:oklch(0.22 0.05 255);--danger:oklch(0.62 0.18 28)}.on-light{display:none!important}}
@@ -61,7 +62,8 @@ export function passwordPage(
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>Password required</title>
-<style>${PAGE_CSS}</style></head><body>
+${FAVICON_LINK}
+<style>${fontFaces(host)}${PAGE_CSS}</style></head><body>
 <form method="post" action="${PASSWORD_PATH}">
 <div class="brand"><span class="mark on-light" aria-hidden="true">${LOGO}</span><span class="mark on-dark" aria-hidden="true">${LOGO_LIGHT}</span>gangway</div>
 <div><h1>This preview is password-protected</h1>
@@ -77,8 +79,7 @@ ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
     "x-robots-tag": "noindex, nofollow",
-    "content-security-policy":
-      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; img-src data:; ${fontSrc(host)} form-action 'self'; frame-ancestors 'none'; base-uri 'none'`,
     "x-frame-options": "DENY",
     "referrer-policy": "no-referrer",
   };

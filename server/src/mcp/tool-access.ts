@@ -6,6 +6,7 @@ export const TOOL_PERMISSIONS = {
   status: "previews.read",
   logs: "logs.read",
   destroy: "previews.destroy",
+  catalog: "previews.read",
 } as const satisfies Record<string, Permission>;
 export type ToolName = keyof typeof TOOL_PERMISSIONS;
 export const REDEPLOY_PERMISSION: Permission = "previews.update";

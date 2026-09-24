@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   planApp,
@@ -81,12 +81,13 @@ export async function writeRuntime(
   composePath: string,
   port?: number,
   sidecars?: RenderedAddons,
+  brand = true,
 ): Promise<{ composeFile: string; note: string }> {
   if (containedIn(srcDir, composePath))
     throw new AppError("internal", "the runtime compose file must be outside the build context");
   const env = { ...plan.env, ...(secrets ?? {}), ...(sidecars?.appEnv ?? {}) };
   const bindings = [...new Set([...ALWAYS_BOUND, ...Object.keys(env)])].sort();
-  const rendered = renderRuntime(plan, bindings, port);
+  const rendered = renderRuntime(plan, bindings, port, brand);
   const context = plan.root ? path.join(srcDir, plan.root) : srcDir;
   if (!containedIn(srcDir, context)) throw unprocessable("root: leaves the upload");
   const dir = path.join(context, GENERATED_DIR);
@@ -104,6 +105,7 @@ export async function writeRuntime(
   );
   for (const [name, body] of Object.entries({ ...rendered.files, ...(sidecars?.files ?? {}) }))
     await writeFile(path.join(dir, name), body, { mode: FILE_MODE });
+  await copyAssets(dir, rendered.assets ?? {});
   const listen = port ?? plan.port ?? runtimeById(plan.runtime!).port;
   await writeFile(
     composePath,
@@ -118,6 +120,15 @@ export async function writeRuntime(
     { mode: 0o600 },
   );
   return { composeFile: path.relative(srcDir, composePath), note: rendered.note };
+}
+
+async function copyAssets(dir: string, assets: Record<string, string>): Promise<void> {
+  for (const [name, src] of Object.entries(assets)) {
+    const dest = path.join(dir, name);
+    await mkdir(path.dirname(dest), { recursive: true, mode: DIR_MODE });
+    await copyFile(src, dest);
+    await chmod(dest, FILE_MODE);
+  }
 }
 
 export function stackX(plan: AppPlan): Record<string, string> {

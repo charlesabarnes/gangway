@@ -21,7 +21,7 @@ import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
 import type { SourceStore } from "./source/store.ts";
-import { writeStack } from "./stack-file.ts";
+import { dropProjectNetwork, writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
 
@@ -240,7 +240,7 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
 
   let upAttempted = false;
   try {
-    await writeStack(ctx, p.stackPath, r);
+    const shared = await writeStack(ctx, p.stackPath, r);
     const before = await imageIds(ctx, r.host, p.base, r.wd.srcDir);
     await buildImages(ctx, p, r, r.buildId);
     await startAddons(ctx, p, r);
@@ -256,6 +256,7 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
     p.log("rebuilt: awake");
     ctx.states.transition(p.id, "awake");
     await removeReplaced(ctx, r.host, p.base, r.wd.srcDir, before, p.id);
+    if (shared) await dropProjectNetwork(ctx, r.host, p.base.project);
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
     return await rebuildFailed(ctx, p, r, e, upAttempted);

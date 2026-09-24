@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ARTIFACT_KINDS, TemplateInputSchema } from "@gangway/shared/artifact/index";
 import { VISIBILITY_VALUES } from "@gangway/shared/api";
 import { CHECK_PATH } from "../previews/probe.ts";
 
@@ -6,7 +7,23 @@ export const DEFAULT_WAIT_S = 240;
 const MAX_WAIT_S = 600;
 const MAX_CHECKS = 20;
 
+// Some clients send a nested object as its JSON text.
+function jsonObject(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  try {
+    return JSON.parse(v) as unknown;
+  } catch {
+    return v;
+  }
+}
+
 export const DeployArgs = z.object({
+  artifact: z
+    .preprocess(jsonObject, TemplateInputSchema)
+    .optional()
+    .describe(
+      'Build an artifact from a template instead of writing files: {template: "deck/pitch", title, subtitle, theme, accent, options}. The catalog tool lists the templates and their options. Change it afterwards with preview + files; preview + artifact rebuilds it from a template at the same URL.',
+    ),
   files: z
     .record(z.string(), z.string())
     .optional()
@@ -83,6 +100,18 @@ export const DeployArgs = z.object({
     .describe(
       "Put it behind a password: generate makes one and prints it ONLY in the preview's log (read it with logs); none leaves it open; inherit (the default) follows the server's setting.",
     ),
+  network: z
+    .enum(["auto", "shared", "isolated"])
+    .optional()
+    .describe(
+      "auto (default): one service joins the shared preview network; add-ons or several services get their own. shared or isolated to choose.",
+    ),
+  brand: z
+    .enum(["inherit", "on", "off"])
+    .optional()
+    .describe(
+      "Show the faint gangway mark on an artifact: inherit (the server's setting), on or off.",
+    ),
   addons: z
     .array(z.string())
     .optional()
@@ -121,16 +150,16 @@ const LOG_SOURCES = ["all", "pipeline", "runtime"] as const;
 export type LogSource = (typeof LOG_SOURCES)[number];
 
 export const GENERATE_ARTIFACT_PROMPT = {
-  title: "Build and ship an artifact-style app",
+  title: "Build and ship an artifact",
   description:
-    "Build something you would make as an artifact (a page, demo, mockups, a small app with a database) and ship it to a real URL here, the fast way.",
+    "Build a document, dashboard, slide deck or clickable prototype from gangway's templates (or, when those can't express it, a small app) and ship it to a real URL here, the fast way.",
   argsSchema: z.object({ what: z.string().max(2000).optional().describe("What to build") }),
 };
 
 export const DEPLOY_TOOL = {
   title: "Deploy a preview",
   description:
-    "Put an app on a public HTTPS URL: from files (the usual case), a container image, or a git repository. Waits until the URL actually answers and returns it. Also rebuilds an existing preview in place (preview + files).",
+    "Put an artifact or an app on a public HTTPS URL: an artifact from a template (artifact: {template, …}; see the catalog tool), text files, an upload, a container image, or a git repository. Waits until the URL answers and returns it. Also rebuilds an existing preview in place (preview + files).",
   inputSchema: DeployArgs,
   annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
 };
@@ -174,4 +203,19 @@ export const DESTROY_TOOL = {
     "Tear a preview down: its URL stops answering and its containers and data are removed.",
   inputSchema: z.object({ preview: PreviewRef }),
   annotations: { destructiveHint: true, idempotentHint: true },
+};
+
+export const CATALOG_TOOL = {
+  title: "Artifact templates and components",
+  description:
+    "Start here for a document, dashboard, slide deck or clickable prototype. Returns the artifact.md guide (markdown plus a few blocks, charts and slides), that kind's templates with their options, and a complete example. Read it before writing artifact.md or deploying an artifact.",
+  inputSchema: z.object({
+    kind: z.enum(ARTIFACT_KINDS).describe("What you are making."),
+    template: z
+      .string()
+      .max(64)
+      .optional()
+      .describe("A template id from the list, e.g. deck/status: returns its files to adapt."),
+  }),
+  annotations: { readOnlyHint: true },
 };

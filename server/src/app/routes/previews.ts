@@ -72,6 +72,8 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
     runtime,
     port,
     addons,
+    network,
+    brand,
     password: passwordMode,
     passwordLogin,
     ...q
@@ -91,6 +93,8 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
       port,
       runtime,
       addons,
+      network,
+      brand,
       digest: `len:${c.req.header("content-length") ?? "?"}`,
     },
   };
@@ -190,6 +194,8 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     change: RedeployInput["change"],
     runtime: RedeployInput["runtime"],
     addons?: RedeployInput["addons"],
+    network?: RedeployInput["network"],
+    brand?: RedeployInput["brand"],
   ) => {
     const p = find(c.req.param("id"));
     const res = await redeploy(ctx, {
@@ -198,6 +204,8 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       change,
       runtime,
       addons,
+      network,
+      brand,
     });
     if (c.req.query("wait") === "true") {
       const o = await res.done;
@@ -219,8 +227,8 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     requirePermission("previews.update_own", "previews.update"),
     async (c) => {
       const body = await readJson(c);
-      const { files, runtime, addons } = SourceEditSchema.parse(body);
-      return rebuild(c, { kind: "edit", files }, runtime, addons);
+      const { files, runtime, addons, network, brand } = SourceEditSchema.parse(body);
+      return rebuild(c, { kind: "edit", files }, runtime, addons, network, brand);
     },
   );
 
@@ -233,10 +241,10 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
         throw badRequest(
           `send the new source as a tar or tar.gz body (${TARBALL_CONTENT_TYPES.join(", ")})`,
         );
-      const { runtime, addons } = SourceReplaceQuerySchema.parse(c.req.query());
+      const { runtime, addons, network, brand } = SourceReplaceQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
       if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      return rebuild(c, { kind: "replace", archive }, runtime, addons);
+      return rebuild(c, { kind: "replace", archive }, runtime, addons, network, brand);
     },
   );
 }

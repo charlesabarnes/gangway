@@ -1,4 +1,5 @@
 import { escapeHtml } from "../util/html.ts";
+import { BRAND, CHART_CSS, FAVICON_LINK, fontFaces } from "./page-chrome.ts";
 
 type PageOpts = {
   title: string;
@@ -6,32 +7,22 @@ type PageOpts = {
   body: string;
   refreshSeconds?: number;
   status: number;
+  /** The preview host the page stands in for; its app host serves the fonts. */
+  hostname?: string;
 };
 
-function page(o: PageOpts): Response {
+type Tone = "busy" | "bad" | "plain";
+
+function page(o: PageOpts & { label: string; tone?: Tone }): Response {
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
 <title>${escapeHtml(o.title)}</title>
+${FAVICON_LINK}
 ${o.refreshSeconds ? `<meta http-equiv="refresh" content="${o.refreshSeconds}">` : ""}
-<style>
-:root{color-scheme:light dark}
-body{margin:0;min-height:100vh;display:grid;place-items:center;
-  font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-  background:#fafafa;color:#18181b}
-@media(prefers-color-scheme:dark){body{background:#0a0a0a;color:#e4e4e7}}
-main{max-width:34rem;padding:2rem}
-h1{font-size:1.125rem;margin:0 0 .5rem;font-weight:600}
-p{margin:.25rem 0;color:#71717a}
-pre{margin-top:1rem;padding:.75rem;border-radius:.375rem;background:#f4f4f5;
-  overflow-x:auto;font-size:12px;line-height:1.5;color:#3f3f46}
-@media(prefers-color-scheme:dark){pre{background:#18181b;color:#a1a1aa}}
-a{color:inherit}
-.dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;margin-right:.5rem;
-  background:currentColor;animation:p 1.4s ease-in-out infinite}
-@keyframes p{0%,100%{opacity:.3}50%{opacity:1}}
-</style></head>
-<body><main>${o.body}</main></body></html>`;
+<style>${o.hostname ? fontFaces(o.hostname) : ""}${CHART_CSS}</style></head>
+<body><main>${BRAND}<span class="label ${o.tone ?? "plain"}">${escapeHtml(o.label)}</span>${o.body}</main></body></html>`;
   return new Response(html, {
     status: o.status,
     headers: {
@@ -42,14 +33,19 @@ a{color:inherit}
   });
 }
 
+const host = (h: string) => `<p class="host">${escapeHtml(h)}</p>`;
+
 export function buildingPage(hostname: string, logUrl?: string): Response {
   return page({
+    hostname,
     status: 202,
     refreshSeconds: 5,
     title: `Building ${hostname}`,
     heading: "Building",
-    body: `<h1><span class="dot"></span>Building this preview</h1>
-<p>${escapeHtml(hostname)}</p>
+    label: "Building",
+    tone: "busy",
+    body: `<h1>Building this preview</h1>
+${host(hostname)}
 <p>This page refreshes every 5 seconds.</p>
 ${logUrl ? `<p><a href="${escapeHtml(logUrl)}">View the build log</a></p>` : ""}`,
   });
@@ -57,12 +53,15 @@ ${logUrl ? `<p><a href="${escapeHtml(logUrl)}">View the build log</a></p>` : ""}
 
 export function wakingPage(hostname: string): Response {
   return page({
+    hostname,
     status: 202,
     refreshSeconds: 3,
     title: `Waking ${hostname}`,
     heading: "Waking",
-    body: `<h1><span class="dot"></span>Waking this preview</h1>
-<p>${escapeHtml(hostname)}</p>
+    label: "Waking",
+    tone: "busy",
+    body: `<h1>Waking this preview</h1>
+${host(hostname)}
 <p>It was asleep to save resources. This usually takes a few seconds.</p>`,
   });
 }
@@ -70,11 +69,14 @@ export function wakingPage(hostname: string): Response {
 export function failedPage(hostname: string, logLines: string[] = [], logUrl?: string): Response {
   const tail = logLines.slice(-50);
   return page({
+    hostname,
     status: 502,
     title: `Failed ${hostname}`,
     heading: "Failed",
+    label: "Failed",
+    tone: "bad",
     body: `<h1>This preview failed to start</h1>
-<p>${escapeHtml(hostname)}</p>
+${host(hostname)}
 ${tail.length ? `<pre>${escapeHtml(tail.join("\n"))}</pre>` : ""}
 ${logUrl ? `<p><a href="${escapeHtml(logUrl)}">View the full log</a></p>` : ""}`,
   });
@@ -82,9 +84,11 @@ ${logUrl ? `<p><a href="${escapeHtml(logUrl)}">View the full log</a></p>` : ""}`
 
 export function unknownPage(hostname: string): Response {
   return page({
+    hostname,
     status: 404,
     title: "No such preview",
     heading: "Not found",
+    label: "Not found",
     body: `<h1>No such preview</h1>
 <p>Nothing is served at ${escapeHtml(hostname)}.</p>
 <p>It may have been destroyed, or its time-to-live may have expired.</p>`,
@@ -93,30 +97,39 @@ export function unknownPage(hostname: string): Response {
 
 export function upstreamTimeoutPage(hostname: string): Response {
   return page({
+    hostname,
     status: 504,
     title: "Timed out",
     heading: "Timed out",
-    body: `<h1>The preview did not respond in time</h1><p>${escapeHtml(hostname)}</p>`,
+    label: "Timed out",
+    tone: "bad",
+    body: `<h1>The preview did not respond in time</h1>${host(hostname)}`,
   });
 }
 
 export function badGatewayPage(hostname: string): Response {
   return page({
+    hostname,
     status: 502,
     title: "Unreachable",
     heading: "Unreachable",
+    label: "Unreachable",
+    tone: "bad",
     body: `<h1>The preview is not reachable</h1>
-<p>${escapeHtml(hostname)}</p>
+${host(hostname)}
 <p>Its container may have stopped.</p>`,
   });
 }
 
 export function busyPage(hostname: string): Response {
   return page({
+    hostname,
     status: 503,
     title: "Too busy",
     heading: "Too busy",
-    body: `<h1>This preview is handling too many requests</h1><p>${escapeHtml(hostname)}</p>`,
+    label: "Too busy",
+    tone: "bad",
+    body: `<h1>This preview is handling too many requests</h1>${host(hostname)}`,
   });
 }
 
@@ -125,6 +138,8 @@ export function payloadTooLargePage(): Response {
     status: 413,
     title: "Too large",
     heading: "Too large",
+    label: "Too large",
+    tone: "bad",
     body: `<h1>That upload is too large</h1><p>The request exceeded this preview's body limit.</p>`,
   });
 }
@@ -134,6 +149,7 @@ export function misdirectedPage(): Response {
     status: 421,
     title: "Misdirected",
     heading: "Misdirected",
+    label: "Misdirected",
     body: `<h1>Misdirected request</h1><p>This server does not serve that hostname.</p>`,
   });
 }

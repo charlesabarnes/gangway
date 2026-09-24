@@ -88,12 +88,27 @@ export type Project = {
   updatedAt: Date;
 };
 
+export const NETWORK_CHOICES = ["auto", "shared", "isolated"] as const;
+export type NetworkChoice = (typeof NETWORK_CHOICES)[number];
+/** Absent means auto: shared when the stack is one service, its own network otherwise. */
+export type PreviewNetwork = Exclude<NetworkChoice, "auto">;
+
+export const BRAND_CHOICES = ["inherit", "on", "off"] as const;
+export type BrandChoice = (typeof BRAND_CHOICES)[number];
+
 export type PreviewSource =
   | { kind: "pr"; repo: string; number: number; sha: string; image?: string }
   | { kind: "manual"; userId: string }
   | { kind: "agent"; tokenId: string; idempotencyKey: string }
-  | { kind: "image"; image: string }
-  | { kind: "tarball"; uploadId: string; runtime?: RuntimeId; addons?: AddonChoice[] }
+  | { kind: "image"; image: string; network?: PreviewNetwork }
+  | {
+      kind: "tarball";
+      uploadId: string;
+      runtime?: RuntimeId;
+      addons?: AddonChoice[];
+      network?: PreviewNetwork;
+      brand?: "on" | "off";
+    }
   | { kind: "git"; repo: string; ref: string };
 
 export type Preview = {

@@ -14,6 +14,7 @@ export type DeployOptions = {
   passwordValue: string;
   project: string;
   template: string;
+  network: string;
 };
 export const NO_OPTIONS: DeployOptions = {
   title: '',
@@ -25,6 +26,7 @@ export const NO_OPTIONS: DeployOptions = {
   passwordValue: '',
   project: '',
   template: '',
+  network: '',
 };
 
 const PASSWORD_LOGIN: Record<Who, string> = {
@@ -61,6 +63,7 @@ export function optionsQuery(
     addons,
     password: passwordParam(o),
     passwordLogin: PASSWORD_LOGIN[o.who],
+    network: o.network,
   });
 }
 
@@ -75,7 +78,7 @@ export function optionsQuery(
         <span class="text-[10px] transition group-open:rotate-90" aria-hidden="true">▸</span
         ><span class="text-xs font-semibold tracking-[.14em] uppercase">Options</span
         ><span class="text-[13px] text-muted"
-          >name, address, visibility, TTL, project, template, who can open it</span
+          >name, address, visibility, TTL, network, project, template, who can open it</span
         >
       </summary>
       <div class="mt-4 mb-2 grid gap-x-6 gap-y-5 sm:grid-cols-5">
@@ -117,6 +120,18 @@ export function optionsQuery(
             data-testid="ttl"
         /></label>
         <span class="self-end pb-2 text-xs text-muted">12h, 7d, or none</span>
+        <label class="gw-label flex flex-col gap-1"
+          >Network<select
+            [class]="field"
+            (change)="set('network', $any($event.target).value)"
+            data-testid="network"
+            title="Shared: one network for all single-service previews. Isolated: its own. Automatic: shared unless it has add-ons or several services."
+          >
+            <option value="">automatic</option>
+            <option value="shared">shared</option>
+            <option value="isolated">isolated</option>
+          </select></label
+        >
         <label class="gw-label flex flex-col gap-1 sm:col-span-2"
           >Project<select
             [class]="field"

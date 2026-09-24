@@ -17,7 +17,14 @@ import type { AppPlan, PlanInput } from "./plan/types.ts";
 
 export { cmdText } from "./plan/command-text.ts";
 export { MAX_PLAN_FILE_BYTES };
-export type { AddonRequest, AppPlan, PlanChoice, PlanInput, Reason } from "./plan/types.ts";
+export type {
+  AddonRequest,
+  AppPlan,
+  ArtifactMeta,
+  PlanChoice,
+  PlanInput,
+  Reason,
+} from "./plan/types.ts";
 
 export const PLAN_FILES = [
   ...GANGWAY_FILES,
@@ -31,6 +38,8 @@ export const PLAN_FILES = [
   "wrangler.jsonc",
   "requirements.txt",
   "pyproject.toml",
+  "artifact.md",
+  "index.html",
 ] as const;
 
 export const STATIC_BUILD_OUTPUTS: readonly string[] = STATIC_OUTPUTS;
@@ -73,6 +82,7 @@ const emptyPlan = (): AppPlan => ({
   addons: [],
   suggested: [],
   sqlSeed: null,
+  artifact: null,
 });
 
 export function planApp(input: PlanInput): AppPlan {

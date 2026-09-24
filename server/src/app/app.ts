@@ -7,6 +7,7 @@ import type { AppEnv } from "./env.ts";
 import { authenticate, type AuthDeps } from "./middleware/auth.ts";
 import { errorHandler, problemResponse } from "./problem.ts";
 import { serveStatic } from "./static.ts";
+import { serveKitFont } from "./kit-fonts.ts";
 
 export type AppDeps = AuthDeps & {
   logger: Logger;
@@ -72,6 +73,10 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
   app.notFound(async (c) => {
     const path = new URL(c.req.url).pathname;
     const isApiPath = path === "/v1" || path.startsWith("/v1/");
+    if (c.env.surface === "app" && !isApiPath) {
+      const font = await serveKitFont(c.req.raw);
+      if (font) return font;
+    }
     if (c.env.surface === "app" && d.staticDir && !isApiPath) {
       const res = await serveStatic(c.req.raw, { root: d.staticDir });
       if (res) return res;

@@ -1,5 +1,11 @@
 import type { AppPlan } from "@gangway/shared/app-plan";
-import type { Host, Preview, PreviewSource } from "@gangway/shared/domain";
+import type {
+  BrandChoice,
+  Host,
+  NetworkChoice,
+  Preview,
+  PreviewSource,
+} from "@gangway/shared/domain";
 import { actorId } from "../auth/actor.ts";
 import { conflict, unprocessable } from "../errors.ts";
 import { addonServices } from "./addons.ts";
@@ -7,6 +13,7 @@ import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
+import { brandField, brandFor, networkField } from "./deploy-source.ts";
 import { prepareUpload, type PreparedUpload } from "./prepare-upload.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
@@ -63,6 +70,8 @@ async function recordSource(
   id: string,
   source: TarballPreviewSource,
   up: PreparedUpload,
+  network?: NetworkChoice,
+  brand?: BrandChoice,
 ): Promise<PreviewSource> {
   if (up.pristine) await sources.adopt(id, up.pristine);
   const next: PreviewSource = {
@@ -70,6 +79,8 @@ async function recordSource(
     uploadId: source.uploadId,
     ...(up.runtime ? { runtime: up.runtime } : {}),
     ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
+    ...networkField(network ?? source.network),
+    ...brandField(brand ?? source.brand),
   };
   if (JSON.stringify(next) !== JSON.stringify(source)) ctx.previews.setSource(id, next);
   return next;
@@ -107,9 +118,10 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
     previous: source.runtime ?? "own",
     addons: input.addons,
     previousAddons: source.addons,
+    brand: brandFor(ctx, input.brand ?? source.brand),
   });
   const planned = await readModel(ctx, b.host, wd, up.composeFile);
   assertSameExposure(routes, planned.model);
-  const next = await recordSource(ctx, b.sources, id, source, up);
+  const next = await recordSource(ctx, b.sources, id, source, up, input.network, input.brand);
   return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan };
 }

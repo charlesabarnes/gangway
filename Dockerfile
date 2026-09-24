@@ -10,6 +10,19 @@ RUN npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
+# The artifact renderer (render/): one JS bundle, its CSS and fonts, copied into artifact previews.
+FROM oven/bun:1.4.2-alpine AS render
+WORKDIR /src
+COPY package.json bun.lock bunfig.toml tsconfig.base.json ./
+COPY server/package.json server/
+COPY shared/package.json shared/
+COPY render/package.json render/
+RUN bun install --frozen-lockfile
+COPY shared/ shared/
+COPY render/ render/
+COPY web/public/favicon-preview.svg web/public/logo.svg web/public/logo-light.svg web/public/
+RUN bun render/build.ts
+
 FROM oven/bun:1.4.2-alpine
 
 RUN apk add --no-cache docker-cli docker-cli-compose git openssh-client tini
@@ -20,13 +33,16 @@ WORKDIR /app
 COPY package.json bun.lock bunfig.toml tsconfig.base.json ./
 COPY server/package.json server/
 COPY shared/package.json shared/
+COPY render/package.json render/
 RUN bun install --frozen-lockfile --production
 
 COPY shared/ shared/
 COPY server/ server/
 COPY scripts/healthcheck.ts scripts/
-# The logo files, inlined into the preview password page (server/src/net/gate-pages.ts).
-COPY web/public/logo.svg web/public/logo-light.svg web/public/
+# The logo files and the preview favicon, inlined into the pages gangway serves for previews (server/src/net).
+COPY web/public/logo.svg web/public/logo-light.svg web/public/favicon-preview.svg web/public/
+
+COPY --from=render /src/render/dist render/dist
 
 # The Angular app: boot.ts serves web/dist/browser on the `app` surface when it exists.
 COPY --from=web /web/dist/browser web/dist/browser

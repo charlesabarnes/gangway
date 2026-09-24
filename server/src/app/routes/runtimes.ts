@@ -45,7 +45,6 @@ export function runtimeRoutes(api: Hono<AppEnv>): void {
 
 export function schemaRoutes(pub: Hono<AppEnv>): void {
   const schema = gangwayJsonSchema();
-  pub.get("/schema/gangway.yml", (c) =>
-    c.json(schema, 200, { "cache-control": "public, max-age=3600" }),
-  );
+  const cache = { "cache-control": "public, max-age=3600" };
+  pub.get("/schema/gangway.yml", (c) => c.json(schema, 200, cache));
 }

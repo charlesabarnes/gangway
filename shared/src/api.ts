@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
 import { RUNTIME_IDS } from "./runtimes.ts";
 import { ADDON_IDS, isAddonId } from "./addons.ts";
+import { BRAND_CHOICES, NETWORK_CHOICES } from "./domain.ts";
 
 export const PREVIEW_STATE_VALUES = [
   "building",
@@ -107,6 +108,8 @@ export const TarballDeployQuerySchema = z.object({
   addons: addonQuery.optional(),
   password: z.enum(["inherit", "none", "generate"]).optional(),
   passwordLogin: z.enum(["inherit", "on", "off", "only"]).optional(),
+  network: z.enum(NETWORK_CHOICES).optional(),
+  brand: z.enum(BRAND_CHOICES).optional(),
 });
 
 const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
@@ -114,6 +117,8 @@ const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
 export const SourceReplaceQuerySchema = z.object({
   runtime: runtimeChoice.optional(),
   addons: addonQuery.optional(),
+  network: z.enum(NETWORK_CHOICES).optional(),
+  brand: z.enum(BRAND_CHOICES).optional(),
 });
 
 export const SourceEditSchema = z
@@ -129,9 +134,16 @@ export const SourceEditSchema = z
       .refine((f) => Object.keys(f).length <= 500, "at most 500 files per edit"),
     runtime: runtimeChoice.optional(),
     addons: addonArray.optional(),
+    network: z.enum(NETWORK_CHOICES).optional(),
+    brand: z.enum(BRAND_CHOICES).optional(),
   })
   .refine(
-    (e) => Object.keys(e.files).length > 0 || e.runtime !== undefined || e.addons !== undefined,
+    (e) =>
+      Object.keys(e.files).length > 0 ||
+      e.runtime !== undefined ||
+      e.addons !== undefined ||
+      e.network !== undefined ||
+      e.brand !== undefined,
     "nothing to change",
   );
 export type SourceEdit = z.infer<typeof SourceEditSchema>;

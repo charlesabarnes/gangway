@@ -1,4 +1,5 @@
 import type { RuntimeId } from "../runtimes.ts";
+import { planArtifact } from "./artifact.ts";
 import { cmdText } from "./command-text.ts";
 import { planNodeOrBun } from "./node-rules.ts";
 import { entryFrom, readJson, str, type Json } from "./project-files.ts";
@@ -52,6 +53,7 @@ function planStatic(ctx: RuleContext): void {
     "the static runtime serves the files as they are (use runtime: node for a build)",
   );
   plan.release = null;
+  if (planArtifact(ctx)) return;
   const fallback = staticFallback(have);
   plan.serve = { kind: "static", output: false, fallback };
   plan.reasons.push({ level: "info", ...STATIC_FALLBACKS[fallback] });

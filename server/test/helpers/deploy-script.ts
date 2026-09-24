@@ -75,6 +75,8 @@ export function setupScriptedDeploy(script: Script = {}) {
       yield { type: "exit", code: up.code, signal: null };
     },
     async capture(argv, _host, o): Promise<ComposeResult> {
+      // The shared preview network is plumbing, not part of a stack's compose sequence.
+      if (argv[1] === "network") return { code: 0, stdout: "[]", stderr: "", signal: null };
       record(argv, o.cwd);
       const ok = (stdout: string): ComposeResult => ({ code: 0, stdout, stderr: "", signal: null });
       switch (cmdOf(argv)) {
