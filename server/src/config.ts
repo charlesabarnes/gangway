@@ -17,6 +17,18 @@ export const HostConfigSchema = z.object({
 });
 export type HostConfig = z.infer<typeof HostConfigSchema>;
 
+// A comma-separated env var or an array of IP addresses and CIDRs.
+const addressList = z.preprocess(
+  (v) =>
+    typeof v === "string"
+      ? v
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : v,
+  z.array(z.string()).default([]),
+);
+
 const ConfigSchema = z.object({
   instanceId: z
     .string()
@@ -53,16 +65,9 @@ const ConfigSchema = z.object({
   wakeWaitMs: z.coerce.number().int().min(0).default(3_000),
   lastSeenFlushIntervalMs: z.coerce.number().int().min(0).default(30_000),
 
-  trustedProxies: z.preprocess(
-    (v) =>
-      typeof v === "string"
-        ? v
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : v,
-    z.array(z.string()).default([]),
-  ),
+  trustedProxies: addressList,
+  // Who may reach the UI and API; empty is everyone.
+  controlAllow: addressList,
 
   // Keep under the orchestrator's kill timeout (Docker's default is 10s).
   shutdownGraceMs: z.coerce.number().int().min(0).default(8_000),
@@ -101,6 +106,7 @@ const ENV_MAP = {
   GANGWAY_LAST_SEEN_FLUSH_INTERVAL_MS: "lastSeenFlushIntervalMs",
   GANGWAY_SHUTDOWN_GRACE_MS: "shutdownGraceMs",
   GANGWAY_TRUSTED_PROXIES: "trustedProxies",
+  GANGWAY_CONTROL_ALLOW: "controlAllow",
   GANGWAY_TLS_MODE: "tlsMode",
   GANGWAY_TLS_CERT_PATH: "tlsCertPath",
   GANGWAY_TLS_KEY_PATH: "tlsKeyPath",

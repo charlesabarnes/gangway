@@ -5,6 +5,7 @@ import type { Logger } from "../logger.ts";
 import type { DispatchDeps, Surface } from "../net/dispatch.ts";
 import { failedPage, wakingPage } from "../net/error-pages.ts";
 import { DEFAULT_LIMITS } from "../net/limits.ts";
+import { controlAllowRisk, controlGate } from "../net/control-allow.ts";
 import { clientIpOf, startListener, type RunningListener } from "../net/listener.ts";
 import { clientIpResolver, type ClientIpResolver } from "../net/trusted-proxy.ts";
 import { serveSite } from "../net/site.ts";
@@ -51,6 +52,14 @@ export function startNetwork(d: NetworkDeps): Network {
       trustedProxies: config.trustedProxies,
     });
 
+  const gate = controlGate(config.controlAllow);
+  if (gate)
+    logger.info("the UI and API answer only these networks", {
+      controlAllow: config.controlAllow,
+    });
+  const risk = controlAllowRisk(config.controlAllow, config.trustedProxies);
+  if (risk) logger.warn(risk);
+
   const certStore = new CertStore(d.bundle);
   const listener = startListener({
     hostname: config.listenAddress,
@@ -58,13 +67,17 @@ export function startNetwork(d: NetworkDeps): Network {
     maxRequestBodySize: config.maxBodyBytes,
     idleTimeout: 120,
     certStore,
-    deps: dispatchDeps(d, resolveClientIp),
+    deps: dispatchDeps(d, resolveClientIp, gate ?? undefined),
     onError: (e) => logger.error("listener error", { err: e }),
   });
   return { listener, redirect: startRedirect(config), certStore };
 }
 
-function dispatchDeps(d: NetworkDeps, resolveClientIp: ClientIpResolver): DispatchDeps {
+function dispatchDeps(
+  d: NetworkDeps,
+  resolveClientIp: ClientIpResolver,
+  gate: DispatchDeps["controlGate"],
+): DispatchDeps {
   const { ctx, http } = d;
   const { table } = ctx;
   return {
@@ -72,6 +85,7 @@ function dispatchDeps(d: NetworkDeps, resolveClientIp: ClientIpResolver): Dispat
     table,
     limits: DEFAULT_LIMITS,
     surfaceEnabled: d.surfaceEnabled,
+    controlGate: gate,
     visibilityGate: http.gate.handle,
     wake: waker(d),
     site: siteFor(d),

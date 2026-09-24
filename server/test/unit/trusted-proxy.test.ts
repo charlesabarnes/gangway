@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig } from "../../src/config.ts";
+import { controlAllowRisk, controlGate } from "../../src/net/control-allow.ts";
 import { clientIpResolver, parseTrustedProxies } from "../../src/net/trusted-proxy.ts";
 
 const NPM = ["172.17.0.0/16"];
@@ -67,5 +68,25 @@ describe("parseTrustedProxies / config", () => {
     expect(loadConfig({}, { trustedProxies: ["10.0.0.0/8"] }).trustedProxies).toEqual([
       "10.0.0.0/8",
     ]);
+  });
+});
+
+describe("GANGWAY_CONTROL_ALLOW", () => {
+  test("is a comma-separated list like the trusted proxies; unset lets everyone in", () => {
+    expect(loadConfig({}, {}).controlAllow).toEqual([]);
+    expect(controlGate([])).toBeNull();
+    expect(
+      loadConfig({ GANGWAY_CONTROL_ALLOW: "192.168.0.0/16, 100.64.0.0/10" }, {}).controlAllow,
+    ).toEqual(["192.168.0.0/16", "100.64.0.0/10"]);
+    expect(() => controlGate(["lan"])).toThrow("control allow entry");
+  });
+
+  test("says when the proxy in front would let everyone through anyway", () => {
+    expect(controlAllowRisk([], [])).toBeNull();
+    expect(controlAllowRisk(["192.168.0.0/16"], [])).toContain("GANGWAY_TRUSTED_PROXIES is empty");
+    expect(controlAllowRisk(["172.16.0.0/12"], ["172.17.0.0/16"])).toContain(
+      "includes the trusted proxy 172.17.0.0/16",
+    );
+    expect(controlAllowRisk(["192.168.0.0/16"], ["172.17.0.0/16"])).toBeNull();
   });
 });

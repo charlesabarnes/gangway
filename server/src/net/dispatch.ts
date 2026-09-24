@@ -28,6 +28,8 @@ export type DispatchDeps = {
   upstream: Upstream;
   limits: Limits;
   surfaceEnabled: (s: Surface) => boolean;
+  /** When set, the UI and API answer only the clients it allows. */
+  controlGate?: ((req: Request, clientIp: string) => boolean) | undefined;
   handlers: Partial<Record<Surface, SurfaceHandler>>;
   wake?: (entry: RouteEntry, req: Request) => Promise<Response | null>;
   /** Answers a route whose files gangway serves itself. */
@@ -56,6 +58,8 @@ function toSurface(
 ): Response | Promise<Response> {
   const surface = label === "" ? "app" : surfaceFor(label);
   if (!d.surfaceEnabled(surface)) return unknownPage(host);
+  const control = surface === "app" || surface === "api";
+  if (control && d.controlGate && !d.controlGate(req, clientIp)) return unknownPage(host);
   const handler = d.handlers[surface];
   if (!handler) return unknownPage(host);
   return handler(req, { clientIp });

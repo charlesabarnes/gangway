@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { controlGate } from "../../src/net/control-allow.ts";
 import { dispatch, type DispatchDeps, type Surface } from "../../src/net/dispatch.ts";
 import { BodyTooLarge, DEFAULT_LIMITS } from "../../src/net/limits.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
@@ -300,5 +301,35 @@ describe("PerHostUpstream", () => {
     await expect(per.fetch(req, entry({ hostId: "gone" }), { clientIp: "::1" })).rejects.toThrow(
       "no such host: gone",
     );
+  });
+});
+
+describe("a private control plane", () => {
+  const at = (host: string, path = "/") =>
+    new Request(`https://${host}${path}`, { headers: { host } });
+  const d = (ip: string) =>
+    deps({ controlGate: controlGate(["192.168.1.0/24"])!, clientIpFor: () => ip });
+
+  test("the UI and API answer allowed clients and look absent to everyone else", async () => {
+    for (const host of [BASE, `www.${BASE}`, `api.${BASE}`]) {
+      expect((await dispatch(at(host), d("192.168.1.20"))).status).toBe(200);
+      expect((await dispatch(at(host), d("203.0.113.9"))).status).toBe(404);
+    }
+    expect((await dispatch(at(BASE), d("::ffff:192.168.1.20"))).status).toBe(200);
+  });
+
+  test("previews, MCP, webhooks and what strangers need from the app host stay public", async () => {
+    const stranger = d("203.0.113.9");
+    for (const host of [`acme-pr-1.${BASE}`, `mcp.${BASE}`, `hooks.${BASE}`])
+      expect((await dispatch(at(host), stranger)).status).toBe(200);
+    for (const path of [
+      "/v1/auth/gate",
+      "/oauth/token",
+      "/.well-known/oauth-authorization-server",
+      "/_gangway/fonts/plex-sans-400.woff2",
+      "/healthz",
+    ])
+      expect((await dispatch(at(BASE, path), stranger)).status).toBe(200);
+    expect((await dispatch(at(BASE, "/v1/previews"), stranger)).status).toBe(404);
   });
 });
