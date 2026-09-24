@@ -16,8 +16,11 @@ const MEMBER: Permission[] = [
   'logs.read',
   'events.read',
   'hosts.read',
+  'previews.read_own',
   'previews.deploy',
+  'previews.deploy_static',
   'previews.destroy',
+  'previews.destroy_own',
   'previews.update_own',
   'previews.view_private',
   'tokens.manage_own',
@@ -88,7 +91,8 @@ describe('Account', () => {
       events: 'read',
       hosts: 'read',
       logs: 'read',
-      previews: 'deploy, destroy, read, update own, view private',
+      previews:
+        'deploy, deploy static, destroy, destroy own, read, read own, update own, view private',
       tokens: 'manage own',
     });
   });

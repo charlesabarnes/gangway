@@ -5,6 +5,7 @@ import { psArgv, upArgv } from "../docker/compose.ts";
 import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors.ts";
 import { ulid } from "../util/ulid.ts";
 import type { PlannedRoute } from "./planned-route.ts";
+import { checkContainerAllowed } from "./container-access.ts";
 import type { PreviewContext } from "./context.ts";
 import {
   buildImages,
@@ -62,7 +63,8 @@ async function checkRebuildable(
   const id = input.previewId;
   const current = ctx.previews.get(id);
   if (!current || current.state === "destroyed") throw notFound(`no such preview: ${id}`);
-  if (!mayRebuild(input.actor, ctx.previews.ownerOf(id))) throw forbidden(REBUILD_REFUSAL);
+  if (!mayRebuild(input.actor, ctx.previews.provenanceOf(id))) throw forbidden(REBUILD_REFUSAL);
+  checkContainerAllowed(input.actor, "rebuilding this preview", !servedByGangway(current));
   if (current.source.kind !== "tarball" || !ctx.sources || !(await ctx.sources.has(id))) {
     throw conflict(
       "only an uploaded preview can be rebuilt from a new source; this one keeps none",
@@ -130,6 +132,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   let plan: RebuildPlan;
   try {
     plan = await planRebuild(ctx, b);
+    checkContainerAllowed(input.actor, "the new source", plan.site === null);
   } catch (e) {
     await wd.cleanup();
     ctx.inflight.delete(id);

@@ -170,7 +170,7 @@
   ],
   "previewIconColors": ["navy", "blue", "teal", "green", "yellow", "red", "violet", "gray"],
   "logStreams": ["system", "build", "seed", "stdout", "stderr"],
-  "scopes": ["read", "deploy", "update", "admin"],
+  "scopes": ["read", "deploy", "update", "artifacts", "admin"],
   "streamEventTypes": [
     "preview.created",
     "preview.adopted",
@@ -180,8 +180,11 @@
   ],
   "permissions": [
     "previews.read",
+    "previews.read_own",
     "previews.deploy",
+    "previews.deploy_static",
     "previews.destroy",
+    "previews.destroy_own",
     "previews.update",
     "previews.update_own",
     "previews.data",
@@ -217,14 +220,23 @@
       "events.read",
       "hosts.read",
       "previews.deploy",
-      "previews.destroy",
+      "previews.destroy_own",
       "previews.update_own"
     ],
     "update": ["previews.update"],
+    "artifacts": [
+      "previews.read_own",
+      "previews.deploy_static",
+      "previews.update_own",
+      "previews.destroy_own"
+    ],
     "admin": [
       "previews.read",
+      "previews.read_own",
       "previews.deploy",
+      "previews.deploy_static",
       "previews.destroy",
+      "previews.destroy_own",
       "previews.update",
       "previews.update_own",
       "previews.data",
@@ -488,7 +500,8 @@
     "redirectHost": "claude.ai",
     "resource": "https://mcp.preview.localhost:8443",
     "requested": ["read", "deploy"],
-    "grantable": ["read", "deploy"],
+    "offered": ["read", "deploy", "artifacts"],
+    "grantable": ["read", "deploy", "artifacts"],
     "scopePermissions": {
       "read": ["previews.read", "logs.read", "events.read", "hosts.read"],
       "deploy": [
@@ -497,10 +510,16 @@
         "events.read",
         "hosts.read",
         "previews.deploy",
-        "previews.destroy",
+        "previews.destroy_own",
         "previews.update_own"
       ],
-      "update": ["previews.update"]
+      "update": ["previews.update"],
+      "artifacts": [
+        "previews.read_own",
+        "previews.deploy_static",
+        "previews.update_own",
+        "previews.destroy_own"
+      ]
     },
     "expiresAt": "2026-09-22T12:10:00.000Z"
   },

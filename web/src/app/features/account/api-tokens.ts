@@ -26,6 +26,8 @@ const SCOPE_HELP: Record<Scope, string> = {
   deploy:
     'Everything in read, plus deploy and destroy previews, and rebuild the ones you deployed. What CI needs.',
   update: 'Rebuild any preview in place, not only your own. Add it to deploy.',
+  artifacts:
+    'Deploy artifacts and static sites only, never a container; sees, rebuilds and destroys only what this token deployed. For an agent you do not fully trust.',
   admin: 'Everything, including users, roles and settings.',
 };
 const EXPIRY = [

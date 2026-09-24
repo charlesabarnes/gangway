@@ -25,7 +25,7 @@ import { destroy } from "../../previews/destroy.ts";
 import type { RedeployInput } from "../../previews/redeploy-input.ts";
 import { redeploy } from "../../previews/redeploy.ts";
 import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
-import { mayRebuild } from "../../auth/actor.ts";
+import { can, mayDestroy, mayReadLogs, mayRebuild, maySee, type Actor } from "../../auth/actor.ts";
 import { planFromDisk } from "../../previews/runtimes.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
@@ -112,25 +112,29 @@ async function jsonRequest(c: Context<AppEnv>): Promise<Omit<DeployInput, "actor
 }
 
 function deployRoutes(api: Hono<AppEnv>, { wire }: Previews, deploys: IdempotentDeploys): void {
-  api.post("/previews", requirePermission("previews.deploy"), async (c) => {
-    const req = isTarball(contentTypeOf(c)) ? tarballRequest(c) : await jsonRequest(c);
-    const res = await deploys.deploy(
-      { ...req, actor: c.get("actor") },
-      c.req.header("idempotency-key"),
-    );
-    if (res.replayed) c.header("idempotency-replayed", "true");
+  api.post(
+    "/previews",
+    requirePermission("previews.deploy", "previews.deploy_static"),
+    async (c) => {
+      const req = isTarball(contentTypeOf(c)) ? tarballRequest(c) : await jsonRequest(c);
+      const res = await deploys.deploy(
+        { ...req, actor: c.get("actor") },
+        c.req.header("idempotency-key"),
+      );
+      if (res.replayed) c.header("idempotency-replayed", "true");
 
-    if (c.req.query("wait") === "true") {
-      const final = await res.done;
-      return c.json({ preview: wire(final) }, final.state === "awake" ? 201 : 502);
-    }
-    c.header("location", `/v1/previews/${res.preview.id}`);
-    return c.json({ preview: wire(res.preview) }, 202);
-  });
+      if (c.req.query("wait") === "true") {
+        const final = await res.done;
+        return c.json({ preview: wire(final) }, final.state === "awake" ? 201 : 502);
+      }
+      c.header("location", `/v1/previews/${res.preview.id}`);
+      return c.json({ preview: wire(res.preview) }, 202);
+    },
+  );
 }
 
 function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
-  api.get("/previews", requirePermission("previews.read"), (c) => {
+  api.get("/previews", requirePermission("previews.read", "previews.read_own"), (c) => {
     const states = c.req
       .queries("state")
       ?.flatMap((s) => s.split(","))
@@ -146,17 +150,28 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       ...(q.hostId ? { hostId: q.hostId } : {}),
       ...(q.includeDestroyed === "true" ? { includeDestroyed: true } : {}),
     });
-    return c.json({ seq, previews: list.map(wire) });
+    const actor = c.get("actor");
+    const seen = can(actor, "previews.read") ? list : list.filter(visibleTo(ctx, actor));
+    return c.json({ seq, previews: seen.map(wire) });
   });
 
-  api.get("/previews/:id", requirePermission("previews.read"), (c) =>
-    c.json({ preview: wire(find(c.req.param("id"))) }),
+  api.get("/previews/:id", requirePermission("previews.read", "previews.read_own"), (c) =>
+    c.json({ preview: wire(findFor(ctx, c.get("actor"), find(c.req.param("id")))) }),
   );
 
-  api.delete("/previews/:id", requirePermission("previews.destroy"), async (c) => {
-    find(c.req.param("id"));
-    return c.json({ preview: wire(await destroy(ctx, c.req.param("id"), c.get("actor"))) });
-  });
+  api.delete(
+    "/previews/:id",
+    requirePermission("previews.destroy", "previews.destroy_own"),
+    async (c) => {
+      const actor = c.get("actor");
+      const p = findFor(ctx, actor, find(c.req.param("id")));
+      if (!mayDestroy(actor, ctx.previews.provenanceOf(p.id)))
+        throw forbidden(
+          'this preview was deployed by someone else: "previews.destroy_own" covers only your own',
+        );
+      return c.json({ preview: wire(await destroy(ctx, p.id, actor)) });
+    },
+  );
 
   api.get("/previews/:id/events", requirePermission("events.read"), (c) => {
     const p = find(c.req.param("id"));
@@ -254,8 +269,20 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   );
 }
 
+const visibleTo = (ctx: PreviewContext, actor: Actor) => {
+  const made = ctx.previews.provenances();
+  const none = { owner: null, credential: null };
+  return (p: Preview) => maySee(actor, made.get(p.id) ?? none);
+};
+
+/** A preview the actor may not see answers as if it did not exist. */
+function findFor(ctx: PreviewContext, actor: Actor, p: Preview): Preview {
+  if (!maySee(actor, ctx.previews.provenanceOf(p.id))) throw notFound(`no such preview: ${p.id}`);
+  return p;
+}
+
 function changeable(ctx: PreviewContext, c: Context<AppEnv>, p: Preview, what: string): void {
-  if (!mayRebuild(c.get("actor"), ctx.previews.ownerOf(p.id)))
+  if (!mayRebuild(c.get("actor"), ctx.previews.provenanceOf(p.id)))
     throw forbidden(
       `this preview was deployed by someone else: "previews.update_own" covers only your own, and changing any preview's ${what} needs "previews.update"`,
     );
@@ -308,8 +335,10 @@ function passwordRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void 
 }
 
 function logRoutes(api: Hono<AppEnv>, { ctx, find }: Previews, o: SseOptions): void {
-  api.get("/previews/:id/logs", requirePermission("logs.read"), (c) => {
+  api.get("/previews/:id/logs", requirePermission("logs.read", "previews.read_own"), (c) => {
     const p = find(c.req.param("id"));
+    if (!mayReadLogs(c.get("actor"), ctx.previews.provenanceOf(p.id)))
+      throw notFound(`no such preview: ${p.id}`);
     const after = resumeCursor(c);
     const { tail } = PreviewLogsQuerySchema.parse(c.req.query());
     const maxReplay = (o.maxQueue ?? SSE_MAX_QUEUE) - 2;

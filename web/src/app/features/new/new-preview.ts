@@ -144,7 +144,9 @@ export class NewPreview {
   readonly #auth = inject(AuthService);
   readonly #router = inject(Router);
 
-  protected readonly canDeploy = computed(() => this.#auth.can('previews.deploy'));
+  protected readonly canDeploy = computed(
+    () => this.#auth.can('previews.deploy') || this.#auth.can('previews.deploy_static'),
+  );
   protected readonly list = signal<RuntimeList | null>(null);
   protected readonly runtimes = computed(() => this.list()?.runtimes ?? []);
   protected readonly runtimesError = signal<string | null>(null);

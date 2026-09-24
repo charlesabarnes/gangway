@@ -37,6 +37,7 @@ const STEP_UP_SCOPES: Record<Scope, string> = {
   read: "read",
   deploy: "read deploy",
   update: "read deploy update",
+  artifacts: "artifacts",
   admin: "admin",
 };
 

@@ -156,9 +156,9 @@ describe("verifying", () => {
     const t = await make();
     const bob = await t.person("bob@example.com", "member");
     const { secret } = t.tokens.mint(bob.actor, { name: "ci", scopes: ["deploy"] });
-    expect((await t.tokens.verify(secret))!.permissions.has("previews.destroy")).toBe(true);
+    expect((await t.tokens.verify(secret))!.permissions.has("previews.destroy_own")).toBe(true);
     t.roles.set("member", ["previews.read", "previews.deploy", "tokens.manage_own"]);
-    expect((await t.tokens.verify(secret))!.permissions.has("previews.destroy")).toBe(false);
+    expect((await t.tokens.verify(secret))!.permissions.has("previews.destroy_own")).toBe(false);
     expect((await t.tokens.verify(secret))!.permissions.has("previews.deploy")).toBe(true);
   });
 

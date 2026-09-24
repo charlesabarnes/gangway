@@ -136,8 +136,11 @@ export const STREAM_EVENT_TYPES = [
 
 export const PERMISSIONS = [
   'previews.read',
+  'previews.read_own',
   'previews.deploy',
+  'previews.deploy_static',
   'previews.destroy',
+  'previews.destroy_own',
   'previews.update',
   'previews.update_own',
   'previews.data',
@@ -167,8 +170,8 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type Scope = 'read' | 'deploy' | 'update' | 'admin';
-export const SCOPES: readonly Scope[] = ['read', 'deploy', 'update', 'admin'];
+export type Scope = 'read' | 'deploy' | 'update' | 'artifacts' | 'admin';
+export const SCOPES: readonly Scope[] = ['read', 'deploy', 'update', 'artifacts', 'admin'];
 
 const READ_BUNDLE: readonly Permission[] = [
   'previews.read',
@@ -178,8 +181,14 @@ const READ_BUNDLE: readonly Permission[] = [
 ];
 export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   read: READ_BUNDLE,
-  deploy: [...READ_BUNDLE, 'previews.deploy', 'previews.destroy', 'previews.update_own'],
+  deploy: [...READ_BUNDLE, 'previews.deploy', 'previews.destroy_own', 'previews.update_own'],
   update: ['previews.update'],
+  artifacts: [
+    'previews.read_own',
+    'previews.deploy_static',
+    'previews.update_own',
+    'previews.destroy_own',
+  ],
   admin: PERMISSIONS,
 };
 
@@ -323,7 +332,7 @@ export type Surfaces = {
 export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: string };
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
-export type OAuthScope = 'read' | 'deploy' | 'update';
+export type OAuthScope = 'read' | 'deploy' | 'update' | 'artifacts';
 export type ConsentRequest = {
   id: string;
   client: { id: string; name: string; host: string };
@@ -331,6 +340,8 @@ export type ConsentRequest = {
   redirectHost: string;
   resource: string;
   requested: OAuthScope[];
+  /** What was asked for, then any narrower stand-in the person may pick instead. */
+  offered: OAuthScope[];
   grantable: OAuthScope[];
   scopePermissions: Record<OAuthScope, Permission[]>;
   expiresAt: string;

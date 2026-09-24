@@ -101,10 +101,42 @@ export function principalOf(a: Actor): string | null {
   return a.tokenId.startsWith("system:") ? null : a.tokenId;
 }
 
-export function mayRebuild(a: Actor, owner: string | null): boolean {
-  if (can(a, "previews.update")) return true;
-  return can(a, "previews.update_own") && owner !== null && owner === principalOf(a);
+/** The API token or OAuth grant behind an actor, recorded on what it deploys. */
+export function credentialOf(a: Actor): string | null {
+  if (a.kind !== "token" || a.tokenId.startsWith("system:")) return null;
+  return a.tokenId;
 }
+
+/** Who deployed a preview: the person, and the credential they used. */
+export type Provenance = { owner: string | null; credential: string | null };
+
+// A credential that may not read everything is held to what it deployed itself, not all its person did.
+const confined = (a: Actor): boolean => a.kind === "token" && !can(a, "previews.read");
+
+export function owns(a: Actor, p: Provenance): boolean {
+  if (confined(a)) return p.credential !== null && p.credential === credentialOf(a);
+  return p.owner !== null && p.owner === principalOf(a);
+}
+
+export const maySee = (a: Actor, p: Provenance): boolean =>
+  can(a, "previews.read") || (can(a, "previews.read_own") && owns(a, p));
+
+export const mayReadLogs = (a: Actor, p: Provenance): boolean =>
+  can(a, "logs.read") || (can(a, "previews.read_own") && owns(a, p));
+
+export const mayDestroy = (a: Actor, p: Provenance): boolean =>
+  can(a, "previews.destroy") || (can(a, "previews.destroy_own") && owns(a, p));
+
+export function mayRebuild(a: Actor, p: Provenance): boolean {
+  if (can(a, "previews.update")) return true;
+  return can(a, "previews.update_own") && owns(a, p);
+}
+
+/** Deploying anything at all; what the source turns out to need is checked once it is planned. */
+export const mayDeploy = (a: Actor): boolean =>
+  can(a, "previews.deploy") || can(a, "previews.deploy_static");
+
+export const mayRunContainers = (a: Actor): boolean => can(a, "previews.deploy");
 
 export function auditActor(a: Actor): { type: "user" | "token" | "system" | "github"; id: string } {
   if (a.kind === "user") return { type: "user", id: a.userId };

@@ -17,7 +17,7 @@ async function make() {
       userRoutes(api, s.accounts);
       roleRoutes(api, s.roles);
       tokenRoutes(api, tokens);
-      api.delete("/previews/:id", requirePermission("previews.destroy"), (c) =>
+      api.delete("/previews/:id", requirePermission("previews.destroy_own"), (c) =>
         c.json({ destroyed: c.req.param("id") }),
       );
     },
@@ -187,7 +187,7 @@ describe("/v1/roles", () => {
     expect((await t.call("/v1/previews/p1", { method: "DELETE", as: session })).status).toBe(200);
     expect((await t.call("/v1/previews/p1", { method: "DELETE", as: secret })).status).toBe(200);
 
-    const without = DEFAULT_ROLE_PERMISSIONS.member.filter((p) => p !== "previews.destroy");
+    const without = DEFAULT_ROLE_PERMISSIONS.member.filter((p) => p !== "previews.destroy_own");
     const put = await t.call("/v1/roles/member/permissions", {
       method: "PUT",
       as: t.ada,
@@ -206,7 +206,7 @@ describe("/v1/roles", () => {
           permissions: string[];
         }
       ).permissions,
-    ).not.toContain("previews.destroy");
+    ).not.toContain("previews.destroy_own");
 
     await t.call("/v1/roles/member/permissions", {
       method: "PUT",

@@ -60,8 +60,20 @@ describe("consent", () => {
       client: { name: "Claude", host: "claude.ai" },
       redirectHost: "claude.ai",
       requested: ["read", "deploy"],
-      grantable: ["read", "deploy"],
+      offered: ["read", "deploy", "artifacts"],
+      grantable: ["read", "deploy", "artifacts"],
     });
+  });
+
+  test("the person may grant artifacts in place of the deploy that was asked for", async () => {
+    const s = await setupOAuth();
+    const id = requestIdOf(await s.oauth.authorize(s.authorizeQuery()));
+    const { redirect } = s.oauth.decide(s.ada, id, { approve: true, scopes: ["artifacts"] });
+    expect(new URL(redirect).searchParams.get("code")).toBeTruthy();
+    const other = requestIdOf(await s.oauth.authorize(s.authorizeQuery({ scope: "read" })));
+    expect(() => s.oauth.decide(s.ada, other, { approve: true, scopes: ["artifacts"] })).toThrow(
+      "cannot grant artifacts",
+    );
   });
 
   test("deny goes back as access_denied and spends the request", async () => {

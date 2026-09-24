@@ -7,7 +7,7 @@ import type { RolePermissions } from "../auth/roles.ts";
 import type { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { forbidden, notFound, unprocessable } from "../errors.ts";
 import { checkAuthorizeRequest, singleParams } from "./authorize-request.ts";
-import { OAUTH_SCOPES, type OAuthScope } from "./scopes.ts";
+import { OAUTH_SCOPES, offeredScopes, type OAuthScope } from "./scopes.ts";
 import {
   ClientMetadataError,
   redirectAllowed,
@@ -59,6 +59,7 @@ export type ConsentView = {
   redirectHost: string;
   resource: string;
   requested: OAuthScope[];
+  offered: OAuthScope[];
   grantable: OAuthScope[];
   scopePermissions: Record<OAuthScope, readonly Permission[]>;
   expiresAt: Date;
@@ -177,8 +178,8 @@ export class OAuthServer {
     return actor;
   }
 
-  #grantable(actor: Actor, scopes: readonly OAuthScope[]): OAuthScope[] {
-    return scopes.filter((s) => SCOPE_PERMISSIONS[s].every((p) => can(actor, p)));
+  #grantable(actor: Actor, requested: readonly OAuthScope[]): OAuthScope[] {
+    return offeredScopes(requested).filter((s) => SCOPE_PERMISSIONS[s].every((p) => can(actor, p)));
   }
 
   #pendingFor(id: string): Pending {
@@ -201,11 +202,13 @@ export class OAuthServer {
       redirectHost: new URL(p.redirectUri).host,
       resource: p.resource,
       requested: p.scopes,
+      offered: offeredScopes(p.scopes),
       grantable: this.#grantable(actor, p.scopes),
       scopePermissions: {
         read: SCOPE_PERMISSIONS.read,
         deploy: SCOPE_PERMISSIONS.deploy,
         update: SCOPE_PERMISSIONS.update,
+        artifacts: SCOPE_PERMISSIONS.artifacts,
       },
       expiresAt: new Date(p.expiresAt),
     };
@@ -234,7 +237,7 @@ export class OAuthServer {
     if (chosen.length === 0) throw unprocessable("choose at least one scope, or deny");
     if (refused.length > 0)
       throw unprocessable(
-        `cannot grant ${refused.join(", ")}: not requested, or your role does not cover it`,
+        `cannot grant ${refused.join(", ")}: not offered, or your role does not cover it`,
         { refused },
       );
     this.#pending.delete(id);

@@ -15,7 +15,7 @@ import { renderDist } from "../previews/artifact-render.ts";
 import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
 import { describePlan, describePreview, logTail } from "./describe.ts";
 import { packFiles } from "./pack.ts";
-import { nameOf, resolvePreview } from "./resolve.ts";
+import { nameOf, resolveFor } from "./resolve.ts";
 import {
   MissingPermission,
   need,
@@ -143,7 +143,7 @@ export class DeployTool {
     progress: (n: number, message: string) => void,
   ): Promise<string> {
     const { ctx } = this.#d;
-    need(scope.actor, TOOL_PERMISSIONS.deploy);
+    need(scope.actor, ...TOOL_PERMISSIONS.deploy);
     const wait = args.waitSeconds ?? DEFAULT_WAIT_S;
     const addons = args.addons === undefined ? undefined : addonQuery.parse(args.addons.join(","));
 
@@ -212,8 +212,8 @@ export class DeployTool {
     const { ctx } = this.#d;
     if (!can(scope.actor, REDEPLOY_PERMISSION)) need(scope.actor, REDEPLOY_OWN_PERMISSION);
     checkRebuildArgs(args);
-    const target = resolvePreview(ctx, args.preview!);
-    if (!mayRebuild(scope.actor, ctx.previews.ownerOf(target.id))) {
+    const target = resolveFor(ctx, scope.actor, args.preview!);
+    if (!mayRebuild(scope.actor, ctx.previews.provenanceOf(target.id))) {
       throw new MissingPermission(
         REDEPLOY_PERMISSION,
         `${nameOf(ctx, target)} was deployed by someone else, and "previews.update_own" covers only your own. Deploy the change as a new preview instead, or ask for the update scope`,

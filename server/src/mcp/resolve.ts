@@ -1,4 +1,5 @@
 import { type Preview, projectNameFor } from "@gangway/shared/domain";
+import { can, maySee, type Actor } from "../auth/actor.ts";
 import { notFound, unprocessable } from "../errors.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { isUlid } from "../util/ulid.ts";
@@ -8,9 +9,15 @@ export function nameOf(ctx: Pick<PreviewContext, "instance">, p: Preview): strin
   return p.project.startsWith(prefix) ? p.project.slice(prefix.length) : p.project;
 }
 
-const live = (p: Preview | undefined): p is Preview => p !== undefined && p.state !== "destroyed";
+const isLive = (p: Preview | undefined): p is Preview => p !== undefined && p.state !== "destroyed";
 
-export function resolvePreview(ctx: PreviewContext, ref: string): Preview {
+/** `visible` narrows the search, so a name the caller may not see is simply not found. */
+export function resolvePreview(
+  ctx: PreviewContext,
+  ref: string,
+  visible: (p: Preview) => boolean = () => true,
+): Preview {
+  const live = (p: Preview | undefined): p is Preview => isLive(p) && visible(p);
   const text = ref.trim();
   if (text === "") throw unprocessable("name a preview: its name, URL or id");
 
@@ -50,3 +57,13 @@ export function resolvePreview(ctx: PreviewContext, ref: string): Preview {
     );
   throw notFound(`no live preview is called ${JSON.stringify(text)}`);
 }
+
+/** What this actor may see: everything, or only what it deployed. */
+export function visibleTo(ctx: PreviewContext, actor: Actor): (p: Preview) => boolean {
+  if (can(actor, "previews.read")) return () => true;
+  const made = ctx.previews.provenances();
+  return (p) => maySee(actor, made.get(p.id) ?? { owner: null, credential: null });
+}
+
+export const resolveFor = (ctx: PreviewContext, actor: Actor, ref: string): Preview =>
+  resolvePreview(ctx, ref, visibleTo(ctx, actor));

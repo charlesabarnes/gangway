@@ -7,6 +7,7 @@ import { parseDuration } from "../util/duration.ts";
 import { ulid } from "../util/ulid.ts";
 import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
+import { checkContainerAllowed } from "./container-access.ts";
 import type { PreviewContext } from "./context.ts";
 import { claimPreview } from "./deploy-claim.ts";
 import { urlsFor } from "./deploy-names.ts";
@@ -119,6 +120,7 @@ async function prepare(
   const env = envFor(ctx, input, owner, secretLevel);
   const material = await writeSource(ctx, id, input.source, env, wd);
   const site = servesHere(ctx, material.plan) ? material.plan! : null;
+  checkContainerAllowed(input.actor, "this source", site === null);
   if (site && material.source.kind === "tarball")
     material.source = { ...material.source, serve: "gangway" };
   const planned = site
@@ -187,6 +189,8 @@ function announce(ctx: PreviewContext, input: DeployInput, host: Host, p: Prepar
 }
 
 export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
+  if (input.source.kind !== "tarball")
+    checkContainerAllowed(input.actor, `deploying from ${input.source.kind}`, true);
   const id = ulid(ctx.now());
   const policy = ctx.policy.resolve({
     source: input.source,

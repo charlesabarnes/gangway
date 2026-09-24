@@ -9,6 +9,7 @@ import type {
   PreviewState,
   Visibility,
 } from "@gangway/shared/domain";
+import type { Provenance } from "../../auth/actor.ts";
 import type { Db } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 
@@ -28,6 +29,7 @@ export type CreatePreview = {
   templateId?: string | null;
   projectId?: string | null;
   owner?: string | null;
+  credential?: string | null;
   password?: StoredPreviewPassword;
   passwordLogin?: PasswordLogin;
 };
@@ -65,10 +67,10 @@ export class PreviewsRepo {
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
       `INSERT INTO previews (id, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
-                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner,
+                             visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, credential,
                              password_mode, password_hash, password_salt, password_login, signed_in_only, created_at, updated_at)
        VALUES ($id, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
-               $visibility, $ttl, $idle, $level, $template, $projectId, $owner,
+               $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $credential,
                $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $now, $now)`,
       {
         id: p.id,
@@ -86,6 +88,7 @@ export class PreviewsRepo {
         template: p.templateId ?? null,
         projectId: p.projectId ?? null,
         owner: p.owner ?? null,
+        credential: p.credential ?? null,
         pwMode: p.password?.mode ?? "inherit",
         pwHash: p.password?.secret?.hash ?? null,
         pwSalt: p.password?.secret?.salt ?? null,
@@ -104,10 +107,22 @@ export class PreviewsRepo {
   }
 
   ownerOf(id: string): string | null {
-    return (
-      this.#db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = $id", { id })
-        ?.owner ?? null
+    return this.provenanceOf(id).owner;
+  }
+
+  provenanceOf(id: string): Provenance {
+    const r = this.#db.get<{ owner: string | null; credential: string | null }>(
+      "SELECT owner, credential FROM previews WHERE id = $id",
+      { id },
     );
+    return { owner: r?.owner ?? null, credential: r?.credential ?? null };
+  }
+
+  provenances(): Map<string, Provenance> {
+    const rows = this.#db.query<{ id: string; owner: string | null; credential: string | null }>(
+      "SELECT id, owner, credential FROM previews",
+    );
+    return new Map(rows.map((r) => [r.id, { owner: r.owner, credential: r.credential }]));
   }
 
   passwordOf(id: string): StoredPreviewPassword {

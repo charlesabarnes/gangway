@@ -11,6 +11,16 @@ const SCOPE_HELP: Record<OAuthScope, string> = {
   read: 'See previews, their state and their logs.',
   deploy: 'Also deploy new previews, destroy them, and rebuild the ones you deployed.',
   update: 'Also rebuild any preview in place, including ones other people deployed.',
+  artifacts:
+    'Instead of the above: deploy artifacts and static sites only, never a container, and see, rebuild and destroy only what it deployed itself. For an agent you do not fully trust.',
+};
+
+// Picking one of these switches off the others: artifacts means keeping the agent to its own.
+const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
+  artifacts: ['read', 'deploy', 'update'],
+  read: ['artifacts'],
+  deploy: ['artifacts'],
+  update: ['artifacts'],
 };
 
 @Component({
@@ -49,7 +59,7 @@ const SCOPE_HELP: Record<OAuthScope, string> = {
           <fieldset>
             <legend class="gw-label">It may</legend>
             <div class="mt-2 flex flex-col gap-2">
-              @for (s of r.requested; track s) {
+              @for (s of r.offered; track s) {
                 <label
                   class="flex items-start gap-2.5 text-sm leading-snug"
                   [class.opacity-50]="!grantable(s)"
@@ -143,7 +153,7 @@ export class Connect {
         ),
       );
       this.request.set(request);
-      this.chosen.set(new Set(request.grantable));
+      this.chosen.set(new Set(request.requested.filter((s) => request.grantable.includes(s))));
     } catch (e) {
       this.error.set(toProblem(e).detail);
     }
@@ -151,7 +161,10 @@ export class Connect {
 
   protected toggle(s: OAuthScope): void {
     const next = new Set(this.chosen());
-    if (!next.delete(s)) next.add(s);
+    if (!next.delete(s)) {
+      next.add(s);
+      for (const off of EXCLUSIVE[s] ?? []) next.delete(off);
+    }
     this.chosen.set(next);
   }
 
@@ -162,7 +175,7 @@ export class Connect {
     this.error.set(null);
     try {
       const body = approve
-        ? { approve, scopes: r.requested.filter((s) => this.chosen().has(s)) }
+        ? { approve, scopes: r.offered.filter((s) => this.chosen().has(s)) }
         : { approve };
       const { redirect } = await firstValueFrom(
         this.#http.post<{ redirect: string }>(

@@ -50,6 +50,26 @@ describe('Connect', () => {
     expect(went[0]).toBe(contract.oauthDecided.redirect);
   });
 
+  it('artifacts is offered in place of deploy, unchecked, and picking it grants only it', async () => {
+    const { r } = await open();
+    r.http.expectOne('/v1/oauth/requests/req-1').flush({ request: request() });
+    await r.settle();
+    const artifacts = r.byTestId('scope-artifacts') as HTMLInputElement;
+    expect(artifacts.checked).toBe(false);
+
+    artifacts.dispatchEvent(new Event('change'));
+    await r.settle();
+    expect((r.byTestId('scope-read') as HTMLInputElement).checked).toBe(false);
+    expect((r.byTestId('scope-deploy') as HTMLInputElement).checked).toBe(false);
+    (r.byTestId('approve') as HTMLButtonElement).click();
+    await r.settle();
+    const req = r.http.expectOne({
+      method: 'POST',
+      url: '/v1/oauth/requests/Zm9vYmFyYmF6cXV4cXV1eHF1dXhxdXV4',
+    });
+    expect(req.request.body).toEqual({ approve: true, scopes: ['artifacts'] });
+  });
+
   it('a scope the role does not cover is shown, disabled and unchecked', async () => {
     const { r } = await open();
     r.http

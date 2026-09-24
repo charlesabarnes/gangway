@@ -298,7 +298,9 @@ export class PreviewList {
   protected readonly pending = signal<Preview | null>(null);
 
   protected readonly canDestroy = computed(() => this.#auth.can('previews.destroy'));
-  protected readonly canDeploy = computed(() => this.#auth.can('previews.deploy'));
+  protected readonly canDeploy = computed(
+    () => this.#auth.can('previews.deploy') || this.#auth.can('previews.deploy_static'),
+  );
   protected readonly filtered = computed(
     () => this.states().size > 0 || this.source() !== '' || this.query().trim() !== '',
   );

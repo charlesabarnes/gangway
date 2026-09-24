@@ -8,7 +8,7 @@ import {
 } from "@gangway/shared/domain";
 import { slugify } from "@gangway/shared/hostname";
 import type { RuntimeId } from "@gangway/shared/runtimes";
-import { principalOf } from "../auth/actor.ts";
+import { credentialOf, principalOf } from "../auth/actor.ts";
 import { conflict, unprocessable } from "../errors.ts";
 import { allocatePorts } from "../routing/ports.ts";
 import { idleMs } from "../util/duration.ts";
@@ -61,6 +61,7 @@ function createPreview(ctx: PreviewContext, c: Claim, project: string): Preview 
     templateId: template.id,
     projectId: owner?.id ?? null,
     owner: principalOf(c.input.actor),
+    credential: credentialOf(c.input.actor),
     password: c.password.stored,
     passwordLogin: c.input.passwordLogin ?? "inherit",
   });

@@ -9,14 +9,14 @@ import {
   type ArtifactKind,
 } from "@gangway/shared/artifact/index";
 import type { Permission } from "@gangway/shared/permissions";
-import { can, mayRebuild, type Actor } from "../auth/actor.ts";
+import { can, mayDestroy, mayReadLogs, mayRebuild, type Actor } from "../auth/actor.ts";
 import { AppError, unprocessable } from "../errors.ts";
 import { destroy } from "../previews/destroy.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { DeployTool } from "./deploy-tool.ts";
 import { describePreview, logTail, refusalDetail } from "./describe.ts";
 import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
-import { nameOf, resolvePreview } from "./resolve.ts";
+import { nameOf, resolveFor, visibleTo } from "./resolve.ts";
 import {
   MissingPermission,
   need,
@@ -96,18 +96,18 @@ export class Tools {
   }
 
   missingFor(actor: Actor, tool: string, args: unknown): Permission | null {
-    const base = (TOOL_PERMISSIONS as Record<string, Permission>)[tool];
+    const base = (TOOL_PERMISSIONS as Record<string, readonly Permission[]>)[tool];
     if (!base) return null;
-    if (!can(actor, base)) return base;
+    if (!base.some((p) => can(actor, p))) return base[0]!;
     const ref = tool === "deploy" ? (args as { preview?: unknown } | null)?.preview : undefined;
     if (typeof ref !== "string" || can(actor, REDEPLOY_PERMISSION)) return null;
-    let owner: string | null;
+    let id: string;
     try {
-      owner = this.#d.ctx.previews.ownerOf(resolvePreview(this.#d.ctx, ref).id);
+      id = resolveFor(this.#d.ctx, actor, ref).id;
     } catch {
       return null;
     }
-    return mayRebuild(actor, owner) ? null : REDEPLOY_PERMISSION;
+    return mayRebuild(actor, this.#d.ctx.previews.provenanceOf(id)) ? null : REDEPLOY_PERMISSION;
   }
 
   async #guard(tool: ToolName, run: () => Promise<string>): Promise<CallToolResult> {
@@ -135,7 +135,7 @@ export class Tools {
   }
 
   catalog(scope: CallScope, kind: ArtifactKind, template?: string): string {
-    need(scope.actor, TOOL_PERMISSIONS.catalog);
+    need(scope.actor, ...TOOL_PERMISSIONS.catalog);
     const id = template ?? templatesFor(kind)[0]!.id;
     const t = templateById(id);
     if (!t || t.kind !== kind)
@@ -152,9 +152,10 @@ export class Tools {
 
   async status(scope: CallScope, ref: string | undefined): Promise<string> {
     const { ctx } = this.#d;
-    need(scope.actor, TOOL_PERMISSIONS.status);
-    if (ref !== undefined) return describePreview(ctx, resolvePreview(ctx, ref));
-    const all = ctx.previews.list({}).filter((p) => p.state !== "destroyed");
+    need(scope.actor, ...TOOL_PERMISSIONS.status);
+    if (ref !== undefined) return describePreview(ctx, resolveFor(ctx, scope.actor, ref));
+    const visible = visibleTo(ctx, scope.actor);
+    const all = ctx.previews.list({}).filter((p) => p.state !== "destroyed" && visible(p));
     if (all.length === 0) return "no previews";
     const shown = all.slice(0, 50).map((p) => describePreview(ctx, p));
     return `${all.length} preview${all.length === 1 ? "" : "s"}:\n${shown.join("\n")}${all.length > 50 ? `\n… and ${all.length - 50} more` : ""}`;
@@ -167,8 +168,10 @@ export class Tools {
     opts: { source?: LogSource | undefined; service?: string | undefined } = {},
   ): Promise<string> {
     const { ctx } = this.#d;
-    need(scope.actor, TOOL_PERMISSIONS.logs);
-    const p = resolvePreview(ctx, ref);
+    need(scope.actor, ...TOOL_PERMISSIONS.logs);
+    const p = resolveFor(ctx, scope.actor, ref);
+    if (!mayReadLogs(scope.actor, ctx.previews.provenanceOf(p.id)))
+      throw new MissingPermission("logs.read", `${nameOf(ctx, p)} is not one you deployed`);
     const n = Math.min(500, Math.max(1, lines));
     const source = opts.source ?? (opts.service === undefined ? "all" : "runtime");
     const parts = [describePreview(ctx, p)];
@@ -191,8 +194,13 @@ export class Tools {
 
   async destroy(scope: CallScope, ref: string): Promise<string> {
     const { ctx } = this.#d;
-    need(scope.actor, TOOL_PERMISSIONS.destroy);
-    const p = resolvePreview(ctx, ref);
+    need(scope.actor, ...TOOL_PERMISSIONS.destroy);
+    const p = resolveFor(ctx, scope.actor, ref);
+    if (!mayDestroy(scope.actor, ctx.previews.provenanceOf(p.id)))
+      throw new MissingPermission(
+        "previews.destroy",
+        `${nameOf(ctx, p)} was deployed by someone else, and "previews.destroy_own" covers only your own`,
+      );
     await destroy(ctx, p.id, scope.actor);
     return `destroyed ${nameOf(ctx, p)}`;
   }

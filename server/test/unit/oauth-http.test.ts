@@ -33,7 +33,7 @@ describe("the flow over HTTP, as claude.ai drives it", () => {
     expect(prm).toMatchObject({
       resource: RESOURCE,
       authorization_servers: [ISSUER],
-      scopes_supported: ["read", "deploy", "update"],
+      scopes_supported: ["read", "deploy", "update", "artifacts"],
     });
     const as = (await (
       await h.call(h.appH, h.HOST, "/.well-known/oauth-authorization-server")

@@ -5,8 +5,27 @@ export const PERMISSIONS = [
     feature: "previews",
     description: "List previews and see their detail, URLs and builds",
   },
-  { id: "previews.deploy", feature: "previews", description: "Deploy a new preview" },
+  {
+    id: "previews.read_own",
+    feature: "previews",
+    description: "List and see previews you deployed, and their logs",
+  },
+  {
+    id: "previews.deploy",
+    feature: "previews",
+    description: "Deploy any preview, including apps that run in a container",
+  },
+  {
+    id: "previews.deploy_static",
+    feature: "previews",
+    description: "Deploy artifacts and static sites that gangway serves itself, with no container",
+  },
   { id: "previews.destroy", feature: "previews", description: "Destroy any preview" },
+  {
+    id: "previews.destroy_own",
+    feature: "previews",
+    description: "Destroy previews you deployed",
+  },
   {
     id: "previews.update",
     feature: "previews",
@@ -106,15 +125,22 @@ export const ALL_PERMISSIONS: readonly Permission[] = PERMISSIONS.map((p) => p.i
 const KNOWN: ReadonlySet<string> = new Set(ALL_PERMISSIONS);
 export const isPermission = (s: string): s is Permission => KNOWN.has(s);
 
-export const SCOPES = ["read", "deploy", "update", "admin"] as const;
+export const SCOPES = ["read", "deploy", "update", "artifacts", "admin"] as const;
 export type Scope = (typeof SCOPES)[number];
 
 const READ: readonly Permission[] = ["previews.read", "logs.read", "events.read", "hosts.read"];
 
 export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   read: READ,
-  deploy: [...READ, "previews.deploy", "previews.destroy", "previews.update_own"],
+  deploy: [...READ, "previews.deploy", "previews.destroy_own", "previews.update_own"],
   update: ["previews.update"],
+  // For an agent you do not trust with a container: it sees and touches only what it deployed.
+  artifacts: [
+    "previews.read_own",
+    "previews.deploy_static",
+    "previews.update_own",
+    "previews.destroy_own",
+  ],
   admin: ALL_PERMISSIONS,
 };
 
@@ -127,12 +153,15 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
 > = {
   member: [
     ...READ,
+    "previews.read_own",
     "previews.deploy",
+    "previews.deploy_static",
     "previews.destroy",
+    "previews.destroy_own",
     "previews.update_own",
     "previews.view_private",
     "previews.skip_password",
     "tokens.manage_own",
   ],
-  viewer: [...READ, "previews.view_private", "previews.skip_password"],
+  viewer: [...READ, "previews.read_own", "previews.view_private", "previews.skip_password"],
 };
