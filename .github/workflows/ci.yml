@@ -29,6 +29,8 @@ jobs:
       - run: bun run lint
       - run: bun run format:check
       - run: bun run comments
+      # The artifact tests serve the built kit, and render/dist is not committed.
+      - run: bun run build:render
       - run: bun run test
 
   web:
