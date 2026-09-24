@@ -18,6 +18,8 @@ export type RouteEntry = {
   password: EntryPassword;
   passwordLogin: PasswordLogin;
   state: PreviewState;
+  /** Answered from the preview's files by gangway, not proxied to a container. */
+  site: boolean;
   inflight: number;
   bytesInFlight: number;
   lastSeenAt: number;
@@ -31,6 +33,7 @@ export type RouteSeed = {
   password?: EntryPassword | undefined;
   passwordLogin?: PasswordLogin | undefined;
   state: PreviewState;
+  site?: boolean | undefined;
 };
 
 function toEntry(s: RouteSeed): RouteEntry {
@@ -48,6 +51,7 @@ function toEntry(s: RouteSeed): RouteEntry {
     password: s.password ?? { mode: "inherit" },
     passwordLogin: s.passwordLogin ?? "inherit",
     state: s.state,
+    site: s.site ?? false,
     inflight: 0,
     bytesInFlight: 0,
     lastSeenAt: 0,
@@ -130,6 +134,10 @@ export class RouteTable {
 
   setState(previewId: string, state: PreviewState): void {
     for (const e of this.forPreview(previewId)) e.state = state;
+  }
+
+  setSite(previewId: string, site: boolean): void {
+    for (const e of this.forPreview(previewId)) e.site = site;
   }
 
   setVisibility(previewId: string, visibility: Visibility): void {

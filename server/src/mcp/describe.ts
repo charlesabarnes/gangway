@@ -54,14 +54,15 @@ export function refusalDetail(detail: Record<string, unknown> | undefined): stri
   return lines.length ? `\n${lines.slice(0, 20).join("\n")}` : "";
 }
 
-function planRuns(plan: AppPlan): string | null {
+function planRuns(plan: AppPlan, served: boolean): string | null {
   if (plan.kind === "own") return null;
   if (plan.start) return `runs \`${cmdText(plan.start)}\``;
   if (plan.entry) return `runs ${plan.entry}`;
+  if (served) return "gangway serves the files itself, with no container";
   return plan.serve.kind === "static" ? "the files are served by nginx" : null;
 }
 
-export function describePlan(plan: AppPlan): string {
+export function describePlan(plan: AppPlan, served = false): string {
   const what =
     plan.kind === "own"
       ? "the upload's own compose file or Dockerfile"
@@ -77,7 +78,7 @@ export function describePlan(plan: AppPlan): string {
       ? [`  … ${plan.reasons.length - PLAN_REASONS_SHOWN} more in logs`]
       : [];
   return [
-    `plan: ${[what, planRuns(plan), addons].filter(Boolean).join(" — ")}`,
+    `plan: ${[what, planRuns(plan, served), addons].filter(Boolean).join(" — ")}`,
     ...reasons,
     ...more,
   ].join("\n");

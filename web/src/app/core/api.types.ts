@@ -35,6 +35,8 @@ export type PreviewSource =
       addons?: AddonChoice[];
       network?: 'shared' | 'isolated';
       brand?: 'on' | 'off';
+      /** gangway serves the files itself, with no container. */
+      serve?: 'gangway';
     }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];

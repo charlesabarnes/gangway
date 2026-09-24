@@ -1,4 +1,10 @@
-import type { Host, Preview, Route, Visibility } from "@gangway/shared/domain";
+import {
+  servedByGangway,
+  type Host,
+  type Preview,
+  type Route,
+  type Visibility,
+} from "@gangway/shared/domain";
 
 export const GANGWAY_LABEL_VERSION = 1;
 
@@ -44,7 +50,8 @@ export type LeaveAloneReason =
   | "build-in-flight"
   | "unknown-preview"
   | "container-port-unknown"
-  | "container-exited";
+  | "container-exited"
+  | "served-by-gangway";
 
 export type StopOrphanReason = "incomplete-labels" | "hostname-conflict" | "unroutable";
 
@@ -199,6 +206,7 @@ function leave(
 function routeAction(p: Pass, route: Route): Action | null {
   const preview = p.previewsById.get(route.previewId);
   if (!preview) return leave(p.now, "unknown-preview", { hostname: route.hostname });
+  if (servedByGangway(preview)) return servedAction(p, route, preview);
   if (!p.reachable(preview.hostId)) {
     // An unreachable host is not an empty host: decide nothing from missing containers.
     return leave(p.now, "host-unreachable", { hostname: route.hostname });
@@ -215,6 +223,22 @@ function routeAction(p: Pass, route: Route): Action | null {
 
   if (p.settled.has(preview.id)) return null;
   return missingContainerAction(p, route, preview);
+}
+
+// No container to find: a container still labelled with this hostname is stopped as a conflict.
+function servedAction(p: Pass, route: Route, preview: Preview): Action | null {
+  const where = { hostname: route.hostname };
+  if (preview.state !== "building" && preview.state !== "starting")
+    return leave(p.now, "served-by-gangway", where);
+  if (p.liveBuilds.has(preview.id)) return leave(p.now, "build-in-flight", where);
+  if (p.settled.has(preview.id)) return null;
+  p.settled.add(preview.id);
+  return {
+    kind: "MarkFailed",
+    at: p.now,
+    previewId: preview.id,
+    error: "publishing its files did not survive a gangway restart: redeploy it",
+  };
 }
 
 function upstreamAction(now: number, route: Route, candidate: ScannedContainer): Action {

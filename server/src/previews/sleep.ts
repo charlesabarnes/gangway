@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Preview } from "@gangway/shared/domain";
 import { psArgv, startArgv, stopArgv } from "../docker/compose.ts";
 import { AppError, errorMessage } from "../errors.ts";
 import { type Logger, redactString } from "../logger.ts";
@@ -26,6 +26,8 @@ export async function sleepPreview(
   const preview = ctx.previews.get(previewId);
   if (!preview || preview.state !== "awake")
     throw new AppError("conflict", `preview ${previewId} is not awake`);
+  if (servedByGangway(preview))
+    throw new AppError("conflict", `gangway serves preview ${previewId}'s files; nothing sleeps`);
   const host = ctx.hosts.get(preview.hostId);
   if (!host) throw new AppError("conflict", `host ${preview.hostId} is gone`);
   if (ctx.inflight.has(previewId) || ctx.teardowns.has(previewId))
@@ -59,6 +61,8 @@ export async function sweepIdle(
 
   for (const p of ctx.previews.list({ state: "awake", kind: "preview" })) {
     if (signal?.aborted) break;
+    // Files cost nothing while nobody reads them.
+    if (servedByGangway(p)) continue;
     const windowMs = p.idleAfterMs ?? defaultMs;
     if (windowMs <= 0) continue;
     const lastSeen = (p.lastSeenAt ?? p.createdAt).getTime();

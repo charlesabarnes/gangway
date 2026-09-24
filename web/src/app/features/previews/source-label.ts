@@ -9,7 +9,8 @@ export function sourceLabel(s: PreviewSource): string {
     case 'image':
       return s.image;
     case 'tarball': {
-      const base = s.runtime ? `uploaded files · ${s.runtime}` : 'uploaded archive';
+      const runtime = s.runtime ? `uploaded files · ${s.runtime}` : 'uploaded archive';
+      const base = s.serve === 'gangway' ? `${runtime} · served by gangway` : runtime;
       return s.addons?.length
         ? `${base} + ${s.addons.map((a) => `${a.id} ${a.version}`).join(', ')}`
         : base;

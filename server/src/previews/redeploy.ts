@@ -1,5 +1,5 @@
 import type { AppPlan } from "@gangway/shared/app-plan";
-import type { Host, Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import { actorId, mayRebuild } from "../auth/actor.ts";
 import { psArgv, upArgv } from "../docker/compose.ts";
 import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors.ts";
@@ -19,7 +19,9 @@ import {
 } from "./pipeline.ts";
 import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
+import { releaseStack } from "./destroy.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
+import { markServing } from "./site.ts";
 import type { SourceStore } from "./source/store.ts";
 import { dropProjectNetwork, writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
@@ -152,7 +154,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     ...plan.planned,
     addonServices: plan.addonServices,
   };
-  void run(ctx, r)
+  void (plan.site ? runSite(ctx, r, plan.site, plan.brand) : run(ctx, r))
     .then(
       (o) => settle(o),
       (e: unknown) =>
@@ -232,6 +234,54 @@ async function rebuildFailed(
   }
   await failStack(ctx, r, message, upAttempted);
   return outcomeOf(ctx, r, "failed", message);
+}
+
+async function runSite(
+  ctx: PreviewContext,
+  r: RebuildRun,
+  plan: AppPlan,
+  brand: boolean,
+): Promise<RedeployOutcome> {
+  const id = r.preview.id;
+  const was = ctx.previews.get(id) ?? r.preview;
+  const moving = !servedByGangway(was);
+  try {
+    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan, brand);
+    r.signal.throwIfAborted();
+    if (moving && was.source.kind === "tarball")
+      ctx.previews.setSource(id, { ...was.source, serve: "gangway" });
+    ctx.table.setSite(id, true);
+    markServing(ctx, id);
+    ctx.logs.append(id, "system", `rebuilt: serving ${files} files from gangway`);
+    if (moving) {
+      const removed = await releaseStack(ctx, was, r.host);
+      ctx.logs.append(
+        id,
+        "system",
+        removed
+          ? "removed the old container: gangway serves the files now"
+          : "could not remove the old container; the reconciler stops it",
+      );
+    }
+    return outcomeOf(ctx, r, "succeeded");
+  } catch (e) {
+    if (r.signal.aborted)
+      return {
+        preview: ctx.previews.get(id) ?? r.preview,
+        buildId: r.buildId,
+        outcome: "failed",
+        error: "cancelled",
+      };
+    const message = failureMessage(ctx, id, e, "site rebuild error");
+    ctx.logs.append(
+      id,
+      "system",
+      `rebuild FAILED: ${message} -- the previous version is still serving`,
+    );
+    return outcomeOf(ctx, r, "failed", message);
+  } finally {
+    await r.wd.cleanup();
+  }
 }
 
 async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome> {

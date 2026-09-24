@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Host, Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import { actorId, type Actor } from "../auth/actor.ts";
 import { downArgv } from "../docker/compose.ts";
 import { AppError, notFound, errorMessage } from "../errors.ts";
@@ -54,6 +54,20 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
     await running.done.catch(() => {});
   }
 
+  // Read again: a rebuild that just finished may have moved it onto gangway's file server.
+  if (!servedByGangway(ctx.previews.get(previewId) ?? preview)) await downStack(ctx, preview, host);
+
+  ctx.table.removePreview(previewId);
+  const gone = ctx.states.transition(previewId, "destroyed");
+  await ctx.workdirs.remove(previewId);
+  await ctx.sources?.remove(previewId);
+  await ctx.sites?.remove(previewId);
+  ctx.logs.remove(previewId);
+  return gone;
+}
+
+async function downStack(ctx: PreviewContext, preview: Preview, host: Host): Promise<void> {
+  const previewId = preview.id;
   // Without -f, compose searches the cwd and its parents for a compose file.
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
   try {
@@ -77,13 +91,6 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   } finally {
     await rm(empty, { recursive: true, force: true });
   }
-
-  ctx.table.removePreview(previewId);
-  const gone = ctx.states.transition(previewId, "destroyed");
-  await ctx.workdirs.remove(previewId);
-  await ctx.sources?.remove(previewId);
-  ctx.logs.remove(previewId);
-  return gone;
 }
 
 export const rmiFor = (p: Preview): "local" | "all" =>

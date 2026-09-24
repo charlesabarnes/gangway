@@ -291,6 +291,10 @@ describe('source labels', () => {
     ],
     [{ kind: 'image', image: 'traefik/whoami:v1.10' }, 'traefik/whoami:v1.10'],
     [{ kind: 'tarball', uploadId: 'u' }, 'uploaded archive'],
+    [
+      { kind: 'tarball', uploadId: 'u', runtime: 'static', serve: 'gangway' },
+      'uploaded files · static · served by gangway',
+    ],
   ] as const)('%o -> %s', (source, want) => expect(sourceLabel(source)).toBe(want));
 
   it('names by title, else the slug without gw-; prefers the primary URL', () => {

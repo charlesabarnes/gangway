@@ -21,6 +21,7 @@ import { applyEdits } from "./source-edits.ts";
 import type { SourceStore } from "./source/store.ts";
 import { extractTarball } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
+import { servable, servesHere, siteModel } from "./site.ts";
 import { readModel, type Planned } from "./stack-file.ts";
 
 type TarballPreviewSource = Extract<PreviewSource, { kind: "tarball" }>;
@@ -81,6 +82,8 @@ async function recordSource(
     ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
     ...networkField(network ?? source.network),
     ...brandField(brand ?? source.brand),
+    // A preview moving onto gangway's file server is marked once its files are published.
+    ...(source.serve ? { serve: source.serve } : {}),
   };
   if (JSON.stringify(next) !== JSON.stringify(source)) ctx.previews.setSource(id, next);
   return next;
@@ -100,7 +103,18 @@ export type RebuildPlan = {
   next: PreviewSource;
   addonServices: string[];
   app: AppPlan;
+  /** The plan gangway serves as files, or null when a container runs the rebuilt preview. */
+  site: AppPlan | null;
+  brand: boolean;
 };
+
+function siteFor(ctx: PreviewContext, source: TarballPreviewSource, plan: AppPlan): AppPlan | null {
+  if (source.serve !== "gangway") return servesHere(ctx, plan) ? plan : null;
+  if (servable(plan)) return plan;
+  throw unprocessable(
+    "gangway serves this preview as files, and the new source needs a container to run it; deploy it as a new preview instead",
+  );
+}
 
 export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<RebuildPlan> {
   const { input, preview, routes, wd } = b;
@@ -114,14 +128,16 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
       ? {}
       : ctx.secretsFor?.(preview.projectId, preview.secretLevel);
   const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
+  const brand = brandFor(ctx, input.brand ?? source.brand);
   const up = await prepareUpload(ctx, id, wd, choice, env, port, {
     previous: source.runtime ?? "own",
     addons: input.addons,
     previousAddons: source.addons,
-    brand: brandFor(ctx, input.brand ?? source.brand),
+    brand,
   });
-  const planned = await readModel(ctx, b.host, wd, up.composeFile);
+  const site = siteFor(ctx, source, up.plan);
+  const planned = site ? siteModel(site, port) : await readModel(ctx, b.host, wd, up.composeFile);
   assertSameExposure(routes, planned.model);
   const next = await recordSource(ctx, b.sources, id, source, up, input.network, input.brand);
-  return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan };
+  return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan, site, brand };
 }

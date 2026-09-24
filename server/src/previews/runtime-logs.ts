@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Preview } from "@gangway/shared/domain";
 import { composeArgv } from "../docker/compose.ts";
 import { redactString } from "../logger.ts";
 import type { PreviewContext } from "./context.ts";
@@ -17,6 +17,11 @@ export async function runtimeLogs(
   p: Preview,
   opts: { tail: number; service?: string | undefined },
 ): Promise<RuntimeLogs> {
+  if (servedByGangway(p))
+    return {
+      lines: null,
+      why: "gangway serves this preview's files itself; there is no container",
+    };
   if (!HAS_CONTAINERS.has(p.state))
     return { lines: null, why: `the preview is ${p.state}; it has no containers to read` };
   if (opts.service !== undefined && !SERVICE.test(opts.service))

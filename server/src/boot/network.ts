@@ -3,11 +3,13 @@ import type { Config } from "../config.ts";
 import type { Hooks } from "../forge/hooks.ts";
 import type { Logger } from "../logger.ts";
 import type { DispatchDeps, Surface } from "../net/dispatch.ts";
-import { wakingPage } from "../net/error-pages.ts";
+import { failedPage, wakingPage } from "../net/error-pages.ts";
 import { DEFAULT_LIMITS } from "../net/limits.ts";
 import { clientIpOf, startListener, type RunningListener } from "../net/listener.ts";
 import { clientIpResolver, type ClientIpResolver } from "../net/trusted-proxy.ts";
+import { serveSite } from "../net/site.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "../net/upstream.ts";
+import { renderDist } from "../previews/artifact-render.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { Waker } from "../previews/sleep.ts";
 import { SETTINGS, type Settings } from "../settings.ts";
@@ -72,6 +74,7 @@ function dispatchDeps(d: NetworkDeps, resolveClientIp: ClientIpResolver): Dispat
     surfaceEnabled: d.surfaceEnabled,
     visibilityGate: http.gate.handle,
     wake: waker(d),
+    site: siteFor(d),
     upstream: upstreamFor(d),
     handlers: {
       app: surfaceHandler(http.app, "app"),
@@ -96,6 +99,17 @@ function waker({ ctx, config, logger }: NetworkDeps): NonNullable<DispatchDeps["
       sleep(config.wakeWaitMs).then(() => false),
     ]);
     return woke ? null : wakingPage(entry.hostname);
+  };
+}
+
+function siteFor({ ctx }: NetworkDeps): NonNullable<DispatchDeps["site"]> {
+  return async (req, entry) => {
+    const site = await ctx.sites?.open(entry.previewId);
+    if (!site) return failedPage(entry.hostname, ["this preview's files are missing: redeploy it"]);
+    return serveSite(req, site, {
+      unlisted: entry.visibility === "unlisted",
+      kitDir: renderDist(),
+    });
   };
 }
 

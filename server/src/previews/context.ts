@@ -14,6 +14,7 @@ import type { PreviewLogs } from "./logs.ts";
 import type { RouteProbe, StatusProbe } from "./probe.ts";
 import type { Workdirs } from "./source/workdir.ts";
 import type { SourceStore } from "./source/store.ts";
+import type { SiteStore } from "./site.ts";
 import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
 import type { PreviewPasswordDeps } from "./password-deps.ts";
@@ -59,6 +60,10 @@ export type PreviewContext = {
     ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
   addonSecret?: ((previewId: string, addon: AddonId) => string) | undefined;
   sources?: SourceStore | undefined;
+  /** Where gangway keeps the files it serves itself; without it every preview gets a container. */
+  sites?: SiteStore | undefined;
+  /** Whether a plain static upload is served by gangway (true) or by an nginx container. */
+  serveStatic?: (() => boolean) | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   /** Whether artifacts show the gangway mark unless a preview says otherwise. */
   brandDefault?: (() => boolean) | undefined;

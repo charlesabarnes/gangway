@@ -34,6 +34,8 @@ export type Claim = {
   ttlMs: number | null;
   secretLevel: Clearance;
   password: ResolvedPassword;
+  /** Served by gangway from its files, not proxied to a container. */
+  site?: boolean;
 };
 
 function slugFor(c: Claim): string {
@@ -80,6 +82,7 @@ function claimRoutes(
         password: entryPassword(c.password.stored),
         passwordLogin: c.input.passwordLogin ?? "inherit",
         state: "building",
+        site: c.site ?? false,
       });
     }
   } catch (e) {

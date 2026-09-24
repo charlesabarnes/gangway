@@ -32,6 +32,7 @@ export const entry = (password: EntryPassword, over: Partial<RouteEntry> = {}): 
   password,
   passwordLogin: "off",
   state: "awake",
+  site: false,
   inflight: 0,
   bytesInFlight: 0,
   lastSeenAt: 0,

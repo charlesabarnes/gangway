@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { Host, Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import type { HostConfig } from "../config.ts";
 import { migrate } from "../db/migrate.ts";
 import {
@@ -25,6 +25,7 @@ import type { Db } from "../db/types.ts";
 import { seedHosts } from "../hosts/seed.ts";
 import type { Logger } from "../logger.ts";
 import { entryPassword } from "../previews/password.ts";
+import { SiteStore } from "../previews/site.ts";
 import { SourceStore } from "../previews/source/store.ts";
 import { Workdirs } from "../previews/source/workdir.ts";
 import type { RouteTable } from "../routing/table.ts";
@@ -104,15 +105,17 @@ export type RestoreDeps = {
 
 export async function restoreState(
   d: RestoreDeps,
-): Promise<{ workdirs: Workdirs; sources: SourceStore }> {
+): Promise<{ workdirs: Workdirs; sources: SourceStore; sites: SiteStore }> {
   const all = new Map(d.repos.previews.list({ includeDestroyed: true }).map((p) => [p.id, p]));
   hydrateRoutes(d, all);
   const workdirs = new Workdirs(d.stateDir);
   await workdirs.prune();
   const sources = new SourceStore(d.stateDir);
-  await pruneSources(sources, all);
+  await pruneStored(sources, all);
+  const sites = new SiteStore(d.stateDir);
+  await pruneStored(sites, all);
   cancelOrphanedBuilds(d.repos.builds, d.logger);
-  return { workdirs, sources };
+  return { workdirs, sources, sites };
 }
 
 function hydrateRoutes(d: RestoreDeps, all: Map<string, Preview>): void {
@@ -130,6 +133,7 @@ function hydrateRoutes(d: RestoreDeps, all: Map<string, Preview>): void {
               state: p.state,
               password: entryPassword(previews.passwordOf(p.id)),
               passwordLogin: p.passwordLogin,
+              site: servedByGangway(p),
             },
           ]
         : [];
@@ -137,7 +141,10 @@ function hydrateRoutes(d: RestoreDeps, all: Map<string, Preview>): void {
   );
 }
 
-async function pruneSources(sources: SourceStore, all: Map<string, Preview>): Promise<void> {
+async function pruneStored(
+  sources: Pick<SourceStore, "ids" | "remove">,
+  all: Map<string, Preview>,
+): Promise<void> {
   for (const id of await sources.ids()) {
     const p = all.get(id);
     if (!p || p.state === "destroyed") await sources.remove(id);

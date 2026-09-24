@@ -10,6 +10,7 @@ import type { DeploySource } from "../previews/deploy-types.ts";
 import { PreviewLogs } from "../previews/logs.ts";
 import { PolicyResolver } from "../previews/policy.ts";
 import { httpProbe, type RouteProbe } from "../previews/probe.ts";
+import type { SiteStore } from "../previews/site.ts";
 import type { SourceStore } from "../previews/source/store.ts";
 import type { Workdirs } from "../previews/source/workdir.ts";
 import { PreviewStates } from "../previews/state.ts";
@@ -28,6 +29,7 @@ const TEMPLATE_SETTING = {
 export type PreviewParts = {
   workdirs: Workdirs;
   sources: SourceStore;
+  sites: SiteStore;
   dockerClients: DockerClients;
   overrides: {
     compose?: ComposeRunner;
@@ -80,6 +82,8 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     builds: repos.builds,
     audit: core.audit,
     sources: d.sources,
+    sites: d.sites,
+    serveStatic: () => settings.get(SETTINGS.previewsServeStatic),
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
     brandDefault: () => settings.get(SETTINGS.artifactBrand),
     // A separate semaphore, so a burst of preview password forms never queues an operator's login.

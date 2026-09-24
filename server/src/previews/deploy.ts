@@ -1,3 +1,4 @@
+import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Clearance, Host, Preview, Visibility } from "@gangway/shared/domain";
 import { actorId } from "../auth/actor.ts";
 import { unprocessable } from "../errors.ts";
@@ -9,7 +10,7 @@ import { selectExposed } from "./compose-routes.ts";
 import type { PreviewContext } from "./context.ts";
 import { claimPreview } from "./deploy-claim.ts";
 import { urlsFor } from "./deploy-names.ts";
-import { writeSource, type Materialized } from "./deploy-source.ts";
+import { brandFor, writeSource, type Materialized } from "./deploy-source.ts";
 import type { DeployInput, DeployResult, PreviewUrl } from "./deploy-types.ts";
 import { logGenerated, resolvePassword } from "./password.ts";
 import type { PlannedRoute } from "./planned-route.ts";
@@ -24,6 +25,7 @@ import {
   type RunPlan,
 } from "./pipeline.ts";
 import type { ResolvedPolicy } from "./policy.ts";
+import { markServing, servesHere, siteModel } from "./site.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { readModel, writeStack, type Planned } from "./stack-file.ts";
 import { releaseFor, seedFor } from "./steps.ts";
@@ -100,6 +102,8 @@ type Prepared = {
   material: Materialized;
   visibility: Visibility;
   generatedPassword: string | undefined;
+  /** The plan gangway serves as files, or null when a container runs the preview. */
+  site: AppPlan | null;
 };
 
 async function prepare(
@@ -114,7 +118,12 @@ async function prepare(
   const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
   const env = envFor(ctx, input, owner, secretLevel);
   const material = await writeSource(ctx, id, input.source, env, wd);
-  const planned = await readModel(ctx, host, wd, material.composeFile);
+  const site = servesHere(ctx, material.plan) ? material.plan! : null;
+  if (site && material.source.kind === "tarball")
+    material.source = { ...material.source, serve: "gangway" };
+  const planned = site
+    ? siteModel(site, input.source.kind === "tarball" ? input.source.port : undefined)
+    : await readModel(ctx, host, wd, material.composeFile);
   const { model } = planned;
   const exposed = selectExposed(model);
   const visibility = visibilityFor(ctx, input, policy, model);
@@ -133,8 +142,17 @@ async function prepare(
     ttlMs,
     secretLevel,
     password,
+    site: site !== null,
   });
-  return { preview, routes, planned, material, visibility, generatedPassword: password.generated };
+  return {
+    preview,
+    routes,
+    planned,
+    material,
+    visibility,
+    generatedPassword: password.generated,
+    site,
+  };
 }
 
 async function keepUpload(ctx: PreviewContext, id: string, pristine: string | null | undefined) {
@@ -192,7 +210,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
   const urls = announce(ctx, input, host, p);
 
   const abort = new AbortController();
-  const done = run(ctx, {
+  const r: DeployRun = {
     preview: p.preview,
     host,
     wd,
@@ -201,15 +219,41 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     visibility: p.visibility,
     dockerConfig: p.material.dockerConfig,
     signal: abort.signal,
-  }).finally(() => {
-    ctx.inflight.delete(id);
-  });
+  };
+  const brand = input.source.kind === "tarball" ? input.source.brand : undefined;
+  const done = (p.site ? publishSite(ctx, r, p.site, brandFor(ctx, brand)) : run(ctx, r)).finally(
+    () => {
+      ctx.inflight.delete(id);
+    },
+  );
   ctx.inflight.set(id, { abort, done });
 
   return { preview: p.preview, urls, done, plan: p.material.plan };
 }
 
 type DeployRun = RunPlan & { dockerConfig?: string | undefined };
+
+async function publishSite(
+  ctx: PreviewContext,
+  r: DeployRun,
+  plan: AppPlan,
+  brand: boolean,
+): Promise<Preview> {
+  const id = r.preview.id;
+  try {
+    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan, brand);
+    r.signal.throwIfAborted();
+    ctx.logs.append(id, "system", `serving ${files} files from gangway: no container to start`);
+    ctx.logs.append(id, "system", "awake");
+    return markServing(ctx, id);
+  } catch (e) {
+    // destroy() aborted the run and owns the preview from here.
+    if (r.signal.aborted) return ctx.previews.get(id) ?? r.preview;
+    return await failStack(ctx, r, failureMessage(ctx, id, e, "site publish error"), false);
+  } finally {
+    await r.wd.cleanup();
+  }
+}
 
 async function run(ctx: PreviewContext, r: DeployRun): Promise<Preview> {
   const p = openPipeline(ctx, r);

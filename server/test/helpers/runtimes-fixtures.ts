@@ -13,6 +13,7 @@ import type { DeployInput } from "../../src/previews/deploy-types.ts";
 import { redeploy } from "../../src/previews/redeploy.ts";
 import { assertRunnable, planFromDisk, type RuntimeChoice } from "../../src/previews/runtimes.ts";
 import { renderRuntime } from "../../src/previews/runtime-dockerfile.ts";
+import { SiteStore } from "../../src/previews/site.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
 import { tempDir } from "./db.ts";
 import { silentLogger } from "./logger.ts";
@@ -63,6 +64,14 @@ export function setupRuntimes() {
   return { ...s, sources: s.ctx.sources, stateDir };
 }
 export type RuntimesHarness = ReturnType<typeof setupRuntimes>;
+
+/** The harness with gangway's file server wired in, as boot wires it. */
+export function setupServed() {
+  const s = setupRuntimes();
+  const sites = new SiteStore(s.stateDir);
+  s.ctx.sites = sites;
+  return { ...s, sites };
+}
 
 /** Deploy these files as a public tarball preview. */
 export async function deployFiles(

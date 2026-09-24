@@ -55,6 +55,8 @@ export const SETTINGS = {
     { secret: true },
   ),
   artifactBrand: def("artifacts.brand", z.boolean(), true),
+  // Off puts static sites and artifacts back in nginx containers.
+  previewsServeStatic: def("previews.serveStatic", z.boolean(), true),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),

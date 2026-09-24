@@ -7,6 +7,7 @@ import type { Config } from "../config.ts";
 import type { Db } from "../db/types.ts";
 import { EventBus } from "../events/bus.ts";
 import type { Logger } from "../logger.ts";
+import type { SiteStore } from "../previews/site.ts";
 import type { SourceStore } from "../previews/source/store.ts";
 import type { Workdirs } from "../previews/source/workdir.ts";
 import { RouteTable } from "../routing/table.ts";
@@ -28,7 +29,13 @@ export type Core = {
   audit: Audit;
 };
 
-export type Opened = { core: Core; seeded: Host[]; workdirs: Workdirs; sources: SourceStore };
+export type Opened = {
+  core: Core;
+  seeded: Host[];
+  workdirs: Workdirs;
+  sources: SourceStore;
+  sites: SiteStore;
+};
 
 export async function openCore(config: Config, logger: Logger): Promise<Opened> {
   const stateDir = resolve(config.stateDir);
@@ -54,6 +61,11 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     audit: new Audit(repos.audit, logger.child({ mod: "audit" })),
   };
   const seeded = seedConfiguredHosts(config.hosts, repos.hosts, logger);
-  const { workdirs, sources } = await restoreState({ stateDir, repos, table: core.table, logger });
-  return { core, seeded, workdirs, sources };
+  const { workdirs, sources, sites } = await restoreState({
+    stateDir,
+    repos,
+    table: core.table,
+    logger,
+  });
+  return { core, seeded, workdirs, sources, sites };
 }

@@ -1,4 +1,4 @@
-import type { Host, Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import type { RoutesRepo } from "../db/repos/routes.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { releaseStack, teardown } from "../previews/destroy.ts";
@@ -44,6 +44,8 @@ export async function rescueInterrupted(r: Recovery): Promise<string[]> {
   const { ctx } = r;
   const out: string[] = [];
   for (const p of ctx.previews.list({ state: ["building", "starting", "destroying"] })) {
+    // The diff settles an interrupted served preview; it has no container to probe.
+    if (servedByGangway(p) && p.state !== "destroying") continue;
     const host = hostFor(r, p);
     if (!host) continue;
 

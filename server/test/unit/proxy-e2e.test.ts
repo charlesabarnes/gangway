@@ -188,6 +188,7 @@ beforeAll(async () => {
     password: { mode: "inherit" },
     passwordLogin: "inherit",
     state: "awake",
+    site: false,
     inflight: 0,
     bytesInFlight: 0,
     lastSeenAt: 0,

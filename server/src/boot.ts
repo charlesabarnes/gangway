@@ -47,10 +47,16 @@ export type Running = {
 export async function boot(config: Config, o: BootOverrides = {}): Promise<Running> {
   const logger = o.logger ?? new Logger(config.logLevel);
   const announce = o.announce ?? ((t) => console.log(t));
-  const { core, seeded, workdirs, sources } = await openCore(config, logger);
+  const { core, seeded, workdirs, sources, sites } = await openCore(config, logger);
 
   const dockerClients = new DockerClients();
-  const previews = createPreviewContext(core, { workdirs, sources, dockerClients, overrides: o });
+  const previews = createPreviewContext(core, {
+    workdirs,
+    sources,
+    sites,
+    dockerClients,
+    overrides: o,
+  });
   const { ctx } = previews;
   const deploys = new IdempotentDeploys(ctx, core.repos.idempotency);
   const forge = createForge(core, previews);

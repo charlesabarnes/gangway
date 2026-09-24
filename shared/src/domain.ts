@@ -109,8 +109,14 @@ export type PreviewSource =
       addons?: AddonChoice[];
       network?: PreviewNetwork;
       brand?: "on" | "off";
+      /** "gangway": its files are served by gangway itself, with no container. */
+      serve?: "gangway";
     }
   | { kind: "git"; repo: string; ref: string };
+
+/** Whether gangway serves this preview's files itself instead of running a container. */
+export const servedByGangway = (p: { source: PreviewSource }): boolean =>
+  p.source.kind === "tarball" && p.source.serve === "gangway";
 
 export type Preview = {
   id: string;

@@ -30,6 +30,8 @@ export type DispatchDeps = {
   surfaceEnabled: (s: Surface) => boolean;
   handlers: Partial<Record<Surface, SurfaceHandler>>;
   wake?: (entry: RouteEntry, req: Request) => Promise<Response | null>;
+  /** Answers a route whose files gangway serves itself. */
+  site?: (req: Request, entry: RouteEntry) => Promise<Response>;
   visibilityGate?: (
     entry: RouteEntry,
     req: Request,
@@ -86,6 +88,23 @@ async function notAwake(
   }
 }
 
+async function serveFiles(
+  req: Request,
+  d: DispatchDeps,
+  host: string,
+  entry: RouteEntry,
+  site: NonNullable<DispatchDeps["site"]>,
+): Promise<Response> {
+  if (!tryAcquire(entry, d.limits)) return busyPage(host);
+  try {
+    const res = await site(req, entry);
+    d.onProxied?.(entry);
+    return res;
+  } finally {
+    release(entry);
+  }
+}
+
 async function proxy(
   req: Request,
   d: DispatchDeps,
@@ -132,5 +151,6 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
     return new Response("websocket upgrade failed", { status: 400 });
   }
 
+  if (entry.site && d.site) return serveFiles(req, d, host, entry, d.site);
   return proxy(req, d, host, entry, clientIp);
 }
