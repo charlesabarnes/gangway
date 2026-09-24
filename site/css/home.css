@@ -539,6 +539,116 @@
   background: color-mix(in oklch, currentColor 10%, transparent);
 }
 
+/* Install */
+
+.install {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 48px;
+}
+.install-head {
+  gap: 12px;
+  align-self: start;
+}
+@media (min-width: 760px) {
+  .install-head {
+    position: sticky;
+    top: 24px;
+  }
+}
+.install-body {
+  gap: 28px;
+  min-width: 0;
+}
+.install code,
+.needs code {
+  font: 400 0.9em var(--font-mono);
+}
+.needs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+}
+.needs li {
+  position: relative;
+  padding: 12px 0 12px 24px;
+  border-top: 1px solid var(--rule);
+  font: 400 15px/1.5 var(--font-sans);
+  color: var(--ink-muted);
+}
+.needs li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--awake);
+  font-weight: 600;
+}
+.needs b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.needs-note {
+  margin: 0;
+  font: 400 14px/1.45 var(--font-sans);
+  color: var(--ink-muted);
+}
+.command {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--log-bg);
+  color: var(--log-stdout);
+}
+.command code {
+  flex: 1;
+  min-width: 0;
+  font: 400 13px/1.6 var(--font-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.command code::before {
+  content: "$ ";
+  color: var(--log-build);
+  user-select: none;
+}
+.command-copy {
+  flex-shrink: 0;
+  border: 0;
+  cursor: pointer;
+  padding: 3px 10px;
+  background: var(--flag);
+  color: var(--on-flag);
+  font: 600 11px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.install-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 16px 24px;
+}
+.install-steps li {
+  counter-increment: step;
+  padding-top: 12px;
+  border-top: 1px dotted var(--rule);
+  font: 400 14px/1.45 var(--font-sans);
+  color: var(--ink-muted);
+}
+.install-steps li::before {
+  content: "0" counter(step);
+  display: block;
+  margin-bottom: 6px;
+  font: 600 11px var(--font-sans);
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+
 /* FAQ */
 
 .faq {

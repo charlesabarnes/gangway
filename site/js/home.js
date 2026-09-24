@@ -83,6 +83,23 @@ function startBoard(board) {
   if (s.auto) tour(1800);
 }
 
+function startCopy(button) {
+  const command = document.querySelector("[data-command]").textContent.trim().replace(/\s+/g, " ");
+  button.hidden = false;
+  button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      button.textContent = "Copied";
+    } catch {
+      getSelection().selectAllChildren(document.querySelector("[data-command]"));
+      button.textContent = "Selected";
+    }
+    setTimeout(() => (button.textContent = "Copy"), 2000);
+  });
+}
+
 renderBrandIcons();
+const copy = document.querySelector("[data-copy]");
+if (copy) startCopy(copy);
 const board = document.querySelector("[data-board]");
 if (board) startBoard(board);
