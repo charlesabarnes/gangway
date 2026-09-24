@@ -12,3 +12,6 @@ spec.md
 
 # Your own dev host config; start from scripts/dev.example.json.
 scripts/dev.json
+
+# wrangler dev state (local D1, build cache).
+.wrangler/

@@ -13,13 +13,13 @@
     "render"
   ],
   "scripts": {
-    "typecheck": "node_modules/typescript-native/bin/tsc --noEmit -p shared && node_modules/typescript-native/bin/tsc --noEmit -p server && node_modules/typescript-native/bin/tsc --noEmit -p scripts && node_modules/typescript-native/bin/tsc --noEmit -p render",
+    "typecheck": "node_modules/typescript-native/bin/tsc --noEmit -p shared && node_modules/typescript-native/bin/tsc --noEmit -p server && node_modules/typescript-native/bin/tsc --noEmit -p scripts && node_modules/typescript-native/bin/tsc --noEmit -p render && node_modules/typescript-native/bin/tsc --noEmit -p waitlist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "comments": "bun scripts/comment-density.ts",
-    "test": "bun test --parallel --timings=server/test/timings.json server/test/unit shared/test render/test",
+    "test": "bun test --parallel --timings=server/test/timings.json server/test/unit shared/test render/test waitlist/test",
     "test:timings": "bun scripts/test-timings.ts",
     "test:int": "GANGWAY_REQUIRE_DOCKER=1 bun test server/test/unit shared/test server/test/integration",
     "test:e2e": "GANGWAY_E2E=1 GANGWAY_REQUIRE_DOCKER=1 bun test server/test",

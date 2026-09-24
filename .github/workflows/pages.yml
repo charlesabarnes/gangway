@@ -1,0 +1,34 @@
+# Publishes site/ (the marketing pages) to GitHub Pages. There is no build step: site/ is served as is.
+# The waitlist form posts to the Cloudflare Worker in waitlist/, which is deployed separately.
+name: pages
+
+on:
+  push:
+    branches: [master]
+    paths: ["site/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

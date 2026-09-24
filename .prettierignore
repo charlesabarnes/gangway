@@ -8,3 +8,6 @@ bun.lock
 server/migrations/
 # Generated from the artifact guide: bun scripts/artifact-catalog.ts
 plugin/gangway/skills/generate-artifact/catalog.md
+# Copied verbatim from the Claude Design system; keep them byte-identical to the source.
+site/css/tokens/
+site/js/brand-icons.js

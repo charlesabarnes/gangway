@@ -1,0 +1,9 @@
+:root{
+  --space-1:4px;--space-2:6px;--space-3:8px;--space-4:10px;--space-5:12px;--space-6:14px;--space-7:16px;--space-8:18px;--space-9:20px;--space-10:24px;--space-11:28px;--space-12:32px;--space-13:36px;--space-14:48px;
+  --page-pad:36px 48px 48px;
+  --header-height:56px;
+  --header-pad-x:32px;
+  --section-aside:200px; /* settings-style left column */
+  --section-gap:32px;
+  --chart-grid:80px;
+}

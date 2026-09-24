@@ -1,0 +1,33 @@
+:root{
+  --font-serif:'IBM Plex Serif',Georgia,serif;
+  --font-sans:'IBM Plex Sans Condensed','Arial Narrow',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+
+  /* roles */
+  --font-display:var(--font-serif); /* always italic 400 */
+  --font-ui:var(--font-sans);
+  --font-data:var(--font-mono);
+  --font-wordmark:var(--font-mono); /* 600, -0.04em */
+
+  --text-display:72px;   /* italic serif, lh 1, -0.02em */
+  --text-h1:48px;        /* page titles, italic serif, lh 1 */
+  --text-h1-detail:52px; /* preview detail title */
+  --text-h2:26px;        /* card / template names */
+  --text-h3:22px;        /* settings section titles */
+  --text-name:19px;      /* preview names in tables */
+  --text-lead:16px;      /* page intro, upright serif, lh 1.45 */
+  --text-body:15px;
+  --text-sm:14px;
+  --text-xs:13px;
+  --text-data:13px;
+  --text-data-sm:12px;
+  --text-button:13px;    /* 600, uppercase, 0.1em */
+  --text-label:11px;     /* 600, uppercase, 0.14em */
+  --text-micro:10px;     /* badges */
+
+  --tracking-label:.14em;
+  --tracking-button:.1em;
+  --tracking-badge:.12em;
+  --tracking-wordmark:-.04em;
+  --tracking-display:-.02em;
+}

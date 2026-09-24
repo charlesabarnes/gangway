@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gangway — cloud</title>
+    <meta
+      name="description"
+      content="A managed version of gangway for individuals and small teams. Join the waitlist to hear when it launches."
+    />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    />
+    <link rel="stylesheet" href="css/tokens/colors.css" />
+    <link rel="stylesheet" href="css/tokens/typography.css" />
+    <link rel="stylesheet" href="css/tokens/spacing.css" />
+    <link rel="stylesheet" href="css/tokens/effects.css" />
+    <link rel="stylesheet" href="css/tokens/base.css" />
+    <link rel="stylesheet" href="css/site.css" />
+    <link rel="stylesheet" href="css/cloud.css" />
+    <script src="js/waitlist.js" defer></script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="site-header">
+        <a class="home" href="./" aria-label="gangway home">
+          <span class="lockup">
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+              <rect class="mark-red" x="4" y="14" width="11" height="6" />
+              <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+              <path
+                class="mark-ribs"
+                d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+              />
+              <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+            </svg>
+            gangway
+          </span>
+        </a>
+        <nav class="site-nav">
+          <a href="./#ways">How it works</a>
+          <a href="./#faq">FAQ</a>
+          <a href="cloud.html" aria-current="page">Gangway cloud</a>
+        </nav>
+        <div class="header-end">
+          <span class="mono">Apache 2.0</span>
+          <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+        </div>
+      </header>
+
+      <main class="cloud">
+        <div class="page-head">
+          <span class="label">Gangway cloud</span>
+          <h1>Hosted gangway is coming soon.</h1>
+          <p>
+            A managed version of gangway for individuals and small teams. Sign up to hear when it
+            launches.
+          </p>
+        </div>
+        <section id="cloud" class="signup">
+          <div class="signup-aside">
+            <h2>Join the waitlist</h2>
+            <p>Tell us a bit about how you’d use it.</p>
+          </div>
+          <div class="signup-body">
+            <div id="joined" class="notice" role="status">
+              <span class="notice-title">You’re on the list</span>
+              <p>We’ll email <span data-email>you</span> when Gangway cloud launches.</p>
+            </div>
+            <form
+              class="waitlist"
+              method="post"
+              action="https://gangway-waitlist.charles-2cc.workers.dev/waitlist"
+              data-waitlist
+            >
+              <div class="fields">
+                <label class="field">
+                  <span class="label">Name</span>
+                  <input
+                    class="line"
+                    name="name"
+                    autocomplete="name"
+                    placeholder="Dana Ruiz"
+                    required
+                    maxlength="100"
+                  />
+                </label>
+                <label class="field">
+                  <span class="label">Email</span>
+                  <input
+                    class="line"
+                    name="email"
+                    type="email"
+                    autocomplete="email"
+                    placeholder="dana@acme.dev"
+                    required
+                    maxlength="254"
+                  />
+                </label>
+                <label class="field">
+                  <span class="label">Company</span>
+                  <input
+                    class="line"
+                    name="company"
+                    autocomplete="organization"
+                    placeholder="Acme"
+                    maxlength="100"
+                  />
+                  <span class="field-help">Optional.</span>
+                </label>
+                <label class="field">
+                  <span class="label">People who deploy</span>
+                  <span class="select">
+                    <select class="line" name="team_size">
+                      <option>1</option>
+                      <option selected>2–10</option>
+                      <option>11–50</option>
+                      <option>51+</option>
+                    </select>
+                  </span>
+                </label>
+                <label class="field">
+                  <span class="label">Preview domain</span>
+                  <input
+                    class="line line--mono"
+                    name="preview_domain"
+                    placeholder="acme.dev"
+                    maxlength="253"
+                  />
+                  <span class="field-help">Optional. The domain previews would answer on.</span>
+                </label>
+                <label class="field">
+                  <span class="label">Previews at once</span>
+                  <span class="select">
+                    <select class="line" name="previews">
+                      <option>under 10</option>
+                      <option selected>10–50</option>
+                      <option>50–200</option>
+                      <option>200+</option>
+                    </select>
+                  </span>
+                </label>
+              </div>
+              <label class="field">
+                <span class="label">What you would deploy</span>
+                <textarea
+                  class="line"
+                  name="would_deploy"
+                  rows="3"
+                  maxlength="2000"
+                  placeholder="Next.js storefront with Postgres, previews per pull request…"
+                ></textarea>
+              </label>
+              <div class="hp" aria-hidden="true">
+                <label>Website <input name="website" tabindex="-1" autocomplete="off" /></label>
+              </div>
+              <p class="form-error" role="alert" data-error hidden></p>
+              <div>
+                <button class="btn" type="submit">Join waitlist</button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div class="wrap">
+          <span class="lockup lockup--sm">
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+              <rect class="mark-red" x="4" y="14" width="11" height="6" />
+              <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+              <path
+                class="mark-ribs"
+                d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+              />
+              <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+            </svg>
+            gangway
+          </span>
+          <div class="footer-links">
+            <img src="assets/stl-flag.svg" alt="Flag of St. Louis" title="Made in St. Louis" />
+            <span>Apache 2.0 license</span>
+            <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+            <a href="./">Home</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+name = "gangway-waitlist"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://charlesabarnes.github.io,http://localhost:4173"
+SITE_URL = "https://charlesabarnes.github.io/gangway"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gangway-waitlist"
+database_id = "4b0a7bb3-2c00-47dd-9af2-3b31141a3770"

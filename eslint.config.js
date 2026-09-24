@@ -4,7 +4,17 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["web/**", "state/**", "docs/**", ".claude/**", "**/dist/**", "eslint.config.js"] },
+  {
+    ignores: [
+      "web/**",
+      "site/**",
+      "state/**",
+      "docs/**",
+      ".claude/**",
+      "**/dist/**",
+      "eslint.config.js",
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {

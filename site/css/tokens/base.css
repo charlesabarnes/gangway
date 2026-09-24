@@ -1,0 +1,4 @@
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:2px}
+@keyframes gw-pulse{50%{opacity:.35}}

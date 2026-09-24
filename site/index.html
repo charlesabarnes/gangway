@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gangway — preview URLs on your own domain</title>
+    <meta
+      name="description"
+      content="Ask your agent for a slide deck, a dashboard, a report or a small tool, and gangway puts it on a URL on your own domain. Open source, Apache 2.0, runs on your server."
+    />
+    <meta property="og:title" content="gangway — put it on a URL you own" />
+    <meta
+      property="og:description"
+      content="An open source alternative to Claude artifacts: what your agent makes goes to a real HTTPS URL on your server."
+    />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    />
+    <link rel="stylesheet" href="css/tokens/colors.css" />
+    <link rel="stylesheet" href="css/tokens/typography.css" />
+    <link rel="stylesheet" href="css/tokens/spacing.css" />
+    <link rel="stylesheet" href="css/tokens/effects.css" />
+    <link rel="stylesheet" href="css/tokens/base.css" />
+    <link rel="stylesheet" href="css/site.css" />
+    <link rel="stylesheet" href="css/home.css" />
+    <script src="js/brand-icons.js" defer></script>
+    <script src="js/home.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="home" href="#top" aria-label="gangway home">
+        <span class="lockup">
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+            <rect class="mark-red" x="4" y="14" width="11" height="6" />
+            <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+            <path
+              class="mark-ribs"
+              d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+            />
+            <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+          </svg>
+          gangway
+        </span>
+      </a>
+      <nav class="site-nav">
+        <a href="#ways">How it works</a>
+        <a href="#faq">FAQ</a>
+        <a href="cloud.html">Gangway cloud</a>
+      </nav>
+      <div class="header-end">
+        <span class="mono">Apache 2.0</span>
+        <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+      </div>
+    </header>
+
+    <main>
+      <section id="top" class="hero">
+        <div class="hero-copy">
+          <div><span class="tag">Open source · Apache 2.0</span></div>
+          <h1>Put it on a URL you own.</h1>
+          <p class="hero-lead">
+            Ask your agent for a slide deck, a dashboard, a report or a small tool, and gangway puts
+            it on a URL on your own domain that you can share and keep changing. It runs on your
+            server, and everything it makes stays there.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn--lg" href="https://github.com/charlesabarnes/gangway"
+              >Get it on GitHub ↗</a
+            >
+            <a
+              class="btn btn--lg btn--ghost"
+              href="https://github.com/charlesabarnes/gangway#readme"
+              >Install</a
+            >
+          </div>
+          <p class="hero-soon">
+            <span class="tag tag--flag tag--sm">Soon</span>
+            <span>gangway Cloud, if you would rather not run the host.</span>
+            <a href="cloud.html#cloud">Get notified →</a>
+          </p>
+        </div>
+
+        <div class="board" data-board data-view="list">
+          <div class="neatline">
+            <div class="board-head">
+              <div class="board-tabs" role="tablist" aria-label="Example">
+                <button
+                  class="board-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  data-show="list"
+                >
+                  Previews
+                </button>
+                <button
+                  class="board-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  data-show="demo"
+                >
+                  Demo
+                </button>
+              </div>
+              <span class="board-auto" title="Auto tour">*.acme.dev</span>
+            </div>
+            <div class="board-stage">
+              <div class="board-demo" inert>
+                <div class="demo-window">
+                  <div class="demo-bar">
+                    <button
+                      class="demo-back"
+                      type="button"
+                      data-show="list"
+                      aria-label="Back to previews"
+                    >
+                      ←
+                    </button>
+                    <span class="demo-url" data-demo-url>https://q3-board-review.acme.dev</span>
+                    <span class="state state--sm" data-state="awake" data-demo-state>awake</span>
+                  </div>
+                  <div class="demo-screen">
+                    <div class="demo-app app-slide" data-app>
+                      <div class="app-caps"><span>Q3 board review</span><span>04 / 12</span></div>
+                      <span class="slide-title">Revenue grew in every region.</span>
+                      <div class="slide-figure">
+                        <strong>+18%</strong><span>quarter on quarter, led by EMEA</span>
+                      </div>
+                      <div class="slide-dots">
+                        <span></span><span></span><span></span><span class="on"></span><span></span
+                        ><span></span><span></span><span></span><span></span><span></span
+                        ><span></span><span></span>
+                      </div>
+                    </div>
+                    <div class="demo-app app-dash" data-app hidden>
+                      <div class="app-head">
+                        <span class="app-title">Support queue</span>
+                        <span class="app-caps">Last 12 h</span>
+                      </div>
+                      <div class="dash-stats">
+                        <div><span class="app-caps">Open</span><strong>42</strong></div>
+                        <div><span class="app-caps">First reply</span><strong>11 min</strong></div>
+                        <div><span class="app-caps">Solved</span><strong>188</strong></div>
+                      </div>
+                      <div class="bars">
+                        <span style="--h: 30%; --d: 0.15s"></span>
+                        <span style="--h: 42%; --d: 0.185s"></span>
+                        <span style="--h: 38%; --d: 0.22s"></span>
+                        <span style="--h: 55%; --d: 0.255s"></span>
+                        <span style="--h: 48%; --d: 0.29s"></span>
+                        <span style="--h: 62%; --d: 0.325s"></span>
+                        <span style="--h: 58%; --d: 0.36s"></span>
+                        <span style="--h: 70%; --d: 0.395s"></span>
+                        <span style="--h: 66%; --d: 0.43s"></span>
+                        <span class="hi" style="--h: 82%; --d: 0.465s"></span>
+                        <span style="--h: 74%; --d: 0.5s"></span>
+                        <span style="--h: 90%; --d: 0.535s"></span>
+                      </div>
+                    </div>
+                    <div class="demo-app app-doc" data-app hidden>
+                      <span class="app-caps">Incident report · 17 Sep</span>
+                      <span class="doc-title">Checkout errors after the 14:02 deploy</span>
+                      <p>
+                        For 23 minutes, one in six checkouts failed with a timeout. The cause was a
+                        missing index on the new orders table.
+                      </p>
+                      <div class="doc-callout">
+                        Fixed at 14:25 by adding the index. No orders were lost.
+                      </div>
+                      <div class="doc-lines">
+                        <span></span><span style="width: 92%"></span
+                        ><span style="width: 70%"></span>
+                      </div>
+                    </div>
+                    <div class="demo-app app-lunch" data-app hidden>
+                      <div class="app-head">
+                        <span class="app-title">Lunch roulette</span>
+                        <span class="app-caps">6 going · 12:30</span>
+                      </div>
+                      <div>
+                        <div class="lunch-spot">
+                          <span>Tacos El Norte</span><span>4 min walk</span>
+                        </div>
+                        <div class="lunch-spot picked">
+                          <span>Pho 88</span><span>6 min walk</span>
+                        </div>
+                        <div class="lunch-spot"><span>Green Bowl</span><span>3 min walk</span></div>
+                        <div class="lunch-spot">
+                          <span>Sal’s Pizza</span><span>9 min walk</span>
+                        </div>
+                      </div>
+                      <div class="lunch-foot">
+                        <span class="btn btn--sm">Spin</span>
+                        <span>Today: <b>Pho 88</b></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p class="demo-note">
+                  Example preview. Pick another from the list to open it here.
+                </p>
+              </div>
+
+              <div class="board-list">
+                <button
+                  class="board-row"
+                  type="button"
+                  data-row
+                  data-host="q3-board-review.acme.dev"
+                  data-state="awake"
+                >
+                  <span class="row-text">
+                    <span class="row-name">Q3 board review</span>
+                    <span class="row-host">q3-board-review.acme.dev · mcp · claude</span>
+                  </span>
+                  <span class="state state--sm" data-state="awake">awake</span>
+                </button>
+                <button
+                  class="board-row"
+                  type="button"
+                  data-row
+                  data-host="support-queue.acme.dev"
+                  data-state="awake"
+                >
+                  <span class="row-text">
+                    <span class="row-name">Support queue</span>
+                    <span class="row-host">support-queue.acme.dev · acme/support#57</span>
+                  </span>
+                  <span class="state state--sm" data-state="awake">awake</span>
+                </button>
+                <button
+                  class="board-row"
+                  type="button"
+                  data-row
+                  data-host="incident-0917.acme.dev"
+                  data-state="asleep"
+                >
+                  <span class="row-text">
+                    <span class="row-name">Incident report 09-17</span>
+                    <span class="row-host">incident-0917.acme.dev · folder</span>
+                  </span>
+                  <span class="state state--sm" data-state="asleep">asleep</span>
+                </button>
+                <button
+                  class="board-row"
+                  type="button"
+                  data-row
+                  data-host="lunch-roulette.acme.dev"
+                  data-state="awake"
+                >
+                  <span class="row-text">
+                    <span class="row-name">Lunch roulette</span>
+                    <span class="row-host">lunch-roulette.acme.dev · mcp · codex</span>
+                  </span>
+                  <span class="state state--sm" data-state="awake">awake</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="wrap stack" style="gap: 28px">
+          <div class="stack intro">
+            <span class="label">In short</span>
+            <p class="big-quote">An open source alternative to Claude artifacts.</p>
+            <p class="sub-serif">
+              What your agent would normally make as an artifact goes to a real HTTPS URL on your
+              server instead, and it keeps iterating on it at the same URL.
+            </p>
+          </div>
+
+          <div class="flow">
+            <div class="flow-step">
+              <span class="label">01 · You ask</span>
+              <code>/gangway:generate-artifact a pricing calculator for acme</code>
+            </div>
+            <div class="flow-step">
+              <span class="label">02 · Your agent deploys</span>
+              <code>deploy → building → awake</code>
+              <p>Over MCP, to your gangway. It checks the routes and reads the logs itself.</p>
+            </div>
+            <div class="flow-step">
+              <span class="label">03 · You share a URL</span>
+              <code>https://pricing-3f1.acme.dev ↗</code>
+              <p>Ask for a change and it is patched in place. The link stays the same.</p>
+            </div>
+          </div>
+
+          <div class="stack" style="gap: 14px">
+            <span class="label">What can be at the URL</span>
+            <div class="kinds">
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <rect x="16" y="4" width="62" height="40" stroke="var(--rule)"></rect>
+                  <rect x="10" y="10" width="62" height="40" fill="var(--paper)"></rect>
+                  <rect x="17" y="18" width="30" height="4" fill="var(--ink)" stroke="none"></rect>
+                  <line x1="17" y1="29" x2="58" y2="29" stroke="var(--rule)"></line>
+                  <line x1="17" y1="35" x2="52" y2="35" stroke="var(--rule)"></line>
+                  <line x1="17" y1="41" x2="46" y2="41" stroke="var(--rule)"></line>
+                  <rect x="60" y="16" width="6" height="6" fill="var(--flag)" stroke="none"></rect>
+                </svg>
+                <span class="kind-name">Slide decks</span>
+                <span class="kind-body"
+                  >A presentation from your notes or numbers, presented from a link.</span
+                >
+                <span class="kind-host">q3-review.acme.dev</span>
+              </div>
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <line x1="10" y1="50" x2="80" y2="50"></line>
+                  <line x1="10" y1="6" x2="10" y2="50"></line>
+                  <rect x="18" y="32" width="9" height="18" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="32" y="24" width="9" height="26" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="46" y="14" width="9" height="36" fill="var(--flag)" stroke="none"></rect>
+                  <rect x="60" y="28" width="9" height="22" fill="var(--ink)" stroke="none"></rect>
+                  <line
+                    x1="10"
+                    y1="14"
+                    x2="80"
+                    y2="14"
+                    stroke="var(--rule)"
+                    stroke-dasharray="2 2"
+                  ></line>
+                </svg>
+                <span class="kind-name">Charts and graphs</span>
+                <span class="kind-body"
+                  >A CSV or a query turned into something you can read at a glance.</span
+                >
+                <span class="kind-host">signups-chart.acme.dev</span>
+              </div>
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <rect x="6" y="4" width="76" height="48"></rect>
+                  <line x1="44" y1="4" x2="44" y2="52"></line>
+                  <line x1="6" y1="28" x2="82" y2="28"></line>
+                  <rect x="12" y="12" width="20" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <polyline points="50,22 57,16 63,19 70,10 76,13"></polyline>
+                  <rect x="12" y="36" width="6" height="6" fill="var(--awake)" stroke="none"></rect>
+                  <line x1="22" y1="39" x2="38" y2="39" stroke="var(--rule)"></line>
+                  <rect x="50" y="40" width="7" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="60" y="36" width="7" height="12" fill="var(--ink)" stroke="none"></rect>
+                  <rect
+                    x="70"
+                    y="42"
+                    width="7"
+                    height="6"
+                    fill="var(--danger)"
+                    stroke="none"
+                  ></rect>
+                </svg>
+                <span class="kind-name">Dashboards</span>
+                <span class="kind-body"
+                  >Live figures from your own database, refreshed when you open it.</span
+                >
+                <span class="kind-host">ops.acme.dev</span>
+              </div>
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <rect x="26" y="2" width="36" height="52" fill="var(--paper)"></rect>
+                  <rect x="32" y="9" width="18" height="3" fill="var(--ink)" stroke="none"></rect>
+                  <line x1="32" y1="18" x2="56" y2="18" stroke="var(--rule)"></line>
+                  <line x1="32" y1="23" x2="56" y2="23" stroke="var(--rule)"></line>
+                  <line x1="32" y1="28" x2="50" y2="28" stroke="var(--rule)"></line>
+                  <rect
+                    x="32"
+                    y="33"
+                    width="24"
+                    height="10"
+                    fill="var(--flag-wash)"
+                    stroke="none"
+                  ></rect>
+                  <line x1="32" y1="48" x2="54" y2="48" stroke="var(--rule)"></line>
+                </svg>
+                <span class="kind-name">Documents and reports</span>
+                <span class="kind-body"
+                  >Long-form writing laid out to read, print or save as PDF.</span
+                >
+                <span class="kind-host">incident-0917.acme.dev</span>
+              </div>
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <rect x="32" y="2" width="24" height="52"></rect>
+                  <line x1="32" y1="9" x2="56" y2="9"></line>
+                  <rect x="36" y="14" width="16" height="12" stroke="var(--rule)"></rect>
+                  <line x1="36" y1="31" x2="52" y2="31" stroke="var(--rule)"></line>
+                  <line x1="36" y1="35" x2="48" y2="35" stroke="var(--rule)"></line>
+                  <rect x="36" y="42" width="16" height="6" fill="var(--flag)" stroke="none"></rect>
+                  <line x1="10" y1="45" x2="30" y2="45" stroke-dasharray="2 2"></line>
+                  <polyline points="26,42 30,45 26,48"></polyline>
+                </svg>
+                <span class="kind-name">Prototypes</span>
+                <span class="kind-body"
+                  >A clickable version of an idea to put in front of people.</span
+                >
+                <span class="kind-host">onboarding-v2.acme.dev</span>
+              </div>
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <rect x="12" y="4" width="64" height="48"></rect>
+                  <rect
+                    x="18"
+                    y="10"
+                    width="14"
+                    height="2"
+                    fill="var(--ink-muted)"
+                    stroke="none"
+                  ></rect>
+                  <line x1="18" y1="20" x2="70" y2="20"></line>
+                  <rect
+                    x="18"
+                    y="25"
+                    width="14"
+                    height="2"
+                    fill="var(--ink-muted)"
+                    stroke="none"
+                  ></rect>
+                  <line x1="18" y1="35" x2="44" y2="35"></line>
+                  <text
+                    x="70"
+                    y="34"
+                    font-family="IBM Plex Mono"
+                    font-size="7"
+                    fill="var(--ink)"
+                    stroke="none"
+                    text-anchor="end"
+                  >
+                    $412
+                  </text>
+                  <rect x="18" y="41" width="22" height="6" fill="var(--ink)" stroke="none"></rect>
+                </svg>
+                <span class="kind-name">Internal tools</span>
+                <span class="kind-body"
+                  >A form, a calculator or a small admin screen your team keeps using.</span
+                >
+                <span class="kind-host">pricing-3f1.acme.dev</span>
+              </div>
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <rect x="4" y="4" width="80" height="48"></rect>
+                  <line x1="4" y1="11" x2="84" y2="11"></line>
+                  <rect x="8" y="6" width="3" height="3" fill="var(--danger)" stroke="none"></rect>
+                  <rect x="13" y="6" width="3" height="3" fill="var(--flag)" stroke="none"></rect>
+                  <rect x="18" y="6" width="3" height="3" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="14" y="19" width="42" height="5" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="14" y="27" width="30" height="5" fill="var(--ink)" stroke="none"></rect>
+                  <line x1="14" y1="37" x2="50" y2="37" stroke="var(--rule)"></line>
+                  <rect x="14" y="42" width="16" height="5" fill="var(--flag)" stroke="none"></rect>
+                </svg>
+                <span class="kind-name">Landing pages</span>
+                <span class="kind-body">A page for a launch or an event, on your own domain.</span>
+                <span class="kind-host">launch.acme.dev</span>
+              </div>
+              <div class="kind">
+                <svg
+                  viewBox="0 0 88 56"
+                  width="88"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="var(--ink)"
+                  stroke-width="1"
+                >
+                  <rect x="14" y="2" width="60" height="52" stroke="var(--rule)"></rect>
+                  <rect x="20" y="38" width="8" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="28" y="38" width="8" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="36" y="38" width="8" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="36" y="30" width="8" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="36" y="22" width="8" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <rect x="44" y="22" width="8" height="8" fill="var(--ink)" stroke="none"></rect>
+                  <rect
+                    x="60"
+                    y="10"
+                    width="8"
+                    height="8"
+                    fill="var(--danger)"
+                    stroke="none"
+                  ></rect>
+                </svg>
+                <span class="kind-name">Games and toys</span>
+                <span class="kind-body">Something small and interactive to share.</span>
+                <span class="kind-host">snake.acme.dev</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="ways" class="band">
+        <div class="wrap stack" style="gap: 32px">
+          <div class="stack" style="gap: 8px">
+            <span class="label">Three ways in</span>
+            <h2 class="h-section">However the code gets there.</h2>
+          </div>
+          <div class="cols">
+            <div class="way">
+              <span class="label">01 · GitHub</span>
+              <h3>Open a pull request</h3>
+              <p>
+                Connect a repository once. Every pull request gets its own preview, updated on each
+                push.
+              </p>
+              <code>acme/shop#142 → shop-142.acme.dev</code>
+            </div>
+            <div class="way">
+              <span class="label">02 · MCP</span>
+              <h3>Ask your agent</h3>
+              <p>
+                Point Claude Code, Codex, Cursor or any MCP client at your server. It can deploy,
+                check status, read logs and destroy.
+              </p>
+              <code>deploy · status · logs · destroy</code>
+            </div>
+            <div class="way">
+              <span class="label">03 · Browser</span>
+              <h3>Drop a folder</h3>
+              <p>
+                Drag a folder, some files or a .zip into the browser. gangway works out the runtime
+                and builds it.
+              </p>
+              <code>landing/ → landing-7k2.acme.dev</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="wrap stack" style="gap: 32px">
+          <div class="stack" style="gap: 8px">
+            <span class="label">Lifecycle</span>
+            <h2 class="h-section">Previews look after themselves.</h2>
+          </div>
+          <div class="life">
+            <div class="life-step">
+              <div>
+                <span class="state state--lg" data-state="building">building</span><span>→</span>
+              </div>
+              <p>Your source becomes an image.</p>
+            </div>
+            <div class="life-step">
+              <div>
+                <span class="state state--lg" data-state="starting">starting</span><span>→</span>
+              </div>
+              <p>The container comes up and passes its check.</p>
+            </div>
+            <div class="life-step">
+              <div><span class="state state--lg" data-state="awake">awake</span><span>⇄</span></div>
+              <p>Serving on its own HTTPS URL.</p>
+            </div>
+            <div class="life-step">
+              <div>
+                <span class="state state--lg" data-state="asleep">asleep</span><span>→</span>
+              </div>
+              <p>Idle previews stop. The next request wakes them.</p>
+            </div>
+            <div class="life-step">
+              <div><span class="state state--lg" data-state="destroyed">destroyed</span></div>
+              <p>Past its expiry, it is removed.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="wrap runtimes">
+          <div class="stack" style="gap: 12px">
+            <span class="label">Runtimes &amp; databases</span>
+            <h2 class="h-sub">It reads the folder and picks the runtime.</h2>
+            <p class="runtimes-lead">
+              Or bring your own Dockerfile. Attach a database and it is created with the preview and
+              destroyed with it.
+            </p>
+          </div>
+          <div class="stack" style="gap: 20px">
+            <div class="brands">
+              <span class="brand"><span class="brand-tile" data-icon="static"></span>Static</span>
+              <span class="brand"><span class="brand-tile" data-icon="node"></span>Node.js</span>
+              <span class="brand"><span class="brand-tile" data-icon="bun"></span>Bun</span>
+              <span class="brand"><span class="brand-tile" data-icon="deno"></span>Deno</span>
+              <span class="brand"><span class="brand-tile" data-icon="workerd"></span>Workers</span>
+              <span class="brand"><span class="brand-tile" data-icon="python"></span>Python</span>
+              <span class="brand"><span class="brand-tile" data-icon="php"></span>PHP</span>
+              <span class="brand"
+                ><span class="brand-tile" data-icon="own"></span>Own Dockerfile</span
+              >
+            </div>
+            <div class="brands">
+              <span class="brand"
+                ><span class="brand-tile" data-icon="postgres"></span>PostgreSQL</span
+              >
+              <span class="brand"><span class="brand-tile" data-icon="mysql"></span>MySQL</span>
+              <span class="brand"><span class="brand-tile" data-icon="redis"></span>Redis</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="band">
+        <div class="wrap faq">
+          <div class="stack faq-head">
+            <span class="label">FAQ</span>
+            <h2 class="h-sub">Questions</h2>
+          </div>
+          <div class="faq-list">
+            <details name="faq" open>
+              <summary>What do I need to run it?</summary>
+              <p>
+                One Docker host, a domain and a wildcard DNS record such as *.acme.dev. gangway runs
+                as one container on that host and drives it with docker compose.
+              </p>
+            </details>
+            <details name="faq">
+              <summary>Who holds the certificate?</summary>
+              <p>
+                Either the reverse proxy you already run, with a wildcard certificate, or gangway
+                itself through ACME with a DNS challenge.
+              </p>
+            </details>
+            <details name="faq">
+              <summary>Where does my data live?</summary>
+              <p>
+                In a SQLite database, logs and scratch space under the state path you choose, on
+                your server. Nothing is sent anywhere else.
+              </p>
+            </details>
+            <details name="faq">
+              <summary>Which agents can deploy?</summary>
+              <p>
+                Any MCP client. There is a plugin for Claude Code and Codex; Cursor and VS Code
+                connect by URL. Your gangway’s Account page shows the exact commands with your URL
+                filled in.
+              </p>
+            </details>
+            <details name="faq">
+              <summary>Do pull requests from forks get previews?</summary>
+              <p>
+                No. Pull requests from forks are skipped: GitHub gives their workflow runs no OIDC
+                token.
+              </p>
+            </details>
+            <details name="faq">
+              <summary>Who can see a preview?</summary>
+              <p>
+                You choose per preview: public, only gangway users, or behind a password. Previews
+                bind to the host’s 127.0.0.1, so gangway is the only way in.
+              </p>
+            </details>
+            <details name="faq">
+              <summary>Is there a hosted version?</summary>
+              <p>
+                gangway Cloud is coming, for individuals and small teams who want it handled for
+                them. <a href="cloud.html#cloud">Join the waitlist</a> to hear when it launches.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" class="band">
+        <div class="wrap" style="padding-bottom: 72px">
+          <div class="neatline plans">
+            <div class="plan">
+              <div class="plan-head">
+                <span class="label">Self-hosted</span>
+                <span class="tag tag--sm">Free · Apache 2.0</span>
+              </div>
+              <h3>Run it on your own host.</h3>
+              <p>Every feature, no limits. Clone the repo and start.</p>
+              <a class="plan-link" href="https://github.com/charlesabarnes/gangway"
+                >Get it on GitHub ↗</a
+              >
+            </div>
+            <div class="plan">
+              <div class="plan-head">
+                <span class="label">Cloud</span>
+                <span class="tag tag--flag tag--sm">Coming soon</span>
+              </div>
+              <h3>Handled for you.</h3>
+              <p>
+                For individuals and small teams. Permanent hosting and domain registration, with no
+                server to run.
+              </p>
+              <a class="btn" href="cloud.html#cloud">Get notified</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <span class="lockup lockup--sm">
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+            <rect class="mark-red" x="4" y="14" width="11" height="6" />
+            <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+            <path
+              class="mark-ribs"
+              d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+            />
+            <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+          </svg>
+          gangway
+        </span>
+        <div class="footer-links">
+          <img src="assets/stl-flag.svg" alt="Flag of St. Louis" title="Made in St. Louis" />
+          <span>Apache 2.0 license</span>
+          <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+          <a href="cloud.html">Gangway cloud</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+/* Chart palette. Light is the default; dark via [data-theme="dark"]. */
+:root{
+  --paper:oklch(0.97 0.012 85);
+  --paper-raised:oklch(0.99 0.006 85);
+  --ink:oklch(0.27 0.06 255);
+  --ink-muted:oklch(0.48 0.04 255);
+  --rule:oklch(0.84 0.025 240);
+  --primary:oklch(0.33 0.09 255);
+  --on-primary:oklch(0.97 0.012 85);
+  --flag:oklch(0.84 0.15 88);
+  --on-flag:oklch(0.25 0.05 255);
+  --flag-wash:oklch(0.84 0.15 88 / 0.22);
+  --awake:oklch(0.58 0.13 155);
+  --danger:oklch(0.55 0.19 28);
+  --on-danger:#fff;
+  --warn:oklch(0.55 0.13 70);
+  --warn-text:oklch(0.5 0.12 70);
+  --header-bg:oklch(0.27 0.07 255);
+  --header-fg:oklch(0.97 0.012 85);
+  --log-bg:oklch(0.22 0.05 255);
+  --log-system:oklch(0.8 0.09 220);
+  --log-build:oklch(0.7 0.02 250);
+  --log-seed:oklch(0.8 0.08 300);
+  --log-stdout:oklch(0.94 0.015 85);
+  --log-stderr:oklch(0.84 0.15 88);
+  --log-live:oklch(0.75 0.14 155);
+  --desk:#dcdad4;
+  /* mark colours are fixed in every theme */
+  --mark-flag:oklch(0.84 0.15 88);
+  --mark-red:oklch(0.55 0.19 28);
+
+  /* semantic aliases */
+  --surface-page:var(--paper);
+  --surface-card:var(--paper);
+  --surface-raised:var(--paper-raised);
+  --surface-header:var(--header-bg);
+  --surface-log:var(--log-bg);
+  --text-body:var(--ink);
+  --text-muted:var(--ink-muted);
+  --text-on-primary:var(--on-primary);
+  --border-rule:var(--rule);
+  --border-strong:var(--ink);
+  --state-building:var(--flag);
+  --state-starting:var(--flag);
+  --state-awake:var(--awake);
+  --state-asleep:var(--ink-muted);
+  --state-failed:var(--danger);
+  --state-destroying:var(--rule);
+  --state-destroyed:transparent;
+}
+[data-theme="dark"]{
+  --paper:oklch(0.2 0.035 255);
+  --paper-raised:oklch(0.25 0.04 255);
+  --ink:oklch(0.94 0.015 85);
+  --ink-muted:oklch(0.72 0.03 250);
+  --rule:oklch(0.36 0.04 250);
+  --primary:oklch(0.84 0.15 88);
+  --on-primary:oklch(0.22 0.05 255);
+  --awake:oklch(0.75 0.14 155);
+  --danger:oklch(0.62 0.18 28);
+  --header-bg:oklch(0.15 0.03 255);
+  --header-fg:oklch(0.94 0.015 85);
+  --log-bg:oklch(0.14 0.03 255);
+}

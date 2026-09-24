@@ -1,0 +1,17 @@
+:root{
+  --radius-none:0;
+  --radius-button:2px;
+  --radius-dot:999px;
+  /* the neatline: a double rule drawn with inset shadows, never a drop shadow */
+  --neatline:inset 0 0 0 1px var(--ink),inset 0 0 0 4px var(--paper),inset 0 0 0 5px var(--ink);
+  --neatline-soft:inset 0 0 0 1px var(--ink),inset 0 0 0 4px var(--paper),inset 0 0 0 5px var(--rule);
+  --hairline:inset 0 0 0 1px var(--rule);
+  --hairline-strong:inset 0 0 0 1px var(--ink);
+  --nav-active:inset 0 -3px 0 var(--flag);
+  --notice-bar:inset 3px 0 0 var(--flag);
+  --swatch-edge:inset 0 0 0 1px rgba(0,0,0,.15); /* @kind shadow */
+  --chart-grid-bg:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);
+  --rule-dotted:1px dotted var(--rule);
+  --ease:cubic-bezier(.2,0,0,1); /* @kind other */
+  --dur:120ms; /* @kind other */
+}
