@@ -1,10 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <style>
-    .ink { fill: #102743; }
-    @media (prefers-color-scheme: dark) { .ink { fill: #f9f5ec; } }
-  </style>
-  <rect x="9" y="4" width="14" height="8" fill="#f3c443"/>
-  <rect x="2" y="13" width="13" height="7" fill="#c93029"/>
-  <rect class="ink" x="17" y="13" width="13" height="7"/>
-  <polygon class="ink" points="1,22 31,22 26,30 6,30"/>
+  <rect width="32" height="32" rx="7" fill="#0b2648"/>
+  <rect x="10" y="6" width="12" height="6" fill="#f3c443"/>
+  <rect x="4" y="13.5" width="11.5" height="6" fill="#c93029"/>
+  <rect x="16.5" y="13.5" width="11.5" height="6" fill="#f9f5ec"/>
+  <polygon points="3,21 29,21 25,27 7,27" fill="#f9f5ec"/>
 </svg>
