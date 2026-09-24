@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="css/tokens/base.css" />
     <link rel="stylesheet" href="css/site.css" />
     <link rel="stylesheet" href="css/cloud.css" />
+    <script src="js/menu.js" defer></script>
     <script src="js/waitlist.js" defer></script>
   </head>
   <body>
@@ -42,15 +43,26 @@
             gangway
           </span>
         </a>
-        <nav class="site-nav">
-          <a href="./#ways">How it works</a>
-          <a href="./#install">Install</a>
-          <a href="./#faq">FAQ</a>
-          <a href="cloud.html" aria-current="page">Gangway cloud</a>
-        </nav>
-        <div class="header-end">
-          <span class="mono">Apache 2.0</span>
-          <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+        <button
+          class="menu-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="site-menu"
+          hidden
+        >
+          Menu
+        </button>
+        <div class="header-menu" id="site-menu">
+          <nav class="site-nav">
+            <a href="./#ways">How it works</a>
+            <a href="./#install">Install</a>
+            <a href="./#faq">FAQ</a>
+            <a href="cloud.html" aria-current="page">Gangway cloud</a>
+          </nav>
+          <div class="header-end">
+            <span class="mono">Apache 2.0</span>
+            <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+          </div>
         </div>
       </header>
 

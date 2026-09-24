@@ -238,6 +238,79 @@
   opacity: 0.7;
 }
 
+.header-menu {
+  display: contents;
+}
+.menu-toggle {
+  display: none;
+}
+
+/* Phones: the logo and a Menu button; the nav opens as a panel under the header. Without
+   JavaScript (no data-menu) the header keeps its sideways-scrolling row instead. */
+@media (max-width: 720px) {
+  .site-header[data-menu] {
+    position: relative;
+    z-index: 10;
+    overflow: visible;
+  }
+  .site-header[data-menu] .menu-toggle {
+    display: inline-flex;
+    margin-left: auto;
+    padding: 7px 12px;
+    border: 1px solid color-mix(in oklch, var(--header-fg) 40%, transparent);
+    border-radius: 2px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: 600 12px var(--font-sans);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .site-header[data-menu].is-open .menu-toggle {
+    background: var(--header-fg);
+    color: var(--header-bg);
+  }
+  .site-header[data-menu] .header-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    padding: 4px 16px 20px;
+    background: var(--header-bg);
+    box-shadow: 0 1px 0 var(--ink);
+  }
+  .site-header[data-menu].is-open .header-menu {
+    display: flex;
+  }
+  .site-header[data-menu] .site-nav {
+    flex-direction: column;
+    height: auto;
+  }
+  .site-header[data-menu] .site-nav a {
+    min-height: 52px;
+    padding: 0 12px;
+    font-size: 15px;
+    opacity: 0.8;
+    border-top: 1px solid color-mix(in oklch, var(--header-fg) 14%, transparent);
+  }
+  .site-header[data-menu] .site-nav a:first-child {
+    border-top: 0;
+  }
+  .site-header[data-menu] .site-nav a[aria-current="page"] {
+    opacity: 1;
+    box-shadow: inset 3px 0 0 var(--flag);
+  }
+  .site-header[data-menu] .header-end {
+    margin: 8px 0 0;
+    padding: 16px 12px 0;
+    justify-content: space-between;
+    border-top: 1px solid color-mix(in oklch, var(--header-fg) 30%, transparent);
+    font-size: 15px;
+  }
+}
+
 .band {
   border-top: 1px solid var(--ink);
 }
