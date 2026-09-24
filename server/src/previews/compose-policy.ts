@@ -6,26 +6,62 @@ export const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 type InSource = (p: string) => boolean;
 
+const nonEmpty = (v: unknown) =>
+  v !== undefined && v !== null && (Array.isArray(v) ? v.length : Object.keys(obj(v)).length) > 0;
+
+// `host` shares the machine's namespace and `container:x` shares any container's, the operator's too.
+const sharesNamespace = (v: unknown) =>
+  typeof v === "string" && (v === "host" || v.startsWith("container:"));
+
 function privilegeViolations(at: string, s: Json): string[] {
   const out: string[] = [];
   if (s["privileged"] === true) out.push(`${at}: privileged is not allowed`);
-  for (const key of ["network_mode", "pid", "ipc", "userns_mode", "cgroup"] as const) {
-    if (s[key] === "host") out.push(`${at}: ${key}: host is not allowed`);
+  for (const key of ["pid", "ipc", "uts", "userns_mode", "cgroup"] as const) {
+    if (sharesNamespace(s[key])) out.push(`${at}: ${key}: ${String(s[key])} is not allowed`);
   }
-  if (typeof s["network_mode"] === "string" && s["network_mode"].startsWith("container:")) {
-    out.push(`${at}: network_mode: container:* is not allowed`);
-  }
+  out.push(...networkModeViolations(at, s["network_mode"]));
   // A fixed container_name escapes -p namespacing.
   if (s["container_name"] !== undefined)
     out.push(`${at}: container_name is not allowed (it defeats per-preview namespacing)`);
-  if (arr(s["devices"]).length > 0) out.push(`${at}: devices are not allowed`);
   if (arr(s["cap_add"]).length > 0) out.push(`${at}: cap_add is not allowed`);
   if (arr(s["security_opt"]).length > 0) out.push(`${at}: security_opt is not allowed`);
+  // The daemon's API in the container, and a plugin binary run on this machine.
+  if (s["use_api_socket"] === true) out.push(`${at}: use_api_socket is not allowed`);
+  if (s["provider"] !== undefined) out.push(`${at}: provider services are not allowed`);
+  for (const hook of ["post_start", "pre_stop"] as const) {
+    if (arr(s[hook]).some((h) => obj(h)["privileged"] === true))
+      out.push(`${at}: a privileged ${hook} hook is not allowed`);
+  }
+  if (arr(s["volumes_from"]).some((v) => String(v).startsWith("container:")))
+    out.push(`${at}: volumes_from a container outside the preview is not allowed`);
+  if (arr(s["external_links"]).length > 0) out.push(`${at}: external_links are not allowed`);
   return out;
 }
 
-const nonEmpty = (v: unknown) =>
-  v !== undefined && v !== null && (Array.isArray(v) ? v.length : Object.keys(obj(v)).length) > 0;
+// Hardware, and the cgroup and OOM settings that would let one preview starve the host's other work.
+function hostResourceViolations(at: string, s: Json): string[] {
+  const out: string[] = [];
+  if (arr(s["devices"]).length > 0) out.push(`${at}: devices are not allowed`);
+  if (arr(s["device_cgroup_rules"]).length > 0)
+    out.push(`${at}: device_cgroup_rules are not allowed`);
+  if (s["gpus"] !== undefined && s["gpus"] !== null) out.push(`${at}: gpus are not allowed`);
+  if (arr(obj(obj(obj(s["deploy"])["resources"])["reservations"])["devices"]).length > 0)
+    out.push(`${at}: deploy.resources.reservations.devices are not allowed`);
+  if (s["cgroup_parent"] !== undefined) out.push(`${at}: cgroup_parent is not allowed`);
+  if (s["oom_kill_disable"] === true) out.push(`${at}: oom_kill_disable is not allowed`);
+  if (typeof s["oom_score_adj"] === "number" && s["oom_score_adj"] < 0)
+    out.push(`${at}: a negative oom_score_adj is not allowed`);
+  return out;
+}
+
+// Only the preview's own networks: `bridge` is the default bridge the operator's containers share, and any other name is someone else's network.
+function networkModeViolations(at: string, mode: unknown): string[] {
+  if (mode === undefined || mode === null || mode === "none") return [];
+  if (typeof mode !== "string") return [`${at}: network_mode must be a string`];
+  if (mode.startsWith("service:")) return [];
+  if (mode.startsWith("container:")) return [`${at}: network_mode: container:* is not allowed`];
+  return [`${at}: network_mode: ${mode} is not allowed`];
+}
 
 // The build reads this machine's disk: a context of / would ship gangway's own database into an image.
 function buildViolations(at: string, s: Json, inSource: InSource): string[] {
@@ -40,9 +76,16 @@ function buildViolations(at: string, s: Json, inSource: InSource): string[] {
   } else if (typeof b["dockerfile"] === "string" && !inSource(resolve(context, b["dockerfile"]))) {
     out.push(`${at}: build.dockerfile must be inside the uploaded source`);
   }
-  for (const key of ["additional_contexts", "secrets", "ssh"] as const) {
+  for (const key of ["additional_contexts", "secrets", "ssh", "entitlements"] as const) {
     if (nonEmpty(b[key])) out.push(`${at}: build.${key} is not allowed`);
   }
+  if (b["privileged"] === true) out.push(`${at}: build.privileged is not allowed`);
+  // `host` runs build steps in the machine's network: every port bound to its loopback.
+  const net = b["network"];
+  if (net !== undefined && net !== null && net !== "default" && net !== "none")
+    out.push(
+      `${at}: build.network: ${typeof net === "string" ? net : JSON.stringify(net)} is not allowed`,
+    );
   return out;
 }
 
@@ -63,6 +106,7 @@ function serviceViolations(doc: Json, inSource: InSource): string[] {
     const at = `service "${name}"`;
     return [
       ...privilegeViolations(at, s),
+      ...hostResourceViolations(at, s),
       ...buildViolations(at, s, inSource),
       ...mountViolations(at, s),
     ];

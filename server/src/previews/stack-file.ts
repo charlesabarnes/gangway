@@ -84,13 +84,18 @@ export async function writeStack(
       publishBind: s.host.publishBind,
       origin: ctx.origin,
       sharedNetwork: network,
+      limits: ctx.limits?.(),
     }),
     { mode: 0o600 },
   );
   return network;
 }
 
-/** Once a rebuilt stack is up on the shared network, its old per-project network holds an address pool for nothing. */
+/**
+ * Once a rebuilt stack is up on the shared network, its old per-project network holds an
+ * address pool for nothing, and so does the earlier shared network once its last preview has
+ * moved off it. The daemon refuses to remove a network that still has containers.
+ */
 export async function dropProjectNetwork(
   ctx: PreviewContext,
   host: Host,
@@ -99,7 +104,8 @@ export async function dropProjectNetwork(
   const docker = ctx.docker ?? "docker";
   const cwd = await mkdtemp(join(tmpdir(), "gangway-net-"));
   try {
-    await ctx.compose.capture([docker, "network", "rm", `${project}_default`], host, { cwd });
+    for (const name of [`${project}_default`, `gw-${ctx.instance}-shared`])
+      await ctx.compose.capture([docker, "network", "rm", name], host, { cwd });
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -117,7 +123,7 @@ export function sharedNetworkFor(
     throw unprocessable(
       "network: shared is for a single service; a preview with add-ons or several services keeps its own network",
     );
-  return single ? `gw-${instance}-shared` : null;
+  return single ? `gw-${instance}-previews` : null;
 }
 
 async function ensureNetwork(ctx: PreviewContext, host: Host, name: string): Promise<void> {
@@ -126,11 +132,25 @@ async function ensureNetwork(ctx: PreviewContext, host: Host, name: string): Pro
   try {
     const found = await ctx.compose.capture([docker, "network", "inspect", name], host, { cwd });
     if (found.code === 0) return;
-    const made = await ctx.compose.capture(
-      [docker, "network", "create", "--label", `gangway.instance=${ctx.instance}`, name],
-      host,
-      { cwd },
-    );
+    const create = (...opts: string[]) =>
+      ctx.compose.capture(
+        [docker, "network", "create", "--label", `gangway.instance=${ctx.instance}`, ...opts, name],
+        host,
+        { cwd },
+      );
+    // Previews share the network for its address pool, not to talk: one could otherwise reach
+    // another's container directly, past its password or sign-in.
+    let made = await create("--opt", "com.docker.network.bridge.enable_icc=false");
+    if (made.code !== 0 && !/already exists/.test(made.stderr)) {
+      ctx.logger.warn(
+        "the engine refused an isolated network; previews on it can reach each other",
+        {
+          network: name,
+          stderr: made.stderr.trim(),
+        },
+      );
+      made = await create();
+    }
     if (made.code !== 0 && !/already exists/.test(made.stderr))
       throw new AppError("internal", `could not create the ${name} network: ${made.stderr.trim()}`);
   } finally {

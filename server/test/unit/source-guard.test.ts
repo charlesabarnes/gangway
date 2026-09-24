@@ -65,7 +65,7 @@ describe("referencedFiles", () => {
             env_file: [".env.web", { path: "opt.env", required: false }],
             extends: { file: "base.yaml", service: "x" },
           },
-          db: { env_file: "db.env" },
+          db: { env_file: "db.env", label_file: ["db.labels"] },
         },
       }).map((r) => r.path),
     ).toEqual([
@@ -78,6 +78,7 @@ describe("referencedFiles", () => {
       "opt.env",
       "base.yaml",
       "db.env",
+      "db.labels",
     ]);
     expect(referencedFiles(null)).toEqual([]);
     expect(referencedFiles({ services: { web: { extends: { service: "same-file" } } } })).toEqual(

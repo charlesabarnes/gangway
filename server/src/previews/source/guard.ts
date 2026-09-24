@@ -58,13 +58,16 @@ export function referencedFiles(doc: unknown): { where: string; path: string }[]
       const p = typeof ef === "string" ? ef : obj(ef)["path"];
       if (typeof p === "string") out.push({ where: `service "${name}": env_file`, path: p });
     }
+    for (const lf of list(s["label_file"])) {
+      if (typeof lf === "string") out.push({ where: `service "${name}": label_file`, path: lf });
+    }
     const ext = obj(s["extends"])["file"];
     if (typeof ext === "string") out.push({ where: `service "${name}": extends.file`, path: ext });
   }
   return out;
 }
 
-// compose config opens env_file, extends and include files on this machine, so every path must stay inside the tree.
+// compose config opens env_file, label_file, extends and include files on this machine, so every path must stay inside the tree.
 export async function inspectComposeFile(srcDir: string): Promise<string | null> {
   let found: string | null = null;
   for (const name of COMPOSE_FILENAMES) {

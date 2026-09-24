@@ -21,7 +21,7 @@ const tarball = (network?: "shared" | "isolated") => ({
 
 describe("which network a preview joins", () => {
   test("auto: one service shares, several keep their own", () => {
-    expect(sharedNetworkFor("tower", model(one), tarball())).toBe("gw-tower-shared");
+    expect(sharedNetworkFor("tower", model(one), tarball())).toBe("gw-tower-previews");
     expect(sharedNetworkFor("tower", model(two), tarball())).toBeNull();
   });
 
@@ -64,10 +64,31 @@ describe("deploying on the shared network", () => {
     const res = await deployFiles(s, { "index.html": "hi" }, "static");
     await res.done;
     const inspected = s.fake.all.some(
-      (a) => a.includes("network") && a.includes("inspect") && a.includes("gw-default-shared"),
+      (a) => a.includes("network") && a.includes("inspect") && a.includes("gw-default-previews"),
     );
     expect(inspected).toBe(true);
     expect(res.preview.source).not.toHaveProperty("network");
+  });
+
+  test("previews on the shared network cannot reach each other", async () => {
+    const s = setupRuntimes();
+    const creates = networkCalls(s);
+    await (
+      await deployFiles(s, { "index.html": "hi" }, "static")
+    ).done;
+    expect(creates).toHaveLength(1);
+    expect(creates[0]).toContain("com.docker.network.bridge.enable_icc=false");
+    expect(creates[0]?.at(-1)).toBe("gw-default-previews");
+  });
+
+  test("an engine without that option still gets a shared network, and says so", async () => {
+    const s = setupRuntimes();
+    const creates = networkCalls(s, { refuseIcc: true });
+    const res = await deployFiles(s, { "index.html": "hi" }, "static");
+    await res.done;
+    expect(creates).toHaveLength(2);
+    expect(creates[1]).not.toContain("com.docker.network.bridge.enable_icc=false");
+    expect(s.ctx.previews.get(res.preview.id)?.state).toBe("awake");
   });
 
   test("a rebuild on the shared network drops the old per-project network", async () => {
@@ -75,9 +96,26 @@ describe("deploying on the shared network", () => {
     const res = await deployFiles(s, { "index.html": "hi" }, "static", "moved");
     await res.done;
     await edit(s, res.preview.id, { "index.html": "again" });
-    const dropped = s.fake.all.some(
-      (a) => a.includes("rm") && a.includes(`${res.preview.project}_default`),
-    );
-    expect(dropped).toBe(true);
+    const dropped = (name: string) => s.fake.all.some((a) => a.includes("rm") && a.includes(name));
+    expect(dropped(`${res.preview.project}_default`)).toBe(true);
+    expect(dropped("gw-default-shared")).toBe(true);
   });
 });
+
+/** Make the shared network missing, so the deploy creates it; returns every create argv. */
+function networkCalls(s: ReturnType<typeof setupRuntimes>, o: { refuseIcc?: boolean } = {}) {
+  const creates: string[][] = [];
+  const capture = s.ctx.compose.capture.bind(s.ctx.compose);
+  s.ctx.compose.capture = async (argv, host, opts) => {
+    if (argv.includes("network") && argv.includes("inspect"))
+      return { code: 1, stdout: "", stderr: "not found", signal: null };
+    if (argv.includes("network") && argv.includes("create")) {
+      creates.push(argv);
+      if (o.refuseIcc && argv.includes("com.docker.network.bridge.enable_icc=false"))
+        return { code: 1, stdout: "", stderr: "unsupported bridge network option", signal: null };
+      return { code: 0, stdout: "", stderr: "", signal: null };
+    }
+    return capture(argv, host, opts);
+  };
+  return creates;
+}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseBytes } from "./util/bytes.ts";
 
 export type SettingSource = "config" | "database" | "default";
 
@@ -57,6 +58,14 @@ export const SETTINGS = {
   artifactBrand: def("artifacts.brand", z.boolean(), true),
   // Off puts static sites and artifacts back in nginx containers.
   previewsServeStatic: def("previews.serveStatic", z.boolean(), true),
+  // Per container. Memory and processes are what take a host down; 0 turns a limit off.
+  previewsMemory: def(
+    "previews.limits.memory",
+    z.string().refine((v) => parseBytes(v) !== null, "a size like 512m or 2g, or 0 for no limit"),
+    "2g",
+  ),
+  previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 0),
+  previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
     z.string().url(),

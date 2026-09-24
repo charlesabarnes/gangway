@@ -18,11 +18,20 @@
 # The Docker socket is root on the host. Do not expose gangway's API to anyone you would not
 # give a shell on this machine; that is also why previews run under a compose policy.
 #
+# Every preview container runs with no-new-privileges, without NET_RAW, and under a memory and
+# process limit (GANGWAY_PREVIEW_MEMORY, _CPUS, _PIDS below; 0 turns one off). Single-service
+# previews share one network but cannot reach each other on it. Previews can still reach the
+# internet and your LAN: if other machines or services on it matter, firewall the preview
+# networks (the DOCKER-USER chain) or give gangway a Docker host of its own.
+#
 # `.env` next to this file (never committed):
 #   GANGWAY_ADMIN_TOKEN=gw_...            echo "gw_$(openssl rand -hex 24)"
 #   GANGWAY_BASE_DOMAIN=preview.example.com
 #   GANGWAY_INSTANCE=main                 names this installation's containers: gw-<instance>-<slug>
 #   GANGWAY_STATE_PATH=/srv/gangway       SQLite database, logs, scratch
+#   GANGWAY_PREVIEW_MEMORY=2g             optional, per container; unset = 2g
+#   GANGWAY_PREVIEW_CPUS=0                optional, per container; unset = no CPU limit
+#   GANGWAY_PREVIEW_PIDS=1024             optional, per container; unset = 1024
 #
 # Proxy host:  domains `*.<base>` and `<base>`  ->  https://172.17.0.1:8443
 #   Websockets on, the wildcard certificate (DNS challenge), force SSL.
@@ -64,6 +73,10 @@ services:
       # The first run against a daemon full of real workloads: look before it touches.
       # Switch to `stop` once a pass reports nothing surprising.
       GANGWAY_RECONCILE_ORPHANS: ${GANGWAY_RECONCILE_ORPHANS:-report}
+      # Empty leaves the setting to the database (and its default).
+      GANGWAY_PREVIEW_MEMORY: ${GANGWAY_PREVIEW_MEMORY:-}
+      GANGWAY_PREVIEW_CPUS: ${GANGWAY_PREVIEW_CPUS:-}
+      GANGWAY_PREVIEW_PIDS: ${GANGWAY_PREVIEW_PIDS:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${GANGWAY_STATE_PATH:?set GANGWAY_STATE_PATH in .env}:/state

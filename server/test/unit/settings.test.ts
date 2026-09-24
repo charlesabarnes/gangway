@@ -105,6 +105,29 @@ describe("loadConfig", () => {
     expect(s.get(SETTINGS.baseDomain)).toBe("preview.example.com");
   });
 
+  test("preview limits have safe defaults and come from the environment", () => {
+    const defaults = new Settings({}, new MemorySettingsStore());
+    expect(defaults.get(SETTINGS.previewsMemory)).toBe("2g");
+    expect(defaults.get(SETTINGS.previewsCpus)).toBe(0);
+    expect(defaults.get(SETTINGS.previewsPids)).toBe(1024);
+
+    const c = loadConfig({
+      GANGWAY_PREVIEW_MEMORY: "512m",
+      GANGWAY_PREVIEW_CPUS: "1.5",
+      GANGWAY_PREVIEW_PIDS: "0",
+    });
+    const s = new Settings(c.overrides, new MemorySettingsStore());
+    expect(s.get(SETTINGS.previewsMemory)).toBe("512m");
+    expect(s.get(SETTINGS.previewsCpus)).toBe(1.5);
+    expect(s.get(SETTINGS.previewsPids)).toBe(0);
+
+    const bad = new Settings(
+      loadConfig({ GANGWAY_PREVIEW_MEMORY: "lots" }).overrides,
+      new MemorySettingsStore(),
+    );
+    expect(() => bad.get(SETTINGS.previewsMemory)).toThrow(/previews.limits.memory/);
+  });
+
   test("the default local host carries the port pool and a direct dialer", () => {
     const h = loadConfig({}).hosts[0]!;
     expect(h.id).toBe("local");

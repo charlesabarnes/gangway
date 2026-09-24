@@ -2,8 +2,9 @@ import { z } from "zod";
 import { publicOriginFor, type PublicOrigin } from "@gangway/shared/url";
 import { buildLabels, LABEL, labelsFromRoute, type LabelContext } from "../docker/labels.ts";
 import { unprocessable } from "../errors.ts";
+import { parseBytes } from "../util/bytes.ts";
 import { parseDuration } from "../util/duration.ts";
-import { obj } from "../util/json.ts";
+import { obj, type Json } from "../util/json.ts";
 import { literal } from "./compose-generate.ts";
 import { arr, policyViolations } from "./compose-policy.ts";
 import type { PlannedRoute } from "./planned-route.ts";
@@ -119,7 +120,77 @@ export type StackInput = {
   origin: PublicOrigin;
   extraEnv?: Record<string, string>;
   sharedNetwork?: string | null;
+  limits?: PreviewLimits | undefined;
 };
+
+/** The operator's ceiling for every preview container; 0 leaves that limit off. */
+export type PreviewLimits = { memoryBytes: number; cpus: number; pids: number };
+
+export const NO_LIMITS: PreviewLimits = { memoryBytes: 0, cpus: 0, pids: 0 };
+
+const positive = (v: unknown): number | null => {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+};
+
+// The smallest of the operator's cap and whatever the file asked for, in either spelling; 0 is none.
+const tightest = (...values: (number | null)[]) => {
+  const set = values.filter((n): n is number => n !== null && n > 0);
+  return set.length > 0 ? Math.min(...set) : 0;
+};
+
+const setOrDrop = (target: Json, key: string, value: unknown) => {
+  if (value === 0 || value === null || value === undefined) delete target[key];
+  else target[key] = value;
+};
+
+/**
+ * One preview must not be able to take the host down with it (memory, a fork bomb), and gains
+ * no privilege after it starts. Compose refuses two different values for one limit, so each
+ * limit ends up in its top-level key alone.
+ */
+function confine(svc: Json, cap: PreviewLimits): void {
+  const deploy = obj(svc["deploy"]);
+  const resources = obj(deploy["resources"]);
+  const limits = obj(resources["limits"]);
+  const reservations = obj(resources["reservations"]);
+
+  const memory = tightest(
+    cap.memoryBytes || null,
+    parseBytes(svc["mem_limit"]),
+    parseBytes(limits["memory"]),
+  );
+  const cpus = tightest(cap.cpus || null, positive(svc["cpus"]), positive(limits["cpus"]));
+  const pids = tightest(cap.pids || null, positive(svc["pids_limit"]), positive(limits["pids"]));
+  for (const key of ["memory", "cpus", "pids"]) delete limits[key];
+
+  setOrDrop(svc, "mem_limit", memory && String(memory));
+  // Without this the container may swap as much again as its limit.
+  setOrDrop(svc, "memswap_limit", memory && String(memory));
+  if (memory > 0) {
+    // Docker refuses a reservation above the limit.
+    for (const [target, key] of [
+      [svc, "mem_reservation"],
+      [reservations, "memory"],
+    ] as const) {
+      const asked = parseBytes(target[key]);
+      if (asked !== null && asked > memory) target[key] = String(memory);
+    }
+  }
+  setOrDrop(svc, "cpus", cpus);
+  setOrDrop(svc, "pids_limit", pids);
+
+  if (Object.keys(limits).length > 0) resources["limits"] = limits;
+  else delete resources["limits"];
+  if (Object.keys(resources).length > 0) deploy["resources"] = resources;
+  else delete deploy["resources"];
+  if (Object.keys(deploy).length > 0) svc["deploy"] = deploy;
+  else delete svc["deploy"];
+
+  svc["security_opt"] = ["no-new-privileges:true"];
+  // Raw sockets let one container spoof ARP and traffic on a network it shares with others.
+  svc["cap_drop"] = [...new Set([...arr(svc["cap_drop"]).map(String), "NET_RAW"])];
+}
 
 const envKey = (service: string) =>
   `GANGWAY_URL_${service.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
@@ -185,6 +256,7 @@ export function buildStack(i: StackInput): string {
       ...urls,
       ...(self ? { PUBLIC_URL: publicOriginFor(self.hostname, i.origin) } : {}),
     };
+    confine(svc, i.limits ?? NO_LIMITS);
     services[name] = svc;
   }
 

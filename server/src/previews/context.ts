@@ -18,6 +18,7 @@ import type { SiteStore } from "./site.ts";
 import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
 import type { PreviewPasswordDeps } from "./password-deps.ts";
+import type { PreviewLimits } from "./compose-model.ts";
 
 export type PreviewTimings = {
   startTimeoutMs: number;
@@ -64,6 +65,7 @@ export type PreviewContext = {
   sites?: SiteStore | undefined;
   /** Whether a plain static upload is served by gangway (true) or by an nginx container. */
   serveStatic?: (() => boolean) | undefined;
+  limits?: (() => PreviewLimits) | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   /** Whether artifacts show the gangway mark unless a preview says otherwise. */
   brandDefault?: (() => boolean) | undefined;
