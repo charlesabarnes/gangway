@@ -580,8 +580,12 @@ wait_healthy() {
     sleep 2
     i=$((i + 1))
   done
+  [ "$status" = healthy ] || { printf '\n'; return 1; }
+  # A version that serves and then crashes must not pass: it has to stay up without restarting.
+  started=$(docker inspect -f '{{.State.StartedAt}}' "$NAME")
+  sleep 15
   printf '\n'
-  [ "$status" = healthy ]
+  [ "$(docker inspect -f '{{.State.StartedAt}} {{.State.Health.Status}}' "$NAME" 2>/dev/null)" = "$started healthy" ]
 }
 
 # --- rollback ---------------------------------------------------------------------------------
