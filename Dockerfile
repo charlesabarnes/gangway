@@ -3,7 +3,10 @@
 # The docker CLI is here because gangway drives hosts by shelling out to `docker compose`
 # against DOCKER_HOST. The compose plugin is a separate package and the one people forget;
 # git is for git sources, openssh-client for `ssh://` docker hosts.
-FROM node:24-alpine AS web
+
+# The web and render stages emit only JS, CSS and fonts, so they run on the build machine
+# rather than under emulation for each target platform.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -11,7 +14,7 @@ COPY web/ ./
 RUN npm run build
 
 # The artifact renderer (render/): one JS bundle, its CSS and fonts, copied into artifact previews.
-FROM oven/bun:1.4.2-alpine AS render
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-alpine AS render
 WORKDIR /src
 COPY package.json bun.lock bunfig.toml tsconfig.base.json ./
 COPY server/package.json server/

@@ -1,7 +1,9 @@
 # gangway on the Docker host it manages, behind a reverse proxy that already owns the
 # public 443 (this example uses Nginx Proxy Manager on Docker's default bridge).
 #
-#   docker compose up -d --build        # from this directory, on the host
+#   install.sh writes this file and its .env for you; by hand, from this directory, on the host:
+#   docker compose up -d                                          # the published image
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build   # built from this checkout
 #
 #   internet :443 -> reverse proxy (holds the wildcard certificate)
 #                     -> https://172.17.0.1:8443  gangway (self-signed; the proxy does not verify)
@@ -36,8 +38,11 @@
 #   GANGWAY_PREVIEW_DOMAIN=example-preview.app
 #                                         optional: previews under their own registrable domain;
 #                                         the UI, API and MCP stay under GANGWAY_BASE_DOMAIN
-#   GANGWAY_INSTANCE=main                 names this installation's containers: gw-<instance>-<slug>
+#   GANGWAY_INSTANCE=main                 optional; names this installation's containers:
+#                                         gw-<instance>-<slug>; unset = main
 #   GANGWAY_STATE_PATH=/srv/gangway       SQLite database, logs, scratch
+#   GANGWAY_IMAGE=ghcr.io/charlesabarnes/gangway
+#   GANGWAY_TAG=latest                    optional: the image and version to run
 #   GANGWAY_PREVIEW_MEMORY=1g             optional, per container; unset = 1g
 #   GANGWAY_PREVIEW_CPUS=0                optional, per container; unset = no CPU limit
 #   GANGWAY_PREVIEW_PIDS=1024             optional, per container; unset = 1024
@@ -53,15 +58,15 @@
 #   tarball uploads. SSE needs nothing: gangway sends `X-Accel-Buffering: no`.)
 #
 # Without a proxy in front (gangway owns 443 and its own certificate), set
-#   GANGWAY_LISTEN_ADDRESS=::  GANGWAY_TLS_MODE=acme  GANGWAY_TRUSTED_PROXIES=
+#   GANGWAY_LISTEN_ADDRESS=::  GANGWAY_LISTEN_PORT=443  GANGWAY_LISTEN_HTTP_PORT=80
+#   GANGWAY_TLS_MODE=acme  GANGWAY_TRUSTED_PROXIES=  GANGWAY_ACME_EMAIL=you@example.com
 #   GANGWAY_CF_API_TOKEN=...   GANGWAY_ACME_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
 name: gangway
 services:
   gangway:
     # One gangway per host, so a fixed name is fine here (previews may not have one).
     container_name: gangway
-    image: gangway:${GANGWAY_TAG:-latest}
-    build: .
+    image: ${GANGWAY_IMAGE:-ghcr.io/charlesabarnes/gangway}:${GANGWAY_TAG:-latest}
     network_mode: host
     restart: unless-stopped
     # Must exceed GANGWAY_SHUTDOWN_GRACE_MS (8s), or Docker kills the drain halfway.
@@ -71,7 +76,7 @@ services:
       GANGWAY_BASE_DOMAIN: ${GANGWAY_BASE_DOMAIN:?set GANGWAY_BASE_DOMAIN in .env}
       # Empty names previews under GANGWAY_BASE_DOMAIN.
       GANGWAY_PREVIEW_DOMAIN: ${GANGWAY_PREVIEW_DOMAIN:-}
-      GANGWAY_INSTANCE: ${GANGWAY_INSTANCE:?set GANGWAY_INSTANCE in .env}
+      GANGWAY_INSTANCE: ${GANGWAY_INSTANCE:-main}
       GANGWAY_LISTEN_ADDRESS: ${GANGWAY_LISTEN_ADDRESS:-172.17.0.1}
       GANGWAY_LISTEN_PORT: ${GANGWAY_LISTEN_PORT:-8443}
       # Empty = no plain-HTTP redirect listener; the proxy does the redirect.

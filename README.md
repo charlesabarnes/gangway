@@ -86,32 +86,51 @@ every container carries labels that describe it, so a restart reconciles the two
 
 ### Run it
 
+On the host, as root or a user in the `docker` group:
+
 ```sh
-git clone https://github.com/charlesabarnes/gangway && cd gangway
-cat > .env <<'EOF'
-GANGWAY_ADMIN_TOKEN=gw_REPLACE_ME          # echo "gw_$(openssl rand -hex 24)"
-GANGWAY_BASE_DOMAIN=preview.example.com
-GANGWAY_INSTANCE=main                      # names this install's containers: gw-main-<slug>
-GANGWAY_STATE_PATH=/srv/gangway            # SQLite, logs and uploads
-EOF
-docker compose up -d --build
-docker compose logs gangway | grep setup   # the one-time link that creates the first admin
+curl -fsSL https://github.com/charlesabarnes/gangway/releases/latest/download/install.sh | sh
 ```
 
-Open the setup link to create the first admin account. There are no default credentials. The
-link changes on every start until the first account exists.
+The installer asks for your domain and whether a reverse proxy or gangway itself holds port
+443; with gangway holding it, it also asks for a Cloudflare API token so it can get a Let's
+Encrypt wildcard certificate over DNS-01. It checks Docker, DNS and the ports, writes
+`/opt/gangway/.env` (with a generated admin token) and `compose.yaml`, starts gangway, and
+prints a one-time link.
 
-[`compose.yaml`](compose.yaml) documents every setting inline. It assumes a reverse proxy such
-as Nginx Proxy Manager holds port 443 and the certificate. **To let gangway own 443 and get its
-own certificate** instead, add:
+Open that link to create the first admin account. There are no default credentials. The link
+changes on every start until the first account exists; `docker logs gangway | grep setup`
+shows the current one.
+
+Run the installer again to upgrade. `--help` lists flags for everything it asks, so it can run
+unattended: `sh install.sh --domain preview.example.com --tls acme --cf-token ... --yes`.
+
+#### By hand
+
+[`compose.yaml`](compose.yaml) documents every setting inline. Next to it, write a `.env`:
+
+```sh
+GANGWAY_ADMIN_TOKEN=gw_REPLACE_ME          # echo "gw_$(openssl rand -hex 24)"
+GANGWAY_BASE_DOMAIN=preview.example.com
+GANGWAY_STATE_PATH=/srv/gangway            # SQLite, logs and uploads
+```
+
+then `docker compose up -d`. That assumes a reverse proxy such as Nginx Proxy Manager holds
+port 443 and the certificate. **To let gangway own 443 and get its own certificate** instead,
+add:
 
 ```sh
 GANGWAY_LISTEN_ADDRESS=::
+GANGWAY_LISTEN_PORT=443
+GANGWAY_LISTEN_HTTP_PORT=80
 GANGWAY_TLS_MODE=acme
 GANGWAY_TRUSTED_PROXIES=
 GANGWAY_CF_API_TOKEN=...                   # a Cloudflare token that can edit the zone's DNS
 GANGWAY_ACME_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
 ```
+
+To build from a checkout instead of pulling the published image:
+`docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
 
 <!-- Walkthrough to verify on a clean VPS before v0.1.0: DNS, first certificate, setup link, first deploy. -->
 
