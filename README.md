@@ -78,11 +78,18 @@ every container carries labels that describe it, so a restart reconciles the two
 
 ### You need
 
-- A Linux host with Docker Engine and the Compose plugin.
+- Docker (Engine, Desktop or Colima) or Podman, with Compose.
+
+To serve previews publicly, also:
+
+- A server reachable on port 443.
 - A domain you control, with a **wildcard DNS record** such as `*.preview.example.com` and
-  `preview.example.com` pointing at that host.
+  `preview.example.com` pointing at that server.
 - A **wildcard certificate** for it. gangway can get one itself over DNS-01 with a Cloudflare
   API token, or a reverse proxy in front can hold it.
+
+On a laptop, gangway runs locally on `preview.localhost` instead, with no domain or certificate
+to set up (experimental).
 
 ### Run it
 
