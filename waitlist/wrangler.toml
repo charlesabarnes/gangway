@@ -3,8 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
 [vars]
-ALLOWED_ORIGINS = "https://charlesabarnes.github.io,http://localhost:4173"
-SITE_URL = "https://charlesabarnes.github.io/gangway"
+ALLOWED_ORIGINS = "https://gangway.sh,https://www.gangway.sh,https://charlesabarnes.github.io,http://localhost:4173"
+SITE_URL = "https://gangway.sh"
 
 [[d1_databases]]
 binding = "DB"
