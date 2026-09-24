@@ -108,183 +108,477 @@
           </p>
         </div>
 
-        <div class="board" data-board data-view="list">
-          <div class="neatline">
-            <div class="board-head">
-              <div class="board-tabs" role="tablist" aria-label="Example">
-                <button
-                  class="board-tab"
-                  type="button"
-                  role="tab"
-                  aria-selected="true"
-                  data-show="list"
-                >
-                  Previews
-                </button>
-                <button
-                  class="board-tab"
-                  type="button"
-                  role="tab"
-                  aria-selected="false"
-                  data-show="demo"
-                >
-                  Demo
-                </button>
+        <div class="demo" data-demo data-chapter="browser">
+          <div class="demo-stage">
+            <div class="term" aria-label="Claude Code session" role="log">
+              <div class="term-bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="term-path">~/work/q3-review · claude</span>
               </div>
-              <span class="board-auto" title="Auto tour">*.acme.dev</span>
+              <div class="term-body" data-term></div>
             </div>
-            <div class="board-stage">
-              <div class="board-demo" inert>
-                <div class="demo-window">
-                  <div class="demo-bar">
-                    <button
-                      class="demo-back"
-                      type="button"
-                      data-show="list"
-                      aria-label="Back to previews"
-                    >
-                      ←
-                    </button>
-                    <span class="demo-url" data-demo-url>https://q3-board-review.acme.dev</span>
-                    <span class="state state--sm" data-state="awake" data-demo-state>awake</span>
+
+            <div class="browser">
+              <div class="browser-bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="browser-tab" data-tab="app" aria-selected="true">
+                  <svg viewBox="0 0 32 32" aria-hidden="true">
+                    <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+                    <rect class="mark-red" x="4" y="14" width="11" height="6" />
+                    <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+                    <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+                  </svg>
+                  <span data-tab-title>Previews · gangway</span>
+                </span>
+                <span class="browser-tab" data-tab="site" aria-selected="false" hidden>
+                  <span class="line-icon-slot" data-site-glyph></span>
+                  <span data-site-title></span>
+                </span>
+              </div>
+              <div class="browser-url"><span data-url>gangway.acme.dev/previews</span></div>
+
+              <div class="browser-view" data-view>
+                <div class="gw" data-page="app">
+                  <div class="gw-header">
+                    <span class="gw-brand">
+                      <svg viewBox="0 0 32 32" aria-hidden="true">
+                        <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+                        <rect class="mark-red" x="4" y="14" width="11" height="6" />
+                        <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+                        <path
+                          class="mark-ribs"
+                          d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+                        />
+                        <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+                      </svg>
+                      gangway
+                    </span>
+                    <span class="gw-nav">
+                      <span class="is-on">Previews</span><span>Projects</span><span>Templates</span
+                      ><span>Settings</span>
+                    </span>
+                    <span class="gw-who">dana@acme.dev <span class="gw-role">admin</span></span>
                   </div>
-                  <div class="demo-screen">
-                    <div class="demo-app app-slide" data-app>
-                      <div class="app-caps"><span>Q3 board review</span><span>04 / 12</span></div>
-                      <span class="slide-title">Revenue grew in every region.</span>
-                      <div class="slide-figure">
-                        <strong>+18%</strong><span>quarter on quarter, led by EMEA</span>
+
+                  <!-- /previews -->
+                  <div class="gw-page" data-screen="list">
+                    <div class="gw-title-rule">
+                      <span class="gw-h1">Previews</span>
+                      <span class="gw-count" data-count>3</span>
+                      <span class="gw-live">live</span>
+                      <span class="btn btn--sm" data-new-button>New preview</span>
+                    </div>
+                    <div class="gw-filters">
+                      <span class="gw-chips"
+                        ><span>awake</span><span>asleep</span><span>building</span
+                        ><span>failed</span></span
+                      >
+                      <span class="gw-select">any source</span>
+                      <span class="gw-search">Search name or repo</span>
+                    </div>
+                    <div class="gw-table">
+                      <div class="gw-tr gw-th">
+                        <span>Name</span><span>State</span><span>Source</span
+                        ><span class="gw-opt">Expires</span><span class="gw-opt">Created</span>
                       </div>
-                      <div class="slide-dots">
-                        <span></span><span></span><span></span><span class="on"></span><span></span
-                        ><span></span><span></span><span></span><span></span><span></span
-                        ><span></span><span></span>
+                      <div class="gw-tr" data-row="agent" hidden>
+                        <span class="gw-name">
+                          <span
+                            class="gw-icon"
+                            data-glyph="presentation"
+                            style="--c: #1d3a66"
+                          ></span>
+                          <span class="gw-name-text">
+                            <span class="gw-serif">Q3 board review</span>
+                            <span class="gw-host">q3-board-review.acme.dev ↗</span>
+                          </span>
+                        </span>
+                        <span
+                          ><span class="state state--sm" data-state="building">building</span></span
+                        >
+                        <span class="gw-src"
+                          ><span class="gw-chip">tarball</span>uploaded files · static · served by
+                          gangway</span
+                        >
+                        <span class="gw-muted gw-opt">in 7 days</span>
+                        <span class="gw-muted gw-opt">just now</span>
+                      </div>
+                      <div class="gw-tr" data-row="browser" hidden>
+                        <span class="gw-name">
+                          <span class="gw-icon" data-glyph="app-window" style="--c: #687283"></span>
+                          <span class="gw-name-text">
+                            <span class="gw-serif">growth-dashboard</span>
+                            <span class="gw-host">growth-dashboard.acme.dev ↗</span>
+                          </span>
+                        </span>
+                        <span
+                          ><span class="state state--sm" data-state="building">building</span></span
+                        >
+                        <span class="gw-src"
+                          ><span class="gw-chip">tarball</span>uploaded files · static · served by
+                          gangway</span
+                        >
+                        <span class="gw-muted gw-opt">in 7 days</span>
+                        <span class="gw-muted gw-opt">just now</span>
+                      </div>
+                      <div class="gw-tr">
+                        <span class="gw-name">
+                          <span
+                            class="gw-icon"
+                            data-glyph="layout-dashboard"
+                            style="--c: #00857f"
+                          ></span>
+                          <span class="gw-name-text">
+                            <span class="gw-serif">Support queue</span>
+                            <span class="gw-host">support-queue.acme.dev ↗</span>
+                          </span>
+                        </span>
+                        <span><span class="state state--sm" data-state="awake">awake</span></span>
+                        <span class="gw-src"><span class="gw-chip">pr</span>acme/support#57</span>
+                        <span class="gw-muted gw-opt">in 6 days</span>
+                        <span class="gw-muted gw-opt">2 h ago</span>
+                      </div>
+                      <div class="gw-tr">
+                        <span class="gw-name">
+                          <span class="gw-icon" data-glyph="wallet" style="--c: #3b8a41"></span>
+                          <span class="gw-name-text">
+                            <span class="gw-serif"
+                              >Pricing calculator <span class="gw-lock">Password</span></span
+                            >
+                            <span class="gw-host">pricing-calc.acme.dev ↗</span>
+                          </span>
+                        </span>
+                        <span><span class="state state--sm" data-state="asleep">asleep</span></span>
+                        <span class="gw-src"
+                          ><span class="gw-chip">tarball</span>uploaded files · node</span
+                        >
+                        <span class="gw-muted gw-opt">in 3 days</span>
+                        <span class="gw-muted gw-opt">yesterday</span>
+                      </div>
+                      <div class="gw-tr">
+                        <span class="gw-name">
+                          <span class="gw-icon" data-glyph="utensils" style="--c: #a8740c"></span>
+                          <span class="gw-name-text">
+                            <span class="gw-serif">Lunch roulette</span>
+                            <span class="gw-host">lunch-roulette.acme.dev ↗</span>
+                          </span>
+                        </span>
+                        <span><span class="state state--sm" data-state="awake">awake</span></span>
+                        <span class="gw-src"><span class="gw-chip">image</span>acme/lunch:1.4</span>
+                        <span class="gw-muted gw-opt">never</span>
+                        <span class="gw-muted gw-opt">3 days ago</span>
                       </div>
                     </div>
-                    <div class="demo-app app-dash" data-app hidden>
-                      <div class="app-head">
-                        <span class="app-title">Support queue</span>
-                        <span class="app-caps">Last 12 h</span>
+                  </div>
+
+                  <!-- /new -->
+                  <div class="gw-page" data-screen="new" hidden>
+                    <div class="gw-title-rule gw-title-rule--stack">
+                      <span class="gw-back">← Previews</span>
+                      <span class="gw-h1">New preview</span>
+                    </div>
+                    <div class="gw-starters-head">
+                      <span class="gw-label">Start from a runtime</span>
+                      <span class="gw-muted gw-opt"
+                        >Start with a small example, or drop in your own files below.</span
+                      >
+                    </div>
+                    <div class="gw-starters">
+                      <span class="gw-starter"
+                        ><span class="gw-starter-icon" data-icon="static"></span
+                        ><span><b>Static</b><small>Plain files, served by nginx</small></span></span
+                      >
+                      <span class="gw-starter"
+                        ><span class="gw-starter-icon" data-icon="node"></span
+                        ><span
+                          ><b>Node.js</b><small>npm start, or a static build</small></span
+                        ></span
+                      >
+                      <span class="gw-starter gw-opt"
+                        ><span class="gw-starter-icon" data-icon="bun"></span
+                        ><span><b>Bun</b><small>TypeScript, no build step</small></span></span
+                      >
+                      <span class="gw-starter gw-opt"
+                        ><span class="gw-starter-icon" data-icon="deno"></span
+                        ><span
+                          ><b>Deno</b><small>TypeScript, deps cached at build</small></span
+                        ></span
+                      >
+                    </div>
+                    <div class="gw-drop" data-drop>
+                      <div class="gw-drop-empty" data-drop-empty>
+                        <span class="gw-drop-title">Drop a folder, files or a .zip</span>
+                        <span class="gw-muted"
+                          >We pick the runtime for you. <u>Want more control?</u></span
+                        >
+                        <span class="gw-pickers"
+                          ><span>Choose files</span><span>Choose a folder</span></span
+                        >
                       </div>
-                      <div class="dash-stats">
-                        <div><span class="app-caps">Open</span><strong>42</strong></div>
-                        <div><span class="app-caps">First reply</span><strong>11 min</strong></div>
-                        <div><span class="app-caps">Solved</span><strong>188</strong></div>
-                      </div>
-                      <div class="bars">
-                        <span style="--h: 30%; --d: 0.15s"></span>
-                        <span style="--h: 42%; --d: 0.185s"></span>
-                        <span style="--h: 38%; --d: 0.22s"></span>
-                        <span style="--h: 55%; --d: 0.255s"></span>
-                        <span style="--h: 48%; --d: 0.29s"></span>
-                        <span style="--h: 62%; --d: 0.325s"></span>
-                        <span style="--h: 58%; --d: 0.36s"></span>
-                        <span style="--h: 70%; --d: 0.395s"></span>
-                        <span style="--h: 66%; --d: 0.43s"></span>
-                        <span class="hi" style="--h: 82%; --d: 0.465s"></span>
-                        <span style="--h: 74%; --d: 0.5s"></span>
-                        <span style="--h: 90%; --d: 0.535s"></span>
+                      <div class="gw-drop-full" data-drop-full hidden>
+                        <span class="gw-drop-title">3 files, 59.8 KB</span>
+                        <span class="gw-looks"
+                          >Looks like: <span class="gw-looks-icon" data-icon="static"></span
+                          ><b>Static</b></span
+                        >
+                        <span class="gw-plan">static · index.html · served by gangway</span>
+                        <span class="gw-drop-actions"
+                          ><span class="btn btn--sm" data-deploy-button>Deploy</span
+                          ><span class="btn btn--sm btn--ghost">Clear</span></span
+                        >
                       </div>
                     </div>
-                    <div class="demo-app app-doc" data-app hidden>
-                      <span class="app-caps">Incident report · 17 Sep</span>
-                      <span class="doc-title">Checkout errors after the 14:02 deploy</span>
-                      <p>
-                        For 23 minutes, one in six checkouts failed with a timeout. The cause was a
-                        missing index on the new orders table.
-                      </p>
-                      <div class="doc-callout">
-                        Fixed at 14:25 by adding the index. No orders were lost.
+                    <div class="gw-options">
+                      <span class="gw-options-head"
+                        >▸ <b>Options</b>
+                        <span class="gw-muted"
+                          >name, address, visibility, TTL, network, project, template, who can open
+                          it</span
+                        ></span
+                      >
+                    </div>
+                    <div class="gw-progress" data-progress hidden>
+                      <span class="gw-bar"><i data-progress-bar></i></span>
+                      <span class="gw-mono gw-muted" data-progress-text>Uploading… 0%</span>
+                    </div>
+                  </div>
+
+                  <!-- /previews/:id -->
+                  <div class="gw-page" data-screen="detail" hidden>
+                    <span class="gw-back">← Previews</span>
+                    <div class="gw-title-rule">
+                      <span class="gw-icon gw-icon--lg" data-d-icon></span>
+                      <span class="gw-title" data-d-title></span>
+                      <span class="state" data-state="building" data-d-state>building</span>
+                      <span class="tag tag--sm">unlisted</span>
+                    </div>
+                    <div class="gw-cols">
+                      <div class="gw-block">
+                        <span class="gw-label">URLs</span>
+                        <div class="gw-url">
+                          <span class="gw-svc">web <small>primary</small></span>
+                          <span class="gw-mono" data-d-url></span>
+                          <span class="gw-label">Copy</span>
+                        </div>
                       </div>
-                      <div class="doc-lines">
-                        <span></span><span style="width: 92%"></span
-                        ><span style="width: 70%"></span>
+                      <div class="gw-block gw-opt">
+                        <span class="gw-label">Particulars</span>
+                        <span class="gw-fact"><span>Source</span><b>tarball · static</b></span>
+                        <span class="gw-fact"><span>Expires</span><b>in 7 days</b></span>
+                        <span class="gw-fact"><span>Host</span><b>local</b></span>
                       </div>
                     </div>
-                    <div class="demo-app app-lunch" data-app hidden>
-                      <div class="app-head">
-                        <span class="app-title">Lunch roulette</span>
-                        <span class="app-caps">6 going · 12:30</span>
-                      </div>
-                      <div>
-                        <div class="lunch-spot">
-                          <span>Tacos El Norte</span><span>4 min walk</span>
+                    <div class="gw-block">
+                      <span class="gw-label">Logs</span>
+                      <div class="gw-log">
+                        <div class="gw-log-bar">
+                          <span class="is-on">all</span><span>system</span><span>build</span
+                          ><span>seed</span><span>stdout</span><span>stderr</span>
+                          <span class="gw-live">live</span>
                         </div>
-                        <div class="lunch-spot picked">
-                          <span>Pho 88</span><span>6 min walk</span>
-                        </div>
-                        <div class="lunch-spot"><span>Green Bowl</span><span>3 min walk</span></div>
-                        <div class="lunch-spot">
-                          <span>Sal’s Pizza</span><span>9 min walk</span>
-                        </div>
-                      </div>
-                      <div class="lunch-foot">
-                        <span class="btn btn--sm">Spin</span>
-                        <span>Today: <b>Pho 88</b></span>
+                        <div class="gw-log-body" data-log></div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <p class="demo-note">
-                  Example preview. Pick another from the list to open it here.
-                </p>
-              </div>
 
-              <div class="board-list">
-                <button
-                  class="board-row"
-                  type="button"
-                  data-row
-                  data-host="q3-board-review.acme.dev"
-                  data-state="awake"
-                >
-                  <span class="row-text">
-                    <span class="row-name">Q3 board review</span>
-                    <span class="row-host">q3-board-review.acme.dev · mcp · claude</span>
-                  </span>
-                  <span class="state state--sm" data-state="awake">awake</span>
-                </button>
-                <button
-                  class="board-row"
-                  type="button"
-                  data-row
-                  data-host="support-queue.acme.dev"
-                  data-state="awake"
-                >
-                  <span class="row-text">
-                    <span class="row-name">Support queue</span>
-                    <span class="row-host">support-queue.acme.dev · acme/support#57</span>
-                  </span>
-                  <span class="state state--sm" data-state="awake">awake</span>
-                </button>
-                <button
-                  class="board-row"
-                  type="button"
-                  data-row
-                  data-host="incident-0917.acme.dev"
-                  data-state="asleep"
-                >
-                  <span class="row-text">
-                    <span class="row-name">Incident report 09-17</span>
-                    <span class="row-host">incident-0917.acme.dev · folder</span>
-                  </span>
-                  <span class="state state--sm" data-state="asleep">asleep</span>
-                </button>
-                <button
-                  class="board-row"
-                  type="button"
-                  data-row
-                  data-host="lunch-roulette.acme.dev"
-                  data-state="awake"
-                >
-                  <span class="row-text">
-                    <span class="row-name">Lunch roulette</span>
-                    <span class="row-host">lunch-roulette.acme.dev · mcp · codex</span>
-                  </span>
-                  <span class="state state--sm" data-state="awake">awake</span>
-                </button>
+                <!-- the preview itself -->
+                <div class="site" data-page="site" hidden>
+                  <div class="site-deck" data-site="deck">
+                    <div class="app-caps"><span>Q3 board review</span><span>01 / 04</span></div>
+                    <span class="slide-title" data-slide-title>Revenue grew in every region.</span>
+                    <div class="slide-figure">
+                      <strong data-slide-fig>+18%</strong
+                      ><span data-slide-sub>quarter on quarter, led by EMEA</span>
+                    </div>
+                    <div class="slide-dots">
+                      <span class="on"></span><span></span><span></span><span></span>
+                    </div>
+                  </div>
+                  <div class="site-dash" data-site="dash">
+                    <header class="art-title">
+                      <span class="art-top"
+                        ><span class="art-caps art-flag">Dashboard</span
+                        ><span class="art-meta">Updated hourly</span></span
+                      >
+                      <span class="art-h1">Growth</span>
+                    </header>
+                    <div class="art-stats">
+                      <div class="art-card art-stat">
+                        <span class="art-caps">Signups</span>
+                        <span class="art-row"
+                          ><b>2,901</b
+                          ><svg viewBox="0 0 64 20" class="art-spark">
+                            <path
+                              d="M0.0 18.0 L5.8 16.4 L11.6 17.3 L17.5 14.2 L23.3 12.2 L29.1 12.8 L34.9 10.1 L40.7 8.6 L46.5 9.1 L52.4 6.4 L58.2 4.6 L64.0 2.0"
+                            /></svg
+                        ></span>
+                        <span class="art-foot"><em>▲ 75%</em> since July</span>
+                      </div>
+                      <div class="art-card art-stat">
+                        <span class="art-caps">Activated</span>
+                        <span class="art-row"
+                          ><b>61%</b
+                          ><svg viewBox="0 0 64 20" class="art-spark">
+                            <path
+                              d="M0.0 18.0 L5.8 15.3 L11.6 18.0 L17.5 12.7 L23.3 10.0 L29.1 10.0 L34.9 7.3 L40.7 4.7 L46.5 7.3 L52.4 4.7 L58.2 2.0 L64.0 2.0"
+                            /></svg
+                        ></span>
+                        <span class="art-foot"><em>▲ 6 pts</em> in 7 days</span>
+                      </div>
+                      <div class="art-card art-stat">
+                        <span class="art-caps">Paid</span>
+                        <span class="art-row"
+                          ><b>212</b
+                          ><svg viewBox="0 0 64 20" class="art-spark">
+                            <path
+                              d="M0.0 18.0 L5.8 15.9 L11.6 15.2 L17.5 12.8 L23.3 13.4 L29.1 11.0 L34.9 9.5 L40.7 7.9 L46.5 6.6 L52.4 5.4 L58.2 3.8 L64.0 2.0"
+                            /></svg
+                        ></span>
+                        <span class="art-foot"><em>▲ 38</em> this month</span>
+                      </div>
+                    </div>
+                    <div class="art-charts">
+                      <figure class="art-card art-chart">
+                        <span class="art-caps">Signups per week</span>
+                        <span class="art-legend"
+                          ><span><i style="background: var(--s1)"></i>New</span
+                          ><span><i style="background: var(--s3)"></i>Returning</span></span
+                        >
+                        <svg
+                          viewBox="-30 0 382 128"
+                          class="art-line"
+                          aria-label="Weekly signups: new rose from 182 to 318, returning from 96 to 152"
+                        >
+                          <g class="art-axis">
+                            <path class="art-grid" d="M0 21.1H320M0 59H320M0 96.9H320" />
+                            <path class="art-base" d="M0 112H320" />
+                            <text x="-8" y="24.6" text-anchor="end">300</text>
+                            <text x="-8" y="62.5" text-anchor="end">200</text>
+                            <text x="-8" y="100.4" text-anchor="end">100</text>
+                            <text x="0" y="126">Jul</text>
+                            <text x="160" y="126" text-anchor="middle">Aug</text>
+                            <text x="320" y="126" text-anchor="end">Sep</text>
+                          </g>
+                          <path
+                            class="art-area"
+                            style="fill: var(--s1)"
+                            d="M0.0 65.8 L29.1 60.5 L58.2 63.5 L87.3 53.7 L116.4 47.3 L145.5 49.2 L174.5 40.4 L203.6 35.5 L232.7 37.0 L261.8 28.3 L290.9 22.7 L320.0 14.3 L320 112 L0 112 Z"
+                          />
+                          <path
+                            class="art-area"
+                            style="fill: var(--s3)"
+                            d="M0.0 98.4 L29.1 96.1 L58.2 97.2 L87.3 93.1 L116.4 90.0 L145.5 88.9 L174.5 86.6 L203.6 84.4 L232.7 85.1 L261.8 81.7 L290.9 79.4 L320.0 77.2 L320 112 L0 112 Z"
+                          />
+                          <path
+                            class="art-path"
+                            pathLength="1"
+                            style="stroke: var(--s1)"
+                            d="M0.0 65.8 L29.1 60.5 L58.2 63.5 L87.3 53.7 L116.4 47.3 L145.5 49.2 L174.5 40.4 L203.6 35.5 L232.7 37.0 L261.8 28.3 L290.9 22.7 L320.0 14.3"
+                          />
+                          <path
+                            class="art-path"
+                            pathLength="1"
+                            style="stroke: var(--s3)"
+                            d="M0.0 98.4 L29.1 96.1 L58.2 97.2 L87.3 93.1 L116.4 90.0 L145.5 88.9 L174.5 86.6 L203.6 84.4 L232.7 85.1 L261.8 81.7 L290.9 79.4 L320.0 77.2"
+                          />
+                          <g class="art-ends">
+                            <circle cx="320" cy="14.3" r="4" style="fill: var(--s1)" />
+                            <circle cx="320" cy="77.2" r="4" style="fill: var(--s3)" />
+                            <text x="328" y="18">318</text>
+                            <text x="328" y="81">152</text>
+                          </g>
+                        </svg>
+                      </figure>
+                      <figure class="art-card art-chart">
+                        <span class="art-caps">By channel</span>
+                        <div class="art-donut">
+                          <svg
+                            viewBox="0 0 100 100"
+                            aria-label="Signups by channel: organic 1,204, referral 842, ads 553, partners 302"
+                          >
+                            <g transform="rotate(-90 50 50)">
+                              <circle
+                                r="38"
+                                cx="50"
+                                cy="50"
+                                style="stroke: var(--s1)"
+                                stroke-dasharray="97.09 141.67"
+                                stroke-dashoffset="0"
+                              />
+                              <circle
+                                r="38"
+                                cx="50"
+                                cy="50"
+                                style="stroke: var(--s2)"
+                                stroke-dasharray="67.3 171.46"
+                                stroke-dashoffset="-99.09"
+                              />
+                              <circle
+                                r="38"
+                                cx="50"
+                                cy="50"
+                                style="stroke: var(--s3)"
+                                stroke-dasharray="43.51 195.25"
+                                stroke-dashoffset="-168.39"
+                              />
+                              <circle
+                                r="38"
+                                cx="50"
+                                cy="50"
+                                style="stroke: var(--s4)"
+                                stroke-dasharray="22.86 215.9"
+                                stroke-dashoffset="-213.9"
+                              />
+                            </g>
+                            <text x="50" y="49" text-anchor="middle" class="art-donut-n">
+                              2,901
+                            </text>
+                            <text x="50" y="61" text-anchor="middle" class="art-donut-l">
+                              signups
+                            </text>
+                          </svg>
+                          <span class="art-legend art-legend--col"
+                            ><span><i style="background: var(--s1)"></i>Organic <b>1,204</b></span
+                            ><span><i style="background: var(--s2)"></i>Referral <b>842</b></span
+                            ><span><i style="background: var(--s3)"></i>Ads <b>553</b></span
+                            ><span
+                              ><i style="background: var(--s4)"></i>Partners <b>302</b></span
+                            ></span
+                          >
+                        </div>
+                      </figure>
+                    </div>
+                  </div>
+                </div>
+
+                <span class="cursor" data-cursor aria-hidden="true">
+                  <svg viewBox="0 0 18 22">
+                    <path d="M1 1 L1 17 L5.5 13 L8.5 20 L11 19 L8 12 L14 12 Z" />
+                  </svg>
+                  <span class="cursor-drag" data-drag hidden
+                    ><span data-glyph="folder" class="cursor-drag-icon"></span
+                    >growth-dashboard</span
+                  >
+                </span>
               </div>
             </div>
+          </div>
+
+          <div class="demo-foot">
+            <span class="demo-chapters">
+              <button class="demo-ctl" type="button" data-go="browser" aria-pressed="true">
+                1 · In the browser
+              </button>
+              <button class="demo-ctl" type="button" data-go="agent" aria-pressed="false">
+                2 · From your agent
+              </button>
+              <span class="demo-scene" data-scene>open New preview</span>
+            </span>
+            <span class="demo-controls">
+              <button class="demo-ctl" type="button" data-pause aria-pressed="false">Pause</button>
+              <button class="demo-ctl" type="button" data-replay aria-label="Replay">↻</button>
+            </span>
           </div>
         </div>
       </section>
