@@ -97,7 +97,7 @@ to set up (experimental).
 On the host, as root or a user in the `docker` group:
 
 ```sh
-curl -fsSL https://github.com/charlesabarnes/gangway/releases/latest/download/install.sh | sh
+curl -fsSL gangway.sh/install | sh
 ```
 
 The installer asks for your domain and whether a reverse proxy or gangway itself holds port
@@ -120,7 +120,7 @@ Run the installer again to upgrade. gangway backs its database up before it migr
 the new version does not come up healthy the installer puts the previous version and that
 backup back; `--rollback` does the same by hand. Changes of your own to the compose setup go in
 `compose.override.yaml`, which upgrades leave alone. `--help` lists flags for everything it asks, so it can run
-unattended: `sh install.sh --domain preview.example.com --tls acme --cf-token ... --yes`.
+unattended: `curl -fsSL gangway.sh/install | sh -s -- --domain preview.example.com --tls acme --cf-token ... --yes`.
 
 #### By hand
 

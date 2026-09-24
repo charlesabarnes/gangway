@@ -1,0 +1,26 @@
+#!/bin/sh
+# gangway installer: https://gangway.sh
+#
+#   curl -fsSL gangway.sh/install | sh
+#   curl -fsSL gangway.sh/install | sh -s -- --domain preview.example.com --tls acme
+#
+# Fetches install.sh from the latest GitHub release and runs it with the flags given.
+# Everything runs inside main, called on the last line, so a partial download runs nothing.
+set -eu
+
+main() {
+  url=https://github.com/charlesabarnes/gangway/releases/latest/download/install.sh
+  tmp=$(mktemp "${TMPDIR:-/tmp}/gangway-install.XXXXXX")
+  trap 'rm -f "$tmp"' EXIT INT TERM
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" -o "$tmp"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$tmp" "$url"
+  else
+    echo "gangway: need curl or wget to download the installer" >&2
+    exit 1
+  fi
+  sh "$tmp" "$@"
+}
+
+main "$@"

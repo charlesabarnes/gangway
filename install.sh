@@ -1,6 +1,9 @@
 #!/bin/sh
 # Installs, upgrades or rolls back gangway on this Docker host.
 #
+#   curl -fsSL gangway.sh/install | sh
+#
+# gangway.sh/install fetches this file from the latest release; the release URL works directly too:
 #   curl -fsSL https://github.com/charlesabarnes/gangway/releases/latest/download/install.sh | sh
 #
 # It works out what it is running on and installs the way that platform expects: an Unraid
