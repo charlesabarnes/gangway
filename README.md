@@ -102,7 +102,16 @@ Open that link to create the first admin account. There are no default credentia
 changes on every start until the first account exists; `docker logs gangway | grep setup`
 shows the current one.
 
-Run the installer again to upgrade. `--help` lists flags for everything it asks, so it can run
+It installs the way the host expects. On plain Linux and CasaOS (where it shows up as an app)
+that is a compose project. Unraid (a Docker-tab template with the icon), TrueNAS SCALE (a custom
+app), Synology and desktop engines (Docker Desktop, Colima, Podman, on `preview.localhost`)
+are supported but **experimental**: written to each platform's conventions, not yet verified on
+one.
+
+Run the installer again to upgrade. gangway backs its database up before it migrates, and if
+the new version does not come up healthy the installer puts the previous version and that
+backup back; `--rollback` does the same by hand. Changes of your own to the compose setup go in
+`compose.override.yaml`, which upgrades leave alone. `--help` lists flags for everything it asks, so it can run
 unattended: `sh install.sh --domain preview.example.com --tls acme --cf-token ... --yes`.
 
 #### By hand

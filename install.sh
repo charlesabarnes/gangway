@@ -207,6 +207,12 @@ if [ "$MANAGER" != truenas ]; then
     die "the Docker Compose plugin is missing: https://docs.docker.com/compose/install/"
 fi
 say "$LABEL, Docker $(docker version -f '{{.Server.Version}}' 2>/dev/null)"
+case "$PLATFORM" in
+  # Written to each platform's conventions but not yet run on one. Reports are welcome.
+  unraid | truenas | synology | desktop)
+    warn "installing on $LABEL is experimental; if something is off: https://github.com/$REPO/issues"
+    ;;
+esac
 
 # Anything by this name that this install did not make is not ours to replace.
 EXISTS=0
