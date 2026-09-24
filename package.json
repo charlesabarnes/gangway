@@ -1,5 +1,6 @@
 {
   "name": "gangway",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",

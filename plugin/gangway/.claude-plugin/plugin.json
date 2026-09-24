@@ -2,7 +2,10 @@
   "name": "gangway",
   "version": "0.1.0",
   "description": "Ship what you would make as an artifact to a real HTTPS URL on your own gangway server: multi-page sites, apps with a database, prototypes with a backend.",
-  "author": { "name": "Charles Barnes" },
+  "author": {
+    "name": "Charles Barnes"
+  },
+  "license": "Apache-2.0",
   "userConfig": {
     "mcp_url": {
       "type": "string",

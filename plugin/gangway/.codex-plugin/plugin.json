@@ -2,7 +2,10 @@
   "name": "gangway",
   "version": "0.1.0",
   "description": "Ship what you would make as an artifact to a real HTTPS URL on your own gangway server, and iterate on it at the same URL.",
-  "author": { "name": "Charles Barnes" },
+  "author": {
+    "name": "Charles Barnes"
+  },
+  "license": "Apache-2.0",
   "repository": "https://github.com/charlesabarnes/gangway",
   "keywords": ["deploy", "preview", "mcp", "artifact"],
   "skills": "./skills/",
