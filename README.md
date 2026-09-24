@@ -141,7 +141,7 @@ From the UI, go to **New preview** and drop in a folder. From a terminal:
 ```sh
 tar -czf - . | curl --fail -X POST \
   -H "Authorization: Bearer $GANGWAY_TOKEN" -H "Content-Type: application/gzip" \
-  --data-binary @- "https://api.preview.example.com/v1/previews?name=hello&wait=true"
+  --data-binary @- "https://api.preview.example.com/v1/previews?name=hello&runtime=auto&wait=true"
 ```
 
 The answer includes the URL once the preview serves it. Create tokens under **Account**.

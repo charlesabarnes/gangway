@@ -68,9 +68,13 @@ while [ $# -gt 0 ]; do
 done
 
 # Piped from curl, stdin is the script itself, so questions are read from the terminal.
+# /dev/tty exists even without one (cron, CI, setsid); only opening it tells. In a subshell,
+# because a failed redirection on `:` ends a POSIX shell outright.
+has_tty() { (: </dev/tty) 2>/dev/null; }
+
 ask() { # ask <prompt> <default> -> answer on stdout
   [ "$ASSUME_YES" = 1 ] && { printf '%s' "$2"; return; }
-  [ -r /dev/tty ] || die "no terminal to ask \"$1\"; pass it as a flag (see --help)"
+  has_tty || die "no terminal to ask \"$1\"; pass it as a flag (see --help)"
   if [ -n "$2" ]; then printf '%s [%s]: ' "$1" "$2" >/dev/tty; else printf '%s: ' "$1" >/dev/tty; fi
   IFS= read -r answer </dev/tty || answer=
   printf '%s' "${answer:-$2}"
@@ -78,7 +82,7 @@ ask() { # ask <prompt> <default> -> answer on stdout
 
 ask_secret() {
   [ "$ASSUME_YES" = 1 ] && return
-  [ -r /dev/tty ] || die "no terminal to ask \"$1\"; pass it as a flag (see --help)"
+  has_tty || die "no terminal to ask \"$1\"; pass it as a flag (see --help)"
   printf '%s: ' "$1" >/dev/tty
   stty -echo </dev/tty 2>/dev/null || true
   IFS= read -r answer </dev/tty || answer=
