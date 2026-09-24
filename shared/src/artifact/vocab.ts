@@ -52,6 +52,7 @@ export const ELEMENTS = [
   "gw-columns",
   "gw-stat",
   "gw-chart",
+  "gw-flow",
   "gw-callout",
   "gw-flag",
   "gw-facts",

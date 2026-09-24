@@ -75,7 +75,7 @@ function container(b: Extract<Block, { type: "container" }>): string {
   return `<gw-${b.name}${attrText(b.attrs)}>${render(b.body)}</gw-${b.name}>`;
 }
 
-const BLOCK_TAGS = "grid|chart|callout|stat|facts|card|section|columns";
+const BLOCK_TAGS = "grid|chart|flow|callout|stat|facts|card|section|columns";
 const unwrap = (h: string) =>
   h
     .replace(new RegExp(`<p>(\\s*<gw-(?:${BLOCK_TAGS})\\b)`, "g"), "$1")
@@ -96,6 +96,8 @@ export function render(blocks: Block[]): string {
       flush();
       if (b.type === "chart")
         out.push(`<gw-chart${attrText(b.attrs)}>${esc(b.csv.join("\n"))}</gw-chart>`);
+      else if (b.type === "flow")
+        out.push(`<gw-flow${attrText(b.attrs)}>${esc(b.src.join("\n"))}</gw-flow>`);
       else if (b.type === "stat") out.push(`<gw-stat${attrText(b.attrs)}></gw-stat>`);
       else out.push(container(b));
     }

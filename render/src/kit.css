@@ -155,6 +155,7 @@ gw-section,
 gw-card,
 gw-stat,
 gw-chart,
+gw-flow,
 gw-callout,
 gw-grid,
 gw-columns,
@@ -282,6 +283,7 @@ img {
 gw-card,
 gw-stat,
 gw-chart,
+gw-flow,
 .gw-panel {
   background: var(--sheet);
   box-shadow:
@@ -356,12 +358,14 @@ gw-doc {
 }
 gw-doc > * + gw-grid,
 gw-doc > * + gw-chart,
+gw-doc > * + gw-flow,
 gw-doc > * + table,
 gw-doc > * + gw-callout {
   margin-top: 20px;
 }
 gw-doc > gw-grid,
 gw-doc > gw-chart,
+gw-doc > gw-flow,
 gw-doc > table,
 gw-doc > gw-callout {
   margin-bottom: 20px;
@@ -571,6 +575,220 @@ td[align="right"] {
   font-size: 13px;
 }
 
+/* Flowcharts */
+gw-flow {
+  padding: 18px 20px 14px;
+  min-width: 0;
+}
+gw-flow > [data-part="title"] {
+  display: block;
+  margin-bottom: 10px;
+}
+gw-flow [data-part="plot"] {
+  overflow-x: auto;
+}
+gw-flow svg {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+  overflow: visible;
+}
+gw-flow .shape {
+  fill: var(--sheet);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  transition:
+    fill 0.2s,
+    stroke-width 0.2s;
+}
+gw-flow .label {
+  font: 600 13px var(--sans);
+  fill: var(--ink);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+gw-flow .node.stadium .shape,
+gw-flow .node.circle .shape {
+  fill: var(--navy);
+  stroke: var(--navy);
+}
+gw-flow .node.stadium .label,
+gw-flow .node.circle .label {
+  fill: var(--navy-fg);
+}
+:root[data-theme="dark"] gw-flow .node.stadium .shape,
+:root[data-theme="dark"] gw-flow .node.circle .shape {
+  fill: var(--sheet);
+  stroke: var(--ink);
+}
+:root[data-theme="dark"] gw-flow .node.stadium .label,
+:root[data-theme="dark"] gw-flow .node.circle .label {
+  fill: var(--ink);
+}
+gw-flow .node.tone-flag .shape {
+  fill: var(--flag);
+  stroke: var(--ink);
+}
+gw-flow .node.tone-flag .label {
+  fill: var(--flag-fg);
+}
+gw-flow .node.tone-ok .shape {
+  fill: color-mix(in oklch, var(--ok) 16%, var(--sheet));
+  stroke: var(--ok);
+}
+gw-flow .node.tone-warn .shape {
+  fill: color-mix(in oklch, var(--warn) 18%, var(--sheet));
+  stroke: var(--warn);
+}
+gw-flow .node.tone-danger .shape {
+  fill: color-mix(in oklch, var(--danger) 14%, var(--sheet));
+  stroke: var(--danger);
+}
+gw-flow .node.tone-ok .label,
+gw-flow .node.tone-warn .label,
+gw-flow .node.tone-danger .label {
+  fill: var(--ink);
+}
+gw-flow .node.tone-muted .shape {
+  fill: var(--sheet);
+  stroke: var(--rule);
+  stroke-dasharray: 4 3;
+}
+gw-flow .node.tone-muted .label {
+  fill: var(--muted);
+}
+gw-flow .node {
+  outline: none;
+  opacity: 0;
+  transform: scale(0.94);
+  transition:
+    opacity 0.35s ease var(--d, 0ms),
+    transform 0.35s ease var(--d, 0ms);
+}
+gw-flow.drawn .node {
+  opacity: 1;
+  transform: none;
+}
+gw-flow .node.acts {
+  cursor: pointer;
+}
+gw-flow .node:focus-visible .shape {
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+gw-flow .has-note {
+  fill: var(--primary);
+}
+gw-flow .edge .line {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.55s ease calc(var(--d, 0ms) + 80ms);
+}
+gw-flow .edge.thick .line {
+  stroke-width: 3;
+}
+gw-flow .edge.dotted .line {
+  stroke-dasharray: 4 4;
+  stroke-dashoffset: 0;
+  opacity: 0;
+  transition: opacity 0.4s ease var(--d, 0ms);
+}
+gw-flow.drawn .edge .line {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+gw-flow .arrowhead {
+  fill: var(--ink);
+}
+gw-flow .elabel {
+  opacity: 0;
+  transition: opacity 0.3s ease calc(var(--d, 0ms) + 400ms);
+}
+gw-flow.drawn .elabel {
+  opacity: 1;
+}
+gw-flow .elabel rect {
+  fill: var(--sheet);
+}
+gw-flow .elabel text {
+  font: 12px var(--mono);
+  fill: var(--muted);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+gw-flow.flowing .edge .line {
+  stroke-dasharray: 7 5;
+  animation: gw-flow-march 0.9s linear infinite;
+  transition: none;
+}
+@keyframes gw-flow-march {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+gw-flow svg.focus .node:not(.hot),
+gw-flow svg.focus .edge:not(.hot) {
+  opacity: 0.25;
+}
+gw-flow .node.hot .shape,
+gw-flow .edge.hot .line {
+  stroke-width: 2.5;
+}
+gw-flow svg.playing .node:not(.seen),
+gw-flow svg.playing .edge:not(.seen) {
+  opacity: 0.22;
+}
+gw-flow .node.current .shape {
+  fill: var(--flag);
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+gw-flow .node.current .label {
+  fill: var(--flag-fg);
+}
+gw-flow .runner {
+  fill: var(--flag);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+gw-flow [data-part="controls"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+gw-flow [data-part="controls"] button {
+  font: 600 12px var(--mono);
+  padding: 4px 10px;
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+gw-flow [data-part="note"] {
+  margin-top: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  box-shadow: inset 3px 0 0 var(--primary);
+  background: var(--paper);
+}
+gw-flow [data-part="caption"] {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  gw-flow .node,
+  gw-flow .edge .line,
+  gw-flow .elabel {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
 /* Charts */
 gw-chart {
   padding: 18px 20px 14px;
@@ -691,6 +909,9 @@ gw-dashboard > .gw-body > :is(gw-grid, gw-section, gw-columns):not([span]) {
 }
 gw-dashboard > .gw-body > gw-chart:not([span]) {
   grid-column: span 2;
+}
+gw-dashboard > .gw-body > gw-flow:not([span]) {
+  grid-column: 1 / -1;
 }
 gw-dashboard > .gw-body > gw-callout {
   align-self: start;

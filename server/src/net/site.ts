@@ -4,7 +4,6 @@ import { gzipSync } from "node:zlib";
 
 /** A preview's files on disk, as gangway serves them in place of a container. */
 export type ServedSite = {
-  /** The files, as uploaded. */
   root: string;
   /** Holds root/ and gangway's own files for the site (kit-config.json). */
   dir: string;
@@ -27,7 +26,6 @@ const KIT_GZIP = new Map<string, { mtime: number; body: Uint8Array }>();
 
 type Found = { abs: string; size: number; mtime: number };
 
-/** The request path as segments, or null for one that tries to leave the site. */
 function segmentsOf(pathname: string): string[] | null {
   let decoded: string;
   try {
@@ -146,10 +144,7 @@ async function fallback(req: Request, site: ServedSite, o: SiteServeOptions): Pr
   return spa ? send(req, f, o) : send(req, f, o, { status: 404 });
 }
 
-/**
- * Answer a request from a site's files the way the static runtime's nginx did: the file, a
- * directory's index.html, then path.html, then the site's fallback.
- */
+/** Answers from a site's files the way the static runtime's nginx did. */
 export async function serveSite(
   req: Request,
   site: ServedSite,

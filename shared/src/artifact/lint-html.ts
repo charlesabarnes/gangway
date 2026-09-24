@@ -1,3 +1,4 @@
+import { parseFlow } from "./flow.ts";
 import { csvHeader, parseAttrs } from "./grammar.ts";
 import type { ArtifactInfo, LintIssue } from "./lint.ts";
 import {
@@ -54,11 +55,20 @@ function checkChart(html: string, t: Tag, issues: LintIssue[]) {
     bad(`the CSV header (${head.join(", ")}) has no column ${missing.join(", ")}`);
 }
 
+function checkFlow(html: string, t: Tag, issues: LintIssue[]) {
+  const close = html.indexOf("</gw-flow>", t.end);
+  const src = html.slice(t.end, close === -1 ? undefined : close);
+  const first = t.line + (src.startsWith("\n") ? 1 : 0);
+  const g = parseFlow(src.replace(/^\n/, ""), first, t.attrs["direction"]);
+  for (const i of g.issues) issues.push({ line: i.line, message: `<gw-flow>: ${i.message}` });
+}
+
 function checkTag(html: string, t: Tag, issues: LintIssue[]) {
   const a = t.attrs;
   if (!(ELEMENTS as readonly string[]).includes(t.name))
     return void issues.push({ line: t.line, message: `unknown element <${t.name}>` });
   if (t.name === "gw-chart") checkChart(html, t, issues);
+  if (t.name === "gw-flow") checkFlow(html, t, issues);
   if (a["tone"] && !(TONES as readonly string[]).includes(a["tone"]))
     issues.push({
       line: t.line,

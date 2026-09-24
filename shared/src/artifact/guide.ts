@@ -63,6 +63,21 @@ May,39400000
 \`\`\`\`
 Types: bar | line | area | donut. \`y\` may list several columns (y=new,returning). Options: stacked, format=number | percent | currency | compact, labels="new:New,returning:Returning", caption="…", height=300, span=2 (dashboard), src=data/daily.csv instead of inline rows (deploy the file beside artifact.md). Percent values: 0.94 or 94%.`;
 
+const FLOWS = `## Flowcharts
+A fenced block named \`flow\` (or \`mermaid\`), in Mermaid's flowchart syntax. gangway lays it out in its own style, draws it in as the reader reaches it, and highlights a step's paths on hover.
+\`\`\`\`
+\`\`\`flow title="From push to URL" play
+flowchart LR
+  push([Push]) --> plan{Can it plan?}
+  plan -->|no| refuse[Refuse]:::danger
+  plan -->|yes| build[Build] --> url([Live])
+  build -. retry .-> build
+  note plan: Reads the upload and picks a runtime.
+  click url "https://example.com"
+\`\`\`
+\`\`\`\`
+Shapes: \`id[box]\`, \`id(rounded)\`, \`id([start/end])\`, \`id((circle))\`, \`id{decision}\`, \`id[(database)]\`. Arrows: \`-->\`, \`-->|label|\` or \`-- label -->\`, \`-.->\` (dotted), \`==>\` (thick), \`---\` (no head), \`<-->\`. Chains work: \`a --> b --> c\`. Tones: \`id:::ok\` or \`class a,b warn\` (flag | ok | warn | danger | muted). \`note id: text\` shows under the chart when the step is clicked. \`click id "#screen"\` (prototype) or \`click id "https://…"\` makes it a link. Options on the fence: title="…", caption="…", direction=TB|LR|BT|RL, play (a Play button steps through it), animate (edges keep flowing), span=2|full (dashboard). \`subgraph\`, \`classDef\` and \`style\` are accepted and ignored. Keep it under about 15 steps; use TB when there are more than 6 in a row, so it fits the page without scrolling.`;
+
 const KINDS: Record<ArtifactKind, string> = {
   document:
     "## Documents\nPlain markdown: `##` headings (numbered automatically), paragraphs, lists, tables, `>` quotes, code, plus the blocks and charts below.",
@@ -88,7 +103,7 @@ artifact.md compiles to gangway's HTML elements. For a custom layout, write inde
 Sep 10,121</gw-chart>
 </gw-dashboard></body></html>
 \`\`\`
-Elements: gw-doc, gw-dashboard, gw-deck > gw-slide, gw-prototype > gw-screen, gw-section, gw-card, gw-grid, gw-columns, gw-stat, gw-chart, gw-callout, gw-flag, gw-facts (dt/dd pairs). Attributes match the markdown options. Ordinary HTML works inside any of them. Don't put a gw-chart inside a gw-card: both draw a frame.`;
+Elements: gw-doc, gw-dashboard, gw-deck > gw-slide, gw-prototype > gw-screen, gw-section, gw-card, gw-grid, gw-columns, gw-stat, gw-chart, gw-flow (the flowchart text inside), gw-callout, gw-flag, gw-facts (dt/dd pairs). Attributes match the markdown options. Ordinary HTML works inside any of them. Don't put a gw-chart inside a gw-card: both draw a frame.`;
 
 const WRITING = `## Writing
 - Titles say the finding ("Volume has climbed every month"), not the topic ("Monthly volume").
@@ -103,6 +118,7 @@ export function guideText(kind: ArtifactKind): string {
     KINDS[kind],
     BLOCKS,
     CHARTS,
+    FLOWS,
     INLINE,
     WRITING,
     HTML,
@@ -118,6 +134,7 @@ export function guideMarkdown(): string {
       ...ARTIFACT_KINDS.map((k) => KINDS[k]),
       BLOCKS,
       CHARTS,
+      FLOWS,
       INLINE,
       WRITING,
       HTML,

@@ -75,10 +75,7 @@ export function servesHere(ctx: PreviewContext, plan: AppPlan | undefined): bool
   );
 }
 
-/**
- * The stack a served preview would have been, without asking compose: one exposed service on
- * the port the container would have listened on, so its route and hostname come out the same.
- */
+/** The stack it would have been, without asking compose, so its route comes out the same. */
 export function siteModel(plan: AppPlan, port: number | undefined): Planned {
   const listen = port ?? plan.port ?? runtimeById("static").port;
   return {

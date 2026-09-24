@@ -1,5 +1,6 @@
 import { applyTheme, chrome } from "./chrome.ts";
 import { defineElements, problem } from "./elements.ts";
+import { defineFlow } from "./flow.ts";
 import { compile } from "./md.ts";
 import { defineStage } from "./stage.ts";
 
@@ -16,6 +17,7 @@ async function markdown(): Promise<string | null> {
 async function boot(): Promise<void> {
   applyTheme();
   defineElements();
+  defineFlow();
   defineStage();
   if (!document.querySelector(ROOTS)) {
     const src = await markdown();

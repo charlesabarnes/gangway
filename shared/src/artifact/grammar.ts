@@ -44,6 +44,7 @@ export type Block =
       raw: string[];
     }
   | { type: "chart"; attrs: Attrs; line: number; closed: boolean; csv: string[] }
+  | { type: "flow"; attrs: Attrs; line: number; closed: boolean; src: string[] }
   | { type: "stat"; attrs: Attrs; line: number }
   | { type: "code"; line: number; lines: string[] }
   | { type: "text"; line: number; text: string };
@@ -76,6 +77,23 @@ export function scan(lines: string[], first = 1): Block[] {
       });
       i = f.end;
       continue;
+    }
+    const flow = /^```(flow|mermaid)\b(.*)$/.exec(line);
+    if (flow) {
+      const f = fenced(lines, i);
+      const head = f.inner.find((l) => l.trim() !== "")?.trim() ?? "";
+      // A mermaid fence that is not a flowchart stays a code block.
+      if (flow[1] === "flow" || /^(flowchart|graph)\b/i.test(head)) {
+        out.push({
+          type: "flow",
+          attrs: parseAttrs(flow[2] ?? ""),
+          line: at,
+          closed: f.closed,
+          src: f.inner,
+        });
+        i = f.end;
+        continue;
+      }
     }
     if (line.startsWith("```")) {
       const f = fenced(lines, i);

@@ -17,6 +17,12 @@ describe("compile", () => {
     expect(html).toContain('<gw-chart type="bar" x="month" y="a,b">month,a,b\nJan,1,2</gw-chart>');
   });
 
+  test("a flow fence becomes a gw-flow holding its escaped source", () => {
+    const html = doc('```flow title="Path" play\na[Start] --> b{OK?}\n```');
+    expect(html).toContain('<gw-flow title="Path" play>a[Start] --&gt; b{OK?}</gw-flow>');
+    expect(html).not.toContain("<p><gw-flow");
+  });
+
   test("stats lines become a grid of stats with text deltas", () => {
     const html = doc("::: stats\nChurn | 2.1% | -0.4 pts down-good | vs last month\n:::");
     expect(html).toContain("<gw-grid");

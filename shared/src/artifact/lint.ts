@@ -8,6 +8,7 @@ import {
   type Attrs,
   type Block,
 } from "./grammar.ts";
+import { FLOW_DIRECTIONS, parseFlow } from "./flow.ts";
 import {
   ARTIFACT_ACCENTS,
   ARTIFACT_KINDS,
@@ -108,6 +109,16 @@ function checkChart(c: Ctx, b: Extract<Block, { type: "chart" }>) {
     });
 }
 
+function checkFlow(c: Ctx, b: Extract<Block, { type: "flow" }>) {
+  if (!b.closed) c.issues.push({ line: b.line, message: "this ```flow fence is never closed" });
+  const dir = b.attrs["direction"];
+  checkValue(c, b.line, "direction", dir?.toUpperCase(), FLOW_DIRECTIONS);
+  const g = parseFlow(b.src.join("\n"), b.line + 1);
+  c.issues.push(...g.issues);
+  for (const n of g.nodes)
+    if (n.link?.startsWith("#")) c.links.push({ line: n.line, message: n.link.slice(1) });
+}
+
 function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
   if (!(CONTAINERS as readonly string[]).includes(b.name))
     return void c.issues.push({
@@ -153,6 +164,7 @@ function checkText(c: Ctx, line: number, text: string) {
 function walk(c: Ctx, blocks: Block[]) {
   for (const b of blocks) {
     if (b.type === "chart") checkChart(c, b);
+    else if (b.type === "flow") checkFlow(c, b);
     else if (b.type === "stat") checkStat(c, b.line, b.attrs);
     else if (b.type === "container") checkContainer(c, b);
     else if (b.type === "text") {
