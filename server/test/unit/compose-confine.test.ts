@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { buildStack, parseComposeModel } from "../../src/previews/compose-model.ts";
+import {
+  buildStack,
+  KEPT_CAPABILITIES,
+  parseComposeModel,
+} from "../../src/previews/compose-model.ts";
 
 /** Shaped like the parsed output of a real `docker compose config`. */
 const resolved = (services: Record<string, unknown>) => ({
@@ -31,6 +35,18 @@ describe("policy: nothing reaches the operator's other containers or the host", 
     ["use_api_socket", { use_api_socket: true }],
     ["a provider service", { provider: { type: "model" } }],
     ["a privileged hook", { post_start: [{ command: "id", privileged: true }] }],
+    ["runtime", { runtime: "runc" }],
+    ["isolation", { isolation: "hyperv" }],
+    ["sysctls", { sysctls: { "net.ipv4.ip_forward": 1 } }],
+    ["extra_hosts", { extra_hosts: ["metadata:169.254.169.254"] }],
+    ["dns", { dns: ["10.0.0.1"] }],
+    ["dns as a string", { dns: "10.0.0.1" }],
+    ["dns_search", { dns_search: ["corp.lan"] }],
+    ["dns_opt", { dns_opt: ["ndots:1"] }],
+    ["storage_opt", { storage_opt: { size: "1G" } }],
+    ["another preview's image", { image: "gw-main-shop-web" }],
+    ["another preview's image, tagged", { image: "docker.io/library/gw-main-shop-web:latest" }],
+    ["links to a container outside the preview", { links: ["npm:proxy"] }],
   ])("%s is refused", (_what, svc) => {
     expect(violations({ web: { image: "n", ...svc } })).toHaveLength(1);
   });
@@ -46,6 +62,8 @@ describe("policy: nothing reaches the operator's other containers or the host", 
     };
     expect(violations({ web, db: { image: "pg" } })).toEqual([]);
     expect(violations({ web: { image: "n", network_mode: "none" } })).toEqual([]);
+    expect(violations({ web: { image: "n", isolation: "default" } })).toEqual([]);
+    expect(violations({ web: { image: "someone/gw-tools:1" } })).toEqual([]);
   });
 });
 
@@ -64,27 +82,52 @@ describe("policy: builds get no host network, no privilege and no entitlements",
       'service "web": build.privileged is not allowed',
     ]);
   });
+
+  test("no host names, no cache shared with the host or other previews, no gw-* tags", () => {
+    const build = (b: Record<string, unknown>) =>
+      violations({ web: { build: { context: "/x", ...b } } });
+    expect(build({ extra_hosts: ["db:10.0.0.5"] })).toEqual([
+      'service "web": build.extra_hosts is not allowed',
+    ]);
+    expect(
+      build({ cache_from: ["type=local,src=/srv"], cache_to: ["type=local,dest=/srv"] }),
+    ).toEqual([
+      'service "web": build.cache_from is not allowed',
+      'service "web": build.cache_to is not allowed',
+    ]);
+    expect(build({ isolation: "process" })).toEqual([
+      'service "web": build.isolation is not allowed',
+    ]);
+    expect(build({ tags: ["app:dev", "gw-main-shop-web"] })).toEqual([
+      'service "web": build.tags gw-main-shop-web are not allowed',
+    ]);
+    expect(build({ tags: ["app:dev"] })).toEqual([]);
+  });
 });
 
+const LIMITS = { memoryBytes: 2 * 1024 ** 3, cpus: 2, pids: 1024 };
+
+const stackOf = (services: Record<string, unknown>, limits = LIMITS) => {
+  const input = resolved(services);
+  const m = parseComposeModel("gw-x", input);
+  return JSON.parse(
+    buildStack({
+      resolved: input,
+      planProject: "gw-x",
+      model: m,
+      routes: [],
+      createdAt: new Date(0),
+      ctx: { instance: "t", env: "dev", project: "gw-a", hostId: "local", visibility: "public" },
+      publishBind: "127.0.0.1",
+      origin: { scheme: "https", port: 8443 },
+      limits,
+    }),
+  );
+};
+
 describe("buildStack confines every container", () => {
-  const LIMITS = { memoryBytes: 2 * 1024 ** 3, cpus: 2, pids: 1024 };
-  const stack = (svc: Record<string, unknown>, limits = LIMITS) => {
-    const input = resolved({ web: { image: "n", ...svc } });
-    const m = parseComposeModel("gw-x", input);
-    return JSON.parse(
-      buildStack({
-        resolved: input,
-        planProject: "gw-x",
-        model: m,
-        routes: [],
-        createdAt: new Date(0),
-        ctx: { instance: "t", env: "dev", project: "gw-a", hostId: "local", visibility: "public" },
-        publishBind: "127.0.0.1",
-        origin: { scheme: "https", port: 8443 },
-        limits,
-      }),
-    ).services.web;
-  };
+  const stack = (svc: Record<string, unknown>, limits = LIMITS) =>
+    stackOf({ web: { image: "n", ...svc } }, limits).services.web;
 
   test("the operator's limits apply, with no swap past the memory limit", () => {
     expect(stack({})).toMatchObject({
@@ -127,10 +170,48 @@ describe("buildStack confines every container", () => {
     for (const key of ["mem_limit", "memswap_limit", "cpus"]) expect(key in web).toBe(false);
   });
 
-  test("no privilege is gained after start, and raw sockets are dropped", () => {
-    expect(stack({ cap_drop: ["MKNOD"] })).toMatchObject({
+  test("no new privileges, and only a short list of capabilities is kept", () => {
+    expect(stack({})).toMatchObject({
       security_opt: ["no-new-privileges:true"],
-      cap_drop: ["MKNOD", "NET_RAW"],
+      cap_drop: ["ALL"],
+      cap_add: [...KEPT_CAPABILITIES],
     });
+    expect(stack({}).cap_add).not.toContain("NET_RAW");
+  });
+
+  test("a capability the file drops stays dropped, and dropping ALL keeps none", () => {
+    expect(stack({ cap_drop: ["chown", "MKNOD"] }).cap_add).not.toContain("CHOWN");
+    const none = stack({ cap_drop: ["ALL"] });
+    expect(none.cap_drop).toEqual(["ALL"]);
+    expect("cap_add" in none).toBe(false);
+  });
+});
+
+describe("buildStack keeps each preview's names to itself", () => {
+  test("compose's own labels from the file are dropped, on services, builds and volumes", () => {
+    const doc = stackOf({
+      web: {
+        image: "n",
+        labels: { "com.docker.compose.project": "gw-t-victim", keep: "1" },
+        build: { context: "/x", labels: { "com.docker.compose.service": "db", ok: "2" } },
+      },
+    });
+    const web = doc.services.web;
+    expect(web.labels.keep).toBe("1");
+    expect(Object.keys(web.labels).some((k: string) => k.startsWith("com.docker.compose."))).toBe(
+      false,
+    );
+    expect(web.build.labels).toEqual({ ok: "2" });
+  });
+
+  test("a built image keeps compose's name, and a sibling that reused it follows", () => {
+    const doc = stackOf({
+      web: { build: { context: "/x" }, image: "app" },
+      worker: { image: "app:latest" },
+      db: { image: "postgres:16" },
+    });
+    expect("image" in doc.services.web).toBe(false);
+    expect(doc.services.worker.image).toBe("gw-a-web");
+    expect(doc.services.db.image).toBe("postgres:16");
   });
 });

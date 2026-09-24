@@ -22,6 +22,7 @@ import type { Workdir } from "./source/workdir.ts";
 export type Materialized = {
   source: PreviewSource;
   composeFile: string;
+  dotenv?: Record<string, string> | undefined;
   dockerConfig?: string;
   pristine?: string | null;
   runtime?: RuntimeId | null;
@@ -149,10 +150,7 @@ async function clonedSource(
       ? await cloneGit(ctx, id, source, wd)
       : await clonePr(ctx, id, source, wd);
   await assertNoEscapingSymlinks(wd.srcDir);
-  return {
-    source: recorded,
-    composeFile: await ownStack(ctx, id, wd.srcDir, env, source.port, null),
-  };
+  return { source: recorded, ...(await ownStack(ctx, id, wd.srcDir, env, source.port, null)) };
 }
 
 async function tarballSource(
@@ -178,6 +176,7 @@ async function tarballSource(
       ...brandField(source.brand),
     },
     composeFile: up.composeFile,
+    dotenv: up.dotenv,
     pristine: up.pristine,
     runtime: up.runtime,
     plan: up.plan,

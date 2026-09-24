@@ -14,6 +14,8 @@ import type { Workdir } from "./source/workdir.ts";
 
 export type PreparedUpload = {
   composeFile: string;
+  /** Secrets `compose config` reads as `.env`; only an upload's own compose file has them. */
+  dotenv?: Record<string, string> | undefined;
   runtime: RuntimeId | null;
   pristine: string | null;
   plan: AppPlan;
@@ -135,7 +137,7 @@ export async function prepareUpload(
     if (choice === "auto")
       ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
     return {
-      composeFile: await ownStack(ctx, logId, wd.srcDir, env, port, plan, sidecars),
+      ...(await ownStack(ctx, logId, wd.srcDir, env, port, plan, sidecars)),
       runtime: null,
       pristine,
       plan,

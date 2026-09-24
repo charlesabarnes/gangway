@@ -188,9 +188,25 @@ function confine(svc: Json, cap: PreviewLimits): void {
   else delete svc["deploy"];
 
   svc["security_opt"] = ["no-new-privileges:true"];
-  // Raw sockets let one container spoof ARP and traffic on a network it shares with others.
-  svc["cap_drop"] = [...new Set([...arr(svc["cap_drop"]).map(String), "NET_RAW"])];
+  const dropped = new Set(arr(svc["cap_drop"]).map((c) => String(c).toUpperCase()));
+  svc["cap_drop"] = ["ALL"];
+  const kept = dropped.has("ALL") ? [] : KEPT_CAPABILITIES.filter((c) => !dropped.has(c));
+  if (kept.length > 0) svc["cap_add"] = kept;
+  else delete svc["cap_add"];
 }
+
+/** What an image needs to start as root, fix its files' owners and step down to its own user. */
+export const KEPT_CAPABILITIES = [
+  "CHOWN",
+  "DAC_OVERRIDE",
+  "FOWNER",
+  "FSETID",
+  "KILL",
+  "SETGID",
+  "SETUID",
+  "NET_BIND_SERVICE",
+  "SYS_CHROOT",
+] as const;
 
 const envKey = (service: string) =>
   `GANGWAY_URL_${service.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
@@ -204,6 +220,32 @@ function asMap(v: unknown): Record<string, unknown> {
       return i === -1 ? [text, null] : [text.slice(0, i), text.slice(i + 1)];
     }),
   );
+}
+
+// destroy and the data browser find containers, volumes and images by these labels.
+const theirLabels = (labels: unknown) =>
+  Object.fromEntries(
+    Object.entries(asMap(labels)).filter(
+      ([k]) => !k.startsWith("gangway.") && !k.startsWith("com.docker.compose."),
+    ),
+  );
+
+const withTag = (image: string) => (/@|:[^/]*$/.test(image) ? image : `${image}:latest`);
+
+/** A built image keeps compose's `<project>-<service>` name: `image: app` is every preview's `app`. */
+function namespaceBuiltImages(services: Json, project: string): void {
+  const renamed = new Map<string, string>();
+  for (const [name, raw] of Object.entries(services)) {
+    const svc = obj(raw);
+    if (svc["build"] === undefined || svc["build"] === null) continue;
+    if (typeof svc["image"] === "string") renamed.set(withTag(svc["image"]), `${project}-${name}`);
+    delete svc["image"];
+  }
+  for (const raw of Object.values(services)) {
+    const svc = obj(raw);
+    const to = typeof svc["image"] === "string" ? renamed.get(withTag(svc["image"])) : undefined;
+    if (to && (svc["build"] === undefined || svc["build"] === null)) svc["image"] = to;
+  }
 }
 
 export function buildStack(i: StackInput): string {
@@ -229,10 +271,12 @@ export function buildStack(i: StackInput): string {
     const mine = route
       ? buildLabels(labelsFromRoute({ ...route, createdAt: i.createdAt }, i.ctx))
       : ownership;
-    const theirs = Object.fromEntries(
-      Object.entries(asMap(svc["labels"])).filter(([k]) => !k.startsWith("gangway.")),
-    );
-    svc["labels"] = { ...theirs, ...mine };
+    svc["labels"] = { ...theirLabels(svc["labels"]), ...mine };
+    if (svc["build"] && typeof svc["build"] === "object") {
+      const build = obj(svc["build"]);
+      if (build["labels"] !== undefined) build["labels"] = theirLabels(build["labels"]);
+      svc["build"] = build;
+    }
 
     if (route) {
       svc["ports"] = [
@@ -259,13 +303,14 @@ export function buildStack(i: StackInput): string {
     confine(svc, i.limits ?? NO_LIMITS);
     services[name] = svc;
   }
+  namespaceBuiltImages(services, i.ctx.project);
 
   for (const kind of ["networks", "volumes"] as const) {
     const section = obj(doc[kind]);
     for (const [key, raw] of Object.entries(section)) {
       const r = obj(raw);
       if (r["name"] === `${i.planProject}_${key}`) delete r["name"];
-      r["labels"] = { ...asMap(r["labels"]), ...ownership };
+      r["labels"] = { ...theirLabels(r["labels"]), ...ownership };
       section[key] = r;
     }
     if (Object.keys(section).length > 0) doc[kind] = section;

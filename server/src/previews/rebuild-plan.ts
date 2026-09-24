@@ -136,7 +136,9 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
     brand,
   });
   const site = siteFor(ctx, source, up.plan);
-  const planned = site ? siteModel(site, port) : await readModel(ctx, b.host, wd, up.composeFile);
+  const planned = site
+    ? siteModel(site, port)
+    : await readModel(ctx, b.host, wd, up.composeFile, up.dotenv);
   assertSameExposure(routes, planned.model);
   const next = await recordSource(ctx, b.sources, id, source, up, input.network, input.brand);
   return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan, site, brand };

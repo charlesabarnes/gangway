@@ -1,4 +1,4 @@
-import { lstat, mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { unprocessable } from "../errors.ts";
@@ -13,18 +13,31 @@ import { DIR_MODE, FILE_MODE } from "./source/types.ts";
 
 export const COMPOSE_FILE = "compose.yaml";
 
-async function writeDotenv(srcDir: string, env: Record<string, string>): Promise<number> {
-  const names = Object.keys(env);
-  if (names.length === 0) return 0;
+/** Secrets as `.env` only while `compose config` reads them; the build must not see them. */
+export async function withDotenv<T>(
+  srcDir: string,
+  env: Record<string, string> | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const names = Object.keys(env ?? {});
+  if (!env || names.length === 0) return fn();
   const file = join(srcDir, ".env");
   const st = await lstat(file).catch(() => null);
   if (st && !st.isFile()) throw unprocessable(".env in the source is not a regular file");
-  const committed = st ? await Bun.file(file).text() : "";
+  const committed = st ? await Bun.file(file).text() : null;
   const lines = names.map((k) => dotenvLine(k, env[k]!));
-  const body = `${committed.replace(/\s*$/, "")}${committed.trim() === "" ? "" : "\n"}# --- gangway: repository secrets ---\n${lines.join("\n")}\n`;
+  const kept = (committed ?? "").replace(/\s*$/, "");
+  const body = `${kept}${kept === "" ? "" : "\n"}# --- gangway: repository secrets ---\n${lines.join("\n")}\n`;
   await writeFile(file, body, { mode: 0o600 });
-  return names.length;
+  try {
+    return await fn();
+  } finally {
+    if (committed === null) await rm(file, { force: true });
+    else await writeFile(file, committed, { mode: st!.mode & 0o777 });
+  }
 }
+
+export type OwnStack = { composeFile: string; dotenv?: Record<string, string> | undefined };
 
 async function requireDockerfilePort(
   srcDir: string,
@@ -54,14 +67,18 @@ export async function ownStack(
   askedPort: number | undefined,
   plan: AppPlan | null,
   sidecars?: RenderedAddons,
-): Promise<string> {
-  if (env) {
-    const n = await writeDotenv(srcDir, env);
-    if (n > 0)
-      ctx.logs.append(id, "system", `wrote .env with ${n} repository secret${n === 1 ? "" : "s"}`);
-  }
+): Promise<OwnStack> {
+  const n = Object.keys(env ?? {}).length;
   const found = await inspectComposeFile(srcDir);
-  if (found) return found;
+  if (found) {
+    if (n > 0)
+      ctx.logs.append(
+        id,
+        "system",
+        `compose reads ${n} repository secret${n === 1 ? "" : "s"} as .env; the build does not see it`,
+      );
+    return { composeFile: found, ...(n > 0 ? { dotenv: env } : {}) };
+  }
 
   const port = await requireDockerfilePort(srcDir, askedPort, plan);
   if (sidecars) {
@@ -69,7 +86,10 @@ export async function ownStack(
     for (const [name, body] of Object.entries(sidecars.files))
       await writeFile(join(srcDir, GENERATED_DIR, name), body, { mode: FILE_MODE });
   }
-  const appEnv = { ...(plan?.env ?? {}), ...(sidecars?.appEnv ?? {}) };
+  // No compose file to read a .env: the container gets the secrets as environment, as a runtime does.
+  const appEnv = { ...(env ?? {}), ...(plan?.env ?? {}), ...(sidecars?.appEnv ?? {}) };
+  if (n > 0)
+    ctx.logs.append(id, "system", `passing ${n} secret(s) to the container as environment`);
   await writeFile(
     join(srcDir, COMPOSE_FILE),
     composeForDockerfile({
@@ -81,5 +101,5 @@ export async function ownStack(
     }),
     { mode: 0o600 },
   );
-  return COMPOSE_FILE;
+  return { composeFile: COMPOSE_FILE };
 }

@@ -9,6 +9,7 @@ import { redactString } from "../logger.ts";
 import { buildStack, parseComposeModel, type ComposeModel } from "./compose-model.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
+import { withDotenv } from "./own-stack.ts";
 import type { Workdir } from "./source/workdir.ts";
 
 export const PLAN_PROJECT = "gw-plan";
@@ -21,6 +22,7 @@ export async function readModel(
   host: Host,
   wd: Workdir,
   composeFile: string,
+  dotenv?: Record<string, string>,
 ): Promise<Planned> {
   const argv = composeArgv({
     project: PLAN_PROJECT,
@@ -29,7 +31,9 @@ export async function readModel(
     docker: ctx.docker,
     command: "config",
   });
-  const r = await ctx.compose.capture(argv, host, { cwd: wd.srcDir });
+  const r = await withDotenv(wd.srcDir, dotenv, () =>
+    ctx.compose.capture(argv, host, { cwd: wd.srcDir }),
+  );
   if (r.code !== 0)
     throw unprocessable("the compose file is not valid", {
       compose: redactString(r.stderr).slice(-2_000),

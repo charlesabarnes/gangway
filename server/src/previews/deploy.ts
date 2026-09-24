@@ -123,7 +123,7 @@ async function prepare(
     material.source = { ...material.source, serve: "gangway" };
   const planned = site
     ? siteModel(site, input.source.kind === "tarball" ? input.source.port : undefined)
-    : await readModel(ctx, host, wd, material.composeFile);
+    : await readModel(ctx, host, wd, material.composeFile, material.dotenv);
   const { model } = planned;
   const exposed = selectExposed(model);
   const visibility = visibilityFor(ctx, input, policy, model);

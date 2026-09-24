@@ -281,25 +281,76 @@ describe("the seed hook", () => {
   });
 });
 
-describe("repository secrets become .env", () => {
+describe("repository secrets become .env while compose reads the file", () => {
   // The fake `config` returns the compose file as-is; what matters is what is on disk when it runs.
-  const dotenvAtConfig = (s: ReturnType<typeof setupPreviewContext>) => {
-    let seen: string | null = null;
-    const inner = s.ctx.compose.capture.bind(s.ctx.compose);
+  const dotenvAt = (s: ReturnType<typeof setupPreviewContext>) => {
+    const seen = { config: null as string | null, build: null as string | null, compose: "" };
+    let dir = "";
+    const read = () =>
+      Bun.file(`${dir}/.env`)
+        .text()
+        .catch(() => null);
+    const inner = s.ctx.compose;
     s.ctx.compose = {
-      ...s.ctx.compose,
+      ...inner,
       capture: async (argv, host, o) => {
         if (argv.includes("config")) {
-          const dir = argv[argv.indexOf("--project-directory") + 1]!;
-          seen = await Bun.file(`${dir}/.env`)
-            .text()
-            .catch(() => null);
+          dir = argv[argv.indexOf("--project-directory") + 1]!;
+          seen.config = await read();
+          seen.compose = await Bun.file(argv[argv.indexOf("--file") + 1]!).text();
         }
-        return inner(argv, host, o);
+        return inner.capture(argv, host, o);
+      },
+      async *stream(argv, host, o) {
+        if (argv.includes("build")) seen.build = await read();
+        yield* inner.stream(argv, host, o);
       },
     };
-    return () => seen;
+    return seen;
   };
+  const dotenvAtConfig = (s: ReturnType<typeof setupPreviewContext>) => {
+    const seen = dotenvAt(s);
+    return () => seen.config;
+  };
+
+  test("the build sees the committed .env again, or none at all", async () => {
+    for (const committed of ["PORT=3000\n", null]) {
+      const s = setupPreviewContext();
+      const seen = dotenvAt(s);
+      const archive = await tarball([
+        { name: "compose.yaml", content: COMPOSE },
+        { name: "Dockerfile", content: "FROM nginx" },
+        ...(committed === null ? [] : [{ name: ".env", content: committed }]),
+      ]);
+      const res = await deploy(s.ctx, {
+        ...base,
+        name: "baked",
+        env: { API_KEY: "sk-live" },
+        source: { kind: "tarball", archive },
+      });
+      expect((await res.done).state).toBe("awake");
+      expect(seen.config).toContain('API_KEY="sk-live"');
+      expect(seen.build).toBe(committed);
+    }
+  });
+
+  test("a Dockerfile with no compose file gets the secrets as container environment", async () => {
+    const s = setupPreviewContext();
+    const seen = dotenvAt(s);
+    const archive = await tarball([{ name: "Dockerfile", content: "FROM nginx" }]);
+    const res = await deploy(s.ctx, {
+      ...base,
+      name: "bare",
+      env: { API_KEY: "sk-$live" },
+      source: { kind: "tarball", archive, port: 8080 },
+    });
+    expect((await res.done).state).toBe("awake");
+    expect(seen.config).toBeNull();
+    expect(JSON.parse(seen.compose).services.web.environment).toEqual({ API_KEY: "sk-$$live" });
+    expect(s.ctx.logs.tail(res.preview.id).join("\n")).toContain(
+      "passing 1 secret(s) to the container as environment",
+    );
+  });
 
   test("`env` is appended to a committed .env before compose reads anything", async () => {
     const s = setupPreviewContext();
@@ -320,7 +371,7 @@ describe("repository secrets become .env", () => {
       'PORT=3000\nFONTAWESOME_TOKEN=placeholder\n# --- gangway: repository secrets ---\nFONTAWESOME_TOKEN="fa-real"\nAPI_KEY="k\\"1"\n',
     );
     expect(s.ctx.logs.tail(res.preview.id).join("\n")).toContain(
-      "wrote .env with 2 repository secrets",
+      "compose reads 2 repository secrets as .env; the build does not see it",
     );
     expect(s.ctx.logs.tail(res.preview.id).join("\n")).not.toContain("fa-real");
   });
