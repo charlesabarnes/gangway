@@ -115,7 +115,7 @@ describe("loadConfig", () => {
 
   test("preview limits have safe defaults and come from the environment", () => {
     const defaults = new Settings({}, new MemorySettingsStore());
-    expect(defaults.get(SETTINGS.previewsMemory)).toBe("2g");
+    expect(defaults.get(SETTINGS.previewsMemory)).toBe("1g");
     expect(defaults.get(SETTINGS.previewsCpus)).toBe(0);
     expect(defaults.get(SETTINGS.previewsPids)).toBe(1024);
 

@@ -168,7 +168,7 @@ Everything can be set in the environment. Settings not pinned there are editable
 | `GANGWAY_TLS_MODE`                           | `selfsigned`        | `selfsigned`, `acme` (DNS-01) or `file`                        |
 | `GANGWAY_TRUSTED_PROXIES`                    | _(none)_            | Proxies whose `X-Forwarded-For` is believed                    |
 | `GANGWAY_CONTROL_ALLOW`                      | _(everyone)_        | Networks allowed to reach the UI and API; previews stay public |
-| `GANGWAY_PREVIEW_MEMORY` / `_CPUS` / `_PIDS` | `2g` / off / `1024` | Limits for every preview container                             |
+| `GANGWAY_PREVIEW_MEMORY` / `_CPUS` / `_PIDS` | `1g` / off / `1024` | Limits for every preview container                             |
 | `GANGWAY_SURFACE_MCP`                        | `false`             | Pin the MCP surface on or off                                  |
 
 <!-- Expand from compose.yaml: listen ports, hosts, reconcile, ACME email, GitHub App vars. -->

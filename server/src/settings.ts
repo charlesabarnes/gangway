@@ -64,7 +64,7 @@ export const SETTINGS = {
   previewsMemory: def(
     "previews.limits.memory",
     z.string().refine((v) => parseBytes(v) !== null, "a size like 512m or 2g, or 0 for no limit"),
-    "2g",
+    "1g",
   ),
   previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 0),
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),

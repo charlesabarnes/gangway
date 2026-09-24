@@ -38,7 +38,7 @@
 #                                         the UI, API and MCP stay under GANGWAY_BASE_DOMAIN
 #   GANGWAY_INSTANCE=main                 names this installation's containers: gw-<instance>-<slug>
 #   GANGWAY_STATE_PATH=/srv/gangway       SQLite database, logs, scratch
-#   GANGWAY_PREVIEW_MEMORY=2g             optional, per container; unset = 2g
+#   GANGWAY_PREVIEW_MEMORY=1g             optional, per container; unset = 1g
 #   GANGWAY_PREVIEW_CPUS=0                optional, per container; unset = no CPU limit
 #   GANGWAY_PREVIEW_PIDS=1024             optional, per container; unset = 1024
 #   GANGWAY_CONTROL_ALLOW=192.168.1.0/24,100.64.0.0/10
