@@ -14,7 +14,7 @@ What to build: $ARGUMENTS (if that is empty or unexpanded, the user's request)
 
 1. Pick the kind: **document** (reading), **dashboard** (numbers and charts), **deck** (a talk), **prototype** (a clickable mockup).
 2. Call the MCP `catalog` tool with that kind. It returns the artifact.md guide, the templates for that kind (each with options) and a complete example. The same guide is in [catalog.md](catalog.md).
-3. Start from the closest template: `deploy` with `artifact: {template, title, subtitle, theme, accent, options}`, plus `name`, `visibility` and `check`.
+3. Start from the closest template: `deploy` with `artifact: {template, title, subtitle, theme, accent, options}`, plus `name`, `title`, `icon`, `iconColor`, `visibility` and `check`.
 4. Make it the user's: rewrite `artifact.md` (markdown, plus a few blocks for stats, charts and slides; see [catalog.md](catalog.md)) and `data/*.csv` for rows, then `deploy` with `preview: "<name>"` + `files`. gangway checks it on deploy; a 422 names the line, so fix exactly that.
 5. For a layout markdown can't express, write `index.html` with gangway's `gw-*` elements instead.
 
@@ -50,6 +50,8 @@ Put the story in the words: a title that says the finding, one idea per section 
 - every deployed file with its sha256.
 
 Read the answer; it replaces curling routes and reading gangway's source. Choose `visibility: "unlisted"` unless the user wants it public.
+
+Always give a `title` (what the user calls it, e.g. "Checkout redesign") and an `icon` with an `iconColor` (what it is about: `presentation`, `chart-line`, `shopping-cart`…). gangway's list shows them; without them the user sees a bare address. `preview` plus `title` or `icon` changes them without a rebuild.
 
 ## Iterate at the same URL
 

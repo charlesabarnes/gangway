@@ -132,7 +132,10 @@ function frame(
   const vals = rows.flatMap((r) =>
     cfg.stacked ? [ys.reduce((t, k) => t + num(r[k]), 0)] : ys.map((k) => num(r[k])),
   );
-  const t = ticks(Math.max(...vals, 0), Math.min(...vals, 0));
+  const [hi0, lo0] = [Math.max(...vals), Math.min(...vals)];
+  // A line may start above zero when its values sit far from it; bars and areas always include zero.
+  const fit = cfg.type === "line" && lo0 > 0 && lo0 > hi0 - lo0;
+  const t = fit ? ticks(hi0, lo0) : ticks(Math.max(hi0, 0), Math.min(lo0, 0));
   const left = Math.max(...t.map((v) => fmt(v, cfg.format).length)) * 7 + 12;
   const right = endLabel ? 56 : 10;
   const lo = t[0]!;

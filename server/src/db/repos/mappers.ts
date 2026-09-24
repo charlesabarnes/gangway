@@ -1,3 +1,4 @@
+import { DEFAULT_ICON_COLOR, type PreviewIcon } from "@gangway/shared/preview-icon";
 import type {
   ApiToken,
   AuditActorType,
@@ -91,6 +92,8 @@ export type PreviewRow = {
   password_login?: string | null;
   signed_in_only?: number | null;
   title?: string | null;
+  icon?: string | null;
+  icon_color?: string | null;
 };
 
 export function rowToPreview(r: PreviewRow): Preview {
@@ -98,6 +101,9 @@ export function rowToPreview(r: PreviewRow): Preview {
     id: r.id,
     project: r.project,
     title: r.title ?? null,
+    icon: r.icon
+      ? ({ name: r.icon, color: r.icon_color ?? DEFAULT_ICON_COLOR } as PreviewIcon)
+      : null,
     hostId: r.host_id,
     kind: r.kind as Preview["kind"],
     state: r.state as Preview["state"],

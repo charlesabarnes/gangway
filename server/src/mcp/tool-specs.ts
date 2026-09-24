@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ARTIFACT_KINDS, TemplateInputSchema } from "@gangway/shared/artifact/index";
 import { VISIBILITY_VALUES } from "@gangway/shared/api";
+import { PREVIEW_ICON_COLORS, PREVIEW_ICONS } from "@gangway/shared/preview-icon";
 import { CHECK_PATH } from "../previews/probe.ts";
 
 export const DEFAULT_WAIT_S = 240;
@@ -76,7 +77,21 @@ export const DeployArgs = z.object({
     .min(1)
     .max(100)
     .optional()
-    .describe('What people see it called in gangway: any text, e.g. "Checkout redesign".'),
+    .describe(
+      'Always set one: what people see it called in gangway\'s list, e.g. "Checkout redesign" or "Q3 board deck". With preview, renames it without a rebuild.',
+    ),
+  icon: z
+    .enum(PREVIEW_ICONS)
+    .optional()
+    .describe(
+      "Always set one: the icon beside the title in gangway's list. Pick what it is about, not how it is built: presentation for a deck, chart-line for metrics, shopping-cart for a shop. With preview, changes it without a rebuild.",
+    ),
+  iconColor: z
+    .enum(PREVIEW_ICON_COLORS)
+    .optional()
+    .describe(
+      "The icon's colour (default navy). Match an artifact's accent, or pick one that tells it apart from the user's other previews.",
+    ),
   visibility: z
     .enum(VISIBILITY_VALUES)
     .optional()
@@ -159,7 +174,7 @@ export const GENERATE_ARTIFACT_PROMPT = {
 export const DEPLOY_TOOL = {
   title: "Deploy a preview",
   description:
-    "Put an artifact or an app on a public HTTPS URL: an artifact from a template (artifact: {template, …}; see the catalog tool), text files, an upload, a container image, or a git repository. Waits until the URL answers and returns it. Also rebuilds an existing preview in place (preview + files).",
+    "Put an artifact or an app on a public HTTPS URL: an artifact from a template (artifact: {template, …}; see the catalog tool), text files, an upload, a container image, or a git repository. Waits until the URL answers and returns it. Also rebuilds an existing preview in place (preview + files). Give every preview a title and an icon: they are how the user finds it.",
   inputSchema: DeployArgs,
   annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
 };

@@ -128,8 +128,9 @@ describe("lintMarkdown", () => {
     expect(issues(doc("::: stats\nRevenue\n:::"))).toEqual([
       "6: a stats line is Label | value | change | note",
     ]);
-    expect(issues(doc("::: facts\nOwner Payments\n:::"))).toEqual([
+    expect(issues(doc("::: facts\nOwner Payments\nAt 14:02\n:::"))).toEqual([
       "6: a facts line is Name: value",
+      "7: a facts line is Name: value",
     ]);
   });
 

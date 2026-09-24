@@ -11,6 +11,7 @@ import { EmptyState } from '../../ui/empty-state';
 import { ErrorAlert } from '../../ui/error-alert';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { PasswordBadge } from '../../ui/password-badge';
+import { PreviewIconTile } from '../../ui/preview-icon';
 import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
@@ -36,6 +37,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
     RelativeTimePipe,
     StateBadge,
     PasswordBadge,
+    PreviewIconTile,
   ],
   template: `
     <section class="gw-page">
@@ -138,27 +140,37 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
                     [attr.data-id]="p.id"
                   >
                     <td class="py-3 pr-4">
-                      <span class="flex items-center gap-2">
-                        <a
-                          [routerLink]="['/previews', p.id]"
-                          class="font-serif text-[19px] hover:underline"
-                          data-testid="name"
-                          >{{ name(p) }}</a
-                        >
-                        @if (p.state !== 'destroyed') {
-                          <app-password-badge [access]="p.access" />
-                        }
-                      </span>
-                      @if (url(p); as u) {
-                        <a
-                          [href]="u"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="mt-0.5 block max-w-xs truncate font-mono text-xs text-muted hover:text-ink hover:underline"
-                          data-testid="url"
-                          >{{ host(u) }} ↗</a
-                        >
-                      }
+                      <div class="flex items-center gap-3">
+                        <app-preview-icon
+                          [icon]="p.icon"
+                          [source]="p.source.kind"
+                          [size]="36"
+                          data-testid="icon"
+                        />
+                        <div class="min-w-0">
+                          <span class="flex items-center gap-2">
+                            <a
+                              [routerLink]="['/previews', p.id]"
+                              class="font-serif text-[19px] hover:underline"
+                              data-testid="name"
+                              >{{ name(p) }}</a
+                            >
+                            @if (p.state !== 'destroyed') {
+                              <app-password-badge [access]="p.access" />
+                            }
+                          </span>
+                          @if (url(p); as u) {
+                            <a
+                              [href]="u"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="mt-0.5 block max-w-xs truncate font-mono text-xs text-muted hover:text-ink hover:underline"
+                              data-testid="url"
+                              >{{ host(u) }} ↗</a
+                            >
+                          }
+                        </div>
+                      </div>
                     </td>
                     <td class="py-3 pr-4 whitespace-nowrap">
                       <app-state-badge [state]="p.state" />

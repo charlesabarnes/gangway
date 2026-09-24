@@ -48,6 +48,7 @@ function createPreview(ctx: PreviewContext, c: Claim, project: string): Preview 
     id: c.id,
     project,
     title: c.input.title ?? null,
+    icon: c.input.icon ?? null,
     hostId: c.host.id,
     state: "building",
     source: c.source,

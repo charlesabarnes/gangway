@@ -1,3 +1,4 @@
+import type { PreviewIcon } from "@gangway/shared/preview-icon";
 import type {
   Clearance,
   PasswordLogin,
@@ -15,6 +16,7 @@ export type CreatePreview = {
   id: string;
   project: string;
   title?: string | null;
+  icon?: PreviewIcon | null;
   hostId: string;
   kind?: PreviewKind;
   state: PreviewState;
@@ -43,6 +45,12 @@ export type PreviewFilter = {
   includeDestroyed?: boolean;
 };
 
+const labelColumns = (p: CreatePreview) => ({
+  title: p.title ?? null,
+  icon: p.icon?.name ?? null,
+  iconColor: p.icon?.color ?? null,
+});
+
 export class PreviewsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -56,16 +64,16 @@ export class PreviewsRepo {
     const now = this.#now();
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
-      `INSERT INTO previews (id, project, title, host_id, kind, state, source_kind, source_json,
+      `INSERT INTO previews (id, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner,
                              password_mode, password_hash, password_salt, password_login, signed_in_only, created_at, updated_at)
-       VALUES ($id, $project, $title, $host_id, $kind, $state, $source_kind, $source_json,
+       VALUES ($id, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner,
                $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $now, $now)`,
       {
         id: p.id,
         project: p.project,
-        title: p.title ?? null,
+        ...labelColumns(p),
         host_id: p.hostId,
         kind: p.kind ?? "preview",
         state: p.state,
@@ -133,6 +141,13 @@ export class PreviewsRepo {
       title,
       now: this.#now(),
     });
+  }
+
+  setIcon(id: string, icon: PreviewIcon | null): void {
+    this.#db.run(
+      "UPDATE previews SET icon = $icon, icon_color = $color, updated_at = $now WHERE id = $id",
+      { id, icon: icon?.name ?? null, color: icon?.color ?? null, now: this.#now() },
+    );
   }
 
   setPasswordLogin(id: string, login: PasswordLogin): void {

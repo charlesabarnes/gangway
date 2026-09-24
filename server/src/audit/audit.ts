@@ -9,6 +9,7 @@ export type AuditAction =
   | "preview.data.query"
   | "preview.password"
   | "preview.title"
+  | "preview.icon"
   | "auth.setup"
   | "auth.login"
   | "auth.login.failed"

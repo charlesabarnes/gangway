@@ -24,6 +24,12 @@ describe("compile", () => {
     expect(html).toContain('good="down"');
   });
 
+  test("a facts line splits at the colon before a space, so times stay whole", () => {
+    const html = doc("::: facts\n14:02: Cache expires\nOwner: Payments\n:::");
+    expect(html).toContain("<dt>14:02</dt><dd>Cache expires</dd>");
+    expect(html).toContain("<dt>Owner</dt><dd>Payments</dd>");
+  });
+
   test("gw blocks are not wrapped in paragraphs", () => {
     const html = doc("Intro\n\n::stat{label=Users value=12}\n\nOutro");
     expect(html).not.toMatch(/<p>\s*<gw-stat/);

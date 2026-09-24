@@ -3,6 +3,7 @@ import type { Preview } from "@gangway/shared/domain";
 import {
   DeployRequestSchema,
   PreviewPasswordChangeSchema,
+  PreviewIconChangeSchema,
   PreviewTitleChangeSchema,
   PREVIEW_PASSWORD_HEADER,
   PREVIEW_PASSWORD_MAX,
@@ -13,6 +14,7 @@ import {
   TARBALL_CONTENT_TYPES,
   TarballDeployQuerySchema,
 } from "@gangway/shared/api";
+import { DEFAULT_ICON_COLOR } from "@gangway/shared/preview-icon";
 import { badRequest, forbidden, notFound, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { PreviewContext } from "../../previews/context.ts";
@@ -76,6 +78,8 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
     brand,
     password: passwordMode,
     passwordLogin,
+    icon,
+    iconColor,
     ...q
   } = TarballDeployQuerySchema.parse(c.req.query());
   const archive = c.req.raw.body;
@@ -83,6 +87,7 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
   const password = chosenPassword(c.req.header(PREVIEW_PASSWORD_HEADER), passwordMode);
   return {
     ...q,
+    ...(icon ? { icon: { name: icon, color: iconColor ?? DEFAULT_ICON_COLOR } } : {}),
     ...(password ? { password } : {}),
     ...(passwordLogin ? { passwordLogin } : {}),
     ...(project ? { projectId: project } : {}),
@@ -266,6 +271,18 @@ function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       const { title } = PreviewTitleChangeSchema.parse(await readJson(c));
       ctx.previews.setTitle(p.id, title);
       ctx.audit.record(c.get("actor"), "preview.title", p.id, { old: p.title, new: title });
+      return c.json({ preview: wire(ctx.previews.get(p.id)!) });
+    },
+  );
+  api.put(
+    "/previews/:id/icon",
+    requirePermission("previews.update_own", "previews.update"),
+    async (c) => {
+      const p = find(c.req.param("id"));
+      changeable(ctx, c, p, "icon");
+      const { icon } = PreviewIconChangeSchema.parse(await readJson(c));
+      ctx.previews.setIcon(p.id, icon);
+      ctx.audit.record(c.get("actor"), "preview.icon", p.id, { old: p.icon, new: icon });
       return c.json({ preview: wire(ctx.previews.get(p.id)!) });
     },
   );

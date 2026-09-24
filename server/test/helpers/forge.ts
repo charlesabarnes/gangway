@@ -101,6 +101,7 @@ export function fakePreviews(instance = "test") {
         id,
         project: `gw-${instance}-${slug}`,
         title: null,
+        icon: null,
         hostId: "local",
         kind: "preview",
         state: "building",

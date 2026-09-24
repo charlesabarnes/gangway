@@ -4,13 +4,14 @@ import { AuthService } from '../../core/auth.service';
 import type { ProblemError } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { FIELD } from '../../ui/field';
+import { PreviewIconTile } from '../../ui/preview-icon';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
 import { displayName, slugOf } from './source-label';
 
 @Component({
   selector: 'app-preview-title',
-  imports: [Btn],
+  imports: [Btn, PreviewIconTile],
   host: { class: 'flex min-w-0 flex-col gap-1.5' },
   template: `
     @if (editing()) {
@@ -37,7 +38,13 @@ import { displayName, slugOf } from './source-label';
       </form>
       <span class="text-xs text-muted">Leave it empty to show the address instead.</span>
     } @else {
-      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <app-preview-icon
+          [icon]="preview().icon"
+          [source]="preview().source.kind"
+          [size]="48"
+          data-testid="title-icon"
+        />
         <h1
           class="m-0 font-serif text-[40px] leading-none font-normal tracking-[-.01em] break-words sm:text-[52px]"
           data-testid="title"

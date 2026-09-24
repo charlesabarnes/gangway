@@ -123,7 +123,7 @@ function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
     for (const l of lines.filter((l) => l.text.split("|").length < 2))
       c.issues.push({ line: l.line, message: "a stats line is Label | value | change | note" });
   if (b.name === "facts")
-    for (const l of lines.filter((l) => !l.text.includes(":")))
+    for (const l of lines.filter((l) => !/:\s/.test(l.text)))
       c.issues.push({ line: l.line, message: "a facts line is Name: value" });
   if (b.name === "columns" && !b.raw.some((l) => l.trim() === "+++"))
     c.issues.push({ line: b.line, message: ":::columns needs a +++ line between the two columns" });

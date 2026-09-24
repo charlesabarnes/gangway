@@ -1,6 +1,7 @@
 import type { AddonChoice } from "./addons.ts";
 import type { RuntimeId } from "./runtimes.ts";
 import type { Scope } from "./permissions.ts";
+import type { PreviewIcon } from "./preview-icon.ts";
 
 export type HostCapability = "preview" | "runner";
 export type UpstreamDial = "direct" | "socks5";
@@ -115,6 +116,7 @@ export type Preview = {
   id: string;
   project: string;
   title: string | null;
+  icon: PreviewIcon | null;
   hostId: string;
   kind: PreviewKind;
   state: PreviewState;

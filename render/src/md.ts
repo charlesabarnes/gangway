@@ -61,7 +61,7 @@ function container(b: Extract<Block, { type: "container" }>): string {
     return `<gw-grid columns="${b.attrs["columns"] ?? Math.min(4, rows.length)}">${rows.map((l) => statTag(l.split("|"))).join("")}</gw-grid>`;
   if (b.name === "facts")
     return `<gw-facts>${rows
-      .map((l) => l.split(/:(.*)/s))
+      .map((l) => l.split(/:\s(.*)/s))
       .map(([k = "", v = ""]) => `<dt>${esc(k.trim())}</dt><dd>${inline(esc(v.trim()))}</dd>`)
       .join("")}</gw-facts>`;
   if (b.name === "columns") {

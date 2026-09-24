@@ -1,4 +1,5 @@
 import contract from '../../testing/fixtures/contract.json';
+import { PREVIEW_ICON_COLORS, PREVIEW_ICONS } from './preview-icon.types';
 import {
   LOG_STREAMS,
   PERMISSIONS,
@@ -59,6 +60,7 @@ describe('the /v1 wire contract', () => {
       'id',
       'project',
       'title',
+      'icon',
       'hostId',
       'kind',
       'state',
@@ -276,6 +278,8 @@ describe('the /v1 wire contract', () => {
     expect([...LOG_STREAMS]).toEqual(contract.logStreams);
     expect([...STREAM_EVENT_TYPES]).toEqual(contract.streamEventTypes);
     expect(visibilities).toEqual(contract.visibilities);
+    expect([...PREVIEW_ICONS]).toEqual(contract.previewIcons);
+    expect([...PREVIEW_ICON_COLORS]).toEqual(contract.previewIconColors);
     expect(scopes).toEqual(contract.scopes);
     expect([...FORK_POLICIES]).toEqual(contract.forkPolicies);
     expect([...CLEARANCES]).toEqual(contract.clearances);

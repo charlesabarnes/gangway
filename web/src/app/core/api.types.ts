@@ -1,3 +1,4 @@
+import type { PreviewIcon } from './preview-icon.types';
 export type {
   ArtifactAccent,
   ArtifactKind,
@@ -52,6 +53,7 @@ export type Preview = {
   id: string;
   project: string;
   title: string | null;
+  icon: PreviewIcon | null;
   hostId: string;
   kind: 'preview' | 'job';
   state: PreviewState;

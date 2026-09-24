@@ -1,3 +1,4 @@
+import type { PreviewIcon } from "@gangway/shared/preview-icon";
 import type {
   BrandChoice,
   Clearance,
@@ -57,6 +58,7 @@ export type DeployInput = {
   secretLevel?: Clearance | undefined;
   name?: string | undefined;
   title?: string | undefined;
+  icon?: PreviewIcon | undefined;
   visibility?: Visibility | undefined;
   ttl?: string | null | undefined;
   hostId?: string | undefined;

@@ -1,3 +1,4 @@
+import { PREVIEW_ICON_COLORS, PREVIEW_ICONS } from "@gangway/shared/preview-icon";
 // The server's half of the UI contract; web/src/app/core/api.types.spec.ts is the other.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -54,6 +55,8 @@ describe("string unions the UI switches on", () => {
   test("preview states, visibilities, log streams, scopes", () => {
     expect(contract["previewStates"]).toEqual([...PREVIEW_STATE_VALUES]);
     expect(contract["visibilities"]).toEqual([...VISIBILITY_VALUES]);
+    expect(contract["previewIcons"]).toEqual([...PREVIEW_ICONS]);
+    expect(contract["previewIconColors"]).toEqual([...PREVIEW_ICON_COLORS]);
     expect(contract["logStreams"]).toEqual([...LOG_STREAMS]);
     expect(contract["scopes"]).toEqual([...SCOPES]);
   });

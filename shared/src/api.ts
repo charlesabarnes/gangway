@@ -3,6 +3,7 @@ import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permis
 import { RUNTIME_IDS } from "./runtimes.ts";
 import { ADDON_IDS, isAddonId } from "./addons.ts";
 import { BRAND_CHOICES, NETWORK_CHOICES } from "./domain.ts";
+import { PREVIEW_ICON_COLORS, PREVIEW_ICONS, PreviewIconSchema } from "./preview-icon.ts";
 
 export const PREVIEW_STATE_VALUES = [
   "building",
@@ -98,6 +99,8 @@ const previewTitle = z.string().trim().min(1, "a title cannot be empty").max(PRE
 export const TarballDeployQuerySchema = z.object({
   name: z.string().min(1).max(40).optional(),
   title: previewTitle.optional(),
+  icon: z.enum(PREVIEW_ICONS).optional(),
+  iconColor: z.enum(PREVIEW_ICON_COLORS).optional(),
   visibility: z.enum(VISIBILITY_VALUES).optional(),
   ttl: z.string().max(16).optional(),
   hostId: z.string().min(1).max(64).optional(),
@@ -200,6 +203,7 @@ export const DefaultPasswordSchema = z.strictObject({
 });
 
 export const PreviewTitleChangeSchema = z.strictObject({ title: previewTitle.nullable() });
+export const PreviewIconChangeSchema = z.strictObject({ icon: PreviewIconSchema.nullable() });
 
 export const PREVIEW_PASSWORD_HEADER = "gangway-preview-password";
 
@@ -207,6 +211,7 @@ export const DeployRequestSchema = z.strictObject({
   source: DeploySourceSchema,
   name: z.string().min(1).max(40).optional(),
   title: previewTitle.optional(),
+  icon: PreviewIconSchema.optional(),
   visibility: z.enum(VISIBILITY_VALUES).optional(),
   ttl: z.string().max(16).nullable().optional(),
   hostId: z.string().min(1).max(64).optional(),

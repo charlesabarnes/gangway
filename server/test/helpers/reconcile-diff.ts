@@ -19,6 +19,7 @@ export const mkPreview = (
   id,
   project: `gw-${id}`,
   title: null,
+  icon: null,
   hostId: HOST,
   kind: "preview",
   state,

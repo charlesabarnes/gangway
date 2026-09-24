@@ -16,6 +16,8 @@ function inTime(ms: number): string {
 export function describePreview(ctx: PreviewContext, p: Preview): string {
   const urls = urlsFor(ctx, p.id).map((u) => u.url);
   const parts = [`${nameOf(ctx, p)}: ${p.state}`];
+  if (p.title) parts.push(`"${p.title}"`);
+  if (p.icon) parts.push(`icon ${p.icon.name} (${p.icon.color})`);
   if (urls.length > 0) parts.push(urls.join(" "));
   if (p.state === "asleep") parts.push("(wakes on the first visit)");
   if (p.ttlExpiresAt !== null)

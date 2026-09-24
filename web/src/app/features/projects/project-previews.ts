@@ -3,13 +3,14 @@ import { RouterLink } from '@angular/router';
 import type { Project } from '../../core/api.types';
 import { Clock } from '../../core/clock';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
+import { PreviewIconTile } from '../../ui/preview-icon';
 import { StateBadge } from '../../ui/state-badge';
 import { PreviewsStore } from '../previews/previews.store';
 
 @Component({
   selector: 'app-project-previews',
   host: { class: 'block' },
-  imports: [RelativeTimePipe, RouterLink, StateBadge],
+  imports: [PreviewIconTile, RelativeTimePipe, RouterLink, StateBadge],
   template: `
     @let p = project();
     <div data-testid="previews">
@@ -20,6 +21,7 @@ import { PreviewsStore } from '../previews/previews.store';
           data-testid="preview"
         >
           <app-state-badge class="w-[90px] shrink-0" [state]="pv.state" />
+          <app-preview-icon [icon]="pv.icon" [source]="pv.source.kind" [size]="24" />
           <span class="text-[13px]" [class.font-mono]="!pv.title">{{
             pv.title ?? pv.project.replace(prefix(pv.project), '')
           }}</span>

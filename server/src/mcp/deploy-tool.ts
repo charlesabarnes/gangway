@@ -1,5 +1,6 @@
 import { addonQuery } from "@gangway/shared/api";
 import type { Preview } from "@gangway/shared/domain";
+import { DEFAULT_ICON_COLOR, type PreviewIcon } from "@gangway/shared/preview-icon";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { renderTemplate, TemplateError } from "@gangway/shared/artifact/index";
@@ -87,12 +88,37 @@ function sourcesGiven(args: DeployArgs): number {
   ].filter(Boolean).length;
 }
 
+function iconOf(args: DeployArgs): PreviewIcon | undefined {
+  if (args.icon === undefined) {
+    if (args.iconColor !== undefined) throw unprocessable("iconColor goes with icon");
+    return undefined;
+  }
+  return { name: args.icon, color: args.iconColor ?? DEFAULT_ICON_COLOR };
+}
+
+const rebuildAsked = (args: DeployArgs, addons: Addons | undefined) =>
+  [args.artifact, args.files, args.upload, args.remove, addons, args.network, args.brand].some(
+    (v) => v !== undefined,
+  );
+
+/** Nudges an agent that left out what the user finds a preview by. */
+function missingLabels(args: DeployArgs): string {
+  const missing = [
+    (args.title ?? args.artifact?.title) ? null : "title",
+    args.icon ? null : "icon",
+  ].filter(Boolean);
+  if (missing.length === 0) return "";
+  return `\nno ${missing.join(" or ")}: gangway lists it by its address until you set one. Deploy with preview: "<name>" and ${missing.join(" and ")} (no rebuild).`;
+}
+
 function deployInput(scope: CallScope, args: DeployArgs, source: DeploySource) {
+  const icon = iconOf(args);
   return {
     actor: scope.actor,
     source,
     name: args.name,
-    title: args.title,
+    title: args.title ?? args.artifact?.title?.slice(0, 100),
+    ...(icon ? { icon } : {}),
     visibility: args.visibility,
     ttl: args.ttl,
     template: args.template,
@@ -144,7 +170,7 @@ export class DeployTool {
     if (done.state === "failed") {
       return `failed: ${done.error ?? "the deploy failed"}${again}\n\nlast log lines:\n${logTail(ctx, done.id, FAIL_TAIL)}`;
     }
-    return `ready: ${primary}${again}\n${describePreview(ctx, done)}${await this.#report(done, res.plan, args.check)}`;
+    return `ready: ${primary}${again}\n${describePreview(ctx, done)}${await this.#report(done, res.plan, args.check)}${missingLabels(args)}`;
   }
 
   async #source(scope: CallScope, args: DeployArgs, addons: Addons | undefined): Promise<Sourced> {
@@ -191,6 +217,9 @@ export class DeployTool {
         `${nameOf(ctx, target)} was deployed by someone else, and "previews.update_own" covers only your own. Deploy the change as a new preview instead, or ask for the update scope`,
       );
     }
+    const labelled = this.#label(scope.actor, target, args);
+    if (labelled && !rebuildAsked(args, addons))
+      return `relabelled (no rebuild): ${describePreview(ctx, ctx.previews.get(target.id)!)}`;
     const { change, taken } = this.#change(scope.actor, args, addons);
     const res = await redeploy(ctx, {
       actor: scope.actor,
@@ -208,6 +237,21 @@ export class DeployTool {
       return `rebuild failed: ${outcome.error ?? "the build failed"}\n${outcome.preview.state === "awake" ? "The previous version is still serving." : describePreview(ctx, outcome.preview)}\n\nlast log lines:\n${logTail(ctx, target.id, FAIL_TAIL)}`;
     }
     return `ready: ${url} (rebuilt)\n${describePreview(ctx, outcome.preview)}${await this.#report(outcome.preview, res.plan, args.check)}`;
+  }
+
+  /** Sets a title or icon given with preview; they are labels, so they need no rebuild. */
+  #label(actor: Actor, target: Preview, args: DeployArgs): boolean {
+    const { ctx } = this.#d;
+    const icon = iconOf(args);
+    if (args.title !== undefined) {
+      ctx.previews.setTitle(target.id, args.title);
+      ctx.audit.record(actor, "preview.title", target.id, { old: target.title, new: args.title });
+    }
+    if (icon) {
+      ctx.previews.setIcon(target.id, icon);
+      ctx.audit.record(actor, "preview.icon", target.id, { old: target.icon, new: icon });
+    }
+    return args.title !== undefined || icon !== undefined;
   }
 
   #change(
