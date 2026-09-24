@@ -429,7 +429,7 @@ x-casaos:
     en_us: Gives any containerized app a public HTTPS URL, from a pull request, an agent or a folder.
   scheme: https
   hostname: app.$DOMAIN
-  port_map: ""
+  port_map: "443"
   index: /
 META
   fi
