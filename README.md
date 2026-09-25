@@ -27,7 +27,10 @@ in three ways, and all three produce the same kind of preview:
 It runs as a single process on a plain Docker host, with no Kubernetes. You self-host it on
 your own domain.
 
-<!-- Screenshot: the Previews list and a preview's page. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/previews-dark.png">
+  <img alt="The Previews list: a Node app with Postgres, a dashboard, a slide deck, a handbook visible only to gangway users, and a landing page, each with its own URL." src=".github/assets/screenshots/previews-light.png" width="100%">
+</picture>
 
 ## What you get
 
@@ -153,7 +156,15 @@ To build from a checkout instead of pulling the published image:
 
 ### Deploy something
 
-From the UI, go to **New preview** and drop in a folder. From a terminal:
+From the UI, go to **New preview** and drop in a folder. You can also start from a runtime's
+example, or add a throwaway database.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/new-dark.png">
+  <img alt="The New preview page: runtime starters, a drop zone for a folder, files or a .zip, and Postgres, MySQL and Redis add-ons." src=".github/assets/screenshots/new-light.png" width="100%">
+</picture>
+
+From a terminal:
 
 ```sh
 tar -czf - . | curl --fail -X POST \
@@ -165,18 +176,44 @@ The answer includes the URL once the preview serves it. Create tokens under **Ac
 
 ## Connect an agent
 
-Turn the MCP surface on under **Settings**; it is off by default. Your gangway's
-**Account → Connect an agent** page then shows the exact setup for Claude Code, Codex, Cursor
-and VS Code with your URL filled in. For Claude Code:
+**1. Turn on MCP.** It is off by default. Under **Settings → Surfaces**, choose **Turn on**.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/mcp-off-dark.png">
+  <img alt="Settings → Surfaces, with MCP off and a Turn on button." src=".github/assets/screenshots/mcp-off-light.png" width="100%">
+</picture>
+
+**2. Copy the setup for your client.** **Account → Connect an agent** shows the exact commands
+for Claude Code, Codex, Cursor and VS Code, with your URL filled in.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/connect-agent-dark.png">
+  <img alt="Account → Connect an agent, on the Claude Code tab: the plugin install command and the plain MCP command, each with a Copy button." src=".github/assets/screenshots/connect-agent-light.png" width="100%">
+</picture>
+
+For Claude Code:
 
 ```sh
 claude plugin marketplace add charlesabarnes/gangway && \
   claude plugin install gangway@gangway --config mcp_url=https://mcp.preview.example.com/
 ```
 
-Then run `/mcp` and sign in. The plugin adds `/gangway:generate-artifact`, which builds
-something and ships it to a URL you can keep iterating on. Other clients only need the MCP URL.
-See [plugin/gangway](plugin/gangway/README.md).
+**3. Sign in and approve.** In Claude Code, run `/mcp` and sign in to gangway. Your browser
+opens gangway, which asks you to approve the agent and choose what it may do. Pick `artifacts`
+for an agent you do not fully trust: it can deploy only static sites and artifacts, and touch
+only what it deployed itself.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/consent-dark.png">
+    <img alt="gangway asking: Connect Claude Code to gangway? It lists the app, who published it, where it sends you, and checkboxes for the deploy and artifacts scopes." src=".github/assets/screenshots/consent-light.png" width="420">
+  </picture>
+</p>
+
+The plugin adds `/gangway:generate-artifact`, which builds something and ships it to a URL you
+can keep iterating on. Other clients only need the MCP URL. See
+[plugin/gangway](plugin/gangway/README.md). A connected agent is listed under **Account →
+Connected agents**, where you can disconnect it.
 
 The MCP server has four tools: `deploy`, `status`, `logs` and `destroy`. `deploy` is
 idempotent, and it waits until the URL answers.
