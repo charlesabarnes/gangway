@@ -3,20 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>gangway — preview URLs on your own domain</title>
+    <title>gangway — Self-Hosted Artifacts and Preview Sites</title>
     <meta
       name="description"
-      content="Ask your agent for a slide deck, a dashboard, a report or a small tool, and gangway puts it on a URL on your own domain. Open source, Apache 2.0, runs on your server."
+      content="Slide decks, dashboards, reports and pull request previews, each on its own URL on your domain. Open source, Apache 2.0."
     />
     <link rel="canonical" href="https://gangway.sh/" />
     <meta name="theme-color" content="#0b2648" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="gangway" />
     <meta property="og:url" content="https://gangway.sh/" />
-    <meta property="og:title" content="gangway — put it on a URL you own" />
+    <meta property="og:title" content="gangway — Self-Hosted Artifacts and Preview Sites" />
     <meta
       property="og:description"
-      content="An open source alternative to Claude artifacts: what your agent makes goes to a real HTTPS URL on your server."
+      content="Slide decks, dashboards, reports and pull request previews, each on its own URL on your domain."
     />
     <meta property="og:image" content="https://gangway.sh/assets/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -110,12 +110,11 @@
     <main>
       <section id="top" class="hero">
         <div class="hero-copy">
-          <div><span class="tag">Open source · Apache 2.0</span></div>
-          <h1>Put it on a URL you own.</h1>
+          <div><span class="tag">Apache 2.0</span></div>
+          <h1>Open source artifacts on your own server.</h1>
           <p class="hero-lead">
-            Ask your agent for a slide deck, a dashboard, a report or a small tool, and gangway puts
-            it on a URL on your own domain that you can share and keep changing. It runs on your
-            server, and everything it makes stays there.
+            Slide decks, dashboards, reports and small tools, each on its own URL on your domain.
+            Share the link; changes land at the same URL.
           </p>
           <div class="hero-actions">
             <a class="btn btn--lg" href="https://github.com/charlesabarnes/gangway"
@@ -648,28 +647,29 @@
       <section id="how" class="band">
         <div class="wrap stack" style="gap: 28px">
           <div class="stack intro">
-            <span class="label">In short</span>
-            <p class="big-quote">An open source alternative to Claude artifacts.</p>
-            <p class="sub-serif">
-              What your agent would normally make as an artifact goes to a real HTTPS URL on your
-              server instead, and it keeps iterating on it at the same URL.
-            </p>
+            <p class="big-quote">Three ways to get a URL.</p>
           </div>
 
           <div class="flow">
             <div class="flow-step">
-              <span class="label">01 · You ask</span>
-              <code>/gangway:generate-artifact a pricing calculator for acme</code>
+              <span class="label">Open a pull request</span>
+              <code>acme/support#57</code>
+              <p>
+                A comment on the PR links the preview. Each push updates it; closing the PR removes
+                it.
+              </p>
             </div>
             <div class="flow-step">
-              <span class="label">02 · Your agent deploys</span>
-              <code>deploy → building → awake</code>
-              <p>Over MCP, to your gangway. It checks the routes and reads the logs itself.</p>
+              <span class="label">Ask your agent</span>
+              <code>/gangway:generate-artifact a pricing calculator</code>
+              <p>Deploys over MCP from Claude Code, Codex, Cursor or any MCP client.</p>
             </div>
             <div class="flow-step">
-              <span class="label">03 · You share a URL</span>
-              <code>https://pricing-3f1.acme.dev ↗</code>
-              <p>Ask for a change and it is patched in place. The link stays the same.</p>
+              <span class="label">Drop a folder</span>
+              <code>New preview → drop files or a .zip</code>
+              <p>
+                Static files are served as they are. An app with a package.json is built and run.
+              </p>
             </div>
           </div>
 
@@ -931,8 +931,7 @@
       <section id="install" class="band">
         <div class="wrap install">
           <div class="stack install-head">
-            <span class="label">Self-host</span>
-            <h2 class="h-sub">One command on your server.</h2>
+            <h2 class="h-sub">Install</h2>
           </div>
           <div class="stack install-body">
             <div class="command">
@@ -945,8 +944,8 @@
               <li>A domain with a wildcard DNS record</li>
             </ul>
             <p class="needs-note">
-              It walks you through the rest and prints a link to create the first admin. Run it
-              again to upgrade.
+              Run it on the server that will host your previews. It sets up the rest and prints a
+              link to create the first admin. Run it again to upgrade.
             </p>
             <a class="plan-link" href="https://github.com/charlesabarnes/gangway#quickstart"
               >Install options ↗</a

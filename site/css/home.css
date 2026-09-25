@@ -1377,7 +1377,7 @@
   }
 }
 
-/* In short */
+/* How it works */
 
 .intro {
   gap: 10px;
@@ -1410,15 +1410,9 @@
 .flow-step + .flow-step {
   border-left: 1px dotted var(--rule);
 }
-.flow-step:last-child {
-  background: var(--flag-wash);
-}
 .flow-step code {
   font: 400 13px/1.5 var(--font-mono);
   overflow-wrap: anywhere;
-}
-.flow-step:last-child code {
-  font-weight: 500;
 }
 .flow-step p {
   margin: 0;
@@ -1463,9 +1457,9 @@
 /* Install */
 
 .install {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-  gap: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
 }
 .install-head {
   gap: 12px;
