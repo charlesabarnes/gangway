@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/header-dark.svg">
-    <img alt="gangway: preview URLs on your own domain for any containerized app, from a PR, an agent, or a folder dropped in the browser." src=".github/assets/header-light.svg" width="100%">
+    <img alt="gangway: full-stack artifacts on your domain: decks, dashboards and small tools, from your agent, a pull request, or a folder dropped in the browser." src=".github/assets/header-light.svg" width="100%">
   </picture>
 </p>
 

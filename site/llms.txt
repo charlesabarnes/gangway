@@ -1,6 +1,6 @@
 # gangway
 
-> Self-hosted artifacts and preview sites. gangway gives any containerized app, static site or agent-made artifact its own HTTPS URL on your domain. It is open source (Apache-2.0), runs as a single process on a plain Docker or Podman host, and needs no Kubernetes.
+> Full-stack artifacts on your domain. Ask your agent for a deck, a dashboard or a small tool, with a backend and database if it needs them, and gangway gives it its own HTTPS URL on your domain. The same goes for pull request previews and any containerized app or static site. It is open source (Apache-2.0), runs as a single process on a plain Docker or Podman host, and needs no Kubernetes.
 
 A preview gets a URL in one of three ways, and all three produce the same kind of preview:
 

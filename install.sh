@@ -433,9 +433,9 @@ x-casaos:
   title:
     en_us: gangway
   tagline:
-    en_us: Preview URLs on your own domain
+    en_us: Full-stack artifacts on your domain
   description:
-    en_us: Gives any containerized app a public HTTPS URL, from a pull request, an agent or a folder.
+    en_us: Decks, dashboards and small tools, with a backend and database if they need them, each on its own HTTPS URL. From an agent, a pull request or a folder.
   scheme: https
   hostname: app.$DOMAIN
   port_map: "443"
@@ -470,7 +470,7 @@ unraid_template() { # a dockerMan template holding every setting, so the Docker 
   <Privileged>false</Privileged>
   <Support>https://github.com/$REPO/issues</Support>
   <Project>https://github.com/$REPO</Project>
-  <Overview>Preview URLs on your own domain for any containerized app, from a pull request, an agent, or a folder dropped in the browser. Update here, or run install.sh again, to upgrade.</Overview>
+  <Overview>Full-stack artifacts on your domain: decks, dashboards and small tools, with a backend and database if they need them, from an agent, a pull request, or a folder dropped in the browser. Update here, or run install.sh again, to upgrade.</Overview>
   <Category>Tools: Network:Web</Category>
   <WebUI>$webui</WebUI>
   <Icon>$ICON</Icon>
