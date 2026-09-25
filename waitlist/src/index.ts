@@ -114,6 +114,29 @@ function reply(
   return new Response(page, { status, headers: { "content-type": "text/html; charset=utf-8" } });
 }
 
+const PAGE = /^\/[\w./-]{0,99}$/;
+const COUNT_VISIT = `INSERT INTO visits (day, path, count) VALUES (?1, ?2, 1)
+  ON CONFLICT(day, path) DO UPDATE SET count = count + 1`;
+
+export async function countVisit(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405, headers: { allow: "POST" } });
+  }
+  const origin = request.headers.get("origin") ?? "";
+  if (!env.ALLOWED_ORIGINS.split(",").some((o) => o.trim() === origin)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const path = (await request.text()).trim().replace(/\/index\.html$/, "/");
+  if (!PAGE.test(path)) return new Response("Bad page", { status: 400 });
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    await env.DB.prepare(COUNT_VISIT).bind(day, path).run();
+  } catch {
+    return new Response(null, { status: 500 });
+  }
+  return new Response(null, { status: 204 });
+}
+
 function corsHeaders(origin: string): Record<string, string> {
   return {
     "access-control-allow-origin": origin,
@@ -126,7 +149,9 @@ function corsHeaders(origin: string): Record<string, string> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (new URL(request.url).pathname !== "/waitlist") {
+    const { pathname } = new URL(request.url);
+    if (pathname === "/hit") return countVisit(request, env);
+    if (pathname !== "/waitlist") {
       return new Response("Not found", { status: 404 });
     }
     const origin = request.headers.get("origin") ?? "";

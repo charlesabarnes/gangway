@@ -122,3 +122,38 @@ test("preflight from an allowed origin gets CORS headers", async () => {
   expect(res.status).toBe(204);
   expect(res.headers.get("access-control-allow-methods")).toBe("POST, OPTIONS");
 });
+
+describe("POST /hit", () => {
+  const hit = (page: string, origin = SITE) =>
+    worker.fetch(
+      new Request("https://w.example/hit", {
+        method: "POST",
+        headers: { origin, "content-type": "text/plain;charset=UTF-8" },
+        body: page,
+      }),
+      env,
+    );
+  const visits = () =>
+    sqlite.query("SELECT path, count FROM visits ORDER BY path").all() as {
+      path: string;
+      count: number;
+    }[];
+
+  test("counts each page per day, folding index.html into its directory", async () => {
+    await hit("/");
+    await hit("/index.html");
+    const res = await hit("/cloud.html");
+    expect(res.status).toBe(204);
+    expect(visits()).toEqual([
+      { path: "/", count: 2 },
+      { path: "/cloud.html", count: 1 },
+    ]);
+  });
+
+  test("ignores other origins and anything that is not a page path", async () => {
+    expect((await hit("/", "https://evil.example")).status).toBe(403);
+    expect((await hit("https://gangway.sh/")).status).toBe(400);
+    expect((await hit("/<script>")).status).toBe(400);
+    expect(visits()).toHaveLength(0);
+  });
+});

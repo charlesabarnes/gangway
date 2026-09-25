@@ -1,6 +1,7 @@
 # waitlist
 
-The Cloudflare Worker behind the "Join the waitlist" form on `site/cloud.html`. It takes a POST at
+The Cloudflare Worker behind the "Join the waitlist" form on `site/cloud.html`, and the site's
+visit counter. It takes a POST at
 `/waitlist` (JSON from the page's script, or a plain form post without JavaScript) and upserts
 one row per email into a D1 database. Only origins in `ALLOWED_ORIGINS` may post.
 
@@ -25,6 +26,17 @@ bunx wrangler d1 execute gangway-waitlist --remote \
 ```
 
 Add `--json > signups.json` to export them.
+
+## Visits
+
+`site/js/visit.js` posts each page load's path to `/hit`, and the Worker adds one to that page's
+count for the day in the `visits` table. It stores no cookies, IPs or user agents, and only
+counts loads on gangway.sh from an allowed origin.
+
+```sh
+bunx wrangler d1 execute gangway-waitlist --remote \
+  --command "SELECT day, path, count FROM visits ORDER BY day DESC, path"
+```
 
 ## Local
 
