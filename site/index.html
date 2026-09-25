@@ -73,9 +73,8 @@
       </button>
       <div class="header-menu" id="site-menu">
         <nav class="site-nav">
-          <a href="#ways">How it works</a>
+          <a href="#how">How it works</a>
           <a href="#install">Install</a>
-          <a href="#faq">FAQ</a>
           <a href="cloud.html">Gangway cloud</a>
         </nav>
         <div class="header-end">
@@ -286,22 +285,62 @@
                     <div class="gw-starters">
                       <span class="gw-starter"
                         ><span class="gw-starter-icon" data-icon="static"></span
-                        ><span><b>Static</b><small>Plain files, served by nginx</small></span></span
+                        ><span
+                          ><span class="gw-starter-name"
+                            ><b>Static</b><span class="gw-chip">HTML</span></span
+                          ><small>Plain files, served by nginx</small
+                          ><code>nginxinc/nginx-unprivileged:1.29-alpine</code></span
+                        ></span
                       >
                       <span class="gw-starter"
                         ><span class="gw-starter-icon" data-icon="node"></span
                         ><span
-                          ><b>Node.js</b><small>npm start, or a static build</small></span
+                          ><span class="gw-starter-name"
+                            ><b>Node.js</b><span class="gw-chip">JavaScript</span></span
+                          ><small>npm start, or a static build</small
+                          ><code>node:24-alpine</code></span
                         ></span
                       >
-                      <span class="gw-starter gw-opt"
+                      <span class="gw-starter"
                         ><span class="gw-starter-icon" data-icon="bun"></span
-                        ><span><b>Bun</b><small>TypeScript, no build step</small></span></span
+                        ><span
+                          ><span class="gw-starter-name"
+                            ><b>Bun</b><span class="gw-chip">TypeScript</span></span
+                          ><small>TypeScript, no build step</small
+                          ><code>oven/bun:1.4.2-alpine</code></span
+                        ></span
                       >
-                      <span class="gw-starter gw-opt"
+                      <span class="gw-starter"
                         ><span class="gw-starter-icon" data-icon="deno"></span
                         ><span
-                          ><b>Deno</b><small>TypeScript, deps cached at build</small></span
+                          ><span class="gw-starter-name"
+                            ><b>Deno</b><span class="gw-chip">TypeScript</span></span
+                          ><small>TypeScript, deps cached at build</small
+                          ><code>denoland/deno:alpine-2.9.7</code></span
+                        ></span
+                      >
+                      <span class="gw-starter"
+                        ><span class="gw-starter-icon" data-icon="workerd"></span
+                        ><span
+                          ><span class="gw-starter-name"
+                            ><b>Workers</b><span class="gw-chip">TypeScript</span></span
+                          ><small>Cloudflare's Workers runtime</small
+                          ><code>node:24-bookworm-slim + workerd</code></span
+                        ></span
+                      >
+                      <span class="gw-starter"
+                        ><span class="gw-starter-icon" data-icon="python"></span
+                        ><span
+                          ><span class="gw-starter-name"><b>Python</b></span
+                          ><small>Flask, FastAPI, Django…</small><code>python:3.14-slim</code></span
+                        ></span
+                      >
+                      <span class="gw-starter"
+                        ><span class="gw-starter-icon" data-icon="php"></span
+                        ><span
+                          ><span class="gw-starter-name"><b>PHP</b></span
+                          ><small>Apache + mod_php, Composer</small
+                          ><code>php:8.5-apache</code></span
                         ></span
                       >
                     </div>
@@ -583,7 +622,7 @@
         </div>
       </section>
 
-      <section class="band">
+      <section id="how" class="band">
         <div class="wrap stack" style="gap: 28px">
           <div class="stack intro">
             <span class="label">In short</span>
@@ -866,235 +905,29 @@
         </div>
       </section>
 
-      <section id="ways" class="band">
-        <div class="wrap stack" style="gap: 32px">
-          <div class="stack" style="gap: 8px">
-            <span class="label">Three ways in</span>
-            <h2 class="h-section">However the code gets there.</h2>
-          </div>
-          <div class="cols">
-            <div class="way">
-              <span class="label">01 · GitHub</span>
-              <h3>Open a pull request</h3>
-              <p>
-                Connect a repository once. Every pull request gets its own preview, updated on each
-                push.
-              </p>
-              <code>acme/shop#142 → shop-142.acme.dev</code>
-            </div>
-            <div class="way">
-              <span class="label">02 · MCP</span>
-              <h3>Ask your agent</h3>
-              <p>
-                Point Claude Code, Codex, Cursor or any MCP client at your server. It can deploy,
-                check status, read logs and destroy.
-              </p>
-              <code>deploy · status · logs · destroy</code>
-            </div>
-            <div class="way">
-              <span class="label">03 · Browser</span>
-              <h3>Drop a folder</h3>
-              <p>
-                Drag a folder, some files or a .zip into the browser. gangway works out the runtime
-                and builds it.
-              </p>
-              <code>landing/ → landing-7k2.acme.dev</code>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="band">
-        <div class="wrap stack" style="gap: 32px">
-          <div class="stack" style="gap: 8px">
-            <span class="label">Lifecycle</span>
-            <h2 class="h-section">Previews look after themselves.</h2>
-          </div>
-          <div class="life">
-            <div class="life-step">
-              <div>
-                <span class="state state--lg" data-state="building">building</span><span>→</span>
-              </div>
-              <p>Your source becomes an image.</p>
-            </div>
-            <div class="life-step">
-              <div>
-                <span class="state state--lg" data-state="starting">starting</span><span>→</span>
-              </div>
-              <p>The container comes up and passes its check.</p>
-            </div>
-            <div class="life-step">
-              <div><span class="state state--lg" data-state="awake">awake</span><span>⇄</span></div>
-              <p>Serving on its own HTTPS URL.</p>
-            </div>
-            <div class="life-step">
-              <div>
-                <span class="state state--lg" data-state="asleep">asleep</span><span>→</span>
-              </div>
-              <p>Idle previews stop. The next request wakes them.</p>
-            </div>
-            <div class="life-step">
-              <div><span class="state state--lg" data-state="destroyed">destroyed</span></div>
-              <p>Past its expiry, it is removed.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="band">
-        <div class="wrap runtimes">
-          <div class="stack" style="gap: 12px">
-            <span class="label">Runtimes &amp; databases</span>
-            <h2 class="h-sub">It reads the folder and picks the runtime.</h2>
-            <p class="runtimes-lead">
-              Or bring your own Dockerfile. Attach a database and it is created with the preview and
-              destroyed with it.
-            </p>
-          </div>
-          <div class="stack" style="gap: 20px">
-            <div class="brands">
-              <span class="brand"><span class="brand-tile" data-icon="static"></span>Static</span>
-              <span class="brand"><span class="brand-tile" data-icon="node"></span>Node.js</span>
-              <span class="brand"><span class="brand-tile" data-icon="bun"></span>Bun</span>
-              <span class="brand"><span class="brand-tile" data-icon="deno"></span>Deno</span>
-              <span class="brand"><span class="brand-tile" data-icon="workerd"></span>Workers</span>
-              <span class="brand"><span class="brand-tile" data-icon="python"></span>Python</span>
-              <span class="brand"><span class="brand-tile" data-icon="php"></span>PHP</span>
-              <span class="brand"
-                ><span class="brand-tile" data-icon="own"></span>Own Dockerfile</span
-              >
-            </div>
-            <div class="brands">
-              <span class="brand"
-                ><span class="brand-tile" data-icon="postgres"></span>PostgreSQL</span
-              >
-              <span class="brand"><span class="brand-tile" data-icon="mysql"></span>MySQL</span>
-              <span class="brand"><span class="brand-tile" data-icon="redis"></span>Redis</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section id="install" class="band">
         <div class="wrap install">
           <div class="stack install-head">
             <span class="label">Self-host</span>
             <h2 class="h-sub">One command on your server.</h2>
-            <p class="runtimes-lead">
-              It asks for what it needs, checks the host, and prints a link that creates the first
-              admin.
-            </p>
           </div>
           <div class="stack install-body">
-            <div class="stack" style="gap: 10px">
-              <span class="label">You need</span>
-              <ul class="needs">
-                <li>
-                  <b>Docker or Podman, with Compose.</b> Docker Engine, Docker Desktop and Colima
-                  all work.
-                </li>
-                <li>
-                  <b>A domain with a wildcard DNS record.</b> Point
-                  <code>preview.example.com</code> and <code>*.preview.example.com</code> at the
-                  server.
-                </li>
-                <li>
-                  <b>A wildcard certificate.</b> gangway gets one itself from Let’s Encrypt with a
-                  Cloudflare API token, or the reverse proxy you already run holds it.
-                </li>
-                <li><b>A server people can reach,</b> on 443 or any port you choose.</li>
-              </ul>
-              <p class="needs-note">
-                Only trying it on a laptop? Skip the domain and certificate: it runs on
-                <code>preview.localhost</code> (experimental).
-              </p>
+            <div class="command">
+              <!-- prettier-ignore -->
+              <code data-command>curl -fsSL gangway.sh/install | sh</code>
+              <button class="command-copy" type="button" data-copy hidden>Copy</button>
             </div>
-
-            <div class="stack" style="gap: 10px">
-              <span class="label">Run it on the host</span>
-              <div class="command">
-                <!-- prettier-ignore -->
-                <code data-command>curl -fsSL gangway.sh/install | sh</code>
-                <button class="command-copy" type="button" data-copy hidden>Copy</button>
-              </div>
-              <p class="needs-note">
-                As root or a user in the <code>docker</code> group. Run it again to upgrade: if the
-                new version does not come up healthy, it puts the previous one back.
-              </p>
-            </div>
-
-            <ol class="install-steps">
-              <li>Asks for your domain and who holds port 443.</li>
-              <li>
-                Checks Docker, DNS and the ports, then writes <code>.env</code> and
-                <code>compose.yaml</code>.
-              </li>
-              <li>Starts gangway and prints a one-time link to create the first admin.</li>
-            </ol>
+            <ul class="needs">
+              <li>Docker or Podman with Compose</li>
+              <li>A domain with a wildcard DNS record</li>
+            </ul>
+            <p class="needs-note">
+              It walks you through the rest and prints a link to create the first admin. Run it
+              again to upgrade.
+            </p>
             <a class="plan-link" href="https://github.com/charlesabarnes/gangway#quickstart"
-              >Flags, platforms and installing by hand ↗</a
+              >Install options ↗</a
             >
-          </div>
-        </div>
-      </section>
-
-      <section id="faq" class="band">
-        <div class="wrap faq">
-          <div class="stack faq-head">
-            <span class="label">FAQ</span>
-            <h2 class="h-sub">Questions</h2>
-          </div>
-          <div class="faq-list">
-            <details name="faq" open>
-              <summary>What do I need to run it?</summary>
-              <p>
-                One Docker host, a domain and a wildcard DNS record such as *.acme.dev. gangway runs
-                as one container on that host and drives it with docker compose.
-              </p>
-            </details>
-            <details name="faq">
-              <summary>Who holds the certificate?</summary>
-              <p>
-                Either the reverse proxy you already run, with a wildcard certificate, or gangway
-                itself through ACME with a DNS challenge.
-              </p>
-            </details>
-            <details name="faq">
-              <summary>Where does my data live?</summary>
-              <p>
-                In a SQLite database, logs and scratch space under the state path you choose, on
-                your server. Nothing is sent anywhere else.
-              </p>
-            </details>
-            <details name="faq">
-              <summary>Which agents can deploy?</summary>
-              <p>
-                Any MCP client. There is a plugin for Claude Code and Codex; Cursor and VS Code
-                connect by URL. Your gangway’s Account page shows the exact commands with your URL
-                filled in.
-              </p>
-            </details>
-            <details name="faq">
-              <summary>Do pull requests from forks get previews?</summary>
-              <p>
-                No. Pull requests from forks are skipped: GitHub gives their workflow runs no OIDC
-                token.
-              </p>
-            </details>
-            <details name="faq">
-              <summary>Who can see a preview?</summary>
-              <p>
-                You choose per preview: public, only gangway users, or behind a password. Previews
-                bind to the host’s 127.0.0.1, so gangway is the only way in.
-              </p>
-            </details>
-            <details name="faq">
-              <summary>Is there a hosted version?</summary>
-              <p>
-                gangway Cloud is coming, for individuals and small teams who want it handled for
-                them. <a href="cloud.html#cloud">Join the waitlist</a> to hear when it launches.
-              </p>
-            </details>
           </div>
         </div>
       </section>

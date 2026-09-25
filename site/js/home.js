@@ -85,6 +85,7 @@ function startDemo(demo) {
     dropEmpty: $("[data-drop-empty]"),
     dropFull: $("[data-drop-full]"),
     deployButton: $("[data-deploy-button]"),
+    options: $(".gw-options"),
     progress: $("[data-progress]"),
     progressBar: $("[data-progress-bar]"),
     progressText: $("[data-progress-text]"),
@@ -188,7 +189,10 @@ function startDemo(demo) {
     detail: "Preview · gangway",
   };
   function screen(which, p) {
-    for (const [k, s] of Object.entries(el.screens)) s.hidden = k !== which;
+    for (const [k, s] of Object.entries(el.screens)) {
+      s.hidden = k !== which;
+      s.scrollTop = 0;
+    }
     el.url.textContent = `gangway.acme.dev${ADDRESS[which] ?? `/previews/${p.host.split(".")[0]}`}`;
     el.tabTitle.textContent = TITLE[which];
     if (which !== "detail") return;
@@ -238,6 +242,14 @@ function startDemo(demo) {
     el.cursor.style.transform = `translate(${v.width - 40}px, ${v.height - 30}px)`;
     void el.cursor.offsetWidth;
     el.cursor.style.transition = "";
+  }
+  // Scrolls the New preview page until `target` is in view, the way a person would.
+  async function scrollTo(target, mine) {
+    const page = el.screens.new;
+    const over = target.getBoundingClientRect().bottom - page.getBoundingClientRect().bottom + 22;
+    if (over <= 0) return;
+    page.scrollBy({ top: over, behavior: "smooth" });
+    await wait(700, mine);
   }
   async function move(target, mine) {
     pointAt(target);
@@ -292,8 +304,10 @@ function startDemo(demo) {
     await press(el.newButton, mine);
     screen("new");
 
-    scene("drop a folder");
-    await wait(700, mine);
+    scene("pick a runtime, or drop a folder");
+    await wait(1400, mine);
+    el.cursor.classList.remove("is-on");
+    await scrollTo(el.options, mine);
     pointAtCorner();
     el.drag.hidden = false;
     await wait(200, mine);
@@ -311,6 +325,7 @@ function startDemo(demo) {
     await move(el.deployButton, mine);
     await press(el.deployButton, mine);
     el.progress.hidden = false;
+    await scrollTo(el.progress, mine);
     for (const pct of [40, 85, 100]) {
       el.progressBar.style.width = `${pct}%`;
       el.progressText.textContent = `Uploading… ${pct}%`;
