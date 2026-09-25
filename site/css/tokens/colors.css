@@ -49,6 +49,7 @@
   --state-destroyed:transparent;
 }
 [data-theme="dark"]{
+  color-scheme:dark;
   --paper:oklch(0.2 0.035 255);
   --paper-raised:oklch(0.25 0.04 255);
   --ink:oklch(0.94 0.015 85);
@@ -61,4 +62,8 @@
   --header-bg:oklch(0.15 0.03 255);
   --header-fg:oklch(0.94 0.015 85);
   --log-bg:oklch(0.14 0.03 255);
+  --warn:oklch(0.8 0.12 75);
+  --warn-text:oklch(0.8 0.12 75);
+  --flag-wash:oklch(0.84 0.15 88 / 0.14);
+  --desk:oklch(0.16 0.03 255);
 }

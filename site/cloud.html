@@ -34,6 +34,15 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400;1,500&display=swap"
     />
+    <script>
+      // Before first paint, so the page never flashes the wrong theme (js/theme.js keeps it after).
+      try {
+        var t = localStorage.getItem("gw-theme");
+        if (t !== "light" && t !== "dark")
+          t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
     <link rel="stylesheet" href="css/tokens/colors.css" />
     <link rel="stylesheet" href="css/tokens/typography.css" />
     <link rel="stylesheet" href="css/tokens/spacing.css" />
@@ -42,6 +51,7 @@
     <link rel="stylesheet" href="css/site.css" />
     <link rel="stylesheet" href="css/cloud.css" />
     <script src="js/menu.js" defer></script>
+    <script src="js/theme.js" defer></script>
     <script src="js/waitlist.js" defer></script>
   </head>
   <body>
@@ -73,12 +83,24 @@
         </button>
         <div class="header-menu" id="site-menu">
           <nav class="site-nav">
-            <a href="./#ways">How it works</a>
+            <a href="./#how">How it works</a>
             <a href="./#install">Install</a>
-            <a href="./#faq">FAQ</a>
             <a href="cloud.html" aria-current="page">Gangway cloud</a>
           </nav>
           <div class="header-end">
+            <button class="theme-toggle" type="button" data-theme-toggle hidden>
+              <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"
+                />
+              </svg>
+              <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+                />
+              </svg>
+            </button>
             <span class="mono">Apache 2.0</span>
             <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
           </div>
