@@ -1,0 +1,43 @@
+# gangway
+
+> Self-hosted artifacts and preview sites. gangway gives any containerized app, static site or agent-made artifact its own HTTPS URL on your domain. It is open source (Apache-2.0), runs as a single process on a plain Docker or Podman host, and needs no Kubernetes.
+
+A preview gets a URL in one of three ways, and all three produce the same kind of preview:
+
+1. A pull request opens or updates. The preview is linked from a sticky comment and removed when the PR closes.
+2. An agent calls the MCP `deploy` tool (Claude Code, Codex, Cursor, VS Code or any MCP client). The call waits until the URL answers, then returns it.
+3. A person drops a folder, files or a .zip on the New preview page, or deploys through the REST API.
+
+Static sites and artifacts are served by gangway itself, with no container. One `artifact.md` renders as a document, slide deck, dashboard or prototype. Apps (static, Node, Bun, Deno, workerd, Python, PHP, or a Docker Compose stack) are detected from their files and run as containers. Previews can have throwaway Postgres, MySQL or Redis, expire and sleep when idle, and can be public, unlisted, password-protected or visible only to signed-in users.
+
+## Install
+
+Run on the server that will host the previews, as root or a user in the `docker` group:
+
+```sh
+curl -fsSL gangway.sh/install | sh
+```
+
+It needs Docker or Podman with Compose, and a domain with a wildcard DNS record (for example `*.preview.example.com`) pointing at the server. The installer asks for the domain and how TLS is handled, then prints a one-time link to create the first admin. Run it again to upgrade. `--help` lists flags for an unattended install.
+
+## Connect an agent
+
+1. In gangway, turn on MCP under Settings → Surfaces.
+2. Account → Connect an agent shows the setup command for each client. For Claude Code:
+   `claude plugin marketplace add charlesabarnes/gangway && claude plugin install gangway@gangway --config mcp_url=https://mcp.<your-domain>/`
+3. Sign in through the client (`/mcp` in Claude Code) and approve the agent in the browser.
+
+The MCP tools are `deploy`, `status`, `logs` and `destroy`. `deploy` is idempotent.
+
+## Docs
+
+- [README](https://github.com/charlesabarnes/gangway#readme): features, install options, configuration, security
+- [Quickstart](https://github.com/charlesabarnes/gangway#quickstart): requirements, installer and manual setup
+- [Pull-request previews](https://github.com/charlesabarnes/gangway#pull-request-previews): GitHub App and project setup
+- [Agent plugin](https://github.com/charlesabarnes/gangway/blob/master/plugin/gangway/README.md): the Claude Code plugin and `/gangway:generate-artifact`
+- [Configuration](https://github.com/charlesabarnes/gangway/blob/master/compose.yaml): every setting, documented inline
+
+## Optional
+
+- [Releases](https://github.com/charlesabarnes/gangway/releases)
+- [gangway Cloud](https://gangway.sh/cloud.html): hosted version, coming soon
