@@ -1,6 +1,5 @@
-// Builds site/ for GitHub Pages into dist/site: a copy where every local stylesheet and script link
-// carries a hash of the file it points at (css/home.css?v=3f2a9c01b4). Pages lets browsers cache
-// files for ten minutes, so without it a visitor can get new HTML with last deploy's CSS and JS.
+// Copies site/ to dist/site with a content hash on every local CSS and JS link, because Pages lets
+// browsers cache for ten minutes and a visitor could otherwise get new HTML with old CSS and JS.
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
