@@ -8,11 +8,12 @@ import { Btn } from '../../ui/button';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { ManagedBadge } from '../../ui/managed-badge';
 import { ToastService } from '../../ui/toast';
+import { Skeleton } from '../../ui/skeleton';
 
 @Component({
   selector: 'app-surfaces-settings',
   host: { class: 'block' },
-  imports: [Btn, ConfirmDialog, ManagedBadge, RouterLink],
+  imports: [Btn, ConfirmDialog, ManagedBadge, RouterLink, Skeleton],
   template: `
     <div class="gw-section">
       <div class="flex flex-col gap-1">
@@ -133,7 +134,7 @@ claude mcp add --transport http gangway {{ sf.mcp.url }} --header "Authorization
               >{{ sf.reenableUi }}</pre>
           </app-confirm-dialog>
         } @else {
-          <p class="text-sm text-muted">Loading…</p>
+          <app-skeleton [count]="2" />
         }
       </div>
     </div>

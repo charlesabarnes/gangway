@@ -53,19 +53,24 @@ type Tab = 'gallery' | 'templates' | 'themes' | 'settings';
           }
         </nav>
       </div>
-      @switch (tab()) {
-        @case ('templates') {
-          <app-template-library />
-        }
-        @case ('themes') {
-          <app-theme-library />
-        }
-        @case ('settings') {
-          <app-artifact-settings-tab />
-        }
-        @default {
-          <app-artifact-gallery />
-        }
+      <!-- A tab once opened stays alive while hidden, so coming back does not reload its frames. -->
+      @for (t of opened(); track t) {
+        <div [hidden]="tab() !== t" [attr.data-testid]="'panel-' + t">
+          @switch (t) {
+            @case ('templates') {
+              <app-template-library />
+            }
+            @case ('themes') {
+              <app-theme-library />
+            }
+            @case ('settings') {
+              <app-artifact-settings-tab />
+            }
+            @default {
+              <app-artifact-gallery />
+            }
+          }
+        </div>
       }
     </section>
   `,
@@ -90,4 +95,6 @@ export class ArtifactsPage {
     const want = this.#query();
     return this.tabs().some((t) => t.id === want) ? (want as Tab) : 'gallery';
   });
+  readonly #opened = new Set<Tab>();
+  protected readonly opened = computed(() => [...this.#opened.add(this.tab())]);
 }

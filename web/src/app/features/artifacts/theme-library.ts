@@ -2,6 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { ArtifactTheme } from '../../core/artifacts.types';
 import { AuthService } from '../../core/auth.service';
+import { Skeleton } from '../../ui/skeleton';
 import { ArtifactFrame } from './artifact-frame';
 import { ArtifactsService } from './artifacts.service';
 import { SAMPLE_DECK, SAMPLE_DOC, sampleFiles } from './samples';
@@ -19,8 +20,20 @@ import { themeCss } from './theme-css';
       [attr.data-testid]="'theme-' + t.id"
     >
       <div class="gw-neatline grid grid-cols-2 gap-[5px] p-[5px]">
-        <app-artifact-frame [files]="doc" [themeCss]="css()" [width]="1100" [height]="900" />
-        <app-artifact-frame [files]="deck" [themeCss]="css()" [width]="1280" [height]="1047" />
+        <app-artifact-frame
+          [files]="doc"
+          [themeCss]="css()"
+          [width]="1100"
+          [height]="900"
+          [lazy]="true"
+        />
+        <app-artifact-frame
+          [files]="deck"
+          [themeCss]="css()"
+          [width]="1280"
+          [height]="1047"
+          [lazy]="true"
+        />
       </div>
       <div class="flex flex-col gap-1">
         <span class="gw-label flex gap-2"
@@ -48,7 +61,7 @@ export class ThemeCard {
 
 @Component({
   selector: 'app-theme-library',
-  imports: [RouterLink, ThemeCard],
+  imports: [RouterLink, Skeleton, ThemeCard],
   template: `
     <div class="flex flex-col gap-6">
       <div class="flex flex-wrap items-end gap-4">
@@ -63,7 +76,16 @@ export class ThemeCard {
           >
         }
       </div>
-      <div class="grid gap-7 md:grid-cols-2" data-testid="themes">
+      @if (!loaded()) {
+        <app-skeleton
+          kind="cards"
+          [count]="2"
+          ratio="2 / 1"
+          grid="grid gap-7 md:grid-cols-2"
+          label="Loading themes"
+        />
+      }
+      <div class="gw-enter grid gap-7 md:grid-cols-2" data-testid="themes">
         @for (t of themes(); track t.id) {
           <app-theme-card [theme]="t" />
         }
@@ -76,6 +98,7 @@ export class ThemeLibrary {
   readonly #auth = inject(AuthService);
   protected readonly canManage = computed(() => this.#auth.can('artifacts.manage'));
   protected readonly themes = computed(() => this.#svc.themes()?.themes ?? []);
+  protected readonly loaded = computed(() => this.#svc.themesSettled());
 
   constructor() {
     void this.#svc.loadThemes().catch(() => undefined);

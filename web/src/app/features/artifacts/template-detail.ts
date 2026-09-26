@@ -218,12 +218,16 @@ type Files = Record<string, string>;
                   </button>
                 }
               </div>
-              <app-code-editor
-                [path]="path()"
-                [value]="draft()[path()] ?? ''"
-                (changed)="edit($event)"
-                (save)="save()"
-              />
+              @defer (on idle) {
+                <app-code-editor
+                  [path]="path()"
+                  [value]="draft()[path()] ?? ''"
+                  (changed)="edit($event)"
+                  (save)="save()"
+                />
+              } @placeholder {
+                <div class="gw-skeleton h-80" data-testid="editor-loading"></div>
+              }
             }
           </div>
         </div>

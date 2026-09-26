@@ -16,6 +16,7 @@ import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from './previews.store';
 import { displayName, primaryUrl, slugOf, sourceLabel } from './source-label';
+import { Skeleton } from '../../ui/skeleton';
 
 const STATE_CHIPS: { key: string; label: string; states: PreviewState[] }[] = [
   { key: 'awake', label: 'awake', states: ['awake'] },
@@ -28,16 +29,17 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
 @Component({
   selector: 'app-preview-list',
   imports: [
-    RouterLink,
     Btn,
     ConfirmDialog,
     ConnectionDot,
     EmptyState,
     ErrorAlert,
-    RelativeTimePipe,
-    StateBadge,
     PasswordBadge,
     PreviewIconTile,
+    RelativeTimePipe,
+    RouterLink,
+    Skeleton,
+    StateBadge,
   ],
   template: `
     <section class="gw-page">
@@ -213,7 +215,7 @@ const SOURCE_KINDS: SourceKind[] = ['pr', 'git', 'image', 'tarball', 'agent', 'm
             </table>
           </div>
         } @else if (store.loading() && store.previews().length === 0) {
-          <p class="py-14 text-center text-sm text-muted" data-testid="loading">Loading…</p>
+          <app-skeleton kind="rows" [count]="5" label="Loading previews" data-testid="loading" />
         } @else if (filtered()) {
           <app-empty-state heading="Nothing matches these filters">
             <button

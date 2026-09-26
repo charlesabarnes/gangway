@@ -16,10 +16,28 @@
         if (t !== 'light' && t !== 'dark')
           t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.dataset.theme = t;
+        // Signed in last time: paint the header now, before the app is up (AuthService keeps the flag).
+        if (localStorage.getItem('gw-signed-in') === '1')
+          document.documentElement.dataset.signedIn = '';
       } catch (e) {}
+      // The session, asked for while the scripts download rather than after (AuthService takes it).
+      window.gwSession = fetch('/v1/auth/session', { credentials: 'same-origin' }).then((r) =>
+        r.ok ? r.json() : Promise.reject(r.status),
+      );
+      window.gwSession.catch(() => {});
     </script>
+    <style>
+      .gw-boot-header {
+        display: none;
+        height: 3.5rem;
+        background: var(--gw-header);
+      }
+      [data-signed-in] .gw-boot-header {
+        display: block;
+      }
+    </style>
   </head>
   <body>
-    <app-root></app-root>
+    <app-root><div class="gw-boot-header"></div></app-root>
   </body>
 </html>

@@ -36,11 +36,33 @@ export class AuthService {
 
   async refresh(): Promise<void> {
     try {
-      this.#info.set(await firstValueFrom(this.#http.get<SessionInfo>('/v1/auth/session')));
+      const early = this.#prefetched();
+      this.#set(
+        (early && (await early.catch(() => null))) ??
+          (await firstValueFrom(this.#http.get<SessionInfo>('/v1/auth/session'))),
+      );
       this.unreachable.set(false);
     } catch {
-      this.#info.set({ authenticated: false, setupRequired: false });
+      this.#set({ authenticated: false, setupRequired: false });
       this.unreachable.set(true);
+    }
+  }
+
+  /** The session index.html asked for before the app loaded; used once. */
+  #prefetched(): Promise<SessionInfo> | undefined {
+    const w = window as { gwSession?: Promise<SessionInfo> };
+    const early = w.gwSession;
+    delete w.gwSession;
+    return early;
+  }
+
+  #set(info: SessionInfo): void {
+    this.#info.set(info);
+    try {
+      if (info.authenticated) localStorage.setItem('gw-signed-in', '1');
+      else localStorage.removeItem('gw-signed-in');
+    } catch {
+      // Storage may be off; the header then just waits for the app.
     }
   }
 
@@ -67,11 +89,11 @@ export class AuthService {
   }
 
   clear(): void {
-    this.#info.set({ authenticated: false, setupRequired: false });
+    this.#set({ authenticated: false, setupRequired: false });
   }
 
   #signedIn(r: LoginResponse): void {
-    this.#info.set({
+    this.#set({
       authenticated: true,
       setupRequired: false,
       user: r.user,

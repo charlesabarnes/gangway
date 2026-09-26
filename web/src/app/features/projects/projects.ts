@@ -11,6 +11,7 @@ import { StateBadge } from '../../ui/state-badge';
 import { ToastService } from '../../ui/toast';
 import { FIELD } from '../../ui/field';
 import { PreviewsStore } from '../previews/previews.store';
+import { Skeleton } from '../../ui/skeleton';
 
 export const TRIGGER_HELP: Record<PrTrigger, { name: string; help: string }> = {
   workflow: {
@@ -26,7 +27,7 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
 
 @Component({
   selector: 'app-projects',
-  imports: [Btn, EmptyState, RouterLink, StateBadge],
+  imports: [Btn, EmptyState, RouterLink, Skeleton, StateBadge],
   template: `
     <section class="gw-page">
       <div class="gw-title-rule flex flex-wrap items-end gap-5">
@@ -178,7 +179,9 @@ const LIVE = new Set(['building', 'starting', 'awake', 'asleep', 'failed']);
             </li>
           }
         </ul>
-      } @else if (loaded()) {
+      } @else if (!loaded()) {
+        <app-skeleton kind="rows" [count]="3" label="Loading repositories" />
+      } @else {
         <app-empty-state heading="No repositories yet">
           <p>Connect one and its pull requests get previews.</p>
         </app-empty-state>

@@ -5,11 +5,12 @@ import type { Project, SecretListing } from '../../core/api.types';
 import { toProblem } from '../../core/problem';
 import { ToastService } from '../../ui/toast';
 import { SecretsEditor } from '../secrets/secrets-editor';
+import { Skeleton } from '../../ui/skeleton';
 
 @Component({
   selector: 'app-project-secrets',
   host: { class: 'block' },
-  imports: [SecretsEditor],
+  imports: [SecretsEditor, Skeleton],
   template: `
     @let p = project();
     <div class="flex flex-col gap-3" data-testid="secrets">
@@ -24,7 +25,7 @@ import { SecretsEditor } from '../secrets/secrets-editor';
       @if (loaded()) {
         <app-secrets-editor [url]="'/v1/projects/' + p.id + '/env'" [initial]="secrets()" />
       } @else {
-        <p class="text-sm text-muted">Loading…</p>
+        <app-skeleton [count]="2" />
       }
     </div>
   `,

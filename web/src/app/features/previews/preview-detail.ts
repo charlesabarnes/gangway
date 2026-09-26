@@ -34,12 +34,11 @@ import { PreviewsStore } from './previews.store';
 import { PreviewTitle } from './preview-title';
 import { SourcePanel } from './source-panel';
 import { displayName, sourceLabel } from './source-label';
+import { Skeleton } from '../../ui/skeleton';
 
 @Component({
   selector: 'app-preview-detail',
   imports: [
-    PreviewSecretsPanel,
-    RouterLink,
     Btn,
     ConfirmDialog,
     DbBrowser,
@@ -47,12 +46,15 @@ import { displayName, sourceLabel } from './source-label';
     ErrorAlert,
     LogViewer,
     PasswordBadge,
-    WatermarkPanel,
     PasswordPanel,
+    PreviewSecretsPanel,
     PreviewTitle,
     RelativeTimePipe,
+    RouterLink,
+    Skeleton,
     SourcePanel,
     StateBadge,
+    WatermarkPanel,
   ],
   template: `
     <section class="gw-page gap-9">
@@ -298,7 +300,7 @@ import { displayName, sourceLabel } from './source-label';
           >.
         </app-empty-state>
       } @else {
-        <p class="text-sm text-muted" data-testid="loading">Loading…</p>
+        <app-skeleton [count]="4" label="Loading the preview" data-testid="loading" />
       }
     </section>
   `,
@@ -345,11 +347,15 @@ export class PreviewDetail {
       });
     });
 
-    effect(() => {
+    // Keyed on the id and the last change, not the object, which a list reload replaces unchanged.
+    const version = computed(() => {
       const p = this.preview();
-      if (!p) return;
-      void p.updatedAt;
-      untracked(() => void this.#refreshHistory(p.id));
+      return p ? `${p.id}@${p.updatedAt}` : null;
+    });
+    effect(() => {
+      const v = version();
+      if (!v) return;
+      untracked(() => void this.#refreshHistory(v.slice(0, v.indexOf('@'))));
     });
   }
 

@@ -1,9 +1,10 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { ArtifactKind } from '../../core/artifact.types';
 import { ARTIFACT_KINDS, KIND_LABELS, type TemplateSummary } from '../../core/artifacts.types';
 import { AuthService } from '../../core/auth.service';
-import type { ProblemError } from '../../core/problem';
+import { NearViewport } from '../../ui/near-viewport';
+import { Skeleton } from '../../ui/skeleton';
 import { ArtifactFrame } from './artifact-frame';
 import { ArtifactsService } from './artifacts.service';
 import { themeCss } from './theme-css';
@@ -18,7 +19,7 @@ export const THUMB: Record<ArtifactKind, { w: number; h: number }> = {
 /** One template's card: its first page, drawn live, in the theme it would get. */
 @Component({
   selector: 'app-template-card',
-  imports: [ArtifactFrame, RouterLink],
+  imports: [ArtifactFrame, NearViewport, RouterLink],
   template: `
     @let t = template();
     <a
@@ -26,16 +27,17 @@ export const THUMB: Record<ArtifactKind, { w: number; h: number }> = {
       class="group flex flex-col gap-3"
       [attr.data-testid]="'template-' + t.id"
     >
-      <div class="gw-neatline overflow-hidden p-[5px]">
-        @if (files(); as f) {
+      <div class="gw-neatline overflow-hidden p-[5px]" (appNearViewport)="near.set(true)">
+        @if (ready() && files(); as f) {
           <app-artifact-frame
             [files]="f"
             [themeCss]="css()"
             [width]="size().w"
             [height]="size().h"
+            [lazy]="true"
           />
         } @else {
-          <div class="aspect-[16/10] bg-surface"></div>
+          <div class="gw-skeleton" [style.aspect-ratio]="size().w + ' / ' + size().h"></div>
         }
       </div>
       <div class="flex flex-col gap-1">
@@ -55,6 +57,8 @@ export class TemplateCard {
   readonly template = input.required<TemplateSummary>();
   readonly #svc = inject(ArtifactsService);
   protected readonly files = signal<Record<string, string> | null>(null);
+  protected readonly near = signal(false);
+  protected readonly ready = computed(() => this.near() && this.#svc.themesSettled());
   protected readonly size = computed(() => THUMB[this.template().kind]);
   protected readonly css = computed(() => {
     const t = this.#svc.theme(this.template().themeId);
@@ -62,19 +66,24 @@ export class TemplateCard {
   });
 
   constructor() {
-    queueMicrotask(() =>
-      this.#svc.render({ template: this.template().id }).then(
+    effect(() => {
+      if (!this.near() || this.#asked) return;
+      this.#asked = true;
+      const id = untracked(() => this.template().id);
+      this.#svc.render({ template: id }).then(
         (f) => this.files.set(f),
         () => this.files.set(null),
-      ),
-    );
+      );
+    });
   }
+
+  #asked = false;
 }
 
 /** Every template, built in and made here, grouped by kind: the same list agents get. */
 @Component({
   selector: 'app-template-library',
-  imports: [RouterLink, TemplateCard],
+  imports: [RouterLink, Skeleton, TemplateCard],
   template: `
     <div class="flex flex-col gap-10">
       <p class="m-0 max-w-[70ch] text-sm leading-snug text-muted">
@@ -84,8 +93,11 @@ export class TemplateCard {
       @if (error(); as e) {
         <p class="text-sm text-danger" role="alert">{{ e.detail }}</p>
       }
-      @for (k of kinds; track k) {
-        <section class="flex flex-col gap-5" [attr.data-testid]="'kind-' + k">
+      @if (!loaded() && !error()) {
+        <app-skeleton kind="cards" [count]="6" label="Loading templates" />
+      }
+      @for (k of loaded() ? kinds : []; track k) {
+        <section class="gw-enter flex flex-col gap-5" [attr.data-testid]="'kind-' + k">
           <div class="flex items-end gap-4 border-b border-ink pb-2.5">
             <h2 class="gw-h2">{{ labels[k] }}</h2>
             <span class="font-mono text-sm text-muted">{{ byKind()[k].length }}</span>
@@ -115,8 +127,10 @@ export class TemplateLibrary {
   protected readonly kinds = ARTIFACT_KINDS;
   protected readonly labels = KIND_LABELS;
   protected readonly canManage = computed(() => this.#auth.can('artifacts.manage'));
-  protected readonly templates = signal<TemplateSummary[]>([]);
-  protected readonly error = signal<ProblemError | null>(null);
+  readonly #list = this.#svc.templatesQuery();
+  protected readonly templates = computed(() => this.#list.data() ?? []);
+  protected readonly loaded = this.#list.loaded;
+  protected readonly error = computed(() => (this.loaded() ? null : this.#list.error()));
   protected readonly byKind = computed(() => {
     const out = { document: [], deck: [], canvas: [] } as Record<ArtifactKind, TemplateSummary[]>;
     for (const t of this.templates()) out[t.kind]?.push(t);
@@ -125,9 +139,5 @@ export class TemplateLibrary {
 
   constructor() {
     if (!this.#svc.themes()) void this.#svc.loadThemes().catch(() => undefined);
-    this.#svc.templates().then(
-      (t) => this.templates.set(t),
-      (e: ProblemError) => this.error.set(e),
-    );
   }
 }

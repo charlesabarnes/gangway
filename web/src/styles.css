@@ -169,3 +169,40 @@ body {
     background-image: none;
   }
 }
+
+/* Loading: a quiet shimmer where content will be, and a short fade when it arrives. */
+@keyframes gw-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@keyframes gw-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@layer components {
+  .gw-skeleton {
+    background: linear-gradient(
+        90deg,
+        transparent 25%,
+        color-mix(in oklch, var(--gw-rule) 45%, transparent) 50%,
+        transparent 75%
+      )
+      0 0 / 200% 100% var(--gw-surface);
+    animation: gw-shimmer 1.4s ease-in-out infinite;
+  }
+  .gw-enter {
+    animation: gw-enter 180ms ease-out both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gw-skeleton,
+  .gw-enter {
+    animation: none;
+  }
+}

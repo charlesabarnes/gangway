@@ -12,6 +12,7 @@ import { PreviewPolicies } from './preview-policies';
 import { SurfacesSettings } from './surfaces-settings';
 import { UpdateSettings } from './update-settings';
 import { WatermarkSettings } from './watermark-settings';
+import { Skeleton } from '../../ui/skeleton';
 
 @Component({
   selector: 'app-settings',
@@ -20,6 +21,7 @@ import { WatermarkSettings } from './watermark-settings';
     GlobalSecrets,
     PreviewPasswords,
     PreviewPolicies,
+    Skeleton,
     SurfacesSettings,
     UpdateSettings,
     WatermarkSettings,
@@ -27,28 +29,32 @@ import { WatermarkSettings } from './watermark-settings';
   template: `
     <section class="gw-page [&>:last-child>.gw-section]:border-b-0">
       <div class="gw-title-rule"><h1 class="gw-h1">Settings</h1></div>
-      @if (canReadSettings()) {
-        <app-update-settings [settings]="settings()" [(saving)]="saving" />
-      }
-      @if (canSurfaces()) {
-        <app-surfaces-settings [(saving)]="saving" />
-      }
-      @if (canManage()) {
-        <app-github-settings />
-      }
-      @if (canReadSettings() || canManagePolicies()) {
-        <app-preview-policies
-          [(templates)]="templates"
-          [settings]="settings()"
-          [(saving)]="saving"
-        />
-      }
-      @if (canReadSettings()) {
-        <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
-        <app-watermark-settings [settings]="settings()" [(saving)]="saving" />
-      }
-      @if (canSecrets()) {
-        <app-global-secrets />
+      @if (!ready()) {
+        <app-skeleton [count]="8" label="Loading settings" />
+      } @else {
+        @if (canReadSettings()) {
+          <app-update-settings [settings]="settings()" [(saving)]="saving" />
+        }
+        @if (canSurfaces()) {
+          <app-surfaces-settings [(saving)]="saving" />
+        }
+        @if (canManage()) {
+          <app-github-settings />
+        }
+        @if (canReadSettings() || canManagePolicies()) {
+          <app-preview-policies
+            [(templates)]="templates"
+            [settings]="settings()"
+            [(saving)]="saving"
+          />
+        }
+        @if (canReadSettings()) {
+          <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
+          <app-watermark-settings [settings]="settings()" [(saving)]="saving" />
+        }
+        @if (canSecrets()) {
+          <app-global-secrets />
+        }
       }
     </section>
   `,
@@ -66,11 +72,14 @@ export class SettingsPage {
   protected readonly templates = signal<Template[]>([]);
   protected readonly settings = signal<SettingView[]>([]);
   protected readonly saving = signal<string | null>(null);
+  // The sections wait for the values, or they would show defaults and then flip to the real ones.
+  protected readonly ready = signal(false);
 
   constructor() {
     effect(() => {
       const read = this.canReadSettings();
       if (read || this.canManagePolicies()) untracked(() => void this.#load(read));
+      else this.ready.set(true);
     });
   }
 
@@ -86,6 +95,8 @@ export class SettingsPage {
       if (settings) this.settings.set(settings.settings);
     } catch (e) {
       this.#toasts.problem('Could not load settings', toProblem(e));
+    } finally {
+      this.ready.set(true);
     }
   }
 }

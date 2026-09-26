@@ -13,6 +13,7 @@ import { HARD_NAVIGATE } from '../../core/auth.guard';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { SecretTargetsPicker } from '../secrets/secret-targets';
+import { Skeleton } from '../../ui/skeleton';
 
 const SCOPE_HELP: Record<OAuthScope, string> = {
   read: 'See previews, their state and their logs.',
@@ -39,7 +40,7 @@ const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
 
 @Component({
   selector: 'app-connect',
-  imports: [Btn, SecretTargetsPicker],
+  imports: [Btn, SecretTargetsPicker, Skeleton],
   template: `
     <section class="mx-auto max-w-lg px-4 py-12 sm:px-6">
       <div class="gw-neatline-strong flex flex-col gap-7 bg-paper p-8 sm:p-10">
@@ -132,7 +133,7 @@ const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
             {{ e }}
           </p>
         } @else {
-          <p class="text-sm text-muted" data-testid="loading">Loading…</p>
+          <app-skeleton [count]="3" data-testid="loading" />
         }
       </div>
     </section>

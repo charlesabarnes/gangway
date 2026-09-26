@@ -21,12 +21,20 @@ import { ProjectPreviews } from './project-previews';
 import { ProjectSecrets } from './project-secrets';
 import { ProjectSettings } from './project-settings';
 import { ProjectWorkflow } from './project-workflow';
+import { Skeleton } from '../../ui/skeleton';
 
 type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
 
 @Component({
   selector: 'app-project',
-  imports: [ProjectPreviews, ProjectSecrets, ProjectSettings, ProjectWorkflow, RouterLink],
+  imports: [
+    ProjectPreviews,
+    ProjectSecrets,
+    ProjectSettings,
+    ProjectWorkflow,
+    RouterLink,
+    Skeleton,
+  ],
   template: `
     <section class="gw-page">
       <div class="flex flex-col gap-3.5">
@@ -103,6 +111,8 @@ type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
             >Back to repositories</a
           >.
         </p>
+      } @else {
+        <app-skeleton [count]="5" label="Loading the repository" />
       }
     </section>
   `,

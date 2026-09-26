@@ -4,11 +4,12 @@ import { firstValueFrom } from 'rxjs';
 import type { GitHubStatus, ManifestStart } from '../../core/api.types';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
+import { Skeleton } from '../../ui/skeleton';
 
 @Component({
   selector: 'app-github-settings',
   host: { class: 'block' },
-  imports: [Btn],
+  imports: [Btn, Skeleton],
   template: `
     <div class="gw-section">
       <div class="flex flex-col gap-1">
@@ -81,7 +82,7 @@ import { Btn } from '../../ui/button';
             Webhook: <code class="font-mono">{{ s.webhookUrl }}</code>
           </p>
         } @else {
-          <p class="text-sm text-muted">Loading…</p>
+          <app-skeleton [count]="3" />
         }
       </div>
     </div>

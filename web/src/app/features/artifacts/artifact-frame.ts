@@ -10,6 +10,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { FrameQueue } from '../../ui/frame-queue';
 
 export const FRAME_SRC = '/_gangway/frame.html';
 
@@ -21,10 +22,14 @@ export const FRAME_SRC = '/_gangway/frame.html';
     <div
       #box
       class="relative overflow-hidden bg-paper"
-      [style.height.px]="height() ? boxHeight() : null"
+      [style.aspect-ratio]="height() ? width() + ' / ' + height() : null"
       [class.h-full]="!height()"
       data-testid="artifact-frame"
-    ></div>
+    >
+      @if (!shown()) {
+        <div class="gw-skeleton absolute inset-0"></div>
+      }
+    </div>
   `,
 })
 export class ArtifactFrame {
@@ -38,9 +43,15 @@ export class ArtifactFrame {
   readonly interactive = input(false);
   readonly chrome = input(false);
   readonly hash = input('');
+  /** Wait until it is near the viewport, and take a turn in the frame queue, before the first draw. */
+  readonly lazy = input(false);
 
   private readonly box = viewChild.required<ElementRef<HTMLDivElement>>('box');
-  protected readonly boxHeight = signal(0);
+  protected readonly shown = signal(false);
+  readonly #queue = inject(FrameQueue);
+  #release: (() => void) | null = null;
+  #near = false;
+  #pending: object | null = null;
   #current: HTMLIFrameElement | null = null;
   #timer: ReturnType<typeof setTimeout> | null = null;
   #scale = 1;
@@ -53,11 +64,24 @@ export class ArtifactFrame {
     destroy.onDestroy(() => {
       window.removeEventListener('message', onMessage);
       if (this.#timer) clearTimeout(this.#timer);
+      this.#release?.();
     });
     afterNextRender(() => {
+      const box = this.box().nativeElement;
       const ro = new ResizeObserver(() => this.#fit());
-      ro.observe(this.box().nativeElement);
+      ro.observe(box);
       destroy.onDestroy(() => ro.disconnect());
+      if (!this.lazy() || typeof IntersectionObserver === 'undefined') return this.#arrive();
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return;
+          io.disconnect();
+          this.#arrive();
+        },
+        { rootMargin: '200px' },
+      );
+      io.observe(box);
+      destroy.onDestroy(() => io.disconnect());
     });
     effect(() => {
       const state = {
@@ -72,19 +96,31 @@ export class ArtifactFrame {
     });
   }
 
-  #schedule(state: object): void {
-    if (this.#timer) clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => this.#draw(state), this.#current ? 300 : 0);
+  #arrive(): void {
+    this.#near = true;
+    if (this.#pending) this.#schedule(this.#pending);
   }
 
-  #draw(state: object): void {
+  #schedule(state: object): void {
+    this.#pending = state;
+    if (!this.#near && this.lazy()) return;
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#timer = setTimeout(() => void this.#draw(state), this.#current ? 300 : 0);
+  }
+
+  async #draw(state: object): Promise<void> {
+    if (this.lazy() && !this.#current && !this.#release) {
+      this.#release = await this.#queue.acquire();
+      if (state !== this.#pending) return;
+    }
     const box = this.box().nativeElement;
     const f = document.createElement('iframe');
     f.dataset['gen'] = String(++this.#drawn);
     f.src = FRAME_SRC;
     f.setAttribute('sandbox', 'allow-scripts');
     f.setAttribute('title', 'Artifact preview');
-    f.style.cssText = 'position:absolute;top:0;left:0;border:0;transform-origin:0 0;opacity:0';
+    f.style.cssText =
+      'position:absolute;top:0;left:0;border:0;transform-origin:0 0;opacity:0;transition:opacity .25s';
     this.#size(f);
     if (!this.interactive()) f.style.pointerEvents = 'none';
     box.appendChild(f);
@@ -108,6 +144,8 @@ export class ArtifactFrame {
     f.style.opacity = '1';
     for (const old of frames) if (old !== f) old.remove();
     this.#current = f;
+    this.shown.set(true);
+    this.#release?.();
   }
 
   #size(f: HTMLIFrameElement): void {
@@ -121,9 +159,6 @@ export class ArtifactFrame {
   }
 
   #fit(): void {
-    const box = this.box().nativeElement;
-    if (this.height())
-      this.boxHeight.set((box.clientWidth / (this.width() || box.clientWidth)) * this.height());
-    for (const f of box.querySelectorAll('iframe')) this.#size(f);
+    for (const f of this.box().nativeElement.querySelectorAll('iframe')) this.#size(f);
   }
 }

@@ -11,6 +11,7 @@ import type {
 } from '../../core/artifacts.types';
 import type { Preview } from '../../core/api.types';
 import { toProblem } from '../../core/problem';
+import { QueryCache, type Query } from '../../core/query';
 
 type Files = Record<string, string>;
 
@@ -18,7 +19,10 @@ type Files = Record<string, string>;
 @Injectable({ providedIn: 'root' })
 export class ArtifactsService {
   readonly #http = inject(HttpClient);
+  readonly #cache = inject(QueryCache);
   readonly themes = signal<ThemeList | null>(null);
+  /** True once the themes list has answered or failed, so a thumbnail draws once, in its theme. */
+  readonly themesSettled = signal(false);
 
   async #call<T>(p: Promise<T>): Promise<T> {
     try {
@@ -29,9 +33,24 @@ export class ArtifactsService {
   }
 
   async loadThemes(): Promise<ThemeList> {
-    const list = await this.#call(firstValueFrom(this.#http.get<ThemeList>('/v1/artifact-themes')));
-    this.themes.set(list);
-    return list;
+    try {
+      const list = await this.#call(
+        firstValueFrom(this.#http.get<ThemeList>('/v1/artifact-themes')),
+      );
+      this.themes.set(list);
+      return list;
+    } finally {
+      this.themesSettled.set(true);
+    }
+  }
+
+  /** The gallery's list, shown at once from the last visit while a fresh one loads. */
+  listQuery(): Query<ArtifactItem[]> {
+    return this.#cache.query('artifacts:list', () => this.list());
+  }
+
+  templatesQuery(): Query<TemplateSummary[]> {
+    return this.#cache.query('artifacts:templates', () => this.templates());
   }
 
   theme(id: string | null): ArtifactTheme | undefined {
@@ -100,6 +119,7 @@ export class ArtifactsService {
   }
 
   deleteTemplate(id: string): Promise<unknown> {
+    this.#cache.invalidate('artifacts:templates');
     return this.#call(firstValueFrom(this.#http.delete(`/v1/artifact-templates/${id}`)));
   }
 
@@ -129,6 +149,7 @@ export class ArtifactsService {
   deploy(
     body: TemplateInput & { name?: string; visibility?: string },
   ): Promise<{ preview: Preview }> {
+    this.#cache.invalidate('artifacts:list');
     return this.#call(firstValueFrom(this.#http.post<{ preview: Preview }>('/v1/artifacts', body)));
   }
 }

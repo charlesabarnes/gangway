@@ -13,6 +13,8 @@ import { toProblem, type ProblemError } from '../../core/problem';
 import { SseService, type SseHandle, type SseStatus } from '../../core/sse.service';
 
 export const DESTROYED_LINGER_MS = 10_000;
+/** How long the stream stays open after the last page using it goes, so the next page need not reload. */
+export const KEEP_OPEN_MS = 30_000;
 
 type Patch = Omit<StreamEvent, 'type'> & { type: StreamEvent['type'] };
 export type RedeployEvent = Extract<StreamEvent, { type: 'preview.redeploy' }>;
@@ -34,6 +36,7 @@ export class PreviewsStore {
   readonly status: Signal<SseStatus | 'idle'> = computed(() => this.#handle()?.status() ?? 'idle');
 
   #users = 0;
+  #closeTimer: ReturnType<typeof setTimeout> | null = null;
   readonly #fetching = new Map<string, Promise<Preview | undefined>>();
   readonly #dropTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -42,11 +45,25 @@ export class PreviewsStore {
   }
 
   connect(): void {
-    if (++this.#users === 1) void this.reload();
+    if (this.#closeTimer) {
+      clearTimeout(this.#closeTimer);
+      this.#closeTimer = null;
+    }
+    if (++this.#users > 1) return;
+    // Still following from the last page: the list is current, so it shows as it is.
+    if (this.#handle() && this.status() !== 'closed') return;
+    void this.reload();
   }
 
   disconnect(): void {
     if (this.#users === 0 || --this.#users > 0) return;
+    this.#closeTimer = setTimeout(() => {
+      this.#closeTimer = null;
+      this.#close();
+    }, KEEP_OPEN_MS);
+  }
+
+  #close(): void {
     this.#handle()?.close();
     this.#handle.set(null);
     for (const t of this.#dropTimers.values()) clearTimeout(t);

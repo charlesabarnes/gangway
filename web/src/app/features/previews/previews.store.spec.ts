@@ -6,7 +6,7 @@ import { FakeEventSource } from '../../../testing/fake-event-source';
 import contract from '../../../testing/fixtures/contract.json';
 import type { Preview } from '../../core/api.types';
 import { EVENT_SOURCE_FACTORY, SSE_JITTER } from '../../core/sse.service';
-import { DESTROYED_LINGER_MS, PreviewsStore } from './previews.store';
+import { DESTROYED_LINGER_MS, KEEP_OPEN_MS, PreviewsStore } from './previews.store';
 
 const T0 = '2026-09-21T20:00:00.000Z';
 const at = (s: number) => new Date(Date.parse(T0) + s * 1000).toISOString();
@@ -142,7 +142,7 @@ describe('PreviewsStore', () => {
     expect(t.ids()).toEqual(['01A:awake', '010:destroyed']);
   });
 
-  it('two screens share one fetch and stream, closed when the last one leaves', async () => {
+  it('two screens share one fetch and stream, closed a while after the last one leaves', async () => {
     const t = setup();
     const source = await t.start([preview('01A')]);
     t.store.connect();
@@ -151,8 +151,22 @@ describe('PreviewsStore', () => {
     t.store.disconnect();
     expect(source.closed).toBe(false);
     t.store.disconnect();
+    expect(source.closed).toBe(false);
+    vi.advanceTimersByTime(KEEP_OPEN_MS);
     expect(source.closed).toBe(true);
     expect(t.store.status()).toBe('idle');
+  });
+
+  it('a page that follows within the grace period reuses the list and the stream', async () => {
+    const t = setup();
+    const source = await t.start([preview('01A')]);
+    t.store.disconnect();
+    vi.advanceTimersByTime(KEEP_OPEN_MS - 1);
+    t.store.connect();
+    t.http.expectNone('/v1/previews');
+    vi.advanceTimersByTime(KEEP_OPEN_MS);
+    expect(source.closed).toBe(false);
+    expect(FakeEventSource.instances).toHaveLength(1);
   });
 
   it('load(id) fetches one preview for a deep link, and is undefined if it is gone', async () => {
