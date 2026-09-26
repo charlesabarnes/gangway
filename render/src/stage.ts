@@ -29,6 +29,7 @@ class Deck extends HTMLElement {
   connectedCallback() {
     if (this.dataset["ready"]) return;
     this.dataset["ready"] = "1";
+    if (!this.hasAttribute("look")) this.setAttribute("look", "app");
     rootSettings(this);
     queueMicrotask(() => this.#build());
   }
@@ -105,6 +106,7 @@ class Prototype extends HTMLElement {
   connectedCallback() {
     if (this.dataset["ready"]) return;
     this.dataset["ready"] = "1";
+    if (!this.hasAttribute("look")) this.setAttribute("look", "app");
     rootSettings(this);
     queueMicrotask(() => this.#build());
   }
@@ -145,6 +147,9 @@ class Prototype extends HTMLElement {
         decodeURIComponent(location.hash.slice(1)) || this.getAttribute("start") || screens[0]?.id;
       const target = screens.find((s) => s.id === id) ?? screens[0];
       for (const s of screens) s.classList.toggle("on", s === target);
+      for (const a of device.querySelectorAll("gw-tabs a"))
+        if (a.getAttribute("href") === `#${target?.id}`) a.setAttribute("aria-current", "page");
+        else a.removeAttribute("aria-current");
       if (target)
         for (const n of templated(target))
           n.nodeValue = (n.gwTemplate ?? "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) =>

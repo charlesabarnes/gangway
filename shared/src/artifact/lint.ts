@@ -19,6 +19,7 @@ import {
   FORMATS,
   FRONT_MATTER_KEYS,
   INLINE_DIRECTIVES,
+  LOOKS,
   oneOf,
   SLIDE_LAYOUTS,
   TONES,
@@ -141,9 +142,26 @@ function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
   if (b.name !== "stats" && b.name !== "facts") walk(c, b.body);
 }
 
+function checkSteps(c: Ctx, line: number, whole: string, text: string, a: Attrs) {
+  const n = text.split(",").filter((t) => t.trim()).length;
+  const at = Number(a["at"] ?? 1);
+  if (n < 2)
+    c.issues.push({ line, message: `${whole}: list the steps, e.g. :steps[Cart,Pay,Done]` });
+  else if (!Number.isInteger(at) || at < 1 || at > n)
+    c.issues.push({ line, message: `${whole}: at= is the current step, 1 to ${n}` });
+}
+
+function checkImage(c: Ctx, line: number, whole: string, a: Attrs) {
+  if (a["ratio"] && !/^\d+:\d+$/.test(a["ratio"]))
+    c.issues.push({ line, message: `${whole}: ratio= is width:height, e.g. 16:9` });
+  const src = a["src"];
+  if (src && !/^https?:\/\//.test(src) && c.opts.has && !c.opts.has(src))
+    c.issues.push({ line, message: `src=${src} is not in the upload` });
+}
+
 function checkText(c: Ctx, line: number, text: string) {
   for (const m of text.matchAll(INLINE_RE)) {
-    const [whole, name = "", , raw] = m;
+    const [whole, name = "", text = "", raw] = m;
     if (!(INLINE_DIRECTIVES as readonly string[]).includes(name)) {
       if (raw !== undefined)
         c.issues.push({
@@ -157,6 +175,11 @@ function checkText(c: Ctx, line: number, text: string) {
     if (name === "button" && a["go"]) c.links.push({ line, message: a["go"] });
     if (name === "select" && !a["options"])
       c.issues.push({ line, message: `${whole}: a select needs options="A,B"` });
+    if (name === "steps") checkSteps(c, line, whole, text, a);
+    if (name === "tabs")
+      for (const go of (a["go"] ?? "").split(",").map((g) => g.trim()))
+        if (go) c.links.push({ line, message: go });
+    if (name === "image") checkImage(c, line, whole, a);
   }
   for (const m of text.matchAll(/\]\(#([\w-]+)\)/g)) c.links.push({ line, message: m[1]! });
 }
@@ -192,6 +215,7 @@ function checkFrontMatter(c: Ctx, meta: Record<string, string>): ArtifactKind | 
   checkValue(c, 1, "accent", meta["accent"], ARTIFACT_ACCENTS);
   checkValue(c, 1, "theme", meta["theme"], ARTIFACT_THEMES);
   checkValue(c, 1, "device", meta["device"], DEVICES);
+  checkValue(c, 1, "look", meta["look"], LOOKS);
   return k;
 }
 

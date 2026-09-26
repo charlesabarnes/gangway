@@ -94,7 +94,7 @@ describe("lintMarkdown", () => {
 
   test("an unknown or unclosed block is named with its line", () => {
     expect(issues(doc("::: carousel\nx\n:::"))).toEqual([
-      "5: unknown block :::carousel; blocks are callout | grid | card | section | columns | facts | stats",
+      "5: unknown block :::carousel; blocks are callout | grid | card | section | columns | facts | stats | note",
     ]);
     expect(issues(doc("::: callout\nx"))).toEqual(["5: :::callout is never closed with :::"]);
   });
@@ -137,6 +137,25 @@ describe("lintMarkdown", () => {
   test("prototype links must reach a screen", () => {
     const src = `---\nkind: prototype\ntitle: T\nstart: home\n---\n{#home title=Home}\n[Go](#nowhere)\n:button[Next]{go=done}\n\n---\n\n{#done title=Done}\nok\n`;
     expect(issues(src)).toEqual(["7: no screen has the id #nowhere"]);
+  });
+
+  test("a prototype's look, steps, tabs and images are checked", () => {
+    const src = `---\nkind: prototype\ntitle: T\nlook: glossy\n---\n{#home title=Home}\n:steps[Cart,Pay]{at=3}\n:steps[Only]\n:tabs[Home,Away]{go="home,away"}\n:image[Room]{ratio=wide}\n:image[Room]{src=img/room.jpg}\n`;
+    expect(
+      lintMarkdown(src, { has: () => false }).issues.map((i) => `${i.line}: ${i.message}`),
+    ).toEqual([
+      '1: look="glossy": one of app | wireframe | chart',
+      "7: :steps[Cart,Pay]{at=3}: at= is the current step, 1 to 2",
+      "8: :steps[Only]: list the steps, e.g. :steps[Cart,Pay,Done]",
+      "9: no screen has the id #away",
+      "10: :image[Room]{ratio=wide}: ratio= is width:height, e.g. 16:9",
+      "11: src=img/room.jpg is not in the upload",
+    ]);
+  });
+
+  test("a note is a block, and a block that holds blocks takes a longer fence", () => {
+    const src = `---\nkind: prototype\ntitle: T\n---\n{#home title=Home}\n:::: card\n::: facts total\nRoom: £296\nTotal: £340\n:::\n::::\n\n::: note\nTest with five people.\n:::\n`;
+    expect(issues(src)).toEqual([]);
   });
 
   test("an unknown inline directive is refused", () => {

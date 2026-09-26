@@ -16,6 +16,7 @@ updated: Hourly       # dashboard: shown top right
 columns: 4            # dashboard: grid columns
 footer: Team · Date   # deck: shown on every slide
 device: phone         # prototype: phone | desktop
+look: app             # prototype: app (a finished product) | wireframe (low-fi, sticky notes) | chart (gangway's style)
 start: home           # prototype: first screen id
 ---
 ```
@@ -31,6 +32,10 @@ Separate slides with a line that is only `---`. The first slide is the title sli
 
 ## Prototypes
 Separate screens with a line that is only `---`, each starting `{#id title="Screen title" back=previous-id}`. Link to a screen with `[text](#id)`; a list whose items are all links becomes a tappable list. Controls: `:button[Continue]{go=next-id}`, `:button[Back]{go=home ghost}`, `:input[Email]{name=email placeholder="you@example.com"}`, `:select[Plan]{name=plan options="Free,Team"}`, `:toggle[Email me]{name=news on}`. Show a value typed earlier with `{{email}}`.
+
+Looks: `app` (the default) draws a finished product, with soft cards and pill buttons in the accent colour. `wireframe` is low fidelity on purpose, for testing a flow before any visual design: grey boxes, hard outlines, handwritten sticky notes. `chart` uses the gangway house style. Pick desktop for anything with a sidebar or a summary beside a form; `::: columns` puts the two side by side there and stacks them on a phone.
+
+More pieces: `:image[Room photo]{ratio=4:3}` (a placeholder, or src=img/room.jpg), `:steps[Cart,Details,Pay,Done]{at=3}` (progress; at= is the current step), `:tabs[Home,Trips,Profile]{go="home,trips,profile"}` (a tab bar at the bottom; the open screen is highlighted), `::: facts total` (price lines; the last line is the total), `::: note` (a design note to the reader: a sticky note in a wireframe). Make screens feel real: real names, prices and times, an image where the product would show one, and one clear action per screen.
 
 ## Blocks
 ```

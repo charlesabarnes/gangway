@@ -20,7 +20,7 @@ export const FRONT_MATTER_KEYS: Record<ArtifactKind, readonly string[]> = {
   document: [...COMMON_KEYS, "byline", "date"],
   dashboard: [...COMMON_KEYS, "updated", "columns"],
   deck: [...COMMON_KEYS, "footer"],
-  prototype: [...COMMON_KEYS, "device", "start"],
+  prototype: [...COMMON_KEYS, "device", "look", "start"],
 };
 
 export const CONTAINERS = [
@@ -31,13 +31,25 @@ export const CONTAINERS = [
   "columns",
   "facts",
   "stats",
+  "note",
 ] as const;
 export const CHART_TYPES = ["bar", "line", "area", "donut"] as const;
 export const FORMATS = ["number", "percent", "currency", "compact"] as const;
 export const TONES = ["flag", "ok", "warn", "danger"] as const;
 export const SLIDE_LAYOUTS = ["title", "section", "big"] as const;
 export const DEVICES = ["phone", "desktop"] as const;
-export const INLINE_DIRECTIVES = ["flag", "button", "input", "select", "toggle"] as const;
+/** How a prototype is drawn: a finished app, a low-fi wireframe, or gangway's own Chart style. */
+export const LOOKS = ["app", "wireframe", "chart"] as const;
+export const INLINE_DIRECTIVES = [
+  "flag",
+  "button",
+  "input",
+  "select",
+  "toggle",
+  "image",
+  "steps",
+  "tabs",
+] as const;
 
 export const ELEMENTS = [
   "gw-doc",
@@ -56,6 +68,10 @@ export const ELEMENTS = [
   "gw-callout",
   "gw-flag",
   "gw-facts",
+  "gw-note",
+  "gw-image",
+  "gw-steps",
+  "gw-tabs",
 ] as const;
 
 export const oneOf = (list: readonly string[]) => list.join(" | ");

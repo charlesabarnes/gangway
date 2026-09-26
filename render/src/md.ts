@@ -35,14 +35,42 @@ function control(name: string, text: string, a: Attrs): string {
     }
     case "toggle":
       return `<label class="gw-toggle-field"><span>${label}</span><input type="checkbox" name="${field}"${"on" in a ? " checked" : ""}></label>`;
+    case "image": {
+      const [w = "16", h = "9"] = (a["ratio"] ?? "16:9").split(":");
+      const inner = a["src"]
+        ? `<img src="${esc(a["src"])}" alt="${label}">`
+        : `<span>${label}</span>`;
+      return `<gw-image role="img" aria-label="${label}" style="aspect-ratio:${esc(w)}/${esc(h)}">${inner}</gw-image>`;
+    }
+    case "steps": {
+      const at = Number(a["at"] ?? 1);
+      return `<gw-steps>${items(text)
+        .map((t, i) => `<span${i + 1 === at ? ' aria-current="step"' : ""}>${esc(t)}</span>`)
+        .join("")}</gw-steps>`;
+    }
+    case "tabs": {
+      const go = items(a["go"] ?? "");
+      return `<gw-tabs>${items(text)
+        .map((t, i) => (go[i] ? `<a href="#${esc(go[i])}">${esc(t)}</a>` : `<a>${esc(t)}</a>`))
+        .join("")}</gw-tabs>`;
+    }
     default:
       return text;
   }
 }
 
+const items = (list: string) =>
+  list
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+/** These read fine with no {…}; the form controls need one, so ordinary text like ":input[x]" stays text. */
+const BARE = new Set(["flag", "image", "steps", "tabs"]);
+
 const inline = (line: string) =>
   line.replace(INLINE_RE, (whole, name: string, text: string, raw: string | undefined) =>
-    raw === undefined && name !== "flag" ? whole : control(name, text, parseAttrs(raw)),
+    raw === undefined && !BARE.has(name) ? whole : control(name, text, parseAttrs(raw)),
   );
 
 function statTag(cells: string[]): string {
@@ -60,7 +88,7 @@ function container(b: Extract<Block, { type: "container" }>): string {
   if (b.name === "stats")
     return `<gw-grid columns="${b.attrs["columns"] ?? Math.min(4, rows.length)}">${rows.map((l) => statTag(l.split("|"))).join("")}</gw-grid>`;
   if (b.name === "facts")
-    return `<gw-facts>${rows
+    return `<gw-facts${attrText(b.attrs)}>${rows
       .map((l) => l.split(/:\s(.*)/s))
       .map(([k = "", v = ""]) => `<dt>${esc(k.trim())}</dt><dd>${inline(esc(v.trim()))}</dd>`)
       .join("")}</gw-facts>`;
@@ -75,7 +103,7 @@ function container(b: Extract<Block, { type: "container" }>): string {
   return `<gw-${b.name}${attrText(b.attrs)}>${render(b.body)}</gw-${b.name}>`;
 }
 
-const BLOCK_TAGS = "grid|chart|flow|callout|stat|facts|card|section|columns";
+const BLOCK_TAGS = "grid|chart|flow|callout|stat|facts|card|section|columns|note|image|steps|tabs";
 const unwrap = (h: string) =>
   h
     .replace(new RegExp(`<p>(\\s*<gw-(?:${BLOCK_TAGS})\\b)`, "g"), "$1")
@@ -137,10 +165,26 @@ function slide(p: Piece, i: number): string {
   return `<gw-slide${attrText(a)}>${render(scan(body))}${aside}</gw-slide>`;
 }
 
+/** A row's flags go last, and the " · " after its bold name gets a class so a look can drop it. */
+const listRow = (inner: string) => {
+  const flags = inner.match(/<gw-flag[^>]*>[\s\S]*?<\/gw-flag>/g) ?? [];
+  const text = inner
+    .replace(/<gw-flag[^>]*>[\s\S]*?<\/gw-flag>/g, "")
+    .trim()
+    .replace(/^(<strong>[\s\S]*?<\/strong>)\s*·\s*/, '$1<span class="gw-sep"> · </span>');
+  return `<span class="gw-row">${text}</span>${flags.join("")}`;
+};
+
 const listLinks = (html: string) =>
   html.replace(
     /<ul>((?:\s*<li><a [^>]*>[\s\S]*?<\/a>\s*<\/li>)+\s*)<\/ul>/g,
-    '<ul class="list">$1</ul>',
+    (_, items: string) => {
+      const rows = items.replace(
+        /(<a [^>]*>)([\s\S]*?)(<\/a>)/g,
+        (_m, open: string, inner: string, close: string) => `${open}${listRow(inner)}${close}`,
+      );
+      return `<ul class="list">${rows}</ul>`;
+    },
   );
 
 export function compile(src: string): string {

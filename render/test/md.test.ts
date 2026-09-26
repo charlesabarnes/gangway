@@ -64,6 +64,31 @@ describe("compile", () => {
     expect(html).toMatch(/<gw-screen id="b" back="home">/);
   });
 
+  test("a link list puts its flags last and marks the separator after the bold name", () => {
+    const html = compile(
+      "---\nkind: prototype\ntitle: P\n---\n{#home}\n- [**Lisbon** · 3 to 7 Oct :flag[Soon]{tone=ok}](#home)",
+    );
+    expect(html).toContain(
+      '<span class="gw-row"><strong>Lisbon</strong><span class="gw-sep"> · </span>3 to 7 Oct</span><gw-flag tone="ok">Soon</gw-flag>',
+    );
+  });
+
+  test("images, steps and tabs become elements, and notes are blocks", () => {
+    const html = compile(
+      '---\nkind: prototype\ntitle: P\nlook: wireframe\n---\n{#home}\n:image[Room & view]{ratio=4:3}\n\n:steps[Cart,Pay,Done]{at=2}\n\n::: note\nAsk users\n:::\n\n:tabs[Home,Profile]{go="home"}',
+    );
+    expect(html).toContain('look="wireframe"');
+    expect(html).toContain(
+      '<gw-image role="img" aria-label="Room &amp; view" style="aspect-ratio:4/3"><span>Room &amp; view</span></gw-image>',
+    );
+    expect(html).toContain(
+      '<gw-steps><span>Cart</span><span aria-current="step">Pay</span><span>Done</span></gw-steps>',
+    );
+    expect(html).toContain("<gw-note><p>Ask users</p>");
+    expect(html).toContain('<gw-tabs><a href="#home">Home</a><a>Profile</a></gw-tabs>');
+    expect(html).not.toMatch(/<p>\s*<gw-(image|steps|tabs)/);
+  });
+
   test.each(ARTIFACT_TEMPLATES.map((t) => [t.id]))("template %s compiles", (id) => {
     const md = renderTemplate({ template: id })["artifact.md"]!;
     const html = compile(md);

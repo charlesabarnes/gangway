@@ -42,6 +42,42 @@
   font-display: swap;
   src: url(fonts/mono-600.woff2) format("woff2");
 }
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/inter-400.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/inter-500.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/inter-600.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/inter-700.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/hand-400.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/hand-700.woff2) format("woff2");
+}
 
 :root {
   color-scheme: light;
@@ -1244,6 +1280,776 @@ gw-screen ul.list a {
 }
 gw-screen ul.list a:hover {
   background: var(--paper);
+}
+
+/* Pieces a screen can hold in any look: an image, steps, tabs and a design note. */
+gw-image {
+  display: grid;
+  place-items: end start;
+  width: 100%;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+gw-image > span {
+  margin: 10px 12px;
+  font: 12px var(--mono);
+  color: var(--muted);
+}
+gw-image > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  place-self: stretch;
+}
+gw-steps {
+  display: flex;
+  gap: 8px;
+}
+gw-steps > span {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+gw-steps > span::before {
+  content: "";
+  display: block;
+  height: 3px;
+  margin-bottom: 6px;
+  background: var(--rule);
+}
+gw-steps > span:has(~ [aria-current])::before,
+gw-steps > [aria-current]::before {
+  background: var(--flag);
+}
+gw-steps > [aria-current] {
+  color: var(--ink);
+}
+gw-tabs {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  margin: 28px -20px -28px;
+  background: var(--sheet);
+  border-top: 1px solid var(--ink);
+}
+gw-tabs > a {
+  flex: 1;
+  padding: 12px 4px 16px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+gw-tabs > a[aria-current] {
+  color: var(--ink);
+  box-shadow: inset 0 3px 0 var(--flag);
+}
+gw-note {
+  display: block;
+  padding: 10px 14px;
+  font-size: 14px;
+  box-shadow: inset 0 0 0 1px var(--flag);
+  background: color-mix(in oklch, var(--flag) 10%, var(--sheet));
+}
+gw-note > :last-child {
+  margin-bottom: 0;
+}
+gw-facts[total] > div:last-child {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ink);
+}
+gw-facts[total] > div:last-child dd {
+  font-size: 16px;
+  font-weight: 600;
+}
+gw-screen:not(:has(> header)) {
+  padding-top: 32px;
+}
+gw-screen.on:has(> gw-tabs) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+gw-screen > gw-tabs {
+  margin-top: auto;
+}
+gw-screen.on:has(> gw-tabs) > :nth-last-child(2) {
+  margin-bottom: 28px;
+}
+gw-screen ul.list a > .gw-row {
+  flex: 1;
+  min-width: 0;
+}
+gw-screen ul.list a > gw-flag {
+  flex: none;
+  white-space: nowrap;
+}
+gw-prototype:is([look="app"], [look="wireframe"]) ul.list .gw-row > strong {
+  display: block;
+}
+gw-prototype:is([look="app"], [look="wireframe"]) ul.list .gw-sep {
+  display: none;
+}
+gw-prototype:is([look="app"], [look="wireframe"]) ul.list .gw-row {
+  font-size: 14px;
+  color: var(--muted);
+}
+gw-prototype[look="wireframe"] ul.list .gw-row {
+  color: color-mix(in srgb, var(--wf-ink) 65%, var(--wf-paper));
+}
+gw-prototype:is([look="app"], [look="wireframe"]) ul.list .gw-row > strong {
+  font-size: 16px;
+  color: var(--ink);
+}
+gw-prototype[look="wireframe"] ul.list .gw-row > strong {
+  color: var(--wf-ink);
+}
+gw-prototype:is([look="app"], [look="wireframe"]) :is(gw-card, gw-callout) > * + * {
+  margin-top: 12px;
+}
+gw-prototype:is([look="app"], [look="wireframe"]) gw-card button {
+  margin-top: 8px;
+}
+gw-screen gw-columns > div > * + * {
+  margin-top: 14px;
+}
+gw-prototype:not([device="desktop"]) gw-columns {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+gw-prototype[device="desktop"] gw-screen gw-columns {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 40px;
+}
+gw-prototype[device="desktop"] gw-screen {
+  --pad: 36px;
+  padding: 0 var(--pad) 40px;
+}
+gw-prototype[device="desktop"] gw-screen > header {
+  margin: 0 calc(-1 * var(--pad)) 24px;
+}
+gw-prototype[device="desktop"] gw-screen button {
+  width: auto;
+  min-width: 220px;
+}
+gw-prototype[device="desktop"] gw-tabs {
+  margin: 32px -36px -40px;
+}
+
+/* Look: app. A finished product: Inter, soft cards, pill buttons in the accent colour. */
+gw-prototype[look="app"] {
+  --app-font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --app-card: oklch(1 0 0);
+  --app-soft: color-mix(in srgb, var(--ink) 5%, var(--app-card));
+  --app-line: color-mix(in srgb, var(--ink) 14%, transparent);
+  --app-tint: color-mix(in srgb, var(--flag) 22%, var(--app-card));
+  font-family: var(--app-font);
+}
+:root[data-theme="dark"] gw-prototype[look="app"] {
+  --app-card: oklch(0.22 0.03 255);
+}
+body:has(gw-prototype[look="app"]) {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      color-mix(in oklch, var(--flag) 34%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      color-mix(in oklch, var(--flag) 22%, transparent),
+      transparent 45%
+    ),
+    var(--paper);
+}
+gw-prototype[look="app"] > [data-part="device"] {
+  background: var(--app-card);
+  border-radius: 44px;
+  box-shadow:
+    0 0 0 11px oklch(0.18 0.02 255),
+    0 0 0 12px oklch(0.35 0.02 255),
+    0 40px 90px rgb(0 0 0 / 0.28);
+}
+gw-prototype[look="app"][device="desktop"] > [data-part="device"] {
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px var(--app-line),
+    0 40px 90px rgb(0 0 0 / 0.2);
+}
+gw-prototype[look="app"] gw-screen > header {
+  padding: 18px 16px 14px;
+  background: color-mix(in srgb, var(--app-card) 86%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--app-line);
+  box-shadow: none;
+}
+gw-prototype[look="app"] gw-screen > header .gw-caps {
+  font: 600 16px var(--app-font);
+  letter-spacing: 0;
+  text-transform: none;
+}
+gw-prototype[look="app"] gw-screen > header a {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--app-soft);
+  font-size: 17px;
+}
+gw-prototype[look="app"] :is(h1, h2, h3) {
+  font-family: var(--app-font);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+gw-prototype[look="app"] h1 {
+  font-size: 34px;
+}
+gw-prototype[look="app"] h2 {
+  font-size: 24px;
+}
+gw-prototype[look="app"] h3 {
+  font-size: 18px;
+}
+gw-prototype[look="app"] :is(.gw-caps, gw-facts dt, gw-screen label > span) {
+  font: 500 13px var(--app-font);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+gw-prototype[look="app"] gw-screen :is(input:not([type="checkbox"]), select, textarea) {
+  padding: 12px 14px;
+  border: 1.5px solid var(--app-line);
+  border-radius: 12px;
+  background: var(--app-card);
+  font: 16px var(--app-font);
+}
+gw-prototype[look="app"] gw-screen :is(input, select):focus-visible {
+  border-color: var(--flag);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--flag) 30%, transparent);
+}
+gw-prototype[look="app"] gw-screen input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 28px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--app-line);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+gw-prototype[look="app"] gw-screen input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform 0.15s;
+}
+gw-prototype[look="app"] gw-screen input[type="checkbox"]:checked {
+  background: var(--flag);
+}
+gw-prototype[look="app"] gw-screen input[type="checkbox"]:checked::after {
+  transform: translateX(20px);
+}
+gw-prototype[look="app"] gw-screen label.gw-toggle-field {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--app-soft);
+}
+gw-prototype[look="app"] gw-screen label.gw-toggle-field > span {
+  font: 500 15px var(--app-font);
+  color: var(--ink);
+}
+gw-prototype[look="app"] gw-screen button {
+  padding: 15px 22px;
+  border-radius: 999px;
+  background: var(--flag);
+  color: var(--flag-fg);
+  font: 600 16px var(--app-font);
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: 0 10px 24px color-mix(in oklch, var(--flag) 40%, transparent);
+}
+gw-prototype[look="app"] gw-screen button.ghost {
+  background: var(--app-soft);
+  color: var(--ink);
+  box-shadow: none;
+}
+gw-prototype[look="app"] gw-screen ul.list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+gw-prototype[look="app"] gw-screen ul.list li {
+  border: 0;
+  border-radius: 16px;
+  background: var(--app-soft);
+}
+gw-prototype[look="app"] gw-screen ul.list a {
+  padding: 16px;
+  border-radius: 16px;
+}
+gw-prototype[look="app"] gw-screen ul.list a:hover {
+  background: var(--app-tint);
+}
+gw-prototype[look="app"] gw-flag {
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--tone, var(--muted)) 16%, transparent);
+  font: 600 12px var(--app-font);
+  letter-spacing: 0;
+  text-transform: none;
+}
+gw-prototype[look="app"] gw-flag::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+gw-prototype[look="app"] gw-card {
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--app-card);
+  box-shadow:
+    0 0 0 1px var(--app-line),
+    0 12px 30px rgb(0 0 0 / 0.06);
+}
+gw-prototype[look="app"] gw-callout {
+  border-radius: 16px;
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--tone, var(--flag)) 16%, var(--app-card));
+}
+gw-prototype[look="app"] gw-callout::before {
+  display: none;
+}
+gw-prototype[look="app"] gw-facts > div {
+  justify-content: space-between;
+}
+gw-prototype[look="app"] gw-facts dt {
+  flex: initial;
+  font-size: 15px;
+}
+gw-prototype[look="app"] gw-facts dt::after {
+  display: none;
+}
+gw-prototype[look="app"] gw-facts dd {
+  font: 500 15px var(--app-font);
+}
+gw-prototype[look="app"] gw-facts[total] > div:last-child {
+  border-color: var(--app-line);
+}
+gw-prototype[look="app"] gw-facts[total] > div:last-child :is(dt, dd) {
+  font: 700 19px var(--app-font);
+  color: var(--ink);
+}
+gw-prototype[look="app"] gw-image {
+  border-radius: 20px;
+  box-shadow: none;
+  background:
+    radial-gradient(
+      circle at 78% 22%,
+      color-mix(in srgb, var(--flag) 80%, white) 0 9%,
+      transparent 9.5%
+    ),
+    linear-gradient(
+      160deg,
+      transparent 58%,
+      color-mix(in oklch, var(--flag) 45%, var(--ink)) 58.5%
+    ),
+    linear-gradient(
+      200deg,
+      transparent 50%,
+      color-mix(in oklch, var(--flag) 65%, var(--ink)) 50.5%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--flag) 14%, var(--app-card)),
+      color-mix(in srgb, var(--flag) 40%, var(--app-card))
+    );
+}
+gw-prototype[look="app"] gw-image > span {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.82);
+  font: 600 12px var(--app-font);
+  color: oklch(0.3 0.03 255);
+}
+gw-prototype[look="app"] gw-steps > span {
+  font: 500 12px var(--app-font);
+  letter-spacing: 0;
+  text-transform: none;
+}
+gw-prototype[look="app"] gw-steps > span::before {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--app-line);
+}
+gw-prototype[look="app"] gw-steps > span:has(~ [aria-current])::before,
+gw-prototype[look="app"] gw-steps > [aria-current]::before {
+  background: var(--flag);
+}
+gw-prototype[look="app"] gw-steps > [aria-current] {
+  font-weight: 700;
+}
+gw-prototype[look="app"] gw-tabs {
+  background: color-mix(in srgb, var(--app-card) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--app-line);
+}
+gw-prototype[look="app"] gw-tabs > a {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 10px 4px 18px;
+  font: 600 11px var(--app-font);
+  letter-spacing: 0;
+  text-transform: none;
+}
+gw-prototype[look="app"] gw-tabs > a::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--app-line);
+}
+gw-prototype[look="app"] gw-tabs > a[aria-current] {
+  box-shadow: none;
+}
+gw-prototype[look="app"] gw-tabs > a[aria-current]::before {
+  background: var(--flag);
+}
+gw-prototype[look="app"] gw-note {
+  border-radius: 14px;
+  box-shadow: none;
+  border: 1.5px dashed color-mix(in srgb, var(--flag) 80%, var(--ink));
+  background: color-mix(in srgb, var(--flag) 14%, var(--app-card));
+  font-size: 13px;
+}
+gw-prototype[look="app"] gw-note::before {
+  content: "Design note";
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Look: wireframe. Low fidelity on purpose: grey boxes, hard outlines, sticky notes in pen. */
+gw-prototype[look="wireframe"] {
+  --wf-ink: oklch(0.27 0 0);
+  --wf-grey: oklch(0.72 0 0);
+  --wf-fill: oklch(0.95 0 0);
+  --wf-paper: oklch(0.995 0 0);
+  --wf-desk: oklch(0.955 0.008 85);
+  --wf-hand: "Kalam", "Comic Sans MS", cursive;
+  font-family: "Inter", system-ui, sans-serif;
+  color: var(--wf-ink);
+}
+:root[data-theme="dark"] gw-prototype[look="wireframe"] {
+  --wf-ink: oklch(0.93 0 0);
+  --wf-grey: oklch(0.55 0 0);
+  --wf-fill: oklch(0.3 0 0);
+  --wf-paper: oklch(0.22 0 0);
+  --wf-desk: oklch(0.17 0 0);
+}
+body:has(gw-prototype[look="wireframe"]) {
+  background:
+    radial-gradient(color-mix(in oklch, var(--ink) 18%, transparent) 1.2px, transparent 1.3px) 0 0 /
+      22px 22px,
+    var(--paper);
+}
+:root:not([data-theme="dark"]) body:has(gw-prototype[look="wireframe"]) {
+  background-color: oklch(0.955 0.008 85);
+}
+gw-prototype[look="wireframe"] > [data-part="device"] {
+  background: var(--wf-paper);
+  border: 2.5px solid var(--wf-ink);
+  border-radius: 36px;
+  box-shadow: 8px 8px 0 var(--wf-ink);
+}
+gw-prototype[look="wireframe"][device="desktop"] > [data-part="device"] {
+  border-radius: 14px;
+}
+gw-prototype[look="wireframe"] gw-screen > header {
+  background: var(--wf-paper);
+  border-bottom: 2px dashed var(--wf-grey);
+  box-shadow: none;
+}
+gw-prototype[look="wireframe"] gw-screen > header .gw-caps {
+  font:
+    700 15px "Inter",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wf-ink);
+}
+gw-prototype[look="wireframe"] :is(h1, h2, h3) {
+  font-family: "Inter", system-ui, sans-serif;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+gw-prototype[look="wireframe"] h1 {
+  font-size: 30px;
+}
+gw-prototype[look="wireframe"] h2 {
+  font-size: 22px;
+}
+gw-prototype[look="wireframe"] :is(p, li) {
+  color: var(--wf-ink);
+}
+gw-prototype[look="wireframe"] :is(.gw-caps, gw-screen label > span) {
+  font:
+    700 12px "Inter",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.08em;
+  color: color-mix(in oklch, var(--wf-ink) 70%, var(--wf-paper));
+}
+gw-prototype[look="wireframe"] gw-screen :is(input:not([type="checkbox"]), select, textarea) {
+  padding: 11px 12px;
+  border: 2px solid var(--wf-ink);
+  border-radius: 8px;
+  background: var(--wf-paper);
+  font:
+    15px "Inter",
+    system-ui,
+    sans-serif;
+}
+gw-prototype[look="wireframe"] gw-screen :is(input, select):focus-visible {
+  box-shadow: 3px 3px 0 var(--wf-ink);
+}
+gw-prototype[look="wireframe"] gw-screen input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--wf-ink);
+}
+gw-prototype[look="wireframe"] gw-screen button {
+  padding: 14px 20px;
+  border-radius: 8px;
+  background: var(--wf-ink);
+  color: var(--wf-paper);
+  font:
+    700 15px "Inter",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+gw-prototype[look="wireframe"] gw-screen button.ghost {
+  background: transparent;
+  color: var(--wf-ink);
+  box-shadow: inset 0 0 0 2px var(--wf-ink);
+}
+gw-prototype[look="wireframe"] gw-screen ul.list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+gw-prototype[look="wireframe"] gw-screen ul.list li {
+  border: 2px solid var(--wf-ink);
+  border-radius: 8px;
+}
+gw-prototype[look="wireframe"] gw-screen ul.list a {
+  padding: 12px 14px;
+}
+gw-prototype[look="wireframe"] gw-screen ul.list a:hover {
+  background: var(--wf-fill);
+}
+gw-prototype[look="wireframe"] gw-flag {
+  padding: 2px 9px;
+  border: 1.5px solid var(--wf-ink);
+  border-radius: 999px;
+  font:
+    600 11px "Inter",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.04em;
+}
+gw-prototype[look="wireframe"] gw-flag::before {
+  display: none;
+}
+gw-prototype[look="wireframe"] :is(gw-card, gw-callout) {
+  padding: 16px 18px;
+  border: 2px solid var(--wf-ink);
+  border-radius: 10px;
+  background: var(--wf-paper);
+  box-shadow: none;
+}
+gw-prototype[look="wireframe"] gw-callout {
+  border-style: dashed;
+}
+gw-prototype[look="wireframe"] gw-callout::before {
+  display: none;
+}
+gw-prototype[look="wireframe"] gw-facts > div {
+  justify-content: space-between;
+}
+gw-prototype[look="wireframe"] gw-facts dt {
+  flex: initial;
+  font:
+    400 14px "Inter",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  color: color-mix(in oklch, var(--wf-ink) 70%, var(--wf-paper));
+}
+gw-prototype[look="wireframe"] gw-facts dt::after {
+  display: none;
+}
+gw-prototype[look="wireframe"] gw-facts dd {
+  font:
+    14px "Inter",
+    system-ui,
+    sans-serif;
+}
+gw-prototype[look="wireframe"] gw-facts[total] > div:last-child {
+  border-top: 2px solid var(--wf-ink);
+}
+gw-prototype[look="wireframe"] gw-facts[total] > div:last-child :is(dt, dd) {
+  font:
+    700 18px "Inter",
+    system-ui,
+    sans-serif;
+  color: var(--wf-ink);
+}
+gw-prototype[look="wireframe"] gw-image {
+  border: 2px solid var(--wf-ink);
+  border-radius: 8px;
+  box-shadow: none;
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 0.8px),
+      var(--wf-grey) 50%,
+      transparent calc(50% + 0.8px)
+    ),
+    linear-gradient(
+      to bottom right,
+      transparent calc(50% - 0.8px),
+      var(--wf-grey) 50%,
+      transparent calc(50% + 0.8px)
+    ),
+    var(--wf-fill);
+}
+gw-prototype[look="wireframe"] gw-image > span {
+  font: 20px var(--wf-hand);
+  color: color-mix(in oklch, var(--wf-ink) 55%, var(--wf-paper));
+}
+gw-prototype[look="wireframe"] gw-steps {
+  counter-reset: step;
+  align-items: center;
+  gap: 10px;
+}
+gw-prototype[look="wireframe"] gw-steps > span {
+  counter-increment: step;
+  flex: initial;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font:
+    600 13px "Inter",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wf-grey);
+}
+gw-prototype[look="wireframe"] gw-steps > span::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  border: 2px solid var(--wf-grey);
+  border-radius: 50%;
+  background: none;
+  font-size: 11px;
+}
+gw-prototype[look="wireframe"] gw-steps > span:not(:last-child)::after {
+  content: "";
+  width: 22px;
+  border-top: 2px solid var(--wf-grey);
+}
+gw-prototype[look="wireframe"] gw-steps > :is(span:has(~ [aria-current]), [aria-current]) {
+  color: var(--wf-ink);
+}
+gw-prototype[look="wireframe"] gw-steps > span:has(~ [aria-current])::before {
+  content: "✓";
+  border-color: var(--wf-ink);
+  background: var(--wf-ink);
+  color: var(--wf-paper);
+}
+gw-prototype[look="wireframe"] gw-steps > [aria-current]::before {
+  border-color: var(--wf-ink);
+  background: none;
+}
+gw-prototype[look="wireframe"] gw-tabs {
+  background: var(--wf-paper);
+  border-top: 2px solid var(--wf-ink);
+}
+gw-prototype[look="wireframe"] gw-tabs > a {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 4px 16px;
+  font:
+    600 11px "Inter",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--wf-grey);
+}
+gw-prototype[look="wireframe"] gw-tabs > a::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border: 2px solid currentColor;
+  border-radius: 5px;
+}
+gw-prototype[look="wireframe"] gw-tabs > a[aria-current] {
+  color: var(--wf-ink);
+  box-shadow: none;
+}
+gw-prototype[look="wireframe"] gw-tabs > a[aria-current]::before {
+  background: currentColor;
+}
+gw-prototype[look="wireframe"] gw-note {
+  width: fit-content;
+  max-width: 300px;
+  padding: 12px 16px;
+  background: oklch(0.9 0.13 95);
+  color: oklch(0.27 0 0);
+  box-shadow: 3px 4px 0 rgb(0 0 0 / 0.18);
+  font: 20px/1.2 var(--wf-hand);
+  transform: rotate(-1.5deg);
+}
+gw-prototype[look="wireframe"] gw-note:nth-of-type(even) {
+  transform: rotate(1.5deg);
+  margin-left: auto;
 }
 
 /* Theme toggle and brand */

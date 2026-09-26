@@ -12,6 +12,12 @@ const FONTS: Record<string, string> = {
   "serif-500-italic": "ibm-plex-serif/files/ibm-plex-serif-latin-500-italic.woff2",
   "mono-400": "ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2",
   "mono-600": "ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2",
+  "inter-400": "inter/files/inter-latin-400-normal.woff2",
+  "inter-500": "inter/files/inter-latin-500-normal.woff2",
+  "inter-600": "inter/files/inter-latin-600-normal.woff2",
+  "inter-700": "inter/files/inter-latin-700-normal.woff2",
+  "hand-400": "kalam/files/kalam-latin-400-normal.woff2",
+  "hand-700": "kalam/files/kalam-latin-700-normal.woff2",
 };
 
 await rm(OUT, { recursive: true, force: true });

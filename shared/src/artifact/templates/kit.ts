@@ -77,8 +77,11 @@ export function chart(type: string, a: AttrMap, rows?: (string | number)[][]): s
   return `\`\`\`chart ${type} ${attrs(a)}${body}\n\`\`\``;
 }
 
-export const block = (name: string, a: AttrMap, inner: string) =>
-  `::: ${name}${Object.keys(a).length ? ` ${attrs(a)}` : ""}\n${inner}\n:::`;
+/** A ::: block; one that holds other blocks needs a longer fence (colons = 4, 5, …). */
+export const block = (name: string, a: AttrMap, inner: string, colons = 3) => {
+  const fence = ":".repeat(colons);
+  return `${fence} ${name}${Object.keys(a).length ? ` ${attrs(a)}` : ""}\n${inner}\n${fence}`;
+};
 
 export const stat = (a: AttrMap) => `::stat{${attrs(a)}}`;
 
