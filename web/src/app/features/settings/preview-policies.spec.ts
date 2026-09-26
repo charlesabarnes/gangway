@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import contract from '../../../testing/fixtures/contract.json';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
@@ -6,10 +6,19 @@ import { render, type Rendered } from '../../../testing/render';
 import { PERMISSIONS, type Permission, type Template } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { Toasts } from '../../ui/toast';
-import { TemplatesPage } from './templates';
+import { PreviewPolicies } from './preview-policies';
 
-@Component({ imports: [TemplatesPage, Toasts], template: '<app-templates /><app-toasts />' })
-class Host {}
+let initial: Template[] = [];
+
+@Component({
+  imports: [PreviewPolicies, Toasts],
+  template: `<app-preview-policies [(templates)]="templates" [settings]="[]" [(saving)]="saving" />
+    <app-toasts />`,
+})
+class Host {
+  readonly templates = signal(initial);
+  readonly saving = signal<string | null>(null);
+}
 
 const template = (over: Partial<Template> = {}): Template => ({
   ...(contract.template as Template),
@@ -27,6 +36,7 @@ const STAGING = template({
 });
 
 async function open(o: { permissions?: Permission[]; templates?: Template[] } = {}) {
+  initial = o.templates ?? [template(), STAGING];
   const r = await render(Host);
   const perms = o.permissions ?? [...PERMISSIONS];
   const loading = TestBed.inject(AuthService).refresh();
@@ -37,8 +47,6 @@ async function open(o: { permissions?: Permission[]; templates?: Template[] } = 
     permissions: perms,
   });
   await loading;
-  await r.settle();
-  r.http.expectOne('/v1/templates').flush({ templates: o.templates ?? [template(), STAGING] });
   await r.settle();
   return r;
 }
@@ -57,10 +65,10 @@ const choose = async (r: Rendered<unknown>, id: string, v: string) => {
 const inRow = (r: Rendered<unknown>, n: number, id: string) =>
   r.allByTestId('template')[n]!.querySelector(`[data-testid="${id}"]`) as HTMLElement;
 
-describe('Templates', () => {
+describe('Settings: preview policies', () => {
   beforeAll(() => installDialogPolyfill());
 
-  it('is read-only without templates.manage, one line per template, built-in marked', async () => {
+  it('is read-only without templates.manage, one line per policy, built-in marked', async () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.allByTestId('builtin')).toHaveLength(1);
     expect(r.allByTestId('summary').map((e) => e.textContent?.trim())).toEqual([
@@ -118,7 +126,7 @@ describe('Templates', () => {
     expect(r.text('row-error')).toContain('not a duration');
   });
 
-  it('creates a template from a slug id and a name, adding it to the list', async () => {
+  it('creates a policy from a slug id and a name, adding it to the list', async () => {
     const r = await open();
     const btn = () => r.byTestId('new-save') as HTMLButtonElement;
     expect(btn().disabled).toBe(true);

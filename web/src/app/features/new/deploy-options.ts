@@ -78,7 +78,7 @@ export function optionsQuery(
         <span class="text-[10px] transition group-open:rotate-90" aria-hidden="true">▸</span
         ><span class="text-xs font-semibold tracking-[.14em] uppercase">Options</span
         ><span class="text-[13px] text-muted"
-          >name, address, visibility, TTL, network, project, template, who can open it</span
+          >name, address, visibility, TTL, network, repository, policy, who can open it</span
         >
       </summary>
       <div class="mt-4 mb-2 grid gap-x-6 gap-y-5 sm:grid-cols-5">
@@ -105,7 +105,7 @@ export function optionsQuery(
             (change)="set('visibility', $any($event.target).value)"
             data-testid="visibility"
           >
-            <option value="">the template's</option>
+            <option value="">the policy's</option>
             @for (v of visibilities; track v) {
               <option [value]="v">{{ v }}</option>
             }
@@ -114,7 +114,7 @@ export function optionsQuery(
         <label class="gw-label flex flex-col gap-1"
           >TTL<input
             [class]="field"
-            placeholder="the template's"
+            placeholder="the policy's"
             [value]="options().ttl"
             (input)="set('ttl', $any($event.target).value)"
             data-testid="ttl"
@@ -133,7 +133,7 @@ export function optionsQuery(
           </select></label
         >
         <label class="gw-label flex flex-col gap-1 sm:col-span-2"
-          >Project<select
+          >Repository<select
             [class]="field"
             (change)="set('project', $any($event.target).value)"
             data-testid="project"
@@ -145,7 +145,7 @@ export function optionsQuery(
           </select></label
         >
         <label class="gw-label flex flex-col gap-1 sm:col-span-2"
-          >Template<select
+          >Policy<select
             [class]="field"
             (change)="set('template', $any($event.target).value)"
             data-testid="template"

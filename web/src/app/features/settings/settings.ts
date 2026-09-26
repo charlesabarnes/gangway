@@ -6,10 +6,10 @@ import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { ToastService } from '../../ui/toast';
 import { ArtifactSettings } from './artifact-settings';
-import { DefaultTemplates } from './default-templates';
 import { GitHubSettings } from './github-settings';
 import { GlobalSecrets } from './global-secrets';
 import { PreviewPasswords } from './preview-passwords';
+import { PreviewPolicies } from './preview-policies';
 import { SurfacesSettings } from './surfaces-settings';
 import { UpdateSettings } from './update-settings';
 
@@ -17,10 +17,10 @@ import { UpdateSettings } from './update-settings';
   selector: 'app-settings',
   imports: [
     ArtifactSettings,
-    DefaultTemplates,
     GitHubSettings,
     GlobalSecrets,
     PreviewPasswords,
+    PreviewPolicies,
     SurfacesSettings,
     UpdateSettings,
   ],
@@ -36,12 +36,14 @@ import { UpdateSettings } from './update-settings';
       @if (canManage()) {
         <app-github-settings />
       }
-      @if (canReadSettings()) {
-        <app-default-templates
-          [templates]="templates()"
+      @if (canReadSettings() || canManagePolicies()) {
+        <app-preview-policies
+          [(templates)]="templates"
           [settings]="settings()"
           [(saving)]="saving"
         />
+      }
+      @if (canReadSettings()) {
         <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
         <app-artifact-settings [settings]="settings()" [(saving)]="saving" />
       }
@@ -60,24 +62,28 @@ export class SettingsPage {
   protected readonly canManage = computed(() => this.#auth.can('github.manage'));
   protected readonly canSecrets = computed(() => this.#auth.can('repos.secrets'));
   protected readonly canReadSettings = computed(() => this.#auth.can('settings.read'));
+  protected readonly canManagePolicies = computed(() => this.#auth.can('templates.manage'));
   protected readonly templates = signal<Template[]>([]);
   protected readonly settings = signal<SettingView[]>([]);
   protected readonly saving = signal<string | null>(null);
 
   constructor() {
     effect(() => {
-      if (this.canReadSettings()) untracked(() => void this.#load());
+      const read = this.canReadSettings();
+      if (read || this.canManagePolicies()) untracked(() => void this.#load(read));
     });
   }
 
-  async #load(): Promise<void> {
+  async #load(withSettings: boolean): Promise<void> {
     try {
-      const [{ templates }, { settings }] = await Promise.all([
+      const [{ templates }, settings] = await Promise.all([
         firstValueFrom(this.#http.get<{ templates: Template[] }>('/v1/templates')),
-        firstValueFrom(this.#http.get<{ settings: SettingView[] }>('/v1/settings')),
+        withSettings
+          ? firstValueFrom(this.#http.get<{ settings: SettingView[] }>('/v1/settings'))
+          : null,
       ]);
       this.templates.set(templates);
-      this.settings.set(settings);
+      if (settings) this.settings.set(settings.settings);
     } catch (e) {
       this.#toasts.problem('Could not load settings', toProblem(e));
     }

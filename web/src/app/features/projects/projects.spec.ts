@@ -4,13 +4,7 @@ import { Router } from '@angular/router';
 import { FakeEventSource } from '../../../testing/fake-event-source';
 import contract from '../../../testing/fixtures/contract.json';
 import { render, type Rendered } from '../../../testing/render';
-import {
-  PERMISSIONS,
-  type Permission,
-  type Preview,
-  type Project,
-  type Template,
-} from '../../core/api.types';
+import { PERMISSIONS, type Permission, type Preview, type Project } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { EVENT_SOURCE_FACTORY, SSE_JITTER } from '../../core/sse.service';
 import { Toasts } from '../../ui/toast';
@@ -24,10 +18,6 @@ class Host {}
 
 const project = (over: Partial<Project> = {}): Project => ({
   ...(contract.project as Project),
-  ...over,
-});
-const template = (over: Partial<Template> = {}): Template => ({
-  ...(contract.template as Template),
   ...over,
 });
 const preview = (over: Partial<Preview> = {}): Preview => ({
@@ -63,9 +53,6 @@ async function open(
   await r.settle();
   r.http.expectOne('/v1/projects').flush({ projects: o.projects ?? [] });
   r.http
-    .expectOne('/v1/templates')
-    .flush({ templates: [template(), template({ id: 'ci', name: 'CI', builtin: false })] });
-  r.http
     .expectOne((req) => req.url.startsWith('/v1/previews'))
     .flush({ seq: 1, previews: o.previews ?? [] });
   if (perms.includes('repos.manage'))
@@ -81,8 +68,8 @@ const type = (r: Rendered<unknown>, id: string, v: string) => {
   i.dispatchEvent(new Event('input'));
 };
 
-describe('Projects', () => {
-  it('shows each project with its repository, template and live previews', async () => {
+describe('Repositories', () => {
+  it('shows each repository with its live previews; repo-less projects listed apart', async () => {
     const r = await open({
       projects: [
         project(),
@@ -92,7 +79,6 @@ describe('Projects', () => {
           slug: 'whoami',
           forge: null,
           fullName: null,
-          templateId: 'ci',
         }),
       ],
       previews: [
@@ -113,19 +99,16 @@ describe('Projects', () => {
     });
     expect(r.allByTestId('source').map((e) => e.textContent?.trim())).toEqual([
       'acme/web-app · workflow',
-      'no repository',
-    ]);
-    expect(r.allByTestId('template-chip').map((e) => e.textContent?.trim())).toEqual([
-      'default template',
-      'CI',
     ]);
     expect(r.allByTestId('project')[0]!.textContent).toContain('web-app-pr-4-k7q2');
     expect(r.allByTestId('project')[0]!.textContent).not.toContain('pr-1');
-    expect(r.text('loose')).toContain('gw-docker-host-scratch');
-    expect(r.allByTestId('project')[0]!.getAttribute('href')).toBe('/projects/web-app');
+    expect(r.allByTestId('project')[0]!.getAttribute('href')).toBe('/repositories/web-app');
+    expect(r.text('unconnected')).toContain('whoami');
+    expect(r.el.textContent).not.toContain('gw-docker-host-scratch');
+    expect(r.byTestId('template-chip')).toBeNull();
   });
 
-  it('a new project named from an installed repository opens on its Workflow tab', async () => {
+  it('connecting an installed repository names it and opens on its Workflow tab', async () => {
     const r = await open({
       installed: [{ fullName: 'acme/store-admin', installationId: '1', private: true }],
     });
@@ -155,21 +138,34 @@ describe('Projects', () => {
       { status: 201, statusText: 'Created' },
     );
     await r.until(
-      () => TestBed.inject(Router).url === '/projects/store-admin?tab=workflow',
+      () => TestBed.inject(Router).url === '/repositories/store-admin?tab=workflow',
       'navigation',
     );
   });
 
-  it('a project with no repository sends no trigger, and a refusal shows in the form', async () => {
+  it('needs a repository, names it from the repo if blank, and shows a refusal', async () => {
     const r = await open();
     (r.byTestId('new') as HTMLButtonElement).click();
     await r.settle();
+    const save = () => r.byTestId('create-save') as HTMLButtonElement;
     type(r, 'create-name', 'whoami');
     await r.settle();
+    expect(save().disabled).toBe(true);
+    expect(r.byTestId('create-template')).toBeNull();
+    type(r, 'create-name', '');
+    type(r, 'create-repo', 'acme/whoami');
+    await r.settle();
+    type(r, 'create-name', '');
+    await r.settle();
+    expect(save().disabled).toBe(false);
     r.byTestId('create')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await r.settle();
     const req = r.http.expectOne({ method: 'POST', url: '/v1/projects' });
-    expect(req.request.body).toEqual({ name: 'whoami' });
+    expect(req.request.body).toEqual({
+      name: 'whoami',
+      repository: 'acme/whoami',
+      prTrigger: 'workflow',
+    });
     req.flush(
       { type: 'about:blank', title: 'Conflict', status: 409, detail: 'slug "whoami" is taken' },
       { status: 409, statusText: 'Conflict' },
@@ -178,9 +174,9 @@ describe('Projects', () => {
     expect(r.text('create-error')).toContain('taken');
   });
 
-  it('without repos.manage there is no New project and no repository lookup', async () => {
+  it('without repos.manage there is no Connect button and no repository lookup', async () => {
     const r = await open({ permissions: ['previews.read'] });
     expect(r.byTestId('new')).toBeNull();
-    expect(r.text('projects') ?? r.el.textContent).toContain('No projects yet');
+    expect(r.el.textContent).toContain('No repositories yet');
   });
 });

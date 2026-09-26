@@ -222,7 +222,7 @@ idempotent, and it waits until the URL answers.
 
 1. Under **Settings → GitHub**, create a GitHub App in one click through GitHub's manifest
    flow, so no secret is copied by hand. Install it on your repositories.
-2. Create a **Project** for a repository. By default the project gives you a workflow file to
+2. Under **Repositories**, connect a repository. By default gangway gives you a workflow file to
    commit. It builds on GitHub Actions and hands gangway the image, authenticated by the run's
    OIDC token. The alternative is to have gangway build from webhooks.
 3. Open a PR. The preview's URL arrives in a sticky comment and a GitHub Deployment. Pull

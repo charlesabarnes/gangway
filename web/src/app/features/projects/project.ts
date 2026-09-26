@@ -31,7 +31,7 @@ type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
     <section class="gw-page">
       <div class="flex flex-col gap-3.5">
         <p class="m-0 text-xs font-semibold tracking-[.14em] text-muted uppercase">
-          <a routerLink="/projects" class="hover:text-ink">Projects</a>
+          <a routerLink="/repositories" class="hover:text-ink">Repositories</a>
           <span class="px-1">/</span>
           {{ project()?.slug ?? ref() }}
         </p>
@@ -55,7 +55,7 @@ type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
 
           <nav
             class="flex gap-7 overflow-x-auto border-b border-ink text-[13px] font-medium tracking-[.12em] uppercase"
-            aria-label="Project"
+            aria-label="Repository"
           >
             @for (t of tabs(); track t.id) {
               <a
@@ -98,9 +98,9 @@ type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
         }
       } @else if (missing()) {
         <p class="text-sm text-muted" data-testid="missing">
-          No such project.
-          <a routerLink="/projects" class="text-ink underline underline-offset-2"
-            >Back to projects</a
+          No such repository.
+          <a routerLink="/repositories" class="text-ink underline underline-offset-2"
+            >Back to repositories</a
           >.
         </p>
       }
@@ -163,7 +163,7 @@ export class ProjectPage {
     } catch (e) {
       const p = toProblem(e);
       if (p.status === 404) this.missing.set(true);
-      else this.#toasts.problem('Could not load the project', p);
+      else this.#toasts.problem('Could not load the repository', p);
     }
   }
 

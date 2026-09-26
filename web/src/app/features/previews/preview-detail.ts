@@ -149,10 +149,10 @@ import { displayName, sourceLabel } from './source-label';
                 }
                 @if (p.templateId) {
                   <div class="gw-fact">
-                    <dt>Template</dt>
+                    <dt>Policy</dt>
                     <dd>
                       <a
-                        routerLink="/templates"
+                        routerLink="/settings"
                         class="underline underline-offset-2"
                         data-testid="template"
                         >{{ p.templateId }}</a

@@ -14,8 +14,8 @@ import { SecretsEditor } from '../secrets/secrets-editor';
     @let p = project();
     <div class="flex flex-col gap-3" data-testid="secrets">
       <p class="m-0 max-w-3xl font-serif text-base leading-snug text-muted">
-        Given to this project's previews at or below their clearance, on top of the global ones in
-        Settings; a name here wins.
+        Given to this repository's previews at or below their clearance, on top of the global ones
+        in Settings; a name here wins.
         @if (p.prTrigger === 'workflow' && p.fullName) {
           With a workflow they reach the running container as its environment — build-time secrets
           stay in GitHub.

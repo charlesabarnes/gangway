@@ -35,13 +35,13 @@ const FORK_HELP: Record<ForkPolicy, string> = {
   never: 'never built',
 };
 const VISIBILITIES: { value: Visibility | ''; label: string }[] = [
-  { value: '', label: "the template's" },
+  { value: '', label: "the policy's" },
   { value: 'public', label: 'public' },
   { value: 'unlisted', label: 'unlisted' },
   { value: 'private', label: 'private' },
 ];
 const PR_CLEARANCES: { value: Clearance | ''; label: string }[] = [
-  { value: '', label: "the template's" },
+  { value: '', label: "the policy's" },
   ...CLEARANCES.map((c) => ({ value: c, label: c })),
 ];
 
@@ -55,7 +55,7 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
     @let d = view();
     <form (submit)="save($event)" novalidate class="flex flex-col gap-7" data-testid="settings">
       <section class="gw-section">
-        <h2 class="gw-h2">Project</h2>
+        <h2 class="gw-h2">General</h2>
         <div class="grid gap-x-6 gap-y-5 sm:grid-cols-3">
           <label class="flex flex-col gap-1"
             ><span class="gw-label">Name</span
@@ -167,18 +167,18 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
       <section class="gw-section">
         <div class="flex flex-col gap-1">
           <h2 class="gw-h2">Previews</h2>
-          <p class="gw-section-note m-0">Anything left at “the template’s” follows the template.</p>
+          <p class="gw-section-note m-0">Anything left at “the policy’s” follows the policy.</p>
         </div>
         <div class="grid gap-x-6 gap-y-5 sm:grid-cols-3">
           <label class="flex flex-col gap-1"
-            ><span class="gw-label">Template</span
+            ><span class="gw-label">Policy</span
             ><select
               [class]="field"
               (change)="edit('templateId', $any($event.target).value || null)"
               data-testid="template"
             >
               <option value="" [selected]="d.templateId === null">
-                the default for its trigger
+                the default for pull requests
               </option>
               @for (t of templates(); track t.id) {
                 <option [value]="t.id" [selected]="t.id === d.templateId">
@@ -205,7 +205,7 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
             ><span class="gw-label">Expires after</span
             ><input
               [class]="field"
-              placeholder="the template's"
+              placeholder="the policy's"
               [value]="d.ttl ?? ''"
               (input)="edit('ttl', $any($event.target).value || null)"
               data-testid="ttl"
@@ -252,18 +252,18 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
           (click)="dialog().open()"
           data-testid="delete"
         >
-          Delete project
+          Remove repository
         </button>
       </div>
     </form>
 
     <app-confirm-dialog
-      [heading]="'Delete ' + project().name + '?'"
-      confirmLabel="Delete"
+      [heading]="'Remove ' + project().name + '?'"
+      confirmLabel="Remove"
       (confirmed)="remove()"
     >
-      Its settings and secrets are removed. Its running previews keep running, no longer in a
-      project. Pull requests from its repository stop getting previews.
+      Its settings and secrets are removed from gangway; nothing changes on GitHub. Its running
+      previews keep running on their own. Pull requests stop getting previews.
     </app-confirm-dialog>
   `,
 })
@@ -319,7 +319,7 @@ export class ProjectSettings {
       this.saved.emit(project);
       this.#toasts.info(`Saved ${project.name}`);
       if (project.slug !== p.slug)
-        await this.#router.navigate(['/projects', project.slug], {
+        await this.#router.navigate(['/repositories', project.slug], {
           queryParams: { tab: 'settings' },
           replaceUrl: true,
         });
@@ -334,10 +334,10 @@ export class ProjectSettings {
     const p = this.project();
     try {
       await firstValueFrom(this.#http.delete(`/v1/projects/${p.id}`));
-      this.#toasts.info(`Deleted ${p.name}`);
-      await this.#router.navigateByUrl('/projects');
+      this.#toasts.info(`Removed ${p.name}`);
+      await this.#router.navigateByUrl('/repositories');
     } catch (err) {
-      this.#toasts.problem(`Could not delete ${p.name}`, toProblem(err));
+      this.#toasts.problem(`Could not remove ${p.name}`, toProblem(err));
     }
   }
 }

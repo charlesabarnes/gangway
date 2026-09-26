@@ -16,20 +16,18 @@
           >Previews</a
         >
         <a
-          routerLink="/projects"
+          routerLink="/repositories"
           routerLinkActive="!opacity-100 shadow-[inset_0_-3px_0_var(--gw-flag)]"
           class="flex items-center px-3.5 opacity-70 hover:opacity-100"
-          data-testid="nav-projects"
-          >Projects</a
+          data-testid="nav-repositories"
+          >Repositories</a
         >
-        <a
-          routerLink="/templates"
-          routerLinkActive="!opacity-100 shadow-[inset_0_-3px_0_var(--gw-flag)]"
-          class="flex items-center px-3.5 opacity-70 hover:opacity-100"
-          data-testid="nav-templates"
-          >Templates</a
-        >
-        @if (auth.can('settings.read') || auth.can('github.manage') || auth.can('repos.secrets')) {
+        @if (
+          auth.can('settings.read') ||
+          auth.can('github.manage') ||
+          auth.can('repos.secrets') ||
+          auth.can('templates.manage')
+        ) {
           <a
             routerLink="/settings"
             routerLinkActive="!opacity-100 shadow-[inset_0_-3px_0_var(--gw-flag)]"

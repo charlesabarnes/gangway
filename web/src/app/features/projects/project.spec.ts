@@ -150,7 +150,7 @@ describe('Project', () => {
     expect(req.request.body).toEqual({ templateId: 'ci', slug: 'store' });
     req.flush({ project: project({ templateId: 'ci', slug: 'store' }) });
     await r.until(
-      () => TestBed.inject(Router).url === '/projects/store?tab=settings',
+      () => TestBed.inject(Router).url === '/repositories/store?tab=settings',
       'navigation',
     );
   });
@@ -166,7 +166,7 @@ describe('Project', () => {
     r.http
       .expectOne({ method: 'DELETE', url: `/v1/projects/${P.id}` })
       .flush(null, { status: 204, statusText: 'No Content' });
-    await r.until(() => TestBed.inject(Router).url === '/projects', 'navigation');
+    await r.until(() => TestBed.inject(Router).url === '/repositories', 'navigation');
   });
 
   it("secrets tab talks to the project's env", async () => {

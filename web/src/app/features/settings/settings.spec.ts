@@ -87,9 +87,11 @@ async function open(
   else r.http.expectNone('/v1/surfaces');
   if (perms.includes('github.manage')) r.http.expectOne('/v1/github').flush(o.status ?? status());
   else r.http.expectNone('/v1/github');
+  if (perms.includes('settings.read') || perms.includes('templates.manage'))
+    r.http.expectOne('/v1/templates').flush({ templates: o.templates ?? [template()] });
+  else r.http.expectNone('/v1/templates');
   if (perms.includes('settings.read')) {
     r.http.expectOne('/v1/updates').flush(o.updates ?? updates({ available: false }));
-    r.http.expectOne('/v1/templates').flush({ templates: o.templates ?? [template()] });
     r.http.expectOne('/v1/settings').flush({
       settings: o.settings ?? [
         setting('templates.default.pr', 'default'),
@@ -99,7 +101,6 @@ async function open(
     });
   } else {
     r.http.expectNone('/v1/updates');
-    r.http.expectNone('/v1/templates');
     r.http.expectNone('/v1/settings');
   }
   if (perms.includes('repos.secrets'))
@@ -312,7 +313,7 @@ describe('Settings: GitHub', () => {
   });
 });
 
-describe('Settings: default templates', () => {
+describe('Settings: preview policy defaults', () => {
   const two = [template(), template({ id: 'staging', name: 'Staging', builtin: false })];
 
   it('shows one select per trigger, and a change PUTs only that key', async () => {
@@ -352,6 +353,12 @@ describe('Settings: default templates', () => {
   it('without settings.write every select is disabled', async () => {
     const ro = await open({ permissions: ['settings.read'], templates: two });
     expect((ro.byTestId('default-pr') as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it('templates.manage alone shows the policies but not the per-trigger defaults', async () => {
+    const r = await open({ permissions: ['templates.manage'], templates: two });
+    expect(r.allByTestId('template')).toHaveLength(2);
+    expect(r.byTestId('defaults')).toBeNull();
   });
 
   it('a refused PUT keeps the old value and toasts', async () => {

@@ -8,7 +8,7 @@ import { FIELD } from '../../ui/field';
 import { ToastService } from '../../ui/toast';
 
 const TRIGGER_LABEL: Record<Trigger, { name: string; help: string }> = {
-  pr: { name: 'Pull requests', help: 'a project can pick another' },
+  pr: { name: 'Pull requests', help: 'a repository can pick another' },
   api: { name: 'API and CI', help: 'a token: a workflow, curl, an agent' },
   manual: { name: 'Deploy screen', help: 'a person, logged in' },
 };
@@ -29,11 +29,11 @@ function defaultsFrom(settings: SettingView[]) {
   selector: 'app-default-templates',
   host: { class: 'block' },
   template: `
-    <div class="gw-section">
+    <div class="flex flex-col gap-3">
       <div class="flex flex-col gap-1">
-        <h2 class="gw-h2">Default templates</h2>
-        <p class="gw-section-note">
-          What a deploy follows when neither the request nor its project names a template.
+        <h3 class="gw-label">Used by default</h3>
+        <p class="text-sm text-muted">
+          The policy a deploy follows when neither the request nor its repository names one.
         </p>
       </div>
       <div class="grid gap-6 sm:grid-cols-3" data-testid="defaults">

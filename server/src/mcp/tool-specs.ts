@@ -128,7 +128,12 @@ export const DeployArgs = z.object({
     .max(16)
     .optional()
     .describe("How long it lives, e.g. 2h or 7d. Defaults to the server's."),
-  template: z.string().optional().describe("A named server policy (visibility, ttl, host)."),
+  template: z
+    .string()
+    .optional()
+    .describe(
+      "A named preview policy on the server (visibility, ttl, host). Not an artifact template: those go in artifact.template.",
+    ),
   project: z.string().optional().describe("A project slug to file the preview under."),
   passwordLogin: z
     .enum(["inherit", "on", "off", "only"])
