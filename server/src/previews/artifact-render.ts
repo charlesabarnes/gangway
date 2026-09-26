@@ -15,7 +15,7 @@ function walk(dir: string, rel = ""): string[] {
   return readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap((e) => {
     const r = rel ? `${rel}/${e.name}` : e.name;
     if (e.isDirectory()) return walk(dir, r);
-    return e.isFile() ? [r] : [];
+    return e.isFile() && !/\.(br|gz)$/.test(e.name) ? [r] : [];
   });
 }
 

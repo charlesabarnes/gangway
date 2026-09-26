@@ -32,6 +32,8 @@ export type ThemeWrite = {
 export class ArtifactThemesRepo {
   readonly #db: Db;
   readonly #now: () => number;
+  // Every artifact page asks for its theme; this answers without the database until a write.
+  readonly #byId = new Map<string, Theme | null>();
 
   constructor(db: Db, now: () => number = Date.now) {
     this.#db = db;
@@ -49,8 +51,12 @@ export class ArtifactThemesRepo {
   }
 
   get(id: string): Theme | undefined {
+    const hit = this.#byId.get(id);
+    if (hit !== undefined) return hit ?? undefined;
     const r = this.#db.get<ThemeRow>("SELECT * FROM artifact_themes WHERE id = $id", { id });
-    return r ? toTheme(r) : undefined;
+    const theme = r ? toTheme(r) : null;
+    this.#byId.set(id, theme);
+    return theme ?? undefined;
   }
 
   create(
@@ -59,6 +65,7 @@ export class ArtifactThemesRepo {
     by: string | null,
   ): Theme {
     const now = this.#now();
+    this.#byId.delete(id);
     this.#db.run(
       `INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, logo_svg, created_by, created_at, updated_at)
        VALUES ($id, $name, $description, $tokens, $fonts, $logo, $by, $now, $now)`,
@@ -93,11 +100,13 @@ export class ArtifactThemesRepo {
         `UPDATE artifact_themes SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`,
         params,
       );
+    this.#byId.delete(id);
     return this.get(id);
   }
 
   delete(id: string): void {
     this.#db.run("DELETE FROM artifact_themes WHERE id = $id", { id });
+    this.#byId.delete(id);
   }
 }
 
@@ -156,6 +165,25 @@ export class ArtifactTemplatesRepo {
         kind ? { kind } : {},
       )
       .map(toTemplate);
+  }
+
+  /** The list without each template's files, which only a deploy or an edit needs. */
+  summaries(
+    kind?: ArtifactKind,
+  ): Pick<StoredTemplate, "id" | "kind" | "name" | "description" | "themeId">[] {
+    const where = kind ? "WHERE kind = $kind" : "";
+    return this.#db
+      .query<Omit<TemplateRow, "files_json" | "updated_at">>(
+        `SELECT id, kind, name, description, theme_id FROM artifact_templates ${where} ORDER BY name COLLATE NOCASE`,
+        kind ? { kind } : {},
+      )
+      .map((r) => ({
+        id: r.id,
+        kind: r.kind as ArtifactKind,
+        name: r.name,
+        description: r.description,
+        themeId: r.theme_id,
+      }));
   }
 
   get(id: string): StoredTemplate | undefined {

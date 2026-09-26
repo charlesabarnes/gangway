@@ -1,6 +1,7 @@
-import { lstat, readFile } from "node:fs/promises";
+import { lstat } from "node:fs/promises";
 import path from "node:path";
-import { gzipSync } from "node:zlib";
+import { renderAssets } from "../previews/artifact-render.ts";
+import { encodedFile, HASHED, notModified, singleRange, type Encoding } from "./encode.ts";
 
 /** A preview's files on disk, as gangway serves them in place of a container. */
 export type ServedSite = {
@@ -24,11 +25,8 @@ export type SiteServeOptions = {
 export const THEME_LOGO_PATH = "/_gangway/theme-logo.svg";
 
 const KIT_PREFIX = "/_gangway/";
-const COMPRESSIBLE =
-  /^(text\/|application\/(javascript|json|xml|manifest\+json|wasm)|image\/svg\+xml)/;
-const GZIP_MIN = 1024;
-const GZIP_MAX = 8 * 1024 * 1024;
-const KIT_GZIP = new Map<string, { mtime: number; body: Uint8Array }>();
+/** Where publish puts a site's precompressed copies: beside root/, never served as files. */
+export const ENCODED_DIR = "enc";
 
 type Found = { abs: string; size: number; mtime: number };
 
@@ -69,45 +67,73 @@ const plain = (status: number, text: string, extra: Record<string, string> = {})
     },
   });
 
-async function bodyFor(
-  req: Request,
-  f: Found,
-  type: string,
-  cacheKit: boolean,
-): Promise<{ body: Uint8Array | Blob; gzip: boolean }> {
-  const wantsGzip = /\bgzip\b/.test(req.headers.get("accept-encoding") ?? "");
-  if (!wantsGzip || !COMPRESSIBLE.test(type) || f.size < GZIP_MIN || f.size > GZIP_MAX)
-    return { body: Bun.file(f.abs), gzip: false };
-  const hit = cacheKit ? KIT_GZIP.get(f.abs) : undefined;
-  if (hit && hit.mtime === f.mtime) return { body: hit.body, gzip: true };
-  const body = gzipSync(await readFile(f.abs));
-  if (cacheKit) KIT_GZIP.set(f.abs, { mtime: f.mtime, body });
-  return { body, gzip: true };
+function kitVersion(dir: string): string | null {
+  try {
+    return renderAssets(dir).version;
+  } catch {
+    return null;
+  }
+}
+
+/** The precompressed copy of a file under root/, in the site's enc/ tree. */
+export function siteSidecar(site: Pick<ServedSite, "root" | "dir">) {
+  return (abs: string, enc: Encoding) =>
+    path.join(
+      site.dir,
+      ENCODED_DIR,
+      `${path.relative(site.root, abs)}.${enc === "br" ? "br" : "gz"}`,
+    );
 }
 
 async function send(
   req: Request,
   f: Found,
   o: SiteServeOptions,
-  r: { status?: number; kit?: boolean } = {},
+  r: { status?: number; kit?: boolean; site?: ServedSite; versioned?: boolean } = {},
 ): Promise<Response> {
   const type = Bun.file(f.abs).type || "application/octet-stream";
   const etag = `W/"${f.size.toString(16)}-${Math.floor(f.mtime).toString(16)}"`;
+  const immutable = r.versioned === true || (!r.kit && HASHED.test(f.abs));
   const headers: Record<string, string> = {
     "content-type": type,
     "x-content-type-options": "nosniff",
-    "cache-control": r.kit ? "public, max-age=86400" : "no-cache",
+    "cache-control": immutable
+      ? "public, max-age=31536000, immutable"
+      : r.kit
+        ? "public, max-age=86400"
+        : "no-cache",
     etag,
     "last-modified": new Date(f.mtime).toUTCString(),
     vary: "accept-encoding",
+    "accept-ranges": "bytes",
   };
   if (o.unlisted) headers["x-robots-tag"] = "noindex, nofollow";
   const status = r.status ?? 200;
-  if (status === 200 && req.headers.get("if-none-match") === etag)
+  if (status === 200 && notModified(req, etag, f.mtime))
     return new Response(null, { status: 304, headers });
-  const { body, gzip } = await bodyFor(req, f, type, r.kit === true);
-  if (gzip) headers["content-encoding"] = "gzip";
-  return new Response(req.method === "HEAD" ? null : body, { status, headers });
+  if (req.method === "HEAD") return new Response(null, { status, headers });
+
+  const range = status === 200 ? singleRange(req.headers.get("range"), f.size) : null;
+  if (range === "unsatisfiable")
+    return new Response(null, {
+      status: 416,
+      headers: { ...headers, "content-range": `bytes */${f.size}` },
+    });
+  if (range) {
+    headers["content-range"] = `bytes ${range.start}-${range.end}/${f.size}`;
+    return new Response(Bun.file(f.abs).slice(range.start, range.end + 1), {
+      status: 206,
+      headers,
+    });
+  }
+  const { body, encoding } = await encodedFile(
+    req,
+    f.abs,
+    { size: f.size, mtime: f.mtime, type },
+    r.site ? { sidecar: siteSidecar(r.site) } : {},
+  );
+  if (encoding) headers["content-encoding"] = encoding;
+  return new Response(body, { status, headers });
 }
 
 async function serveKit(
@@ -129,7 +155,9 @@ async function serveKit(
     return svg ? themeResponse(req, svg, "image/svg+xml") : plain(404, "not found");
   }
   const f = await fileAt(o.kitDir, rest);
-  return f ? send(req, f, o, { kit: true }) : plain(404, "not found");
+  const v = new URL(req.url).searchParams.get("v");
+  const versioned = v !== null && v === kitVersion(o.kitDir);
+  return f ? send(req, f, o, { kit: true, versioned }) : plain(404, "not found");
 }
 
 // Short-lived: a theme edited in the UI restyles every artifact that uses it on the next load.
@@ -143,8 +171,7 @@ function themeResponse(req: Request, body: string, type: string): Response {
     // A logo is only ever an image; nothing in it may run.
     "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
   };
-  if (req.headers.get("if-none-match") === etag)
-    return new Response(null, { status: 304, headers });
+  if (notModified(req, etag)) return new Response(null, { status: 304, headers });
   return new Response(req.method === "HEAD" ? null : body, { headers });
 }
 
@@ -171,7 +198,7 @@ async function fallback(req: Request, site: ServedSite, o: SiteServeOptions): Pr
   const spa = site.fallback === "spa";
   const f = await fileAt(site.root, [spa ? "index.html" : "404.html"]);
   if (!f) return plain(404, "not found");
-  return spa ? send(req, f, o) : send(req, f, o, { status: 404 });
+  return spa ? send(req, f, o, { site }) : send(req, f, o, { status: 404, site });
 }
 
 /** Answers from a site's files the way the static runtime's nginx did. */
@@ -191,5 +218,5 @@ export async function serveSite(
   const hit = await lookup(site.root, url, parts);
   if (hit && "redirect" in hit)
     return new Response(null, { status: 301, headers: { location: hit.redirect } });
-  return hit ? send(req, hit.found, o) : fallback(req, site, o);
+  return hit ? send(req, hit.found, o, { site }) : fallback(req, site, o);
 }

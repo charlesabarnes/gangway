@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HTTPException } from "hono/http-exception";
@@ -27,6 +28,9 @@ mkdirSync(join(root, "assets"));
 writeFileSync(join(root, "index.html"), "<html>shell</html>");
 writeFileSync(join(root, "assets/main-ABCDEF123456.js"), "console.log(1)");
 writeFileSync(join(root, "favicon.ico"), "ico");
+writeFileSync(join(root, "apple-touch-icon.png"), "png");
+writeFileSync(join(root, "assets/chunk-XYZ12345.js"), "x".repeat(4000));
+writeFileSync(join(root, "assets/chunk-XYZ12345.js.br"), brotliCompressSync("x".repeat(4000)));
 writeFileSync(join(root, "../outside-secret.txt"), "nope");
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
@@ -301,6 +305,24 @@ describe("static + SPA fallback", () => {
     expect(hashed.headers.get("cache-control")).toContain("immutable");
     expect(hashed.headers.get("content-type")).toContain("javascript");
     expect((await ui("/favicon.ico")).headers.get("cache-control")).toBe("no-cache");
+    expect((await ui("/apple-touch-icon.png")).headers.get("cache-control")).toBe("no-cache");
+  });
+
+  test("sends the build's precompressed copy, and a 304 when unchanged", async () => {
+    const { ui } = make();
+    const path = "/assets/chunk-XYZ12345.js";
+    const br = await ui(path, { headers: { "accept-encoding": "gzip, deflate, br" } });
+    expect(br.headers.get("content-encoding")).toBe("br");
+    expect(br.headers.get("vary")).toBe("accept-encoding");
+    expect(brotliDecompressSync(new Uint8Array(await br.arrayBuffer())).toString()).toBe(
+      "x".repeat(4000),
+    );
+    const plain = await ui(path, { headers: { "accept-encoding": "identity" } });
+    expect(plain.headers.get("content-encoding")).toBeNull();
+    const again = await ui("/", {
+      headers: { "if-none-match": (await ui("/")).headers.get("etag")! },
+    });
+    expect(again.status).toBe(304);
   });
 
   test("a missing asset is a 404, never the shell", async () => {

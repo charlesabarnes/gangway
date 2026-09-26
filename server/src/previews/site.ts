@@ -1,9 +1,21 @@
-import { copyFile, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Preview, PreviewState } from "@gangway/shared/domain";
 import { runtimeById } from "@gangway/shared/runtimes";
 import { AppError, badRequest, unprocessable } from "../errors.ts";
+import { compress, compressible } from "../net/encode.ts";
+import { ENCODED_DIR } from "../net/site.ts";
 import { isUlid } from "../util/ulid.ts";
 import { artifactIndex, kitConfig, renderAssets } from "./artifact-render.ts";
 import type { PreviewContext } from "./context.ts";
@@ -116,9 +128,28 @@ async function copyFiles(from: string, to: string): Promise<number> {
   return n;
 }
 
+/** Writes a .br and a .gz of each compressible file under `from` into the same place under `to`. */
+async function encodeFiles(from: string, to: string): Promise<void> {
+  for (const e of await readdir(from, { withFileTypes: true })) {
+    const src = path.join(from, e.name);
+    if (e.isDirectory()) {
+      await encodeFiles(src, path.join(to, e.name));
+      continue;
+    }
+    if (!e.isFile()) continue;
+    const { size } = await stat(src);
+    if (!compressible(Bun.file(src).type, size)) continue;
+    const data = await Bun.file(src).bytes();
+    const [br, gz] = await Promise.all([compress(data, "br"), compress(data, "gzip")]);
+    await mkdir(to, { recursive: true, mode: DIR_MODE });
+    await writeFile(path.join(to, `${e.name}.br`), br, { mode: FILE_MODE });
+    await writeFile(path.join(to, `${e.name}.gz`), gz, { mode: FILE_MODE });
+  }
+}
+
 export class SiteStore {
   readonly #root: string;
-  readonly #open = new Map<string, Site>();
+  readonly #open = new Map<string, Site | null>();
 
   constructor(stateDir: string) {
     this.#root = path.resolve(stateDir, "sites");
@@ -155,6 +186,7 @@ export class SiteStore {
     await writeFile(path.join(next, "site.json"), JSON.stringify(meta), { mode: FILE_MODE });
     if (meta.kit)
       await writeFile(path.join(next, "kit-config.json"), kitConfig(), { mode: FILE_MODE });
+    await encodeFiles(path.join(next, "root"), path.join(next, ENCODED_DIR));
 
     await rm(old, { recursive: true, force: true });
     if (await this.has(previewId)) await rename(dest, old);
@@ -171,16 +203,17 @@ export class SiteStore {
   /** The site as the file server reads it, or null when it is missing or unreadable. */
   async open(previewId: string): Promise<Site | null> {
     const hit = this.#open.get(previewId);
-    if (hit) return hit;
+    if (hit !== undefined) return hit;
     const dir = this.dirFor(previewId);
+    let site: Site | null = null;
     try {
       const meta = JSON.parse(await readFile(path.join(dir, "site.json"), "utf8")) as SiteMeta;
-      const site = { ...meta, dir, root: path.join(dir, "root") };
-      this.#open.set(previewId, site);
-      return site;
+      site = { ...meta, dir, root: path.join(dir, "root") };
     } catch {
-      return null;
+      // Not a site (or not yet): remembered as such until publish or remove.
     }
+    this.#open.set(previewId, site);
+    return site;
   }
 
   async remove(previewId: string): Promise<void> {

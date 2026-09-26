@@ -32,9 +32,9 @@ describe("which requests get the mark", () => {
     expect(wantsMark(nav({ upgrade: "websocket", connection: "Upgrade" }))).toBe(false);
   });
 
-  test("the request asks for gzip at most and drops an unmarked validator", () => {
+  test("the request asks for the page uncompressed and drops an unmarked validator", () => {
     const r = forMark(nav({ "accept-encoding": "br, zstd, gzip", "if-none-match": '"abc"' }));
-    expect(r.headers.get("accept-encoding")).toBe("gzip");
+    expect(r.headers.get("accept-encoding")).toBe("identity");
     expect(r.headers.has("if-none-match")).toBe(false);
     const again = forMark(nav({ "if-none-match": 'W/"abc-gwm"' }));
     expect(again.headers.get("if-none-match")).toBe('W/"abc"');
@@ -150,7 +150,7 @@ describe("dispatch", () => {
     const seen: Request[] = [];
     const res = await dispatch(nav({ "accept-encoding": "br" }), deps(true, seen));
     expect(await res.text()).toBe(`<body>app${TAG}</body>`);
-    expect(seen[0]!.headers.get("accept-encoding")).toBe("gzip");
+    expect(seen[0]!.headers.get("accept-encoding")).toBe("identity");
   });
 
   test("leaves the page alone when it is off", async () => {

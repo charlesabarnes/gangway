@@ -26,6 +26,13 @@ COPY render/ render/
 COPY web/public/favicon-preview.svg web/public/logo.svg web/public/logo-light.svg web/public/
 RUN bun render/build.ts
 
+# .br and .gz beside each text asset, so the server sends them without compressing per request.
+FROM render AS assets
+COPY server/src/net/encode.ts server/src/net/
+COPY scripts/precompress.ts scripts/
+COPY --from=web /web/dist/browser web/dist/browser
+RUN bun scripts/precompress.ts web/dist/browser render/dist
+
 FROM oven/bun:1.4.2-alpine
 
 RUN apk add --no-cache docker-cli docker-cli-compose git openssh-client tini
@@ -45,10 +52,10 @@ COPY scripts/healthcheck.ts scripts/
 # The logo files and the preview favicon, inlined into the pages gangway serves for previews (server/src/net).
 COPY web/public/logo.svg web/public/logo-light.svg web/public/favicon-preview.svg web/public/
 
-COPY --from=render /src/render/dist render/dist
+COPY --from=assets /src/render/dist render/dist
 
 # The Angular app: boot.ts serves web/dist/browser on the `app` surface when it exists.
-COPY --from=web /web/dist/browser web/dist/browser
+COPY --from=assets /src/web/dist/browser web/dist/browser
 
 # Set by the release workflow (a version like 0.1.0, or edge); a local build reports dev.
 ARG GANGWAY_VERSION=dev

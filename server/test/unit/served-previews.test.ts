@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
+import { brotliCompressSync, brotliDecompressSync, gunzipSync } from "node:zlib";
 import { renderTemplate } from "@gangway/shared/artifact/index";
 import { dispatch, type DispatchDeps } from "../../src/net/dispatch.ts";
+import { sharedEncodedCache } from "../../src/net/encode.ts";
 import { DEFAULT_LIMITS } from "../../src/net/limits.ts";
 import { serveSite, type ServedSite } from "../../src/net/site.ts";
 import { renderDist } from "../../src/previews/artifact-render.ts";
@@ -129,13 +130,56 @@ describe("the file server", () => {
     expect(again.status).toBe(304);
   });
 
-  test("gzips text for a client that takes it", async () => {
+  test("compresses text off the request path: plain at first, then br or gzip", async () => {
     const big = "x".repeat(5000);
-    const res = await get(await site({ "big.txt": big }), "/big.txt", {
-      headers: { "accept-encoding": "gzip, br" },
-    });
-    expect(res.headers.get("content-encoding")).toBe("gzip");
-    expect(gunzipSync(new Uint8Array(await res.arrayBuffer())).toString()).toBe(big);
+    const s = await site({ "big.txt": big });
+    const ask = (enc: string) => get(s, "/big.txt", { headers: { "accept-encoding": enc } });
+    const first = await ask("gzip");
+    expect(first.headers.get("content-encoding")).toBeNull();
+    expect(await first.text()).toBe(big);
+    await sharedEncodedCache.settled();
+    const gz = await ask("gzip");
+    expect(gz.headers.get("content-encoding")).toBe("gzip");
+    expect(gunzipSync(new Uint8Array(await gz.arrayBuffer())).toString()).toBe(big);
+    await ask("br, gzip");
+    await sharedEncodedCache.settled();
+    const br = await ask("br, gzip");
+    expect(br.headers.get("content-encoding")).toBe("br");
+    expect(brotliDecompressSync(new Uint8Array(await br.arrayBuffer())).toString()).toBe(big);
+  });
+
+  test("sends the copies publish made in enc/, never enc/ itself", async () => {
+    const big = "y".repeat(5000);
+    const s = await site({ "big.txt": big });
+    await mkdir(join(s.dir, "enc"), { recursive: true });
+    await writeFile(join(s.dir, "enc", "big.txt.br"), brotliCompressSync(big));
+    const res = await get(s, "/big.txt", { headers: { "accept-encoding": "br" } });
+    expect(res.headers.get("content-encoding")).toBe("br");
+    expect(brotliDecompressSync(new Uint8Array(await res.arrayBuffer())).toString()).toBe(big);
+    expect((await get(s, "/enc/big.txt.br")).status).toBe(404);
+  });
+
+  test("answers a byte range, and refuses one past the end", async () => {
+    const s = await site({ "clip.bin": "0123456789" });
+    const part = await get(s, "/clip.bin", { headers: { range: "bytes=2-5" } });
+    expect(part.status).toBe(206);
+    expect(part.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(await part.text()).toBe("2345");
+    const tail = await get(s, "/clip.bin", { headers: { range: "bytes=-3" } });
+    expect(await tail.text()).toBe("789");
+    const bad = await get(s, "/clip.bin", { headers: { range: "bytes=20-" } });
+    expect(bad.status).toBe(416);
+    expect(bad.headers.get("content-range")).toBe("bytes */10");
+  });
+
+  test("hashed file names are cached for good; a weak or listed validator still matches", async () => {
+    const s = await site({ "app-4F9X2KQ7.js": "x", "app.js": "y" });
+    expect((await get(s, "/app-4F9X2KQ7.js")).headers.get("cache-control")).toContain("immutable");
+    const plainJs = await get(s, "/app.js");
+    expect(plainJs.headers.get("cache-control")).toBe("no-cache");
+    const tag = plainJs.headers.get("etag")!;
+    const listed = await get(s, "/app.js", { headers: { "if-none-match": `"zzz", ${tag}` } });
+    expect(listed.status).toBe(304);
   });
 
   test("a kit site gets the kit and its own config at /_gangway/; a plain site does not", async () => {

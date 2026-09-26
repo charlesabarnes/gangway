@@ -244,9 +244,23 @@ describe("the UI's preview frame", () => {
     expect(frame.headers.get("content-security-policy")).toBe(
       "sandbox allow-scripts; frame-ancestors 'self'",
     );
-    expect(await frame.text()).toContain('import("/_gangway/kit.js")');
+    const { version } = (await import("../../src/previews/artifact-render.ts")).renderAssets();
+    expect(await frame.text()).toContain(`import("/_gangway/kit.js?v=${version}")`);
     const kit = (await serveKitFrame(new Request("https://app.example/_gangway/kit.js")))!;
     expect(kit.headers.get("access-control-allow-origin")).toBe("*");
+    expect(kit.headers.get("cache-control")).toBe("no-cache");
+    const versioned = (await serveKitFrame(
+      new Request(`https://app.example/_gangway/kit.js?v=${version}`, {
+        headers: { "accept-encoding": "br, gzip" },
+      }),
+    ))!;
+    expect(versioned.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    const again = (await serveKitFrame(
+      new Request(`https://app.example/_gangway/kit.js?v=${version}`, {
+        headers: { "if-none-match": versioned.headers.get("etag")! },
+      }),
+    ))!;
+    expect(again.status).toBe(304);
     expect(await serveKitFrame(new Request("https://app.example/_gangway/../secrets"))).toBeNull();
   });
 });

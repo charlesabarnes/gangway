@@ -16,10 +16,10 @@ export function wantsMark(req: Request): boolean {
   return dest === null || dest === "document";
 }
 
-/** Asks for gzip at most, which it can read, and drops a validator for the unmarked page. */
+/** Asks for the page uncompressed, as stamp() rewrites it, and drops a validator for the unmarked page. */
 export function forMark(req: Request): Request {
   const headers = new Headers(req.headers);
-  headers.set("accept-encoding", "gzip");
+  headers.set("accept-encoding", "identity");
   const tags = (headers.get("if-none-match") ?? "")
     .split(",")
     .map((t) => t.trim())

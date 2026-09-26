@@ -16,7 +16,8 @@ export async function serveKitFont(req: Request, dist = renderDist()): Promise<R
   return new Response(req.method === "HEAD" ? null : file, {
     headers: {
       "content-type": "font/woff2",
-      "cache-control": "public, max-age=86400",
+      // A font file under a name never changes; a new face gets a new name.
+      "cache-control": "public, max-age=31536000, immutable",
       "access-control-allow-origin": "*",
       "x-content-type-options": "nosniff",
     },

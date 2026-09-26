@@ -33,7 +33,9 @@ export type LibraryDeps = {
   defaultTheme?: (() => string) | undefined;
 };
 
-const summary = (t: StoredTemplate): TemplateSummary => ({
+const summary = (
+  t: Pick<StoredTemplate, "id" | "kind" | "name" | "description" | "themeId">,
+): TemplateSummary => ({
   id: t.id,
   kind: t.kind,
   name: t.name,
@@ -46,6 +48,8 @@ const summary = (t: StoredTemplate): TemplateSummary => ({
 /** The built-in templates and themes, and the ones people made on this server, as one catalog. */
 export class ArtifactLibrary {
   readonly #d: LibraryDeps;
+  // Compiled per theme object; the themes repo hands back the same object until it changes.
+  readonly #compiled = new WeakMap<Theme, Map<string, string | null>>();
 
   constructor(d: LibraryDeps = {}) {
     this.#d = d;
@@ -74,12 +78,18 @@ export class ArtifactLibrary {
   }
 
   themeCss(id: string | null, logoUrl: string): string {
-    return compileTheme(this.resolve(id), logoUrl);
+    return this.#memo(this.resolve(id), `css:${logoUrl}`, (t) => compileTheme(t, logoUrl))!;
   }
 
   themeLogo(id: string | null): string | null {
-    const logo = this.resolve(id).logo;
-    return logo ? cleanSvg(logo) : null;
+    return this.#memo(this.resolve(id), "logo", (t) => (t.logo ? cleanSvg(t.logo) : null));
+  }
+
+  #memo(t: Theme, key: string, make: (t: Theme) => string | null): string | null {
+    let m = this.#compiled.get(t);
+    if (!m) this.#compiled.set(t, (m = new Map<string, string | null>()));
+    if (!m.has(key)) m.set(key, make(t));
+    return m.get(key)!;
   }
 
   templates(kind?: ArtifactKind): TemplateSummary[] {
@@ -94,7 +104,7 @@ export class ArtifactLibrary {
         themeId: null,
       }),
     );
-    return [...builtin, ...(this.#d.templates?.list(kind) ?? []).map(summary)];
+    return [...builtin, ...(this.#d.templates?.summaries(kind) ?? []).map(summary)];
   }
 
   custom(id: string): StoredTemplate | undefined {
