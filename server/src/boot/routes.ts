@@ -59,7 +59,12 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   const { oauth } = identity;
   const apiOrigin = () => d.origin("api");
   hostRoutes(api, repos.hosts);
-  eventRoutes(api, d.bus, { signal: d.signal });
+  eventRoutes(
+    api,
+    d.bus,
+    { provenanceOf: (id) => ctx.previews.provenanceOf(id) },
+    { signal: d.signal },
+  );
   previewRoutes(api, ctx, d.deploys, { signal: d.signal });
   runtimeRoutes(api);
   addonRoutes(api, new DataBrowser(ctx));

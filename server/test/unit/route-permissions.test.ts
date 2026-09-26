@@ -26,7 +26,7 @@ const none = {} as never;
 /** Everything mounted behind `authenticate`. Add a new route module here when boot.ts gains one. */
 export function registerAuthenticated(api: Hono<AppEnv>): void {
   hostRoutes(api, none);
-  eventRoutes(api, none);
+  eventRoutes(api, none, none);
   previewRoutes(api, none, none);
   auditRoutes(api, none);
   tokenRoutes(api, none);

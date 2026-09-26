@@ -177,7 +177,7 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   );
 
   api.get("/previews/:id/events", requirePermission("events.read"), (c) => {
-    const p = find(c.req.param("id"));
+    const p = findFor(ctx, c.get("actor"), find(c.req.param("id")));
     return c.json({
       events: ctx.bus
         .history(p.id)

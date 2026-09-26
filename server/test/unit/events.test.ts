@@ -25,7 +25,14 @@ function setup() {
     logger: silentLogger(),
     verifyToken: staticTokenVerifier(TOKEN),
     v1: (api) => {
-      eventRoutes(api, bus, { heartbeatMs: 40 });
+      eventRoutes(
+        api,
+        bus,
+        { provenanceOf: () => ({ owner: null, credential: null }) },
+        {
+          heartbeatMs: 40,
+        },
+      );
       hostRoutes(api, hosts);
     },
   });
@@ -185,6 +192,47 @@ describe("GET /v1/events", () => {
     expect(text).toContain(": keepalive\n\n");
     await Bun.sleep(80);
     expect(bus.listenerCount).toBe(0);
+  });
+});
+
+describe("GET /v1/events, for someone who may read only their own previews", () => {
+  test("carries their previews' events and events of no preview, and no one else's", async () => {
+    const mine = "01HAAAAAAAAAAAAAAAAAAAAAAA";
+    const theirs = "01HBBBBBBBBBBBBBBBBBBBBBBB";
+    const at = new Date(0);
+    const backlog: GangwayEvent[] = [
+      { seq: 1, type: "preview.state", previewId: theirs, payload: {}, createdAt: at },
+      { seq: 2, type: "preview.state", previewId: mine, payload: {}, createdAt: at },
+      { seq: 3, type: "host.state", previewId: null, payload: {}, createdAt: at },
+    ];
+    const bus = {
+      follow: (_after: number, deliver: (e: GangwayEvent) => void) => {
+        backlog.forEach(deliver);
+        return () => {};
+      },
+    } as unknown as EventBus;
+    const actor = {
+      kind: "token" as const,
+      tokenId: "tok_1",
+      scopes: [],
+      permissions: new Set(["previews.read_own", "events.read"] as const),
+    };
+    const app = createApp({
+      logger: silentLogger(),
+      verifyToken: (t) => (t === TOKEN ? actor : null),
+      v1: (api) =>
+        eventRoutes(api, bus, {
+          provenanceOf: (id) => ({ owner: null, credential: id === mine ? "tok_1" : "tok_2" }),
+        }),
+    });
+    const res = await surfaceHandler(app, "api")(
+      new Request("https://api.preview.localhost/v1/events", {
+        headers: { authorization: `Bearer ${TOKEN}` },
+      }),
+      { clientIp: "::1" },
+    );
+    const { frames } = await readFrames(res, 2);
+    expect(frames.map((f) => f["id"])).toEqual(["2", "3"]);
   });
 });
 
