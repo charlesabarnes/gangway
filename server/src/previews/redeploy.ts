@@ -157,7 +157,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     ...plan.planned,
     addonServices: plan.addonServices,
   };
-  void (plan.site ? runSite(ctx, r, plan.site, plan.brand) : run(ctx, r))
+  void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
     .then(
       (o) => settle(o),
       (e: unknown) =>
@@ -243,13 +243,12 @@ async function runSite(
   ctx: PreviewContext,
   r: RebuildRun,
   plan: AppPlan,
-  brand: boolean,
 ): Promise<RedeployOutcome> {
   const id = r.preview.id;
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
   try {
-    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan, brand);
+    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan);
     r.signal.throwIfAborted();
     if (moving && was.source.kind === "tarball")
       ctx.previews.setSource(id, { ...was.source, serve: "gangway" });

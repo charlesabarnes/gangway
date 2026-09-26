@@ -37,6 +37,11 @@ export const PERMISSIONS = [
     description: "Rebuild previews you deployed, at the same URL",
   },
   {
+    id: "previews.watermark",
+    feature: "previews",
+    description: "Switch the gangway watermark on or off for a preview or repository",
+  },
+  {
     id: "previews.data",
     feature: "previews",
     description: "Browse and query a preview's add-on databases (every query is audited)",
@@ -132,7 +137,13 @@ const READ: readonly Permission[] = ["previews.read", "logs.read", "events.read"
 
 export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   read: READ,
-  deploy: [...READ, "previews.deploy", "previews.destroy_own", "previews.update_own"],
+  deploy: [
+    ...READ,
+    "previews.deploy",
+    "previews.destroy_own",
+    "previews.update_own",
+    "previews.watermark",
+  ],
   update: ["previews.update"],
   // For an agent you do not trust with a container: it sees and touches only what it deployed.
   artifacts: [
@@ -140,6 +151,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.deploy_static",
     "previews.update_own",
     "previews.destroy_own",
+    "previews.watermark",
   ],
   admin: ALL_PERMISSIONS,
 };
@@ -159,6 +171,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
     "previews.destroy",
     "previews.destroy_own",
     "previews.update_own",
+    "previews.watermark",
     "previews.view_private",
     "previews.skip_password",
     "tokens.manage_own",

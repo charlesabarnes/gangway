@@ -9,6 +9,7 @@ import { controlAllowRisk, controlGate } from "../net/control-allow.ts";
 import { clientIpOf, startListener, type RunningListener } from "../net/listener.ts";
 import { clientIpResolver, type ClientIpResolver } from "../net/trusted-proxy.ts";
 import { serveSite } from "../net/site.ts";
+import { markScript } from "../net/watermark.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "../net/upstream.ts";
 import { renderDist } from "../previews/artifact-render.ts";
 import type { PreviewContext } from "../previews/context.ts";
@@ -29,6 +30,7 @@ export type NetworkDeps = {
   bundle: CertBundle;
   logger: Logger;
   baseDomain: () => string;
+  settings: Settings;
 };
 
 export type Network = {
@@ -103,6 +105,20 @@ function dispatchDeps(
     logTailFor: (id) => ctx.logs.tail(id, 50),
     clientIpFor: (req) => resolveClientIp(clientIpOf(req), req.headers.get("x-forwarded-for")),
     onProxied: (entry) => table.touch(entry.hostname, Date.now()),
+    watermark: watermarkFor(d),
+  };
+}
+
+function watermarkFor({ ctx, settings }: NetworkDeps): NonNullable<DispatchDeps["watermark"]> {
+  let cached: { link: string; script: string } | null = null;
+  return {
+    on: (entry) =>
+      ctx.previews.watermarkOf(entry.previewId) ?? settings.get(SETTINGS.previewWatermark),
+    script: () => {
+      const link = settings.get(SETTINGS.previewWatermarkLink);
+      if (cached?.link !== link) cached = { link, script: markScript(link) };
+      return cached.script;
+    },
   };
 }
 

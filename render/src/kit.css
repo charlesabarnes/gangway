@@ -2052,7 +2052,7 @@ gw-prototype[look="wireframe"] gw-note:nth-of-type(even) {
   margin-left: auto;
 }
 
-/* Theme toggle and brand */
+/* Theme toggle */
 .gw-chrome {
   position: fixed;
   z-index: 20;
@@ -2079,32 +2079,6 @@ gw-prototype[look="wireframe"] gw-note:nth-of-type(even) {
 .gw-toggle button[aria-pressed="true"] {
   color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--ink);
-}
-.gw-brand {
-  right: 14px;
-  bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font: 600 12px var(--mono);
-  letter-spacing: -0.04em;
-  opacity: 0.32;
-  pointer-events: none;
-  color: var(--ink);
-}
-body:has(gw-deck) .gw-brand {
-  color: var(--navy-fg);
-}
-.gw-brand img {
-  width: 16px;
-  height: 16px;
-}
-:root[data-theme="dark"] .gw-brand .l,
-body:has(gw-deck) .gw-brand .l {
-  display: none;
-}
-:root:not([data-theme="dark"]) body:not(:has(gw-deck)) .gw-brand .d {
-  display: none;
 }
 @media print {
   .gw-chrome,

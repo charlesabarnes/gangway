@@ -22,6 +22,7 @@ import {
   type Template,
   type Visibility,
 } from '../../core/api.types';
+import { AuthService } from '../../core/auth.service';
 import { issuesOrDetail, toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
@@ -43,6 +44,12 @@ const VISIBILITIES: { value: Visibility | ''; label: string }[] = [
 const PR_CLEARANCES: { value: Clearance | ''; label: string }[] = [
   { value: '', label: "the policy's" },
   ...CLEARANCES.map((c) => ({ value: c, label: c })),
+];
+
+const WATERMARKS: { value: 'on' | 'off' | ''; label: string }[] = [
+  { value: '', label: 'the server’s' },
+  { value: 'on', label: 'shown' },
+  { value: 'off', label: 'hidden' },
 ];
 
 const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: p.fullName });
@@ -224,6 +231,21 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
               }
             </select></label
           >
+          <label class="flex flex-col gap-1"
+            ><span class="gw-label">gangway watermark</span
+            ><select
+              [class]="field"
+              [disabled]="!canWatermark()"
+              (change)="edit('watermark', $any($event.target).value || null)"
+              data-testid="watermark"
+            >
+              @for (w of watermarks; track w.value) {
+                <option [value]="w.value" [selected]="w.value === (d.watermark ?? '')">
+                  {{ w.label }}
+                </option>
+              }
+            </select></label
+          >
         </div>
       </section>
       <div class="flex flex-wrap items-center gap-2.5">
@@ -276,6 +298,7 @@ export class ProjectSettings {
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
   readonly #router = inject(Router);
+  readonly #auth = inject(AuthService);
   protected readonly dialog = viewChild.required(ConfirmDialog);
 
   protected readonly field = FIELD;
@@ -286,6 +309,8 @@ export class ProjectSettings {
   protected readonly clearances = CLEARANCES;
   protected readonly prClearances = PR_CLEARANCES;
   protected readonly visibilities = VISIBILITIES;
+  protected readonly watermarks = WATERMARKS;
+  protected readonly canWatermark = computed(() => this.#auth.can('previews.watermark'));
 
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);

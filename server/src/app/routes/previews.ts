@@ -4,6 +4,7 @@ import {
   DeployRequestSchema,
   PreviewPasswordChangeSchema,
   PreviewIconChangeSchema,
+  PreviewWatermarkChangeSchema,
   PreviewTitleChangeSchema,
   PREVIEW_PASSWORD_HEADER,
   PREVIEW_PASSWORD_MAX,
@@ -25,6 +26,7 @@ import { destroy } from "../../previews/destroy.ts";
 import type { RedeployInput } from "../../previews/redeploy-input.ts";
 import { redeploy } from "../../previews/redeploy.ts";
 import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
+import { setPreviewWatermark } from "../../previews/watermark.ts";
 import { can, mayDestroy, mayReadLogs, mayRebuild, maySee, type Actor } from "../../auth/actor.ts";
 import { planFromDisk } from "../../previews/runtimes.ts";
 import { isUlid } from "../../util/ulid.ts";
@@ -75,6 +77,7 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
     port,
     addons,
     network,
+    watermark,
     brand,
     password: passwordMode,
     passwordLogin,
@@ -90,6 +93,7 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
     ...(icon ? { icon: { name: icon, color: iconColor ?? DEFAULT_ICON_COLOR } } : {}),
     ...(password ? { password } : {}),
     ...(passwordLogin ? { passwordLogin } : {}),
+    ...((watermark ?? brand) ? { watermark: watermark ?? brand } : {}),
     ...(project ? { projectId: project } : {}),
     ...(ttl === undefined ? {} : { ttl: ttl === "none" ? null : ttl }),
     source: {
@@ -99,7 +103,6 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
       runtime,
       addons,
       network,
-      brand,
       digest: `len:${c.req.header("content-length") ?? "?"}`,
     },
   };
@@ -215,7 +218,6 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     runtime: RedeployInput["runtime"],
     addons?: RedeployInput["addons"],
     network?: RedeployInput["network"],
-    brand?: RedeployInput["brand"],
   ) => {
     const p = find(c.req.param("id"));
     const res = await redeploy(ctx, {
@@ -225,7 +227,6 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       runtime,
       addons,
       network,
-      brand,
     });
     if (c.req.query("wait") === "true") {
       const o = await res.done;
@@ -247,8 +248,8 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     requirePermission("previews.update_own", "previews.update"),
     async (c) => {
       const body = await readJson(c);
-      const { files, runtime, addons, network, brand } = SourceEditSchema.parse(body);
-      return rebuild(c, { kind: "edit", files }, runtime, addons, network, brand);
+      const { files, runtime, addons, network } = SourceEditSchema.parse(body);
+      return rebuild(c, { kind: "edit", files }, runtime, addons, network);
     },
   );
 
@@ -261,10 +262,10 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
         throw badRequest(
           `send the new source as a tar or tar.gz body (${TARBALL_CONTENT_TYPES.join(", ")})`,
         );
-      const { runtime, addons, network, brand } = SourceReplaceQuerySchema.parse(c.req.query());
+      const { runtime, addons, network } = SourceReplaceQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
       if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
-      return rebuild(c, { kind: "replace", archive }, runtime, addons, network, brand);
+      return rebuild(c, { kind: "replace", archive }, runtime, addons, network);
     },
   );
 }
@@ -298,6 +299,17 @@ function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       const { title } = PreviewTitleChangeSchema.parse(await readJson(c));
       ctx.previews.setTitle(p.id, title);
       ctx.audit.record(c.get("actor"), "preview.title", p.id, { old: p.title, new: title });
+      return c.json({ preview: wire(ctx.previews.get(p.id)!) });
+    },
+  );
+  api.put(
+    "/previews/:id/watermark",
+    requirePermission("previews.update_own", "previews.update"),
+    async (c) => {
+      const p = find(c.req.param("id"));
+      changeable(ctx, c, p, "watermark");
+      const { watermark } = PreviewWatermarkChangeSchema.parse(await readJson(c));
+      setPreviewWatermark(ctx, c.get("actor"), p.id, watermark);
       return c.json({ preview: wire(ctx.previews.get(p.id)!) });
     },
   );

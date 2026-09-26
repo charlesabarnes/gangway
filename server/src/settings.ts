@@ -57,7 +57,13 @@ export const SETTINGS = {
     null,
     { secret: true },
   ),
-  artifactBrand: def("artifacts.brand", z.boolean(), true),
+  // gangway stamps its mark on every HTML page a preview answers; previews and repositories may override.
+  previewWatermark: def("previews.watermark", z.boolean(), true),
+  previewWatermarkLink: def(
+    "previews.watermark.link",
+    z.string().url().or(z.literal("")),
+    "https://gangway.sh",
+  ),
   // Off puts static sites and artifacts back in nginx containers.
   previewsServeStatic: def("previews.serveStatic", z.boolean(), true),
   // Per container. Memory and processes are what take a host down; 0 turns a limit off.

@@ -144,6 +144,7 @@ describe("deploy follows the template", () => {
       forks: "ask",
       drafts: false,
       forkClearance: "none",
+      watermark: null,
       createdAt: new Date(0),
       updatedAt: new Date(0),
       ...repo,

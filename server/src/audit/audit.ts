@@ -10,6 +10,7 @@ export type AuditAction =
   | "preview.password"
   | "preview.title"
   | "preview.icon"
+  | "preview.watermark"
   | "auth.setup"
   | "auth.login"
   | "auth.login.failed"

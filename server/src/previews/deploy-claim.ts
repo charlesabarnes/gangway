@@ -64,6 +64,7 @@ function createPreview(ctx: PreviewContext, c: Claim, project: string): Preview 
     credential: credentialOf(c.input.actor),
     password: c.password.stored,
     passwordLogin: c.input.passwordLogin ?? "inherit",
+    watermark: c.input.watermark,
   });
 }
 

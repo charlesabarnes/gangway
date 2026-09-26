@@ -7,6 +7,7 @@ import {
   type Preview,
   type PreviewList,
   type StreamEvent,
+  type WatermarkChoice,
 } from '../../core/api.types';
 import { toProblem, type ProblemError } from '../../core/problem';
 import { SseService, type SseHandle, type SseStatus } from '../../core/sse.service';
@@ -117,6 +118,18 @@ export class PreviewsStore {
     try {
       const { preview } = await firstValueFrom(
         this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/title`, { title }),
+      );
+      this.#put(preview);
+      return preview;
+    } catch (e) {
+      throw toProblem(e);
+    }
+  }
+
+  async setWatermark(id: string, watermark: WatermarkChoice): Promise<Preview> {
+    try {
+      const { preview } = await firstValueFrom(
+        this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/watermark`, { watermark }),
       );
       this.#put(preview);
       return preview;

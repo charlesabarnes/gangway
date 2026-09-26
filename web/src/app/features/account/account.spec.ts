@@ -22,6 +22,7 @@ const MEMBER: Permission[] = [
   'previews.destroy',
   'previews.destroy_own',
   'previews.update_own',
+  'previews.watermark',
   'previews.view_private',
   'tokens.manage_own',
 ];
@@ -92,7 +93,7 @@ describe('Account', () => {
       hosts: 'read',
       logs: 'read',
       previews:
-        'deploy, deploy static, destroy, destroy own, read, read own, update own, view private',
+        'deploy, deploy static, destroy, destroy own, read, read own, update own, view private, watermark',
       tokens: 'manage own',
     });
   });

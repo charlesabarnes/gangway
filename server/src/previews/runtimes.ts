@@ -81,13 +81,12 @@ export async function writeRuntime(
   composePath: string,
   port?: number,
   sidecars?: RenderedAddons,
-  brand = true,
 ): Promise<{ composeFile: string; note: string }> {
   if (containedIn(srcDir, composePath))
     throw new AppError("internal", "the runtime compose file must be outside the build context");
   const env = { ...plan.env, ...(secrets ?? {}), ...(sidecars?.appEnv ?? {}) };
   const bindings = [...new Set([...ALWAYS_BOUND, ...Object.keys(env)])].sort();
-  const rendered = renderRuntime(plan, bindings, port, brand);
+  const rendered = renderRuntime(plan, bindings, port);
   const context = plan.root ? path.join(srcDir, plan.root) : srcDir;
   if (!containedIn(srcDir, context)) throw unprocessable("root: leaves the upload");
   const dir = path.join(context, GENERATED_DIR);

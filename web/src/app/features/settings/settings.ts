@@ -5,24 +5,24 @@ import type { SettingView, Template } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
 import { ToastService } from '../../ui/toast';
-import { ArtifactSettings } from './artifact-settings';
 import { GitHubSettings } from './github-settings';
 import { GlobalSecrets } from './global-secrets';
 import { PreviewPasswords } from './preview-passwords';
 import { PreviewPolicies } from './preview-policies';
 import { SurfacesSettings } from './surfaces-settings';
 import { UpdateSettings } from './update-settings';
+import { WatermarkSettings } from './watermark-settings';
 
 @Component({
   selector: 'app-settings',
   imports: [
-    ArtifactSettings,
     GitHubSettings,
     GlobalSecrets,
     PreviewPasswords,
     PreviewPolicies,
     SurfacesSettings,
     UpdateSettings,
+    WatermarkSettings,
   ],
   template: `
     <section class="gw-page [&>:last-child>.gw-section]:border-b-0">
@@ -45,7 +45,7 @@ import { UpdateSettings } from './update-settings';
       }
       @if (canReadSettings()) {
         <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
-        <app-artifact-settings [settings]="settings()" [(saving)]="saving" />
+        <app-watermark-settings [settings]="settings()" [(saving)]="saving" />
       }
       @if (canSecrets()) {
         <app-global-secrets />

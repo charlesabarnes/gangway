@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
 import { RUNTIME_IDS } from "./runtimes.ts";
 import { ADDON_IDS, isAddonId } from "./addons.ts";
-import { BRAND_CHOICES, NETWORK_CHOICES } from "./domain.ts";
+import { WATERMARK_CHOICES, NETWORK_CHOICES } from "./domain.ts";
 import { PREVIEW_ICON_COLORS, PREVIEW_ICONS, PreviewIconSchema } from "./preview-icon.ts";
 
 export const PREVIEW_STATE_VALUES = [
@@ -112,7 +112,9 @@ export const TarballDeployQuerySchema = z.object({
   password: z.enum(["inherit", "none", "generate"]).optional(),
   passwordLogin: z.enum(["inherit", "on", "off", "only"]).optional(),
   network: z.enum(NETWORK_CHOICES).optional(),
-  brand: z.enum(BRAND_CHOICES).optional(),
+  watermark: z.enum(WATERMARK_CHOICES).optional(),
+  /** The old name for watermark. */
+  brand: z.enum(WATERMARK_CHOICES).optional(),
 });
 
 const runtimeChoice = z.enum([...RUNTIME_IDS, "auto", "own"]);
@@ -121,7 +123,6 @@ export const SourceReplaceQuerySchema = z.object({
   runtime: runtimeChoice.optional(),
   addons: addonQuery.optional(),
   network: z.enum(NETWORK_CHOICES).optional(),
-  brand: z.enum(BRAND_CHOICES).optional(),
 });
 
 export const SourceEditSchema = z
@@ -138,15 +139,13 @@ export const SourceEditSchema = z
     runtime: runtimeChoice.optional(),
     addons: addonArray.optional(),
     network: z.enum(NETWORK_CHOICES).optional(),
-    brand: z.enum(BRAND_CHOICES).optional(),
   })
   .refine(
     (e) =>
       Object.keys(e.files).length > 0 ||
       e.runtime !== undefined ||
       e.addons !== undefined ||
-      e.network !== undefined ||
-      e.brand !== undefined,
+      e.network !== undefined,
     "nothing to change",
   );
 export type SourceEdit = z.infer<typeof SourceEditSchema>;
@@ -204,6 +203,9 @@ export const DefaultPasswordSchema = z.strictObject({
 
 export const PreviewTitleChangeSchema = z.strictObject({ title: previewTitle.nullable() });
 export const PreviewIconChangeSchema = z.strictObject({ icon: PreviewIconSchema.nullable() });
+export const PreviewWatermarkChangeSchema = z.strictObject({
+  watermark: z.enum(WATERMARK_CHOICES),
+});
 
 export const PREVIEW_PASSWORD_HEADER = "gangway-preview-password";
 
@@ -219,6 +221,7 @@ export const DeployRequestSchema = z.strictObject({
   project: z.string().min(1).max(64).optional(),
   password: PasswordChoiceSchema.optional(),
   passwordLogin: PasswordLoginSchema.optional(),
+  watermark: z.enum(WATERMARK_CHOICES).optional(),
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
 
@@ -358,6 +361,7 @@ export const ProjectPatchSchema = z.strictObject({
   templateId: templateId.nullable().optional(),
   prClearance: z.enum(["none", "low", "standard", "high"]).nullable().optional(),
   forkClearance: z.enum(["none", "low", "standard", "high"]).optional(),
+  watermark: z.enum(["on", "off"]).nullable().optional(),
 });
 export type ProjectPatchRequest = z.infer<typeof ProjectPatchSchema>;
 

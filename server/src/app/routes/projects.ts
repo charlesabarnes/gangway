@@ -10,7 +10,8 @@ import type { Preview, Project } from "@gangway/shared/domain";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { ProjectsRepo } from "../../db/repos/projects.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
-import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
+import { can } from "../../auth/actor.ts";
+import { badRequest, conflict, forbidden, notFound, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { PreviewUrl } from "../../previews/deploy-types.ts";
 import type { Pulls } from "../../projects/pulls.ts";
@@ -78,6 +79,8 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null)
       throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
     checkTemplate(patch.templateId);
+    if (patch.watermark !== undefined && !can(c.get("actor"), "previews.watermark"))
+      throw forbidden('switching the gangway watermark needs "previews.watermark"');
     if (patch.slug !== undefined && patch.slug !== before.slug) {
       const taken = projects.getBySlug(patch.slug);
       if (taken)
@@ -184,4 +187,5 @@ const pick = (p: Project) => ({
   drafts: p.drafts,
   prClearance: p.prClearance,
   forkClearance: p.forkClearance,
+  watermark: p.watermark,
 });

@@ -9,4 +9,5 @@ export type ArtifactMeta = {
   accent: ArtifactAccent;
   format: 'markdown' | 'html';
 };
-export type BrandChoice = 'inherit' | 'on' | 'off';
+/** The gangway watermark on a preview: inherit follows the repository, then the setting. */
+export type WatermarkChoice = 'inherit' | 'on' | 'off';

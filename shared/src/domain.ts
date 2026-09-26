@@ -85,6 +85,8 @@ export type Project = {
   forks: ForkPolicy;
   drafts: boolean;
   forkClearance: Clearance;
+  /** null follows the setting. */
+  watermark: "on" | "off" | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -94,8 +96,9 @@ export type NetworkChoice = (typeof NETWORK_CHOICES)[number];
 /** Absent means auto: shared when the stack is one service, its own network otherwise. */
 export type PreviewNetwork = Exclude<NetworkChoice, "auto">;
 
-export const BRAND_CHOICES = ["inherit", "on", "off"] as const;
-export type BrandChoice = (typeof BRAND_CHOICES)[number];
+/** The gangway watermark on a preview: inherit follows the repository, then the setting. */
+export const WATERMARK_CHOICES = ["inherit", "on", "off"] as const;
+export type WatermarkChoice = (typeof WATERMARK_CHOICES)[number];
 
 export type PreviewSource =
   | { kind: "pr"; repo: string; number: number; sha: string; image?: string }
@@ -108,7 +111,6 @@ export type PreviewSource =
       runtime?: RuntimeId;
       addons?: AddonChoice[];
       network?: PreviewNetwork;
-      brand?: "on" | "off";
       /** "gangway": its files are served by gangway itself, with no container. */
       serve?: "gangway";
     }
@@ -135,6 +137,7 @@ export type Preview = {
   projectId: string | null;
   password: PasswordMode;
   passwordLogin: PasswordLogin;
+  watermark: WatermarkChoice;
   lastSeenAt: Date | null;
   error: string | null;
   createdAt: Date;

@@ -14,6 +14,7 @@ import {
 import { isWebSocketUpgrade } from "./headers.ts";
 import { release, tryAcquire, type Limits } from "./limits.ts";
 import { isBodyTooLarge, isTimeout, type Upstream } from "./upstream.ts";
+import { forMark, MARK_PATH, markResponse, stamp, wantsMark } from "./watermark.ts";
 
 export type Surface = "app" | "api" | "mcp" | "hooks" | "registry" | "www";
 
@@ -47,6 +48,8 @@ export type DispatchDeps = {
   logUrlFor?: (previewId: string) => string | undefined;
   clientIpFor: (req: Request) => string;
   onProxied?: (entry: RouteEntry) => void;
+  /** The gangway watermark: whether a preview's pages carry it, and the script that draws it. */
+  watermark?: { on: (entry: RouteEntry) => boolean; script: () => string } | undefined;
 };
 
 export function hostKind(
@@ -157,6 +160,8 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
 
   const entry = d.table.lookup(host);
   if (!entry) return unknownPage(host);
+  if (d.watermark && req.url.includes(MARK_PATH) && new URL(req.url).pathname === MARK_PATH)
+    return markResponse(req, d.watermark.script());
 
   const gated = d.visibilityGate?.(entry, req, clientIp);
   if (gated) return gated;
@@ -168,6 +173,21 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
     return new Response("websocket upgrade failed", { status: 400 });
   }
 
+  if (d.watermark && wantsMark(req) && d.watermark.on(entry)) {
+    const marked = forMark(req);
+    const res = await answer(marked, d, host, entry, clientIp);
+    return stamp(res, req);
+  }
+  return answer(req, d, host, entry, clientIp);
+}
+
+function answer(
+  req: Request,
+  d: DispatchDeps,
+  host: string,
+  entry: RouteEntry,
+  clientIp: string,
+): Promise<Response> {
   if (entry.site && d.site) return serveFiles(req, d, host, entry, d.site);
   return proxy(req, d, host, entry, clientIp);
 }

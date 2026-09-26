@@ -39,7 +39,7 @@ async function site(
     await mkdir(join(dir, "root", name, ".."), { recursive: true });
     await writeFile(join(dir, "root", name), body);
   }
-  await writeFile(join(dir, "kit-config.json"), '{"brand":false}\n');
+  await writeFile(join(dir, "kit-config.json"), "{}\n");
   return { root: join(dir, "root"), dir, fallback: "spa", kit: false, ...over };
 }
 
@@ -120,7 +120,7 @@ describe("the file server", () => {
     const js = await get(kit, "/_gangway/kit.js");
     expect(js.status).toBe(200);
     expect(js.headers.get("cache-control")).toContain("max-age");
-    expect(await (await get(kit, "/_gangway/config.json")).text()).toBe('{"brand":false}\n');
+    expect(await (await get(kit, "/_gangway/config.json")).text()).toBe("{}\n");
     expect((await get(kit, "/_gangway/nope.js")).status).toBe(404);
     expect(await (await get(await site(SITE), "/_gangway/kit.js")).text()).toBe("<h1>home</h1>");
   });

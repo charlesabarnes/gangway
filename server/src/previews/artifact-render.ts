@@ -50,7 +50,10 @@ const THEME_SCRIPT =
   't=t||d.dataset.pref;if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";' +
   "d.dataset.theme=t})()";
 
-export const kitConfig = (brand: boolean) => `${JSON.stringify({ brand })}\n`;
+/** What an artifact's page reads from /_gangway/config.json. */
+export type KitConfig = Record<string, never>;
+
+export const kitConfig = (c: KitConfig = {}) => `${JSON.stringify(c)}\n`;
 
 /** The page an artifact.md is served in: the kit loads artifact.md and draws it. */
 export function artifactIndex(meta: ArtifactMeta, version: string): string {

@@ -67,7 +67,5 @@ export type PreviewContext = {
   serveStatic?: (() => boolean) | undefined;
   limits?: (() => PreviewLimits) | undefined;
   passwords?: PreviewPasswordDeps | undefined;
-  /** Whether artifacts show the gangway mark unless a preview says otherwise. */
-  brandDefault?: (() => boolean) | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

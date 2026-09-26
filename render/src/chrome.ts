@@ -53,13 +53,8 @@ function toggle(): HTMLElement {
   return t;
 }
 
-/** The theme toggle and a faint gangway mark, on every artifact. */
-export function chrome(base: string, brand: boolean): void {
+/** The theme toggle on every artifact; gangway itself adds its watermark to the page. */
+export function chrome(): void {
   if (document.querySelector(".gw-toggle")) return;
   document.body.append(toggle());
-  if (!brand) return;
-  const mark = document.createElement("div");
-  mark.className = "gw-chrome gw-brand";
-  mark.innerHTML = `<img class="l" src="${base}logo.svg" alt=""><img class="d" src="${base}logo-light.svg" alt="">gangway`;
-  document.body.append(mark);
 }

@@ -20,6 +20,7 @@
     "projectId": null,
     "password": "inherit",
     "passwordLogin": "inherit",
+    "watermark": "inherit",
     "access": "open",
     "lastSeenAt": null,
     "error": null,
@@ -187,6 +188,7 @@
     "previews.destroy_own",
     "previews.update",
     "previews.update_own",
+    "previews.watermark",
     "previews.data",
     "previews.view_private",
     "previews.skip_password",
@@ -221,14 +223,16 @@
       "hosts.read",
       "previews.deploy",
       "previews.destroy_own",
-      "previews.update_own"
+      "previews.update_own",
+      "previews.watermark"
     ],
     "update": ["previews.update"],
     "artifacts": [
       "previews.read_own",
       "previews.deploy_static",
       "previews.update_own",
-      "previews.destroy_own"
+      "previews.destroy_own",
+      "previews.watermark"
     ],
     "admin": [
       "previews.read",
@@ -239,6 +243,7 @@
       "previews.destroy_own",
       "previews.update",
       "previews.update_own",
+      "previews.watermark",
       "previews.data",
       "previews.view_private",
       "previews.skip_password",
@@ -292,6 +297,7 @@
     "forks": "ask",
     "drafts": false,
     "forkClearance": "none",
+    "watermark": null,
     "createdAt": "2026-09-21T20:00:00.000Z",
     "updatedAt": "2026-09-21T20:00:00.000Z"
   },
@@ -519,14 +525,16 @@
         "hosts.read",
         "previews.deploy",
         "previews.destroy_own",
-        "previews.update_own"
+        "previews.update_own",
+        "previews.watermark"
       ],
       "update": ["previews.update"],
       "artifacts": [
         "previews.read_own",
         "previews.deploy_static",
         "previews.update_own",
-        "previews.destroy_own"
+        "previews.destroy_own",
+        "previews.watermark"
       ]
     },
     "expiresAt": "2026-09-22T12:10:00.000Z"

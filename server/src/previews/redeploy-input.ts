@@ -1,5 +1,5 @@
 import type { AddonRequest } from "@gangway/shared/app-plan";
-import type { BrandChoice, NetworkChoice } from "@gangway/shared/domain";
+import type { NetworkChoice } from "@gangway/shared/domain";
 import type { Actor } from "../auth/actor.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
 import type { SourceEdits } from "./source-edits.ts";
@@ -12,5 +12,4 @@ export type RedeployInput = {
   runtime?: RuntimeChoice | undefined;
   addons?: readonly AddonRequest[] | undefined;
   network?: NetworkChoice | undefined;
-  brand?: BrandChoice | undefined;
 };

@@ -8,6 +8,7 @@ import type {
   PreviewSource,
   PreviewState,
   Visibility,
+  WatermarkChoice,
 } from "@gangway/shared/domain";
 import type { Provenance } from "../../auth/actor.ts";
 import type { Db } from "../types.ts";
@@ -32,6 +33,7 @@ export type CreatePreview = {
   credential?: string | null;
   password?: StoredPreviewPassword;
   passwordLogin?: PasswordLogin;
+  watermark?: WatermarkChoice | undefined;
 };
 
 export type StoredPreviewPassword = {
@@ -46,6 +48,9 @@ export type PreviewFilter = {
   projectId?: string;
   includeDestroyed?: boolean;
 };
+
+const watermarkColumn = (w: WatermarkChoice | undefined): string | null =>
+  w === "on" || w === "off" ? w : null;
 
 const labelColumns = (p: CreatePreview) => ({
   title: p.title ?? null,
@@ -68,10 +73,10 @@ export class PreviewsRepo {
     this.#db.run(
       `INSERT INTO previews (id, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, credential,
-                             password_mode, password_hash, password_salt, password_login, signed_in_only, created_at, updated_at)
+                             password_mode, password_hash, password_salt, password_login, signed_in_only, watermark, created_at, updated_at)
        VALUES ($id, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $credential,
-               $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $now, $now)`,
+               $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $watermark, $now, $now)`,
       {
         id: p.id,
         project: p.project,
@@ -95,6 +100,7 @@ export class PreviewsRepo {
         pwLogin:
           p.passwordLogin === "only" || p.passwordLogin === undefined ? "inherit" : p.passwordLogin,
         only: p.passwordLogin === "only" ? 1 : 0,
+        watermark: watermarkColumn(p.watermark),
         now,
       },
     );
@@ -156,6 +162,25 @@ export class PreviewsRepo {
       title,
       now: this.#now(),
     });
+  }
+
+  setWatermark(id: string, watermark: WatermarkChoice): void {
+    this.#db.run("UPDATE previews SET watermark = $w, updated_at = $now WHERE id = $id", {
+      id,
+      w: watermarkColumn(watermark),
+      now: this.#now(),
+    });
+  }
+
+  /** The preview's own choice, then its repository's; null when both follow the setting. */
+  watermarkOf(id: string): boolean | null {
+    const r = this.#db.get<{ own: string | null; project: string | null }>(
+      `SELECT p.watermark AS own, pr.watermark AS project FROM previews p
+       LEFT JOIN projects pr ON pr.id = p.project_id WHERE p.id = $id`,
+      { id },
+    );
+    const w = r?.own ?? r?.project ?? null;
+    return w === null ? null : w === "on";
   }
 
   setIcon(id: string, icon: PreviewIcon | null): void {

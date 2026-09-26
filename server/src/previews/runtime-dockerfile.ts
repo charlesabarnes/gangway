@@ -51,7 +51,6 @@ type Build = {
   env: string;
   bindings: readonly string[];
   files: Record<string, string>;
-  brand: boolean;
 };
 
 function startWith(b: Build, fallbackCmd: string, note: string): { cmd: string; note: string } {
@@ -87,7 +86,7 @@ function renderArtifact(b: Build): Rendered {
   const { version, files } = renderAssets();
   const markdown = meta.format === "markdown";
   b.files["nginx.conf"] = nginxConf(b.listen, "spa", { gzip: true });
-  b.files["kit-config.json"] = kitConfig(b.brand);
+  b.files["kit-config.json"] = kitConfig();
   if (markdown) b.files["index.html"] = artifactIndex(meta, version);
   const html = `/usr/share/nginx/html`;
   return {
@@ -98,7 +97,7 @@ function renderArtifact(b: Build): Rendered {
       `${b.env}\n`,
     files: b.files,
     assets: files,
-    note: `a ${meta.kind} ${markdown ? "rendered from artifact.md" : "in gangway's elements"} (kit ${version}${b.brand ? "" : ", no gangway mark"})`,
+    note: `a ${meta.kind} ${markdown ? "rendered from artifact.md" : "in gangway's elements"} (kit ${version})`,
   };
 }
 
@@ -199,7 +198,6 @@ export function renderRuntime(
   plan: AppPlan,
   bindings: readonly string[] = [],
   port?: number,
-  brand = true,
 ): Rendered {
   if (plan.kind !== "runtime" || !plan.runtime || !plan.image)
     throw new AppError("internal", "renderRuntime needs a runtime plan");
@@ -213,7 +211,6 @@ export function renderRuntime(
     env: `ENV PORT=${listen} HOST=0.0.0.0`,
     bindings,
     files: {},
-    brand,
   };
   if (plan.serve.kind === "static" && plan.serve.output !== false)
     return renderStaticBuild(b, plan.serve.fallback, plan.serve.output);

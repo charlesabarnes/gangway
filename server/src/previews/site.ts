@@ -21,7 +21,6 @@ export type SiteMeta = {
   fallback: SiteFallback;
   /** Serve the kit at /_gangway/, as an artifact's page loads it from there. */
   kit: boolean;
-  brand: boolean;
 };
 
 export type Site = SiteMeta & { root: string; dir: string };
@@ -129,12 +128,7 @@ export class SiteStore {
   }
 
   /** Build the site from a planned upload beside the live one, then swap it in. */
-  async publish(
-    previewId: string,
-    srcDir: string,
-    plan: AppPlan,
-    brand: boolean,
-  ): Promise<{ files: number }> {
+  async publish(previewId: string, srcDir: string, plan: AppPlan): Promise<{ files: number }> {
     if (!servable(plan)) throw unprocessable("this upload needs a container to serve it");
     const from = plan.root ? path.join(srcDir, plan.root) : srcDir;
     if (!containedIn(srcDir, from)) throw unprocessable("root: leaves the upload");
@@ -149,7 +143,6 @@ export class SiteStore {
     const meta: SiteMeta = {
       fallback: plan.serve.fallback,
       kit: plan.artifact !== null,
-      brand,
     };
     if (plan.artifact?.format === "markdown") {
       const html = artifactIndex(plan.artifact, renderAssets().version);
@@ -157,7 +150,7 @@ export class SiteStore {
     }
     await writeFile(path.join(next, "site.json"), JSON.stringify(meta), { mode: FILE_MODE });
     if (meta.kit)
-      await writeFile(path.join(next, "kit-config.json"), kitConfig(brand), { mode: FILE_MODE });
+      await writeFile(path.join(next, "kit-config.json"), kitConfig(), { mode: FILE_MODE });
 
     await rm(old, { recursive: true, force: true });
     if (await this.has(previewId)) await rename(dest, old);

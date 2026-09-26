@@ -88,7 +88,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -211,7 +211,7 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
       expect(
         db.get<Record<string, unknown>>(
           "SELECT id, name, slug, forge, full_name, installation_id, pr_trigger, template_id, visibility, pr_clearance, env_ciphertext FROM projects",
@@ -265,7 +265,7 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([10, 11, 12, 13, 14, 15, 16]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([10, 11, 12, 13, 14, 15, 16, 17]);
       const holders = db
         .query<{ role_id: string }>(
           "SELECT role_id FROM role_permissions WHERE permission_id = 'previews.update_own' ORDER BY role_id",
@@ -276,6 +276,42 @@ for (const [name, open] of DRIVERS) {
         db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = 'p1'")!.owner,
       ).toBeNull();
       expect(db.query("PRAGMA foreign_key_check")).toEqual([]);
+      db.close();
+    });
+  });
+
+  describe(`0017 preview watermark on ${name}`, () => {
+    test("brand choices and the setting move over; editors may switch it", () => {
+      const at = databaseAt(open, 16);
+      at.db.run(HOST);
+      at.db.run(
+        "INSERT INTO previews (id, project, host_id, state, source_kind, source_json, visibility, created_at, updated_at) VALUES ('p1', 'gw-t-a', 'local', 'awake', 'tarball', '{\"uploadId\":\"p1\",\"brand\":\"off\"}', 'public', 1, 1), ('p2', 'gw-t-b', 'local', 'awake', 'tarball', '{\"uploadId\":\"p2\"}', 'public', 1, 1)",
+      );
+      at.db.run(
+        "INSERT INTO settings (key, value_json, updated_at) VALUES ('artifacts.brand', 'false', 1)",
+      );
+      at.db.run(
+        "INSERT INTO roles (id, name, description, builtin, created_at) VALUES ('looker', 'looker', 'reads', 0, 1)",
+      );
+      at.db.run(
+        "INSERT INTO role_permissions (role_id, permission_id) VALUES ('looker', 'previews.read')",
+      );
+
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual([17]);
+      const rows = db.query<{ id: string; watermark: string | null; source_json: string }>(
+        "SELECT id, watermark, source_json FROM previews ORDER BY id",
+      );
+      expect(rows).toEqual([
+        { id: "p1", watermark: "off", source_json: '{"uploadId":"p1"}' },
+        { id: "p2", watermark: null, source_json: '{"uploadId":"p2"}' },
+      ]);
+      expect(db.query("SELECT key, value_json FROM settings")).toEqual([
+        { key: "previews.watermark", value_json: "false" },
+      ]);
+      expect(grants(db, "member")).toContain("previews.watermark");
+      expect(grants(db, "admin")).toContain("previews.watermark");
+      expect(grants(db, "looker")).not.toContain("previews.watermark");
       db.close();
     });
   });

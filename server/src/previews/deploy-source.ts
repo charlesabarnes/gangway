@@ -2,12 +2,7 @@ import { lstat, mkdir, symlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AppPlan } from "@gangway/shared/app-plan";
-import type {
-  BrandChoice,
-  NetworkChoice,
-  PreviewNetwork,
-  PreviewSource,
-} from "@gangway/shared/domain";
+import type { NetworkChoice, PreviewNetwork, PreviewSource } from "@gangway/shared/domain";
 import type { RuntimeId } from "@gangway/shared/runtimes";
 import { composeForImage } from "./compose-generate.ts";
 import type { PreviewContext } from "./context.ts";
@@ -47,12 +42,6 @@ async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<str
     await symlink(plugins, join(cfg, "cli-plugins")).catch(() => {});
   return cfg;
 }
-
-export const brandField = (b: BrandChoice | undefined): { brand?: "on" | "off" } =>
-  b === "on" || b === "off" ? { brand: b } : {};
-
-export const brandFor = (ctx: PreviewContext, b: BrandChoice | undefined): boolean =>
-  b === "on" ? true : b === "off" ? false : (ctx.brandDefault?.() ?? true);
 
 export const networkField = (n: NetworkChoice | undefined): { network?: PreviewNetwork } =>
   n === "shared" || n === "isolated" ? { network: n } : {};
@@ -164,7 +153,6 @@ async function tarballSource(
   ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
   const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port, {
     addons: source.addons,
-    brand: brandFor(ctx, source.brand),
   });
   return {
     source: {
@@ -173,7 +161,6 @@ async function tarballSource(
       ...(up.runtime ? { runtime: up.runtime } : {}),
       ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
       ...networkField(source.network),
-      ...brandField(source.brand),
     },
     composeFile: up.composeFile,
     dotenv: up.dotenv,

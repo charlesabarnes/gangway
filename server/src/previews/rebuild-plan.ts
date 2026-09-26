@@ -1,11 +1,5 @@
 import type { AppPlan } from "@gangway/shared/app-plan";
-import type {
-  BrandChoice,
-  Host,
-  NetworkChoice,
-  Preview,
-  PreviewSource,
-} from "@gangway/shared/domain";
+import type { Host, NetworkChoice, Preview, PreviewSource } from "@gangway/shared/domain";
 import { actorId } from "../auth/actor.ts";
 import { conflict, unprocessable } from "../errors.ts";
 import { addonServices } from "./addons.ts";
@@ -13,7 +7,7 @@ import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
-import { brandField, brandFor, networkField } from "./deploy-source.ts";
+import { networkField } from "./deploy-source.ts";
 import { prepareUpload, type PreparedUpload } from "./prepare-upload.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
@@ -72,7 +66,6 @@ async function recordSource(
   source: TarballPreviewSource,
   up: PreparedUpload,
   network?: NetworkChoice,
-  brand?: BrandChoice,
 ): Promise<PreviewSource> {
   if (up.pristine) await sources.adopt(id, up.pristine);
   const next: PreviewSource = {
@@ -81,7 +74,6 @@ async function recordSource(
     ...(up.runtime ? { runtime: up.runtime } : {}),
     ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
     ...networkField(network ?? source.network),
-    ...brandField(brand ?? source.brand),
     // A preview moving onto gangway's file server is marked once its files are published.
     ...(source.serve ? { serve: source.serve } : {}),
   };
@@ -105,7 +97,6 @@ export type RebuildPlan = {
   app: AppPlan;
   /** The plan gangway serves as files, or null when a container runs the rebuilt preview. */
   site: AppPlan | null;
-  brand: boolean;
 };
 
 function siteFor(ctx: PreviewContext, source: TarballPreviewSource, plan: AppPlan): AppPlan | null {
@@ -128,18 +119,16 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
       ? {}
       : ctx.secretsFor?.(preview.projectId, preview.secretLevel);
   const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
-  const brand = brandFor(ctx, input.brand ?? source.brand);
   const up = await prepareUpload(ctx, id, wd, choice, env, port, {
     previous: source.runtime ?? "own",
     addons: input.addons,
     previousAddons: source.addons,
-    brand,
   });
   const site = siteFor(ctx, source, up.plan);
   const planned = site
     ? siteModel(site, port)
     : await readModel(ctx, b.host, wd, up.composeFile, up.dotenv);
   assertSameExposure(routes, planned.model);
-  const next = await recordSource(ctx, b.sources, id, source, up, input.network, input.brand);
-  return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan, site, brand };
+  const next = await recordSource(ctx, b.sources, id, source, up, input.network);
+  return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan, site };
 }

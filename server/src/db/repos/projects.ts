@@ -37,6 +37,7 @@ export type ProjectPatch = {
   drafts?: boolean | undefined;
   prClearance?: Clearance | null | undefined;
   forkClearance?: Clearance | undefined;
+  watermark?: "on" | "off" | null | undefined;
 };
 
 const COLUMNS: Record<keyof ProjectPatch, string> = {
@@ -53,6 +54,7 @@ const COLUMNS: Record<keyof ProjectPatch, string> = {
   drafts: "drafts",
   prClearance: "pr_clearance",
   forkClearance: "fork_clearance",
+  watermark: "watermark",
 };
 
 export class ProjectsRepo {

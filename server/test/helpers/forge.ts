@@ -100,6 +100,7 @@ export function fakePreviews(instance = "test") {
       const preview: Preview = {
         id,
         project: `gw-${instance}-${slug}`,
+        watermark: "inherit",
         title: null,
         icon: null,
         hostId: "local",

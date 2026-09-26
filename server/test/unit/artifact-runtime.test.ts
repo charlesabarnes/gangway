@@ -28,7 +28,7 @@ describe("an artifact.md upload", () => {
       "COPY .gangway/kit-config.json /usr/share/nginx/html/_gangway/config.json",
     );
     expect(out.dockerfile).toContain("COPY .gangway/index.html /usr/share/nginx/html/index.html");
-    expect(out.files["kit-config.json"]).toBe('{"brand":true}\n');
+    expect(out.files["kit-config.json"]).toBe("{}\n");
     expect(out.files["index.html"]).toContain(
       "<title>A live preview for every pull request</title>",
     );
@@ -61,21 +61,13 @@ describe("an artifact.md upload", () => {
     expect(html).toContain('content="a &quot;b&quot;"');
   });
 
-  test("writeRuntime copies the kit into .gangway/ readable by nginx, with the mark off", async () => {
+  test("writeRuntime copies the kit into .gangway/ readable by nginx", async () => {
     const dir = await folder(DECK);
-    await writeRuntime(
-      dir,
-      await planned(dir),
-      {},
-      join(tempDir(), "c.yaml"),
-      undefined,
-      undefined,
-      false,
-    );
+    await writeRuntime(dir, await planned(dir), {}, join(tempDir(), "c.yaml"));
     const js = join(dir, ".gangway/render/kit.js");
     expect(existsSync(js)).toBe(true);
     expect(statSync(js).mode & 0o777).toBe(0o644);
-    expect(readFileSync(join(dir, ".gangway/kit-config.json"), "utf8")).toBe('{"brand":false}\n');
+    expect(readFileSync(join(dir, ".gangway/kit-config.json"), "utf8")).toBe("{}\n");
   });
 
   test("deploys and says what it rendered", async () => {

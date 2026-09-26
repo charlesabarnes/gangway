@@ -1,6 +1,6 @@
 import type { PreviewIcon } from "@gangway/shared/preview-icon";
 import type {
-  BrandChoice,
+  WatermarkChoice,
   Clearance,
   NetworkChoice,
   Preview,
@@ -39,7 +39,6 @@ export type DeploySource =
       runtime?: RuntimeChoice | undefined;
       addons?: readonly AddonRequest[] | undefined;
       network?: NetworkChoice | undefined;
-      brand?: BrandChoice | undefined;
     }
   | {
       kind: "pushed";
@@ -66,6 +65,7 @@ export type DeployInput = {
   projectId?: string | undefined;
   password?: PasswordChoice | undefined;
   passwordLogin?: PasswordLogin | undefined;
+  watermark?: WatermarkChoice | undefined;
 };
 
 export type PreviewUrl = { service: string; url: string; primary: boolean };

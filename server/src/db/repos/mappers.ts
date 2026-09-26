@@ -91,6 +91,7 @@ export type PreviewRow = {
   password_mode?: string | null;
   password_login?: string | null;
   signed_in_only?: number | null;
+  watermark?: string | null;
   title?: string | null;
   icon?: string | null;
   icon_color?: string | null;
@@ -118,6 +119,7 @@ export function rowToPreview(r: PreviewRow): Preview {
     passwordLogin: r.signed_in_only
       ? "only"
       : ((r.password_login ?? "inherit") as Preview["passwordLogin"]),
+    watermark: (r.watermark ?? "inherit") as Preview["watermark"],
     lastSeenAt: toDate(r.last_seen_at),
     error: r.error,
     createdAt: new Date(r.created_at),
@@ -324,6 +326,7 @@ export type ProjectRow = {
   forks: string;
   drafts: number;
   fork_clearance: string;
+  watermark?: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -345,6 +348,7 @@ export const rowToProject = (r: ProjectRow): Project => ({
   forks: r.forks as ForkPolicy,
   drafts: bool(r.drafts),
   forkClearance: r.fork_clearance as Clearance,
+  watermark: (r.watermark ?? null) as Project["watermark"],
   createdAt: new Date(r.created_at),
   updatedAt: new Date(r.updated_at),
 });

@@ -153,11 +153,11 @@ export const DeployArgs = z.object({
     .describe(
       "auto (default): one service joins the shared preview network; add-ons or several services get their own. shared or isolated to choose.",
     ),
-  brand: z
+  watermark: z
     .enum(["inherit", "on", "off"])
     .optional()
     .describe(
-      "Show the faint gangway mark on an artifact: inherit (the server's setting), on or off.",
+      "The gangway watermark in the bottom-right corner of every page: inherit (the repository's, then the server's setting), on or off. With preview, it changes with no rebuild.",
     ),
   addons: z
     .array(z.string())

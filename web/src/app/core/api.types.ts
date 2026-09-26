@@ -1,10 +1,11 @@
+import type { WatermarkChoice } from './artifact.types';
 import type { PreviewIcon } from './preview-icon.types';
 export type {
   ArtifactAccent,
   ArtifactKind,
   ArtifactMeta,
   ArtifactTheme,
-  BrandChoice,
+  WatermarkChoice,
 } from './artifact.types';
 export type { AppPlan, Command, PlanIssue, PlanReason, PlanRequest } from './plan.types';
 export type PreviewState =
@@ -34,7 +35,6 @@ export type PreviewSource =
       runtime?: RuntimeId;
       addons?: AddonChoice[];
       network?: 'shared' | 'isolated';
-      brand?: 'on' | 'off';
       /** gangway serves the files itself, with no container. */
       serve?: 'gangway';
     }
@@ -68,6 +68,7 @@ export type Preview = {
   projectId: string | null;
   password: PasswordMode;
   passwordLogin: PasswordLogin;
+  watermark: WatermarkChoice;
   access: PreviewAccess;
   lastSeenAt: string | null;
   error: string | null;
@@ -143,6 +144,7 @@ export const PERMISSIONS = [
   'previews.destroy_own',
   'previews.update',
   'previews.update_own',
+  'previews.watermark',
   'previews.data',
   'previews.view_private',
   'previews.skip_password',
@@ -181,13 +183,20 @@ const READ_BUNDLE: readonly Permission[] = [
 ];
 export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   read: READ_BUNDLE,
-  deploy: [...READ_BUNDLE, 'previews.deploy', 'previews.destroy_own', 'previews.update_own'],
+  deploy: [
+    ...READ_BUNDLE,
+    'previews.deploy',
+    'previews.destroy_own',
+    'previews.update_own',
+    'previews.watermark',
+  ],
   update: ['previews.update'],
   artifacts: [
     'previews.read_own',
     'previews.deploy_static',
     'previews.update_own',
     'previews.destroy_own',
+    'previews.watermark',
   ],
   admin: PERMISSIONS,
 };
@@ -261,6 +270,8 @@ export type Project = {
   drafts: boolean;
   prClearance: Clearance | null;
   forkClearance: Clearance;
+  /** null follows the setting. */
+  watermark: 'on' | 'off' | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -278,6 +289,7 @@ export type ProjectPatch = Partial<
     | 'drafts'
     | 'prClearance'
     | 'forkClearance'
+    | 'watermark'
   >
 > & { repository?: string | null };
 export type ProjectCreate = {

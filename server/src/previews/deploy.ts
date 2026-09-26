@@ -8,10 +8,11 @@ import { ulid } from "../util/ulid.ts";
 import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
 import { checkContainerAllowed } from "./container-access.ts";
+import { checkWatermarkAllowed } from "./watermark.ts";
 import type { PreviewContext } from "./context.ts";
 import { claimPreview } from "./deploy-claim.ts";
 import { urlsFor } from "./deploy-names.ts";
-import { brandFor, writeSource, type Materialized } from "./deploy-source.ts";
+import { writeSource, type Materialized } from "./deploy-source.ts";
 import type { DeployInput, DeployResult, PreviewUrl } from "./deploy-types.ts";
 import { logGenerated, resolvePassword } from "./password.ts";
 import type { PlannedRoute } from "./planned-route.ts";
@@ -191,6 +192,7 @@ function announce(ctx: PreviewContext, input: DeployInput, host: Host, p: Prepar
 export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
   if (input.source.kind !== "tarball")
     checkContainerAllowed(input.actor, `deploying from ${input.source.kind}`, true);
+  checkWatermarkAllowed(input.actor, input.watermark);
   const id = ulid(ctx.now());
   const policy = ctx.policy.resolve({
     source: input.source,
@@ -224,12 +226,9 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     dockerConfig: p.material.dockerConfig,
     signal: abort.signal,
   };
-  const brand = input.source.kind === "tarball" ? input.source.brand : undefined;
-  const done = (p.site ? publishSite(ctx, r, p.site, brandFor(ctx, brand)) : run(ctx, r)).finally(
-    () => {
-      ctx.inflight.delete(id);
-    },
-  );
+  const done = (p.site ? publishSite(ctx, r, p.site) : run(ctx, r)).finally(() => {
+    ctx.inflight.delete(id);
+  });
   ctx.inflight.set(id, { abort, done });
 
   return { preview: p.preview, urls, done, plan: p.material.plan };
@@ -237,15 +236,10 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 
 type DeployRun = RunPlan & { dockerConfig?: string | undefined };
 
-async function publishSite(
-  ctx: PreviewContext,
-  r: DeployRun,
-  plan: AppPlan,
-  brand: boolean,
-): Promise<Preview> {
+async function publishSite(ctx: PreviewContext, r: DeployRun, plan: AppPlan): Promise<Preview> {
   const id = r.preview.id;
   try {
-    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan, brand);
+    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan);
     r.signal.throwIfAborted();
     ctx.logs.append(id, "system", `serving ${files} files from gangway: no container to start`);
     ctx.logs.append(id, "system", "awake");

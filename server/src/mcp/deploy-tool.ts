@@ -9,6 +9,7 @@ import { urlsFor } from "../previews/deploy-names.ts";
 import type { DeploySource } from "../previews/deploy-types.ts";
 import { requestHash } from "../previews/idempotent.ts";
 import type { RedeployInput } from "../previews/redeploy-input.ts";
+import { setPreviewWatermark } from "../previews/watermark.ts";
 import { redeploy } from "../previews/redeploy.ts";
 import { serveSite } from "../net/site.ts";
 import { renderDist } from "../previews/artifact-render.ts";
@@ -99,7 +100,7 @@ function iconOf(args: DeployArgs): PreviewIcon | undefined {
 }
 
 const rebuildAsked = (args: DeployArgs, addons: Addons | undefined) =>
-  [args.artifact, args.files, args.upload, args.remove, addons, args.network, args.brand].some(
+  [args.artifact, args.files, args.upload, args.remove, addons, args.network].some(
     (v) => v !== undefined,
   );
 
@@ -127,6 +128,7 @@ function deployInput(scope: CallScope, args: DeployArgs, source: DeploySource) {
     projectId: args.project,
     ...(args.password ? { password: { mode: args.password } } : {}),
     ...(args.passwordLogin ? { passwordLogin: args.passwordLogin } : {}),
+    ...(args.watermark ? { watermark: args.watermark } : {}),
   };
 }
 
@@ -180,7 +182,6 @@ export class DeployTool {
       ...(args.port === undefined ? {} : { port: args.port }),
       ...(addons === undefined ? {} : { addons }),
       ...(args.network === undefined ? {} : { network: args.network }),
-      ...(args.brand === undefined ? {} : { brand: args.brand }),
     };
     if (args.upload !== undefined) {
       const taken = this.#take(args.upload, scope.actor);
@@ -229,7 +230,6 @@ export class DeployTool {
       change,
       ...(addons === undefined ? {} : { addons }),
       ...(args.network === undefined ? {} : { network: args.network }),
-      ...(args.brand === undefined ? {} : { brand: args.brand }),
     }).finally(() => taken?.done());
     const outcome = await waitFor(res.done, wait, scope.signal);
     const url = urlsFor(ctx, target.id)[0]?.url ?? "(no URL)";
@@ -241,7 +241,7 @@ export class DeployTool {
     return `ready: ${url} (rebuilt)\n${describePreview(ctx, outcome.preview)}${await this.#report(outcome.preview, res.plan, args.check)}`;
   }
 
-  /** Sets a title or icon given with preview; they are labels, so they need no rebuild. */
+  /** Sets a title, icon or watermark given with preview; none of them needs a rebuild. */
   #label(actor: Actor, target: Preview, args: DeployArgs): boolean {
     const { ctx } = this.#d;
     const icon = iconOf(args);
@@ -253,7 +253,8 @@ export class DeployTool {
       ctx.previews.setIcon(target.id, icon);
       ctx.audit.record(actor, "preview.icon", target.id, { old: target.icon, new: icon });
     }
-    return args.title !== undefined || icon !== undefined;
+    if (args.watermark !== undefined) setPreviewWatermark(ctx, actor, target.id, args.watermark);
+    return args.title !== undefined || icon !== undefined || args.watermark !== undefined;
   }
 
   #change(
@@ -269,7 +270,7 @@ export class DeployTool {
       ...(args.artifact ? templateFiles(args.artifact) : (args.files ?? {})),
     };
     for (const p of args.remove ?? []) files[p] = null;
-    const settingOnly = args.network !== undefined || args.brand !== undefined;
+    const settingOnly = args.network !== undefined;
     if (Object.keys(files).length === 0 && addons === undefined && !settingOnly)
       throw unprocessable("nothing to change: give files, remove, upload or addons");
     return { change: { kind: "edit", files } };
