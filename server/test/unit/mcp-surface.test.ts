@@ -140,6 +140,23 @@ describe("the mcp surface", () => {
     expect(s.mcp.open).toBe(0);
   });
 
+  test("tool schemas are plain JSON Schema, and arguments are still checked", async () => {
+    const s = surface();
+    const tools = (await s.messages(await s.modern(1, "tools/list"))).at(-1)!.result.tools;
+    const text = JSON.stringify(tools.map((t: { inputSchema: unknown }) => t.inputSchema));
+    expect(text).not.toContain("$schema");
+    expect(text).not.toContain("propertyNames");
+    expect(text).not.toMatch(/"type":\[/);
+    expect(text).toContain('"additionalProperties":{"type":"string"}');
+
+    const res = await s.modern(2, "tools/call", {
+      name: "deploy",
+      arguments: { files: { "index.html": 42 }, name: "bad" },
+    });
+    const result = (await s.messages(res)).find((m) => m.id === 2)!;
+    expect(result.error ?? result.result.isError).toBeTruthy();
+  });
+
   test("any client gets the instructions on connect and a generate-artifact prompt", async () => {
     const s = surface();
     const init = await s.messages(await s.initialize("codex"));

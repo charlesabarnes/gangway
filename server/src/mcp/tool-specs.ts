@@ -8,6 +8,33 @@ export const DEFAULT_WAIT_S = 240;
 const MAX_WAIT_S = 600;
 const MAX_CHECKS = 20;
 
+type Json = { [k: string]: unknown };
+
+function simplify(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(simplify);
+  if (!node || typeof node !== "object") return node;
+  const out: Json = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "$schema" || k === "propertyNames") continue;
+    if (k === "type" && Array.isArray(v)) continue;
+    out[k] = simplify(v);
+  }
+  return out;
+}
+
+/**
+ * ChatGPT fails on schemas other clients accept, so tools publish plain JSON Schema: no $schema,
+ * propertyNames or type lists. Arguments are still checked against the full zod schema.
+ */
+function plain<S extends z.ZodType>(schema: S): S {
+  const std = schema["~standard"];
+  const input = () => simplify(z.toJSONSchema(schema, { io: "input" })) as Json;
+  const output = () => simplify(z.toJSONSchema(schema, { io: "output" })) as Json;
+  return Object.assign(Object.create(schema) as S, {
+    "~standard": { ...std, jsonSchema: { input, output } },
+  });
+}
+
 // Some clients send a nested object as its JSON text.
 function jsonObject(v: unknown): unknown {
   if (typeof v !== "string") return v;
@@ -175,7 +202,7 @@ export const DEPLOY_TOOL = {
   title: "Deploy a preview",
   description:
     "Put an artifact or an app on a public HTTPS URL: an artifact from a template (artifact: {template, …}; see the catalog tool), text files, an upload, a container image, or a git repository. Waits until the URL answers and returns it. Also rebuilds an existing preview in place (preview + files). Give every preview a title and an icon: they are how the user finds it.",
-  inputSchema: DeployArgs,
+  inputSchema: plain(DeployArgs),
   annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
 };
 
@@ -183,9 +210,11 @@ export const STATUS_TOOL = {
   title: "Preview status",
   description:
     "One preview's state, URL and expiry (by name, URL or id), or every live preview when none is named.",
-  inputSchema: z.object({
-    preview: PreviewRef.optional().describe("A name, URL or id. Omit to list them all."),
-  }),
+  inputSchema: plain(
+    z.object({
+      preview: PreviewRef.optional().describe("A name, URL or id. Omit to list them all."),
+    }),
+  ),
   annotations: { readOnlyHint: true },
 };
 
@@ -193,22 +222,24 @@ export const LOGS_TOOL = {
   title: "Preview logs",
   description:
     "A preview's logs: the pipeline (build, start, gangway's own lines) and the runtime (what its containers print, e.g. your server's startup line and its errors). Read this when a deploy failed or the app misbehaves.",
-  inputSchema: z.object({
-    preview: PreviewRef,
-    lines: z
-      .number()
-      .int()
-      .min(1)
-      .max(500)
-      .optional()
-      .describe("How many per section, default 80."),
-    source: z.enum(LOG_SOURCES).optional().describe("pipeline, runtime, or all (the default)."),
-    service: z
-      .string()
-      .max(63)
-      .optional()
-      .describe("Runtime lines of one service only, e.g. web or postgres."),
-  }),
+  inputSchema: plain(
+    z.object({
+      preview: PreviewRef,
+      lines: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .optional()
+        .describe("How many per section, default 80."),
+      source: z.enum(LOG_SOURCES).optional().describe("pipeline, runtime, or all (the default)."),
+      service: z
+        .string()
+        .max(63)
+        .optional()
+        .describe("Runtime lines of one service only, e.g. web or postgres."),
+    }),
+  ),
   annotations: { readOnlyHint: true },
 };
 
@@ -216,7 +247,7 @@ export const DESTROY_TOOL = {
   title: "Destroy a preview",
   description:
     "Tear a preview down: its URL stops answering and its containers and data are removed.",
-  inputSchema: z.object({ preview: PreviewRef }),
+  inputSchema: plain(z.object({ preview: PreviewRef })),
   annotations: { destructiveHint: true, idempotentHint: true },
 };
 
@@ -224,13 +255,15 @@ export const CATALOG_TOOL = {
   title: "Artifact templates and components",
   description:
     "Start here for a document, dashboard, slide deck or clickable prototype. Returns the artifact.md guide (markdown plus a few blocks, charts and slides), that kind's templates with their options, and a complete example. Read it before writing artifact.md or deploying an artifact.",
-  inputSchema: z.object({
-    kind: z.enum(ARTIFACT_KINDS).describe("What you are making."),
-    template: z
-      .string()
-      .max(64)
-      .optional()
-      .describe("A template id from the list, e.g. deck/status: returns its files to adapt."),
-  }),
+  inputSchema: plain(
+    z.object({
+      kind: z.enum(ARTIFACT_KINDS).describe("What you are making."),
+      template: z
+        .string()
+        .max(64)
+        .optional()
+        .describe("A template id from the list, e.g. deck/status: returns its files to adapt."),
+    }),
+  ),
   annotations: { readOnlyHint: true },
 };
