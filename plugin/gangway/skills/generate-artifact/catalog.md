@@ -5,7 +5,7 @@ Generated from gangway's guide by `bun scripts/artifact-catalog.ts`; do not edit
 ## Front matter (required)
 ```
 ---
-kind: deck            # document | deck
+kind: deck            # document | deck | canvas
 title: Q3 review
 subtitle: One line under the title
 accent: flag          # flag (yellow) | red | teal | blue | green
@@ -16,6 +16,9 @@ byline: Platform team # document
 date: September 2026  # document
 layout: aside         # document: aside (section titles in a column beside the text) | single
 footer: Team · Date   # deck: shown on every slide
+layout: grid          # canvas: grid | row | column, for frames without x and y
+columns: 3            # canvas: frames per row in a grid
+gap: 80               # canvas: pixels between frames
 ---
 ```
 
@@ -40,6 +43,9 @@ Separate slides with a line that is only `---`. The first slide is the title sli
 - `split`: `## Title` and a `::: columns` block, words beside a chart, list or image
 - `end`: the closing slide (`# Thank you`, a line, a `::: facts` block)
 A slide with only `# Heading` is a section divider, and one with only `## Title` and a `::stat{}` a big number, without saying so. Speaker notes: a line `Notes:` then text, at the end of a slide; press n to show them.
+
+## Canvases
+A board of frames the reader pans and zooms, like a design file: screens of a flow, illustrations, diagrams, a mood board. Separate frames with a line that is only `---`, each starting `{#id title="Frame title"}`. A frame holds markdown, any block, an inline `<svg>` or `:image[…]{src=…}`. Size it with `w=390` (pixels; default 400) and `h=` (default: its content); place it with `x=` and `y=`, or leave them out and the frames flow in a grid (front matter `layout`, `columns`, `gap`). `frame=plain` drops the frame around an illustration; `frame=note` is a sticky note. A line `-> other-id "label"` in a frame draws an arrow to another frame. Readers drag to pan, pinch or ctrl+scroll to zoom, press 0 to fit, and click a frame's title to zoom to it; `#id` in the URL opens on that frame.
 
 ## Blocks
 ```

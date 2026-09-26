@@ -9,7 +9,9 @@ import {
   type Block,
 } from "./grammar.ts";
 import { FLOW_DIRECTIONS, parseFlow } from "./flow.ts";
+import { CANVAS_LAYOUTS, FRAME_STYLES } from "./canvas.ts";
 import {
+  ARROW_LINE,
   ARTIFACT_ACCENTS,
   ARTIFACT_KINDS,
   ARTIFACT_MODES,
@@ -244,7 +246,13 @@ function checkFrontMatter(c: Ctx, meta: Record<string, string>): ArtifactKind | 
     });
   checkValue(c, 1, "accent", meta["accent"], ARTIFACT_ACCENTS);
   checkValue(c, 1, "mode", meta["mode"], ARTIFACT_MODES);
-  checkValue(c, 1, "layout", meta["layout"], DOC_LAYOUTS);
+  if (k === "document") checkValue(c, 1, "layout", meta["layout"], DOC_LAYOUTS);
+  if (k === "canvas") {
+    checkValue(c, 1, "layout", meta["layout"], CANVAS_LAYOUTS);
+    for (const key of ["columns", "gap"])
+      if (meta[key] !== undefined && !/^\d{1,4}$/.test(meta[key]))
+        c.issues.push({ line: 1, message: `${key}: a whole number, not "${meta[key]}"` });
+  }
   checkTheme(c, meta);
   checkCss(c, meta["css"]);
   return k;
@@ -255,6 +263,38 @@ function checkSlides(c: Ctx, body: string, offset: number) {
     checkValue(c, p.line, "layout", p.head?.["layout"], SLIDE_LAYOUTS);
     walk(c, scan(p.lines, p.first));
   }
+}
+
+function checkFrames(c: Ctx, body: string, offset: number) {
+  const ids = new Set<string>();
+  const arrows: LintIssue[] = [];
+  for (const p of pieces(body, offset)) {
+    const id = p.head?.["id"];
+    if (!id) c.issues.push({ line: p.line, message: 'start each frame with {#id title="…"}' });
+    else if (ids.has(id)) c.issues.push({ line: p.line, message: `two frames are called #${id}` });
+    else ids.add(id);
+    for (const key of ["x", "y", "w", "h"]) {
+      const v = p.head?.[key];
+      if (v !== undefined && !/^-?\d{1,5}$/.test(v))
+        c.issues.push({ line: p.line, message: `${key}=${v}: a whole number of pixels` });
+    }
+    if (p.head && (p.head["x"] === undefined) !== (p.head["y"] === undefined))
+      c.issues.push({ line: p.line, message: "give x and y together, or neither" });
+    checkValue(c, p.line, "frame", p.head?.["frame"], FRAME_STYLES);
+    const rest: string[] = [];
+    p.lines.forEach((l, i) => {
+      const m = ARROW_LINE.exec(l.trim());
+      if (m) arrows.push({ line: p.first + i, message: m[1]! });
+      else rest.push(l);
+    });
+    walk(c, scan(rest, p.first));
+  }
+  for (const a of arrows)
+    if (!ids.has(a.message))
+      c.issues.push({
+        line: a.line,
+        message: `-> ${a.message}: no frame has the id #${a.message}`,
+      });
 }
 
 /** The mode, from `mode:` or, as before there was one, `theme: light | dark | system`. */
@@ -275,6 +315,7 @@ export function lintMarkdown(src: string, opts: LintOptions = {}): LintResult {
     c.issues.push({ line: 1, message: "start with front matter: ---, kind: …, title: …, ---" });
   const kind = checkFrontMatter(c, meta);
   if (kind === "deck") checkSlides(c, body, offset);
+  else if (kind === "canvas") checkFrames(c, body, offset);
   else if (kind) walk(c, scan(body.split(/\r?\n/), offset + 1));
   c.issues.sort((a, b) => a.line - b.line);
   const info: ArtifactInfo | null = kind

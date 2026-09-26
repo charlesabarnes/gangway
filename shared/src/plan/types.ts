@@ -16,7 +16,7 @@ export type PlanInput = {
 export type AddonRequest = AddonId | { id: AddonId; version?: string | undefined };
 
 export type ArtifactMeta = {
-  kind: "document" | "deck";
+  kind: "document" | "deck" | "canvas";
   title: string;
   description: string | null;
   mode: "system" | "light" | "dark";

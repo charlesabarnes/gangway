@@ -1,3 +1,4 @@
+import { defineCanvas } from "./canvas.ts";
 import { applyTheme, chrome } from "./chrome.ts";
 import { defineElements, problem } from "./elements.ts";
 import { defineFlow } from "./flow.ts";
@@ -32,6 +33,7 @@ async function boot(): Promise<void> {
   defineElements();
   defineFlow();
   defineStage();
+  defineCanvas();
   if (!document.querySelector(ROOTS)) {
     const src = await markdown();
     if (src !== null) {

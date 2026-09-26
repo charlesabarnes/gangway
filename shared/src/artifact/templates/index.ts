@@ -6,6 +6,7 @@ import {
   THEME_ID,
   type ArtifactKind,
 } from "../vocab.ts";
+import { CANVAS_TEMPLATES } from "./canvas.ts";
 import { DECK_TEMPLATES } from "./deck.ts";
 import { DOCUMENT_TEMPLATES } from "./document.ts";
 import type { ArtifactTemplate, OptionValue, TemplateOption, TemplateSettings } from "./kit.ts";
@@ -15,6 +16,7 @@ export type { ArtifactTemplate, OptionValue, TemplateOption } from "./kit.ts";
 export const ARTIFACT_TEMPLATES: readonly ArtifactTemplate[] = [
   ...DOCUMENT_TEMPLATES,
   ...DECK_TEMPLATES,
+  ...CANVAS_TEMPLATES,
 ];
 
 /** Names templates had before ADR-0033, still accepted. */

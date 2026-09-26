@@ -788,15 +788,15 @@ gw-flow .node.tone-flag .label {
   fill: var(--flag-fg);
 }
 gw-flow .node.tone-ok .shape {
-  fill: color-mix(in oklch, var(--ok) 16%, var(--sheet));
+  fill: color-mix(in srgb, var(--ok) 16%, var(--sheet));
   stroke: var(--ok);
 }
 gw-flow .node.tone-warn .shape {
-  fill: color-mix(in oklch, var(--warn) 18%, var(--sheet));
+  fill: color-mix(in srgb, var(--warn) 18%, var(--sheet));
   stroke: var(--warn);
 }
 gw-flow .node.tone-danger .shape {
-  fill: color-mix(in oklch, var(--danger) 14%, var(--sheet));
+  fill: color-mix(in srgb, var(--danger) 14%, var(--sheet));
   stroke: var(--danger);
 }
 gw-flow .node.tone-ok .label,
@@ -1344,6 +1344,259 @@ gw-deck.notes gw-slide.on aside.notes {
   background: var(--log-bg);
 }
 
+/* Canvas: frames on the chart grid, panned and zoomed as one layer. */
+body:has(gw-canvas) {
+  overflow: hidden;
+}
+gw-canvas {
+  position: fixed;
+  inset: 0;
+}
+gw-canvas > [data-part="viewport"] {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+    linear-gradient(var(--grid-fine) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px);
+}
+gw-canvas > [data-part="viewport"].grabbing {
+  cursor: grabbing;
+}
+gw-canvas [data-part="world"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+gw-canvas [data-part="world"].animating {
+  transition: transform 0.28s var(--ease, ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  gw-canvas [data-part="world"].animating {
+    transition: none;
+  }
+}
+gw-canvas svg[data-part="links"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+gw-canvas .gw-arrow path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+gw-canvas marker path {
+  fill: var(--ink);
+}
+gw-canvas .gw-arrow rect {
+  fill: var(--paper);
+  stroke: var(--rule);
+}
+gw-canvas .gw-arrow text {
+  font: 12px var(--font-mono);
+  fill: var(--ink-muted);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+gw-frame {
+  position: absolute;
+}
+gw-frame > .gw-frame-label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  padding-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 600 12px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+gw-frame > .gw-frame-label a {
+  color: inherit;
+  text-decoration: none;
+}
+gw-frame > .gw-frame-label a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--flag);
+}
+gw-frame > .gw-frame-body {
+  height: 100%;
+  padding: 24px 26px;
+  overflow: hidden;
+  background: var(--paper-raised);
+  box-shadow: var(--neatline-soft);
+}
+gw-frame > .gw-frame-body > :last-child {
+  margin-bottom: 0;
+}
+gw-frame > .gw-frame-body > :first-child {
+  margin-top: 0;
+}
+gw-frame
+  > .gw-frame-body
+  > *
+  + :is(gw-chart, gw-grid, gw-image, gw-facts, gw-callout, table, gw-flow) {
+  margin-top: 16px;
+}
+gw-frame[frame="plain"] > .gw-frame-body {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+gw-frame[frame="plain"] > .gw-frame-body > :is(svg, img, gw-image) {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+gw-frame[frame="note"] > .gw-frame-body {
+  background: color-mix(in srgb, var(--flag) 26%, var(--paper));
+  box-shadow: inset 0 0 0 1px var(--flag);
+}
+gw-frame > .gw-frame-body > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.gw-canvas-head {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  left: 16px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 14px 18px 12px;
+  background: var(--paper);
+  box-shadow: var(--neatline);
+  pointer-events: none;
+}
+.gw-canvas-head h1 {
+  font-size: 28px;
+  line-height: 1.1;
+  margin-top: 4px;
+}
+.gw-canvas-head p {
+  margin: 6px 0 0;
+  font: 400 15px/1.4 var(--font-serif);
+  color: var(--ink-muted);
+}
+gw-canvas > [data-part="controls"] {
+  position: absolute;
+  z-index: 5;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--paper);
+  box-shadow: var(--hairline-strong, inset 0 0 0 1px var(--ink));
+}
+gw-canvas > [data-part="controls"] > * {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--rule);
+  background: none;
+  color: var(--ink);
+  font: 600 12px var(--font-mono);
+  cursor: pointer;
+}
+gw-canvas > [data-part="controls"] > :last-child {
+  border-right: 0;
+}
+gw-canvas > [data-part="controls"] button:hover {
+  background: var(--flag-wash);
+}
+gw-canvas > [data-part="controls"] select {
+  max-width: 180px;
+  font: 600 11px var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+gw-canvas > [data-part="map"] {
+  position: absolute;
+  z-index: 5;
+  left: 16px;
+  bottom: 64px;
+  padding: 6px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  cursor: crosshair;
+}
+gw-canvas > [data-part="map"] svg {
+  display: block;
+}
+gw-canvas > [data-part="map"] .f {
+  fill: var(--rule);
+}
+gw-canvas > [data-part="map"] .v {
+  fill: var(--flag-wash);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+/* List: the frames one under another, for a phone or for reading straight through. */
+gw-canvas.gw-list {
+  position: static;
+}
+body:has(gw-canvas.gw-list) {
+  overflow: auto;
+}
+gw-canvas.gw-list > [data-part="viewport"] {
+  position: static;
+  overflow: visible;
+  cursor: auto;
+  touch-action: auto;
+  padding: 150px 16px 96px;
+}
+gw-canvas.gw-list [data-part="world"] {
+  position: static;
+  display: grid;
+  justify-items: center;
+  gap: 56px;
+  transform: none !important;
+}
+gw-canvas.gw-list gw-frame {
+  position: relative;
+  left: auto !important;
+  top: auto !important;
+  max-width: 100%;
+}
+gw-canvas.gw-list svg[data-part="links"],
+gw-canvas.gw-list > [data-part="map"] {
+  display: none;
+}
+gw-canvas.gw-list > [data-part="controls"] {
+  position: fixed;
+}
+gw-canvas.gw-list > [data-part="controls"] > :not([data-do="list"]) {
+  display: none;
+}
+@media (max-width: 640px) {
+  gw-canvas > [data-part="map"] {
+    display: none;
+  }
+  .gw-canvas-head {
+    padding: 10px 14px;
+  }
+  .gw-canvas-head h1 {
+    font-size: 22px;
+  }
+}
+
 /* Theme toggle */
 .gw-chrome {
   position: fixed;
@@ -1414,8 +1667,31 @@ body:has(gw-deck) .gw-toggle {
 
 @media print {
   .gw-chrome,
-  gw-deck > nav {
+  gw-deck > nav,
+  gw-canvas > [data-part="controls"],
+  gw-canvas > [data-part="map"],
+  gw-canvas svg[data-part="links"] {
     display: none !important;
+  }
+  gw-canvas,
+  gw-canvas > [data-part="viewport"],
+  gw-canvas [data-part="world"] {
+    position: static !important;
+    transform: none !important;
+    overflow: visible !important;
+    background: none !important;
+  }
+  .gw-canvas-head {
+    position: static;
+    box-shadow: none;
+  }
+  gw-frame {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    margin: 40px auto 0;
+    break-inside: avoid;
+    break-before: page;
   }
   body {
     background: none;

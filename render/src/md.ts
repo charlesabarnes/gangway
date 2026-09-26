@@ -8,7 +8,12 @@ import {
   type Block,
   type Piece,
 } from "@gangway/shared/artifact/grammar";
-import { ROOT_TAG, type ArtifactKind, type RetiredKind } from "@gangway/shared/artifact/vocab";
+import {
+  ARROW_LINE,
+  ROOT_TAG,
+  type ArtifactKind,
+  type RetiredKind,
+} from "@gangway/shared/artifact/vocab";
 import { marked } from "marked";
 
 export const esc = (s: string) =>
@@ -107,7 +112,8 @@ const BLOCK_TAGS = "grid|chart|flow|callout|stat|facts|card|section|columns|note
 const unwrap = (h: string) =>
   h
     .replace(new RegExp(`<p>(\\s*<gw-(?:${BLOCK_TAGS})\\b)`, "g"), "$1")
-    .replace(new RegExp(`(</gw-(?:${BLOCK_TAGS})>\\s*)</p>`, "g"), "$1");
+    .replace(new RegExp(`(</gw-(?:${BLOCK_TAGS})>\\s*)</p>`, "g"), "$1")
+    .replace(/<p>(\s*<svg\b[\s\S]*?<\/svg>\s*)<\/p>/g, "$1");
 
 /** Renders scanned blocks: runs of plain markdown go through marked, gangway blocks become elements. */
 export function render(blocks: Block[]): string {
@@ -198,6 +204,18 @@ const listLinks = (html: string) =>
     },
   );
 
+/** A canvas frame: its body, and each `-> id "label"` line as a <gw-link>. */
+function frame(p: Piece): string {
+  const links: string[] = [];
+  const body = p.lines.filter((l) => {
+    const m = ARROW_LINE.exec(l.trim());
+    if (m)
+      links.push(`<gw-link${attrText({ to: m[1]!, ...(m[2] ? { label: m[2] } : {}) })}></gw-link>`);
+    return !m;
+  });
+  return `<gw-frame${attrText(p.head ?? {})}>${render(scan(body))}${links.join("")}</gw-frame>`;
+}
+
 export function compile(src: string): string {
   const { meta, body, offset } = frontMatter(src);
   const kind = (meta["kind"] ?? "document") as ArtifactKind | RetiredKind;
@@ -205,6 +223,7 @@ export function compile(src: string): string {
   const { kind: _kind, ...attrs } = meta;
   let inner: string;
   if (kind === "deck") inner = pieces(body, offset).map(slide).join("\n");
+  else if (kind === "canvas") inner = pieces(body, offset).map(frame).join("\n");
   else if (kind === "prototype")
     inner = pieces(body, offset)
       .map(

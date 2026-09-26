@@ -1,6 +1,6 @@
 ---
 name: generate-artifact
-description: Build an artifact on the user's gangway server -- a document or a slide deck, from gangway's templates and in its house style -- and share it at a real HTTPS URL. Also for pages, demos and small apps (with a backend, a database, SSE or websockets) when the templates can't express them. Use it whenever the user wants something to read, present, click through or share as a link.
+description: Build an artifact on the user's gangway server -- a document, a slide deck or a canvas of frames, from gangway's templates and in its house style -- and share it at a real HTTPS URL. Also for pages, demos and small apps (with a backend, a database, SSE or websockets) when the templates can't express them. Use it whenever the user wants something to read, present, click through or share as a link.
 argument-hint: "[what to build]"
 ---
 
@@ -12,7 +12,7 @@ What to build: $ARGUMENTS (if that is empty or unexpanded, the user's request)
 
 ## Artifacts first
 
-1. Pick the kind: **document** (reading, with numbers, charts and diagrams) or **deck** (a talk or a pitch).
+1. Pick the kind: **document** (reading, with numbers, charts and diagrams), **deck** (a talk or a pitch) or **canvas** (a board of frames to pan and zoom: screens of a flow, illustrations, a system map).
 2. Call the MCP `catalog` tool with that kind. It returns the artifact.md guide, the templates for that kind (each with options) and a complete example. The same guide is in [catalog.md](catalog.md).
 3. Start from the closest template: `deploy` with `artifact: {template, title, subtitle, mode, theme, accent, options}`, plus `name`, `title`, `icon`, `iconColor`, `visibility` and `check`.
 4. Make it the user's: rewrite `artifact.md` (markdown, plus a few blocks for stats, charts and slides; see [catalog.md](catalog.md)) and `data/*.csv` for rows, then `deploy` with `preview: "<name>"` + `files`. gangway checks it on deploy; a 422 names the line, so fix exactly that.

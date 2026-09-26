@@ -73,6 +73,16 @@ describe("compile", () => {
     );
   });
 
+  test("canvas frames, arrows as <gw-link>, and an unwrapped inline svg", () => {
+    const html = compile(
+      '---\nkind: canvas\ntitle: T\n---\n{#a title="A" w=320}\n<svg viewBox="0 0 1 1"></svg>\n-> b "Next"\n\n---\n\n{#b title="B"}\nhi\n',
+    );
+    expect(html).toStartWith('<gw-canvas title="T">');
+    expect(html).toContain('<gw-frame id="a" title="A" w="320"><svg viewBox="0 0 1 1"></svg>');
+    expect(html).toContain('<gw-link to="b" label="Next"></gw-link></gw-frame>');
+    expect(html).not.toContain("-&gt; b");
+  });
+
   test("a Notes: line inside a block is the block's, not the speaker's", () => {
     const html = compile(
       "---\nkind: deck\ntitle: T\n---\n# T\n\n---\n\n## End\n::: facts\nNotes: the wiki\n:::\n",
@@ -100,7 +110,7 @@ describe("compile", () => {
   test.each(ARTIFACT_TEMPLATES.map((t) => [t.id]))("template %s compiles", (id) => {
     const md = renderTemplate({ template: id })["artifact.md"]!;
     const html = compile(md);
-    expect(html).toMatch(/^<gw-(doc|dashboard|deck|prototype)[ >]/);
+    expect(html).toMatch(/^<gw-(doc|deck|canvas)[ >]/);
     expect(html).not.toContain(":::");
   });
 });
