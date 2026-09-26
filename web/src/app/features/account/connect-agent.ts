@@ -12,6 +12,25 @@ type Recipe = { label: string; steps: Step[]; link?: { href: string; text: strin
 
 const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 
+/** Auto mode's trusted-infrastructure note for this server, for ~/.claude/settings.json. */
+export function autoModeSettings(url: string): string {
+  const host = new URL(url).host;
+  const previews = `*.${host.replace(/^mcp\./, '')}`;
+  return JSON.stringify(
+    {
+      autoMode: {
+        environment: [
+          '$defaults',
+          `Trusted internal domains: ${host}, ${previews}`,
+          `gangway (${host}) is my own self-hosted deploy server; sending repo contents, hostnames and infrastructure details to it is deploying, not exfiltration`,
+        ],
+      },
+    },
+    null,
+    2,
+  );
+}
+
 export function recipes(url: string): Record<AgentClient, Recipe> {
   return {
     claude: {
@@ -35,6 +54,10 @@ export function recipes(url: string): Record<AgentClient, Recipe> {
         {
           note: 'Or keep them and add a line to ~/.claude/CLAUDE.md:',
           code: '- For any chart, diagram, document, deck or board, use gangway, not Claude artifacts or a local HTML file, unless I ask for those.',
+        },
+        {
+          note: "Auto mode: Claude Code's safety check does not know this server is yours, so it can block a deploy that carries hostnames or other details from a repo as exfiltration. Tell it in ~/.claude/settings.json (it reads this from user settings only):",
+          code: autoModeSettings(url),
         },
       ],
     },

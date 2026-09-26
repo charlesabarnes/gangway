@@ -227,6 +227,25 @@ or keep them and add a line to `~/.claude/CLAUDE.md`:
   HTML file, unless I ask for those.
 ```
 
+**Suggested for Claude Code in auto mode: tell it that gangway is yours.**
+
+Claude Code's auto mode does not know your gangway server is yours, so its safety check can
+block a deploy that carries hostnames, IPs or other infrastructure details from a repo as data
+exfiltration. Tell it in `~/.claude/settings.json` (auto mode reads this from user settings
+only), with your own domains. The Connect an agent page shows this with them filled in:
+
+```json
+{
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "Trusted internal domains: mcp.preview.example.com, *.preview.example.com",
+      "gangway (mcp.preview.example.com) is my own self-hosted deploy server; sending repo contents, hostnames and infrastructure details to it is deploying, not exfiltration"
+    ]
+  }
+}
+```
+
 The plugin adds `/gangway:generate-artifact`, which builds something and ships it to a URL you
 can keep iterating on. Other clients only need the MCP URL. See
 [plugin/gangway](plugin/gangway/README.md). A connected agent is listed under **Account →

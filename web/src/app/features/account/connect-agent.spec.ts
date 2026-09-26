@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import contract from '../../../testing/fixtures/contract.json';
 import { render } from '../../../testing/render';
 import type { Capabilities } from '../../core/api.types';
-import { ConnectAgent, PLUGIN_REPO, recipes } from './connect-agent';
+import { autoModeSettings, ConnectAgent, PLUGIN_REPO, recipes } from './connect-agent';
 
 @Component({ imports: [ConnectAgent], template: '<app-connect-agent />' })
 class Host {}
@@ -41,6 +41,12 @@ describe('ConnectAgent', () => {
     expect(
       JSON.parse(decodeURIComponent(link.getAttribute('href')!.replace('vscode:mcp/install?', ''))),
     ).toEqual({ name: 'gangway', type: 'http', url: `${MCP}/` });
+  });
+
+  it("the auto mode note names this server's MCP host and its previews", () => {
+    const env: string[] = JSON.parse(autoModeSettings(`${MCP}/`)).autoMode.environment;
+    expect(env[0]).toBe('$defaults');
+    expect(env[1]).toBe('Trusted internal domains: mcp.preview.example.com, *.preview.example.com');
   });
 
   it("Cursor's install link carries the config as base64 JSON", () => {
