@@ -148,6 +148,7 @@ export const PERMISSIONS = [
   'previews.data',
   'previews.view_private',
   'previews.skip_password',
+  'previews.secrets',
   'logs.read',
   'events.read',
   'hosts.read',
@@ -173,7 +174,8 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type Scope = 'read' | 'deploy' | 'update' | 'artifacts' | 'projects' | 'themes' | 'admin';
+export type Scope =
+  'read' | 'deploy' | 'update' | 'artifacts' | 'projects' | 'themes' | 'secrets' | 'admin';
 export const SCOPES: readonly Scope[] = [
   'read',
   'deploy',
@@ -181,6 +183,7 @@ export const SCOPES: readonly Scope[] = [
   'artifacts',
   'projects',
   'themes',
+  'secrets',
   'admin',
 ];
 
@@ -209,6 +212,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   ],
   projects: ['previews.read', 'repos.manage'],
   themes: ['artifacts.manage'],
+  secrets: ['previews.secrets'],
   admin: PERMISSIONS,
 };
 
@@ -225,19 +229,6 @@ export type SessionInfo =
     };
 
 export type LoginResponse = { user: SessionUser; permissions: Permission[] };
-
-export type ApiToken = {
-  id: string;
-  name: string;
-  prefix: string;
-  scopes: Scope[];
-  userId: string | null;
-  appName: string | null;
-  expiresAt: string | null;
-  lastUsedAt: string | null;
-  revokedAt: string | null;
-  createdAt: string;
-};
 
 export type GitHubStatus = {
   configured: boolean;
@@ -355,33 +346,6 @@ export type Surfaces = {
 export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: string };
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
-export type OAuthScope = 'read' | 'deploy' | 'update' | 'artifacts' | 'projects' | 'themes';
-export type ConsentRequest = {
-  id: string;
-  client: { id: string; name: string; host: string };
-  redirectUri: string;
-  redirectHost: string;
-  resource: string;
-  requested: OAuthScope[];
-  /** What was asked for, then any narrower stand-in the person may pick instead. */
-  offered: OAuthScope[];
-  grantable: OAuthScope[];
-  scopePermissions: Record<OAuthScope, Permission[]>;
-  expiresAt: string;
-};
-export type OAuthGrant = {
-  id: string;
-  userId: string;
-  clientId: string;
-  clientName: string;
-  redirectUri: string;
-  scopes: OAuthScope[];
-  createdAt: string;
-  lastUsedAt: string | null;
-  expiresAt: string;
-  revokedAt: string | null;
-};
-
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';
 export const RUNTIME_IDS: readonly RuntimeId[] = [
   'static',
@@ -442,3 +406,5 @@ export type SourcePatch = {
 export type RedeployPhase = 'started' | 'succeeded' | 'failed';
 export type RedeployAccepted = { buildId: string };
 export type RedeployDone = { buildId: string; outcome: 'succeeded' | 'failed'; error?: string };
+
+export * from './credential.types';

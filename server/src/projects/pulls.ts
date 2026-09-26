@@ -16,6 +16,8 @@ export type PullsDeps = {
     deploy(input: DeployInput): Promise<DeployResult>;
     destroy(id: string, actor: Actor): Promise<Preview>;
     findPullRequest(repo: string, number: number): Preview | undefined;
+    /** The sealed secrets of a preview, carried to the one that replaces it. */
+    sealedSecrets?(id: string): string | null;
   };
 };
 
@@ -90,6 +92,10 @@ export class Pulls {
       ) {
         return { action: "unchanged", preview: existing };
       }
+      // The PR's own secrets outlive its head: read them before the old preview goes.
+      const carrySecrets = existing
+        ? (this.#d.previews.sealedSecrets?.(existing.id) ?? null)
+        : null;
       if (existing) await this.#d.previews.destroy(existing.id, actor);
       const registry: RegistryLogin | undefined = req.registry && {
         server: registryOf(req.image),
@@ -100,6 +106,7 @@ export class Pulls {
         name: `${project.slug}-pr-${number}`,
         projectId: project.id,
         ...(existing?.secretLevel ? { secretLevel: existing.secretLevel } : {}),
+        carrySecrets,
         source: {
           kind: "pushed",
           image: req.image,

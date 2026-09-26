@@ -1,5 +1,5 @@
 import type { ApiToken, User } from "@gangway/shared/domain";
-import type { Scope } from "@gangway/shared/permissions";
+import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { TOKEN_COLUMNS, rowToToken, rowToUser, type TokenRow, type UserRow } from "./mappers.ts";
 
@@ -9,6 +9,7 @@ export type CreateToken = {
   prefix: string;
   tokenHash: string;
   scopes: readonly Scope[];
+  secretTargets?: SecretTargets | null | undefined;
   userId: string | null;
   expiresAt: number | null;
 };
@@ -24,14 +25,15 @@ export class TokensRepo {
 
   create(t: CreateToken): ApiToken {
     this.#db.run(
-      `INSERT INTO api_tokens (id, name, prefix, token_hash, scopes, user_id, expires_at, created_at)
-       VALUES ($id, $name, $prefix, $hash, $scopes, $user, $exp, $now)`,
+      `INSERT INTO api_tokens (id, name, prefix, token_hash, scopes, secret_targets, user_id, expires_at, created_at)
+       VALUES ($id, $name, $prefix, $hash, $scopes, $targets, $user, $exp, $now)`,
       {
         id: t.id,
         name: t.name,
         prefix: t.prefix,
         hash: t.tokenHash,
         scopes: JSON.stringify(t.scopes),
+        targets: t.secretTargets ? JSON.stringify(t.secretTargets) : null,
         user: t.userId,
         exp: t.expiresAt,
         now: this.#now(),

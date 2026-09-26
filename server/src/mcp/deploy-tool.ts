@@ -18,6 +18,8 @@ import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
 import { describePlan, describePreview, logTail } from "./describe.ts";
 import { packFiles } from "./pack.ts";
 import { nameOf, resolveFor } from "./resolve.ts";
+import { secretTarget, secretUploads } from "./secrets-tool.ts";
+import { changeSecrets } from "../secrets/change.ts";
 import {
   MissingPermission,
   need,
@@ -118,7 +120,12 @@ function missingLabels(args: DeployArgs): string {
   return `\nno ${missing.join(" or ")}: gangway lists it by its address until you set one. Deploy with preview: "<name>" and ${missing.join(" and ")} (no rebuild).`;
 }
 
-function deployInput(scope: CallScope, args: DeployArgs, source: DeploySource) {
+function deployInput(
+  scope: CallScope,
+  args: DeployArgs,
+  source: DeploySource,
+  secrets: Record<string, string> | undefined,
+) {
   const icon = iconOf(args);
   return {
     actor: scope.actor,
@@ -133,8 +140,12 @@ function deployInput(scope: CallScope, args: DeployArgs, source: DeploySource) {
     ...(args.password ? { password: { mode: args.password } } : {}),
     ...(args.passwordLogin ? { passwordLogin: args.passwordLogin } : {}),
     ...(args.watermark ? { watermark: args.watermark } : {}),
+    ...(secrets ? { secrets } : {}),
   };
 }
+
+const secretsAsked = (args: DeployArgs) =>
+  args.secrets !== undefined || args.secretsUpload !== undefined || args.unsetSecrets !== undefined;
 
 export class DeployTool {
   readonly #d: ToolDeps;
@@ -159,8 +170,11 @@ export class DeployTool {
 
     if (sourcesGiven(args) !== 1)
       throw unprocessable("give exactly one of artifact, files, upload, image or git");
+    if (args.unsetSecrets !== undefined)
+      throw unprocessable("unsetSecrets only goes with preview: a new preview has none to remove");
+    const secrets = this.#newSecrets(scope.actor, args);
     const { source, taken } = await this.#source(scope, args, addons);
-    const input = deployInput(scope, args, source);
+    const input = deployInput(scope, args, source, secrets);
     // Agents retry, so without a key an identical request is treated as the retry.
     const key = args.idempotencyKey ?? `auto:${requestHash(input).slice(0, 40)}`;
     const res = await this.#d.deploys.deploy(input, key).finally(() => taken?.done());
@@ -227,9 +241,12 @@ export class DeployTool {
       );
     }
     const labelled = this.#label(scope.actor, target, args);
-    if (labelled && !rebuildAsked(args, addons))
+    const secretsChanged = this.#storeSecrets(scope.actor, target, args);
+    if (secretsChanged && target.source.kind !== "tarball" && !rebuildAsked(args, addons))
+      return `secrets stored on ${nameOf(ctx, target)}: ${secretsChanged}. A ${target.source.kind} preview is not rebuilt in place; they take effect when it is deployed again.`;
+    if (labelled && !secretsChanged && !rebuildAsked(args, addons))
       return `relabelled (no rebuild): ${describePreview(ctx, ctx.previews.get(target.id)!)}`;
-    const { change, taken } = this.#change(scope.actor, args, addons);
+    const { change, taken } = this.#change(scope.actor, args, addons, secretsChanged !== null);
     const res = await redeploy(ctx, {
       actor: scope.actor,
       previewId: target.id,
@@ -263,10 +280,46 @@ export class DeployTool {
     return args.title !== undefined || icon !== undefined || args.watermark !== undefined;
   }
 
+  /** Secrets sent with a new deploy: they need previews.secrets, and are the new preview's own. */
+  #newSecrets(actor: Actor, args: DeployArgs): Record<string, string> | undefined {
+    if (!secretsAsked(args)) return undefined;
+    if (!can(actor, "previews.secrets"))
+      throw new MissingPermission(
+        "previews.secrets",
+        "setting secrets needs the secrets scope: reconnect gangway (in Claude Code: /mcp) and grant it",
+      );
+    const uploaded = args.secretsUpload
+      ? secretUploads(this.#d).take(args.secretsUpload, actor)
+      : {};
+    return { ...uploaded, ...args.secrets };
+  }
+
+  /** Secrets sent with a rebuild go onto the preview first; returns the names changed, or null. */
+  #storeSecrets(actor: Actor, target: Preview, args: DeployArgs): string | null {
+    if (!secretsAsked(args)) return null;
+    const { ctx } = this.#d;
+    if (!ctx.secrets) throw unprocessable("secrets are not available on this server");
+    const where = secretTarget(this.#d, actor, { preview: target.id });
+    const uploaded = args.secretsUpload
+      ? secretUploads(this.#d).take(args.secretsUpload, actor)
+      : {};
+    const set = { ...uploaded, ...args.secrets };
+    const unset = args.unsetSecrets ?? [];
+    if (Object.keys(set).length === 0 && unset.length === 0) return "none";
+    changeSecrets({ secrets: ctx.secrets, previews: ctx.previews }, actor, where, {
+      ...(Object.keys(set).length > 0 ? { set } : {}),
+      ...(unset.length > 0 ? { unset } : {}),
+    });
+    return [...Object.keys(set).map((k) => `${k} set`), ...unset.map((k) => `${k} removed`)].join(
+      ", ",
+    );
+  }
+
   #change(
     actor: Actor,
     args: DeployArgs,
     addons: Addons | undefined,
+    secretsOnly = false,
   ): { change: RedeployInput["change"]; taken?: Taken } {
     if (args.upload !== undefined) {
       const taken = this.#take(args.upload, actor);
@@ -276,7 +329,7 @@ export class DeployTool {
       ...(args.artifact ? templateFiles(this.#d.ctx.artifacts, args.artifact) : (args.files ?? {})),
     };
     for (const p of args.remove ?? []) files[p] = null;
-    const settingOnly = args.network !== undefined;
+    const settingOnly = args.network !== undefined || secretsOnly;
     if (Object.keys(files).length === 0 && addons === undefined && !settingOnly)
       throw unprocessable("nothing to change: give files, remove, upload or addons");
     return { change: { kind: "edit", files } };

@@ -16,7 +16,7 @@ import { previewRoutes } from "../app/routes/previews.ts";
 import { projectRoutes } from "../app/routes/projects.ts";
 import { roleRoutes } from "../app/routes/roles.ts";
 import { runtimeRoutes, schemaRoutes } from "../app/routes/runtimes.ts";
-import { secretRoutes } from "../app/routes/secrets.ts";
+import { previewSecretRoutes, secretRoutes } from "../app/routes/secrets.ts";
 import { settingsRoutes } from "../app/routes/settings.ts";
 import { surfaceRoutes } from "../app/routes/surfaces.ts";
 import { templateRoutes } from "../app/routes/templates.ts";
@@ -82,6 +82,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     projects: repos.projects,
     audit,
     secrets: d.secrets,
+    previews: ctx.previews,
     templates: repos.templates,
     pulls: d.pulls,
     apiOrigin,
@@ -104,7 +105,13 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
       wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
       ctx,
     });
-  secretRoutes(api, d.secrets);
+  secretRoutes(api, { secrets: d.secrets, previews: ctx.previews });
+  previewSecretRoutes(api, {
+    secrets: d.secrets,
+    previews: ctx.previews,
+    projects: repos.projects,
+    ctx,
+  });
   githubRoutes(api, {
     app: d.githubApp,
     settings,

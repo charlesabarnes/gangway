@@ -12,7 +12,7 @@ import { ACTOR } from "../helpers/preview-context.ts";
 const sha12 = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 12);
 
 describe("the tools", () => {
-  test("each of the seven tools names its permissions", () => {
+  test("each of the eight tools names its permissions", () => {
     expect(TOOL_PERMISSIONS).toEqual({
       deploy: ["previews.deploy", "previews.deploy_static"],
       status: ["previews.read", "previews.read_own"],
@@ -21,6 +21,7 @@ describe("the tools", () => {
       catalog: ["previews.read", "previews.read_own"],
       project: ["repos.manage"],
       theme: ["artifacts.manage"],
+      secrets: ["previews.secrets", "repos.secrets"],
     });
   });
 

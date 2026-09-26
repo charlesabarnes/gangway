@@ -1,8 +1,13 @@
 import { randomBytes } from "node:crypto";
 import type { OAuthGrant } from "@gangway/shared/domain";
-import { SCOPE_PERMISSIONS, type Permission } from "@gangway/shared/permissions";
+import {
+  SCOPE_PERMISSIONS,
+  type Permission,
+  type SecretTargets,
+} from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
-import { can, permissionsForScopes, type Actor, type TokenVerifier } from "../auth/actor.ts";
+import { can, credentialPermissions, type Actor, type TokenVerifier } from "../auth/actor.ts";
+import { grantedTargets } from "../auth/secret-access.ts";
 import type { RolePermissions } from "../auth/roles.ts";
 import type { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { forbidden, notFound, unprocessable } from "../errors.ts";
@@ -211,6 +216,7 @@ export class OAuthServer {
         artifacts: SCOPE_PERMISSIONS.artifacts,
         projects: SCOPE_PERMISSIONS.projects,
         themes: SCOPE_PERMISSIONS.themes,
+        secrets: SCOPE_PERMISSIONS.secrets,
       },
       expiresAt: new Date(p.expiresAt),
     };
@@ -219,7 +225,11 @@ export class OAuthServer {
   decide(
     actor: Actor,
     id: string,
-    answer: { approve: boolean; scopes?: readonly string[] | undefined },
+    answer: {
+      approve: boolean;
+      scopes?: readonly string[] | undefined;
+      secretTargets?: SecretTargets | undefined;
+    },
   ): { redirect: string } {
     const user = this.#person(actor);
     const p = this.#pendingFor(id);
@@ -242,6 +252,7 @@ export class OAuthServer {
         `cannot grant ${refused.join(", ")}: not offered, or your role does not cover it`,
         { refused },
       );
+    const secretTargets = grantedTargets(actor, chosen as OAuthScope[], answer.secretTargets);
     this.#pending.delete(id);
 
     const code = randomBytes(32).toString("base64url");
@@ -250,6 +261,7 @@ export class OAuthServer {
       redirectUri: p.redirectUri,
       challenge: p.challenge,
       scopes: chosen as OAuthScope[],
+      secretTargets,
       resource: p.resource,
       userId: user.userId,
       clientName: p.clientName,
@@ -272,15 +284,17 @@ export class OAuthServer {
     if (!rec || !sameResource(rec.resource, this.#d.resource())) return null;
     this.#d.grants.touch(rec.grant.id, now - TOUCH_EVERY_MS, now);
     const role = this.#d.roles.for(rec.owner.roleId);
+    const { scopes, secretTargets } = rec.grant;
     const permissions = new Set<Permission>(
-      [...permissionsForScopes(rec.grant.scopes)].filter((p) => role.has(p)),
+      [...credentialPermissions(scopes, secretTargets)].filter((p) => role.has(p)),
     );
     return {
       kind: "token",
       tokenId: `${OAUTH_TOKEN_PREFIX}${rec.grant.id}`,
-      scopes: rec.grant.scopes,
+      scopes,
       permissions,
       userId: rec.owner.id,
+      ...(secretTargets ? { secretTargets } : {}),
     };
   };
 

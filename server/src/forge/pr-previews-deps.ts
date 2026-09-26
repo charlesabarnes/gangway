@@ -16,6 +16,7 @@ export type PrPreviewsDeps = {
     deploy(input: DeployInput): Promise<DeployResult>;
     destroy(id: string, actor: Actor): Promise<Preview>;
     findPullRequest(repo: string, number: number): Preview | undefined;
+    sealedSecrets?(id: string): string | null;
     urls(id: string): PreviewUrl[];
     forgeRefs(id: string): ForgeRefs;
     setForgeRefs(

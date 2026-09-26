@@ -21,6 +21,7 @@ import { readJson } from "../problem.ts";
 import type { PreviewUrl } from "../../previews/deploy-types.ts";
 import type { Pulls } from "../../projects/pulls.ts";
 import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../../projects/workflow.ts";
+import { changeSecrets, listSecrets, type SecretChangeDeps } from "../../secrets/change.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
 import { parseDuration } from "../../util/duration.ts";
 import type { AppEnv } from "../env.ts";
@@ -30,6 +31,7 @@ export type ProjectRouteDeps = {
   projects: ProjectsRepo;
   audit: AuditSink;
   secrets?: Secrets | undefined;
+  previews?: SecretChangeDeps["previews"] | undefined;
   templates?: Pick<TemplatesRepo, "get"> | undefined;
   pulls?: Pulls | undefined;
   wire?: ((p: Preview) => Preview & { urls: PreviewUrl[] }) | undefined;
@@ -103,16 +105,20 @@ function findProject(projects: ProjectsRepo, ref: string): Project {
 }
 
 function projectSecretRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
+  const deps = () => {
+    if (!d.secrets || !d.previews) throw notFound("secrets are not available on this server");
+    return { secrets: d.secrets, previews: d.previews };
+  };
   api.get("/projects/:ref/env", requirePermission("repos.secrets"), (c) => {
     const project = findProject(d.projects, c.req.param("ref"));
-    return c.json({ secrets: d.secrets ? d.secrets.project(project.id).list() : [] });
+    if (!d.secrets) return c.json({ secrets: [] });
+    return c.json({ secrets: listSecrets(deps(), c.get("actor"), { kind: "project", project }) });
   });
 
   api.patch("/projects/:ref/env", requirePermission("repos.secrets"), async (c) => {
     const project = findProject(d.projects, c.req.param("ref"));
-    if (!d.secrets) throw notFound("secrets are not available on this server");
     const patch = EnvPatchSchema.parse(await readJson(c));
-    return c.json({ secrets: d.secrets.project(project.id).update(c.get("actor"), patch) });
+    return c.json(changeSecrets(deps(), c.get("actor"), { kind: "project", project }, patch));
   });
 }
 

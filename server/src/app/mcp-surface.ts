@@ -10,6 +10,7 @@ import type { Logger } from "../logger.ts";
 import type { SurfaceHandler } from "../net/dispatch.ts";
 import { ulid } from "../util/ulid.ts";
 import type { Tools } from "../mcp/tools.ts";
+import type { SecretUploads } from "../mcp/secret-uploads.ts";
 import type { Uploads } from "../mcp/uploads.ts";
 
 const BEARER = /^Bearer\s+(\S+)$/i;
@@ -17,6 +18,7 @@ const BEARER = /^Bearer\s+(\S+)$/i;
 export type McpSurfaceDeps = {
   tools: Tools;
   uploads?: Uploads | undefined;
+  secretUploads?: SecretUploads | undefined;
   verifyToken: TokenVerifier;
   logger: Logger;
   oauth?:
@@ -28,11 +30,15 @@ export type McpSurfaceDeps = {
     | undefined;
 };
 
-const SCOPE_FOR: Record<Permission, Scope | undefined> = Object.fromEntries(
-  (["read", "deploy", "update", "projects", "themes"] as const)
-    .flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const))
-    .reverse(),
-) as Record<Permission, Scope | undefined>;
+const SCOPE_FOR: Record<Permission, Scope | undefined> = {
+  ...(Object.fromEntries(
+    (["read", "deploy", "update", "projects", "themes", "secrets"] as const)
+      .flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const))
+      .reverse(),
+  ) as Record<Permission, Scope | undefined>),
+  // Project and org secrets come with the secrets scope's targets, chosen on the consent page.
+  "repos.secrets": "secrets",
+};
 const STEP_UP_SCOPES: Record<Scope, string> = {
   read: "read",
   deploy: "read deploy",
@@ -40,6 +46,7 @@ const STEP_UP_SCOPES: Record<Scope, string> = {
   artifacts: "artifacts",
   projects: "read deploy projects",
   themes: "read deploy themes",
+  secrets: "read deploy secrets",
   admin: "admin",
 };
 
@@ -96,6 +103,21 @@ export class McpSurface {
         );
         return c.text(
           `received ${got.bytes} bytes, sha256 ${got.sha256}\nnow call deploy with upload: "${c.req.param("id")}"\n`,
+          201,
+        );
+      });
+    }
+    if (d.secretUploads) {
+      const secretUploads = d.secretUploads;
+      app.put("/secret-uploads/:id", async (c) => {
+        if (c.req.header("origin") !== undefined)
+          return problemResponse(
+            c,
+            forbidden("browser requests are not accepted on the MCP surface"),
+          );
+        const names = await secretUploads.receive(c.req.param("id"), c.req.raw.body);
+        return c.text(
+          `received ${names.length} secret${names.length === 1 ? "" : "s"}: ${names.join(", ")}\nnow call secrets (or deploy) with upload: "${c.req.param("id")}"\n`,
           201,
         );
       });

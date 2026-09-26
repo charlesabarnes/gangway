@@ -37,6 +37,7 @@ Keep gangway's house style unless the user asks for something unusual: then a th
   - **node**: `package.json` with a `start` script.
   - **python**, **deno** and **php** are also detected.
 - A server must listen on `process.env.PORT` (fall back to 3000) on `0.0.0.0`. A Bun or Deno module may instead `export default { fetch }`.
+- Needs an API key or another secret? Pass `secrets: {NAME: value}` (only values the user gave you), or for a `.env` file the `secrets` tool's `upload: "new"` and then `secretsUpload`. Never read a `.env` into the conversation.
 - Need data? Add `addons: ["postgres"]` (or `redis`, `mysql`). The URL arrives as `DATABASE_URL` or `REDIS_URL`. In Bun, `import { sql } from "bun"` reads `DATABASE_URL`. Create tables at startup with `create table if not exists`.
 - With Bun's `Bun.serve`, set `idleTimeout: 0` if you stream (SSE); otherwise idle streams are cut after 10 s. Send an SSE comment every 15 s to keep proxies from closing the stream.
 

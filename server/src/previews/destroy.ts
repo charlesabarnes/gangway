@@ -59,6 +59,8 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
 
   ctx.table.removePreview(previewId);
   const gone = ctx.states.transition(previewId, "destroyed");
+  // Its own secrets go with it; a PR's new head has already taken its copy.
+  ctx.previews.setEnvCiphertext(previewId, null);
   await ctx.workdirs.remove(previewId);
   await ctx.sources?.remove(previewId);
   await ctx.sites?.remove(previewId);

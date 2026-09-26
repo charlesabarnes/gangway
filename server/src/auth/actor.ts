@@ -1,6 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 import type { ForgeId } from "@gangway/shared/domain";
-import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
+import {
+  SCOPE_PERMISSIONS,
+  targetPermissions,
+  type Permission,
+  type Scope,
+  type SecretTargets,
+} from "@gangway/shared/permissions";
 import { sha256 } from "../util/hash.ts";
 
 export type { Permission, Scope };
@@ -12,6 +18,8 @@ export type Actor =
       scopes: readonly Scope[];
       permissions: ReadonlySet<Permission>;
       userId?: string;
+      /** With the secrets scope: where this credential may set them. Absent: not narrowed. */
+      secretTargets?: SecretTargets;
     }
   | {
       kind: "user";
@@ -33,6 +41,14 @@ export type Actor =
 
 export function permissionsForScopes(scopes: readonly Scope[]): ReadonlySet<Permission> {
   return new Set(scopes.flatMap((s) => SCOPE_PERMISSIONS[s]));
+}
+
+/** A stored credential's permissions before its person's role narrows them. */
+export function credentialPermissions(
+  scopes: readonly Scope[],
+  targets: SecretTargets | null | undefined,
+): Set<Permission> {
+  return new Set([...permissionsForScopes(scopes), ...targetPermissions(scopes, targets)]);
 }
 
 export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor => ({

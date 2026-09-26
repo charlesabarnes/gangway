@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
+import { previewSecretRoutes } from "../../src/app/routes/secrets.ts";
 import { projectRoutes } from "../../src/app/routes/projects.ts";
 import {
   chainVerifiers,
@@ -54,14 +55,17 @@ function make() {
     new MemorySettingsStore(),
     new SecretBox(randomBytes(32)),
     s.ctx.audit,
+    s.ctx.previews,
   );
   s.ctx.secretsFor = (id, clearance) => secrets.valuesFor(id, clearance);
+  s.ctx.secrets = secrets;
   const pulls = new Pulls({
     projects,
     previews: {
       deploy: (i) => deploy(s.ctx, i),
       destroy: (id, a) => destroy(s.ctx, id, a),
       findPullRequest: (r, n) => s.ctx.previews.findPullRequest(r, n),
+      sealedSecrets: (id) => s.ctx.previews.envCiphertext(id),
     },
   });
   const verifyWorkflow = (presented: string): Actor | null => {
@@ -89,10 +93,17 @@ function make() {
         projects,
         audit: s.ctx.audit,
         secrets,
+        previews: s.ctx.previews,
         templates,
         pulls,
         apiOrigin: () => "https://api.preview.localhost:8443",
         wire: (p) => ({ ...p, urls: urlsFor(s.ctx, p.id) }),
+      });
+      previewSecretRoutes(api, {
+        secrets,
+        previews: s.ctx.previews,
+        projects,
+        ctx: s.ctx,
       });
     },
     publicV1: (pub) =>
@@ -335,6 +346,34 @@ describe("/v1/projects/:ref/pulls/:n", () => {
     const res = await t.call("/v1/projects/web-app/pulls/7", { method: "PUT", as, json: t.body() });
     expect(res.status).toBe(403);
     expect(t.s.previews.list()).toEqual([]);
+  });
+
+  test("a PR's own secrets survive a new head, and go with the last preview", async () => {
+    const t = setup();
+    const put = async (sha: string) =>
+      (
+        (await (
+          await t.call("/v1/projects/web-app/pulls/7?wait=true", {
+            method: "PUT",
+            as: wf(),
+            json: t.body({ sha, image: IMAGE.replace(/d+$/, sha[0]!.repeat(64)) }),
+          })
+        ).json()) as any
+      ).preview;
+    const first = await put(SHA);
+    const set = await t.call(`/v1/previews/${first.id}/env`, {
+      method: "PATCH",
+      json: { set: { PR_ONLY: "pr-secret-value" } },
+    });
+    expect(set.status).toBe(200);
+    expect(((await set.json()) as any).appliesTo).toContain("kept across pushes");
+    const next = await put("b".repeat(40));
+    expect(next.id).not.toBe(first.id);
+    const listed = (await (await t.call(`/v1/previews/${next.id}/env`)).json()) as any;
+    expect(listed.secrets).toEqual([{ name: "PR_ONLY", level: "standard" }]);
+    expect(t.s.ctx.previews.envCiphertext(first.id)).toBeNull();
+    expect(JSON.stringify(listed)).not.toContain("pr-secret-value");
+    expect(t.s.ctx.previews.envCiphertext(next.id)).not.toContain("pr-secret-value");
   });
 
   test("a workflow is refused by a webhook-mode or disabled project", async () => {

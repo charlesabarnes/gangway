@@ -10,6 +10,7 @@ import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { DeployTool } from "./deploy-tool.ts";
 import { describePreview, logTail, refusalDetail } from "./describe.ts";
 import { connectProject } from "./project-tool.ts";
+import { setSecrets } from "./secrets-tool.ts";
 import { saveTheme } from "./theme-tool.ts";
 import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
 import { nameOf, resolveFor, visibleTo } from "./resolve.ts";
@@ -26,14 +27,18 @@ import {
   DESTROY_TOOL,
   GENERATE_ARTIFACT_PROMPT,
   LOGS_TOOL,
-  PROJECT_TOOL,
   STATUS_TOOL,
-  THEME_TOOL,
   type DeployArgs,
   type LogSource,
-  type ProjectArgs,
-  type ThemeArgs,
 } from "./tool-specs.ts";
+import {
+  PROJECT_TOOL,
+  SECRETS_TOOL,
+  THEME_TOOL,
+  type ProjectArgs,
+  type SecretsArgs,
+  type ThemeArgs,
+} from "./setup-tool-specs.ts";
 import type { CallScope, ToolDeps } from "./tool-deps.ts";
 
 const text = (t: string): CallToolResult => ({ content: [{ type: "text", text: t }] });
@@ -97,6 +102,9 @@ export class Tools {
     );
     s.registerTool("theme", THEME_TOOL, (args) =>
       this.#guard("theme", async () => this.theme(scope, args)),
+    );
+    s.registerTool("secrets", SECRETS_TOOL, (args) =>
+      this.#guard("secrets", async () => this.secrets(scope, args)),
     );
     return s;
   }
@@ -169,6 +177,15 @@ export class Tools {
         "reconnect gangway (in Claude Code: /mcp, then re-authenticate) and grant the themes scope",
       );
     return saveTheme(this.#d, scope.actor, args);
+  }
+
+  secrets(scope: CallScope, args: SecretsArgs): string {
+    if (!can(scope.actor, "previews.secrets") && !can(scope.actor, "repos.secrets"))
+      throw new MissingPermission(
+        "previews.secrets",
+        "reconnect gangway (in Claude Code: /mcp, then re-authenticate) and grant the secrets scope, choosing where it may set them",
+      );
+    return setSecrets(this.#d, scope.actor, args);
   }
 
   async status(scope: CallScope, ref: string | undefined): Promise<string> {

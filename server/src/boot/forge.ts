@@ -55,5 +55,6 @@ function previewActions(ctx: PreviewContext): PullsDeps["previews"] {
     deploy: (input) => deploy(ctx, input),
     destroy: (id, actor) => destroy(ctx, id, actor),
     findPullRequest: (repo, number) => ctx.previews.findPullRequest(repo, number),
+    sealedSecrets: (id) => ctx.previews.envCiphertext(id),
   };
 }

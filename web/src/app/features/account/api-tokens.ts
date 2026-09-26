@@ -1,13 +1,15 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
+  DEFAULT_SECRET_TARGETS,
   SCOPES,
   SCOPE_PERMISSIONS,
   type ApiToken,
   type OAuthGrant,
   type Permission,
   type Scope,
+  type SecretTargets,
 } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { Clock } from '../../core/clock';
@@ -17,6 +19,7 @@ import { ClipboardService } from '../../ui/clipboard';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { ToastService } from '../../ui/toast';
+import { SecretTargetsPicker, describeTargets } from '../secrets/secret-targets';
 import { ConnectAgent } from './connect-agent';
 import { ConnectedAgents } from './connected-agents';
 import { FIELD, LABEL } from './fields';
@@ -28,9 +31,10 @@ const SCOPE_HELP: Record<Scope, string> = {
   update: 'Rebuild any preview in place, not only your own. Add it to deploy.',
   artifacts:
     'Deploy artifacts and static sites only, never a container; sees, rebuilds and destroys only what this token deployed. For an agent you do not fully trust.',
-  projects:
-    'See previews, and connect repositories for pull-request previews. For a setup agent.',
+  projects: 'See previews, and connect repositories for pull-request previews. For a setup agent.',
   themes: "Make and change artifact themes, and choose the server's default.",
+  secrets:
+    'Set and remove secrets where you choose below; lists names, never values. For an agent or CI that supplies keys.',
   admin: 'Everything, including users, roles and settings.',
 };
 const EXPIRY = [
@@ -43,7 +47,14 @@ const EXPIRY = [
 @Component({
   selector: 'app-api-tokens',
   host: { class: 'contents' },
-  imports: [Btn, ConfirmDialog, ConnectAgent, ConnectedAgents, RelativeTimePipe],
+  imports: [
+    Btn,
+    ConfirmDialog,
+    ConnectAgent,
+    ConnectedAgents,
+    RelativeTimePipe,
+    SecretTargetsPicker,
+  ],
   template: `
     <div class="gw-section">
       <div class="flex flex-col gap-1">
@@ -151,6 +162,9 @@ const EXPIRY = [
                 </label>
               }
             </div>
+            @if (chosen().has('secrets')) {
+              <app-secret-targets [(value)]="targets" [disabled]="busy()" [wide]="canWide()" />
+            }
           </fieldset>
           <div class="flex flex-wrap items-center gap-3">
             <button
@@ -178,7 +192,12 @@ const EXPIRY = [
             >
               <span class="text-[15px] font-medium">{{ t.name }}</span>
               <code class="font-mono text-xs text-muted">{{ t.prefix }}…</code>
-              <span class="text-[13px] text-muted">{{ t.scopes.join(', ') }}</span>
+              <span class="text-[13px] text-muted"
+                >{{ t.scopes.join(', ') }}
+                @if (t.secretTargets) {
+                  · {{ targetsLine(t.secretTargets) }}
+                }
+              </span>
               <span class="ml-auto text-[13px] text-muted">
                 @if (t.revokedAt) {
                   revoked {{ t.revokedAt | relativeTime: clock.now() }}
@@ -232,6 +251,7 @@ const EXPIRY = [
 })
 export class ApiTokens {
   readonly #auth = inject(AuthService);
+  protected readonly targetsLine = describeTargets;
   protected readonly clock = inject(Clock);
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
@@ -253,6 +273,8 @@ export class ApiTokens {
   protected readonly error = signal<string | null>(null);
   protected readonly minted = signal<{ name: string; secret: string } | null>(null);
   protected readonly pending = signal<ApiToken | null>(null);
+  protected readonly targets = signal<SecretTargets>(DEFAULT_SECRET_TARGETS);
+  protected readonly canWide = computed(() => this.#auth.can('repos.secrets'));
 
   constructor() {
     void this.#load();
@@ -291,6 +313,7 @@ export class ApiTokens {
         name: this.name().trim(),
         scopes: SCOPES.filter((s) => this.chosen().has(s)),
         ...(this.expiresIn() ? { expiresIn: this.expiresIn() } : {}),
+        ...(this.chosen().has('secrets') ? { secretTargets: this.targets() } : {}),
       };
       const made = await firstValueFrom(
         this.#http.post<{ token: ApiToken; secret: string }>('/v1/tokens', body),

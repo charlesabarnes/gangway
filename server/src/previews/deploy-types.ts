@@ -54,6 +54,10 @@ export type DeployInput = {
   actor: Actor;
   source: DeploySource;
   env?: Record<string, string> | undefined;
+  /** Secrets for this preview alone, set at deploy time: stored on it and kept across rebuilds. */
+  secrets?: Record<string, string> | undefined;
+  /** The sealed secrets of the preview this one replaces (a PR's new head), carried as-is. */
+  carrySecrets?: string | null | undefined;
   secretLevel?: Clearance | undefined;
   name?: string | undefined;
   title?: string | undefined;

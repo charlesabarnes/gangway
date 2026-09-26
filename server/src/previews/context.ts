@@ -1,5 +1,6 @@
 import type { ArtifactLibrary } from "../artifacts/library.ts";
 import type { AuditSink } from "../audit/audit.ts";
+import type { Secrets } from "../secrets/secrets.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
 import type { CloneOptions } from "./source/git.ts";
 import type { Clearance, Preview } from "@gangway/shared/domain";
@@ -60,6 +61,8 @@ export type PreviewContext = {
   audit: AuditSink;
   secretsFor?:
     ((repoId: string | null, clearance: Clearance) => Record<string, string>) | undefined;
+  /** Org, project and preview secrets; a preview's own are read and written through it. */
+  secrets?: Secrets | undefined;
   addonSecret?: ((previewId: string, addon: AddonId) => string) | undefined;
   sources?: SourceStore | undefined;
   /** Where gangway keeps the files it serves itself; without it every preview gets a container. */

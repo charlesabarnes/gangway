@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { OAuthGrant } from "@gangway/shared/domain";
+import type { SecretTargets } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { Actor } from "../auth/actor.ts";
 import type { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
@@ -47,6 +48,7 @@ export type Code = {
   redirectUri: string;
   challenge: string;
   scopes: OAuthScope[];
+  secretTargets: SecretTargets | null;
   resource: string;
   userId: string;
   clientName: string;
@@ -199,6 +201,7 @@ export class TokenEndpoint {
       clientName: c.clientName,
       redirectUri: c.redirectUri,
       scopes: c.scopes,
+      secretTargets: c.secretTargets,
       resource: c.resource,
       accessHash: sha256(t.access, "hex"),
       accessExpiresAt: t.accessExpiresAt,

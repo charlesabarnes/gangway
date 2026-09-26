@@ -59,6 +59,7 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     repos.settings,
     new SecretBox(secretsKey),
     core.audit,
+    repos.previews,
   );
   const previewPasswords = new Passwords({ ln: 14 });
   const ctx: PreviewContext = {
@@ -107,6 +108,7 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     },
     addonSecret: addonSecretFrom(secretsKey),
     secretsFor: (repoId, clearance) => secrets.valuesFor(repoId, clearance),
+    secrets,
   };
   return { ctx, policy, secrets, previewPasswords, triggerDefault };
 }

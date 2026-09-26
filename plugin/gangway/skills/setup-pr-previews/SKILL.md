@@ -34,7 +34,7 @@ The workflow builds the `Dockerfile` at the repository root and runs one contain
   Pin the base image's major version. Set `ENV PORT=<port>` and `EXPOSE <port>`, and have the app listen on `$PORT` if it reads it. Keep it close to how the repository already runs in production, if it says how. Add a `.dockerignore` (`node_modules`, `.git`, `.env*`) if there is none. Show the user the Dockerfile before you commit it.
 
 - **Only a compose file with several services** (app + database + worker…): the workflow runs one image, so say so and stop. Tell the user the gangway GitHub App (Repositories, in gangway's UI) builds compose stacks from the PR instead.
-- **The app needs a database:** it will not have one in the preview. Say so in the handover. Runtime secrets such as a hosted database's URL go on the project's Secrets page in gangway.
+- **The app needs a database:** it will not have one in the preview. Say so in the handover. Runtime secrets such as a hosted database's URL go on the project (step 3b).
 
 ## 3. Connect the repository
 
@@ -45,6 +45,14 @@ Call the gangway MCP `project` tool with `repository` (`owner/name` from step 1)
 - **"slug … is taken":** call it again with a `slug` of your choosing, e.g. `<owner>-<name>`, at most 24 characters.
 - **"the GitHub App already previews":** nothing to add. Tell the user and stop.
 - **"disabled":** carry on, but tell the user it must be enabled in gangway before previews deploy.
+
+## 3b. Runtime secrets, if the app needs them
+
+Secrets every PR preview needs go on the project; gangway adds them when a PR deploys. Use the `secrets` tool:
+- From the user's `.env` (never read it yourself): `secrets` with `target: {project: "<slug>"}` and `upload: "new"`, run the `curl … --data-binary @.env` line it prints, then `secrets` with the same target and `upload: "<id>"`. Only names come back.
+- Values the user typed to you: `secrets` with `target: {project: "<slug>"}` and `set`.
+- One PR's own value (e.g. a feature flag): `target: {preview: "<slug>-pr-<n>"}`; it is kept across that PR's pushes.
+- "may not set secrets on project": the connection's secrets scope is limited to its own previews. Ask the user to reconnect (`/mcp`) and allow this repository, or to add them on the project's Secrets page in gangway.
 
 ## 4. Open the pull request
 
@@ -70,5 +78,5 @@ The PR runs its own new workflow: GitHub runs `pull_request` workflows from the 
 - The PR's URL and the preview URL, and whether the preview answered.
 - Merge the PR to turn previews on for every pull request. Leave merging to the user.
 - Forks' pull requests are skipped: GitHub gives their runs no OIDC token.
-- Build-time secrets go in the repository's GitHub secrets (the workflow shows where). Runtime secrets go on the project's Secrets page in gangway.
+- Build-time secrets go in the repository's GitHub secrets (the workflow shows where). Runtime secrets are the project's: the `secrets` tool, or its Secrets page in gangway. Name the ones you set; never their values.
 - What you did not check, e.g. "the app starts, but has no database in the preview".

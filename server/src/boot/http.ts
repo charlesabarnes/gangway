@@ -12,6 +12,7 @@ import { chainVerifiers, staticTokenVerifier, workflowActor } from "../auth/acto
 import { LoginLimiter } from "../auth/limiter.ts";
 import { GitHubOidc } from "../auth/oidc.ts";
 import { Tools } from "../mcp/tools.ts";
+import { SecretUploads } from "../mcp/secret-uploads.ts";
 import { Uploads } from "../mcp/uploads.ts";
 import { PreviewGate, loadOrCreateGateKey } from "../net/gate.ts";
 import type { IdempotentDeploys } from "../previews/idempotent.ts";
@@ -102,11 +103,14 @@ function createMcp(d: HttpDeps): McpSurface {
     dir: join(d.stateDir, "uploads"),
     url: (id) => `${mcpOrigin()}/uploads/${id}`,
   });
+  const secretUploads = new SecretUploads({ url: (id) => `${mcpOrigin()}/secret-uploads/${id}` });
   return new McpSurface({
     tools: new Tools({
       ctx: d.ctx,
       deploys: d.deploys,
       uploads,
+      secretUploads,
+      findProject: (ref) => d.repos.projects.find(ref),
       logger: logger.child({ mod: "mcp" }),
       projects: {
         repo: d.repos.projects,
@@ -116,6 +120,7 @@ function createMcp(d: HttpDeps): McpSurface {
       themes: { themes: d.repos.artifactThemes, settings },
     }),
     uploads,
+    secretUploads,
     // OAuth access tokens are accepted only here; the /v1 chain does not know them.
     verifyToken: chainVerifiers(
       identity.tokens.verify,

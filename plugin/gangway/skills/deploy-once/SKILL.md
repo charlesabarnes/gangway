@@ -25,9 +25,12 @@ Check before you send it:
 
 - **The port:** the server must listen on `$PORT` on `0.0.0.0`. If it hard-codes `localhost` or a port, say so; don't rewrite the user's code without asking.
 - **Data:** if the code reads `DATABASE_URL` or `REDIS_URL`, pass `addons: ["postgres"]` (or `redis`, `mysql`); gangway sets those variables. It is a throwaway database: migrations and seeds must run at startup, or the app starts empty.
-- **Secrets:** `.env` files are not uploaded (below) and `deploy` takes no secrets. If the app cannot start without one:
-  - If the repository is already a gangway project (`setup-pr-previews` made one, or the user did), deploy with `project: "<slug>"`: that project's secrets are applied.
-  - Otherwise tell the user what is missing and deploy without it only if the app still starts.
+- **Secrets:** `.env` files are not in the upload (below). Never `cat` or read one: its values would pass through the conversation. If the app needs secrets (API keys, a hosted database's URL), send them as the preview's own:
+  - **From a file** (the usual case): call the `secrets` tool with just `upload: "new"` (no target yet: the preview does not exist). Run the `curl … --data-binary @.env` line it prints, from the directory with the file; gangway answers with the names only. Then deploy with `secretsUpload: "<id>"`.
+  - **Values the user typed to you:** deploy with `secrets: {NAME: "value"}`.
+  - They are stored on the preview, merged over the project's and the org's, kept across rebuilds, and masked in its logs.
+  - If the repository is already a gangway project, `project: "<slug>"` also applies that project's secrets.
+  - **"lacks the previews.secrets permission":** the connection lacks the `secrets` scope. Ask the user to run `/mcp`, re-authenticate gangway and tick "secrets" (where it may set them: previews it deploys is enough here). Otherwise deploy without them only if the app still starts, and say what is missing.
 
 ## 2. Upload the files git would ship
 
@@ -52,7 +55,7 @@ Call `deploy` with `upload: "<the id>"` and:
 - `name`: the repository or app name, e.g. `shop-front`. It becomes the hostname.
 - `title`: what the user calls it, e.g. "Shop front". `icon` + `iconColor`: what it is about.
 - `check`: the paths that matter, e.g. `["/", "/api/health"]`.
-- `addons` and `project` if step 1 found them.
+- `addons`, `project` and `secretsUpload` (or `secrets`) if step 1 found them.
 
 Leave `visibility` out: the server's setting decides. Pass it only when the user asks for public, unlisted or private. The same goes for `ttl`: the server's default applies unless the user says how long.
 
@@ -66,7 +69,8 @@ Read the answer: each checked path's status, the plan gangway followed (runtime,
 
 ## 5. Redeploy later
 
-- The same URL, the whole tree again: a new `upload: "new"`, the same `tar | curl`, then `deploy` with `preview: "<name>"` and `upload: "<new id>"`. Add-on data is kept.
+- The same URL, the whole tree again: a new `upload: "new"`, the same `tar | curl`, then `deploy` with `preview: "<name>"` and `upload: "<new id>"`. Add-on data and the preview's secrets are kept.
+- A changed or new secret: `deploy` with `preview: "<name>"` and `secrets` (or `secretsUpload`); `unsetSecrets: [NAME]` removes one. The rebuild applies them.
 - One or two small text files: `deploy` with `preview: "<name>"` and just those `files`.
 
 ## 6. Hand over

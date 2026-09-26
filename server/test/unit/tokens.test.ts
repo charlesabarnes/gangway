@@ -67,6 +67,30 @@ describe("minting", () => {
     }
   });
 
+  test("a secrets token keeps its targets, which widen it only within its person's role", async () => {
+    const t = await make();
+    const bob = await t.person("bob@example.com", "member");
+    const own = t.tokens.mint(bob.actor, { name: "agent", scopes: ["deploy", "secrets"] });
+    expect(own.token.secretTargets).toEqual({ previews: "own", projects: [], org: false });
+    const actor = (await t.tokens.verify(own.secret))!;
+    expect(actor).toMatchObject({ secretTargets: { previews: "own" } });
+    expect(actor.permissions.has("previews.secrets")).toBe(true);
+    expect(actor.permissions.has("repos.secrets")).toBe(false);
+    expect(() =>
+      t.tokens.mint(bob.actor, {
+        name: "wide",
+        scopes: ["secrets"],
+        secretTargets: { previews: "own", projects: "all", org: false },
+      }),
+    ).toThrow("your role does not cover project or org secrets");
+    const wide = t.tokens.mint(t.adaActor, {
+      name: "wide",
+      scopes: ["secrets"],
+      secretTargets: { previews: "own", projects: ["P1"], org: false },
+    });
+    expect((await t.tokens.verify(wide.secret))!.permissions.has("repos.secrets")).toBe(true);
+  });
+
   test("a database token can never mint another token", async () => {
     const t = await make();
     const { secret } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["admin"] });

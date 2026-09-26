@@ -26,8 +26,10 @@ function canonical(v: unknown): string {
 export const requestHash = ({ actor: _actor, ...request }: DeployInput): string => {
   const source =
     request.source.kind === "tarball" ? { ...request.source, archive: undefined } : request.source;
+  // Secret values stay out of anything stored, a hash included: their names are enough to tell.
+  const secrets = request.secrets ? Object.keys(request.secrets).sort() : undefined;
   return createHash("sha256")
-    .update(canonical({ ...request, source }))
+    .update(canonical({ ...request, source, secrets, carrySecrets: undefined }))
     .digest("hex");
 };
 

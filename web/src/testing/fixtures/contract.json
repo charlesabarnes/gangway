@@ -79,6 +79,7 @@
     "name": "ci",
     "prefix": "gw_2t3Gr_pN",
     "scopes": ["deploy"],
+    "secretTargets": null,
     "userId": "01M32T80F881ZTYFWN40SMVWT6",
     "appName": null,
     "expiresAt": null,
@@ -171,7 +172,7 @@
   ],
   "previewIconColors": ["navy", "blue", "teal", "green", "yellow", "red", "violet", "gray"],
   "logStreams": ["system", "build", "seed", "stdout", "stderr"],
-  "scopes": ["read", "deploy", "update", "artifacts", "projects", "themes", "admin"],
+  "scopes": ["read", "deploy", "update", "artifacts", "projects", "themes", "secrets", "admin"],
   "streamEventTypes": [
     "preview.created",
     "preview.adopted",
@@ -192,6 +193,7 @@
     "previews.data",
     "previews.view_private",
     "previews.skip_password",
+    "previews.secrets",
     "logs.read",
     "events.read",
     "hosts.read",
@@ -237,6 +239,7 @@
     ],
     "projects": ["previews.read", "repos.manage"],
     "themes": ["artifacts.manage"],
+    "secrets": ["previews.secrets"],
     "admin": [
       "previews.read",
       "previews.read_own",
@@ -250,6 +253,7 @@
       "previews.data",
       "previews.view_private",
       "previews.skip_password",
+      "previews.secrets",
       "logs.read",
       "events.read",
       "hosts.read",
@@ -541,7 +545,8 @@
         "previews.watermark"
       ],
       "projects": ["previews.read", "repos.manage"],
-      "themes": ["artifacts.manage"]
+      "themes": ["artifacts.manage"],
+      "secrets": ["previews.secrets"]
     },
     "expiresAt": "2026-09-22T12:10:00.000Z"
   },
@@ -552,6 +557,7 @@
     "clientName": "Claude",
     "redirectUri": "https://claude.ai/api/mcp/auth_callback",
     "scopes": ["read", "deploy"],
+    "secretTargets": null,
     "createdAt": "2026-09-22T12:00:00.000Z",
     "lastUsedAt": null,
     "expiresAt": "2026-12-21T12:00:00.000Z",

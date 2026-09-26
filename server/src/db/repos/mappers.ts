@@ -21,7 +21,7 @@ import type {
   User,
   Visibility,
 } from "@gangway/shared/domain";
-import type { Scope } from "@gangway/shared/permissions";
+import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 
 const toDate = (n: number | null | undefined): Date | null =>
   n === null || n === undefined ? null : new Date(n);
@@ -256,12 +256,13 @@ export function rowToSession(r: SessionRow): Session {
 }
 
 export const TOKEN_COLUMNS =
-  "id, name, prefix, scopes, user_id, app_name, expires_at, last_used_at, revoked_at, created_at";
+  "id, name, prefix, scopes, secret_targets, user_id, app_name, expires_at, last_used_at, revoked_at, created_at";
 export type TokenRow = {
   id: string;
   name: string;
   prefix: string;
   scopes: string;
+  secret_targets: string | null;
   user_id: string | null;
   app_name: string | null;
   expires_at: number | null;
@@ -270,12 +271,16 @@ export type TokenRow = {
   created_at: number;
 };
 
+export const parseTargets = (s: string | null): SecretTargets | null =>
+  s === null ? null : (JSON.parse(s) as SecretTargets);
+
 export function rowToToken(r: TokenRow): ApiToken {
   return {
     id: r.id,
     name: r.name,
     prefix: r.prefix,
     scopes: JSON.parse(r.scopes) as Scope[],
+    secretTargets: parseTargets(r.secret_targets),
     userId: r.user_id,
     appName: r.app_name,
     expiresAt: toDate(r.expires_at),

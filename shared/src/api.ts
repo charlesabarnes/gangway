@@ -222,6 +222,8 @@ export const DeployRequestSchema = z.strictObject({
   password: PasswordChoiceSchema.optional(),
   passwordLogin: PasswordLoginSchema.optional(),
   watermark: z.enum(WATERMARK_CHOICES).optional(),
+  /** Secrets for this preview alone: stored on it, merged over the org's and project's. */
+  secrets: envMap.optional(),
 });
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
 
@@ -276,10 +278,18 @@ export const ChangePasswordSchema = z.strictObject({
 });
 export type ChangePasswordRequest = z.infer<typeof ChangePasswordSchema>;
 
+export const SecretTargetsSchema = z.strictObject({
+  previews: z.enum(["own", "all"]),
+  projects: z.union([z.literal("all"), z.array(z.string().min(1).max(64)).max(100)]),
+  org: z.boolean(),
+});
+
 export const CreateTokenSchema = z.strictObject({
   name: z.string().trim().min(1).max(100),
   scopes: z.array(z.enum(SCOPES)).min(1).max(SCOPES.length),
   expiresIn: z.string().max(16).optional(),
+  /** With the secrets scope: where it may set them. Defaults to the previews it deploys. */
+  secretTargets: SecretTargetsSchema.optional(),
 });
 export type CreateTokenRequest = z.infer<typeof CreateTokenSchema>;
 

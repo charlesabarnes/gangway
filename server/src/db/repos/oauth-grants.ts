@@ -1,7 +1,7 @@
 import type { OAuthGrant, User } from "@gangway/shared/domain";
-import type { Scope } from "@gangway/shared/permissions";
+import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
-import { rowToUser, type UserRow } from "./mappers.ts";
+import { parseTargets, rowToUser, type UserRow } from "./mappers.ts";
 
 type GrantRow = {
   id: string;
@@ -10,6 +10,7 @@ type GrantRow = {
   client_name: string;
   redirect_uri: string;
   scopes: string;
+  secret_targets: string | null;
   resource: string;
   access_expires_at: number;
   refresh_expires_at: number;
@@ -19,7 +20,7 @@ type GrantRow = {
   revoked_at: number | null;
 };
 const COLUMNS =
-  "id, user_id, client_id, client_name, redirect_uri, scopes, resource, access_expires_at, refresh_expires_at, absolute_expires_at, created_at, last_used_at, revoked_at";
+  "id, user_id, client_id, client_name, redirect_uri, scopes, secret_targets, resource, access_expires_at, refresh_expires_at, absolute_expires_at, created_at, last_used_at, revoked_at";
 const cols = (alias: string) =>
   COLUMNS.split(", ")
     .map((c) => `${alias}.${c}`)
@@ -32,6 +33,7 @@ const toGrant = (r: GrantRow): OAuthGrant => ({
   clientName: r.client_name,
   redirectUri: r.redirect_uri,
   scopes: JSON.parse(r.scopes) as Scope[],
+  secretTargets: parseTargets(r.secret_targets),
   createdAt: new Date(r.created_at),
   lastUsedAt: r.last_used_at === null ? null : new Date(r.last_used_at),
   expiresAt: new Date(r.absolute_expires_at),
@@ -53,6 +55,7 @@ export type CreateGrant = {
   clientName: string;
   redirectUri: string;
   scopes: readonly Scope[];
+  secretTargets?: SecretTargets | null | undefined;
   resource: string;
   accessHash: string;
   accessExpiresAt: number;
@@ -99,9 +102,9 @@ export class OAuthGrantsRepo {
 
   create(g: CreateGrant): OAuthGrant {
     this.#db.run(
-      `INSERT INTO oauth_grants (id, user_id, client_id, client_name, redirect_uri, scopes, resource, access_hash, access_expires_at,
+      `INSERT INTO oauth_grants (id, user_id, client_id, client_name, redirect_uri, scopes, secret_targets, resource, access_hash, access_expires_at,
                                  refresh_hash, refresh_expires_at, absolute_expires_at, created_at)
-       VALUES ($id, $user, $client, $name, $redirect, $scopes, $resource, $ah, $aexp, $rh, $rexp, $abs, $now)`,
+       VALUES ($id, $user, $client, $name, $redirect, $scopes, $targets, $resource, $ah, $aexp, $rh, $rexp, $abs, $now)`,
       {
         id: g.id,
         user: g.userId,
@@ -109,6 +112,7 @@ export class OAuthGrantsRepo {
         name: g.clientName,
         redirect: g.redirectUri,
         scopes: JSON.stringify(g.scopes),
+        targets: g.secretTargets ? JSON.stringify(g.secretTargets) : null,
         resource: g.resource,
         ah: g.accessHash,
         aexp: g.accessExpiresAt,

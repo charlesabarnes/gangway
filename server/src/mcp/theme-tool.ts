@@ -4,7 +4,7 @@ import type { Actor } from "../auth/actor.ts";
 import { createTheme, setDefaultTheme, updateTheme, type ThemeDeps } from "../artifacts/themes.ts";
 import { notFound, unprocessable } from "../errors.ts";
 import type { ToolDeps } from "./tool-deps.ts";
-import type { ThemeArgs } from "./tool-specs.ts";
+import type { ThemeArgs } from "./setup-tool-specs.ts";
 
 /** Create, change or read a theme; the answer is the theme as stored, for the next edit. */
 export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {

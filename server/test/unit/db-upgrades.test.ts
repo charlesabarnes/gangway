@@ -88,7 +88,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -211,7 +211,9 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([
+        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+      ]);
       expect(
         db.get<Record<string, unknown>>(
           "SELECT id, name, slug, forge, full_name, installation_id, pr_trigger, template_id, visibility, pr_clearance, env_ciphertext FROM projects",
@@ -265,7 +267,7 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
       const holders = db
         .query<{ role_id: string }>(
           "SELECT role_id FROM role_permissions WHERE permission_id = 'previews.update_own' ORDER BY role_id",
@@ -298,7 +300,7 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19]);
       const rows = db.query<{ id: string; watermark: string | null; source_json: string }>(
         "SELECT id, watermark, source_json FROM previews ORDER BY id",
       );

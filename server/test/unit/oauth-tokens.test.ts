@@ -21,6 +21,24 @@ describe("tokens", () => {
     expect(JSON.stringify(s.auditRepo.page({ limit: 50 }))).not.toContain(t.access_token);
   });
 
+  test("secret targets chosen at consent ride on the grant, across a refresh", async () => {
+    const s = await setupOAuth();
+    const out = await s.oauth.authorize(s.authorizeQuery({ scope: "read deploy secrets" }));
+    if (out.kind !== "consent") throw new Error(JSON.stringify(out));
+    const targets = { previews: "own" as const, projects: ["P1"], org: false };
+    const { redirect } = s.oauth.decide(s.ada, out.requestId, {
+      approve: true,
+      scopes: ["read", "deploy", "secrets"],
+      secretTargets: targets,
+    });
+    const t = s.exchange(new URL(redirect).searchParams.get("code")!);
+    const actor = (await s.oauth.verify(t.access_token))!;
+    expect(actor).toMatchObject({ secretTargets: targets });
+    expect(actor.permissions.has("repos.secrets")).toBe(true);
+    const again = s.refresh(t.refresh_token);
+    expect((await s.oauth.verify(again.access_token))!).toMatchObject({ secretTargets: targets });
+  });
+
   test("a code is single-use, lives 60 s, and a replay revokes what it made", async () => {
     const s = await setupOAuth();
     const c = await s.code();

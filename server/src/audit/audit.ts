@@ -11,6 +11,7 @@ export type AuditAction =
   | "preview.title"
   | "preview.icon"
   | "preview.watermark"
+  | "preview.env.changed"
   | "auth.setup"
   | "auth.login"
   | "auth.login.failed"

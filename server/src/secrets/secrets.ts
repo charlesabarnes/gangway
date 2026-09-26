@@ -1,6 +1,7 @@
 import { SECRET_LEVELS, clears, type Clearance, type SecretLevel } from "@gangway/shared/domain";
 import type { AuditAction, AuditSink } from "../audit/audit.ts";
 import type { Actor } from "../auth/actor.ts";
+import type { PreviewsRepo } from "../db/repos/previews.ts";
 import type { ProjectsRepo } from "../db/repos/projects.ts";
 import { unprocessable } from "../errors.ts";
 import type { SettingsStore } from "../settings.ts";
@@ -21,6 +22,7 @@ export type SecretChange = {
 };
 
 type Backend = { read(): string | null; write(sealed: string | null): void };
+type PreviewStore = Pick<PreviewsRepo, "envCiphertext" | "setEnvCiphertext">;
 
 class SecretMap {
   readonly #backend: Backend;
@@ -128,12 +130,20 @@ export class Secrets {
   readonly #store: SettingsStore;
   readonly #box: SecretBox;
   readonly #audit: AuditSink | undefined;
+  readonly #previews: PreviewStore | undefined;
 
-  constructor(projects: ProjectsRepo, store: SettingsStore, box: SecretBox, audit?: AuditSink) {
+  constructor(
+    projects: ProjectsRepo,
+    store: SettingsStore,
+    box: SecretBox,
+    audit?: AuditSink,
+    previews?: PreviewStore,
+  ) {
     this.#projects = projects;
     this.#store = store;
     this.#box = box;
     this.#audit = audit;
+    this.#previews = previews;
   }
 
   global(): SecretMap {
@@ -161,6 +171,41 @@ export class Secrets {
     );
   }
 
+  /** A preview's own secrets: set for it on purpose, so no clearance applies to them. */
+  preview(previewId: string): SecretMap {
+    const previews = this.#previews;
+    if (!previews) throw new Error("preview secrets need the previews table");
+    return new SecretMap(
+      {
+        read: () => previews.envCiphertext(previewId),
+        write: (s) => previews.setEnvCiphertext(previewId, s),
+      },
+      this.#box,
+      { sink: this.#audit, action: "preview.env.changed", target: previewId },
+    );
+  }
+
+  previewValues(previewId: string): Record<string, string> {
+    if (!this.#previews) return {};
+    return values(this.preview(previewId).all());
+  }
+
+  /** The sealed map, to carry to the preview that replaces this one (a new PR head). */
+  sealedFor(previewId: string): string | null {
+    return this.#previews?.envCiphertext(previewId) ?? null;
+  }
+
+  /** The values of a sealed map carried from another preview, without storing it. */
+  openCarried(sealed: string): Record<string, string> {
+    return values(
+      new SecretMap({ read: () => sealed, write: () => {} }, this.#box, {
+        sink: undefined,
+        action: "preview.env.changed",
+        target: null,
+      }).all(),
+    );
+  }
+
   valuesFor(projectId: string | null, clearance: Clearance): Record<string, string> {
     if (clearance === "none") return {};
     const out: Record<string, string> = {};
@@ -172,6 +217,9 @@ export class Secrets {
     return out;
   }
 }
+
+const values = (m: Record<string, SecretEntry>): Record<string, string> =>
+  Object.fromEntries(Object.entries(m).map(([k, e]) => [k, e.value]));
 
 // Double-quoted so compose reads the value back exactly; it expands \n inside quotes.
 export function dotenvLine(name: string, value: string): string {

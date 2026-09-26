@@ -3,7 +3,7 @@ import { notFound } from "../errors.ts";
 import { createProject } from "../projects/create.ts";
 import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../projects/workflow.ts";
 import type { ToolDeps } from "./tool-deps.ts";
-import type { ProjectArgs } from "./tool-specs.ts";
+import type { ProjectArgs } from "./setup-tool-specs.ts";
 
 /** Find or make the repository's workflow project and hand back the file that previews its PRs. */
 export function connectProject(d: ToolDeps, actor: Actor, args: ProjectArgs): string {

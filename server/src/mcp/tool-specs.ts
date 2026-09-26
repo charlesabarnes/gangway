@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { ARTIFACT_KINDS, TemplateInputSchema } from "@gangway/shared/artifact/index";
-import {
-  THEME_TOKENS,
-  ThemeFieldsSchema,
-  ThemeFontsSchema,
-  ThemeTokensSchema,
-} from "@gangway/shared/artifact/theme";
-import { THEME_ID } from "@gangway/shared/artifact/vocab";
-import { ProjectSlugSchema, RepositorySchema, VISIBILITY_VALUES } from "@gangway/shared/api";
+import { VISIBILITY_VALUES } from "@gangway/shared/api";
 import { PREVIEW_ICON_COLORS, PREVIEW_ICONS } from "@gangway/shared/preview-icon";
 import { CHECK_PATH } from "../previews/probe.ts";
 
@@ -33,7 +26,7 @@ function simplify(node: unknown): unknown {
  * ChatGPT fails on schemas other clients accept, so tools publish plain JSON Schema: no $schema,
  * propertyNames or type lists. Arguments are still checked against the full zod schema.
  */
-function plain<S extends z.ZodType>(schema: S): S {
+export function plain<S extends z.ZodType>(schema: S): S {
   const std = schema["~standard"];
   const input = () => simplify(z.toJSONSchema(schema, { io: "input" })) as Json;
   const output = () => simplify(z.toJSONSchema(schema, { io: "output" })) as Json;
@@ -43,7 +36,7 @@ function plain<S extends z.ZodType>(schema: S): S {
 }
 
 // Some clients send a nested object as its JSON text.
-function jsonObject(v: unknown): unknown {
+export function jsonObject(v: unknown): unknown {
   if (typeof v !== "string") return v;
   try {
     return JSON.parse(v) as unknown;
@@ -51,6 +44,9 @@ function jsonObject(v: unknown): unknown {
     return v;
   }
 }
+
+export const SecretName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name");
+export const SecretLevel = z.enum(["low", "standard", "high"]);
 
 export const DeployArgs = z.object({
   artifact: z
@@ -144,6 +140,24 @@ export const DeployArgs = z.object({
       "A named preview policy on the server (visibility, ttl, host). Not an artifact template: those go in artifact.template.",
     ),
   project: z.string().optional().describe("A project slug to file the preview under."),
+  secrets: z
+    .preprocess(jsonObject, z.record(SecretName, z.string()))
+    .optional()
+    .describe(
+      "Secrets for this preview alone, NAME -> value, e.g. an API key it needs to start. Stored on the preview (never shown again), merged over the org's and the project's, kept across rebuilds. With preview: added to that preview's and applied by the rebuild. For a .env file use secretsUpload instead.",
+    ),
+  secretsUpload: z
+    .string()
+    .max(64)
+    .optional()
+    .describe(
+      'The id of a secret upload (the secrets tool with upload: "new"): its values become this preview\'s secrets, without passing through you.',
+    ),
+  unsetSecrets: z
+    .array(SecretName)
+    .max(100)
+    .optional()
+    .describe("With preview: names of that preview's own secrets to remove."),
   passwordLogin: z
     .enum(["inherit", "on", "off", "only"])
     .optional()
@@ -284,86 +298,4 @@ export const CATALOG_TOOL = {
     }),
   ),
   annotations: { readOnlyHint: true },
-};
-
-export const ProjectArgs = z.object({
-  repository: RepositorySchema.describe(
-    "The GitHub repository, owner/name, e.g. from gh repo view.",
-  ),
-  port: z
-    .number()
-    .int()
-    .min(1)
-    .max(65535)
-    .optional()
-    .describe("The port the repository's image listens on, default 3000."),
-  name: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64)
-    .optional()
-    .describe("What gangway calls the project when it is new. Defaults to the repository's name."),
-  slug: ProjectSlugSchema.optional().describe(
-    "The hostname stem of its previews (<slug>-pr-<n>) when it is new; derived from the name.",
-  ),
-});
-export type ProjectArgs = z.infer<typeof ProjectArgs>;
-
-export const PROJECT_TOOL = {
-  title: "Connect a repository for PR previews",
-  description:
-    "Set up pull-request previews for a GitHub repository: finds or creates its gangway project and returns the GitHub Actions workflow to commit at .github/workflows/gangway-preview.yml. Every pull request then builds the repository's Dockerfile on GitHub's runners and gets a preview URL in a comment. Call it only when the user asks for gangway PR previews on a repository. Needs the projects scope.",
-  inputSchema: plain(ProjectArgs),
-  annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
-};
-
-export const ThemeArgs = z.object({
-  id: z
-    .string()
-    .regex(THEME_ID, "an id is 1-32 lowercase letters, digits and hyphens")
-    .describe(
-      "The theme's id, e.g. acme. An existing id is changed; a new one is created. chart is gangway's own and cannot be changed.",
-    ),
-  name: ThemeFieldsSchema.shape.name
-    .optional()
-    .describe('What people see it called, e.g. "Acme". Required for a new theme.'),
-  description: ThemeFieldsSchema.shape.description.describe(
-    'One line on where it comes from, e.g. "From acme.com\'s brand colours".',
-  ),
-  tokens: z
-    .preprocess(jsonObject, ThemeTokensSchema)
-    .optional()
-    .describe(
-      `The kit's colours for light and dark, {light: {...}, dark: {...}}, as #hex, rgb(), hsl() or oklch(). Replaces the theme's tokens, so send every one you set; a token left out falls back to gangway's own. Tokens: ${THEME_TOKENS.join(", ")}.`,
-    ),
-  fonts: z
-    .preprocess(jsonObject, ThemeFontsSchema)
-    .optional()
-    .describe(
-      "The closest of the fonts gangway serves: {serif, sans, mono, titles}. titles is italic-serif, serif or sans.",
-    ),
-  logo: z
-    .string()
-    .max(64 * 1024)
-    .nullable()
-    .optional()
-    .describe(
-      "An SVG document (<svg …>…</svg>) shown beside titles; scripts and outside links are stripped. null removes it.",
-    ),
-  makeDefault: z
-    .boolean()
-    .optional()
-    .describe(
-      "Make it the server's default for artifacts that name no theme. Only when the user asks: it restyles everyone's artifacts.",
-    ),
-});
-export type ThemeArgs = z.infer<typeof ThemeArgs>;
-
-export const THEME_TOOL = {
-  title: "Create or change an artifact theme",
-  description:
-    "Create or change one of the server's artifact themes: the kit's colours for light and dark, fonts from gangway's list, a title style and a logo. Use it when the user asks for a theme of their own, e.g. from a brand, a website, a stylesheet or a design file. Artifacts pick it with artifact.theme or theme: <id> in artifact.md, and restyle on their next load when it changes. Call with just id to read a theme. Needs the themes scope.",
-  inputSchema: plain(ThemeArgs),
-  annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
 };

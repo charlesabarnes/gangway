@@ -1,7 +1,7 @@
 import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Clearance, Host, Preview, Visibility } from "@gangway/shared/domain";
-import { actorId } from "../auth/actor.ts";
-import { unprocessable } from "../errors.ts";
+import { actorId, can } from "../auth/actor.ts";
+import { forbidden, unprocessable } from "../errors.ts";
 import { place } from "../scheduler/placement.ts";
 import { parseDuration } from "../util/duration.ts";
 import { ulid } from "../util/ulid.ts";
@@ -55,15 +55,35 @@ function resolveHost(ctx: PreviewContext, input: DeployInput, template: Template
   return place({ capability: "preview", hostId: wantedHost }, allHosts);
 }
 
+/**
+ * Org and project secrets (by clearance, or the caller's explicit env), then this preview's own:
+ * those carried from the preview it replaces, then the ones sent with this deploy.
+ */
 function envFor(
   ctx: PreviewContext,
   input: DeployInput,
   owner: Owner,
   secretLevel: Clearance,
 ): Record<string, string> | undefined {
-  if (input.env !== undefined) return input.env;
-  if (secretLevel === "none") return {};
-  return ctx.secretsFor?.(owner?.id ?? null, secretLevel);
+  const shared =
+    input.env ?? (secretLevel === "none" ? {} : ctx.secretsFor?.(owner?.id ?? null, secretLevel));
+  const own = previewSecrets(ctx, input);
+  if (Object.keys(own).length === 0) return shared;
+  return { ...shared, ...own };
+}
+
+function previewSecrets(ctx: PreviewContext, input: DeployInput): Record<string, string> {
+  const carried =
+    input.carrySecrets && ctx.secrets ? ctx.secrets.openCarried(input.carrySecrets) : {};
+  return { ...carried, ...input.secrets };
+}
+
+/** Stores the preview's own secrets on its row, once the row exists. */
+function keepSecrets(ctx: PreviewContext, input: DeployInput, id: string): void {
+  if (!ctx.secrets) return;
+  if (input.carrySecrets) ctx.previews.setEnvCiphertext(id, input.carrySecrets);
+  if (input.secrets && Object.keys(input.secrets).length > 0)
+    ctx.secrets.preview(id).update(input.actor, { set: input.secrets });
 }
 
 function visibilityFor(
@@ -118,8 +138,21 @@ async function prepare(
 ): Promise<Prepared> {
   const { template, project: owner } = policy;
   const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
+  if (
+    input.secrets &&
+    Object.keys(input.secrets).length > 0 &&
+    !can(input.actor, "previews.secrets")
+  )
+    throw forbidden('setting secrets on a preview needs "previews.secrets" (the secrets scope)');
   const env = envFor(ctx, input, owner, secretLevel);
-  const material = await writeSource(ctx, id, input.source, env, wd);
+  ctx.logs.mask(id, Object.values(env ?? {}));
+  // An image runs as given, with no org or project secrets; its own are added to its env.
+  const own = previewSecrets(ctx, input);
+  const source =
+    input.source.kind === "image" && Object.keys(own).length > 0
+      ? { ...input.source, env: { ...input.source.env, ...own } }
+      : input.source;
+  const material = await writeSource(ctx, id, source, env, wd);
   const site = servesHere(ctx, material.plan) ? material.plan! : null;
   checkContainerAllowed(input.actor, "this source", site === null);
   if (site && material.source.kind === "tarball")
@@ -147,6 +180,7 @@ async function prepare(
     password,
     site: site !== null,
   });
+  keepSecrets(ctx, input, preview.id);
   return {
     preview,
     routes,

@@ -57,8 +57,9 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
         new SecretBox(randomBytes(32)),
         s.audit,
       );
-      projectRoutes(api, { projects: repos, audit: s.audit, secrets });
-      secretRoutes(api, secrets);
+      const previews = { list: () => [] };
+      projectRoutes(api, { projects: repos, audit: s.audit, secrets, previews });
+      secretRoutes(api, { secrets, previews });
       githubRoutes(api, {
         app,
         settings,

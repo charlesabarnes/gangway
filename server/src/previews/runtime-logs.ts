@@ -29,7 +29,7 @@ export async function runtimeLogs(
   const host = ctx.hosts.get(p.hostId);
   if (!host) return { lines: null, why: `the preview is on an unknown host (${p.hostId})` };
 
-  const masks = addonPasswords(ctx, p);
+  const masks = [...addonPasswords(ctx, p), ...secretValues(ctx, p)];
   const empty = await mkdtemp(join(tmpdir(), "gangway-runtime-logs-"));
   try {
     const args = [
@@ -60,6 +60,16 @@ export async function runtimeLogs(
   } finally {
     await rm(empty, { recursive: true, force: true });
   }
+}
+
+/** What the preview's containers were given as secrets, as they would be given now. */
+function secretValues(ctx: PreviewContext, p: Preview): string[] {
+  const shared =
+    p.secretLevel === null || p.secretLevel === "none"
+      ? {}
+      : (ctx.secretsFor?.(p.projectId, p.secretLevel) ?? {});
+  const own = ctx.secrets?.previewValues(p.id) ?? {};
+  return [...Object.values(shared), ...Object.values(own)].filter((v) => v.length >= 8);
 }
 
 function addonPasswords(ctx: PreviewContext, p: Preview): string[] {

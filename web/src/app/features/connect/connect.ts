@@ -2,10 +2,17 @@ import { HttpClient } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import type { ConsentRequest, OAuthScope } from '../../core/api.types';
+import {
+  DEFAULT_SECRET_TARGETS,
+  type ConsentRequest,
+  type OAuthScope,
+  type SecretTargets,
+} from '../../core/api.types';
+import { AuthService } from '../../core/auth.service';
 import { HARD_NAVIGATE } from '../../core/auth.guard';
 import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
+import { SecretTargetsPicker } from '../secrets/secret-targets';
 
 const SCOPE_HELP: Record<OAuthScope, string> = {
   read: 'See previews, their state and their logs.',
@@ -17,6 +24,8 @@ const SCOPE_HELP: Record<OAuthScope, string> = {
     'Also connect repositories for pull-request previews: add a repository to gangway and hand back its workflow file.',
   themes:
     "Also make and change artifact themes, and choose the server's default: they restyle everyone's artifacts.",
+  secrets:
+    'Also set and remove secrets (API keys, database URLs) where you choose below. Write-only: it sees names, never values.',
 };
 
 // Picking one of these switches off the others: artifacts means keeping the agent to its own.
@@ -30,7 +39,7 @@ const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
 
 @Component({
   selector: 'app-connect',
-  imports: [Btn],
+  imports: [Btn, SecretTargetsPicker],
   template: `
     <section class="mx-auto max-w-lg px-4 py-12 sm:px-6">
       <div class="gw-neatline-strong flex flex-col gap-7 bg-paper p-8 sm:p-10">
@@ -86,6 +95,9 @@ const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
                 </label>
               }
             </div>
+            @if (chosen().has('secrets')) {
+              <app-secret-targets [(value)]="targets" [disabled]="busy()" [wide]="canWide()" />
+            }
           </fieldset>
 
           <div class="flex items-center gap-3">
@@ -129,6 +141,7 @@ const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
 export class Connect {
   readonly #http = inject(HttpClient);
   readonly #navigate = inject(HARD_NAVIGATE);
+  readonly #auth = inject(AuthService);
   readonly #id = inject(ActivatedRoute).snapshot.queryParamMap.get('request');
 
   protected readonly help = SCOPE_HELP;
@@ -137,6 +150,8 @@ export class Connect {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly grantableSet = computed(() => new Set(this.request()?.grantable ?? []));
+  protected readonly targets = signal<SecretTargets>(DEFAULT_SECRET_TARGETS);
+  protected readonly canWide = computed(() => this.#auth.can('repos.secrets'));
 
   constructor() {
     void this.#load();
@@ -179,8 +194,13 @@ export class Connect {
     this.busy.set(true);
     this.error.set(null);
     try {
+      const scopes = r.offered.filter((s) => this.chosen().has(s));
       const body = approve
-        ? { approve, scopes: r.offered.filter((s) => this.chosen().has(s)) }
+        ? {
+            approve,
+            scopes,
+            ...(scopes.includes('secrets') ? { secretTargets: this.targets() } : {}),
+          }
         : { approve };
       const { redirect } = await firstValueFrom(
         this.#http.post<{ redirect: string }>(

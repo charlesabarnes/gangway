@@ -188,6 +188,7 @@ export class PrPreviews {
     const clearance: Clearance =
       o.clearance ?? existing?.secretLevel ?? defaultClearance(repo, pr, template.clearance);
     let refs = NO_REFS;
+    let carrySecrets: string | null = null;
     if (existing) {
       if (isLiveAt(existing, pr.headSha) && !o.force)
         return {
@@ -196,6 +197,8 @@ export class PrPreviews {
         };
       refs = this.#d.previews.forgeRefs(existing.id);
       await retireDeployment(this.#d, pr.repo, refs.deploymentId);
+      // The PR's own secrets outlive its head: read them before the old preview goes.
+      carrySecrets = this.#d.previews.sealedSecrets?.(existing.id) ?? null;
       await this.#d.previews.destroy(existing.id, actor);
     }
 
@@ -209,6 +212,7 @@ export class PrPreviews {
         name,
         env,
         secretLevel: clearance,
+        carrySecrets,
         projectId: repo.id,
         ...(pr.fromFork ? { visibility: "public" as const } : {}),
         source: { ...source, credential },

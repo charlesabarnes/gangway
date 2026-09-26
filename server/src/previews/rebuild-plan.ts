@@ -114,10 +114,13 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
   if (routes.length === 0) throw conflict("the preview has no routes to rebuild behind");
   await stageSource(ctx, input, b.sources, wd);
   const choice: RuntimeChoice = input.runtime ?? "auto";
-  const env =
+  const shared =
     preview.secretLevel === null || preview.secretLevel === "none"
       ? {}
       : ctx.secretsFor?.(preview.projectId, preview.secretLevel);
+  const own = ctx.secrets?.previewValues(id) ?? {};
+  const env = Object.keys(own).length > 0 ? { ...shared, ...own } : shared;
+  ctx.logs.mask(id, Object.values(env ?? {}));
   const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
   const up = await prepareUpload(ctx, id, wd, choice, env, port, {
     previous: source.runtime ?? "own",

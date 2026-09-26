@@ -57,6 +57,11 @@ export const PERMISSIONS = [
     description: "Open password-protected previews by being signed in, without the password",
   },
   {
+    id: "previews.secrets",
+    feature: "previews",
+    description: "Set secrets on previews you may rebuild (values are never shown)",
+  },
+  {
     id: "logs.read",
     feature: "logs",
     description: "Read and follow preview build and runtime logs",
@@ -142,6 +147,7 @@ export const SCOPES = [
   "artifacts",
   "projects",
   "themes",
+  "secrets",
   "admin",
 ] as const;
 export type Scope = (typeof SCOPES)[number];
@@ -170,6 +176,9 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   projects: ["previews.read", "repos.manage"],
   // Making and changing artifact themes, and choosing the server's default, e.g. from a brand.
   themes: ["artifacts.manage"],
+  // Write-only: set and unset secrets, list their names; values are never shown. Narrowed by
+  // the credential's secret targets, which may add repos.secrets (see targetPermissions).
+  secrets: ["previews.secrets"],
   admin: ALL_PERMISSIONS,
 };
 
@@ -189,9 +198,31 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
     "previews.destroy_own",
     "previews.update_own",
     "previews.watermark",
+    "previews.secrets",
     "previews.view_private",
     "previews.skip_password",
     "tokens.manage_own",
   ],
   viewer: [...READ, "previews.read_own", "previews.view_private", "previews.skip_password"],
 };
+
+/**
+ * Where a credential with the secrets scope may set them: previews it deployed or any it may
+ * rebuild, these projects (by id) or all, and the org's own. Absent means not narrowed.
+ */
+export type SecretTargets = {
+  previews: "own" | "all";
+  projects: "all" | string[];
+  org: boolean;
+};
+export const DEFAULT_SECRET_TARGETS: SecretTargets = { previews: "own", projects: [], org: false };
+
+/** What secret targets add beyond the secrets scope's bundle: project and org secrets. */
+export function targetPermissions(
+  scopes: readonly Scope[],
+  targets: SecretTargets | null | undefined,
+): Permission[] {
+  if (!targets || !scopes.includes("secrets")) return [];
+  const wide = targets.org || targets.projects === "all" || targets.projects.length > 0;
+  return wide ? ["repos.secrets"] : [];
+}

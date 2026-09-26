@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 import { z } from "zod";
+import { SecretTargetsSchema } from "@gangway/shared/api";
 import { notFound } from "../../errors.ts";
 import { OAuthError, type OAuthServer } from "../../oauth/server.ts";
 import type { AppEnv } from "../env.ts";
@@ -14,6 +15,8 @@ export type OAuthRouteDeps = {
 const DecideSchema = z.strictObject({
   approve: z.boolean(),
   scopes: z.array(z.string().max(32)).max(8).optional(),
+  /** With the secrets scope: where the connection may set them. */
+  secretTargets: SecretTargetsSchema.optional(),
 });
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);

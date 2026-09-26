@@ -24,16 +24,18 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           data-testid="secret"
         >
           {{ s.name }}<span class="text-muted">=••••</span>
-          <select
-            class="ml-1 bg-transparent text-[11px] text-muted [&>option]:bg-paper"
-            (change)="relevel(s.name, $any($event.target).value)"
-            [attr.aria-label]="'Level of ' + s.name"
-            data-testid="level"
-          >
-            @for (l of levels; track l) {
-              <option [value]="l" [selected]="l === s.level">{{ l }}</option>
-            }
-          </select>
+          @if (leveled()) {
+            <select
+              class="ml-1 bg-transparent text-[11px] text-muted [&>option]:bg-paper"
+              (change)="relevel(s.name, $any($event.target).value)"
+              [attr.aria-label]="'Level of ' + s.name"
+              data-testid="level"
+            >
+              @for (l of levels; track l) {
+                <option [value]="l" [selected]="l === s.level">{{ l }}</option>
+              }
+            </select>
+          }
           <button
             type="button"
             (click)="unset(s.name)"
@@ -69,18 +71,20 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
           (input)="edit('value', $any($event.target).value)"
           data-testid="secret-value"
       /></label>
-      <label class="flex flex-col gap-1"
-        ><span class="gw-label">Level</span
-        ><select
-          [class]="field"
-          (change)="edit('level', $any($event.target).value)"
-          data-testid="secret-level"
+      @if (leveled()) {
+        <label class="flex flex-col gap-1"
+          ><span class="gw-label">Level</span
+          ><select
+            [class]="field"
+            (change)="edit('level', $any($event.target).value)"
+            data-testid="secret-level"
+          >
+            @for (l of levels; track l) {
+              <option [value]="l" [selected]="l === draft().level">{{ l }}</option>
+            }
+          </select></label
         >
-          @for (l of levels; track l) {
-            <option [value]="l" [selected]="l === draft().level">{{ l }}</option>
-          }
-        </select></label
-      >
+      }
       <button
         appBtn
         variant="ghost"
@@ -136,6 +140,9 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
         </div>
       </form>
     </details>
+    @if (applies(); as a) {
+      <p class="mt-2 text-xs text-muted" data-testid="secret-applies">Saved: {{ a }}.</p>
+    }
     @if (error(); as e) {
       <p class="mt-1 text-sm text-danger" role="alert" data-testid="secret-error">
         {{ e }}
@@ -146,6 +153,8 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
 export class SecretsEditor {
   readonly url = input.required<string>();
   readonly initial = input<SecretListing[]>([]);
+  /** Org and project secrets have levels; a preview's own do not. */
+  readonly leveled = input(true);
   readonly #http = inject(HttpClient);
 
   protected readonly field = FIELD;
@@ -160,6 +169,7 @@ export class SecretsEditor {
   protected readonly pasted = signal('');
   protected readonly pastedLevel = signal<SecretLevel>('standard');
   protected readonly error = signal<string | null>(null);
+  protected readonly applies = signal<string | null>(null);
   protected edit(key: 'name' | 'value' | 'level', v: string): void {
     this.draft.update((d) => ({ ...d, [key]: v }));
   }
@@ -220,10 +230,11 @@ export class SecretsEditor {
   }): Promise<void> {
     this.error.set(null);
     try {
-      const { secrets } = await firstValueFrom(
-        this.#http.patch<{ secrets: SecretListing[] }>(this.url(), body),
+      const { secrets, appliesTo } = await firstValueFrom(
+        this.#http.patch<{ secrets: SecretListing[]; appliesTo?: string }>(this.url(), body),
       );
       this.secrets.set(secrets);
+      this.applies.set(appliesTo ?? null);
     } catch (err) {
       this.error.set(toProblem(err).detail);
     }

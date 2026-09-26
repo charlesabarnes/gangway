@@ -156,6 +156,23 @@ export class PreviewsRepo {
     );
   }
 
+  envCiphertext(id: string): string | null {
+    return (
+      this.#db.get<{ env_ciphertext: string | null }>(
+        "SELECT env_ciphertext FROM previews WHERE id = $id",
+        { id },
+      )?.env_ciphertext ?? null
+    );
+  }
+
+  setEnvCiphertext(id: string, sealed: string | null): void {
+    this.#db.run("UPDATE previews SET env_ciphertext = $v, updated_at = $now WHERE id = $id", {
+      id,
+      v: sealed,
+      now: this.#now(),
+    });
+  }
+
   setTitle(id: string, title: string | null): void {
     this.#db.run("UPDATE previews SET title = $title, updated_at = $now WHERE id = $id", {
       id,

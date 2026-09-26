@@ -1,6 +1,6 @@
 import type { AddonChoice } from "./addons.ts";
 import type { RuntimeId } from "./runtimes.ts";
-import type { Scope } from "./permissions.ts";
+import type { Scope, SecretTargets } from "./permissions.ts";
 import type { PreviewIcon } from "./preview-icon.ts";
 
 export type HostCapability = "preview" | "runner";
@@ -206,6 +206,7 @@ export type ApiToken = {
   name: string;
   prefix: string;
   scopes: Scope[];
+  secretTargets: SecretTargets | null;
   userId: string | null;
   appName: string | null;
   expiresAt: Date | null;
@@ -221,6 +222,7 @@ export type OAuthGrant = {
   clientName: string;
   redirectUri: string;
   scopes: Scope[];
+  secretTargets: SecretTargets | null;
   createdAt: Date;
   lastUsedAt: Date | null;
   expiresAt: Date;

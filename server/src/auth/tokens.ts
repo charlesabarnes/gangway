@@ -1,15 +1,21 @@
 import { randomBytes } from "node:crypto";
 import type { ApiToken } from "@gangway/shared/domain";
-import { SCOPE_PERMISSIONS, type Permission, type Scope } from "@gangway/shared/permissions";
+import {
+  SCOPE_PERMISSIONS,
+  type Permission,
+  type Scope,
+  type SecretTargets,
+} from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { TokensRepo } from "../db/repos/tokens.ts";
 import { forbidden, notFound, unprocessable } from "../errors.ts";
+import { grantedTargets } from "./secret-access.ts";
 import { parseDuration } from "../util/duration.ts";
 import { ulid } from "../util/ulid.ts";
 import {
   can,
   ENV_ADMIN_TOKEN_ID,
-  permissionsForScopes,
+  credentialPermissions,
   type Actor,
   type TokenVerifier,
 } from "./actor.ts";
@@ -48,9 +54,16 @@ export class Tokens {
     this.#repo.touch(found.token.id, now - TOUCH_EVERY_MS, now);
 
     const { token, owner } = found;
-    const bundle = permissionsForScopes(token.scopes);
+    const bundle = credentialPermissions(token.scopes, token.secretTargets);
+    const targets = token.secretTargets ? { secretTargets: token.secretTargets } : {};
     if (!owner)
-      return { kind: "token", tokenId: token.id, scopes: token.scopes, permissions: bundle };
+      return {
+        kind: "token",
+        tokenId: token.id,
+        scopes: token.scopes,
+        permissions: bundle,
+        ...targets,
+      };
     const role = this.#roles.for(owner.roleId);
     const permissions = new Set<Permission>([...bundle].filter((p) => role.has(p)));
     return {
@@ -59,12 +72,18 @@ export class Tokens {
       scopes: token.scopes,
       permissions,
       userId: owner.id,
+      ...targets,
     };
   };
 
   mint(
     actor: Actor,
-    input: { name: string; scopes: readonly Scope[]; expiresIn?: string | undefined },
+    input: {
+      name: string;
+      scopes: readonly Scope[];
+      expiresIn?: string | undefined;
+      secretTargets?: SecretTargets | undefined;
+    },
   ): { token: ApiToken; secret: string } {
     const owner =
       actor.kind === "user"
@@ -84,6 +103,8 @@ export class Tokens {
         throw unprocessable(`your role does not cover the "${scope}" scope`, { scope, missing });
     }
 
+    const secretTargets = grantedTargets(actor, scopes, input.secretTargets);
+
     let expiresAt: number | null = null;
     if (input.expiresIn !== undefined) {
       const ms = parseDuration(input.expiresIn);
@@ -101,11 +122,12 @@ export class Tokens {
       prefix: secret.slice(0, PREFIX_LEN),
       tokenHash: hashOf(secret),
       scopes,
+      secretTargets,
       userId: owner,
       expiresAt,
     });
     this.#audit.record(actor, "token.created", token.id, {
-      new: { name: token.name, scopes, userId: owner, expiresAt: token.expiresAt },
+      new: { name: token.name, scopes, secretTargets, userId: owner, expiresAt: token.expiresAt },
     });
     return { token, secret };
   }

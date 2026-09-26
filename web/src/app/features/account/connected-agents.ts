@@ -7,6 +7,7 @@ import { toProblem } from '../../core/problem';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { ToastService } from '../../ui/toast';
+import { describeTargets } from '../secrets/secret-targets';
 
 function hostOf(url: string): string {
   try {
@@ -35,7 +36,12 @@ function hostOf(url: string): string {
         >
           <span class="text-[15px] font-medium">{{ g.clientName }}</span>
           <code class="font-mono text-xs text-muted">{{ hostOf(g.clientId) }}</code>
-          <span class="text-[13px] text-muted">{{ g.scopes.join(', ') }}</span>
+          <span class="text-[13px] text-muted"
+            >{{ g.scopes.join(', ') }}
+            @if (g.secretTargets) {
+              · {{ targetsLine(g.secretTargets) }}
+            }
+          </span>
           <span class="ml-auto text-[13px] text-muted"
             >connected {{ g.createdAt | relativeTime: clock.now() }} ·
             {{
@@ -70,6 +76,7 @@ function hostOf(url: string): string {
 export class ConnectedAgents {
   readonly grants = model.required<OAuthGrant[]>();
 
+  protected readonly targetsLine = describeTargets;
   protected readonly clock = inject(Clock);
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
