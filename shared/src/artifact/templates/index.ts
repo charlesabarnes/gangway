@@ -6,17 +6,32 @@ import {
   THEME_ID,
   type ArtifactKind,
 } from "../vocab.ts";
-import { CANVAS_TEMPLATES } from "./canvas.ts";
-import { DECK_TEMPLATES } from "./deck.ts";
-import { DOCUMENT_TEMPLATES } from "./document.ts";
+import { board } from "./canvas/board.ts";
+import { systemMap } from "./canvas/system-map.ts";
+import { userFlow } from "./canvas/user-flow.ts";
+import { pitch } from "./deck/pitch.ts";
+import { review } from "./deck/review.ts";
+import { talk } from "./deck/talk.ts";
+import { changelog } from "./document/changelog.ts";
+import { memo } from "./document/memo.ts";
+import { processFlow } from "./document/process.ts";
+import { report } from "./document/report.ts";
 import type { ArtifactTemplate, OptionValue, TemplateOption, TemplateSettings } from "./kit.ts";
 
 export type { ArtifactTemplate, OptionValue, TemplateOption } from "./kit.ts";
 
+/** In the order the catalog and the gallery list them. */
 export const ARTIFACT_TEMPLATES: readonly ArtifactTemplate[] = [
-  ...DOCUMENT_TEMPLATES,
-  ...DECK_TEMPLATES,
-  ...CANVAS_TEMPLATES,
+  report,
+  memo,
+  changelog,
+  processFlow,
+  pitch,
+  review,
+  talk,
+  userFlow,
+  board,
+  systemMap,
 ];
 
 /** Names templates had before ADR-0033, still accepted. */

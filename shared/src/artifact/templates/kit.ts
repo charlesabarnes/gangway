@@ -149,3 +149,9 @@ export const md = (...parts: (string | false | undefined)[]) =>
 /** Joins deck slides. */
 export const slides = (...parts: (string | false | undefined)[]) =>
   parts.filter((p): p is string => typeof p === "string" && p !== "").join("\n\n---\n\n");
+
+/** Frames are separated like slides; each starts with its {#id …} line. */
+export const frames = (...parts: (string | false)[]) =>
+  parts.filter((p): p is string => typeof p === "string").join("\n\n---\n\n");
+
+export const FENCE = "```";
