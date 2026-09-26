@@ -4,12 +4,31 @@ import type { ArtifactKind } from '../../core/artifact.types';
 import { KIND_LABELS, type ArtifactItem } from '../../core/artifacts.types';
 import type { ProblemError } from '../../core/problem';
 import { EmptyState } from '../../ui/empty-state';
+import { FIELD } from '../../ui/field';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { SafeFramePipe } from '../../ui/safe-frame.pipe';
 import { StateBadge } from '../../ui/state-badge';
 import { ArtifactsService } from './artifacts.service';
 
 type Filter = ArtifactKind | 'all';
+export type GallerySort = 'newest' | 'oldest' | 'updated' | 'name';
+
+export const GALLERY_SORTS: { id: GallerySort; label: string }[] = [
+  { id: 'newest', label: 'Newest first' },
+  { id: 'oldest', label: 'Oldest first' },
+  { id: 'updated', label: 'Recently updated' },
+  { id: 'name', label: 'Name, A to Z' },
+];
+
+const nameOf = (a: ArtifactItem) => a.preview.title ?? a.preview.project;
+
+export function sortArtifacts(items: readonly ArtifactItem[], by: GallerySort): ArtifactItem[] {
+  const out = [...items];
+  if (by === 'name') return out.sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  const key = by === 'updated' ? 'updatedAt' : 'createdAt';
+  const sign = by === 'oldest' ? 1 : -1;
+  return out.sort((a, b) => sign * (Date.parse(a.preview[key]) - Date.parse(b.preview[key])));
+}
 
 /** The artifacts deployed here, each with a live thumbnail when it is open to view. */
 @Component({
@@ -17,22 +36,36 @@ type Filter = ArtifactKind | 'all';
   imports: [EmptyState, RelativeTimePipe, RouterLink, SafeFramePipe, StateBadge],
   template: `
     <div class="flex flex-col gap-5">
-      <div class="flex flex-wrap gap-2" role="group" aria-label="Kind">
-        @for (f of filters; track f.id) {
-          <button
-            type="button"
-            class="px-3 py-1.5 text-[11px] font-semibold tracking-[.14em] uppercase"
-            [class]="
-              filter() === f.id
-                ? 'bg-ink text-paper'
-                : 'text-muted shadow-[inset_0_0_0_1px_var(--gw-rule)] hover:text-ink'
-            "
-            (click)="filter.set(f.id)"
-            [attr.data-testid]="'filter-' + f.id"
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Kind">
+          @for (f of filters; track f.id) {
+            <button
+              type="button"
+              class="px-3 py-1.5 text-[11px] font-semibold tracking-[.14em] uppercase"
+              [class]="
+                filter() === f.id
+                  ? 'bg-ink text-paper'
+                  : 'text-muted shadow-[inset_0_0_0_1px_var(--gw-rule)] hover:text-ink'
+              "
+              (click)="filter.set(f.id)"
+              [attr.data-testid]="'filter-' + f.id"
+            >
+              {{ f.label }}
+            </button>
+          }
+        </div>
+        <label class="flex items-center gap-2">
+          <span class="gw-label">Sort</span>
+          <select
+            [class]="field + ' w-auto'"
+            (change)="sort.set($any($event.target).value)"
+            data-testid="gallery-sort"
           >
-            {{ f.label }}
-          </button>
-        }
+            @for (o of sorts; track o.id) {
+              <option [value]="o.id" [selected]="sort() === o.id">{{ o.label }}</option>
+            }
+          </select>
+        </label>
       </div>
       @if (error(); as e) {
         <p class="text-sm text-danger" role="alert">{{ e.detail }}</p>
@@ -89,6 +122,9 @@ type Filter = ArtifactKind | 'all';
 export class ArtifactGallery {
   readonly #svc = inject(ArtifactsService);
   protected readonly kindLabels = KIND_LABELS;
+  protected readonly field = FIELD;
+  protected readonly sorts = GALLERY_SORTS;
+  protected readonly sort = signal<GallerySort>('newest');
   protected readonly now = Date.now();
   protected readonly items = signal<ArtifactItem[]>([]);
   protected readonly loaded = signal(false);
@@ -102,7 +138,10 @@ export class ArtifactGallery {
   ];
   protected readonly shown = computed(() => {
     const f = this.filter();
-    return this.items().filter((a) => f === 'all' || a.kind === f);
+    return sortArtifacts(
+      this.items().filter((a) => f === 'all' || a.kind === f),
+      this.sort(),
+    );
   });
 
   constructor() {
