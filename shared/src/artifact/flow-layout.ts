@@ -1,4 +1,4 @@
-import type { FlowDirection, FlowEdge, FlowGraph, FlowNode } from "./flow.ts";
+import type { FlowDirection, FlowEdge, FlowGraph, FlowGroup, FlowNode } from "./flow.ts";
 
 export type Size = { w: number; h: number };
 export type Point = [number, number];
@@ -11,9 +11,12 @@ export type PlacedEdge = FlowEdge & {
   rank: number;
   back: boolean;
 };
+/** A subgraph's box, top-left corner and size; `depth` 0 is outermost. */
+export type PlacedGroup = FlowGroup & { x: number; y: number; w: number; h: number; depth: number };
 export type FlowLayout = {
   nodes: PlacedNode[];
   edges: PlacedEdge[];
+  groups: PlacedGroup[];
   width: number;
   height: number;
 };
@@ -298,7 +301,7 @@ export function layoutFlow(
         ),
   );
   const [w, h] = f.swap ? [spanRank, spanMain] : [spanMain, spanRank];
-  return { nodes, edges, width: w + margin * 2, height: h + margin * 2 };
+  return { nodes, edges, groups: [], width: w + margin * 2, height: h + margin * 2 };
 }
 
 function selfLoop(e: FlowEdge, n: PlacedNode, f: Frame): PlacedEdge {
@@ -323,7 +326,10 @@ function selfLoop(e: FlowEdge, n: PlacedNode, f: Frame): PlacedEdge {
 }
 
 /** Nodes in the order a reader walks them: breadth-first from the starts, along the edges. */
-export function walkOrder(g: FlowGraph): string[] {
+export function walkOrder(graph: FlowGraph): string[] {
+  // A line to or from a subgraph is not a step.
+  const ids = new Set(graph.nodes.map((n) => n.id));
+  const g = { ...graph, edges: graph.edges.filter((e) => ids.has(e.from) && ids.has(e.to)) };
   const back = backEdges(g);
   const into = new Set(g.edges.filter((e, i) => !back.has(i) && e.from !== e.to).map((e) => e.to));
   const starts = g.nodes.filter((n) => !into.has(n.id)).map((n) => n.id);

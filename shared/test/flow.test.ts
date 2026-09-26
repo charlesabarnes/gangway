@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { layoutFlow, walkOrder } from "../src/artifact/flow-layout.ts";
-import { parseFlow, type FlowGraph } from "../src/artifact/flow.ts";
+import { ancestors, edgeTone, parseFlow, type FlowGraph } from "../src/artifact/flow.ts";
 import { scan } from "../src/artifact/grammar.ts";
 import { lintMarkdown } from "../src/artifact/lint.ts";
 
@@ -52,8 +52,6 @@ describe("parsing a flowchart", () => {
         '  click a "#details" "Opens the details"',
         "  note b: What the answer means.",
         "  classDef hot fill:#f00",
-        "  subgraph Group",
-        "  end",
       ].join("\n"),
     );
     expect(g.issues).toEqual([]);
@@ -61,6 +59,125 @@ describe("parsing a flowchart", () => {
     const [a, b] = g.nodes;
     expect(a).toMatchObject({ tone: "warn", link: "#details", note: "Opens the details" });
     expect(b).toMatchObject({ tone: "ok", note: "What the answer means." });
+  });
+
+  test("subgraphs nest, hold what is mentioned inside them, and can be the end of a line", () => {
+    const g = parseFlow(
+      [
+        "flowchart LR",
+        "  web[Browser]",
+        '  subgraph vps["VPS 3.151.78.148"]',
+        "    direction TB",
+        "    nginx[nginx]",
+        "    subgraph prod [Production]",
+        "      api[admin-backend :3000<br/>`api.noshokmedia.com`]",
+        "    end",
+        "    subgraph Staging",
+        "      sapi[admin-backend-staging]",
+        "    end",
+        "  end",
+        '  subgraph "Managed services"',
+        "    pg[(Postgres)]",
+        "  end",
+        "  web --> nginx --> api",
+        "  nginx e1@-.-> sapi",
+        "  api --> pg",
+        "  web --> vps",
+        "  class prod ok",
+        "  class Staging,e1 warn",
+      ].join("\n"),
+    );
+    expect(g.issues).toEqual([]);
+    // A direction inside a subgraph does not turn the whole chart.
+    expect(g.direction).toBe("LR");
+    expect(g.groups.map((x) => [x.id, x.label, x.parent, x.tone])).toEqual([
+      ["vps", "VPS 3.151.78.148", null, null],
+      ["prod", "Production", "vps", "ok"],
+      ["Staging", "Staging", "vps", "warn"],
+      ["subgraph4", "Managed services", null, null],
+    ]);
+    expect(Object.fromEntries(g.nodes.map((n) => [n.id, n.group]))).toEqual({
+      web: null,
+      nginx: "vps",
+      api: "prod",
+      sapi: "Staging",
+      pg: "subgraph4",
+    });
+    expect(g.nodes.find((n) => n.id === "api")!.label).toBe(
+      "admin-backend :3000\n`api.noshokmedia.com`",
+    );
+    // `vps` names the group, so it is not also a node.
+    expect(g.edges.at(-1)).toMatchObject({ from: "web", to: "vps" });
+    expect(g.edges.find((e) => e.id === "e1")).toMatchObject({ style: "dotted", tone: "warn" });
+    expect(ancestors(g, "api").map((x) => x.id)).toEqual(["prod", "vps"]);
+  });
+
+  test("a line takes its own tone, else the toned group it leaves, else the one it enters", () => {
+    const g = parseFlow(
+      [
+        "subgraph prod [Production]:::ok",
+        "  a",
+        "end",
+        "subgraph stage [Staging]",
+        "  b",
+        "end",
+        "class stage warn",
+        "x --> a",
+        "a --> b",
+        "b --> x",
+        "x e9@--> b",
+        "class e9 danger",
+        "x --> y",
+      ].join("\n"),
+    );
+    expect(g.issues).toEqual([]);
+    expect(g.edges.map((e) => edgeTone(g, e))).toEqual(["ok", "ok", "warn", "danger", null]);
+  });
+
+  test("legend lines describe a tone and a line style", () => {
+    const g = parseFlow(
+      "a --> b\nlegend ok: production path\nlegend warn dashed: staging path\nlegend dotted: SSR fetch",
+    );
+    expect(g.issues).toEqual([]);
+    expect(g.legend).toEqual([
+      { tone: "ok", style: "solid", text: "production path" },
+      { tone: "warn", style: "dotted", text: "staging path" },
+      { tone: null, style: "dotted", text: "SSR fetch" },
+    ]);
+  });
+
+  test("names the line of each grouping mistake", () => {
+    const g = parseFlow(
+      [
+        "subgraph a [One]",
+        "  x",
+        "end",
+        "end",
+        "subgraph a [Again]",
+        "end",
+        "legend loud: what",
+        "b[Box] --> c",
+        "subgraph b",
+        "end",
+        "subgraph open",
+      ].join("\n"),
+    );
+    expect(g.issues).toEqual([
+      { line: 4, message: "end without a subgraph to close" },
+      { line: 5, message: "there are two subgraphs called a" },
+      {
+        line: 7,
+        message:
+          "legend loud: a tone (flag | ok | warn | danger | muted) or a line (solid | dashed | thick)",
+      },
+      { line: 11, message: "subgraph open is never closed with end" },
+      { line: 8, message: "b is both a node and a subgraph" },
+    ]);
+  });
+
+  test("the play order skips lines to and from a group", () => {
+    const g = parseFlow("subgraph s [S]\n  b\nend\na --> s\na --> b");
+    expect(walkOrder(g)).toEqual(["a", "b"]);
   });
 
   test("a node referenced before it is defined takes the later label", () => {

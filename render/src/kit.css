@@ -400,6 +400,11 @@ gw-doc > .gw-lead > p {
 .gw-part > .gw-part-body {
   min-width: 0;
 }
+/* A section with a chart too wide for its column puts its title above, as in layout: single. */
+.gw-part:has(> .gw-part-body > gw-flow.wide) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
 .gw-part-body > :is(p, ul, ol, blockquote) {
   max-width: 68ch;
 }
@@ -886,6 +891,107 @@ gw-flow .elabel text {
   text-anchor: middle;
   dominant-baseline: central;
 }
+/* A box's detail lines, under its name */
+gw-flow .label .detail {
+  font: 400 12px var(--sans);
+  fill: var(--muted);
+}
+gw-flow .label .code {
+  font: 400 11px var(--mono);
+  fill: var(--muted);
+}
+gw-flow .node.stadium .label :is(.detail, .code),
+gw-flow .node.circle .label :is(.detail, .code),
+gw-flow .node.tone-flag .label :is(.detail, .code) {
+  fill: inherit;
+  opacity: 0.75;
+}
+
+/* Tones for lines, groups and the legend */
+gw-flow .tone-flag {
+  --tone: var(--flag);
+}
+gw-flow .tone-ok {
+  --tone: var(--ok);
+}
+gw-flow .tone-warn {
+  --tone: var(--warn);
+}
+gw-flow .tone-danger {
+  --tone: var(--danger);
+}
+gw-flow .tone-muted {
+  --tone: var(--muted);
+}
+gw-flow .edge[class*="tone-"] .line,
+gw-flow .key[class*="tone-"] .line {
+  stroke: var(--tone);
+}
+gw-flow .arrowhead[class*="tone-"] {
+  fill: var(--tone);
+}
+gw-flow .edge[class*="tone-"] .elabel text {
+  fill: var(--tone);
+}
+
+/* Subgraphs: a ruled box with its name in caps */
+gw-flow .group {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+gw-flow.drawn .group {
+  opacity: 1;
+}
+gw-flow .gshape {
+  fill: color-mix(in srgb, var(--ink) 3%, transparent);
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+gw-flow .group[class*="tone-"] .gshape {
+  fill: color-mix(in srgb, var(--tone) 7%, transparent);
+  stroke: var(--tone);
+}
+gw-flow .group.tone-muted .gshape {
+  stroke-dasharray: 4 3;
+}
+gw-flow .glabel {
+  font: 600 11px var(--sans);
+  letter-spacing: 0.08em;
+  fill: var(--muted);
+  dominant-baseline: central;
+}
+gw-flow .group[class*="tone-"] .glabel {
+  fill: var(--tone);
+}
+gw-flow .group.tone-flag .glabel {
+  fill: var(--ink);
+}
+
+/* The key under a chart */
+gw-flow [data-part="legend"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-top: 12px;
+  font: 12px var(--sans);
+  color: var(--muted);
+}
+gw-flow .key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+gw-flow .key .line {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+gw-flow .key.dotted .line {
+  stroke-dasharray: 4 3;
+}
+gw-flow .key.thick .line {
+  stroke-width: 3;
+}
+
 gw-flow.flowing .edge .line {
   stroke-dasharray: 7 5;
   animation: gw-flow-march 0.9s linear infinite;

@@ -4,8 +4,20 @@ import {
   walkOrder,
   type FlowLayout,
   type PlacedNode,
+  type Size,
 } from "@gangway/shared/artifact/flow-layout";
-import { draw, FONT, sizeFor, svg, wrap, type Drawn } from "./flow-draw.ts";
+import {
+  draw,
+  edgeLabelWidth,
+  FONT,
+  groupLabelWidth,
+  plain,
+  sizeFor,
+  svg,
+  wrap,
+  type Drawn,
+} from "./flow-draw.ts";
+import { layoutElk, loadElk } from "./flow-elk.ts";
 import { esc } from "./md.ts";
 
 const STEP_MS = 1400;
@@ -42,13 +54,14 @@ class Flow extends HTMLElement {
     this.#note = note;
     if (this.hasAttribute("play")) this.#controls = this.#makeControls();
     this.append(note);
+    const g = parseFlow(src, 1, this.getAttribute("direction") ?? undefined);
+    if (g.legend.length) this.append(legend(g));
     if (this.hasAttribute("caption"))
       this.insertAdjacentHTML(
         "beforeend",
         `<p data-part="caption">${esc(this.getAttribute("caption") ?? "")}</p>`,
       );
 
-    const g = parseFlow(src, 1, this.getAttribute("direction") ?? undefined);
     if (g.issues.length) {
       this.#problem(g.issues.map((i) => `line ${i.line}: ${i.message}`).join("; "));
       if (g.nodes.length === 0) return;
@@ -59,6 +72,32 @@ class Flow extends HTMLElement {
       .load(FONT)
       .catch(() => {})
       .then(() => this.#render(plot, title));
+  }
+
+  /** Subgraphs need ELK; if it cannot load, the chart is drawn flat without its groups. */
+  async #layout(g: FlowGraph, size: (n: FlowNode) => Size): Promise<[FlowGraph, FlowLayout]> {
+    if (g.groups.length) {
+      try {
+        return [
+          g,
+          await layoutElk(
+            g,
+            size,
+            (t, of) => (of === "group" ? groupLabelWidth(t) : edgeLabelWidth(t)),
+            await loadElk(),
+          ),
+        ];
+      } catch (err) {
+        this.#problem(`the layout engine did not load, so its groups are not drawn (${err})`);
+      }
+    }
+    const ids = new Set(g.nodes.map((n) => n.id));
+    const flat = {
+      ...g,
+      groups: [],
+      edges: g.edges.filter((e) => ids.has(e.from) && ids.has(e.to)),
+    };
+    return [flat, layoutFlow(flat, size)];
   }
 
   disconnectedCallback() {
@@ -73,11 +112,10 @@ class Flow extends HTMLElement {
     console.error(p.textContent);
   }
 
-  #render(plot: HTMLElement, title: string) {
-    const g = this.#graph!;
-    const lines = new Map(g.nodes.map((n) => [n.id, wrap(n.label)]));
-    const layout = layoutFlow(g, (n) => sizeFor(lines.get(n.id)!, n));
-    const d = draw(plot, layout, lines, title);
+  async #render(plot: HTMLElement, title: string) {
+    const lines = new Map(this.#graph!.nodes.map((n) => [n.id, wrap(n.label)]));
+    const [g, layout] = await this.#layout(this.#graph!, (n) => sizeFor(lines.get(n.id)!, n));
+    const d = draw(plot, g, layout, lines, title);
     this.#drawn = d;
     this.#fit(plot, d.svg, layout);
     if (this.hasAttribute("animate")) this.classList.add("animate");
@@ -87,11 +125,19 @@ class Flow extends HTMLElement {
 
   /**
    * Never enlarged; shrunk to the width down to 72%, then it scrolls sideways so labels stay
-   * readable. On a slide it shrinks to fit the slide instead.
+   * readable. On a slide it shrinks to fit the slide instead. In a document, a chart wider than
+   * its column takes the whole section, title above, and may run on to the window's edge.
    */
   #fit(plot: HTMLElement, s: SVGSVGElement, layout: FlowLayout) {
     const slide = this.closest("gw-slide") !== null;
+    const body = this.parentElement?.classList.contains("gw-part-body") ? this.parentElement : null;
+    // Decided once: the wider section would otherwise flip it back and forth.
+    if (body && layout.width > body.clientWidth) this.classList.add("wide");
     const size = () => {
+      if (this.classList.contains("wide")) {
+        const room = document.documentElement.clientWidth - this.getBoundingClientRect().left - 24;
+        this.style.width = `${Math.max(body!.clientWidth, Math.min(layout.width, room))}px`;
+      }
       const avail = plot.clientWidth;
       if (avail <= 0) return;
       let k = Math.min(1, avail / layout.width);
@@ -100,7 +146,7 @@ class Flow extends HTMLElement {
       s.style.width = `${layout.width * k}px`;
     };
     size();
-    new ResizeObserver(size).observe(plot);
+    new ResizeObserver(size).observe(body ?? plot);
   }
 
   /** Draw in once the reader reaches it, rank by rank; then, with `animate`, keep it flowing. */
@@ -180,7 +226,7 @@ class Flow extends HTMLElement {
       return;
     }
     box.dataset["id"] = n.id;
-    box.innerHTML = `<b>${esc(n.label)}</b> ${esc(n.note)}`;
+    box.innerHTML = `<b>${esc(plain(n.label))}</b> ${esc(n.note)}`;
     box.hidden = false;
   }
 
@@ -273,6 +319,21 @@ class Flow extends HTMLElement {
     };
     requestAnimationFrame(frame);
   }
+}
+
+/** The key under a chart: a sample of each kind of line, and what it means. */
+function legend(g: FlowGraph): HTMLElement {
+  const box = document.createElement("div");
+  box.dataset["part"] = "legend";
+  for (const item of g.legend) {
+    const row = document.createElement("span");
+    row.className = `key ${item.style}${item.tone ? ` tone-${item.tone}` : ""}`;
+    const s = svg("svg", { width: 28, height: 8, viewBox: "0 0 28 8", "aria-hidden": "true" }, row);
+    svg("line", { x1: 1, y1: 4, x2: 27, y2: 4, class: "line" }, s);
+    row.append(item.text);
+    box.append(row);
+  }
+  return box;
 }
 
 export function defineFlow(): void {

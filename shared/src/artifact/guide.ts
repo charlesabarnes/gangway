@@ -87,13 +87,39 @@ flowchart LR
   click url "https://example.com"
 \`\`\`
 \`\`\`\`
-Shapes: \`id[box]\`, \`id(rounded)\`, \`id([start/end])\`, \`id((circle))\`, \`id{decision}\`, \`id[(database)]\`. Arrows: \`-->\`, \`-->|label|\` or \`-- label -->\`, \`-.->\` (dotted), \`==>\` (thick), \`---\` (no head), \`<-->\`. Chains work: \`a --> b --> c\`. Tones: \`id:::ok\` or \`class a,b warn\` (flag | ok | warn | danger | muted). \`note id: text\` shows under the chart when the step is clicked. \`click id "https://…"\` makes it a link. Options on the fence: title="…", caption="…", direction=TB|LR|BT|RL, play (a Play button steps through it), animate (edges keep flowing). \`subgraph\`, \`classDef\` and \`style\` are accepted and ignored. Keep it under about 15 steps; use TB when there are more than 6 in a row, so it fits the page without scrolling.`;
+Shapes: \`id[box]\`, \`id(rounded)\`, \`id([start/end])\`, \`id((circle))\`, \`id{decision}\`, \`id[(database)]\`. Arrows: \`-->\`, \`-->|label|\` or \`-- label -->\`, \`-.->\` (dotted), \`==>\` (thick), \`---\` (no head), \`<-->\`. Chains work: \`a --> b --> c\`. Tones: \`id:::ok\` or \`class a,b warn\` (flag | ok | warn | danger | muted). \`note id: text\` shows under the chart when the step is clicked. \`click id "https://…"\` makes it a link. Options on the fence: title="…", caption="…", direction=TB|LR|BT|RL, play (a Play button steps through it), animate (edges keep flowing). \`classDef\` and \`style\` are accepted and ignored. Keep a process under about 15 steps; use TB when there are more than 6 in a row, so it fits the page without scrolling.
+
+### Systems and architecture
+For what runs where and what talks to what, put boxes in groups and give the paths meaning:
+\`\`\`\`
+\`\`\`flow title="How a request reaches data" caption="Staging shares the box; only the database is separate."
+flowchart LR
+  shop[Shopper<br/>storefront]
+  subgraph vps [VPS 3.151.78.148]
+    nginx[nginx<br/>\`:443, routes by host\`]
+    subgraph prod [Production]
+      api[admin-backend :3000<br/>\`api.example.com\`]
+    end
+    subgraph stage [Staging]
+      sapi[admin-backend-staging<br/>\`staging-api.example.com\`]
+    end
+  end
+  pg[(Postgres<br/>main branch)]
+  shop -->|https| nginx --> api -->|SQL| pg
+  nginx -.-> sapi
+  class prod ok
+  class stage warn
+  legend ok: production path
+  legend warn dashed: staging path
+\`\`\`
+\`\`\`\`
+\`subgraph id [Title] … end\` draws a labelled box around what is inside it, and nests; a line may start or end at a group's id. \`class id tone\` tones a group, and every line leaving it (else entering it) takes that tone, so paths read by colour. A box's first line is its name; each line after \`<br/>\` is a smaller detail under it, in mono when it is \`in backticks\` (hosts, ports, paths). \`legend tone style: meaning\` adds a key under the chart (style: solid | dashed | thick). Give one line its own tone with an id: \`a e1@--> b\` then \`class e1 danger\`. A chart with groups is laid out with right-angled lines, and one wider than the text column takes the whole section. Keep each box to a name and one or two details; the explanation goes in the caption and the prose around the chart. One chart per question ("how a request reaches data", "what a deploy does"), not one chart for everything.`;
 
 const KINDS: Record<ArtifactKind, string> = {
   document:
     "## Documents\nPlain markdown: paragraphs, lists, tables, `>` quotes, code, plus the blocks and charts below. Each `##` heading starts a numbered section, its title in a column beside the text (`layout: single` puts it above instead). What comes before the first `##` is the lead: a callout and a row of stats read well there. `###` is a subheading inside a section.",
   canvas:
-    '## Canvases\nA board of frames the reader pans and zooms, like a design file: screens of a flow, illustrations, diagrams, a mood board. Separate frames with a line that is only `---`, each starting `{#id title="Frame title"}`. A frame holds markdown, any block, an inline `<svg>` or `:image[…]{src=…}`. Size it with `w=390` (pixels; default 400) and `h=` (default: its content); place it with `x=` and `y=`, or leave them out and the frames flow in a grid (front matter `layout`, `columns`, `gap`). `frame=plain` drops the frame around an illustration; `frame=note` is a sticky note. A line `-> other-id "label"` in a frame draws an arrow to another frame. Readers drag to pan, pinch or ctrl+scroll to zoom, press 0 to fit, and click a frame\'s title to zoom to it; `#id` in the URL opens on that frame.',
+    '## Canvases\nA board of frames the reader pans and zooms, like a design file: screens of a flow, illustrations, a mood board. For a system or architecture diagram, write a document with flow charts that use groups instead (see Flowcharts): it reads better than frames of prose. Separate frames with a line that is only `---`, each starting `{#id title="Frame title"}`. A frame holds markdown, any block, an inline `<svg>` or `:image[…]{src=…}`. Size it with `w=390` (pixels; default 400) and `h=` (default: its content); place it with `x=` and `y=`, or leave them out and the frames flow in a grid (front matter `layout`, `columns`, `gap`). `frame=plain` drops the frame around an illustration; `frame=note` is a sticky note. A line `-> other-id "label"` in a frame draws an arrow to another frame. Readers drag to pan, pinch or ctrl+scroll to zoom, press 0 to fit, and click a frame\'s title to zoom to it; `#id` in the URL opens on that frame.',
   deck: "## Decks\nSeparate slides with a line that is only `---`. The first slide is the title slide (`# Title` and one line). A slide starting `## Title` is a content slide with the title ruled off at the top. Choose a layout with a first line `{layout=…}`:\n- `section`: a navy divider, numbered (`## Name`)\n- `statement`: one sentence set large (`## The sentence.` and an optional line under it)\n- `big`: one number (`::stat{…}`)\n- `quote`: a `>` quote, its last line the attribution (`> — Name, role`)\n- `split`: `## Title` and a `::: columns` block, words beside a chart, list or image\n- `end`: the closing slide (`# Thank you`, a line, a `::: facts` block)\nA slide with only `# Heading` is a section divider, and one with only `## Title` and a `::stat{}` a big number, without saying so. Speaker notes: a line `Notes:` then text, at the end of a slide; press n to show them.",
 };
 

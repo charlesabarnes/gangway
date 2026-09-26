@@ -5,7 +5,7 @@ import { renderDist } from "../previews/artifact-render.ts";
 // framed by the UI and sandboxed, so what it draws never touches the UI's origin.
 
 export const FRAME_PATH = "/_gangway/frame.html";
-const ASSET = /^\/_gangway\/(kit\.js|kit\.css|legacy\.css|theme\.css)$/;
+const ASSET = /^\/_gangway\/(kit\.js|elk\.js|kit\.css|legacy\.css|theme\.css)$/;
 const TYPES: Record<string, string> = {
   js: "text/javascript; charset=utf-8",
   css: "text/css; charset=utf-8",

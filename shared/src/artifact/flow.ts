@@ -17,21 +17,40 @@ export type FlowNode = {
   tone: FlowTone | null;
   link: string | null;
   note: string | null;
+  /** The innermost subgraph it sits in. */
+  group: string | null;
   line: number;
 };
 export type FlowEdge = {
+  /** Mermaid's edge id (`a e1@--> b`), so `class e1 warn` can tone it. */
+  id: string | null;
+  /** A node's id or a group's. */
   from: string;
   to: string;
   label: string;
-  style: "solid" | "dotted" | "thick";
+  style: FlowEdgeStyle;
   arrow: "none" | "end" | "both";
+  tone: FlowTone | null;
   line: number;
 };
+export type FlowEdgeStyle = "solid" | "dotted" | "thick";
+/** A subgraph: drawn as a labelled box around what it holds. */
+export type FlowGroup = {
+  id: string;
+  label: string;
+  parent: string | null;
+  tone: FlowTone | null;
+  line: number;
+};
+/** One line of the key under the chart: a sample of a line's tone and style, and what it means. */
+export type FlowLegendItem = { tone: FlowTone | null; style: FlowEdgeStyle; text: string };
 export type FlowIssue = { line: number; message: string };
 export type FlowGraph = {
   direction: FlowDirection;
   nodes: FlowNode[];
   edges: FlowEdge[];
+  groups: FlowGroup[];
+  legend: FlowLegendItem[];
   issues: FlowIssue[];
 };
 
@@ -51,10 +70,16 @@ const SHAPES: [open: string, close: string, shape: FlowShape][] = [
   [">", "]", "box"],
 ];
 
-type EdgeMatch = { len: number; label: string; style: FlowEdge["style"]; arrow: FlowEdge["arrow"] };
+type EdgeMatch = {
+  len: number;
+  id: string | null;
+  label: string;
+  style: FlowEdgeStyle;
+  arrow: FlowEdge["arrow"];
+};
 
 // Longest forms first: "-- text -->" before "--", "-.->" before "-.-".
-const EDGES: [RegExp, FlowEdge["style"], FlowEdge["arrow"]][] = [
+const EDGES: [RegExp, FlowEdgeStyle, FlowEdge["arrow"]][] = [
   [/^<-{2,}>/, "solid", "both"],
   [/^<={2,}>/, "thick", "both"],
   [/^<-\.+->/, "dotted", "both"],
@@ -69,18 +94,20 @@ const EDGES: [RegExp, FlowEdge["style"], FlowEdge["arrow"]][] = [
   [/^={3,}/, "thick", "none"],
 ];
 
-function edgeAt(s: string): EdgeMatch | null {
+function edgeAt(text: string): EdgeMatch | null {
+  const named = /^([\p{L}\p{N}_]+)@(?=[-=<.])/u.exec(text);
+  const s = named ? text.slice(named[0].length) : text;
   for (const [re, style, arrow] of EDGES) {
     const m = re.exec(s);
     if (!m) continue;
-    let len = m[0].length;
+    let len = m[0].length + (named?.[0].length ?? 0);
     let label = m[1] ?? "";
-    const pipe = /^\s*\|([^|]*)\|/.exec(s.slice(len));
+    const pipe = /^\s*\|([^|]*)\|/.exec(text.slice(len));
     if (pipe) {
       label = pipe[1]!;
       len += pipe[0].length;
     }
-    return { len, label: unquote(label.trim()), style, arrow };
+    return { len, id: named?.[1] ?? null, label: unquote(label.trim()), style, arrow };
   }
   return null;
 }
@@ -117,25 +144,53 @@ function nodeAt(s: string): NodeMatch | null {
   return { len, id, label, shape, tone: tone?.[1] ?? null };
 }
 
-type Builder = FlowGraph & { byId: Map<string, FlowNode> };
+type Builder = FlowGraph & {
+  byId: Map<string, FlowNode>;
+  /** Ids that were only ever referenced, never given a label: they may name a group. */
+  bare: Set<string>;
+  /** The subgraphs open at this line, innermost last. */
+  open: FlowGroup[];
+  /** `class` lines, applied once every node, group and edge id is known. */
+  classes: { id: string; tone: string; line: number }[];
+};
 
 function touch(g: Builder, m: NodeMatch, line: number): void {
   let n = g.byId.get(m.id);
   if (!n) {
-    n = { id: m.id, label: m.id, shape: "box", tone: null, link: null, note: null, line };
+    n = {
+      id: m.id,
+      label: m.id,
+      shape: "box",
+      tone: null,
+      link: null,
+      note: null,
+      group: null,
+      line,
+    };
     g.byId.set(m.id, n);
     g.nodes.push(n);
+    g.bare.add(m.id);
   }
+  // As in Mermaid, a node mentioned inside a subgraph moves into it.
+  const inside = g.open.at(-1);
+  if (inside) n.group = inside.id;
   if (m.label !== null) {
     n.label = m.label;
     n.shape = m.shape;
+    g.bare.delete(m.id);
   }
   if (m.tone) setTone(g, n, m.tone, line);
 }
 
-function setTone(g: Builder, n: FlowNode, tone: string, line: number): void {
-  if ((FLOW_TONES as readonly string[]).includes(tone)) n.tone = tone as FlowTone;
-  else g.issues.push({ line, message: `class ${tone}: one of ${FLOW_TONES.join(" | ")}` });
+function toneOf(g: Builder, tone: string, line: number): FlowTone | null {
+  if ((FLOW_TONES as readonly string[]).includes(tone)) return tone as FlowTone;
+  g.issues.push({ line, message: `class ${tone}: one of ${FLOW_TONES.join(" | ")}` });
+  return null;
+}
+
+function setTone(g: Builder, n: { tone: FlowTone | null }, tone: string, line: number): void {
+  const t = toneOf(g, tone, line);
+  if (t) n.tone = t;
 }
 
 /** A chain like `A[Start] --> B{OK?} -->|yes| C`. */
@@ -162,7 +217,16 @@ function chain(g: Builder, text: string, line: number): void {
     const next = nodeAt(rest);
     if (!next) return void g.issues.push({ line, message: `an arrow from ${prev} goes nowhere` });
     touch(g, next, line);
-    g.edges.push({ from: prev, to: next.id, label: e.label, style: e.style, arrow: e.arrow, line });
+    g.edges.push({
+      id: e.id,
+      from: prev,
+      to: next.id,
+      label: e.label,
+      style: e.style,
+      arrow: e.arrow,
+      tone: null,
+      line,
+    });
     prev = next.id;
     rest = rest.slice(next.len).trimStart();
   }
@@ -182,16 +246,67 @@ function direction(g: Builder, d: string, line: number): void {
   else g.issues.push({ line, message: `direction ${d}: one of TB | LR | BT | RL` });
 }
 
+/** `subgraph id [Title]`, `subgraph id["Title"]`, `subgraph "Title"` or `subgraph Title`. */
+function subgraph(g: Builder, rest: string, line: number): void {
+  const toned = /:::([\w-]+)$/.exec(rest);
+  const head = (toned ? rest.slice(0, toned.index) : rest).trim();
+  const titled = /^([\p{L}\p{N}_]+)\s*\[(.*)\]$/su.exec(head);
+  const bareId = /^[\p{L}\p{N}_]+$/u.test(head);
+  const id = titled?.[1] ?? (bareId ? head : `subgraph${g.groups.length + 1}`);
+  const label = titled ? unquote(titled[2]!.trim()) : unquote(head);
+  const group: FlowGroup = { id, label, parent: g.open.at(-1)?.id ?? null, tone: null, line };
+  // A second subgraph by the same name is reported once; its `end` still closes it.
+  if (g.groups.some((x) => x.id === id))
+    g.issues.push({ line, message: `there are two subgraphs called ${id}` });
+  else g.groups.push(group);
+  if (toned) setTone(g, group, toned[1]!, line);
+  g.open.push(group);
+}
+
+const LEGEND_STYLES: Record<string, FlowEdgeStyle> = {
+  solid: "solid",
+  dotted: "dotted",
+  dashed: "dotted",
+  thick: "thick",
+};
+
+/** `legend warn dotted: staging path`: a line of the key under the chart. */
+function legend(g: Builder, words: string, text: string, line: number): void {
+  const item: FlowLegendItem = { tone: null, style: "solid", text: unquote(text.trim()) };
+  for (const w of words.split(/\s+/).filter(Boolean)) {
+    if (LEGEND_STYLES[w]) item.style = LEGEND_STYLES[w];
+    else if ((FLOW_TONES as readonly string[]).includes(w)) item.tone = w as FlowTone;
+    else
+      return void g.issues.push({
+        line,
+        message: `legend ${w}: a tone (${FLOW_TONES.join(" | ")}) or a line (solid | dashed | thick)`,
+      });
+  }
+  g.legend.push(item);
+}
+
 function statement(g: Builder, s: string, line: number): void {
   if (header(g, s, line)) return;
   const dir = /^direction\s+(\w+)$/i.exec(s);
-  if (dir) return direction(g, dir[1]!, line);
-  // Styling and grouping are Mermaid's; gangway draws its own style and lays groups out flat.
-  if (/^(classDef|style|linkStyle|subgraph|end)\b/.test(s)) return;
+  // Inside a subgraph the chart's own direction holds: groups are laid out with the whole chart.
+  if (dir) return g.open.length ? undefined : direction(g, dir[1]!, line);
+  const sub = /^subgraph\b\s*(.*)$/.exec(s);
+  if (sub) {
+    if (!sub[1]) return void g.issues.push({ line, message: "a subgraph needs a name" });
+    return subgraph(g, sub[1], line);
+  }
+  if (s === "end") {
+    if (!g.open.pop()) g.issues.push({ line, message: "end without a subgraph to close" });
+    return;
+  }
+  // Styling is Mermaid's; gangway draws its own.
+  if (/^(classDef|style|linkStyle)\b/.test(s)) return;
+  const key = /^legend\b([^:]*):(.+)$/.exec(s);
+  if (key) return legend(g, key[1]!, key[2]!, line);
   const cls = /^class\s+([\p{L}\p{N}_,\s]+?)\s+([\w-]+)$/u.exec(s);
   if (cls) {
     for (const id of cls[1]!.split(",").map((x) => x.trim()))
-      touch(g, { len: 0, id, label: null, shape: "box", tone: cls[2]! }, line);
+      g.classes.push({ id, tone: cls[2]!, line });
     return;
   }
   const click = /^click\s+([\p{L}\p{N}_]+)\s+(?:href\s+)?"([^"]*)"(?:\s+"([^"]*)")?/u.exec(s);
@@ -212,8 +327,36 @@ function statement(g: Builder, s: string, line: number): void {
 }
 
 /** Parse a flowchart; `first` is the line number of its first line, for messages. */
+/** Ids only ever referenced that name a group are the group; `class` lines land last. */
+function settle(g: Builder): void {
+  for (const open of g.open)
+    g.issues.push({ line: open.line, message: `subgraph ${open.id} is never closed with end` });
+  const groups = new Map(g.groups.map((x) => [x.id, x]));
+  for (const n of g.nodes)
+    if (groups.has(n.id) && !g.bare.has(n.id))
+      g.issues.push({ line: n.line, message: `${n.id} is both a node and a subgraph` });
+  g.nodes = g.nodes.filter((n) => !(groups.has(n.id) && g.bare.has(n.id)));
+  const edges = new Map(g.edges.filter((e) => e.id).map((e) => [e.id!, e]));
+  for (const c of g.classes) {
+    const target = groups.get(c.id) ?? edges.get(c.id);
+    if (target) setTone(g, target, c.tone, c.line);
+    else touch(g, { len: 0, id: c.id, label: null, shape: "box", tone: c.tone }, c.line);
+  }
+}
+
 export function parseFlow(src: string, first = 1, dir?: string): FlowGraph {
-  const g: Builder = { direction: "TB", nodes: [], edges: [], issues: [], byId: new Map() };
+  const g: Builder = {
+    direction: "TB",
+    nodes: [],
+    edges: [],
+    groups: [],
+    legend: [],
+    issues: [],
+    byId: new Map(),
+    bare: new Set(),
+    open: [],
+    classes: [],
+  };
   if (dir) direction(g, dir, first - 1);
   src.split(/\r?\n/).forEach((raw, i) => {
     const text = raw.replace(/%%.*$/, "");
@@ -222,12 +365,40 @@ export function parseFlow(src: string, first = 1, dir?: string): FlowGraph {
       if (s) statement(g, s, first + i);
     }
   });
+  settle(g);
   if (g.nodes.length === 0) g.issues.push({ line: first, message: "the flowchart has no nodes" });
   if (g.nodes.length > MAX_FLOW_NODES)
     g.issues.push({
       line: first,
       message: `${g.nodes.length} nodes is more than a reader can follow (${MAX_FLOW_NODES} at most); split it`,
     });
-  const { byId: _byId, ...graph } = g;
+  const { byId: _byId, bare: _bare, open: _open, classes: _classes, ...graph } = g;
   return graph;
+}
+
+/** The subgraphs holding a node or a group, innermost first. */
+export function ancestors(g: FlowGraph, id: string): FlowGroup[] {
+  const groups = new Map(g.groups.map((x) => [x.id, x]));
+  const out: FlowGroup[] = [];
+  let at = groups.get(id)?.parent ?? g.nodes.find((n) => n.id === id)?.group ?? null;
+  while (at) {
+    const x = groups.get(at);
+    if (!x) break;
+    out.push(x);
+    at = x.parent;
+  }
+  return out;
+}
+
+/**
+ * A line's tone: its own, else that of the toned group it leaves from (or is), else the one it
+ * arrives in, so a staging path reads as staging without toning every line.
+ */
+export function edgeTone(g: FlowGraph, e: FlowEdge): FlowTone | null {
+  if (e.tone) return e.tone;
+  const toned = (id: string) => {
+    const self = g.groups.find((x) => x.id === id);
+    return [...(self ? [self] : []), ...ancestors(g, id)].find((x) => x.tone)?.tone ?? null;
+  };
+  return toned(e.from) ?? toned(e.to);
 }

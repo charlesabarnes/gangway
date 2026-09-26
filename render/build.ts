@@ -36,6 +36,19 @@ if (!built.success) {
   for (const log of built.logs) console.error(log);
   process.exit(1);
 }
+const elk = await Bun.build({
+  entrypoints: [path.join(HERE, "src/elk.ts")],
+  outdir: OUT,
+  naming: "elk.js",
+  target: "browser",
+  format: "esm",
+  minify: true,
+  sourcemap: "none",
+});
+if (!elk.success) {
+  for (const log of elk.logs) console.error(log);
+  process.exit(1);
+}
 await Bun.write(path.join(OUT, "kit.css"), Bun.file(path.join(HERE, "src/kit.css")));
 await Bun.write(path.join(OUT, "legacy.css"), Bun.file(path.join(HERE, "src/legacy.css")));
 // The house theme overrides nothing; gangway answers /_gangway/theme.css with the chosen one.
@@ -56,8 +69,11 @@ await Bun.write(
 const js = await Bun.file(path.join(OUT, "kit.js")).arrayBuffer();
 const hasher = new Bun.CryptoHasher("sha256");
 hasher.update(js);
-for (const f of ["kit.css", "legacy.css"])
+for (const f of ["kit.css", "legacy.css", "elk.js"])
   hasher.update(await Bun.file(path.join(OUT, f)).arrayBuffer());
 const version = hasher.digest("hex").slice(0, 12);
 await Bun.write(path.join(OUT, "manifest.json"), `${JSON.stringify({ version }, null, 2)}\n`);
-console.log(`render/dist: kit.js ${(js.byteLength / 1024).toFixed(0)} KiB, version ${version}`);
+const elkSize = Bun.file(path.join(OUT, "elk.js")).size;
+console.log(
+  `render/dist: kit.js ${(js.byteLength / 1024).toFixed(0)} KiB, elk.js ${(elkSize / 1024).toFixed(0)} KiB, version ${version}`,
+);

@@ -1,18 +1,34 @@
-import type { FlowNode } from "@gangway/shared/artifact/flow";
+import { edgeTone, type FlowGraph, type FlowNode } from "@gangway/shared/artifact/flow";
 import type {
   FlowLayout,
   PlacedEdge,
+  PlacedGroup,
   PlacedNode,
   Size,
 } from "@gangway/shared/artifact/flow-layout";
+import { GROUP_HEAD } from "./flow-elk.ts";
 
 const NS = "http://www.w3.org/2000/svg";
 export const FONT = '600 13px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
+const DETAIL_FONT = '400 12px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
 const LABEL_FONT = '400 12px "IBM Plex Mono", ui-monospace, monospace';
-const LINE = 17;
+const CODE_FONT = '400 11px "IBM Plex Mono", ui-monospace, monospace';
+const GROUP_FONT = '600 11px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
 const PAD_X = 14;
 const PAD_Y = 10;
 const MAX_W = 170;
+const MAX_DETAIL_W = 210;
+
+/**
+ * A box's first paragraph is its name; each later one (after a `<br/>`) is a detail line under
+ * it, in mono when the whole paragraph is `in backticks`.
+ */
+export type Line = { text: string; kind: "name" | "detail" | "code" };
+const LOOK: Record<Line["kind"], { font: string; height: number; max: number }> = {
+  name: { font: FONT, height: 17, max: MAX_W },
+  detail: { font: DETAIL_FONT, height: 15, max: MAX_DETAIL_W },
+  code: { font: CODE_FONT, height: 15, max: MAX_DETAIL_W },
+};
 
 let counter = 0;
 let canvas: CanvasRenderingContext2D | null = null;
@@ -24,21 +40,27 @@ export function measure(text: string, font = FONT): number {
   return canvas.measureText(text).width;
 }
 
-export function wrap(label: string): string[] {
-  const out: string[] = [];
-  for (const para of label.split("\n")) {
+export function wrap(label: string): Line[] {
+  const out: Line[] = [];
+  label.split("\n").forEach((raw, i) => {
+    const code = i > 0 && /^\s*`[^`]+`\s*$/.test(raw);
+    const kind: Line["kind"] = i === 0 ? "name" : code ? "code" : "detail";
+    const { font, max } = LOOK[kind];
     let cur = "";
-    for (const word of para.split(/\s+/).filter(Boolean)) {
+    for (const word of raw.replace(/`/g, "").split(/\s+/).filter(Boolean)) {
       const next = cur ? `${cur} ${word}` : word;
-      if (cur && measure(next) > MAX_W) {
-        out.push(cur);
+      if (cur && measure(next, font) > max) {
+        out.push({ text: cur, kind });
         cur = word;
       } else cur = next;
     }
-    out.push(cur);
-  }
+    out.push({ text: cur, kind });
+  });
   return out;
 }
+
+/** A label as one line of plain words, for a note or a screen reader. */
+export const plain = (label: string) => label.replace(/`/g, "").replace(/\n/g, ", ");
 
 export function svg<K extends keyof SVGElementTagNameMap>(
   name: K,
@@ -51,10 +73,10 @@ export function svg<K extends keyof SVGElementTagNameMap>(
   return e;
 }
 
-export function sizeFor(lines: string[], n: FlowNode): Size {
-  const text = Math.max(...lines.map((l) => measure(l)));
+export function sizeFor(lines: Line[], n: FlowNode): Size {
+  const text = Math.max(...lines.map((l) => measure(l.text, LOOK[l.kind].font)));
   const w = Math.max(64, text + PAD_X * 2);
-  const h = lines.length * LINE + PAD_Y * 2;
+  const h = lines.reduce((s, l) => s + LOOK[l.kind].height, 0) + PAD_Y * 2;
   switch (n.shape) {
     case "diamond":
       return { w: Math.max(w * 1.5, 96), h: Math.max(h * 1.7, 64) };
@@ -109,13 +131,26 @@ function shape(n: PlacedNode, g: SVGGElement): void {
   }
 }
 
-function text(lines: string[], x: number, y: number, g: SVGGElement, cls: string): void {
-  const t = svg("text", { x, y: y - ((lines.length - 1) * LINE) / 2, class: cls }, g);
-  lines.forEach((l, i) => {
-    const s = svg("tspan", { x, dy: i === 0 ? 0 : LINE }, t);
-    s.textContent = l;
-  });
+function text(lines: Line[], x: number, y: number, g: SVGGElement, cls: string): void {
+  const t = svg("text", { x, y, class: cls }, g);
+  let at = y - lines.reduce((s, l) => s + LOOK[l.kind].height, 0) / 2;
+  for (const l of lines) {
+    const h = LOOK[l.kind].height;
+    const s = svg("tspan", { x, y: at + h / 2, class: l.kind }, t);
+    s.textContent = l.text;
+    at += h;
+  }
 }
+
+function group(x: PlacedGroup, parent: SVGGElement): void {
+  const g = svg("g", { class: `group${x.tone ? ` tone-${x.tone}` : ""}`, "data-id": x.id }, parent);
+  svg("rect", { x: x.x, y: x.y, width: x.w, height: x.h, rx: 4, class: "gshape" }, g);
+  const t = svg("text", { x: x.x + 12, y: x.y + GROUP_HEAD / 2 + 1, class: "glabel" }, g);
+  t.textContent = x.label.toUpperCase();
+}
+
+export const groupLabelWidth = (label: string) => measure(label.toUpperCase(), GROUP_FONT) + 4;
+export const edgeLabelWidth = (label: string) => measure(label, LABEL_FONT);
 
 const pathD = (e: PlacedEdge) =>
   `M${e.start[0]},${e.start[1]}` +
@@ -131,8 +166,9 @@ export type Drawn = {
 
 export function draw(
   host: HTMLElement,
+  graph: FlowGraph,
   layout: FlowLayout,
-  lines: Map<string, string[]>,
+  lines: Map<string, Line[]>,
   title: string,
 ): Drawn {
   const id = `gwf${++counter}`;
@@ -142,34 +178,51 @@ export function draw(
     "aria-label": title || "Flowchart",
   });
   const defs = svg("defs", {}, s);
-  const arrow = svg(
-    "marker",
-    {
-      id: `${id}-a`,
-      viewBox: "0 0 10 10",
-      refX: 9,
-      refY: 5,
-      markerUnits: "userSpaceOnUse",
-      markerWidth: 10,
-      markerHeight: 10,
-      orient: "auto-start-reverse",
-    },
-    defs,
-  );
-  svg("path", { d: "M0,0 L10,5 L0,10 z", class: "arrowhead" }, arrow);
+  // One arrowhead per tone: a marker does not take the colour of the line it ends.
+  const heads = new Map<string, string>();
+  const head = (tone: string | null) => {
+    const key = tone ?? "ink";
+    if (heads.has(key)) return heads.get(key)!;
+    const ref = `${id}-a-${key}`;
+    const m = svg(
+      "marker",
+      {
+        id: ref,
+        viewBox: "0 0 10 10",
+        refX: 9,
+        refY: 5,
+        markerUnits: "userSpaceOnUse",
+        markerWidth: 10,
+        markerHeight: 10,
+        orient: "auto-start-reverse",
+      },
+      defs,
+    );
+    svg("path", { d: "M0,0 L10,5 L0,10 z", class: `arrowhead${tone ? ` tone-${tone}` : ""}` }, m);
+    heads.set(key, ref);
+    return ref;
+  };
+
+  const groupLayer = svg("g", { class: "groups" }, s);
+  for (const x of [...layout.groups].sort((a, b) => a.depth - b.depth)) group(x, groupLayer);
 
   const edges: Drawn["edges"] = [];
   const edgeLayer = svg("g", { class: "edges" }, s);
   for (const e of layout.edges) {
-    const g = svg("g", { class: `edge ${e.style}${e.back ? " back" : ""}` }, edgeLayer);
+    const tone = edgeTone(graph, e);
+    const g = svg(
+      "g",
+      { class: `edge ${e.style}${e.back ? " back" : ""}${tone ? ` tone-${tone}` : ""}` },
+      edgeLayer,
+    );
     g.style.setProperty("--d", `${e.rank * 140 + 120}ms`);
     const path = svg("path", { d: pathD(e), class: "line", fill: "none" }, g);
     if (e.style !== "dotted") path.setAttribute("pathLength", "1");
-    if (e.arrow !== "none") path.setAttribute("marker-end", `url(#${id}-a)`);
-    if (e.arrow === "both") path.setAttribute("marker-start", `url(#${id}-a)`);
+    if (e.arrow !== "none") path.setAttribute("marker-end", `url(#${head(tone)})`);
+    if (e.arrow === "both") path.setAttribute("marker-start", `url(#${head(tone)})`);
     if (e.label) {
       const lg = svg("g", { class: "elabel" }, g);
-      const w = measure(e.label, LABEL_FONT) + 10;
+      const w = edgeLabelWidth(e.label) + 10;
       svg("rect", { x: e.labelAt[0] - w / 2, y: e.labelAt[1] - 10, width: w, height: 20 }, lg);
       const t = svg("text", { x: e.labelAt[0], y: e.labelAt[1] }, lg);
       t.textContent = e.label;
@@ -187,7 +240,7 @@ export function draw(
         class: `node ${n.shape}${n.tone ? ` tone-${n.tone}` : ""}${acts ? " acts" : ""}`,
         tabindex: 0,
         role: n.link ? "link" : acts ? "button" : "img",
-        "aria-label": `${n.label}${n.note ? `. ${n.note}` : ""}`,
+        "aria-label": `${plain(n.label)}${n.note ? `. ${n.note}` : ""}`,
         "data-id": n.id,
       },
       nodeLayer,
@@ -195,7 +248,7 @@ export function draw(
     g.style.setProperty("--d", `${n.rank * 140}ms`);
     g.style.transformOrigin = `${n.x}px ${n.y}px`;
     shape(n, g);
-    text(lines.get(n.id) ?? [n.label], n.x, n.y, g, "label");
+    text(lines.get(n.id) ?? wrap(n.label), n.x, n.y, g, "label");
     if (n.note)
       svg("circle", { cx: n.x + n.w / 2 - 7, cy: n.y - n.h / 2 + 7, r: 3, class: "has-note" }, g);
     nodes.set(n.id, g);

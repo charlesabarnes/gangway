@@ -8,6 +8,7 @@
     "@fontsource/inter": "^5.3.0",
     "@fontsource/kalam": "^5.3.0",
     "@gangway/shared": "workspace:*",
+    "elkjs": "^0.10",
     "marked": "^16"
   },
   "private": true,
