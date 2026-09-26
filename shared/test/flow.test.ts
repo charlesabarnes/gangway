@@ -112,7 +112,7 @@ describe("parsing a flowchart", () => {
     expect(ancestors(g, "api").map((x) => x.id)).toEqual(["prod", "vps"]);
   });
 
-  test("a line takes its own tone, else the toned group it leaves, else the one it enters", () => {
+  test("a line takes its own tone, else the group it leaves, else the one it enters", () => {
     const g = parseFlow(
       [
         "subgraph prod [Production]:::ok",

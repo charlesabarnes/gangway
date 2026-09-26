@@ -88,7 +88,9 @@ class Flow extends HTMLElement {
           ),
         ];
       } catch (err) {
-        this.#problem(`the layout engine did not load, so its groups are not drawn (${err})`);
+        this.#problem(
+          `the layout engine did not load, so its groups are not drawn (${err instanceof Error ? err.message : String(err)})`,
+        );
       }
     }
     const ids = new Set(g.nodes.map((n) => n.id));

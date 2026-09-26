@@ -31,36 +31,40 @@ export function autoModeSettings(url: string): string {
   );
 }
 
+function claudeRecipe(url: string): Recipe {
+  return {
+    label: 'Claude Code',
+    steps: [
+      {
+        note: 'The plugin brings the MCP server and the /gangway:generate-artifact skill:',
+        code: `claude plugin marketplace add ${PLUGIN_REPO} && claude plugin install gangway@gangway --config mcp_url=${url}`,
+      },
+      {
+        note: 'Or the MCP server alone:',
+        code: `claude mcp add --transport http gangway ${url}`,
+      },
+      {
+        note: 'Then, in Claude Code, run /mcp and sign in to gangway. This page asks you to approve it.',
+      },
+      {
+        note: 'Suggested: Claude Code has its own artifacts, and when they are on it usually picks them over gangway. To make gangway the default, turn them off in ~/.claude/settings.json:',
+        code: '"enableArtifact": false',
+      },
+      {
+        note: 'Or keep them and add a line to ~/.claude/CLAUDE.md:',
+        code: '- For any chart, diagram, document, deck or board, use gangway, not Claude artifacts or a local HTML file, unless I ask for those.',
+      },
+      {
+        note: "Auto mode: Claude Code's safety check does not know this server is yours, so it can block a deploy that carries hostnames or other details from a repo as exfiltration. Tell it in ~/.claude/settings.json (it reads this from user settings only):",
+        code: autoModeSettings(url),
+      },
+    ],
+  };
+}
+
 export function recipes(url: string): Record<AgentClient, Recipe> {
   return {
-    claude: {
-      label: 'Claude Code',
-      steps: [
-        {
-          note: 'The plugin brings the MCP server and the /gangway:generate-artifact skill:',
-          code: `claude plugin marketplace add ${PLUGIN_REPO} && claude plugin install gangway@gangway --config mcp_url=${url}`,
-        },
-        {
-          note: 'Or the MCP server alone:',
-          code: `claude mcp add --transport http gangway ${url}`,
-        },
-        {
-          note: 'Then, in Claude Code, run /mcp and sign in to gangway. This page asks you to approve it.',
-        },
-        {
-          note: 'Suggested: Claude Code has its own artifacts, and when they are on it usually picks them over gangway. To make gangway the default, turn them off in ~/.claude/settings.json:',
-          code: '"enableArtifact": false',
-        },
-        {
-          note: 'Or keep them and add a line to ~/.claude/CLAUDE.md:',
-          code: '- For any chart, diagram, document, deck or board, use gangway, not Claude artifacts or a local HTML file, unless I ask for those.',
-        },
-        {
-          note: "Auto mode: Claude Code's safety check does not know this server is yours, so it can block a deploy that carries hostnames or other details from a repo as exfiltration. Tell it in ~/.claude/settings.json (it reads this from user settings only):",
-          code: autoModeSettings(url),
-        },
-      ],
-    },
+    claude: claudeRecipe(url),
     codex: {
       label: 'Codex',
       steps: [

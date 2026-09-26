@@ -84,7 +84,7 @@ export function elkGraph(
   const add = (parent: string | null, n: ElkNode) =>
     kids.set(parent, [...(kids.get(parent) ?? []), n]);
   for (const n of g.nodes) add(n.group, { id: n.id, ...toElkSize(size(n)) });
-  const groups = g.groups.map((x) => ({
+  const groups = g.groups.map((x): { parent: string | null; node: ElkNode } => ({
     parent: x.parent,
     node: {
       id: x.id,
@@ -94,7 +94,7 @@ export function elkGraph(
         "elk.nodeSize.constraints": "MINIMUM_SIZE",
         "elk.nodeSize.minimum": `(${labelWidth(x.label, "group") + GROUP_PAD * 2}, ${GROUP_HEAD + 24})`,
       },
-    } as ElkNode,
+    },
   }));
   for (const x of groups) add(x.parent, x.node);
   for (const x of groups) x.node.children = kids.get(x.node.id) ?? [];

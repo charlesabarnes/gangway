@@ -164,23 +164,10 @@ export type Drawn = {
   edges: { e: PlacedEdge; g: SVGGElement; path: SVGPathElement }[];
 };
 
-export function draw(
-  host: HTMLElement,
-  graph: FlowGraph,
-  layout: FlowLayout,
-  lines: Map<string, Line[]>,
-  title: string,
-): Drawn {
-  const id = `gwf${++counter}`;
-  const s = svg("svg", {
-    viewBox: `0 0 ${layout.width} ${layout.height}`,
-    role: "group",
-    "aria-label": title || "Flowchart",
-  });
-  const defs = svg("defs", {}, s);
-  // One arrowhead per tone: a marker does not take the colour of the line it ends.
+/** One arrowhead per tone, made on first use: a marker does not take the colour of the line it ends. */
+function arrowheads(defs: SVGElement, id: string): (tone: string | null) => string {
   const heads = new Map<string, string>();
-  const head = (tone: string | null) => {
+  return (tone) => {
     const key = tone ?? "ink";
     if (heads.has(key)) return heads.get(key)!;
     const ref = `${id}-a-${key}`;
@@ -202,6 +189,22 @@ export function draw(
     heads.set(key, ref);
     return ref;
   };
+}
+
+export function draw(
+  host: HTMLElement,
+  graph: FlowGraph,
+  layout: FlowLayout,
+  lines: Map<string, Line[]>,
+  title: string,
+): Drawn {
+  const id = `gwf${++counter}`;
+  const s = svg("svg", {
+    viewBox: `0 0 ${layout.width} ${layout.height}`,
+    role: "group",
+    "aria-label": title || "Flowchart",
+  });
+  const head = arrowheads(svg("defs", {}, s), id);
 
   const groupLayer = svg("g", { class: "groups" }, s);
   for (const x of [...layout.groups].sort((a, b) => a.depth - b.depth)) group(x, groupLayer);

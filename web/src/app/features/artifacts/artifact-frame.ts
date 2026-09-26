@@ -13,11 +13,7 @@ import {
 
 export const FRAME_SRC = '/_gangway/frame.html';
 
-/**
- * An artifact drawn live by the kit, from files that need not be saved anywhere. The page sits
- * in a sandboxed frame with no origin; a new frame is drawn behind the old one and swapped in
- * when ready, so typing does not flicker. It is drawn at `width` and scaled to fit the box.
- */
+/** An artifact drawn live in a sandboxed frame; a redraw swaps in when ready, so typing never flickers. */
 @Component({
   selector: 'app-artifact-frame',
   host: { class: 'block' },
@@ -32,7 +28,6 @@ export const FRAME_SRC = '/_gangway/frame.html';
   `,
 })
 export class ArtifactFrame {
-  /** artifact.md and the files beside it. */
   readonly files = input.required<Record<string, string>>();
   readonly themeCss = input('');
   readonly mode = input<'light' | 'dark'>('light');
@@ -41,7 +36,6 @@ export class ArtifactFrame {
   /** The height it is drawn at; 0 fills the box. */
   readonly height = input(0);
   readonly interactive = input(false);
-  /** Show the kit's own theme toggle. */
   readonly chrome = input(false);
   readonly hash = input('');
 

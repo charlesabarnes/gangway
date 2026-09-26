@@ -1,8 +1,7 @@
 import path from "node:path";
 import { renderDist } from "../previews/artifact-render.ts";
 
-// The UI's live previews: a page on the app surface that draws files it is sent with the kit,
-// framed by the UI and sandboxed, so what it draws never touches the UI's origin.
+// A sandboxed page the UI frames to draw the files it is sent, off the UI's origin.
 
 export const FRAME_PATH = "/_gangway/frame.html";
 const ASSET = /^\/_gangway\/(kit\.js|elk\.js|kit\.css|legacy\.css|theme\.css)$/;

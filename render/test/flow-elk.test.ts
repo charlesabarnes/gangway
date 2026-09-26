@@ -77,7 +77,7 @@ describe("laying out a chart with subgraphs", () => {
     expect(sql.labelAt[0]).toBeLessThan(at.get("pg")!.x);
   });
 
-  test("boxes draw in by their walk depth; a line to a group with the first box inside it", async () => {
+  test("boxes draw in by walk depth; a line to a group with its first box", async () => {
     const g = parseFlow(CHART);
     const l = await layoutElk(g, size, width, new ELK());
     const rank = Object.fromEntries(l.nodes.map((n) => [n.id, n.rank]));

@@ -1,7 +1,4 @@
-/**
- * Flowcharts in Mermaid's flowchart syntax (the subset people write), parsed and laid out here
- * so the linter and the kit agree on what a diagram means.
- */
+/** Mermaid flowcharts (the subset people write), parsed here so the linter and the kit agree. */
 
 export const FLOW_DIRECTIONS = ["TB", "TD", "BT", "LR", "RL"] as const;
 export type FlowDirection = "TB" | "BT" | "LR" | "RL";
@@ -24,7 +21,6 @@ export type FlowNode = {
 export type FlowEdge = {
   /** Mermaid's edge id (`a e1@--> b`), so `class e1 warn` can tone it. */
   id: string | null;
-  /** A node's id or a group's. */
   from: string;
   to: string;
   label: string;
@@ -326,8 +322,7 @@ function statement(g: Builder, s: string, line: number): void {
   chain(g, s, line);
 }
 
-/** Parse a flowchart; `first` is the line number of its first line, for messages. */
-/** Ids only ever referenced that name a group are the group; `class` lines land last. */
+/** `first` numbers messages; ids only referenced that name a group are it; `class` lands last. */
 function settle(g: Builder): void {
   for (const open of g.open)
     g.issues.push({ line: open.line, message: `subgraph ${open.id} is never closed with end` });
@@ -390,10 +385,7 @@ export function ancestors(g: FlowGraph, id: string): FlowGroup[] {
   return out;
 }
 
-/**
- * A line's tone: its own, else that of the toned group it leaves from (or is), else the one it
- * arrives in, so a staging path reads as staging without toning every line.
- */
+/** A line's tone: its own, else its toned group's (leaving, else arriving), so paths read by colour. */
 export function edgeTone(g: FlowGraph, e: FlowEdge): FlowTone | null {
   if (e.tone) return e.tone;
   const toned = (id: string) => {
