@@ -5,20 +5,24 @@ import {
   ProjectPatchSchema,
   PullDeploySchema,
 } from "@gangway/shared/api";
-import { slugify } from "@gangway/shared/hostname";
 import type { Preview, Project } from "@gangway/shared/domain";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { ProjectsRepo } from "../../db/repos/projects.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { can } from "../../auth/actor.ts";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../../errors.ts";
+import {
+  auditFields,
+  checkRepository,
+  checkTemplate,
+  createProject,
+} from "../../projects/create.ts";
 import { readJson } from "../problem.ts";
 import type { PreviewUrl } from "../../previews/deploy-types.ts";
 import type { Pulls } from "../../projects/pulls.ts";
 import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../../projects/workflow.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
 import { parseDuration } from "../../util/duration.ts";
-import { ulid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
@@ -32,19 +36,8 @@ export type ProjectRouteDeps = {
   apiOrigin?: (() => string) | undefined;
 };
 
-const MAX_SLUG = 24;
-
 export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   const { projects, audit } = d;
-  const checkTemplate = (id: string | null | undefined) => {
-    if (id !== undefined && id !== null && !d.templates?.get(id))
-      throw unprocessable(`no such template: ${id}`, { templateId: id });
-  };
-  const checkRepository = (full: string, self?: string) => {
-    const taken = projects.getByFullName("github", full);
-    if (taken && taken.id !== self)
-      throw conflict(`${full} is already project "${taken.slug}"`, { takenBy: taken.slug });
-  };
 
   api.get("/projects", requirePermission("previews.read"), (c) =>
     c.json({ projects: projects.list() }),
@@ -56,21 +49,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
   api.post("/projects", requirePermission("repos.manage"), async (c) => {
     const req = ProjectCreateSchema.parse(await readJson(c));
-    const slug = req.slug ?? slugify(req.name).slice(0, MAX_SLUG).replace(/-+$/, "");
-    if (!slug) throw unprocessable("the name has no usable characters for a slug; give one");
-    if (projects.getBySlug(slug)) throw conflict(`slug "${slug}" is taken`, { slug });
-    if (req.repository) checkRepository(req.repository);
-    checkTemplate(req.templateId);
-    const project = projects.create({
-      id: ulid(),
-      name: req.name,
-      slug,
-      ...(req.repository ? { forge: "github" as const, fullName: req.repository } : {}),
-      prTrigger: req.prTrigger ?? "workflow",
-      templateId: req.templateId ?? null,
-    });
-    audit.record(c.get("actor"), "project.created", project.id, { old: null, new: pick(project) });
-    return c.json({ project }, 201);
+    return c.json({ project: createProject(d, c.get("actor"), req) }, 201);
   });
 
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
@@ -78,7 +57,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
     if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null)
       throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
-    checkTemplate(patch.templateId);
+    checkTemplate(d, patch.templateId);
     if (patch.watermark !== undefined && !can(c.get("actor"), "previews.watermark"))
       throw forbidden('switching the gangway watermark needs "previews.watermark"');
     if (patch.slug !== undefined && patch.slug !== before.slug) {
@@ -89,7 +68,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
         });
     }
     if (repository !== undefined && repository !== before.fullName) {
-      if (repository !== null) checkRepository(repository, before.id);
+      if (repository !== null) checkRepository(projects, repository, before.id);
       projects.setRepository(before.id, repository === null ? null : "github", repository);
     }
     const after = projects.update(before.id, {
@@ -97,8 +76,8 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
       ...(patch.enabled === true ? { disabledReason: null } : {}),
     })!;
     audit.record(c.get("actor"), "project.updated", before.id, {
-      old: pick(before),
-      new: pick(after),
+      old: auditFields(before),
+      new: auditFields(after),
     });
     return c.json({ project: after });
   });
@@ -106,7 +85,10 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.delete("/projects/:ref", requirePermission("repos.manage"), (c) => {
     const before = findProject(projects, c.req.param("ref"));
     projects.delete(before.id);
-    audit.record(c.get("actor"), "project.deleted", before.id, { old: pick(before), new: null });
+    audit.record(c.get("actor"), "project.deleted", before.id, {
+      old: auditFields(before),
+      new: null,
+    });
     return c.body(null, 204);
   });
 
@@ -173,19 +155,3 @@ function pullNumber(s: string): number {
     throw badRequest("a pull request number is a positive integer");
   return n;
 }
-
-const pick = (p: Project) => ({
-  name: p.name,
-  slug: p.slug,
-  repository: p.fullName,
-  prTrigger: p.prTrigger,
-  enabled: p.enabled,
-  templateId: p.templateId,
-  visibility: p.visibility,
-  ttl: p.ttl,
-  forks: p.forks,
-  drafts: p.drafts,
-  prClearance: p.prClearance,
-  forkClearance: p.forkClearance,
-  watermark: p.watermark,
-});

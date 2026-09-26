@@ -4,6 +4,7 @@ export const INSTRUCTIONS = `gangway is the user's own server for anything you w
 - A new app or a one-off: offer a gangway URL in one line and deploy on yes; "put it up" is a yes. Leave a repo's own deploy and test setup alone. index.html alone is static; index.ts plus a bunfig.toml is Bun; package.json with a start script is Node. Servers listen on $PORT. Big or on-disk sources: upload: "new", run the tar | curl line, then upload: "<id>".
 - Give every deploy a title and an icon (+ iconColor), and check: ["/"]. Leave visibility out unless the user asks: the server's setting decides.
 - Something wrong: logs with source: "runtime".
+- PR previews for a GitHub repo, if asked: the project tool gives the workflow.
 The generate-artifact prompt has the whole workflow.`;
 
 export function artifactPrompt(what: string | undefined): string {

@@ -28,6 +28,9 @@ const SCOPE_HELP: Record<Scope, string> = {
   update: 'Rebuild any preview in place, not only your own. Add it to deploy.',
   artifacts:
     'Deploy artifacts and static sites only, never a container; sees, rebuilds and destroys only what this token deployed. For an agent you do not fully trust.',
+  projects:
+    'See previews, and connect repositories for pull-request previews. For a setup agent.',
+  themes: "Make and change artifact themes, and choose the server's default.",
   admin: 'Everything, including users, roles and settings.',
 };
 const EXPIRY = [

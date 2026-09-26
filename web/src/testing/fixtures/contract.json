@@ -171,7 +171,7 @@
   ],
   "previewIconColors": ["navy", "blue", "teal", "green", "yellow", "red", "violet", "gray"],
   "logStreams": ["system", "build", "seed", "stdout", "stderr"],
-  "scopes": ["read", "deploy", "update", "artifacts", "admin"],
+  "scopes": ["read", "deploy", "update", "artifacts", "projects", "themes", "admin"],
   "streamEventTypes": [
     "preview.created",
     "preview.adopted",
@@ -235,6 +235,8 @@
       "previews.destroy_own",
       "previews.watermark"
     ],
+    "projects": ["previews.read", "repos.manage"],
+    "themes": ["artifacts.manage"],
     "admin": [
       "previews.read",
       "previews.read_own",
@@ -537,7 +539,9 @@
         "previews.update_own",
         "previews.destroy_own",
         "previews.watermark"
-      ]
+      ],
+      "projects": ["previews.read", "repos.manage"],
+      "themes": ["artifacts.manage"]
     },
     "expiresAt": "2026-09-22T12:10:00.000Z"
   },

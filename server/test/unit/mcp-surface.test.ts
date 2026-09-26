@@ -7,6 +7,7 @@ import { McpSurface } from "../../src/app/mcp-surface.ts";
 import { staticTokenVerifier } from "../../src/auth/actor.ts";
 import { artifactPrompt, INSTRUCTIONS } from "../../src/mcp/guide.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
+import { WORKFLOW_PATH_IN_REPO } from "../../src/projects/workflow.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
 
@@ -115,7 +116,7 @@ describe("the mcp surface", () => {
     expect((await s.call({ path: "/v1/previews", method: "GET" })).status).toBe(404);
   });
 
-  test("2026-07-28: tools/list names the five tools; tools/call deploys and answers", async () => {
+  test("2026-07-28: tools/list names the seven tools; tools/call deploys and answers", async () => {
     const s = surface();
     const list = await s.messages(await s.modern(1, "tools/list"));
     expect(
@@ -123,7 +124,7 @@ describe("the mcp surface", () => {
         .at(-1)!
         .result.tools.map((t: { name: string }) => t.name)
         .sort(),
-    ).toEqual(["catalog", "deploy", "destroy", "logs", "status"]);
+    ).toEqual(["catalog", "deploy", "destroy", "logs", "project", "status", "theme"]);
 
     const res = await s.modern(2, "tools/call", {
       name: "deploy",
@@ -177,7 +178,7 @@ describe("the mcp surface", () => {
     expect(text).toContain('upload: "new"');
     // A prompt is not a tool.
     expect((await s.messages(await s.modern(4, "tools/list"))).at(-1)!.result.tools).toHaveLength(
-      5,
+      7,
     );
   });
 
@@ -206,6 +207,19 @@ describe("the mcp surface", () => {
     expect(INSTRUCTIONS.length).toBeLessThan(1400);
     for (const text of [skill, artifactPrompt(undefined), INSTRUCTIONS])
       expect(text.replace(/`/g, "")).toContain("artifact.md");
+  });
+
+  test("the plugin's setup skill names the tool and the file the server hands out", () => {
+    const skill = readFileSync(
+      join(import.meta.dir, "../../../plugin/gangway/skills/setup-pr-previews/SKILL.md"),
+      "utf8",
+    );
+    expect(skill).toContain("MCP `project` tool");
+    expect(skill).toContain(WORKFLOW_PATH_IN_REPO);
+    expect(skill).toContain("<!-- gangway-preview -->");
+    expect(
+      readFileSync(join(import.meta.dir, "../../src/projects/workflow.template.yaml"), "utf8"),
+    ).toContain("<!-- gangway-preview -->");
   });
 
   test("the plugin's catalog.md is the catalog, regenerated", () => {

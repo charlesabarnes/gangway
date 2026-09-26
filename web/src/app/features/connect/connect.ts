@@ -13,14 +13,19 @@ const SCOPE_HELP: Record<OAuthScope, string> = {
   update: 'Also rebuild any preview in place, including ones other people deployed.',
   artifacts:
     'Instead of the above: deploy artifacts and static sites only, never a container, and see, rebuild and destroy only what it deployed itself. For an agent you do not fully trust.',
+  projects:
+    'Also connect repositories for pull-request previews: add a repository to gangway and hand back its workflow file.',
+  themes:
+    "Also make and change artifact themes, and choose the server's default: they restyle everyone's artifacts.",
 };
 
 // Picking one of these switches off the others: artifacts means keeping the agent to its own.
 const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
-  artifacts: ['read', 'deploy', 'update'],
+  artifacts: ['read', 'deploy', 'update', 'projects'],
   read: ['artifacts'],
   deploy: ['artifacts'],
   update: ['artifacts'],
+  projects: ['artifacts'],
 };
 
 @Component({

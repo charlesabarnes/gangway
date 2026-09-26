@@ -5,6 +5,8 @@ export const OAUTH_SCOPES = [
   "deploy",
   "update",
   "artifacts",
+  "projects",
+  "themes",
 ] as const satisfies readonly Scope[];
 export type OAuthScope = (typeof OAUTH_SCOPES)[number];
 

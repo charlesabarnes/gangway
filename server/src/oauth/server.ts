@@ -209,6 +209,8 @@ export class OAuthServer {
         deploy: SCOPE_PERMISSIONS.deploy,
         update: SCOPE_PERMISSIONS.update,
         artifacts: SCOPE_PERMISSIONS.artifacts,
+        projects: SCOPE_PERMISSIONS.projects,
+        themes: SCOPE_PERMISSIONS.themes,
       },
       expiresAt: new Date(p.expiresAt),
     };

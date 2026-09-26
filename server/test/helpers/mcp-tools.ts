@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 import { tokenActor, type Actor } from "../../src/auth/actor.ts";
-import { IdempotencyRepo } from "../../src/db/repos/index.ts";
+import { IdempotencyRepo, ProjectsRepo } from "../../src/db/repos/index.ts";
 import type { CallScope } from "../../src/mcp/tool-deps.ts";
 import { Tools } from "../../src/mcp/tools.ts";
 import { Uploads } from "../../src/mcp/uploads.ts";
@@ -29,15 +29,17 @@ export function setupTools(o: { uploads?: { maxBytes?: number } } = {}) {
       })
     : undefined;
   const deploys = new IdempotentDeploys(s.ctx, new IdempotencyRepo(s.db, s.ctx.now));
+  const projects = new ProjectsRepo(s.db, s.ctx.now);
   const tools = new Tools({
     ctx: s.ctx,
     deploys,
     logger: silentLogger(),
     ...(uploads ? { uploads } : {}),
+    projects: { repo: projects, apiOrigin: () => "https://api.preview.localhost:8443" },
   });
   const scope = (actor: Actor = ACTOR, signal = new AbortController().signal): CallScope => ({
     actor,
     signal,
   });
-  return { ...s, deploys, tools, scope, uploads, uploadDir };
+  return { ...s, deploys, tools, scope, uploads, uploadDir, projects };
 }

@@ -1,7 +1,7 @@
 {
   "name": "gangway",
-  "version": "0.2.1",
-  "description": "Charts, diagrams, documents, decks and canvases on a real HTTPS URL on your own gangway server, in place of built-in artifacts; and a quick place to put up new apps, with a database if they need one.",
+  "version": "0.2.2",
+  "description": "Charts, diagrams, documents, decks and canvases on a real HTTPS URL on your own gangway server, in place of built-in artifacts; a quick place to put up new apps, with a database if they need one; and previews of every pull request in a GitHub repository.",
   "author": {
     "name": "Charles Barnes"
   },

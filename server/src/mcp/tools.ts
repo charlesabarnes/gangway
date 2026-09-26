@@ -9,6 +9,8 @@ import { destroy } from "../previews/destroy.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { DeployTool } from "./deploy-tool.ts";
 import { describePreview, logTail, refusalDetail } from "./describe.ts";
+import { connectProject } from "./project-tool.ts";
+import { saveTheme } from "./theme-tool.ts";
 import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
 import { nameOf, resolveFor, visibleTo } from "./resolve.ts";
 import {
@@ -24,9 +26,13 @@ import {
   DESTROY_TOOL,
   GENERATE_ARTIFACT_PROMPT,
   LOGS_TOOL,
+  PROJECT_TOOL,
   STATUS_TOOL,
+  THEME_TOOL,
   type DeployArgs,
   type LogSource,
+  type ProjectArgs,
+  type ThemeArgs,
 } from "./tool-specs.ts";
 import type { CallScope, ToolDeps } from "./tool-deps.ts";
 
@@ -86,6 +92,12 @@ export class Tools {
     s.registerTool("catalog", CATALOG_TOOL, (args) =>
       this.#guard("catalog", async () => this.catalog(scope, args.kind, args.template)),
     );
+    s.registerTool("project", PROJECT_TOOL, (args) =>
+      this.#guard("project", async () => this.project(scope, args)),
+    );
+    s.registerTool("theme", THEME_TOOL, (args) =>
+      this.#guard("theme", async () => this.theme(scope, args)),
+    );
     return s;
   }
 
@@ -139,6 +151,24 @@ export class Tools {
       .map(([path, body]) => `--- ${path}\n${body.trimEnd()}`)
       .join("\n");
     return `${guideText(kind)}\n\n## Themes on this server\nName one with theme: <id> in the front matter, or artifact.theme; leave it out for the default.\n${lib.themesText()}\n\n## Templates for a ${kind}\nDeploy one with deploy artifact: {template, title, subtitle, mode, theme, accent, options}, or change these files and deploy them.\n${lib.templatesText(kind)}\n\n## The ${id} template's files\n${example}`;
+  }
+
+  project(scope: CallScope, args: ProjectArgs): string {
+    if (!can(scope.actor, "repos.manage"))
+      throw new MissingPermission(
+        "repos.manage",
+        "reconnect gangway (in Claude Code: /mcp, then re-authenticate) and grant the projects scope",
+      );
+    return connectProject(this.#d, scope.actor, args);
+  }
+
+  theme(scope: CallScope, args: ThemeArgs): string {
+    if (!can(scope.actor, "artifacts.manage"))
+      throw new MissingPermission(
+        "artifacts.manage",
+        "reconnect gangway (in Claude Code: /mcp, then re-authenticate) and grant the themes scope",
+      );
+    return saveTheme(this.#d, scope.actor, args);
   }
 
   async status(scope: CallScope, ref: string | undefined): Promise<string> {

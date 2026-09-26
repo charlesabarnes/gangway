@@ -29,7 +29,7 @@ export type McpSurfaceDeps = {
 };
 
 const SCOPE_FOR: Record<Permission, Scope | undefined> = Object.fromEntries(
-  (["read", "deploy", "update"] as const)
+  (["read", "deploy", "update", "projects", "themes"] as const)
     .flatMap((s) => SCOPE_PERMISSIONS[s].map((p) => [p, s] as const))
     .reverse(),
 ) as Record<Permission, Scope | undefined>;
@@ -38,6 +38,8 @@ const STEP_UP_SCOPES: Record<Scope, string> = {
   deploy: "read deploy",
   update: "read deploy update",
   artifacts: "artifacts",
+  projects: "read deploy projects",
+  themes: "read deploy themes",
   admin: "admin",
 };
 

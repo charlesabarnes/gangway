@@ -135,7 +135,15 @@ export const ALL_PERMISSIONS: readonly Permission[] = PERMISSIONS.map((p) => p.i
 const KNOWN: ReadonlySet<string> = new Set(ALL_PERMISSIONS);
 export const isPermission = (s: string): s is Permission => KNOWN.has(s);
 
-export const SCOPES = ["read", "deploy", "update", "artifacts", "admin"] as const;
+export const SCOPES = [
+  "read",
+  "deploy",
+  "update",
+  "artifacts",
+  "projects",
+  "themes",
+  "admin",
+] as const;
 export type Scope = (typeof SCOPES)[number];
 
 const READ: readonly Permission[] = ["previews.read", "logs.read", "events.read", "hosts.read"];
@@ -158,6 +166,10 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.destroy_own",
     "previews.watermark",
   ],
+  // Connecting a repository for pull-request previews, e.g. from an agent's setup skill.
+  projects: ["previews.read", "repos.manage"],
+  // Making and changing artifact themes, and choosing the server's default, e.g. from a brand.
+  themes: ["artifacts.manage"],
   admin: ALL_PERMISSIONS,
 };
 

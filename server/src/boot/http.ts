@@ -108,6 +108,12 @@ function createMcp(d: HttpDeps): McpSurface {
       deploys: d.deploys,
       uploads,
       logger: logger.child({ mod: "mcp" }),
+      projects: {
+        repo: d.repos.projects,
+        templates: d.repos.templates,
+        apiOrigin: () => d.origin("api"),
+      },
+      themes: { themes: d.repos.artifactThemes, settings },
     }),
     uploads,
     // OAuth access tokens are accepted only here; the /v1 chain does not know them.

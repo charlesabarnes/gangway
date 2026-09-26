@@ -28,15 +28,15 @@ import {
   PREVIEW_ICONS,
 } from "@gangway/shared/preview-icon";
 import type { ArtifactLibrary } from "../../artifacts/library.ts";
+import { createTheme, manage, setDefaultTheme, updateTheme } from "../../artifacts/themes.ts";
 import type { AuditSink } from "../../audit/audit.ts";
 import { actorId, maySee } from "../../auth/actor.ts";
 import type { ArtifactTemplatesRepo, ArtifactThemesRepo } from "../../db/repos/artifacts.ts";
-import { entitled } from "../../entitlements.ts";
-import { conflict, forbidden, notFound, unprocessable } from "../../errors.ts";
+import { conflict, notFound, unprocessable } from "../../errors.ts";
 import { checkFiles, packFiles } from "../../mcp/pack.ts";
 import type { PreviewContext } from "../../previews/context.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
-import { SETTINGS, type Settings } from "../../settings.ts";
+import type { Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 import { readJson } from "../problem.ts";
@@ -82,18 +82,6 @@ const inlineLogo = (t: Theme) => {
   return svg ? `data:image/svg+xml,${encodeURIComponent(svg)}` : undefined;
 };
 
-function manage(): void {
-  if (!entitled("artifact-customisation"))
-    throw forbidden("themes and templates of your own are not part of this plan");
-}
-
-function logoOf(raw: string | null | undefined): string | null | undefined {
-  if (raw === undefined || raw === null || raw === "") return raw === "" ? null : raw;
-  const svg = cleanSvg(raw);
-  if (!svg) throw unprocessable("logo: an SVG document, <svg …>…</svg>");
-  return svg;
-}
-
 const themeView = (t: Theme, def: string) => ({ ...t, isDefault: t.id === def });
 
 function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
@@ -126,41 +114,19 @@ function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   });
 
   api.post("/artifact-themes", requirePermission("artifacts.manage"), async (c) => {
-    manage();
-    const req = ThemeCreateSchema.parse(await readJson(c));
-    if (library.theme(req.id)) throw conflict(`theme "${req.id}" already exists`, { id: req.id });
-    const logo = logoOf(req.logo);
-    const t = d.themes.create(
-      req.id,
-      { ...req, ...(logo === undefined ? {} : { logo }) },
-      actorId(c.get("actor")),
-    );
-    d.audit.record(c.get("actor"), "artifact_theme.created", t.id, { old: null, new: t.name });
+    const t = createTheme(d, c.get("actor"), ThemeCreateSchema.parse(await readJson(c)));
     return c.json({ theme: themeView(t, library.defaultThemeId()) }, 201);
   });
 
   api.put("/artifact-themes/default", requirePermission("artifacts.manage"), async (c) => {
     const { id } = z.strictObject({ id: z.string() }).parse(await readJson(c));
-    if (!library.theme(id)) throw unprocessable(`no theme called "${id}"`);
-    const old = library.defaultThemeId();
-    d.settings.set(SETTINGS.artifactTheme, id);
-    d.audit.record(c.get("actor"), "settings.changed", SETTINGS.artifactTheme.key, {
-      old,
-      new: id,
-    });
+    setDefaultTheme(d, c.get("actor"), id);
     return c.json({ defaultTheme: id });
   });
 
   api.put("/artifact-themes/:id", requirePermission("artifacts.manage"), async (c) => {
-    manage();
-    const id = c.req.param("id");
-    if (id === HOUSE_THEME) throw conflict("gangway's own theme cannot be changed; duplicate it");
-    const before = d.themes.get(id);
-    if (!before) throw notFound(`no such theme: ${id}`);
     const patch = ThemePatchSchema.parse(await readJson(c));
-    const logo = logoOf(patch.logo);
-    const t = d.themes.update(id, { ...patch, ...(logo === undefined ? {} : { logo }) })!;
-    d.audit.record(c.get("actor"), "artifact_theme.updated", id, { old: before.name, new: t.name });
+    const t = updateTheme(d, c.get("actor"), c.req.param("id"), patch);
     return c.json({ theme: themeView(t, library.defaultThemeId()) });
   });
 

@@ -313,13 +313,13 @@ export const ManifestExchangeSchema = z.strictObject({
 });
 export type ManifestExchangeRequest = z.infer<typeof ManifestExchangeSchema>;
 
-const projectSlug = z
+export const ProjectSlugSchema = z
   .string()
   .regex(
     /^[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?$/,
     "a slug is 1-24 lowercase letters, digits and hyphens",
   );
-const repository = z
+export const RepositorySchema = z
   .string()
   .trim()
   .regex(/^[\w.-]+\/[\w.-]+$/, "a repository is owner/name");
@@ -327,8 +327,8 @@ const prTrigger = z.enum(["workflow", "webhook"]);
 
 export const ProjectCreateSchema = z.strictObject({
   name: z.string().trim().min(1).max(64),
-  slug: projectSlug.optional(),
-  repository: repository.optional(),
+  slug: ProjectSlugSchema.optional(),
+  repository: RepositorySchema.optional(),
   prTrigger: prTrigger.optional(),
   templateId: z.string().min(1).max(32).nullable().optional(),
 });
@@ -350,9 +350,9 @@ export type PullDeployRequestBody = z.infer<typeof PullDeploySchema>;
 
 export const ProjectPatchSchema = z.strictObject({
   name: z.string().trim().min(1).max(64).optional(),
-  repository: repository.nullable().optional(),
+  repository: RepositorySchema.nullable().optional(),
   prTrigger: prTrigger.optional(),
-  slug: projectSlug.optional(),
+  slug: ProjectSlugSchema.optional(),
   enabled: z.boolean().optional(),
   visibility: z.enum(["public", "unlisted", "private"]).nullable().optional(),
   ttl: z.string().max(16).nullable().optional(),

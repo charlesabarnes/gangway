@@ -8,6 +8,8 @@ export const TOOL_PERMISSIONS = {
   logs: ["logs.read", "previews.read_own"],
   destroy: ["previews.destroy", "previews.destroy_own"],
   catalog: ["previews.read", "previews.read_own"],
+  project: ["repos.manage"],
+  theme: ["artifacts.manage"],
 } as const satisfies Record<string, readonly Permission[]>;
 export type ToolName = keyof typeof TOOL_PERMISSIONS;
 export const REDEPLOY_PERMISSION: Permission = "previews.update";

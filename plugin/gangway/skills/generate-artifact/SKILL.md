@@ -26,7 +26,7 @@ What to build: $ARGUMENTS (if that is empty or unexpanded, the user's request)
 
 Put the story in the words: a title that says the finding, one idea per section or slide, numbers with units.
 
-Keep gangway's house style unless the user asks for something unusual: then a theme the server has, then `css: style.css` over the kit's tokens, then your own `index.html` (see "The look" in [catalog.md](catalog.md)). Say which you used.
+Keep gangway's house style unless the user asks for something unusual: then a theme the server has, then `css: style.css` over the kit's tokens, then your own `index.html` (see "The look" in [catalog.md](catalog.md)). Say which you used. A look the user wants to keep (their brand, for every artifact) is a theme: make it with the create-theme skill rather than repeating `css:`.
 
 ## Only if the catalog can't express it: write an app
 

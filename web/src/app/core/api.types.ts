@@ -173,8 +173,16 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type Scope = 'read' | 'deploy' | 'update' | 'artifacts' | 'admin';
-export const SCOPES: readonly Scope[] = ['read', 'deploy', 'update', 'artifacts', 'admin'];
+export type Scope = 'read' | 'deploy' | 'update' | 'artifacts' | 'projects' | 'themes' | 'admin';
+export const SCOPES: readonly Scope[] = [
+  'read',
+  'deploy',
+  'update',
+  'artifacts',
+  'projects',
+  'themes',
+  'admin',
+];
 
 const READ_BUNDLE: readonly Permission[] = [
   'previews.read',
@@ -199,6 +207,8 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     'previews.destroy_own',
     'previews.watermark',
   ],
+  projects: ['previews.read', 'repos.manage'],
+  themes: ['artifacts.manage'],
   admin: PERMISSIONS,
 };
 
@@ -345,7 +355,7 @@ export type Surfaces = {
 export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: string };
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
-export type OAuthScope = 'read' | 'deploy' | 'update' | 'artifacts';
+export type OAuthScope = 'read' | 'deploy' | 'update' | 'artifacts' | 'projects' | 'themes';
 export type ConsentRequest = {
   id: string;
   client: { id: string; name: string; host: string };
