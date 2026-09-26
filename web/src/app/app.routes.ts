@@ -54,7 +54,38 @@ export const routes: Routes = [
   { path: 'projects', redirectTo: 'repositories' },
   { path: 'projects/:ref', redirectTo: 'repositories/:ref' },
   { path: 'repos', redirectTo: 'repositories' },
-  { path: 'templates', redirectTo: 'settings' },
+  {
+    path: 'artifacts',
+    title: 'Artifacts · gangway',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/artifacts/artifacts-page').then((m) => m.ArtifactsPage),
+  },
+  {
+    path: 'artifacts/new',
+    title: 'New artifact · gangway',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/artifacts/new-artifact').then((m) => m.NewArtifact),
+  },
+  {
+    path: 'artifacts/templates/new',
+    title: 'New template · gangway',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/artifacts/new-template').then((m) => m.NewTemplate),
+  },
+  {
+    path: 'artifacts/templates/:kind/:slug',
+    title: 'Template · gangway',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/artifacts/template-detail').then((m) => m.TemplateDetail),
+  },
+  {
+    path: 'artifacts/themes/:id',
+    title: 'Theme · gangway',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/artifacts/theme-editor').then((m) => m.ThemeEditor),
+  },
+  { path: 'templates', redirectTo: 'artifacts?tab=templates' },
   {
     path: 'settings',
     title: 'Settings · gangway',

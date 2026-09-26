@@ -414,17 +414,7 @@ export type AddonInfo = {
   env: string[];
 };
 
-export type PreviewAddon = AddonChoice & { name: string; service: string; env: string[] };
-export type DataTable = { schema: string; name: string };
-export type DataResult = {
-  columns: string[];
-  rows: (string | null)[][];
-  truncated: boolean;
-  message: string | null;
-  ms: number;
-};
-export type RedisKeys = { cursor: string; keys: string[] };
-export type RedisKey = { type: string; ttl: string; value: DataResult };
+export type { DataResult, DataTable, PreviewAddon, RedisKey, RedisKeys } from './data.types';
 
 export type SourceFile = { path: string; size: number; text?: string };
 export type PreviewSourceFiles = {

@@ -1,4 +1,4 @@
-export type ArtifactKind = 'document' | 'deck';
+export type ArtifactKind = 'document' | 'deck' | 'canvas';
 export type ArtifactAccent = 'flag' | 'red' | 'teal' | 'blue' | 'green';
 export type ArtifactMode = 'system' | 'light' | 'dark';
 export type ArtifactMeta = {

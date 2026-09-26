@@ -83,7 +83,9 @@ export class WatermarkSettings {
   protected async setOn(on: boolean): Promise<void> {
     if (await this.#put(ON, on)) {
       this.on.set(on);
-      this.#toasts.info(`Previews ${on ? 'show' : 'hide'} the gangway watermark from their next page load`);
+      this.#toasts.info(
+        `Previews ${on ? 'show' : 'hide'} the gangway watermark from their next page load`,
+      );
     } else this.on.set(!on);
   }
 

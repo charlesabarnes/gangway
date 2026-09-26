@@ -8,6 +8,7 @@ import { authenticate, type AuthDeps } from "./middleware/auth.ts";
 import { errorHandler, problemResponse } from "./problem.ts";
 import { serveStatic } from "./static.ts";
 import { serveKitFont } from "./kit-fonts.ts";
+import { FRAME_PATH, serveKitFrame } from "./kit-frame.ts";
 
 export type AppDeps = AuthDeps & {
   logger: Logger;
@@ -34,7 +35,9 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
 
   app.use(async (c, next) => {
     await next();
-    if (new URL(c.req.url).pathname === "/v1/auth/gate") return;
+    const path = new URL(c.req.url).pathname;
+    // The frame page says for itself who may frame it: the UI, and only the UI.
+    if (path === "/v1/auth/gate" || path === FRAME_PATH) return;
     try {
       c.res.headers.set("x-frame-options", "DENY");
       c.res.headers.append("content-security-policy", "frame-ancestors 'none'");
@@ -74,8 +77,8 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
     const path = new URL(c.req.url).pathname;
     const isApiPath = path === "/v1" || path.startsWith("/v1/");
     if (c.env.surface === "app" && !isApiPath) {
-      const font = await serveKitFont(c.req.raw);
-      if (font) return font;
+      const kit = (await serveKitFont(c.req.raw)) ?? (await serveKitFrame(c.req.raw));
+      if (kit) return kit;
     }
     if (c.env.surface === "app" && d.staticDir && !isApiPath) {
       const res = await serveStatic(c.req.raw, { root: d.staticDir });

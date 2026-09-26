@@ -1,12 +1,16 @@
 import type { Hono } from "hono";
 import { z } from "zod";
+import { frontMatter } from "@gangway/shared/artifact/grammar";
 import { lintMarkdown } from "@gangway/shared/artifact/lint";
 import { TemplateError, TemplateInputSchema } from "@gangway/shared/artifact/templates/index";
 import {
   cleanSvg,
   compileTheme,
+  HOUSE_TOKENS,
+  THEME_FONTS,
   ThemeCreateSchema,
   ThemePatchSchema,
+  TITLE_STYLES,
   type Theme,
 } from "@gangway/shared/artifact/theme";
 import {
@@ -25,11 +29,12 @@ import {
 } from "@gangway/shared/preview-icon";
 import type { ArtifactLibrary } from "../../artifacts/library.ts";
 import type { AuditSink } from "../../audit/audit.ts";
-import { actorId } from "../../auth/actor.ts";
+import { actorId, maySee } from "../../auth/actor.ts";
 import type { ArtifactTemplatesRepo, ArtifactThemesRepo } from "../../db/repos/artifacts.ts";
 import { entitled } from "../../entitlements.ts";
 import { conflict, forbidden, notFound, unprocessable } from "../../errors.ts";
 import { checkFiles, packFiles } from "../../mcp/pack.ts";
+import type { PreviewContext } from "../../previews/context.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { SETTINGS, type Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
@@ -44,6 +49,7 @@ export type ArtifactRouteDeps = {
   audit: AuditSink;
   deploys: IdempotentDeploys;
   wire: (p: Preview) => unknown;
+  ctx: Pick<PreviewContext, "previews" | "sites">;
 };
 
 const READ = ["previews.read", "previews.read_own", "artifacts.manage"] as const;
@@ -70,7 +76,11 @@ const ArtifactDeploySchema = TemplateInputSchema.extend({
   watermark: z.enum(WATERMARK_CHOICES).optional(),
 });
 
-const LOGO_URL = (id: string) => `/v1/artifact-themes/${id}/logo.svg`;
+/** The UI's previews are sandboxed with no origin, so the logo travels inside the stylesheet. */
+const inlineLogo = (t: Theme) => {
+  const svg = t.logo ? cleanSvg(t.logo) : null;
+  return svg ? `data:image/svg+xml,${encodeURIComponent(svg)}` : undefined;
+};
 
 function manage(): void {
   if (!entitled("artifact-customisation"))
@@ -90,14 +100,20 @@ function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   const { library } = d;
   api.get("/artifact-themes", requirePermission(...READ), (c) => {
     const def = library.defaultThemeId();
-    return c.json({ themes: library.themes().map((t) => themeView(t, def)), defaultTheme: def });
+    return c.json({
+      themes: library.themes().map((t) => themeView(t, def)),
+      defaultTheme: def,
+      house: HOUSE_TOKENS,
+      fonts: Object.fromEntries(Object.entries(THEME_FONTS).map(([k, v]) => [k, Object.keys(v)])),
+      titles: TITLE_STYLES,
+    });
   });
 
   api.get("/artifact-themes/:id/theme.css", requirePermission(...READ), (c) => {
     const t = library.theme(c.req.param("id"));
     if (!t) throw notFound(`no such theme: ${c.req.param("id")}`);
     c.header("content-type", "text/css; charset=utf-8");
-    return c.body(compileTheme(t, LOGO_URL(t.id)));
+    return c.body(compileTheme(t, inlineLogo(t)));
   });
 
   api.get("/artifact-themes/:id/logo.svg", requirePermission(...READ), (c) => {
@@ -256,6 +272,9 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   });
 }
 
+const titleOf = (files: Record<string, string>) =>
+  frontMatter(files[ARTIFACT_FILE] ?? "").meta["title"] || undefined;
+
 /** Deploys an artifact from a template, as the MCP deploy tool's artifact argument does. */
 function deployRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   api.post(
@@ -276,7 +295,7 @@ function deployRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
         {
           actor: c.get("actor"),
           source: { kind: "tarball", archive, digest, runtime: "auto" },
-          title: input.title?.slice(0, 100),
+          title: (input.title ?? titleOf(files))?.slice(0, 100),
           ...(name ? { name } : {}),
           ...(visibility ? { visibility } : {}),
           ...(ttl === undefined ? {} : { ttl }),
@@ -291,7 +310,32 @@ function deployRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   );
 }
 
+/** The previews that are artifacts gangway serves, newest first, as the actor may see them. */
+function listRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
+  api.get("/artifacts", requirePermission("previews.read", "previews.read_own"), async (c) => {
+    const actor = c.get("actor");
+    const made = d.ctx.previews.provenances();
+    const none = { owner: null, credential: null };
+    const live = d.ctx.previews
+      .list({})
+      .filter((p) => p.state !== "destroyed" && maySee(actor, made.get(p.id) ?? none));
+    const out = [];
+    for (const p of live) {
+      const site = await d.ctx.sites?.open(p.id);
+      if (site?.kit)
+        out.push({ preview: d.wire(p), kind: site.kind ?? null, theme: site.theme ?? null });
+    }
+    out.sort((a, b) =>
+      String((b.preview as Preview).createdAt).localeCompare(
+        String((a.preview as Preview).createdAt),
+      ),
+    );
+    return c.json({ artifacts: out });
+  });
+}
+
 export function artifactRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
+  listRoute(api, d);
   themeRoutes(api, d);
   templateRoutes(api, d);
   deployRoute(api, d);

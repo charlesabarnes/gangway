@@ -103,6 +103,7 @@ function setup(actor: Actor = ACTOR) {
     audit: s.ctx.audit,
     deploys: new IdempotentDeploys(s.ctx, undefined as never),
     wire: (p) => p,
+    ctx: s.ctx,
   });
   const call = (method: string, path: string, body?: unknown) =>
     api.request(path, {
@@ -189,6 +190,10 @@ describe("the artifacts API", () => {
     await t.ctx.inflight.get(preview.id)?.done;
     expect(t.previews.get(preview.id)!.state).toBe("awake");
     expect(t.previews.get(preview.id)!.project).toEndWith("-system");
+    const { artifacts } = (await (await t.call("GET", "/artifacts")).json()) as {
+      artifacts: { preview: { id: string }; kind: string }[];
+    };
+    expect(artifacts.map((a) => [a.preview.id, a.kind])).toEqual([[preview.id, "canvas"]]);
   });
 
   test("only artifacts.manage may make themes and templates", async () => {
@@ -229,5 +234,19 @@ describe("deploying with a theme", () => {
     await expect(deployFiles(t, { "artifact.md": md, "style.css": "body{}" })).rejects.toThrow(
       "keeps every artifact in its theme",
     );
+  });
+});
+
+describe("the UI's preview frame", () => {
+  test("is framable only by the UI, sandboxed, and loads a kit anyone may read", async () => {
+    const { serveKitFrame, FRAME_PATH } = await import("../../src/app/kit-frame.ts");
+    const frame = (await serveKitFrame(new Request(`https://app.example${FRAME_PATH}`)))!;
+    expect(frame.headers.get("content-security-policy")).toBe(
+      "sandbox allow-scripts; frame-ancestors 'self'",
+    );
+    expect(await frame.text()).toContain('import("/_gangway/kit.js")');
+    const kit = (await serveKitFrame(new Request("https://app.example/_gangway/kit.js")))!;
+    expect(kit.headers.get("access-control-allow-origin")).toBe("*");
+    expect(await serveKitFrame(new Request("https://app.example/_gangway/../secrets"))).toBeNull();
   });
 });

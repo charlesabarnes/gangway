@@ -102,6 +102,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
       audit,
       deploys: d.deploys,
       wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
+      ctx,
     });
   secretRoutes(api, d.secrets);
   githubRoutes(api, {
