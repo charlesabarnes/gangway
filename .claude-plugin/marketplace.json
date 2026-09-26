@@ -3,12 +3,12 @@
   "owner": {
     "name": "Charles Barnes"
   },
-  "description": "gangway's Claude Code plugin: deploy artifact-style builds to your own preview server.",
+  "description": "gangway's Claude Code plugin: charts, diagrams, documents and decks, and previews of new apps, on your own server.",
   "plugins": [
     {
       "name": "gangway",
       "source": "./plugin/gangway",
-      "description": "Deploy artifact-style sites and apps to your gangway server, and iterate on them at the same URL."
+      "description": "Charts, diagrams, documents, decks and canvases on a real HTTPS URL on your own gangway server, in place of built-in artifacts; and a quick place to put up new apps, with a database if they need one."
     }
   ]
 }
