@@ -1,7 +1,14 @@
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { renderAssets } from "../previews/artifact-render.ts";
-import { encodedFile, HASHED, notModified, singleRange, type Encoding } from "./encode.ts";
+import {
+  encodedFile,
+  HASHED,
+  notModified,
+  siblingSidecar,
+  singleRange,
+  type Encoding,
+} from "./encode.ts";
 
 /** A preview's files on disk, as gangway serves them in place of a container. */
 export type ServedSite = {
@@ -126,11 +133,12 @@ async function send(
       headers,
     });
   }
+  const sidecar = r.kit ? siblingSidecar : r.site ? siteSidecar(r.site) : undefined;
   const { body, encoding } = await encodedFile(
     req,
     f.abs,
     { size: f.size, mtime: f.mtime, type },
-    r.site ? { sidecar: siteSidecar(r.site) } : {},
+    { sidecar },
   );
   if (encoding) headers["content-encoding"] = encoding;
   return new Response(body, { status, headers });

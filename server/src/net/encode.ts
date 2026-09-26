@@ -14,14 +14,12 @@ const CACHE_BYTES = 64 * 1024 * 1024;
 export const HASHED =
   /-(?=[\w-]{8,16}\.)(?=[^.]*[A-Z0-9])[\w-]{8,16}\.(?:js|css|woff2?|png|svg|jpg|webp|ico|map)$/;
 
-/** A precompressed copy beside the file: main.js.br, main.js.gz. */
 export const siblingSidecar = (abs: string, enc: Encoding) =>
   `${abs}.${enc === "br" ? "br" : "gz"}`;
 
 const brotli = promisify(brotliCompress);
 const gz = promisify(gzip);
 
-/** The best encoding the client takes, by gangway's preference: br, then gzip. */
 export function negotiate(acceptEncoding: string | null): Encoding | null {
   const offered = new Map<string, number>();
   for (const part of (acceptEncoding ?? "").split(",")) {
@@ -53,10 +51,7 @@ export function compress(data: Uint8Array, enc: Encoding, fast = false): Promise
 
 type Entry = { key: string; body: Uint8Array };
 
-/**
- * Compressed bodies of files by path, size and mtime, up to a byte budget. A miss starts the
- * work in the background and answers null, so no request waits on a compressor.
- */
+// A miss compresses in the background and answers null, so no request waits on a compressor.
 export class EncodedCache {
   readonly #entries = new Map<string, Entry>();
   readonly #pending = new Set<string>();
@@ -84,7 +79,6 @@ export class EncodedCache {
     return null;
   }
 
-  /** Waits for whatever is compressing; for tests. */
   async settled(): Promise<void> {
     while (this.#pending.size > 0) await new Promise((r) => setTimeout(r, 5));
   }
@@ -112,10 +106,7 @@ export const sharedEncodedCache = new EncodedCache();
 
 export type Encoded = { body: Blob | Uint8Array; encoding: Encoding | null };
 
-/**
- * The file as the client can best take it: a precompressed copy from `sidecar` when one is
- * there and no older than the file, else the cache's, else the file itself.
- */
+/** A precompressed copy no older than the file, else the cache's, else the file itself. */
 export async function encodedFile(
   req: Request,
   abs: string,
