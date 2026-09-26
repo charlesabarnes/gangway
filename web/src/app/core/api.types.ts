@@ -4,7 +4,7 @@ export type {
   ArtifactAccent,
   ArtifactKind,
   ArtifactMeta,
-  ArtifactTheme,
+  ArtifactMode,
   WatermarkChoice,
 } from './artifact.types';
 export type { AppPlan, Command, PlanIssue, PlanReason, PlanRequest } from './plan.types';

@@ -12,20 +12,22 @@ import { FLOW_DIRECTIONS, parseFlow } from "./flow.ts";
 import {
   ARTIFACT_ACCENTS,
   ARTIFACT_KINDS,
-  ARTIFACT_THEMES,
+  ARTIFACT_MODES,
   CHART_TYPES,
   CONTAINERS,
-  DEVICES,
+  DOC_LAYOUTS,
   FORMATS,
   FRONT_MATTER_KEYS,
+  HOUSE_THEME,
   INLINE_DIRECTIVES,
-  LOOKS,
   oneOf,
+  RETIRED_KINDS,
   SLIDE_LAYOUTS,
+  THEME_ID,
   TONES,
   type ArtifactAccent,
   type ArtifactKind,
-  type ArtifactTheme,
+  type ArtifactMode,
 } from "./vocab.ts";
 
 export type LintIssue = { line: number; message: string };
@@ -33,13 +35,26 @@ export type ArtifactInfo = {
   kind: ArtifactKind;
   title: string;
   description: string | null;
-  theme: ArtifactTheme;
+  mode: ArtifactMode;
+  /** A theme by id; null follows the server's default theme. */
+  theme: string | null;
   accent: ArtifactAccent;
+  /** A stylesheet from the upload, linked after the theme. */
+  css: string | null;
 };
 export type LintResult = { info: ArtifactInfo | null; issues: LintIssue[] };
-export type LintOptions = { has?: ((path: string) => boolean) | undefined };
+export type LintOptions = {
+  has?: ((path: string) => boolean) | undefined;
+  /** The theme ids this server has, when it knows them; any well-formed id passes without. */
+  themes?: readonly string[] | undefined;
+};
 
-type Ctx = { issues: LintIssue[]; opts: LintOptions; screens: Set<string>; links: LintIssue[] };
+type Ctx = { issues: LintIssue[]; opts: LintOptions };
+
+const RETIRED_HINT: Record<string, string> = {
+  dashboard: "use kind: document; stats and charts work in a document",
+  prototype: "use kind: deck for a walkthrough, or write your own index.html",
+};
 
 const inList = (list: readonly string[], v: string | undefined) =>
   v === undefined || list.includes(v);
@@ -114,10 +129,7 @@ function checkFlow(c: Ctx, b: Extract<Block, { type: "flow" }>) {
   if (!b.closed) c.issues.push({ line: b.line, message: "this ```flow fence is never closed" });
   const dir = b.attrs["direction"];
   checkValue(c, b.line, "direction", dir?.toUpperCase(), FLOW_DIRECTIONS);
-  const g = parseFlow(b.src.join("\n"), b.line + 1);
-  c.issues.push(...g.issues);
-  for (const n of g.nodes)
-    if (n.link?.startsWith("#")) c.links.push({ line: n.line, message: n.link.slice(1) });
+  c.issues.push(...parseFlow(b.src.join("\n"), b.line + 1).issues);
 }
 
 function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
@@ -172,16 +184,9 @@ function checkText(c: Ctx, line: number, text: string) {
     }
     const a = parseAttrs(raw);
     if (name === "flag") checkValue(c, line, "tone", a["tone"], TONES);
-    if (name === "button" && a["go"]) c.links.push({ line, message: a["go"] });
-    if (name === "select" && !a["options"])
-      c.issues.push({ line, message: `${whole}: a select needs options="A,B"` });
     if (name === "steps") checkSteps(c, line, whole, text, a);
-    if (name === "tabs")
-      for (const go of (a["go"] ?? "").split(",").map((g) => g.trim()))
-        if (go) c.links.push({ line, message: go });
     if (name === "image") checkImage(c, line, whole, a);
   }
-  for (const m of text.matchAll(/\]\(#([\w-]+)\)/g)) c.links.push({ line, message: m[1]! });
 }
 
 function walk(c: Ctx, blocks: Block[]) {
@@ -198,8 +203,33 @@ function walk(c: Ctx, blocks: Block[]) {
   }
 }
 
+function checkTheme(c: Ctx, meta: Record<string, string>) {
+  const theme = meta["theme"];
+  if (theme === undefined || (ARTIFACT_MODES as readonly string[]).includes(theme)) return;
+  const known = c.opts.themes;
+  if (!THEME_ID.test(theme))
+    c.issues.push({ line: 1, message: `theme: "${theme}" is not a theme id (a-z, 0-9, -)` });
+  else if (known && theme !== HOUSE_THEME && !known.includes(theme))
+    c.issues.push({
+      line: 1,
+      message: `theme: no theme called "${theme}"; this server has ${oneOf([HOUSE_THEME, ...known])}`,
+    });
+}
+
+function checkCss(c: Ctx, css: string | undefined) {
+  if (css === undefined) return;
+  if (!/^[\w./-]+\.css$/.test(css) || css.includes(".."))
+    c.issues.push({ line: 1, message: `css: "${css}" is a path to a .css file in the upload` });
+  else if (c.opts.has && !c.opts.has(css.replace(/^\//, "")))
+    c.issues.push({ line: 1, message: `css: ${css} is not in the upload` });
+}
+
 function checkFrontMatter(c: Ctx, meta: Record<string, string>): ArtifactKind | null {
   const kind = meta["kind"];
+  if (kind && (RETIRED_KINDS as readonly string[]).includes(kind)) {
+    c.issues.push({ line: 1, message: `kind: ${kind} is retired; ${RETIRED_HINT[kind]}` });
+    return null;
+  }
   if (!kind || !(ARTIFACT_KINDS as readonly string[]).includes(kind)) {
     c.issues.push({ line: 1, message: `front matter needs kind: ${oneOf(ARTIFACT_KINDS)}` });
     return null;
@@ -213,49 +243,49 @@ function checkFrontMatter(c: Ctx, meta: Record<string, string>): ArtifactKind | 
       message: `a ${k} has no ${unknown.join(", ")}; it takes ${FRONT_MATTER_KEYS[k].join(", ")}`,
     });
   checkValue(c, 1, "accent", meta["accent"], ARTIFACT_ACCENTS);
-  checkValue(c, 1, "theme", meta["theme"], ARTIFACT_THEMES);
-  checkValue(c, 1, "device", meta["device"], DEVICES);
-  checkValue(c, 1, "look", meta["look"], LOOKS);
+  checkValue(c, 1, "mode", meta["mode"], ARTIFACT_MODES);
+  checkValue(c, 1, "layout", meta["layout"], DOC_LAYOUTS);
+  checkTheme(c, meta);
+  checkCss(c, meta["css"]);
   return k;
 }
 
-function checkPieces(c: Ctx, kind: ArtifactKind, body: string, offset: number) {
+function checkSlides(c: Ctx, body: string, offset: number) {
   for (const p of pieces(body, offset)) {
-    if (kind === "deck") checkValue(c, p.line, "layout", p.head?.["layout"], SLIDE_LAYOUTS);
-    if (kind === "prototype") {
-      const id = p.head?.["id"];
-      if (!id) c.issues.push({ line: p.line, message: 'start each screen with {#id title="…"}' });
-      else if (c.screens.has(id))
-        c.issues.push({ line: p.line, message: `two screens are called #${id}` });
-      else c.screens.add(id);
-      if (p.head?.["back"]) c.links.push({ line: p.line, message: p.head["back"] });
-    }
+    checkValue(c, p.line, "layout", p.head?.["layout"], SLIDE_LAYOUTS);
     walk(c, scan(p.lines, p.first));
   }
 }
 
+/** The mode, from `mode:` or, as before there was one, `theme: light | dark | system`. */
+function modeOf(meta: Record<string, string>): ArtifactMode {
+  const m = meta["mode"] ?? meta["theme"];
+  return (ARTIFACT_MODES as readonly string[]).includes(m ?? "") ? (m as ArtifactMode) : "system";
+}
+
+function themeOf(meta: Record<string, string>): string | null {
+  const t = meta["theme"];
+  return t && !(ARTIFACT_MODES as readonly string[]).includes(t) ? t : null;
+}
+
 export function lintMarkdown(src: string, opts: LintOptions = {}): LintResult {
-  const c: Ctx = { issues: [], opts, screens: new Set(), links: [] };
+  const c: Ctx = { issues: [], opts };
   const { meta, body, offset } = frontMatter(src);
   if (!/^---\r?\n/.test(src))
     c.issues.push({ line: 1, message: "start with front matter: ---, kind: …, title: …, ---" });
   const kind = checkFrontMatter(c, meta);
-  if (kind === "deck" || kind === "prototype") checkPieces(c, kind, body, offset);
-  else walk(c, scan(body.split(/\r?\n/), offset + 1));
-  if (kind === "prototype") {
-    if (meta["start"]) c.links.push({ line: 1, message: meta["start"] });
-    for (const l of c.links)
-      if (!c.screens.has(l.message))
-        c.issues.push({ line: l.line, message: `no screen has the id #${l.message}` });
-  }
+  if (kind === "deck") checkSlides(c, body, offset);
+  else if (kind) walk(c, scan(body.split(/\r?\n/), offset + 1));
   c.issues.sort((a, b) => a.line - b.line);
   const info: ArtifactInfo | null = kind
     ? {
         kind,
         title: meta["title"] ?? "",
         description: meta["subtitle"] || null,
-        theme: (meta["theme"] as ArtifactTheme | undefined) ?? "system",
+        mode: modeOf(meta),
+        theme: themeOf(meta),
         accent: (meta["accent"] as ArtifactAccent | undefined) ?? "flag",
+        css: meta["css"]?.replace(/^\//, "") ?? null,
       }
     : null;
   return { info, issues: c.issues.slice(0, 20) };

@@ -62,7 +62,7 @@ export function artifactIndex(meta: ArtifactMeta, version: string): string {
   const v = `?v=${version}`;
   const base = `/${RENDER_PATH}`;
   return `<!doctype html>
-<html lang="en" data-pref="${meta.theme}" data-accent="${meta.accent}">
+<html lang="en" data-pref="${meta.mode}" data-accent="${meta.accent}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -76,7 +76,8 @@ ${desc ? `<meta name="description" content="${desc}">\n<meta property="og:descri
 <link rel="preload" href="${base}/fonts/sans-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="${base}/fonts/serif-400-italic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="${base}/kit.css${v}">
-<script type="module" src="${base}/kit.js${v}"></script>
+<link rel="stylesheet" href="${base}/theme.css">
+${meta.css ? `<link rel="stylesheet" href="/${escapeHtml(meta.css)}">\n` : ""}<script type="module" src="${base}/kit.js${v}"></script>
 </head>
 <body>
 <noscript><p style="padding:24px;font-family:sans-serif">${title} needs JavaScript to render.</p></noscript>

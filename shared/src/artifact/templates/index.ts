@@ -1,22 +1,32 @@
 import { z } from "zod";
-import { ARTIFACT_ACCENTS, ARTIFACT_FILE, ARTIFACT_THEMES, type ArtifactKind } from "../vocab.ts";
-import { DASHBOARD_TEMPLATES } from "./dashboard.ts";
+import {
+  ARTIFACT_ACCENTS,
+  ARTIFACT_FILE,
+  ARTIFACT_MODES,
+  THEME_ID,
+  type ArtifactKind,
+} from "../vocab.ts";
 import { DECK_TEMPLATES } from "./deck.ts";
 import { DOCUMENT_TEMPLATES } from "./document.ts";
 import type { ArtifactTemplate, OptionValue, TemplateOption, TemplateSettings } from "./kit.ts";
-import { PROTOTYPE_TEMPLATES } from "./prototype.ts";
 
 export type { ArtifactTemplate, OptionValue, TemplateOption } from "./kit.ts";
 
 export const ARTIFACT_TEMPLATES: readonly ArtifactTemplate[] = [
   ...DOCUMENT_TEMPLATES,
-  ...DASHBOARD_TEMPLATES,
   ...DECK_TEMPLATES,
-  ...PROTOTYPE_TEMPLATES,
 ];
 
+/** Names templates had before ADR-0033, still accepted. */
+const RENAMED: Record<string, string> = {
+  "document/proposal": "document/memo",
+  "document/releases": "document/changelog",
+  "deck/status": "deck/review",
+  "deck/lesson": "deck/talk",
+};
+
 export const templateById = (id: string): ArtifactTemplate | undefined =>
-  ARTIFACT_TEMPLATES.find((t) => t.id === id);
+  ARTIFACT_TEMPLATES.find((t) => t.id === (RENAMED[id] ?? id));
 export const templatesFor = (kind: ArtifactKind): ArtifactTemplate[] =>
   ARTIFACT_TEMPLATES.filter((t) => t.kind === kind);
 
@@ -27,7 +37,9 @@ export const TemplateInputSchema = z.strictObject({
   template: z.string().min(1).max(64),
   title: z.string().trim().min(1).max(120).optional(),
   subtitle: z.string().trim().max(300).optional(),
-  theme: z.enum(ARTIFACT_THEMES).optional(),
+  mode: z.enum(ARTIFACT_MODES).optional(),
+  /** A theme's id; light, dark and system still mean the mode, as before there was one. */
+  theme: z.union([z.enum(ARTIFACT_MODES), z.string().regex(THEME_ID)]).optional(),
   accent: z.enum(ARTIFACT_ACCENTS).optional(),
   options: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])).optional(),
 });
@@ -53,6 +65,15 @@ function optionValue(o: TemplateOption, v: OptionValue | undefined): OptionValue
   return s;
 }
 
+function modeAndTheme(input: Pick<TemplateInput, "mode" | "theme">) {
+  const t = input.theme;
+  const legacy = t !== undefined && (ARTIFACT_MODES as readonly string[]).includes(t);
+  return {
+    mode: input.mode ?? (legacy ? (t as TemplateSettings["mode"]) : "system"),
+    theme: legacy ? null : (t ?? null),
+  };
+}
+
 export function settingsFor(
   t: ArtifactTemplate,
   input: Omit<TemplateInput, "template">,
@@ -66,7 +87,7 @@ export function settingsFor(
   return {
     title: input.title ?? t.title,
     subtitle: input.subtitle ?? t.subtitle,
-    theme: input.theme ?? "system",
+    ...modeAndTheme(input),
     accent: input.accent ?? "flag",
     opts: Object.fromEntries(t.options.map((o) => [o.key, optionValue(o, given[o.key])])),
   };

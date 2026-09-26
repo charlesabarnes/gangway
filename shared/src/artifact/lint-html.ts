@@ -12,7 +12,9 @@ import {
   TONES,
   type ArtifactAccent,
   type ArtifactKind,
-  type ArtifactTheme,
+  ARTIFACT_KINDS,
+  ARTIFACT_MODES,
+  type ArtifactMode,
 } from "./vocab.ts";
 
 export const usesKit = (html: string) => /\/_gangway\/kit\.(js|css)/.test(html);
@@ -95,15 +97,19 @@ export function lintHtml(html: string): { info: ArtifactInfo | null; issues: Lin
   const issues: LintIssue[] = [];
   const all = tags(html);
   for (const t of all) checkTag(html, t, issues);
-  const roots = all.filter((t) => Object.values(ROOT_TAG).includes(t.name));
+  const rootTags = ARTIFACT_KINDS.map((k) => ROOT_TAG[k]);
+  const roots = all.filter((t) => rootTags.includes(t.name));
   if (roots.length !== 1)
     issues.push({
       line: roots[1]?.line ?? 1,
-      message: `one root element: ${Object.values(ROOT_TAG).join(", ")} (found ${roots.length})`,
+      message: `one root element: ${rootTags.join(", ")} (found ${roots.length})`,
     });
   const info = roots[0] ? infoOf(html, roots[0]) : null;
   return { info, issues: issues.sort((a, b) => a.line - b.line).slice(0, 20) };
 }
+
+const modeOf = (m: string | undefined): ArtifactMode =>
+  (ARTIFACT_MODES as readonly string[]).includes(m ?? "") ? (m as ArtifactMode) : "system";
 
 function infoOf(html: string, root: { name: string; attrs: Record<string, string> }): ArtifactInfo {
   const kind = Object.entries(ROOT_TAG).find(([, v]) => v === root.name)![0] as ArtifactKind;
@@ -112,7 +118,9 @@ function infoOf(html: string, root: { name: string; attrs: Record<string, string
     kind,
     title: root.attrs["title"] ?? /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? "",
     description: root.attrs["subtitle"] || null,
-    theme: (root.attrs["theme"] as ArtifactTheme | undefined) ?? "system",
+    mode: modeOf(root.attrs["mode"] ?? root.attrs["theme"]),
+    theme: null,
+    css: null,
     accent: ((ARTIFACT_ACCENTS as readonly string[]).includes(accent)
       ? accent
       : "flag") as ArtifactAccent,

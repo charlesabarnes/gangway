@@ -50,6 +50,29 @@ const get = (s: ServedSite, path: string, init: RequestInit = {}, unlisted = fal
   });
 
 describe("the file server", () => {
+  test("answers /_gangway/theme.css with the site's theme, or the kit's own", async () => {
+    const s = await site(SITE, { kit: true, theme: "acme" });
+    const seen: (string | null)[] = [];
+    const themed = (path: string, init: RequestInit = {}) =>
+      serveSite(new Request(`https://x.preview.example.com${path}`, init), s, {
+        unlisted: false,
+        kitDir: renderDist(),
+        themeCss: (id) => {
+          seen.push(id);
+          return id === "acme" ? ":root{--ink:red}" : null;
+        },
+      });
+    const res = await themed("/_gangway/theme.css");
+    expect(await res.text()).toBe(":root{--ink:red}");
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    const again = await themed("/_gangway/theme.css", {
+      headers: { "if-none-match": res.headers.get("etag")! },
+    });
+    expect(again.status).toBe(304);
+    expect(seen).toEqual(["acme", "acme"]);
+    expect(await (await get(s, "/_gangway/theme.css")).text()).toContain("gangway's own theme");
+  });
+
   test("answers a file, an index, path.html, then the single-page fallback", async () => {
     const s = await site({ ...SITE, "docs/index.html": "<p>docs</p>" });
     expect(await (await get(s, "/")).text()).toBe("<h1>home</h1>");

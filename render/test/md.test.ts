@@ -73,6 +73,14 @@ describe("compile", () => {
     );
   });
 
+  test("a Notes: line inside a block is the block's, not the speaker's", () => {
+    const html = compile(
+      "---\nkind: deck\ntitle: T\n---\n# T\n\n---\n\n## End\n::: facts\nNotes: the wiki\n:::\n",
+    );
+    expect(html).toContain("<dt>Notes</dt>");
+    expect(html).not.toContain('<aside class="notes">');
+  });
+
   test("images, steps and tabs become elements, and notes are blocks", () => {
     const html = compile(
       '---\nkind: prototype\ntitle: P\nlook: wireframe\n---\n{#home}\n:image[Room & view]{ratio=4:3}\n\n:steps[Cart,Pay,Done]{at=2}\n\n::: note\nAsk users\n:::\n\n:tabs[Home,Profile]{go="home"}',

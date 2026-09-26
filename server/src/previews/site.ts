@@ -21,6 +21,7 @@ export type SiteMeta = {
   fallback: SiteFallback;
   /** Serve the kit at /_gangway/, as an artifact's page loads it from there. */
   kit: boolean;
+  theme?: string | null;
 };
 
 export type Site = SiteMeta & { root: string; dir: string };
@@ -143,6 +144,7 @@ export class SiteStore {
     const meta: SiteMeta = {
       fallback: plan.serve.fallback,
       kit: plan.artifact !== null,
+      ...(plan.artifact?.theme ? { theme: plan.artifact.theme } : {}),
     };
     if (plan.artifact?.format === "markdown") {
       const html = artifactIndex(plan.artifact, renderAssets().version);

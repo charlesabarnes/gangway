@@ -1,5 +1,5 @@
-export const INSTRUCTIONS = `gangway is where you build artifacts for the user and put them on a real HTTPS URL on their own server: documents, dashboards, slide decks and clickable prototypes, in gangway's own style. A deploy answers in about 10 seconds, so the preview is your test environment.
-- Start with the catalog tool (kind: document | dashboard | deck | prototype). Deploy a template with artifact: {template, title, subtitle, theme, accent, options}, then rewrite artifact.md (markdown with a few blocks) with preview: "<name>" + files. A bad file is refused with the line named.
+export const INSTRUCTIONS = `gangway is where you build artifacts for the user and put them on a real HTTPS URL on their own server: documents and slide decks, in gangway's house style. A deploy answers in about 10 seconds, so the preview is your test environment.
+- Start with the catalog tool (kind: document | deck). Deploy a template with artifact: {template, title, subtitle, mode, theme, accent, options}, then rewrite artifact.md (markdown with a few blocks) with preview: "<name>" + files. A bad file is refused with the line named.
 - Give every deploy a title and an icon (+ iconColor): the user finds previews by them. preview + title/icon changes them without a rebuild.
 - Pass check: ["/"] and the answer carries each path's status, the plan and a sha256 of every file.
 - Only when the catalog can't express it: write an app. index.html alone is static; index.ts plus a bunfig.toml is Bun; package.json with a start script is Node. Servers listen on $PORT. Big or on-disk sources: deploy upload: "new", run the tar | curl line, then upload: "<id>".
@@ -8,13 +8,14 @@ The generate-artifact prompt has the whole workflow.`;
 
 export function artifactPrompt(what: string | undefined): string {
   const task = what?.trim() ? `What to build: ${what.trim()}\n\n` : "";
-  return `${task}Build this as an artifact on gangway: a document, dashboard, slide deck or clickable prototype drawn in gangway's own style at a real HTTPS URL. This is the main way to build here. A deploy answers in about 10 seconds, so the slow part is always you: deploy early and test the live preview.
+  return `${task}Build this as an artifact on gangway: a document or a slide deck drawn in gangway's house style at a real HTTPS URL. This is the main way to build here. A deploy answers in about 10 seconds, so the slow part is always you: deploy early and test the live preview.
 
 ARTIFACTS FIRST
-- Pick the kind: document (reading), dashboard (numbers and charts), deck (a talk), prototype (a clickable mockup).
+- Pick the kind: document (reading, with numbers, charts and diagrams) or deck (a talk or a pitch).
 - Call catalog with that kind. It lists the templates (each with options), every component and its props, and a complete example.
-- Start from the closest template: deploy with artifact: {template, title, subtitle, theme, accent, options}, name, title, icon, iconColor, visibility and check. Then make it the user's: rewrite artifact.md (and data/*.csv) and deploy with preview: "<name>" + files.
+- Start from the closest template: deploy with artifact: {template, title, subtitle, mode, theme, accent, options}, name, title, icon, iconColor, visibility and check. Then make it the user's: rewrite artifact.md (and data/*.csv) and deploy with preview: "<name>" + files.
 - Put the story in the words: a title that says the finding, one idea per section or slide, numbers with units.
+- Keep gangway's house style unless the user asks for something unusual; then a theme the server has, then css: style.css over the kit's tokens, then your own index.html. Say which you used.
 - gangway checks artifact.md on deploy; a 422 names the line. Fix exactly that.
 - For a layout markdown can't express, write index.html with gangway's gw-* elements instead (the guide shows how).
 

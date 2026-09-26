@@ -34,16 +34,41 @@ export function rootSettings(e: Element): void {
   if (accent) document.documentElement.dataset["accent"] = accent;
   const title = e.getAttribute("title");
   if (title) document.title = title;
-  const theme = e.getAttribute("theme");
-  if (theme) document.documentElement.dataset["pref"] = theme;
+  // `theme` named light, dark or system before `mode` did; any other value is a theme's name.
+  const mode = e.getAttribute("mode") ?? e.getAttribute("theme");
+  if (mode === "light" || mode === "dark" || mode === "system")
+    document.documentElement.dataset["pref"] = mode;
   applyTheme();
+}
+
+/** Groups a document's children into sections at each h2: the title aside, the content beside. */
+function parts(doc: HTMLElement): void {
+  const lead = document.createElement("div");
+  lead.className = "gw-lead";
+  let body: HTMLElement = lead;
+  const out: HTMLElement[] = [lead];
+  for (const n of [...doc.childNodes]) {
+    if (n instanceof HTMLElement && n.localName === "h2") {
+      const part = document.createElement("section");
+      part.className = "gw-part";
+      const head = document.createElement("div");
+      head.className = "gw-part-head";
+      head.append(n);
+      body = document.createElement("div");
+      body.className = "gw-part-body";
+      part.append(head, body);
+      out.push(part);
+    } else body.append(n);
+  }
+  if (!lead.textContent?.trim() && lead.children.length === 0) out.shift();
+  doc.append(...out);
 }
 
 class Doc extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     rootSettings(this);
-    this.classList.add("gw-sheet");
+    parts(this);
     const meta = [attr(this, "byline"), attr(this, "date")].filter(Boolean).join(" · ");
     this.prepend(
       titleBlock(

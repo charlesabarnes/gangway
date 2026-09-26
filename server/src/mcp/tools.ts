@@ -147,7 +147,7 @@ export class Tools {
     const example = Object.entries(renderTemplate({ template: id }))
       .map(([path, body]) => `--- ${path}\n${body.trimEnd()}`)
       .join("\n");
-    return `${guideText(kind)}\n\n## Templates for a ${kind}\nDeploy one with deploy artifact: {template, title, subtitle, theme, accent, options}, or change these files and deploy them.\n${templatesText(kind)}\n\n## The ${id} template's files\n${example}`;
+    return `${guideText(kind)}\n\n## Templates for a ${kind}\nDeploy one with deploy artifact: {template, title, subtitle, mode, theme, accent, options}, or change these files and deploy them.\n${templatesText(kind)}\n\n## The ${id} template's files\n${example}`;
   }
 
   async status(scope: CallScope, ref: string | undefined): Promise<string> {

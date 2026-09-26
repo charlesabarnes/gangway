@@ -5,9 +5,7 @@ import {
   flag,
   front,
   md,
-  MONTHS,
   num,
-  series,
   slides,
   stat,
   str,
@@ -19,162 +17,144 @@ const pitch: ArtifactTemplate = {
   kind: "deck",
   name: "Pitch",
   description:
-    "Make a case: the problem, one number that proves it, the proposal, the cost, the ask.",
+    "Make a case: the problem, one number that proves it, the proposal, what it costs, the ask.",
   title: "A live preview for every pull request",
   subtitle: "Review the change, not a description of it",
   options: [
-    { key: "agenda", label: "Agenda slide", kind: "boolean", default: false },
     { key: "number", label: "Big-number slide", kind: "boolean", default: true },
     { key: "chart", label: "Chart beside the proposal", kind: "boolean", default: true },
+    { key: "quote", label: "A reviewer's quote", kind: "boolean", default: true },
   ],
   build(s) {
     const how =
-      "1. A pull request opens\n2. CI builds it\n3. A link appears on the PR\n4. Closing the PR removes it";
-    const trend = chart("line", { x: "week", y: "previews", title: "Previews a week" }, [
+      "1. A pull request opens\n2. CI builds it\n3. A link appears on the pull request\n4. Closing it removes the preview";
+    const trend = chart("line", { x: "week", y: "previews", title: "Previews a week, pilot" }, [
       ["week", "previews"],
-      ...["W1", "W2", "W3", "W4", "W5"].map((w, i) => [w, [12, 31, 44, 58, 61][i]!]),
+      ...["W1", "W2", "W3", "W4", "W5", "W6"].map((w, i) => [w, [12, 31, 44, 58, 61, 66][i]!]),
     ]);
     const deck = slides(
-      `# ${s.title}\n${s.subtitle}\n\nNotes: One minute. The demo comes later.`,
-      flag(s, "agenda") &&
-        "## Agenda\n1. The problem\n2. What we propose\n3. What it costs\n4. The ask",
-      "## Reviews stall on setup\n- Reviewers pull the branch, install and run it by hand\n- Designers and PMs can't do that at all\n- So most UI changes are approved **from screenshots**",
+      `# ${s.title}\n${s.subtitle}\n\nNotes: One minute. The demo comes after the ask.`,
+      "## Reviews stall on setup\n- Reviewers pull the branch, install it and run it by hand\n- Designers and product managers can't do that at all\n- So most interface changes are approved **from screenshots**",
       flag(s, "number") &&
-        `## A change waits a day for its first review\n${stat({ label: "Median wait", value: "26 h", delta: "-40%", good: "down", note: "Down from 43 h in the pilot" })}`,
+        `{layout=big}\n${stat({ label: "Median wait for a first review", value: "26 h", delta: "-40%", good: "down", note: "43 h before the pilot" })}`,
       flag(s, "chart")
-        ? `## One push, one link\n${block("columns", {}, `${how}\n+++\n${trend}`)}`
+        ? `{layout=split}\n## One push, one link\n${block("columns", {}, `${how}\n+++\n${trend}`)}`
         : `## One push, one link\n${how}`,
-      `## It costs two days and a server we own\n${block("stats", {}, "Hosting | $0 | | Hardware we own\nSetup | 2 days | | One workflow file per repo\nUpkeep | 1 h/mo | | Updates and certificates")}`,
-      `## The ask\n${block("callout", { title: "Roll it out to three more teams this quarter" }, "We'll report review times again at the end of next quarter.")}`,
+      flag(s, "quote") &&
+        "{layout=quote}\n> I reviewed the checkout change on my phone, on the train, before it merged.\n>\n> — Priya, design lead",
+      `## It costs two days and a server we own\n${block("stats", {}, "Setup | 2 days | | One workflow file a repository\nHosting | $0 | | Hardware we run\nUpkeep | 1 h a month | | Updates and certificates")}`,
+      `{layout=statement}\n## Roll it out to three more teams this quarter.\n\nWe report review times again at the end of the quarter, and switch it off if they have not fallen.`,
+      `{layout=end}\n# Questions\nThe pilot's numbers and setup notes are in the platform wiki.`,
     );
-    return { markdown: md(front(s, "deck", { footer: s.title }), deck) };
+    return { markdown: md(front(s, "deck", { footer: "Platform team · September 2026" }), deck) };
   },
 };
 
 const STREAMS = [
-  {
-    name: "Checkout redesign",
-    state: "On track",
-    tone: "ok",
-    done: "New address form live for half of users",
-    next: "Roll out to everyone",
-  },
-  {
-    name: "Search relevance",
-    state: "At risk",
-    tone: "warn",
-    done: "Ranking model trained on six months of clicks",
-    next: "A/B test; needs one more engineer",
-  },
-  {
-    name: "Mobile app 2.0",
-    state: "On track",
-    tone: "ok",
-    done: "Offline mode in beta",
-    next: "App store review",
-  },
-  {
-    name: "Data warehouse move",
-    state: "Blocked",
-    tone: "danger",
-    done: "Schemas migrated",
-    next: "Waiting on security review since the 4th",
-  },
-  {
-    name: "Accessibility audit",
-    state: "Done",
-    tone: "flag",
-    done: "42 issues fixed",
-    next: "Re-audit next quarter",
-  },
+  ["Checkout redesign", "On track", "ok", "New address form for half of users", "Everyone"],
+  ["Search relevance", "At risk", "warn", "Ranking model trained", "A/B test; needs an engineer"],
+  ["Mobile app 2.0", "On track", "ok", "Offline mode in beta", "App store review"],
+  ["Warehouse move", "Blocked", "danger", "Schemas migrated", "Waiting on a vendor contract"],
+  ["Billing export", "Done", "ok", "Shipped 12 September", "—"],
 ] as const;
 
-const status: ArtifactTemplate = {
-  id: "deck/status",
+const review: ArtifactTemplate = {
+  id: "deck/review",
   kind: "deck",
-  name: "Status update",
-  description: "A recurring update: headline numbers, one slide per workstream, risks, asks.",
-  title: "Product status, September",
-  subtitle: "What shipped, what's next, what's in the way",
+  name: "Status review",
+  description:
+    "A regular review: the headline, each workstream's state, the numbers, the risks, the decisions needed.",
+  title: "Q3 product review",
+  subtitle: "Where each workstream stands, and what we need from you",
   options: [
-    { key: "streams", label: "Workstreams", kind: "number", min: 1, max: 5, default: 3 },
-    { key: "risks", label: "Risks slide", kind: "boolean", default: true },
-    choice("chart", "Progress chart", "line", [
-      ["line", "Line"],
+    { key: "streams", label: "Workstreams", kind: "number", min: 2, max: 5, default: 4 },
+    choice("chart", "Metrics chart", "bar", [
       ["bar", "Bars"],
+      ["line", "Line"],
       ["none", "None"],
     ]),
+    { key: "decisions", label: "Decisions slide", kind: "boolean", default: true },
   ],
   build(s) {
-    const counts = series(7, 6, 11, 6, 1).map(Math.round);
-    const kind = str(s, "chart");
-    const deck = slides(
-      `# ${s.title}\n${s.subtitle}`,
-      `## Fourteen things shipped, a quarter more than last month\n${block("stats", {}, "Shipped | 14 | +27%\nIn progress | 9\nBugs open | 31 | -18% down-good")}`,
-      ...STREAMS.slice(0, num(s, "streams")).map(
-        (w) =>
-          `## ${w.name}\n:flag[${w.state}]{tone=${w.tone}}\n\n${block("facts", {}, `Done: ${w.done}\nNext: ${w.next}`)}`,
+    const streams = STREAMS.slice(0, num(s, "streams"));
+    const table = [
+      "| Workstream | State | Done | Next |",
+      "|---|---|---|---|",
+      ...streams.map(
+        ([n, st, tone, done, next]) => `| ${n} | :flag[${st}]{tone=${tone}} | ${done} | ${next} |`,
       ),
-      kind !== "none" &&
-        `## Delivery has grown every month\n${chart(kind, { x: "month", y: "items", title: "Items delivered", height: 380 }, [["month", "items"], ...MONTHS.slice(3, 9).map((m, i) => [m, counts[i]!])])}`,
-      flag(s, "risks") &&
-        `## Risks\n${block("callout", { tone: "warn", title: "Vendor contract ends in November" }, "Renewal terms are not agreed yet.")}\n\n${block("callout", { tone: "danger", title: "The warehouse move is blocked" }, "Waiting on security review since the 4th.")}`,
-      "## Asks\n1. A decision on pricing by the 15th\n2. One more engineer for search",
-    );
-    return { markdown: md(front(s, "deck", { footer: s.title }), deck) };
-  },
-};
-
-const PARTS = [
-  {
-    title: "What it is",
-    body: "A **preview** is a running copy of a change, at its own URL, for as long as the change is open.",
-  },
-  {
-    title: "How it works",
-    body: "CI builds an image, the server runs it, and a proxy gives it a hostname.",
-  },
-  {
-    title: "When to use it",
-    body: "Anything a reviewer should *see*: UI, copy, flows, a demo for a customer.",
-  },
-  {
-    title: "What it costs",
-    body: "Memory while it runs, disk for the image. Idle previews sleep and wake on the next visit.",
-  },
-  {
-    title: "Common mistakes",
-    body: "Hard-coded hostnames, secrets in the image, and servers that listen on localhost only.",
-  },
-];
-
-const lesson: ArtifactTemplate = {
-  id: "deck/lesson",
-  kind: "deck",
-  name: "Lesson",
-  description:
-    "Teach one idea in parts: a section slide and an explanation per part, then a recap.",
-  title: "Preview environments, explained",
-  subtitle: "A 15-minute introduction",
-  options: [
-    { key: "parts", label: "Parts", kind: "number", min: 2, max: 5, default: 3 },
-    { key: "code", label: "Code example", kind: "boolean", default: true },
-    { key: "quote", label: "Quote slide", kind: "boolean", default: false },
-  ],
-  build(s) {
-    const parts = PARTS.slice(0, num(s, "parts"));
+    ].join("\n");
+    const type = str(s, "chart");
+    const metrics =
+      type !== "none" &&
+      `## Conversion is up two points since July\n${chart(
+        type,
+        { x: "month", y: "conversion", format: "percent", title: "Checkout conversion" },
+        [
+          ["month", "conversion"],
+          ["Jun", 0.031],
+          ["Jul", 0.032],
+          ["Aug", 0.041],
+          ["Sep", 0.052],
+        ],
+      )}`;
     const deck = slides(
       `# ${s.title}\n${s.subtitle}`,
-      `## What we'll cover\n${parts.map((p, i) => `${i + 1}. ${p.title}`).join("\n")}`,
-      ...parts.flatMap((p, i) => [`# ${p.title}\nPart ${i + 1}`, `## ${p.title}\n${p.body}`]),
-      flag(s, "code") &&
-        "## Try it\n```sh\ngit switch -c my-change\ngit push -u origin my-change\n# open a pull request: the link appears on it\n```",
-      flag(s, "quote") &&
-        "## In their words\n> I stopped asking for screenshots.\n>\n> — A product designer",
-      `## Recap\n${block("callout", { title: "Remember" }, parts.map((p) => `- ${p.title}`).join("\n"))}`,
+      `{layout=statement}\n## Three of four workstreams are on track; the warehouse move is blocked on a contract.`,
+      `## Workstreams\n${table}`,
+      metrics,
+      `## Two risks to watch\n${block("callout", { tone: "warn", title: "Search needs one more engineer" }, "Without one, the A/B test slips to November.")}\n\n${block("callout", { tone: "danger", title: "The warehouse contract" }, "Legal review has taken five weeks so far.")}`,
+      flag(s, "decisions") &&
+        `## What we need from you\n1. Move one engineer to search for six weeks\n2. Escalate the warehouse contract with legal`,
+      `{layout=end}\n# Thank you\n${block("facts", {}, "Next review: 12 December\nMinutes: Product wiki, Q3 review")}`,
     );
-    return { markdown: md(front(s, "deck", { footer: s.title }), deck) };
+    return { markdown: md(front(s, "deck", { footer: "Product team · Q3 2026" }), deck) };
   },
 };
 
-export const DECK_TEMPLATES = [pitch, status, lesson];
+const talk: ArtifactTemplate = {
+  id: "deck/talk",
+  kind: "deck",
+  name: "Talk",
+  description:
+    "Teach one idea in sections: a statement, a diagram, an example, a quote, what to take away.",
+  title: "How a request finds your container",
+  subtitle: "Hostnames, a routing table and one proxy",
+  options: [
+    { key: "sections", label: "Sections", kind: "number", min: 1, max: 3, default: 3 },
+    { key: "code", label: "Code example", kind: "boolean", default: true },
+    { key: "notes", label: "Speaker notes", kind: "boolean", default: true },
+  ],
+  build(s) {
+    const notes = (n: string) => (flag(s, "notes") ? `\n\nNotes: ${n}` : "");
+    const flow = [
+      '```flow title="One request" direction=LR',
+      "flowchart LR",
+      "  browser([Browser]) --> proxy[Proxy]",
+      "  proxy --> table{Hostname known?}",
+      "  table -->|yes| app([Container])",
+      "  table -->|no| missing[404 page]",
+      "  class missing muted",
+      "```",
+    ].join("\n");
+    const sections = [
+      `{layout=section}\n## Names\n\n---\n\n{layout=statement}\n## Every preview is a hostname; the hostname is the whole address.${notes("Nothing else in the URL matters to routing.")}`,
+      `{layout=section}\n## The table\n\n---\n\n## One lookup, then one hop\n${flow}${notes("The table lives in memory; the database is only read at boot.")}`,
+      `{layout=section}\n## The proxy\n\n---\n\n## Streaming both ways\n${
+        flag(s, "code")
+          ? "```ts\nconst entry = table.lookup(host);\nif (!entry) return unknownPage(host);\nreturn upstream.fetch(req, entry);\n```"
+          : "- The request body streams in\n- The response streams out\n- Nothing is buffered"
+      }${notes("Three lines carry almost all traffic.")}`,
+    ].slice(0, num(s, "sections"));
+    const deck = slides(
+      `# ${s.title}\n${s.subtitle}`,
+      ...sections,
+      "{layout=quote}\n> Make the common case a lookup, and the rare case a page that says why.\n>\n> — A design note",
+      `## Take away\n- A preview is a **hostname**\n- Routing is one **in-memory lookup**\n- The proxy **streams**; it never waits for a whole body`,
+      `{layout=end}\n# Thank you\nSlides and notes: the team wiki.`,
+    );
+    return { markdown: md(front(s, "deck", { footer: "Engineering onboarding" }), deck) };
+  },
+};
+
+export const DECK_TEMPLATES = [pitch, review, talk];

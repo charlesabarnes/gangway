@@ -37,6 +37,12 @@ if (!built.success) {
   process.exit(1);
 }
 await Bun.write(path.join(OUT, "kit.css"), Bun.file(path.join(HERE, "src/kit.css")));
+await Bun.write(path.join(OUT, "legacy.css"), Bun.file(path.join(HERE, "src/legacy.css")));
+// The house theme overrides nothing; gangway answers /_gangway/theme.css with the chosen one.
+await Bun.write(
+  path.join(OUT, "theme.css"),
+  "/* gangway's own theme: the kit's tokens as they are */\n",
+);
 for (const [name, rel] of Object.entries(FONTS)) {
   const src = Bun.resolveSync(`@fontsource/${rel}`, HERE);
   await Bun.write(path.join(OUT, "fonts", `${name}.woff2`), Bun.file(src));
@@ -48,10 +54,10 @@ await Bun.write(
   Bun.file(path.join(HERE, "../web/public/favicon-preview.svg")),
 );
 const js = await Bun.file(path.join(OUT, "kit.js")).arrayBuffer();
-const css = await Bun.file(path.join(OUT, "kit.css")).arrayBuffer();
 const hasher = new Bun.CryptoHasher("sha256");
 hasher.update(js);
-hasher.update(css);
+for (const f of ["kit.css", "legacy.css"])
+  hasher.update(await Bun.file(path.join(OUT, f)).arrayBuffer());
 const version = hasher.digest("hex").slice(0, 12);
 await Bun.write(path.join(OUT, "manifest.json"), `${JSON.stringify({ version }, null, 2)}\n`);
 console.log(`render/dist: kit.js ${(js.byteLength / 1024).toFixed(0)} KiB, version ${version}`);

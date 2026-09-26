@@ -1,4 +1,4 @@
-import type { ArtifactAccent, ArtifactKind, ArtifactTheme } from "../vocab.ts";
+import type { ArtifactAccent, ArtifactKind, ArtifactMode } from "../vocab.ts";
 
 export type OptionValue = number | string | boolean;
 export type TemplateOption =
@@ -15,7 +15,9 @@ export type TemplateOption =
 export type TemplateSettings = {
   title: string;
   subtitle: string;
-  theme: ArtifactTheme;
+  mode: ArtifactMode;
+  /** A theme by id; null follows the server's default. */
+  theme: string | null;
   accent: ArtifactAccent;
   opts: Record<string, OptionValue>;
 };
@@ -59,7 +61,8 @@ export function front(
     `title: ${s.title}`,
     ...(s.subtitle ? [`subtitle: ${s.subtitle}`] : []),
     `accent: ${s.accent}`,
-    ...(s.theme !== "system" ? [`theme: ${s.theme}`] : []),
+    ...(s.mode !== "system" ? [`mode: ${s.mode}`] : []),
+    ...(s.theme ? [`theme: ${s.theme}`] : []),
     ...Object.entries(extra).map(([k, v]) => `${k}: ${v}`),
   ];
   return `---\n${lines.join("\n")}\n---`;
@@ -143,6 +146,6 @@ export function days(n: number, end = "2026-09-30"): string[] {
 export const md = (...parts: (string | false | undefined)[]) =>
   parts.filter((p): p is string => typeof p === "string" && p !== "").join("\n\n") + "\n";
 
-/** Joins deck slides or prototype screens. */
+/** Joins deck slides. */
 export const slides = (...parts: (string | false | undefined)[]) =>
   parts.filter((p): p is string => typeof p === "string" && p !== "").join("\n\n---\n\n");

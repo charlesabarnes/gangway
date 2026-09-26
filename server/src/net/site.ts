@@ -9,12 +9,15 @@ export type ServedSite = {
   dir: string;
   fallback: "spa" | "404";
   kit: boolean;
+  theme?: string | null | undefined;
 };
 
 export type SiteServeOptions = {
   unlisted: boolean;
   /** The built kit (render/dist), served at /_gangway/ to a site that uses it. */
   kitDir: string;
+  /** The CSS of a theme by id (null: the server's default), or null for the kit's own. */
+  themeCss?: ((id: string | null) => string | null) | undefined;
 };
 
 const KIT_PREFIX = "/_gangway/";
@@ -114,8 +117,26 @@ async function serveKit(
     const f = await fileAt(site.dir, ["kit-config.json"]);
     if (f) return send(req, f, o);
   }
+  if (rest.length === 1 && rest[0] === "theme.css") {
+    const css = o.themeCss?.(site.theme ?? null);
+    if (css !== null && css !== undefined) return themeResponse(req, css);
+  }
   const f = await fileAt(o.kitDir, rest);
   return f ? send(req, f, o, { kit: true }) : plain(404, "not found");
+}
+
+// Short-lived: a theme edited in the UI restyles every artifact that uses it on the next load.
+function themeResponse(req: Request, css: string): Response {
+  const etag = `W/"${Bun.hash(css).toString(36)}"`;
+  const headers = {
+    "content-type": "text/css; charset=utf-8",
+    "cache-control": "no-cache",
+    etag,
+    "x-content-type-options": "nosniff",
+  };
+  if (req.headers.get("if-none-match") === etag)
+    return new Response(null, { status: 304, headers });
+  return new Response(req.method === "HEAD" ? null : css, { headers });
 }
 
 type Lookup = { found: Found } | { redirect: string } | null;

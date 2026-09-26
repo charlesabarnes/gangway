@@ -26,15 +26,15 @@ describe("the tools", () => {
     const s = setupTools();
     const out = s.tools.catalog(s.scope(), "deck");
     expect(out).toContain("- deck/pitch:");
-    expect(out).toContain("- deck/status:");
+    expect(out).toContain("- deck/review:");
     expect(out).toContain("## Decks");
     expect(out).not.toContain("## Prototypes");
     expect(out).toContain("--- artifact.md\n---\nkind: deck");
-    expect(s.tools.catalog(s.scope(), "deck", "deck/lesson")).toContain(
-      "The deck/lesson template's files",
+    expect(s.tools.catalog(s.scope(), "deck", "deck/talk")).toContain(
+      "The deck/talk template's files",
     );
-    expect(() => s.tools.catalog(s.scope(), "deck", "dashboard/kpi")).toThrow(
-      'no deck template "dashboard/kpi"',
+    expect(() => s.tools.catalog(s.scope(), "deck", "document/memo")).toThrow(
+      'no deck template "document/memo"',
     );
   });
 
@@ -63,7 +63,7 @@ describe("the tools", () => {
     const s = setupTools();
     const out = await s.tools.deploy(s.scope(), {
       artifact: {
-        template: "deck/status",
+        template: "deck/review",
         title: "Weekly",
         accent: "red",
         options: { streams: 2 },
@@ -75,9 +75,9 @@ describe("the tools", () => {
     expect(out).toContain("artifact.md (a deck)");
     await expect(
       s.tools.deploy(s.scope(), {
-        artifact: { template: "deck/status", options: { chart: "pie" } },
+        artifact: { template: "deck/review", options: { chart: "pie" } },
       }),
-    ).rejects.toThrow("artifact: options.chart: one of line, bar, none");
+    ).rejects.toThrow("artifact: options.chart: one of bar, line, none");
   });
 
   test("deploy from files returns the URL once it answers; the rest find it by name", async () => {

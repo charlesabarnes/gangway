@@ -16,11 +16,15 @@ export type PlanInput = {
 export type AddonRequest = AddonId | { id: AddonId; version?: string | undefined };
 
 export type ArtifactMeta = {
-  kind: "document" | "dashboard" | "deck" | "prototype";
+  kind: "document" | "deck";
   title: string;
   description: string | null;
-  theme: "system" | "light" | "dark";
+  mode: "system" | "light" | "dark";
+  /** A theme by id; null follows the server's default. */
+  theme: string | null;
   accent: "flag" | "red" | "teal" | "blue" | "green";
+  /** A stylesheet from the upload, linked after the theme. */
+  css: string | null;
   format: "markdown" | "html";
 };
 

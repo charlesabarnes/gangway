@@ -8,7 +8,7 @@ import {
   type Block,
   type Piece,
 } from "@gangway/shared/artifact/grammar";
-import { ROOT_TAG, type ArtifactKind } from "@gangway/shared/artifact/vocab";
+import { ROOT_TAG, type ArtifactKind, type RetiredKind } from "@gangway/shared/artifact/vocab";
 import { marked } from "marked";
 
 export const esc = (s: string) =>
@@ -134,8 +134,19 @@ export function render(blocks: Block[]): string {
   return out.join("\n");
 }
 
+/** Speaker notes start at a `Notes:` line outside any ::: block. */
+function notesAt(lines: string[]): number {
+  let depth = 0;
+  for (const [i, l] of lines.entries()) {
+    if (/^:{3,}\s*[\w-]+/.test(l)) depth++;
+    else if (/^:{3,}\s*$/.test(l)) depth = Math.max(0, depth - 1);
+    else if (depth === 0 && /^notes:\s*/i.test(l)) return i;
+  }
+  return -1;
+}
+
 function split(p: Piece): { body: string[]; notes: string[] } {
-  const i = p.lines.findIndex((l) => /^notes:\s*/i.test(l));
+  const i = notesAt(p.lines);
   if (i === -1) return { body: p.lines, notes: [] };
   return {
     body: p.lines.slice(0, i),
@@ -189,7 +200,7 @@ const listLinks = (html: string) =>
 
 export function compile(src: string): string {
   const { meta, body, offset } = frontMatter(src);
-  const kind = (meta["kind"] ?? "document") as ArtifactKind;
+  const kind = (meta["kind"] ?? "document") as ArtifactKind | RetiredKind;
   const tag = ROOT_TAG[kind] ?? "gw-doc";
   const { kind: _kind, ...attrs } = meta;
   let inner: string;

@@ -3,21 +3,28 @@ import { ARTIFACT_KINDS, type ArtifactKind } from "./vocab.ts";
 const FRONT_MATTER = `## Front matter (required)
 \`\`\`
 ---
-kind: deck            # document | dashboard | deck | prototype
+kind: deck            # document | deck
 title: Q3 review
 subtitle: One line under the title
 accent: flag          # flag (yellow) | red | teal | blue | green
-theme: system         # system | light | dark
+mode: system          # system | light | dark
+theme: chart          # optional: a theme this server has (the catalog lists them); leave it out for the default
+css: style.css        # optional: your own stylesheet from the upload, linked last (see "The look")
 byline: Platform team # document
 date: September 2026  # document
-updated: Hourly       # dashboard: shown top right
-columns: 4            # dashboard: grid columns
+layout: aside         # document: aside (section titles in a column beside the text) | single
 footer: Team · Date   # deck: shown on every slide
-device: phone         # prototype: phone | desktop
-look: app             # prototype: app (a finished product) | wireframe (low-fi, sticky notes) | chart (gangway's style)
-start: home           # prototype: first screen id
 ---
 \`\`\``;
+
+const LOOK = `## The look
+gangway draws every artifact in its house style, Chart: ivory paper and navy ink, rules instead of boxes, italic serif titles, condensed caps labels, numbers in mono, flag yellow for what matters. Use it. The blocks below already look right together: reach for a block before any custom markup, and let the theme carry colour and type.
+
+Only when the user asks for something unusual (a brand of their own, a poster, a playful or highly visual piece) step outside it:
+1. A theme the server has (\`theme: <id>\`) if one fits.
+2. \`css: style.css\` for a few changes on top: the kit's tokens are CSS variables (--paper, --ink, --ink-muted, --rule, --flag, --font-serif, --font-sans, --font-mono), so override them before overriding elements.
+3. index.html of your own, with or without the elements below, for a layout the blocks cannot make.
+Say in your reply which of these you used and why.`;
 
 const BLOCKS = `## Blocks
 \`\`\`
@@ -62,7 +69,7 @@ Apr,38100000
 May,39400000
 \`\`\`
 \`\`\`\`
-Types: bar | line | area | donut. \`y\` may list several columns (y=new,returning). Options: stacked, format=number | percent | currency | compact, labels="new:New,returning:Returning", caption="…", height=300, span=2 (dashboard), src=data/daily.csv instead of inline rows (deploy the file beside artifact.md). Percent values: 0.94 or 94%.`;
+Types: bar | line | area | donut. \`y\` may list several columns (y=new,returning). Options: stacked, format=number | percent | currency | compact, labels="new:New,returning:Returning", caption="…", height=300, src=data/daily.csv instead of inline rows (deploy the file beside artifact.md). Percent values: 0.94 or 94%.`;
 
 const FLOWS = `## Flowcharts
 A fenced block named \`flow\` (or \`mermaid\`), in Mermaid's flowchart syntax. gangway lays it out in its own style, draws it in as the reader reaches it, and highlights a step's paths on hover.
@@ -77,20 +84,16 @@ flowchart LR
   click url "https://example.com"
 \`\`\`
 \`\`\`\`
-Shapes: \`id[box]\`, \`id(rounded)\`, \`id([start/end])\`, \`id((circle))\`, \`id{decision}\`, \`id[(database)]\`. Arrows: \`-->\`, \`-->|label|\` or \`-- label -->\`, \`-.->\` (dotted), \`==>\` (thick), \`---\` (no head), \`<-->\`. Chains work: \`a --> b --> c\`. Tones: \`id:::ok\` or \`class a,b warn\` (flag | ok | warn | danger | muted). \`note id: text\` shows under the chart when the step is clicked. \`click id "#screen"\` (prototype) or \`click id "https://…"\` makes it a link. Options on the fence: title="…", caption="…", direction=TB|LR|BT|RL, play (a Play button steps through it), animate (edges keep flowing), span=2|full (dashboard). \`subgraph\`, \`classDef\` and \`style\` are accepted and ignored. Keep it under about 15 steps; use TB when there are more than 6 in a row, so it fits the page without scrolling.`;
+Shapes: \`id[box]\`, \`id(rounded)\`, \`id([start/end])\`, \`id((circle))\`, \`id{decision}\`, \`id[(database)]\`. Arrows: \`-->\`, \`-->|label|\` or \`-- label -->\`, \`-.->\` (dotted), \`==>\` (thick), \`---\` (no head), \`<-->\`. Chains work: \`a --> b --> c\`. Tones: \`id:::ok\` or \`class a,b warn\` (flag | ok | warn | danger | muted). \`note id: text\` shows under the chart when the step is clicked. \`click id "https://…"\` makes it a link. Options on the fence: title="…", caption="…", direction=TB|LR|BT|RL, play (a Play button steps through it), animate (edges keep flowing). \`subgraph\`, \`classDef\` and \`style\` are accepted and ignored. Keep it under about 15 steps; use TB when there are more than 6 in a row, so it fits the page without scrolling.`;
 
 const KINDS: Record<ArtifactKind, string> = {
   document:
-    "## Documents\nPlain markdown: `##` headings (numbered automatically), paragraphs, lists, tables, `>` quotes, code, plus the blocks and charts below.",
-  dashboard:
-    "## Dashboards\nEach block is a cell in the grid: `::stat{}` tiles, charts, `::: card`, `::: callout`, tables inside a card. `::: stats` rows fill the width; a chart takes two cells. Set span=1|2|3|full to change a block's width. Avoid `##` headings; give blocks titles instead.",
-  deck: "## Decks\nSeparate slides with a line that is only `---`. The first slide is the title slide (`# Title` and one line). A slide with only `# Heading` (and one short line) is a section divider. A slide with only `## Title` and one `::stat{}` is a big number. Force a layout with a first line `{layout=section}` (title | section | big). Speaker notes: a line `Notes:` then text, at the end of a slide.",
-  prototype:
-    '## Prototypes\nSeparate screens with a line that is only `---`, each starting `{#id title="Screen title" back=previous-id}`. Link to a screen with `[text](#id)`; a list whose items are all links becomes a tappable list. Controls: `:button[Continue]{go=next-id}`, `:button[Back]{go=home ghost}`, `:input[Email]{name=email placeholder="you@example.com"}`, `:select[Plan]{name=plan options="Free,Team"}`, `:toggle[Email me]{name=news on}`. Show a value typed earlier with `{{email}}`.\n\nLooks: `app` (the default) draws a finished product, with soft cards and pill buttons in the accent colour. `wireframe` is low fidelity on purpose, for testing a flow before any visual design: grey boxes, hard outlines, handwritten sticky notes. `chart` uses the gangway house style. Pick desktop for anything with a sidebar or a summary beside a form; `::: columns` puts the two side by side there and stacks them on a phone.\n\nMore pieces: `:image[Room photo]{ratio=4:3}` (a placeholder, or src=img/room.jpg), `:steps[Cart,Details,Pay,Done]{at=3}` (progress; at= is the current step), `:tabs[Home,Trips,Profile]{go="home,trips,profile"}` (a tab bar at the bottom; the open screen is highlighted), `::: facts total` (price lines; the last line is the total), `::: note` (a design note to the reader: a sticky note in a wireframe). Make screens feel real: real names, prices and times, an image where the product would show one, and one clear action per screen.',
+    "## Documents\nPlain markdown: paragraphs, lists, tables, `>` quotes, code, plus the blocks and charts below. Each `##` heading starts a numbered section, its title in a column beside the text (`layout: single` puts it above instead). What comes before the first `##` is the lead: a callout and a row of stats read well there. `###` is a subheading inside a section.",
+  deck: "## Decks\nSeparate slides with a line that is only `---`. The first slide is the title slide (`# Title` and one line). A slide starting `## Title` is a content slide with the title ruled off at the top. Choose a layout with a first line `{layout=…}`:\n- `section`: a navy divider, numbered (`## Name`)\n- `statement`: one sentence set large (`## The sentence.` and an optional line under it)\n- `big`: one number (`::stat{…}`)\n- `quote`: a `>` quote, its last line the attribution (`> — Name, role`)\n- `split`: `## Title` and a `::: columns` block, words beside a chart, list or image\n- `end`: the closing slide (`# Thank you`, a line, a `::: facts` block)\nA slide with only `# Heading` is a section divider, and one with only `## Title` and a `::stat{}` a big number, without saying so. Speaker notes: a line `Notes:` then text, at the end of a slide; press n to show them.",
 };
 
 const INLINE =
-  "## Inline\n`:flag[On track]{tone=ok}` is a status flag (tone flag | ok | warn | danger).";
+  "## Inline\n`:flag[On track]{tone=ok}` is a status flag (tone flag | ok | warn | danger). `:image[Alt text]{src=img/a.png ratio=16:9}` is an image, or a labelled placeholder with no src. `:steps[Plan,Build,Ship]{at=2}` shows progress through steps.";
 
 const HTML = `## When markdown can't say it: the HTML elements
 artifact.md compiles to gangway's HTML elements. For a custom layout, write index.html with them instead (no artifact.md):
@@ -98,13 +101,14 @@ artifact.md compiles to gangway's HTML elements. For a custom layout, write inde
 <!doctype html><html lang="en" data-accent="teal"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>…</title>
 <link rel="stylesheet" href="/_gangway/kit.css"><script type="module" src="/_gangway/kit.js"></script></head>
-<body><gw-dashboard title="…" columns="4">
-  <gw-stat label="CSAT" value="92%" delta="+3 pts"></gw-stat>
-  <gw-chart type="line" x="day" y="tickets" span="2">day,tickets
+<body><gw-doc title="…" subtitle="…">
+  <gw-grid columns="2"><gw-stat label="CSAT" value="92%" delta="+3 pts"></gw-stat><gw-stat label="Tickets" value="121"></gw-stat></gw-grid>
+  <h2>Tickets doubled in September</h2>
+  <gw-chart type="line" x="day" y="tickets">day,tickets
 Sep 10,121</gw-chart>
-</gw-dashboard></body></html>
+</gw-doc></body></html>
 \`\`\`
-Elements: gw-doc, gw-dashboard, gw-deck > gw-slide, gw-prototype > gw-screen, gw-section, gw-card, gw-grid, gw-columns, gw-stat, gw-chart, gw-flow (the flowchart text inside), gw-callout, gw-flag, gw-facts (dt/dd pairs). Attributes match the markdown options. Ordinary HTML works inside any of them. Don't put a gw-chart inside a gw-card: both draw a frame.`;
+Elements: gw-doc, gw-deck > gw-slide, gw-section, gw-card, gw-grid, gw-columns, gw-stat, gw-chart, gw-flow (the flowchart text inside), gw-callout, gw-flag, gw-facts (dt/dd pairs), gw-image, gw-steps, gw-note. Attributes match the markdown options. Ordinary HTML works inside any of them.`;
 
 const WRITING = `## Writing
 - Titles say the finding ("Volume has climbed every month"), not the topic ("Monthly volume").
@@ -114,8 +118,9 @@ const WRITING = `## Writing
 export function guideText(kind: ArtifactKind): string {
   return [
     `# Writing a gangway ${kind}`,
-    "One file, artifact.md, is the whole artifact. gangway checks it on deploy (a 422 names the line) and draws it in its own style: grid paper, neatline frames, serif titles, light and dark.",
+    "One file, artifact.md, is the whole artifact. gangway checks it on deploy (a 422 names the line) and draws it in its house style, light and dark.",
     FRONT_MATTER,
+    LOOK,
     KINDS[kind],
     BLOCKS,
     CHARTS,
@@ -132,6 +137,7 @@ export function guideMarkdown(): string {
       "# artifact.md",
       "Generated from gangway's guide by `bun scripts/artifact-catalog.ts`; do not edit. The MCP catalog tool returns the same text for one kind, plus its templates and a complete example.",
       FRONT_MATTER,
+      LOOK,
       ...ARTIFACT_KINDS.map((k) => KINDS[k]),
       BLOCKS,
       CHARTS,

@@ -167,12 +167,4 @@ describe("flowcharts in artifact.md", () => {
       { line: 8, message: 'expected an arrow (-->, -.->, ==>, ---) after b, found "~~ c"' },
     ]);
   });
-
-  test("in a prototype, a click to a screen that does not exist is caught", () => {
-    const src =
-      '---\nkind: prototype\ntitle: T\nstart: home\n---\n{#home title="Home"}\n```flow\na --> b\nclick b "#nowhere"\n```\n';
-    expect(lintMarkdown(src).issues.map((i) => i.message)).toEqual([
-      "no screen has the id #nowhere",
-    ]);
-  });
 });

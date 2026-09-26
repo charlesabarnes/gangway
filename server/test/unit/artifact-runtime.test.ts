@@ -50,7 +50,9 @@ describe("an artifact.md upload", () => {
         kind: "document",
         title: "</title><script>x()</script>",
         description: 'a "b"',
-        theme: "dark",
+        mode: "dark",
+        theme: null,
+        css: null,
         accent: "flag",
         format: "markdown",
       },
@@ -59,6 +61,24 @@ describe("an artifact.md upload", () => {
     expect(html).not.toContain("<script>x()");
     expect(html).toContain("&lt;/title&gt;");
     expect(html).toContain('content="a &quot;b&quot;"');
+    expect(html).toContain('data-pref="dark"');
+  });
+
+  test("the page links the theme after the kit, and the artifact's own css last", () => {
+    const meta = {
+      kind: "document" as const,
+      title: "T",
+      description: null,
+      mode: "system" as const,
+      theme: "acme",
+      css: "style.css",
+      accent: "flag" as const,
+      format: "markdown" as const,
+    };
+    const html = artifactIndex(meta, "v1");
+    const at = (s: string) => html.indexOf(s);
+    expect(at("/_gangway/kit.css")).toBeLessThan(at("/_gangway/theme.css"));
+    expect(at("/_gangway/theme.css")).toBeLessThan(at('href="/style.css"'));
   });
 
   test("writeRuntime copies the kit into .gangway/ readable by nginx", async () => {
@@ -72,10 +92,10 @@ describe("an artifact.md upload", () => {
 
   test("deploys and says what it rendered", async () => {
     const s = setupRuntimes();
-    const res = await deployFiles(s, renderTemplate({ template: "dashboard/kpi" }));
+    const res = await deployFiles(s, renderTemplate({ template: "document/report" }));
     expect((await res.done).state).toBe("awake");
     const log = s.ctx.logs.read(res.preview.id).map((l) => l.line);
-    expect(log.join("\n")).toContain("a dashboard rendered from artifact.md");
+    expect(log.join("\n")).toContain("a document rendered from artifact.md");
   });
 
   test("a broken artifact.md is refused, naming the line, before anything is kept", async () => {

@@ -56,26 +56,43 @@ describe("templates", () => {
       template: "deck/pitch",
       title: "Q4 plan",
       subtitle: "For the board",
-      theme: "dark",
+      mode: "dark",
+      theme: "brand",
       accent: "teal",
     })["artifact.md"]!;
     expect(md).toStartWith(
-      "---\nkind: deck\ntitle: Q4 plan\nsubtitle: For the board\naccent: teal\ntheme: dark\n",
+      "---\nkind: deck\ntitle: Q4 plan\nsubtitle: For the board\naccent: teal\nmode: dark\ntheme: brand\n",
     );
     expect(lintMarkdown(md).info).toMatchObject({
       kind: "deck",
       title: "Q4 plan",
       accent: "teal",
-      theme: "dark",
+      mode: "dark",
+      theme: "brand",
     });
+  });
+
+  test("theme: light still means the mode, as before there was one", () => {
+    const md = renderTemplate({ template: "deck/pitch", theme: "light" })["artifact.md"]!;
+    expect(md).toContain("\nmode: light\n");
+    expect(lintMarkdown(doc("", "kind: document\ntitle: T\ntheme: dark")).info).toMatchObject({
+      mode: "dark",
+      theme: null,
+    });
+  });
+
+  test("old template names still work", () => {
+    expect(renderTemplate({ template: "document/proposal" })).toEqual(
+      renderTemplate({ template: "document/memo" }),
+    );
   });
 
   test("numbers are clamped, bad choices and unknown options are refused", () => {
     const deck = (options: Record<string, number | string | boolean>) =>
-      renderTemplate({ template: "deck/status", options })["artifact.md"]!;
+      renderTemplate({ template: "deck/review", options })["artifact.md"]!;
     expect(deck({ streams: 99 })).toBe(deck({ streams: 5 }));
     expect(() => deck({ chart: "pie" })).toThrow(TemplateError);
-    expect(() => deck({ colour: 1 })).toThrow("deck/status has no option colour");
+    expect(() => deck({ colour: 1 })).toThrow("deck/review has no option colour");
     expect(() => renderTemplate({ template: "nope" })).toThrow('no template "nope"');
   });
 });
@@ -84,11 +101,35 @@ describe("lintMarkdown", () => {
   test("front matter is required and checked", () => {
     expect(issues("# hi")[0]).toContain("start with front matter");
     expect(issues(doc("", "kind: poster\ntitle: T"))).toEqual([
-      "1: front matter needs kind: document | dashboard | deck | prototype",
+      "1: front matter needs kind: document | deck",
     ]);
     expect(issues(doc("", "kind: document\ntitle: T\nfooter: x\naccent: pink"))).toEqual([
-      "1: a document has no footer; it takes kind, title, subtitle, accent, theme, label, byline, date",
+      "1: a document has no footer; it takes kind, title, subtitle, accent, mode, theme, css, label, byline, date, layout",
       '1: accent="pink": one of flag | red | teal | blue | green',
+    ]);
+  });
+
+  test("a retired kind is refused with what to use instead", () => {
+    expect(issues(doc("", "kind: dashboard\ntitle: T"))).toEqual([
+      "1: kind: dashboard is retired; use kind: document; stats and charts work in a document",
+    ]);
+  });
+
+  test("a theme must be one the server has, and css a file in the upload", () => {
+    const src = doc("", "kind: document\ntitle: T\ntheme: brand\ncss: ../x.css");
+    expect(
+      lintMarkdown(src, { themes: ["acme"], has: () => true }).issues.map((i) => i.message),
+    ).toEqual([
+      'theme: no theme called "brand"; this server has chart | acme',
+      'css: "../x.css" is a path to a .css file in the upload',
+    ]);
+    const ok = doc("", "kind: document\ntitle: T\ntheme: acme\ncss: style.css");
+    expect(lintMarkdown(ok, { themes: ["acme"], has: () => true }).info).toMatchObject({
+      theme: "acme",
+      css: "style.css",
+    });
+    expect(lintMarkdown(ok, { has: () => false }).issues.map((i) => i.message)).toEqual([
+      "css: style.css is not in the upload",
     ]);
   });
 
@@ -134,28 +175,29 @@ describe("lintMarkdown", () => {
     ]);
   });
 
-  test("prototype links must reach a screen", () => {
-    const src = `---\nkind: prototype\ntitle: T\nstart: home\n---\n{#home title=Home}\n[Go](#nowhere)\n:button[Next]{go=done}\n\n---\n\n{#done title=Done}\nok\n`;
-    expect(issues(src)).toEqual(["7: no screen has the id #nowhere"]);
-  });
-
-  test("a prototype's look, steps, tabs and images are checked", () => {
-    const src = `---\nkind: prototype\ntitle: T\nlook: glossy\n---\n{#home title=Home}\n:steps[Cart,Pay]{at=3}\n:steps[Only]\n:tabs[Home,Away]{go="home,away"}\n:image[Room]{ratio=wide}\n:image[Room]{src=img/room.jpg}\n`;
+  test("steps and images are checked", () => {
+    const src = doc(
+      ":steps[Cart,Pay]{at=3}\n:steps[Only]\n:image[Room]{ratio=wide}\n:image[Room]{src=img/room.jpg}",
+    );
     expect(
       lintMarkdown(src, { has: () => false }).issues.map((i) => `${i.line}: ${i.message}`),
     ).toEqual([
-      '1: look="glossy": one of app | wireframe | chart',
-      "7: :steps[Cart,Pay]{at=3}: at= is the current step, 1 to 2",
-      "8: :steps[Only]: list the steps, e.g. :steps[Cart,Pay,Done]",
-      "9: no screen has the id #away",
-      "10: :image[Room]{ratio=wide}: ratio= is width:height, e.g. 16:9",
-      "11: src=img/room.jpg is not in the upload",
+      "5: :steps[Cart,Pay]{at=3}: at= is the current step, 1 to 2",
+      "6: :steps[Only]: list the steps, e.g. :steps[Cart,Pay,Done]",
+      "7: :image[Room]{ratio=wide}: ratio= is width:height, e.g. 16:9",
+      "8: src=img/room.jpg is not in the upload",
     ]);
   });
 
   test("a note is a block, and a block that holds blocks takes a longer fence", () => {
-    const src = `---\nkind: prototype\ntitle: T\n---\n{#home title=Home}\n:::: card\n::: facts total\nRoom: £296\nTotal: £340\n:::\n::::\n\n::: note\nTest with five people.\n:::\n`;
+    const src = doc(
+      ":::: card\n::: facts total\nRoom: £296\nTotal: £340\n:::\n::::\n\n::: note\nTest with five people.\n:::",
+    );
     expect(issues(src)).toEqual([]);
+  });
+
+  test("a prototype's controls are no longer pieces", () => {
+    expect(issues(doc(":button[Next]{go=done}"))[0]).toContain("unknown :button[…]");
   });
 
   test("an unknown inline directive is refused", () => {
@@ -197,14 +239,14 @@ describe("lintHtml", () => {
   test("chart columns and percent stats are checked", () => {
     const r = lintHtml(
       page(
-        '<gw-dashboard title=T><gw-stat label=CSAT value="92" format="percent"></gw-stat><gw-chart type="line" x="day" y="n">\nday,count\n1,2</gw-chart></gw-dashboard>',
+        '<gw-doc title=T><gw-stat label=CSAT value="92" format="percent"></gw-stat><gw-chart type="line" x="day" y="n">\nday,count\n1,2</gw-chart></gw-doc>',
       ),
     );
     expect(r.issues.map((i) => i.message)).toEqual([
       '<gw-stat> value="92" with format="percent" is 9200%; write 0.92 or "92%"',
       "<gw-chart>: the CSV header (day, count) has no column n",
     ]);
-    expect(r.info).toMatchObject({ kind: "dashboard", title: "T" });
+    expect(r.info).toMatchObject({ kind: "document", title: "T" });
   });
 });
 
@@ -217,7 +259,7 @@ describe("guide", () => {
   });
 
   test("the full guide has every kind", () => {
-    for (const k of ["Documents", "Dashboards", "Decks", "Prototypes"])
+    for (const k of ["Documents", "Decks", "The look"])
       expect(guideMarkdown()).toContain(`## ${k}`);
   });
 });
@@ -226,15 +268,17 @@ describe("planning an artifact", () => {
   const plan = (files: Record<string, string>) => planApp({ paths: Object.keys(files), files });
 
   test("artifact.md alone is a rendered static site", () => {
-    const p = plan(renderTemplate({ template: "dashboard/kpi", accent: "red" }));
+    const p = plan(renderTemplate({ template: "document/memo", accent: "red" }));
     expect(planError(p)).toBeNull();
     expect(p.runtime).toBe("static");
     expect(p.artifact).toEqual({
-      kind: "dashboard",
-      title: "Storefront, September",
-      description: "Last 30 days against the 30 before",
-      theme: "system",
+      kind: "document",
+      title: "Move reviews onto preview environments",
+      description: "A two-month pilot for three teams, starting next sprint",
+      mode: "system",
+      theme: null,
       accent: "red",
+      css: null,
       format: "markdown",
     });
   });

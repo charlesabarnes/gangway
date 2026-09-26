@@ -98,36 +98,41 @@ const report: ArtifactTemplate = {
   },
 };
 
-const proposal: ArtifactTemplate = {
-  id: "document/proposal",
+const memo: ArtifactTemplate = {
+  id: "document/memo",
   kind: "document",
-  name: "One-page proposal",
+  name: "Decision memo",
   description:
-    "A decision document: context, the proposal, options considered, cost, risks, the decision asked for.",
+    "A decision on one page: what is asked, why now, the options weighed, the cost, the risks.",
   title: "Move reviews onto preview environments",
-  subtitle: "A proposal for the platform group",
+  subtitle: "A two-month pilot for three teams, starting next sprint",
   options: [
     { key: "options", label: "Options compared", kind: "boolean", default: true },
-    { key: "cost", label: "Cost section", kind: "boolean", default: true },
-    { key: "risks", label: "Risks section", kind: "boolean", default: true },
+    { key: "cost", label: "Cost", kind: "boolean", default: true },
+    { key: "risks", label: "Risks", kind: "boolean", default: true },
   ],
   build(s) {
     return {
       markdown: md(
-        front(s, "document", { byline: "Author name", date: "September 2026" }),
+        front(s, "document", { byline: "Platform team", date: "September 2026" }),
         block(
           "callout",
           { title: "The decision we need" },
-          "Approve a two-month pilot with three teams, starting next sprint.",
+          "Approve a two-month pilot with the checkout, search and mobile teams, starting 6 October.",
         ),
-        "## Reviews wait a day, mostly on setup\nReviewers pull, install and run each change by hand. Designers can't review running code at all.",
-        "## Every pull request gets a link\nEach PR gets a running copy at its own URL, torn down when the PR closes.",
+        block(
+          "facts",
+          {},
+          "Asked of: Engineering leads\nDecide by: 3 October\nOwner: Platform team\nStatus: :flag[Awaiting decision]{tone=flag}",
+        ),
+        "## Reviews wait a day, mostly on setup\nA reviewer pulls the branch, installs it and runs it by hand before they can look at the change. Designers and product managers cannot do that at all, so most interface changes are approved from screenshots.\n\nThe median pull request waits **26 hours** for its first review.",
+        "## Every pull request gets a link\nEach pull request gets a running copy at its own address, built by CI and torn down when the pull request closes. Reviewers open a link instead of a terminal.",
         flag(s, "options") &&
-          "## Self-hosting is the cheapest good fit\n| Option | Cost | Fit |\n|---|---|---|\n| Self-hosted previews | Low | Good |\n| Hosted vendor | High | Good |\n| Shared staging | Low | Poor |",
+          "## Self-hosting is the cheapest good fit\n| Option | Cost a month | Setup | Fit |\n|---|---:|---|---|\n| Self-hosted previews | $0 | 2 days | Good |\n| A hosted vendor | $1,200 | 1 day | Good |\n| A shared staging server | $0 | None | Poor: one change at a time |",
         flag(s, "cost") &&
-          `## It costs two days of setup\n${block("stats", {}, "Setup | 2 days\nRunning cost | $0 | | Existing hardware")}`,
+          `## It costs two days and a server we own\n${block("stats", {}, "Setup | 2 days | | One workflow file per repository\nHosting | $0 | | Hardware we already run\nUpkeep | 1 h a month | | Updates and certificates")}`,
         flag(s, "risks") &&
-          `## The risk is capacity\n${block("callout", { tone: "warn", title: "Many open PRs at once" }, "Could fill the server; idle previews sleep to limit this.")}`,
+          `## The risk is capacity, and it is bounded\n${block("callout", { tone: "warn", title: "Many open pull requests at once" }, "Forty running previews would fill the server. Idle previews sleep after 30 minutes, and each team is capped at ten.")}\n\nIf the pilot misses its goal, we switch it off: nothing in the repositories depends on it.`,
       ),
     };
   },
@@ -140,7 +145,7 @@ const CHANGES = [
     tag: "Feature",
     tone: "ok",
     notes:
-      "- Documents, dashboards and decks from one markdown file\n- A theme toggle on every page",
+      "- Documents and decks from one markdown file\n- Themes an admin can set for every artifact",
   },
   {
     v: "2.3.2",
@@ -179,11 +184,12 @@ const CHANGES = [
   },
 ];
 
-const releases: ArtifactTemplate = {
-  id: "document/releases",
+const changelog: ArtifactTemplate = {
+  id: "document/changelog",
   kind: "document",
-  name: "Release notes",
-  description: "A changelog: one section per release with a date, a type flag and what changed.",
+  name: "Changelog",
+  description:
+    "Release notes, newest first: one section per release with its date, a type flag and what changed.",
   title: "What's new",
   subtitle: "Release notes, newest first",
   options: [
@@ -193,10 +199,11 @@ const releases: ArtifactTemplate = {
   build(s) {
     return {
       markdown: md(
-        front(s, "document"),
-        flag(s, "intro") && "Every change that reaches users, in plain words.",
+        front(s, "document", { layout: "single" }),
+        flag(s, "intro") &&
+          "Every change that reaches users, in plain words. Security fixes are marked in red.",
         ...CHANGES.slice(0, num(s, "releases")).map(
-          (c) => `## Version ${c.v}\n:flag[${c.tag}]{tone=${c.tone}} · ${c.date}\n\n${c.notes}`,
+          (c) => `## ${c.v}\n:flag[${c.tag}]{tone=${c.tone}} \`${c.date}\`\n\n${c.notes}`,
         ),
       ),
     };
@@ -277,4 +284,4 @@ const processFlow: ArtifactTemplate = {
   },
 };
 
-export const DOCUMENT_TEMPLATES = [report, proposal, releases, processFlow];
+export const DOCUMENT_TEMPLATES = [report, memo, changelog, processFlow];

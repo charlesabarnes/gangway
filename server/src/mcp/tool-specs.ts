@@ -50,7 +50,7 @@ export const DeployArgs = z.object({
     .preprocess(jsonObject, TemplateInputSchema)
     .optional()
     .describe(
-      'Build an artifact from a template instead of writing files: {template: "deck/pitch", title, subtitle, theme, accent, options}. The catalog tool lists the templates and their options. Change it afterwards with preview + files; preview + artifact rebuilds it from a template at the same URL.',
+      'Build an artifact from a template instead of writing files: {template: "deck/pitch", title, subtitle, mode, theme, accent, options}. The catalog tool lists the templates and their options. Change it afterwards with preview + files; preview + artifact rebuilds it from a template at the same URL.',
     ),
   files: z
     .record(z.string(), z.string())

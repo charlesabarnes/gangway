@@ -2,8 +2,7 @@ import LOGO from "../../../web/public/logo.svg" with { type: "text" };
 import LOGO_LIGHT from "../../../web/public/logo-light.svg" with { type: "text" };
 import { isWebSocketUpgrade } from "./headers.ts";
 
-// The gangway watermark: gangway adds one script tag to every HTML page a preview answers, and
-// the script draws the mark in a closed shadow root, out of reach of the page's own CSS.
+// One script tag on every HTML page a preview answers; the script draws the mark (ADR-0032).
 
 export const MARK_PATH = "/__gangway/mark.js";
 const TAG = `<script src="${MARK_PATH}" async data-gangway-mark></script>`;
@@ -17,11 +16,7 @@ export function wantsMark(req: Request): boolean {
   return dest === null || dest === "document";
 }
 
-/**
- * The request to send on when the mark is on: gzip or nothing, as the mark can only be added
- * to a page it can read; and a validator for the page without the mark is dropped, or a 304
- * would keep the unmarked copy in the browser's cache.
- */
+/** Asks for gzip at most, which it can read, and drops a validator for the unmarked page. */
 export function forMark(req: Request): Request {
   const headers = new Headers(req.headers);
   headers.set("accept-encoding", "gzip");
@@ -98,8 +93,7 @@ export function stamp(res: Response, req: Request): Response {
 
 const svg = (s: string) => s.replace(/<title>.*?<\/title>/s, "").replace(/\s*\n\s*/g, "");
 
-// Chart tokens, light and dark: paper, ink, the neatline (1px ink, 3px paper, 1px ink). The mark
-// follows the OS, or the page's own data-theme="light|dark" on <html> when it has one.
+// Chart tokens; light or dark after the OS, or the page's own data-theme on <html>.
 const CSS = `
 :host{all:initial;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:2147483000;
   --paper:oklch(0.97 0.012 85);--ink:oklch(0.27 0.06 255);--rule:oklch(0.84 0.025 240)}

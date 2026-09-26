@@ -1,27 +1,32 @@
 export const ARTIFACT_FILE = "artifact.md";
 export const KIT_PATH = "_gangway";
 
-export const ARTIFACT_KINDS = ["document", "dashboard", "deck", "prototype"] as const;
+export const ARTIFACT_KINDS = ["document", "deck"] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
-export const ARTIFACT_THEMES = ["system", "light", "dark"] as const;
-export type ArtifactTheme = (typeof ARTIFACT_THEMES)[number];
+/** Kinds gangway no longer deploys; pages already deployed with them still render (ADR-0033). */
+export const RETIRED_KINDS = ["dashboard", "prototype"] as const;
+export type RetiredKind = (typeof RETIRED_KINDS)[number];
+export const ARTIFACT_MODES = ["system", "light", "dark"] as const;
+export type ArtifactMode = (typeof ARTIFACT_MODES)[number];
+/** gangway's own look; any other theme is one an admin made. */
+export const HOUSE_THEME = "chart";
+export const THEME_ID = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 export const ARTIFACT_ACCENTS = ["flag", "red", "teal", "blue", "green"] as const;
 export type ArtifactAccent = (typeof ARTIFACT_ACCENTS)[number];
 
-export const ROOT_TAG: Record<ArtifactKind, string> = {
+export const ROOT_TAG: Record<ArtifactKind | RetiredKind, string> = {
   document: "gw-doc",
-  dashboard: "gw-dashboard",
   deck: "gw-deck",
+  dashboard: "gw-dashboard",
   prototype: "gw-prototype",
 };
 
-const COMMON_KEYS = ["kind", "title", "subtitle", "accent", "theme", "label"];
+const COMMON_KEYS = ["kind", "title", "subtitle", "accent", "mode", "theme", "css", "label"];
 export const FRONT_MATTER_KEYS: Record<ArtifactKind, readonly string[]> = {
-  document: [...COMMON_KEYS, "byline", "date"],
-  dashboard: [...COMMON_KEYS, "updated", "columns"],
+  document: [...COMMON_KEYS, "byline", "date", "layout"],
   deck: [...COMMON_KEYS, "footer"],
-  prototype: [...COMMON_KEYS, "device", "look", "start"],
 };
+export const DOC_LAYOUTS = ["aside", "single"] as const;
 
 export const CONTAINERS = [
   "callout",
@@ -36,28 +41,21 @@ export const CONTAINERS = [
 export const CHART_TYPES = ["bar", "line", "area", "donut"] as const;
 export const FORMATS = ["number", "percent", "currency", "compact"] as const;
 export const TONES = ["flag", "ok", "warn", "danger"] as const;
-export const SLIDE_LAYOUTS = ["title", "section", "big"] as const;
-export const DEVICES = ["phone", "desktop"] as const;
-/** How a prototype is drawn: a finished app, a low-fi wireframe, or gangway's own Chart style. */
-export const LOOKS = ["app", "wireframe", "chart"] as const;
-export const INLINE_DIRECTIVES = [
-  "flag",
-  "button",
-  "input",
-  "select",
-  "toggle",
-  "image",
-  "steps",
-  "tabs",
+export const SLIDE_LAYOUTS = [
+  "title",
+  "section",
+  "statement",
+  "big",
+  "quote",
+  "split",
+  "end",
 ] as const;
+export const INLINE_DIRECTIVES = ["flag", "image", "steps"] as const;
 
 export const ELEMENTS = [
   "gw-doc",
-  "gw-dashboard",
   "gw-deck",
   "gw-slide",
-  "gw-prototype",
-  "gw-screen",
   "gw-section",
   "gw-card",
   "gw-grid",
@@ -71,7 +69,6 @@ export const ELEMENTS = [
   "gw-note",
   "gw-image",
   "gw-steps",
-  "gw-tabs",
 ] as const;
 
 export const oneOf = (list: readonly string[]) => list.join(" | ");

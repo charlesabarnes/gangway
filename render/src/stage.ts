@@ -6,10 +6,11 @@ const H = 720;
 const pad = (n: number) => String(n).padStart(2, "0");
 const hashSlide = () => Number(/^#\/(\d+)/.exec(location.hash)?.[1] ?? 0);
 
-function dress(s: HTMLElement, i: number, total: number, footer: string): void {
+function dress(s: HTMLElement, i: number, total: number, footer: string, n: number): void {
   const notes = s.querySelector(":scope > aside.notes");
   const body = document.createElement("div");
   body.className = "gw-slide-body";
+  if (n > 0) body.dataset["n"] = pad(n);
   body.append(...[...s.childNodes].filter((n) => n !== notes));
   if (s.getAttribute("layout") === "section" && s.hasAttribute("eyebrow"))
     body.insertAdjacentHTML(
@@ -29,7 +30,6 @@ class Deck extends HTMLElement {
   connectedCallback() {
     if (this.dataset["ready"]) return;
     this.dataset["ready"] = "1";
-    if (!this.hasAttribute("look")) this.setAttribute("look", "app");
     rootSettings(this);
     queueMicrotask(() => this.#build());
   }
@@ -46,7 +46,11 @@ class Deck extends HTMLElement {
     nav.innerHTML = `<button type="button" aria-label="Previous slide">←</button><span></span><button type="button" aria-label="Next slide">→</button>`;
     this.replaceChildren(stage, nav);
     const footer = this.getAttribute("footer") ?? this.getAttribute("title") ?? "";
-    slides.forEach((s, i) => dress(s, i, slides.length, footer));
+    let section = 0;
+    slides.forEach((s, i) => {
+      const n = s.getAttribute("layout") === "section" ? ++section : 0;
+      dress(s, i, slides.length, footer, n);
+    });
     const [prev, count, next] = [...nav.children] as [
       HTMLButtonElement,
       HTMLElement,

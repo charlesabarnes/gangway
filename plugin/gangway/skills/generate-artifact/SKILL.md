@@ -1,6 +1,6 @@
 ---
 name: generate-artifact
-description: Build an artifact on the user's gangway server -- a document, a dashboard, a slide deck or a clickable prototype, from gangway's templates and in its style -- and share it at a real HTTPS URL. Also for pages, demos and small apps (with a backend, a database, SSE or websockets) when the templates can't express them. Use it whenever the user wants something to read, present, click through or share as a link.
+description: Build an artifact on the user's gangway server -- a document or a slide deck, from gangway's templates and in its house style -- and share it at a real HTTPS URL. Also for pages, demos and small apps (with a backend, a database, SSE or websockets) when the templates can't express them. Use it whenever the user wants something to read, present, click through or share as a link.
 argument-hint: "[what to build]"
 ---
 
@@ -12,13 +12,15 @@ What to build: $ARGUMENTS (if that is empty or unexpanded, the user's request)
 
 ## Artifacts first
 
-1. Pick the kind: **document** (reading), **dashboard** (numbers and charts), **deck** (a talk), **prototype** (a clickable mockup).
+1. Pick the kind: **document** (reading, with numbers, charts and diagrams) or **deck** (a talk or a pitch).
 2. Call the MCP `catalog` tool with that kind. It returns the artifact.md guide, the templates for that kind (each with options) and a complete example. The same guide is in [catalog.md](catalog.md).
-3. Start from the closest template: `deploy` with `artifact: {template, title, subtitle, theme, accent, options}`, plus `name`, `title`, `icon`, `iconColor`, `visibility` and `check`.
+3. Start from the closest template: `deploy` with `artifact: {template, title, subtitle, mode, theme, accent, options}`, plus `name`, `title`, `icon`, `iconColor`, `visibility` and `check`.
 4. Make it the user's: rewrite `artifact.md` (markdown, plus a few blocks for stats, charts and slides; see [catalog.md](catalog.md)) and `data/*.csv` for rows, then `deploy` with `preview: "<name>"` + `files`. gangway checks it on deploy; a 422 names the line, so fix exactly that.
 5. For a layout markdown can't express, write `index.html` with gangway's `gw-*` elements instead.
 
 Put the story in the words: a title that says the finding, one idea per section or slide, numbers with units.
+
+Keep gangway's house style unless the user asks for something unusual: then a theme the server has, then `css: style.css` over the kit's tokens, then your own `index.html` (see "The look" in [catalog.md](catalog.md)). Say which you used.
 
 ## Only if the catalog can't express it: write an app
 
