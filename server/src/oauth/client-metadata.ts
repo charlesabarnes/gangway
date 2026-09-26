@@ -188,7 +188,11 @@ export function parseDocument(url: string, f: Fetched): ClientMetadata {
     throw new ClientMetadataError("client metadata document has no usable redirect_uris");
   }
   const method = d["token_endpoint_auth_method"];
-  if (method !== undefined && method !== "none")
+  // ChatGPT declares private_key_jwt but also lists "none" here, so it can still act as a public client.
+  const alsoPublic =
+    Array.isArray(d["token_endpoint_auth_methods_supported"]) &&
+    d["token_endpoint_auth_methods_supported"].includes("none");
+  if (method !== undefined && method !== "none" && !alsoPublic)
     throw new ClientMetadataError(
       `token_endpoint_auth_method ${JSON.stringify(method)} is not supported; gangway serves public clients only`,
     );

@@ -100,6 +100,19 @@ describe("client metadata documents: what they must say", () => {
     expect(() => parseDocument(CLAUDE, fetched)).toThrow(why);
   });
 
+  test("accepts a private_key_jwt client that also supports none", () => {
+    const doc = parseDocument(
+      CLAUDE,
+      ok({
+        client_id: CLAUDE,
+        redirect_uris: ["https://chatgpt.com/connector_platform_oauth_redirect"],
+        token_endpoint_auth_method: "private_key_jwt",
+        token_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+      }),
+    );
+    expect(doc.redirectUris).toEqual(["https://chatgpt.com/connector_platform_oauth_redirect"]);
+  });
+
   test("the name is cleaned of bidi and control characters, or falls back to the host", () => {
     expect(
       parseDocument(
