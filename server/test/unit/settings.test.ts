@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig } from "../../src/config.ts";
+import { SqliteSettingsStore } from "../../src/db/repos/index.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
+import { tempDb } from "../helpers/db.ts";
 
 const mk = (overrides: Record<string, unknown> = {}) => {
   const store = new MemorySettingsStore();
@@ -191,5 +193,27 @@ describe("secrets in the view", () => {
       "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
     );
     expect(JSON.stringify(settings.view())).not.toContain("abc");
+  });
+});
+
+describe("Settings over the SQLite store", () => {
+  test("reads the table once, and sees a write at once", () => {
+    const { db } = tempDb();
+    const store = new SqliteSettingsStore(db);
+    const settings = new Settings({}, store);
+    let reads = 0;
+    const query = db.query.bind(db);
+    db.query = (sql: string, params?: never) => {
+      reads++;
+      return query(sql, params);
+    };
+    expect(settings.get(SETTINGS.surfacesMcp)).toBe(false);
+    expect(settings.get(SETTINGS.surfacesMcp)).toBe(false);
+    expect(settings.get(SETTINGS.baseDomain)).toBe("preview.localhost");
+    expect(reads).toBe(1);
+    settings.set(SETTINGS.surfacesMcp, true);
+    expect(settings.get(SETTINGS.surfacesMcp)).toBe(true);
+    store.delete(SETTINGS.surfacesMcp.key);
+    expect(settings.get(SETTINGS.surfacesMcp)).toBe(false);
   });
 });

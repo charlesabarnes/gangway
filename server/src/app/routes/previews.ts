@@ -27,7 +27,14 @@ import type { RedeployInput } from "../../previews/redeploy-input.ts";
 import { redeploy } from "../../previews/redeploy.ts";
 import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
 import { setPreviewWatermark } from "../../previews/watermark.ts";
-import { can, mayDestroy, mayReadLogs, mayRebuild, maySee, type Actor } from "../../auth/actor.ts";
+import {
+  mayDestroy,
+  mayReadLogs,
+  mayRebuild,
+  maySee,
+  seeFilter,
+  type Actor,
+} from "../../auth/actor.ts";
 import { planFromDisk } from "../../previews/runtimes.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
@@ -148,14 +155,21 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     });
     // Read seq before the list so a change between the two reads is replayed, never missed.
     const seq = ctx.bus.latestSeq();
-    const list = ctx.previews.list({
+    const see = seeFilter(c.get("actor"));
+    if (see === null) return c.json({ seq, previews: [], ...(q.limit ? { next: null } : {}) });
+    const seen = ctx.previews.list({
+      ...see,
       ...(q.state ? { state: q.state } : {}),
       ...(q.hostId ? { hostId: q.hostId } : {}),
       ...(q.includeDestroyed === "true" ? { includeDestroyed: true } : {}),
+      ...(q.cursor ? { before: q.cursor } : {}),
+      ...(q.limit ? { limit: q.limit } : {}),
     });
-    const actor = c.get("actor");
-    const seen = can(actor, "previews.read") ? list : list.filter(visibleTo(ctx, actor));
-    return c.json({ seq, previews: seen.map(wire) });
+    // `next` only for a paged request, so the unpaged list keeps its shape.
+    const page = q.limit
+      ? { next: seen.length === q.limit ? seen[seen.length - 1]!.id : null }
+      : {};
+    return c.json({ seq, previews: seen.map(wire), ...page });
   });
 
   api.get("/previews/:id", requirePermission("previews.read", "previews.read_own"), (c) =>
@@ -269,12 +283,6 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     },
   );
 }
-
-const visibleTo = (ctx: PreviewContext, actor: Actor) => {
-  const made = ctx.previews.provenances();
-  const none = { owner: null, credential: null };
-  return (p: Preview) => maySee(actor, made.get(p.id) ?? none);
-};
 
 /** A preview the actor may not see answers as if it did not exist. */
 function findFor(ctx: PreviewContext, actor: Actor, p: Preview): Preview {

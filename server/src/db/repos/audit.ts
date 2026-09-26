@@ -37,6 +37,10 @@ export class AuditRepo {
     ).lastInsertRowid;
   }
 
+  pruneBefore(cutoff: number): number {
+    return this.#db.run("DELETE FROM audit WHERE created_at < $c", { c: cutoff }).changes;
+  }
+
   page(q: { before?: number; limit: number; action?: string }): {
     entries: AuditEntry[];
     nextBefore: number | null;

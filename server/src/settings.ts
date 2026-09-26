@@ -80,6 +80,10 @@ export const SETTINGS = {
   ),
   previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 0),
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
+  // Days kept before the daily prune deletes them; 0 keeps them for good.
+  retentionEvents: def("retention.events.days", z.coerce.number().int().min(0), 30),
+  retentionAudit: def("retention.audit.days", z.coerce.number().int().min(0), 0),
+  retentionDestroyed: def("retention.destroyedPreviews.days", z.coerce.number().int().min(0), 0),
   // Off for installs that should make no outbound call to GitHub.
   updatesCheck: def("updates.check", z.boolean(), true),
   acmeDirectoryUrl: def(
@@ -109,6 +113,7 @@ export interface SettingsStore {
   get(key: string): unknown;
   set(key: string, value: unknown): void;
   all(): Record<string, unknown>;
+  version?(): number;
 }
 
 export class MemorySettingsStore implements SettingsStore {
@@ -127,6 +132,8 @@ export class MemorySettingsStore implements SettingsStore {
 export class Settings {
   #overrides: Record<string, unknown>;
   #store: SettingsStore;
+  #parsed = new Map<string, Effective<unknown>>();
+  #parsedAt = -1;
 
   constructor(overrides: Record<string, unknown>, store: SettingsStore) {
     this.#overrides = overrides;
@@ -138,6 +145,20 @@ export class Settings {
   }
 
   effective<T>(d: SettingDef<T>): Effective<T> {
+    const version = this.#store.version?.();
+    if (version === undefined) return this.#resolve(d);
+    if (version !== this.#parsedAt) {
+      this.#parsed.clear();
+      this.#parsedAt = version;
+    }
+    const hit = this.#parsed.get(d.key) as Effective<T> | undefined;
+    if (hit) return hit;
+    const e = this.#resolve(d);
+    this.#parsed.set(d.key, e);
+    return e;
+  }
+
+  #resolve<T>(d: SettingDef<T>): Effective<T> {
     const managedByConfig = this.isManagedByConfig(d.key);
 
     if (managedByConfig) {

@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { actorId, can, systemActor } from "../../src/auth/actor.ts";
 import { flushLastSeen, sweepExpired } from "../../src/scheduler/jobs.ts";
-import { DAY, setupPreviewContext as setup } from "../helpers/preview-context.ts";
+import { prune } from "../../src/boot/jobs.ts";
+import { AuditRepo, EventsRepo } from "../../src/db/repos/index.ts";
+import { destroy } from "../../src/previews/destroy.ts";
+import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
+import { ACTOR, DAY, setupPreviewContext as setup } from "../helpers/preview-context.ts";
 
 describe("systemActor", () => {
   test("is an admin whose id cannot be mistaken for a real token's", () => {
@@ -115,5 +119,31 @@ describe("flushLastSeen", () => {
     s.table.touch(s.routes.forPreview(p.id)[0]!.hostname, 4_000);
     s.table.removePreview(p.id);
     expect(flushLastSeen(s.ctx)).toBe(0);
+  });
+});
+
+describe("prune", () => {
+  test("deletes what is past each retention setting and keeps what is set to 0", async () => {
+    const s = setup();
+    const gone = await s.deployed("gone");
+    const kept = await s.deployed("kept");
+    await destroy(s.ctx, gone.id, ACTOR);
+    const settings = new Settings({}, new MemorySettingsStore());
+    const d = {
+      db: s.db,
+      settings,
+      repos: { events: new EventsRepo(s.db), audit: new AuditRepo(s.db), previews: s.previews },
+    } as unknown as Parameters<typeof prune>[0];
+    const later = Date.now() + 40 * DAY;
+
+    const first = prune(d, later);
+    expect(first.events).toBeGreaterThan(0);
+    expect(first.previews).toBe(0);
+    expect(s.previews.get(gone.id)).toBeDefined();
+
+    settings.set(SETTINGS.retentionDestroyed, 30);
+    expect(prune(d, later)).toMatchObject({ previews: 1, audit: 0 });
+    expect(s.previews.get(gone.id)).toBeUndefined();
+    expect(s.previews.get(kept.id)).toBeDefined();
   });
 });

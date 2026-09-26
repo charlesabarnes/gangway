@@ -353,6 +353,22 @@ describe("PreviewLogs", () => {
     expect(logs.read(id)).toEqual([]);
   });
 
+  test("reads back from the end across chunks: tail, reopen, a follow that skips", () => {
+    const { dir } = setup();
+    const logs = new PreviewLogs(dir);
+    const lines = Array.from({ length: 3000 }, (_, i) => `line ${i + 1} ${"é".repeat(20)}`);
+    logs.append(id, "stdout", lines.join("\n"));
+    expect(logs.tail(id, 3)).toEqual(lines.slice(-3));
+    expect(logs.read(id, 2990).map((l) => l.n)).toEqual(
+      Array.from({ length: 10 }, (_, i) => 2991 + i),
+    );
+    expect(logs.read(id)).toHaveLength(3000);
+    new PreviewLogs(dir).append(id, "system", "next");
+    const got: string[] = [];
+    new PreviewLogs(dir).follow(id, 0, (l) => got.push(l.line), { tail: 2 });
+    expect(got).toEqual(["... 2999 earlier lines not shown", lines.at(-1)!, "next"]);
+  });
+
   test("an id that is not a ULID never becomes a path", () => {
     const { dir } = setup();
     const logs = new PreviewLogs(dir);

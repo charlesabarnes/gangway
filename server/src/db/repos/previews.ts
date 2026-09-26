@@ -47,6 +47,13 @@ export type PreviewFilter = {
   kind?: PreviewKind;
   projectId?: string;
   includeDestroyed?: boolean;
+  /** Only previews this principal deployed (previews.owner). */
+  owner?: string;
+  /** Only previews this credential deployed (previews.credential). */
+  credential?: string;
+  /** Only ids below this one: the next page after it. */
+  before?: string;
+  limit?: number;
 };
 
 const watermarkColumn = (w: WatermarkChoice | undefined): string | null =>
@@ -248,12 +255,37 @@ export class PreviewsRepo {
       where.push("project_id = $projectId");
       params["projectId"] = f.projectId;
     }
+    if (f.owner !== undefined) {
+      where.push("owner = $owner");
+      params["owner"] = f.owner;
+    }
+    if (f.credential !== undefined) {
+      where.push("credential = $credential");
+      params["credential"] = f.credential;
+    }
+    if (f.before !== undefined) {
+      where.push("id < $before");
+      params["before"] = f.before;
+    }
     if (!f.includeDestroyed && !f.state) where.push("state != 'destroyed'");
+    if (f.limit !== undefined) params["limit"] = f.limit;
 
-    const sql = `SELECT * FROM previews${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC`;
+    const sql = `SELECT * FROM previews${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC${f.limit !== undefined ? " LIMIT $limit" : ""}`;
     return this.#db
       .query<PreviewRow>(sql, Object.keys(params).length ? params : undefined)
       .map(rowToPreview);
+  }
+
+  /** Deletes previews destroyed before `cutoff`, with their events and builds; their ids. */
+  purgeDestroyedBefore(cutoff: number): string[] {
+    const ids = this.#db
+      .query<{ id: string }>(
+        "SELECT id FROM previews WHERE state = 'destroyed' AND destroyed_at < $c",
+        { c: cutoff },
+      )
+      .map((r) => r.id);
+    for (const id of ids) this.#db.run("DELETE FROM previews WHERE id = $id", { id });
+    return ids;
   }
 
   setState(id: string, state: PreviewState, error: string | null = null): void {

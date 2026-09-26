@@ -233,6 +233,13 @@ export const PreviewListQuerySchema = z.object({
   state: z.array(previewState).max(7).optional(),
   hostId: z.string().optional(),
   includeDestroyed: z.enum(["true", "false"]).optional(),
+  /** A page of at most this many, newest first; none for all of them. */
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  /** The `next` of the page before. */
+  cursor: z
+    .string()
+    .regex(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+    .optional(),
 });
 
 export const PreviewLogsQuerySchema = z.object({

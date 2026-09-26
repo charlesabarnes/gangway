@@ -134,6 +134,18 @@ export function owns(a: Actor, p: Provenance): boolean {
   return p.owner !== null && p.owner === principalOf(a);
 }
 
+/** maySee as a list filter: {} for everything, the one owner or credential, or null for nothing. */
+export function seeFilter(a: Actor): { owner?: string; credential?: string } | null {
+  if (can(a, "previews.read")) return {};
+  if (!can(a, "previews.read_own")) return null;
+  if (confined(a)) {
+    const credential = credentialOf(a);
+    return credential === null ? null : { credential };
+  }
+  const owner = principalOf(a);
+  return owner === null ? null : { owner };
+}
+
 export const maySee = (a: Actor, p: Provenance): boolean =>
   can(a, "previews.read") || (can(a, "previews.read_own") && owns(a, p));
 

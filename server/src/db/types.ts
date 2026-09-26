@@ -44,6 +44,8 @@ export function applyPragmas(
   db.exec(`PRAGMA foreign_keys = ON`);
   db.exec(`PRAGMA busy_timeout = ${o.busyTimeoutMs ?? 5000}`);
   db.exec(`PRAGMA temp_store = MEMORY`);
+  // 16 MiB of page cache (the default is 2); no mmap, which misbehaves on some network and FUSE filesystems.
+  db.exec(`PRAGMA cache_size = -16384`);
 
   const fk = db.pragma<{ foreign_keys: number }>(`PRAGMA foreign_keys`);
   if (Number(fk?.foreign_keys) !== 1) {

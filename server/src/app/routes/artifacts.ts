@@ -21,7 +21,7 @@ import {
   type ArtifactKind,
 } from "@gangway/shared/artifact/vocab";
 import { VISIBILITY_VALUES } from "@gangway/shared/api";
-import { WATERMARK_CHOICES, type Preview } from "@gangway/shared/domain";
+import { servedByGangway, WATERMARK_CHOICES, type Preview } from "@gangway/shared/domain";
 import {
   DEFAULT_ICON_COLOR,
   PREVIEW_ICON_COLORS,
@@ -30,7 +30,7 @@ import {
 import type { ArtifactLibrary } from "../../artifacts/library.ts";
 import { createTheme, manage, setDefaultTheme, updateTheme } from "../../artifacts/themes.ts";
 import type { AuditSink } from "../../audit/audit.ts";
-import { actorId, maySee } from "../../auth/actor.ts";
+import { actorId, seeFilter } from "../../auth/actor.ts";
 import type { ArtifactTemplatesRepo, ArtifactThemesRepo } from "../../db/repos/artifacts.ts";
 import { conflict, notFound, unprocessable } from "../../errors.ts";
 import { checkFiles, packFiles } from "../../mcp/pack.ts";
@@ -279,23 +279,16 @@ function deployRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
 /** The previews that are artifacts gangway serves, newest first, as the actor may see them. */
 function listRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   api.get("/artifacts", requirePermission("previews.read", "previews.read_own"), async (c) => {
-    const actor = c.get("actor");
-    const made = d.ctx.previews.provenances();
-    const none = { owner: null, credential: null };
-    const live = d.ctx.previews
-      .list({})
-      .filter((p) => p.state !== "destroyed" && maySee(actor, made.get(p.id) ?? none));
-    const out = [];
-    for (const p of live) {
-      const site = await d.ctx.sites?.open(p.id);
-      if (site?.kit)
-        out.push({ preview: d.wire(p), kind: site.kind ?? null, theme: site.theme ?? null });
-    }
-    out.sort((a, b) =>
-      String((b.preview as Preview).createdAt).localeCompare(
-        String((a.preview as Preview).createdAt),
-      ),
-    );
+    const see = seeFilter(c.get("actor"));
+    const served = see === null ? [] : d.ctx.previews.list(see).filter(servedByGangway);
+    const store = d.ctx.sites;
+    const sites = store ? await Promise.all(served.map((p) => store.open(p.id))) : [];
+    const out = served.flatMap((p, i) => {
+      const site = sites[i];
+      return site?.kit
+        ? [{ preview: d.wire(p), kind: site.kind ?? null, theme: site.theme ?? null }]
+        : [];
+    });
     return c.json({ artifacts: out });
   });
 }

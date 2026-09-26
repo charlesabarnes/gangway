@@ -9,6 +9,7 @@ import { flushLastSeen, sweepExpired } from "../scheduler/jobs.ts";
 import { Scheduler } from "../scheduler/scheduler.ts";
 import type { AcmeProvider } from "../tls/acme.ts";
 import type { CertStore } from "../tls/certstore.ts";
+import { SETTINGS, type SettingDef } from "../settings.ts";
 import type { Core } from "./core.ts";
 
 export type CertRenewal = {
@@ -20,7 +21,7 @@ export type CertRenewal = {
 
 export type Reconciling = { reconciler: Reconciler; reconciled: Promise<ReconcileReport | null> };
 
-export type JobDeps = Pick<Core, "config" | "logger" | "repos" | "updates"> &
+export type JobDeps = Pick<Core, "config" | "logger" | "repos" | "updates" | "settings" | "db"> &
   Reconciling & {
     ctx: PreviewContext;
     deploys: IdempotentDeploys;
@@ -120,10 +121,40 @@ function registerPurges(scheduler: Scheduler, d: JobDeps): void {
     },
   });
   scheduler.register({
+    name: "retention",
+    intervalMs: 86_400_000,
+    initialDelayMs: 300_000,
+    run: () => {
+      const pruned = prune(d);
+      if (Object.values(pruned).some((n) => n > 0)) d.logger.info("pruned old records", pruned);
+    },
+  });
+  scheduler.register({
     name: "oauth-purge",
     intervalMs: 3_600_000,
     run: () => {
       d.repos.oauthGrants.purge(Date.now() - 7 * 86_400_000);
     },
   });
+}
+
+const DAY = 86_400_000;
+
+/** Deletes what is past its retention setting, then lets SQLite refresh its query statistics. */
+export function prune(
+  d: Pick<JobDeps, "repos" | "settings" | "db">,
+  now = Date.now(),
+): { events: number; audit: number; previews: number } {
+  const days = (def: SettingDef<number>) => d.settings.get(def);
+  const before = (n: number) => now - n * DAY;
+  const events = days(SETTINGS.retentionEvents);
+  const audit = days(SETTINGS.retentionAudit);
+  const destroyed = days(SETTINGS.retentionDestroyed);
+  const out = {
+    events: events > 0 ? d.repos.events.pruneBefore(before(events)) : 0,
+    audit: audit > 0 ? d.repos.audit.pruneBefore(before(audit)) : 0,
+    previews: destroyed > 0 ? d.repos.previews.purgeDestroyedBefore(before(destroyed)).length : 0,
+  };
+  d.db.exec("PRAGMA optimize");
+  return out;
 }

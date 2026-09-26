@@ -83,6 +83,24 @@ describe("GET /v1/previews", () => {
     expect(after.previews[0]!.urls).toHaveLength(1);
   });
 
+  test("pages newest first with limit and cursor, and says where the next page starts", async () => {
+    const t = make();
+    const made = [];
+    for (const name of ["a", "b", "c"]) made.push(await t.deployed(name));
+    const page = async (q: string) =>
+      (await (await t.get(`/previews${q}`)).json()) as {
+        previews: { id: string }[];
+        next?: string | null;
+      };
+    const first = await page("?limit=2");
+    expect(first.previews.map((p) => p.id)).toEqual([made[2]!.id, made[1]!.id]);
+    expect(first.next).toBe(made[1]!.id);
+    const second = await page(`?limit=2&cursor=${first.next}`);
+    expect(second.previews.map((p) => p.id)).toEqual([made[0]!.id]);
+    expect(second.next).toBeNull();
+    expect((await page("")).next).toBeUndefined();
+  });
+
   test("state is repeatable or comma-joined; destroyed is left out unless asked for", async () => {
     const t = make();
     const live = await t.deployed("live");

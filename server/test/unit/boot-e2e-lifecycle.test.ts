@@ -101,6 +101,7 @@ test("the scheduler flushes visits to SQLite and sweeps an expired preview", asy
     ["idle-sleep", true],
     ["idempotency-purge", true],
     ["session-purge", true],
+    ["retention", true],
     ["oauth-purge", true],
     ["update-check", true],
   ]);
