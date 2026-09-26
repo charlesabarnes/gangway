@@ -86,6 +86,9 @@ describe("templates", () => {
     expect(renderTemplate({ template: "document/proposal" })).toEqual(
       renderTemplate({ template: "document/memo" }),
     );
+    expect(renderTemplate({ template: "canvas/map" })).toEqual(
+      renderTemplate({ template: "canvas/architecture" }),
+    );
   });
 
   test("numbers are clamped, bad choices and unknown options are refused", () => {

@@ -18,7 +18,7 @@ What to build: $ARGUMENTS (if that is empty or unexpanded, the user's request)
 
 ## Artifacts first
 
-1. Pick the kind: **document** (reading, with numbers, charts and diagrams), **deck** (a talk or a pitch) or **canvas** (a board of frames to pan and zoom: screens of a flow, illustrations, a system map).
+1. Pick the kind: **document** (reading, with numbers, charts and diagrams), **deck** (a talk or a pitch) or **canvas** (a board of frames to pan and zoom: a system's architecture, screens of a flow, illustrations).
 2. Call the MCP `catalog` tool with that kind. It returns the artifact.md guide, the templates for that kind (each with options) and a complete example. The same guide is in [catalog.md](catalog.md).
 3. Start from the closest template: `deploy` with `artifact: {template, title, subtitle, mode, theme, accent, options}`, plus `name`, `title`, `icon`, `iconColor` and `check`.
 4. Make it the user's: rewrite `artifact.md` (markdown, plus a few blocks for stats, charts and slides; see [catalog.md](catalog.md)) and `data/*.csv` for rows, then `deploy` with `preview: "<name>"` + `files`. gangway checks it on deploy; a 422 names the line, so fix exactly that.

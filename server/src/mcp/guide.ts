@@ -16,7 +16,7 @@ WHEN TO USE GANGWAY
 - A repo that already has its own deploy, preview or test setup: leave it alone, unless the user asks for gangway.
 
 ARTIFACTS FIRST
-- Pick the kind: document (reading, with numbers, charts and diagrams), deck (a talk or a pitch) or canvas (a board of frames to pan and zoom: screens of a flow, illustrations, a system map).
+- Pick the kind: document (reading, with numbers, charts and diagrams), deck (a talk or a pitch) or canvas (a board of frames to pan and zoom: a system's architecture, screens of a flow, illustrations).
 - Call catalog with that kind. It lists the templates (each with options), every component and its props, and a complete example.
 - Start from the closest template: deploy with artifact: {template, title, subtitle, mode, theme, accent, options}, name, title, icon, iconColor and check. Then make it the user's: rewrite artifact.md (and data/*.csv) and deploy with preview: "<name>" + files.
 - Put the story in the words: a title that says the finding, one idea per section or slide, numbers with units.

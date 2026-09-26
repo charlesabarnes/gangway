@@ -8,7 +8,6 @@ import {
 } from "../vocab.ts";
 import { canvasArchitecture } from "./canvas/architecture.ts";
 import { board } from "./canvas/board.ts";
-import { systemMap } from "./canvas/system-map.ts";
 import { userFlow } from "./canvas/user-flow.ts";
 import { pitch } from "./deck/pitch.ts";
 import { review } from "./deck/review.ts";
@@ -32,16 +31,16 @@ export const ARTIFACT_TEMPLATES: readonly ArtifactTemplate[] = [
   talk,
   userFlow,
   board,
-  systemMap,
   canvasArchitecture,
 ];
 
-/** Names templates had before ADR-0033, still accepted. */
+/** Names templates had before, still accepted. */
 const RENAMED: Record<string, string> = {
   "document/proposal": "document/memo",
   "document/releases": "document/changelog",
   "deck/status": "deck/review",
   "deck/lesson": "deck/talk",
+  "canvas/map": "canvas/architecture",
 };
 
 export const templateById = (id: string): ArtifactTemplate | undefined =>

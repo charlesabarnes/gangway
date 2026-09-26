@@ -267,7 +267,7 @@ export const CATALOG_TOOL = {
       kind: z
         .enum(ARTIFACT_KINDS)
         .describe(
-          "document: to read, with numbers, charts and diagrams (a report, memo, release notes, a process). deck: a talk or a pitch. canvas: a board of frames to pan and zoom (screens of a flow, illustrations, a system map).",
+          "document: to read, with numbers, charts and diagrams (a report, memo, release notes, a process). deck: a talk or a pitch. canvas: a board of frames to pan and zoom (a system's architecture, screens of a flow, illustrations).",
         ),
       template: z
         .string()

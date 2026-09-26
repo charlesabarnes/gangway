@@ -179,7 +179,7 @@ describe("the artifacts API", () => {
   test("POST /artifacts deploys a template to a preview", async () => {
     const t = setup();
     const res = await t.call("POST", "/artifacts", {
-      template: "canvas/map",
+      template: "canvas/architecture",
       title: "Our system",
       name: "system",
       visibility: "public",
