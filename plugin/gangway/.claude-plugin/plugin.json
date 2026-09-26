@@ -1,7 +1,7 @@
 {
   "name": "gangway",
   "version": "0.1.0",
-  "description": "Ship what you would make as an artifact to a real HTTPS URL on your own gangway server: multi-page sites, apps with a database, prototypes with a backend.",
+  "description": "Charts, diagrams, documents, decks and canvases on a real HTTPS URL on your own gangway server, in place of built-in artifacts; and a quick place to put up new apps, with a database if they need one.",
   "author": {
     "name": "Charles Barnes"
   },

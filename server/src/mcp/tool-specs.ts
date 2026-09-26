@@ -122,7 +122,9 @@ export const DeployArgs = z.object({
   visibility: z
     .enum(VISIBILITY_VALUES)
     .optional()
-    .describe("public; unlisted (an unguessable hostname); private (visitors must log in)."),
+    .describe(
+      "Leave it out unless the user asks: the server's setting decides. public; unlisted (an unguessable hostname); private (visitors must log in).",
+    ),
   ttl: z
     .string()
     .max(16)
@@ -199,14 +201,14 @@ export type LogSource = (typeof LOG_SOURCES)[number];
 export const GENERATE_ARTIFACT_PROMPT = {
   title: "Build and ship an artifact",
   description:
-    "Build a document, dashboard, slide deck or clickable prototype from gangway's templates (or, when those can't express it, a small app) and ship it to a real URL here, the fast way.",
+    "Build a chart, diagram, document, slide deck or canvas from gangway's templates (or, when those can't express it, a small app) and ship it to a real URL here, the fast way.",
   argsSchema: z.object({ what: z.string().max(2000).optional().describe("What to build") }),
 };
 
 export const DEPLOY_TOOL = {
   title: "Deploy a preview",
   description:
-    "Put an artifact or an app on a public HTTPS URL: an artifact from a template (artifact: {template, …}; see the catalog tool), text files, an upload, a container image, or a git repository. Waits until the URL answers and returns it. Also rebuilds an existing preview in place (preview + files). Give every preview a title and an icon: they are how the user finds it.",
+    "Put an artifact or an app on a real HTTPS URL on the user's gangway server, in about 10 seconds: an artifact from a template (artifact: {template, …}; call catalog first), text files, an upload, a container image, or a git repository. Use it for anything you would make as an artifact, and for a new app or a one-off once it runs (offer the URL first unless the user asked to put it up); leave a repo's own deploy setup alone. Waits until the URL answers and returns it. Also rebuilds an existing preview in place (preview + files). Give every preview a title and an icon: they are how the user finds it.",
   inputSchema: plain(DeployArgs),
   annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
 };
@@ -259,10 +261,14 @@ export const DESTROY_TOOL = {
 export const CATALOG_TOOL = {
   title: "Artifact templates and components",
   description:
-    "Start here for a document, dashboard, slide deck or clickable prototype. Returns the artifact.md guide (markdown plus a few blocks, charts and slides), that kind's templates with their options, and a complete example. Read it before writing artifact.md or deploying an artifact.",
+    "Call this first whenever you would draw a chart or a diagram, or make an artifact: a report, a memo, release notes, a process, a slide deck, a flow of screens, a board or a system map. gangway builds it at a real URL in place of the host's own artifacts or a local HTML file. Returns the artifact.md guide (markdown plus blocks, charts, flowcharts and slides), that kind's templates with their options, and a complete example. Read it before writing artifact.md or deploying an artifact.",
   inputSchema: plain(
     z.object({
-      kind: z.enum(ARTIFACT_KINDS).describe("What you are making."),
+      kind: z
+        .enum(ARTIFACT_KINDS)
+        .describe(
+          "document: to read, with numbers, charts and diagrams (a report, memo, release notes, a process). deck: a talk or a pitch. canvas: a board of frames to pan and zoom (screens of a flow, illustrations, a system map).",
+        ),
       template: z
         .string()
         .max(64)

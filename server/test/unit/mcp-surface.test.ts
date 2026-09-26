@@ -194,6 +194,9 @@ describe("the mcp surface", () => {
         'preview: "<name>"',
         "$PORT",
         'source: "runtime"',
+        "the host's own artifacts",
+        "the server's setting decides",
+        "own deploy",
       ]) {
         expect(text.replace(/`/g, "")).toContain(
           rule.replace("$PORT", text === INSTRUCTIONS ? "$PORT" : "PORT"),

@@ -370,7 +370,7 @@ export class DeployTool {
       "",
       `  COPYFILE_DISABLE=1 tar --exclude=.git --exclude=node_modules -czf - . | curl -sS --fail-with-body -X PUT -H 'content-type: application/gzip' --data-binary @- '${u.url}'`,
       "",
-      `Then: deploy with upload: "${u.id}" and the usual name, visibility, addons -- or with preview: "<name>" as well, to replace that preview's source and rebuild it at the same URL.`,
+      `Then: deploy with upload: "${u.id}" and the usual name, title, icon, addons -- or with preview: "<name>" as well, to replace that preview's source and rebuild it at the same URL.`,
     ].join("\n");
   }
 }

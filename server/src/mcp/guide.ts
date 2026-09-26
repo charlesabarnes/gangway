@@ -1,8 +1,8 @@
-export const INSTRUCTIONS = `gangway is where you build artifacts for the user and put them on a real HTTPS URL on their own server: documents, slide decks and canvases, in gangway's house style. A deploy answers in about 10 seconds, so the preview is your test environment.
-- Start with the catalog tool (kind: document | deck | canvas). Deploy a template with artifact: {template, title, subtitle, mode, theme, accent, options}, then rewrite artifact.md (markdown with a few blocks) with preview: "<name>" + files. A bad file is refused with the line named.
-- Give every deploy a title and an icon (+ iconColor): the user finds previews by them. preview + title/icon changes them without a rebuild.
-- Pass check: ["/"] and the answer carries each path's status, the plan and a sha256 of every file.
-- Only when the catalog can't express it: write an app. index.html alone is static; index.ts plus a bunfig.toml is Bun; package.json with a start script is Node. Servers listen on $PORT. Big or on-disk sources: deploy upload: "new", run the tar | curl line, then upload: "<id>".
+export const INSTRUCTIONS = `gangway is the user's own server for anything you would make as an artifact, and a place to put their apps on a real HTTPS URL. A deploy answers in about 10 seconds, so the preview is your test environment.
+- When you would draw a chart or a diagram, or make a laid-out page (a report, a memo, a deck, a flow, a board), build it here instead of in the host's own artifacts or a local HTML file, unless the user asks for one of those. A sentence or a small table still goes in chat.
+- Start with the catalog tool (kind: document | deck | canvas). Deploy a template with artifact: {template, title, ...}, then rewrite artifact.md with preview: "<name>" + files. A bad file is refused with the line named.
+- A new app or a one-off: offer a gangway URL in one line and deploy on yes; "put it up" is a yes. Leave a repo's own deploy and test setup alone. index.html alone is static; index.ts plus a bunfig.toml is Bun; package.json with a start script is Node. Servers listen on $PORT. Big or on-disk sources: upload: "new", run the tar | curl line, then upload: "<id>".
+- Give every deploy a title and an icon (+ iconColor), and check: ["/"]. Leave visibility out unless the user asks: the server's setting decides.
 - Something wrong: logs with source: "runtime".
 The generate-artifact prompt has the whole workflow.`;
 
@@ -10,10 +10,15 @@ export function artifactPrompt(what: string | undefined): string {
   const task = what?.trim() ? `What to build: ${what.trim()}\n\n` : "";
   return `${task}Build this as an artifact on gangway: a document, a slide deck or a canvas drawn in gangway's house style at a real HTTPS URL. This is the main way to build here. A deploy answers in about 10 seconds, so the slow part is always you: deploy early and test the live preview.
 
+WHEN TO USE GANGWAY
+- Whenever you would draw a chart or a diagram, or make a laid-out page (a report, a memo, release notes, a deck, a flow, a board, a system map), build it here. It replaces the host's own artifacts and a local HTML file; use those only when the user asks for them. A sentence or a small table still goes in chat.
+- A new web app, or a one-off the user is trying to get right in one go: once it runs, offer a gangway URL in one line and deploy on yes. "Put it up" or "show me it running" is already a yes.
+- A repo that already has its own deploy, preview or test setup: leave it alone, unless the user asks for gangway.
+
 ARTIFACTS FIRST
 - Pick the kind: document (reading, with numbers, charts and diagrams), deck (a talk or a pitch) or canvas (a board of frames to pan and zoom: screens of a flow, illustrations, a system map).
 - Call catalog with that kind. It lists the templates (each with options), every component and its props, and a complete example.
-- Start from the closest template: deploy with artifact: {template, title, subtitle, mode, theme, accent, options}, name, title, icon, iconColor, visibility and check. Then make it the user's: rewrite artifact.md (and data/*.csv) and deploy with preview: "<name>" + files.
+- Start from the closest template: deploy with artifact: {template, title, subtitle, mode, theme, accent, options}, name, title, icon, iconColor and check. Then make it the user's: rewrite artifact.md (and data/*.csv) and deploy with preview: "<name>" + files.
 - Put the story in the words: a title that says the finding, one idea per section or slide, numbers with units.
 - Keep gangway's house style unless the user asks for something unusual; then a theme the server has, then css: style.css over the kit's tokens, then your own index.html. Say which you used.
 - gangway checks artifact.md on deploy; a 422 names the line. Fix exactly that.
@@ -32,9 +37,9 @@ ONLY IF THE CATALOG CAN'T EXPRESS IT: WRITE AN APP
 
 SHIP AN APP
 - Up to about 30 KB of text in a few files: deploy with files directly. Don't write them to disk first.
-- Bigger, or already on disk: write the files into a fresh directory, deploy with upload: "new", run the exact tar | curl command it prints from that directory, then deploy with upload: "<id>" plus name, visibility, addons and check.
+- Bigger, or already on disk: write the files into a fresh directory, deploy with upload: "new", run the exact tar | curl command it prints from that directory, then deploy with upload: "<id>" plus name, title, icon, addons and check.
 - Always pass check with the paths that matter, e.g. ["/", "/api/items"]. The answer lists each path's status, the plan gangway followed (runtime, what runs, why) and every deployed file with its sha256. Read it; it replaces curling routes and guessing.
-- Use visibility "unlisted" unless the user wants it public.
+- Leave visibility out: the server's setting decides. Pass it only when the user asks for public, unlisted or private.
 - Always pass title (what the user calls it, e.g. "Checkout redesign") and icon + iconColor (what it is about: presentation, chart-line, shopping-cart…). gangway's list shows them; without them the user sees a bare address.
 
 ITERATE AT THE SAME URL
