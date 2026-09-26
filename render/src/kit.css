@@ -193,10 +193,19 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
+  font-family: var(--font-title, var(--font-serif));
+  font-style: var(--title-style, italic);
+  font-weight: var(--title-weight, 400);
   text-wrap: balance;
+}
+/* A theme's logo: nothing until a theme sets --logo and its width. */
+.gw-logo {
+  display: block;
+  flex: none;
+  width: var(--logo-w, 0);
+  height: 28px;
+  margin-right: var(--logo-gap, 0);
+  background: var(--logo, none) no-repeat left center / contain;
 }
 h1 {
   font-size: clamp(40px, 6vw, 60px);
@@ -322,6 +331,10 @@ gw-card,
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
+}
+.gw-title-top > :first-child {
+  display: flex;
+  align-items: center;
 }
 .gw-title-top .gw-caps {
   display: inline-flex;
@@ -1160,7 +1173,8 @@ gw-slide gw-callout {
 }
 gw-slide gw-callout > [data-part="title"] {
   margin-bottom: 8px;
-  font: italic 400 34px/1.15 var(--font-serif);
+  font: var(--title-style, italic) var(--title-weight, 400) 34px/1.15
+    var(--font-title, var(--font-serif));
 }
 gw-slide gw-chart :is(.axis text, .legend, .end) {
   font-size: 15px;
@@ -1229,6 +1243,13 @@ gw-slide[layout="section"] > .gw-slide-body::before {
   font: 600 22px var(--font-mono);
   color: var(--flag);
 }
+gw-slide > .gw-slide-foot > :first-child {
+  display: flex;
+  align-items: center;
+}
+gw-slide > .gw-slide-foot .gw-logo {
+  height: 22px;
+}
 gw-slide[layout="section"] :is(h1, h2) {
   max-width: 18ch;
   font-size: 80px;
@@ -1252,7 +1273,8 @@ gw-slide[layout="end"] gw-facts {
 /* A statement: one sentence, set large. */
 gw-slide[layout="statement"] > .gw-slide-body > :first-child {
   max-width: 24ch;
-  font: italic 400 64px/1.12 var(--font-serif);
+  font: var(--title-style, italic) var(--title-weight, 400) 64px/1.12
+    var(--font-title, var(--font-serif));
   text-wrap: balance;
 }
 gw-slide[layout="statement"] > .gw-slide-body > :first-child ~ * {
@@ -1482,6 +1504,13 @@ gw-frame > .gw-frame-body > svg {
   background: var(--paper);
   box-shadow: var(--neatline);
   pointer-events: none;
+}
+.gw-canvas-top {
+  display: flex;
+  align-items: center;
+}
+.gw-canvas-top .gw-logo {
+  height: 20px;
 }
 .gw-canvas-head h1 {
   font-size: 28px;

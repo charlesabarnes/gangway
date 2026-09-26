@@ -23,7 +23,7 @@ function titleBlock(label: string, meta: string, title: string, subtitle: string
   const d = document.createElement("header");
   d.className = "gw-title";
   d.innerHTML =
-    `<div class="gw-title-top"><span class="gw-caps">${esc(label)}</span><span class="gw-meta">${esc(meta)}</span></div>` +
+    `<div class="gw-title-top"><div><span class="gw-logo" aria-hidden="true"></span><span class="gw-caps">${esc(label)}</span></div><span class="gw-meta">${esc(meta)}</span></div>` +
     (title ? `<h1>${esc(title)}</h1>` : "") +
     (subtitle ? `<p class="gw-subtitle">${esc(subtitle)}</p>` : "");
   return d;

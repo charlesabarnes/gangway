@@ -3,7 +3,8 @@ import { servedByGangway, type Preview } from "@gangway/shared/domain";
 import { DEFAULT_ICON_COLOR, type PreviewIcon } from "@gangway/shared/preview-icon";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
-import { renderTemplate, TemplateError } from "@gangway/shared/artifact/index";
+import { TemplateError } from "@gangway/shared/artifact/index";
+import { BUILTIN_LIBRARY, type ArtifactLibrary } from "../artifacts/library.ts";
 import { unprocessable } from "../errors.ts";
 import { urlsFor } from "../previews/deploy-names.ts";
 import type { DeploySource } from "../previews/deploy-types.ts";
@@ -72,9 +73,12 @@ function checkRebuildArgs(args: DeployArgs): void {
     );
 }
 
-function templateFiles(input: NonNullable<DeployArgs["artifact"]>): Record<string, string> {
+function templateFiles(
+  lib: ArtifactLibrary | undefined,
+  input: NonNullable<DeployArgs["artifact"]>,
+): Record<string, string> {
   try {
-    return renderTemplate(input);
+    return (lib ?? BUILTIN_LIBRARY).render(input);
   } catch (e) {
     if (e instanceof TemplateError) throw unprocessable(`artifact: ${e.message}`);
     throw e;
@@ -189,7 +193,9 @@ export class DeployTool {
       return { source: { kind: "tarball", archive, digest, runtime: "auto", ...extra }, taken };
     }
     if (args.files || args.artifact) {
-      const { archive, digest } = await packFiles(args.files ?? templateFiles(args.artifact!));
+      const { archive, digest } = await packFiles(
+        args.files ?? templateFiles(this.#d.ctx.artifacts, args.artifact!),
+      );
       return { source: { kind: "tarball", archive, digest, runtime: "auto", ...extra } };
     }
     if (addons !== undefined)
@@ -267,7 +273,7 @@ export class DeployTool {
       return { change: { kind: "replace", archive: taken.archive }, taken };
     }
     const files: Record<string, string | null> = {
-      ...(args.artifact ? templateFiles(args.artifact) : (args.files ?? {})),
+      ...(args.artifact ? templateFiles(this.#d.ctx.artifacts, args.artifact) : (args.files ?? {})),
     };
     for (const p of args.remove ?? []) files[p] = null;
     const settingOnly = args.network !== undefined;

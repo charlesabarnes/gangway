@@ -1,13 +1,7 @@
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import {
-  guideText,
-  renderTemplate,
-  templateById,
-  templatesFor,
-  templatesText,
-  type ArtifactKind,
-} from "@gangway/shared/artifact/index";
+import { guideText, type ArtifactKind } from "@gangway/shared/artifact/index";
+import { BUILTIN_LIBRARY } from "../artifacts/library.ts";
 import type { Permission } from "@gangway/shared/permissions";
 import { can, mayDestroy, mayReadLogs, mayRebuild, type Actor } from "../auth/actor.ts";
 import { AppError, unprocessable } from "../errors.ts";
@@ -136,18 +130,15 @@ export class Tools {
 
   catalog(scope: CallScope, kind: ArtifactKind, template?: string): string {
     need(scope.actor, ...TOOL_PERMISSIONS.catalog);
-    const id = template ?? templatesFor(kind)[0]!.id;
-    const t = templateById(id);
-    if (!t || t.kind !== kind)
-      throw unprocessable(
-        `no ${kind} template "${id}"; one of ${templatesFor(kind)
-          .map((x) => x.id)
-          .join(", ")}`,
-      );
-    const example = Object.entries(renderTemplate({ template: id }))
+    const lib = this.#d.ctx.artifacts ?? BUILTIN_LIBRARY;
+    const all = lib.templates(kind);
+    const id = template ?? all[0]!.id;
+    if (!all.some((t) => t.id === id))
+      throw unprocessable(`no ${kind} template "${id}"; one of ${all.map((x) => x.id).join(", ")}`);
+    const example = Object.entries(lib.render({ template: id }))
       .map(([path, body]) => `--- ${path}\n${body.trimEnd()}`)
       .join("\n");
-    return `${guideText(kind)}\n\n## Templates for a ${kind}\nDeploy one with deploy artifact: {template, title, subtitle, mode, theme, accent, options}, or change these files and deploy them.\n${templatesText(kind)}\n\n## The ${id} template's files\n${example}`;
+    return `${guideText(kind)}\n\n## Themes on this server\nName one with theme: <id> in the front matter, or artifact.theme; leave it out for the default.\n${lib.themesText()}\n\n## Templates for a ${kind}\nDeploy one with deploy artifact: {template, title, subtitle, mode, theme, accent, options}, or change these files and deploy them.\n${lib.templatesText(kind)}\n\n## The ${id} template's files\n${example}`;
   }
 
   async status(scope: CallScope, ref: string | undefined): Promise<string> {

@@ -168,3 +168,26 @@ export function csvHeader(csv: string[]): string[] {
   const first = csv.find((l) => l.trim() !== "");
   return first ? first.split(",").map((c) => c.trim()) : [];
 }
+
+/** The source with these front matter keys set (a value) or removed (null); others kept in place. */
+export function setFrontMatter(
+  src: string,
+  set: Record<string, string | null | undefined>,
+): string {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
+  if (!m) return src;
+  const todo = new Map(Object.entries(set).filter(([, v]) => v !== undefined));
+  const lines: string[] = [];
+  for (const line of (m[1] ?? "").split(/\r?\n/)) {
+    const key = /^([\w-]+):/.exec(line)?.[1];
+    if (key === undefined || !todo.has(key)) {
+      lines.push(line);
+      continue;
+    }
+    const v = todo.get(key);
+    todo.delete(key);
+    if (v !== null) lines.push(`${key}: ${v}`);
+  }
+  for (const [k, v] of todo) if (v !== null) lines.push(`${k}: ${v}`);
+  return `---\n${lines.join("\n")}\n---\n${src.slice(m[0].length)}`;
+}

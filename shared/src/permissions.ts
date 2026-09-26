@@ -115,6 +115,11 @@ export const PERMISSIONS = [
     description: "Create, edit and delete templates",
   },
   {
+    id: "artifacts.manage",
+    feature: "artifacts",
+    description: "Create, edit and delete artifact themes and templates",
+  },
+  {
     id: "apps.read",
     feature: "apps",
     description: "See the system app catalog and what is installed",

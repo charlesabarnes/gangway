@@ -1,3 +1,4 @@
+import { ArtifactLibrary } from "../artifacts/library.ts";
 import { createHmac } from "node:crypto";
 import type { Trigger } from "@gangway/shared/domain";
 import { Passwords } from "../auth/password.ts";
@@ -85,6 +86,12 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     sources: d.sources,
     sites: d.sites,
     serveStatic: () => settings.get(SETTINGS.previewsServeStatic),
+    artifacts: new ArtifactLibrary({
+      themes: repos.artifactThemes,
+      templates: repos.artifactTemplates,
+      defaultTheme: () => settings.get(SETTINGS.artifactTheme),
+    }),
+    artifactCss: () => settings.get(SETTINGS.artifactCustomCss),
     limits: () => ({
       memoryBytes: parseBytes(settings.get(SETTINGS.previewsMemory)) ?? 0,
       cpus: settings.get(SETTINGS.previewsCpus),

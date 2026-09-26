@@ -1,5 +1,4 @@
-// Where a canvas puts its frames and how an arrow runs between two of them. Pure, so the kit
-// and the tests share it.
+// Where a canvas puts its frames and how its arrows run; pure, so the kit and tests share it.
 
 export const CANVAS_LAYOUTS = ["grid", "row", "column"] as const;
 export type CanvasLayout = (typeof CANVAS_LAYOUTS)[number];
@@ -18,11 +17,7 @@ export type FrameSpec = {
 };
 export type LayoutOptions = { layout: CanvasLayout; columns: number; gap: number };
 
-/**
- * Frames with x and y stay exactly there. The rest flow in reading order from 0,0: `row` in
- * one line, `column` in one stack, `grid` in rows of `columns`, each row as tall as its tallest
- * frame. Placing a frame beside the flow (a note under a screen) is the author's to get right.
- */
+/** Frames with x and y stay there; the rest flow from 0,0 in a row, a column or a grid. */
 export function layoutFrames(frames: readonly FrameSpec[], o: LayoutOptions): Map<string, Box> {
   const out = new Map<string, Box>();
   for (const f of frames)

@@ -27,6 +27,8 @@ describe("the tools", () => {
     const out = s.tools.catalog(s.scope(), "deck");
     expect(out).toContain("- deck/pitch:");
     expect(out).toContain("- deck/review:");
+    expect(out).toContain("## Themes on this server");
+    expect(out).toContain("- chart (the default): Chart");
     expect(out).toContain("## Decks");
     expect(out).not.toContain("## Prototypes");
     expect(out).toContain("--- artifact.md\n---\nkind: deck");

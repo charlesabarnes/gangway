@@ -16,9 +16,12 @@ export type SiteServeOptions = {
   unlisted: boolean;
   /** The built kit (render/dist), served at /_gangway/ to a site that uses it. */
   kitDir: string;
-  /** The CSS of a theme by id (null: the server's default), or null for the kit's own. */
+  /** A theme's CSS and logo by id (null: the server's default); null keeps the kit's own. */
   themeCss?: ((id: string | null) => string | null) | undefined;
+  themeLogo?: ((id: string | null) => string | null) | undefined;
 };
+
+export const THEME_LOGO_PATH = "/_gangway/theme-logo.svg";
 
 const KIT_PREFIX = "/_gangway/";
 const COMPRESSIBLE =
@@ -119,24 +122,30 @@ async function serveKit(
   }
   if (rest.length === 1 && rest[0] === "theme.css") {
     const css = o.themeCss?.(site.theme ?? null);
-    if (css !== null && css !== undefined) return themeResponse(req, css);
+    if (css !== null && css !== undefined) return themeResponse(req, css, "text/css");
+  }
+  if (rest.length === 1 && rest[0] === "theme-logo.svg") {
+    const svg = o.themeLogo?.(site.theme ?? null);
+    return svg ? themeResponse(req, svg, "image/svg+xml") : plain(404, "not found");
   }
   const f = await fileAt(o.kitDir, rest);
   return f ? send(req, f, o, { kit: true }) : plain(404, "not found");
 }
 
 // Short-lived: a theme edited in the UI restyles every artifact that uses it on the next load.
-function themeResponse(req: Request, css: string): Response {
-  const etag = `W/"${Bun.hash(css).toString(36)}"`;
+function themeResponse(req: Request, body: string, type: string): Response {
+  const etag = `W/"${Bun.hash(body).toString(36)}"`;
   const headers = {
-    "content-type": "text/css; charset=utf-8",
+    "content-type": `${type}; charset=utf-8`,
     "cache-control": "no-cache",
     etag,
     "x-content-type-options": "nosniff",
+    // A logo is only ever an image; nothing in it may run.
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
   };
   if (req.headers.get("if-none-match") === etag)
     return new Response(null, { status: 304, headers });
-  return new Response(req.method === "HEAD" ? null : css, { headers });
+  return new Response(req.method === "HEAD" ? null : body, { headers });
 }
 
 type Lookup = { found: Found } | { redirect: string } | null;

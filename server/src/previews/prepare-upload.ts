@@ -3,7 +3,7 @@ import { join, relative, sep } from "node:path";
 import type { AddonChoice } from "@gangway/shared/addons";
 import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
 import type { RuntimeId } from "@gangway/shared/runtimes";
-import { AppError } from "../errors.ts";
+import { AppError, unprocessable } from "../errors.ts";
 import { renderAddons, type RenderedAddons } from "./addons.ts";
 import type { PreviewContext } from "./context.ts";
 import { ownStack } from "./own-stack.ts";
@@ -109,6 +109,23 @@ async function writePlannedRuntime(
   return composeFile;
 }
 
+/** What the plan cannot know: whether this server has the theme, and allows its own CSS. */
+function checkArtifact(ctx: PreviewContext, plan: AppPlan): void {
+  const a = plan.artifact;
+  if (!a) return;
+  if (a.theme && ctx.artifacts && !ctx.artifacts.theme(a.theme))
+    throw unprocessable(
+      `artifact.md: theme: no theme called "${a.theme}"; this server has ${ctx.artifacts
+        .themes()
+        .map((t) => t.id)
+        .join(", ")}`,
+    );
+  if (a.css && ctx.artifactCss?.() === false)
+    throw unprocessable(
+      "artifact.md: css: this server keeps every artifact in its theme; remove css: or ask an admin to allow it",
+    );
+}
+
 export async function prepareUpload(
   ctx: PreviewContext,
   logId: string,
@@ -122,6 +139,7 @@ export async function prepareUpload(
   const pristine = await keepPristine(ctx, wd);
   const plan = await planFromDisk(wd.srcDir, choice, opts);
   assertRunnable(plan);
+  checkArtifact(ctx, plan);
   for (const r of plan.reasons)
     ctx.logs.append(
       logId,

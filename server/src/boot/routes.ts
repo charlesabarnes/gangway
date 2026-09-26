@@ -5,6 +5,7 @@ import type { AppEnv } from "../app/env.ts";
 import type { McpSurface } from "../app/mcp-surface.ts";
 import type { AuthDeps } from "../app/middleware/auth.ts";
 import { addonRoutes } from "../app/routes/addons.ts";
+import { artifactRoutes } from "../app/routes/artifacts.ts";
 import { auditRoutes } from "../app/routes/audit.ts";
 import { authRoutes } from "../app/routes/auth.ts";
 import { eventRoutes } from "../app/routes/events.ts";
@@ -92,6 +93,16 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     audit,
     namedByTrigger: (id) => TRIGGERS.filter((t) => d.triggerDefault(t) === id),
   });
+  if (ctx.artifacts)
+    artifactRoutes(api, {
+      library: ctx.artifacts,
+      themes: repos.artifactThemes,
+      templates: repos.artifactTemplates,
+      settings,
+      audit,
+      deploys: d.deploys,
+      wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
+    });
   secretRoutes(api, d.secrets);
   githubRoutes(api, {
     app: d.githubApp,

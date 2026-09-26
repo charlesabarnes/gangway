@@ -8,7 +8,7 @@ import { DEFAULT_LIMITS } from "../net/limits.ts";
 import { controlAllowRisk, controlGate } from "../net/control-allow.ts";
 import { clientIpOf, startListener, type RunningListener } from "../net/listener.ts";
 import { clientIpResolver, type ClientIpResolver } from "../net/trusted-proxy.ts";
-import { serveSite } from "../net/site.ts";
+import { serveSite, THEME_LOGO_PATH } from "../net/site.ts";
 import { markScript } from "../net/watermark.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "../net/upstream.ts";
 import { renderDist } from "../previews/artifact-render.ts";
@@ -140,9 +140,16 @@ function siteFor({ ctx }: NetworkDeps): NonNullable<DispatchDeps["site"]> {
   return async (req, entry) => {
     const site = await ctx.sites?.open(entry.previewId);
     if (!site) return failedPage(entry.hostname, ["this preview's files are missing: redeploy it"]);
+    const lib = ctx.artifacts;
     return serveSite(req, site, {
       unlisted: entry.visibility === "unlisted",
       kitDir: renderDist(),
+      ...(lib
+        ? {
+            themeCss: (id: string | null) => lib.themeCss(id, THEME_LOGO_PATH),
+            themeLogo: (id: string | null) => lib.themeLogo(id),
+          }
+        : {}),
     });
   };
 }

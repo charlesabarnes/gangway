@@ -166,6 +166,7 @@ export const PERMISSIONS = [
   'repos.manage',
   'repos.secrets',
   'templates.manage',
+  'artifacts.manage',
   'apps.read',
   'apps.install',
   'jobs.claim',

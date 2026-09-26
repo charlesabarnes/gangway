@@ -4,6 +4,8 @@ import type { HostConfig } from "../config.ts";
 import { backupBeforeMigrating } from "../db/backup.ts";
 import { migrate } from "../db/migrate.ts";
 import {
+  ArtifactTemplatesRepo,
+  ArtifactThemesRepo,
   AuditRepo,
   BuildsRepo,
   CertificatesRepo,
@@ -34,6 +36,8 @@ import type { RouteTable } from "../routing/table.ts";
 const MIGRATIONS = resolve(import.meta.dir, "../../migrations");
 
 export type Repos = {
+  artifactThemes: ArtifactThemesRepo;
+  artifactTemplates: ArtifactTemplatesRepo;
   audit: AuditRepo;
   builds: BuildsRepo;
   certificates: CertificatesRepo;
@@ -67,6 +71,8 @@ export function openStorage(path: string, logger: Logger): { db: Db; repos: Repo
 
 function openRepos(db: Db): Repos {
   return {
+    artifactThemes: new ArtifactThemesRepo(db),
+    artifactTemplates: new ArtifactTemplatesRepo(db),
     audit: new AuditRepo(db),
     builds: new BuildsRepo(db),
     certificates: new CertificatesRepo(db),

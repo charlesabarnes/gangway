@@ -1,3 +1,4 @@
+import type { ArtifactLibrary } from "../artifacts/library.ts";
 import type { AuditSink } from "../audit/audit.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
 import type { CloneOptions } from "./source/git.ts";
@@ -65,6 +66,9 @@ export type PreviewContext = {
   sites?: SiteStore | undefined;
   /** Whether a plain static upload is served by gangway (true) or by an nginx container. */
   serveStatic?: (() => boolean) | undefined;
+  /** Artifact themes and templates; built-ins only when absent. */
+  artifacts?: ArtifactLibrary | undefined;
+  artifactCss?: (() => boolean) | undefined;
   limits?: (() => PreviewLimits) | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;

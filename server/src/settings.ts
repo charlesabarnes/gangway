@@ -57,13 +57,19 @@ export const SETTINGS = {
     null,
     { secret: true },
   ),
-  // gangway stamps its mark on every HTML page a preview answers; previews and repositories may override.
   previewWatermark: def("previews.watermark", z.boolean(), true),
   previewWatermarkLink: def(
     "previews.watermark.link",
     z.string().url().or(z.literal("")),
     "https://gangway.sh",
   ),
+  // The theme an artifact gets when it names none; "chart" is gangway's own.
+  artifactTheme: def(
+    "artifacts.theme",
+    z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/),
+    "chart",
+  ),
+  artifactCustomCss: def("artifacts.customCss", z.boolean(), true),
   // Off puts static sites and artifacts back in nginx containers.
   previewsServeStatic: def("previews.serveStatic", z.boolean(), true),
   // Per container. Memory and processes are what take a host down; 0 turns a limit off.

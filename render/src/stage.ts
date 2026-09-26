@@ -20,7 +20,7 @@ function dress(s: HTMLElement, i: number, total: number, footer: string, n: numb
   s.replaceChildren(body, ...(notes ? [notes] : []));
   s.insertAdjacentHTML(
     "beforeend",
-    `<div class="gw-slide-foot"><span class="gw-caps">${esc(footer)}</span><span class="gw-meta">${pad(i + 1)} / ${pad(total)}</span></div>`,
+    `<div class="gw-slide-foot"><span><span class="gw-logo" aria-hidden="true"></span><span class="gw-caps">${esc(footer)}</span></span><span class="gw-meta">${pad(i + 1)} / ${pad(total)}</span></div>`,
   );
 }
 

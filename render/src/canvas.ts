@@ -74,7 +74,7 @@ class Canvas extends HTMLElement {
     h.className = "gw-canvas-head";
     const sub = this.getAttribute("subtitle");
     h.innerHTML =
-      `<span class="gw-caps">${esc(this.getAttribute("label") ?? "Canvas")}</span>` +
+      `<div class="gw-canvas-top"><span class="gw-logo" aria-hidden="true"></span><span class="gw-caps">${esc(this.getAttribute("label") ?? "Canvas")}</span></div>` +
       `<h1>${esc(this.getAttribute("title") ?? "")}</h1>` +
       (sub ? `<p>${esc(sub)}</p>` : "");
     return h;

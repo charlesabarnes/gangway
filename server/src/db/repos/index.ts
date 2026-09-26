@@ -19,3 +19,4 @@ export {
   type TemplatePatch,
 } from "./templates.ts";
 export { OAuthGrantsRepo, type CreateGrant, type GrantRecord } from "./oauth-grants.ts";
+export { ArtifactTemplatesRepo, ArtifactThemesRepo } from "./artifacts.ts";
