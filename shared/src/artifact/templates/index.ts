@@ -13,7 +13,6 @@ import { userFlow } from "./canvas/user-flow.ts";
 import { pitch } from "./deck/pitch.ts";
 import { review } from "./deck/review.ts";
 import { talk } from "./deck/talk.ts";
-import { architecture } from "./document/architecture.ts";
 import { changelog } from "./document/changelog.ts";
 import { memo } from "./document/memo.ts";
 import { processFlow } from "./document/process.ts";
@@ -28,7 +27,6 @@ export const ARTIFACT_TEMPLATES: readonly ArtifactTemplate[] = [
   memo,
   changelog,
   processFlow,
-  architecture,
   pitch,
   review,
   talk,
