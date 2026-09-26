@@ -214,6 +214,8 @@ class Canvas extends HTMLElement {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       port.setPointerCapture(e.pointerId);
       port.classList.add("grabbing");
+      // A drag pans; it must not also select the text it crosses.
+      document.getSelection()?.removeAllRanges();
       last = null;
     });
     port.addEventListener("pointermove", (e) => {

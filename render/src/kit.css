@@ -1390,6 +1390,8 @@ gw-canvas > [data-part="viewport"] {
 }
 gw-canvas > [data-part="viewport"].grabbing {
   cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
 }
 gw-canvas [data-part="world"] {
   position: absolute;
