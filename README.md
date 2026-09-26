@@ -210,6 +210,23 @@ only what it deployed itself.
   </picture>
 </p>
 
+**Suggested for Claude Code: make gangway the default over Claude artifacts.**
+
+Claude Code has its own artifacts, and when they are on, it usually picks them over gangway for a
+chart, a diagram or a document, even with the plugin installed. To make gangway the default,
+either turn them off in `~/.claude/settings.json`:
+
+```json
+{ "enableArtifact": false }
+```
+
+or keep them and add a line to `~/.claude/CLAUDE.md`:
+
+```markdown
+- For any chart, diagram, document, deck or board, use gangway, not Claude artifacts or a local
+  HTML file, unless I ask for those.
+```
+
 The plugin adds `/gangway:generate-artifact`, which builds something and ships it to a URL you
 can keep iterating on. Other clients only need the MCP URL. See
 [plugin/gangway](plugin/gangway/README.md). A connected agent is listed under **Account →

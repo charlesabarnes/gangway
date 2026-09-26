@@ -13,11 +13,28 @@ One line in a terminal, with your server's MCP URL:
 claude plugin marketplace add charlesabarnes/gangway && claude plugin install gangway@gangway --config mcp_url=https://mcp.preview.example.com/
 ```
 
-Or inside Claude Code: `/plugin marketplace add charlesabarnes/gangway`, then `/plugin install gangway@gangway`, which asks for the URL. Either way, run `/mcp` afterwards and sign in to `gangway` (OAuth, on your server's consent page). Update later with `claude plugin marketplace update gangway`.
+Or inside Claude Code: `/plugin marketplace add charlesabarnes/gangway`, then `/plugin install gangway@gangway`, which asks for the URL. Either way, run `/mcp` afterwards and sign in to `gangway` (OAuth, on your server's consent page). Update later with `claude plugin marketplace update gangway`, then `claude plugin update gangway@gangway`, and restart Claude Code.
 
 To try a local checkout without installing: `claude --plugin-dir ./plugin/gangway`.
 
 If you already added gangway as a user-level MCP server, remove it (`claude mcp remove gangway`), or you will see every tool twice.
+
+### Suggested: make gangway the default over Claude artifacts
+
+Claude Code has its own artifacts, and when they are on, it usually picks them over gangway for a
+chart, a diagram or a document, even with the plugin installed. To make gangway the default,
+either turn them off in `~/.claude/settings.json`:
+
+```json
+{ "enableArtifact": false }
+```
+
+or keep them and add a line to `~/.claude/CLAUDE.md`:
+
+```markdown
+- For any chart, diagram, document, deck or board, use gangway, not Claude artifacts or a local
+  HTML file, unless I ask for those.
+```
 
 ## Codex
 

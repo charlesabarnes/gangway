@@ -28,6 +28,14 @@ export function recipes(url: string): Record<AgentClient, Recipe> {
         {
           note: 'Then, in Claude Code, run /mcp and sign in to gangway. This page asks you to approve it.',
         },
+        {
+          note: 'Suggested: Claude Code has its own artifacts, and when they are on it usually picks them over gangway. To make gangway the default, turn them off in ~/.claude/settings.json:',
+          code: '"enableArtifact": false',
+        },
+        {
+          note: 'Or keep them and add a line to ~/.claude/CLAUDE.md:',
+          code: '- For any chart, diagram, document, deck or board, use gangway, not Claude artifacts or a local HTML file, unless I ask for those.',
+        },
       ],
     },
     codex: {
