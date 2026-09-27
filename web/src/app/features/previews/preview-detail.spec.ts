@@ -131,11 +131,28 @@ describe('PreviewDetail', () => {
     expect(r.byTestId('slug')).toBeNull();
   });
 
-  it('extends the expiry in one click, and keeps it forever', async () => {
+  it('Extend opens to how much longer, and closes again', async () => {
     const r = await open({
       permissions: ['previews.read', 'previews.update_own', 'previews.extend'],
     });
     await answerHistory(r);
+    expect(r.byTestId('extend-7d')).toBeNull();
+    r.byTestId('extend')!.click();
+    await r.settle();
+    expect(r.text('facts')).toContain('Extend by');
+    r.byTestId('extend-cancel')!.click();
+    await r.settle();
+    expect(r.byTestId('extend-7d')).toBeNull();
+    expect(r.byTestId('extend')).not.toBeNull();
+  });
+
+  it('extends the expiry, and keeps it forever', async () => {
+    const r = await open({
+      permissions: ['previews.read', 'previews.update_own', 'previews.extend'],
+    });
+    await answerHistory(r);
+    r.byTestId('extend')!.click();
+    await r.settle();
     r.byTestId('extend-7d')!.click();
     await r.settle();
     const put = r.http.expectOne(`/v1/previews/${ID}/ttl`);
@@ -145,13 +162,13 @@ describe('PreviewDetail', () => {
     await r.settle();
     await answerHistory(r);
     expect(r.text('ttl')).toBe('never');
-    expect(r.byTestId('extend-7d')).toBeNull();
+    expect(r.byTestId('extend')).toBeNull();
   });
 
   it('offers no extend without the permission', async () => {
     const without = await open({ permissions: ['previews.read', 'previews.update'] });
     await answerHistory(without);
-    expect(without.byTestId('extend-7d')).toBeNull();
+    expect(without.byTestId('extend')).toBeNull();
   });
 
   it('offers no extend once it is going', async () => {
@@ -160,7 +177,7 @@ describe('PreviewDetail', () => {
       permissions: ['previews.read', 'previews.update', 'previews.extend'],
     });
     await answerHistory(going);
-    expect(going.byTestId('extend-7d')).toBeNull();
+    expect(going.byTestId('extend')).toBeNull();
   });
 
   it('does not fetch the preview again when the list already holds it', async () => {
