@@ -61,7 +61,7 @@ export const changelog: ArtifactTemplate = {
   build(s) {
     return {
       markdown: md(
-        front(s, "document", { layout: "single" }),
+        front(s, "document"),
         flag(s, "intro") &&
           "Every change that reaches users, in plain words. Security fixes are marked in red.",
         ...CHANGES.slice(0, num(s, "releases")).map(

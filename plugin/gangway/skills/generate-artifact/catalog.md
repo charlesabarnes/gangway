@@ -14,7 +14,7 @@ theme: chart          # optional: a theme this server has (the catalog lists the
 css: style.css        # optional: your own stylesheet from the upload, linked last (see "The look")
 byline: Platform team # document
 date: September 2026  # document
-layout: aside         # document: aside (section titles in a column beside the text) | single
+layout: single        # document: single (section titles above the text) | aside (in a column beside it)
 footer: Team · Date   # deck: shown on every slide
 layout: grid          # canvas: grid | row | column, for frames without x and y
 columns: 3            # canvas: frames per row in a grid
@@ -32,7 +32,7 @@ Only when the user asks for something unusual (a brand of their own, a poster, a
 Say in your reply which of these you used and why.
 
 ## Documents
-Plain markdown: paragraphs, lists, tables, `>` quotes, code, plus the blocks and charts below. Each `##` heading starts a numbered section, its title in a column beside the text (`layout: single` puts it above instead). What comes before the first `##` is the lead: a callout and a row of stats read well there. `###` is a subheading inside a section.
+Plain markdown: paragraphs, lists, tables, `>` quotes, code, plus the blocks and charts below. Each `##` heading starts a numbered section, its title above the text (`layout: aside` puts it in a column beside instead). What comes before the first `##` is the lead: a callout and a row of stats read well there. `###` is a subheading inside a section.
 
 ## Decks
 Separate slides with a line that is only `---`. The first slide is the title slide (`# Title` and one line). A slide starting `## Title` is a content slide with the title ruled off at the top. Choose a layout with a first line `{layout=…}`:
@@ -45,7 +45,10 @@ Separate slides with a line that is only `---`. The first slide is the title sli
 A slide with only `# Heading` is a section divider, and one with only `## Title` and a `::stat{}` a big number, without saying so. Speaker notes: a line `Notes:` then text, at the end of a slide; press n to show them.
 
 ## Canvases
-A board of frames the reader pans and zooms, like a design file: screens of a flow, illustrations, a mood board. For system and architecture diagrams, give each question its own frame: a `## heading` that states the finding, a line of context, then one flow chart with groups (see Flowcharts); the canvas/architecture template starts one. Frames of prose joined by arrows read worse than that; a long written explanation belongs in a document. Separate frames with a line that is only `---`, each starting `{#id title="Frame title"}`. A frame holds markdown, any block, an inline `<svg>` or `:image[…]{src=…}`. Size it with `w=390` (pixels; default 400) and `h=` (default: its content); place it with `x=` and `y=`, or leave them out and the frames flow in a grid (front matter `layout`, `columns`, `gap`). `frame=plain` drops the frame around an illustration; `frame=note` is a sticky note. A line `-> other-id "label"` in a frame draws an arrow to another frame. Readers drag to pan, pinch or ctrl+scroll to zoom, press 0 to fit, and click a frame's title to zoom to it; `#id` in the URL opens on that frame.
+A board of frames the reader pans and zooms, like a design file: screens of a flow, illustrations, a mood board. For system and architecture diagrams, give each question its own frame: a `## heading` that states the finding, a line of context, then one flow chart with groups (see Flowcharts); the canvas/architecture template starts one. Frames of prose joined by arrows read worse than that; a long written explanation belongs in a document. Separate frames with a line that is only `---`, each starting `{#id title="Frame title"}`. A frame holds markdown, any block, an inline `<svg>` or `:image[…]{src=…}`. Size it with `w=390` (pixels; default 400) and `h=` (default: its content); place it with `x=` and `y=`, or leave them out and the frames flow in a grid (front matter `layout`, `columns`, `gap`). `frame=plain` drops the frame around an illustration; `frame=note` is a sticky note; `frame=window url=app.example.com/page` draws a desktop browser window with that address. A line `-> other-id "label"` in a frame draws an arrow to another frame. Readers drag to pan, pinch or ctrl+scroll to zoom, press 0 to fit, and click a frame's title to zoom to it; `#id` in the URL opens on that frame.
+
+### Product screens
+For a user flow or an app idea, draw finished desktop screens, not wireframes: each frame `{#id title="…" frame=window url=… w=1280 h=800}`, lay them out with `layout: grid` and `columns: 3`, and fill them with real names, prices and dates rather than placeholders. Inside, `::: app` is the product: a `::: side` sidebar (a first line with the product name, a list of pages with the current one `**bold**`, an optional last line such as the signed-in user), then the page. The page opens with a `::: bar` (`## Page title` and a line of buttons or `:steps`), then cards, tables, `::: columns` (`::: columns wide` makes the left one twice as wide) and the controls under Inline. A paragraph of fields is a row of fields; a paragraph of buttons is a button row. A block that holds another block needs a longer fence: `:::::: app` > `::::: columns` > `:::: card` > `::: facts`. The canvas/flow template is a whole flow to start from.
 
 ## Blocks
 ```
@@ -134,7 +137,7 @@ flowchart LR
 `subgraph id [Title] … end` draws a labelled box around what is inside it, and nests; a line may start or end at a group's id. `class id tone` tones a group, and every line leaving it (else entering it) takes that tone, so paths read by colour. A box's first line is its name; each line after `<br/>` is a smaller detail under it, in mono when it is `in backticks` (hosts, ports, paths). `legend tone style: meaning` adds a key under the chart (style: solid | dashed | thick). Give one line its own tone with an id: `a e1@--> b` then `class e1 danger`. A chart with groups is laid out with right-angled lines, and one wider than the text column takes the whole section. Keep each box to a name and one or two details; the explanation goes in the caption and the prose around the chart. One chart per question ("how a request reaches data", "what a deploy does"), not one chart for everything: on a canvas each in its own frame, in a document each in its own section. Leave the chart's title off inside a frame; the frame has one.
 
 ## Inline
-`:flag[On track]{tone=ok}` is a status flag (tone flag | ok | warn | danger). `:image[Alt text]{src=img/a.png ratio=16:9}` is an image, or a labelled placeholder with no src. `:steps[Plan,Build,Ship]{at=2}` shows progress through steps.
+`:flag[On track]{tone=ok}` is a status flag (tone flag | ok | warn | danger). `:image[Alt text]{src=img/a.png ratio=16:9}` is an image, or a labelled placeholder with no src. `:steps[Plan,Build,Ship]{at=2}` shows progress through steps. For screens in a canvas: `:button[Pay £148]{}` (`{ghost}` for a secondary one), `:input[Card number]{value="4242 4242" placeholder=… type=…}`, `:select[Seat]{options="14A,14C"}`, `:toggle[Nonstop only]{on}` (or `{}` for off) and `:tabs[Best,Cheapest]{at=1}`; a control needs its `{…}`, even an empty one.
 
 ## Writing
 - Titles say the finding ("Volume has climbed every month"), not the topic ("Monthly volume").
@@ -154,4 +157,4 @@ artifact.md compiles to gangway's HTML elements. For a custom layout, write inde
 Sep 10,121</gw-chart>
 </gw-doc></body></html>
 ```
-Elements: gw-doc, gw-deck > gw-slide, gw-section, gw-card, gw-grid, gw-columns, gw-stat, gw-chart, gw-flow (the flowchart text inside), gw-callout, gw-flag, gw-facts (dt/dd pairs), gw-image, gw-steps, gw-note. Attributes match the markdown options. Ordinary HTML works inside any of them.
+Elements: gw-doc, gw-deck > gw-slide, gw-section, gw-card, gw-grid, gw-columns, gw-stat, gw-chart, gw-flow (the flowchart text inside), gw-callout, gw-flag, gw-facts (dt/dd pairs), gw-image, gw-steps, gw-tabs, gw-note, and for screens gw-app > gw-side + main, gw-bar. Attributes match the markdown options. Ordinary HTML works inside any of them.

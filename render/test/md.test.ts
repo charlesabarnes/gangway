@@ -83,6 +83,16 @@ describe("compile", () => {
     expect(html).not.toContain("-&gt; b");
   });
 
+  test("an app puts its sidebar beside a <main> holding the rest", () => {
+    const html = compile(
+      "---\nkind: canvas\ntitle: T\n---\n{#a frame=window url=x.app}\n:::: app\n::: bar\n## Pay\n:::\n\n::: side\nSkyway\n:::\n\n:tabs[Best,Cheapest]{at=2}\n::::\n",
+    );
+    expect(html).toContain('<gw-frame id="a" frame="window" url="x.app"><gw-app><gw-side>');
+    expect(html).toMatch(/<\/gw-side><main>\s*<gw-bar><h2>Pay<\/h2>/);
+    expect(html).toContain('<gw-tabs><a>Best</a><a aria-current="page">Cheapest</a></gw-tabs>');
+    expect(html).toContain("</main></gw-app>");
+  });
+
   test("a Notes: line inside a block is the block's, not the speaker's", () => {
     const html = compile(
       "---\nkind: deck\ntitle: T\n---\n# T\n\n---\n\n## End\n::: facts\nNotes: the wiki\n:::\n",

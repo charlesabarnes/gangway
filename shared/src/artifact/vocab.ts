@@ -28,7 +28,7 @@ export const FRONT_MATTER_KEYS: Record<ArtifactKind, readonly string[]> = {
   deck: [...COMMON_KEYS, "footer"],
   canvas: [...COMMON_KEYS, "layout", "columns", "gap"],
 };
-export const DOC_LAYOUTS = ["aside", "single"] as const;
+export const DOC_LAYOUTS = ["single", "aside"] as const;
 
 export const CONTAINERS = [
   "callout",
@@ -39,6 +39,9 @@ export const CONTAINERS = [
   "facts",
   "stats",
   "note",
+  "app",
+  "side",
+  "bar",
 ] as const;
 export const CHART_TYPES = ["bar", "line", "area", "donut"] as const;
 export const FORMATS = ["number", "percent", "currency", "compact"] as const;
@@ -52,7 +55,16 @@ export const SLIDE_LAYOUTS = [
   "split",
   "end",
 ] as const;
-export const INLINE_DIRECTIVES = ["flag", "image", "steps"] as const;
+export const INLINE_DIRECTIVES = [
+  "flag",
+  "image",
+  "steps",
+  "tabs",
+  "button",
+  "input",
+  "select",
+  "toggle",
+] as const;
 
 export const ELEMENTS = [
   "gw-doc",
@@ -74,6 +86,10 @@ export const ELEMENTS = [
   "gw-note",
   "gw-image",
   "gw-steps",
+  "gw-tabs",
+  "gw-app",
+  "gw-side",
+  "gw-bar",
 ] as const;
 
 /** An arrow from the frame it is written in: `-> target "label"`. */

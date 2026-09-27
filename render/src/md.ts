@@ -53,15 +53,23 @@ function control(name: string, text: string, a: Attrs): string {
         .map((t, i) => `<span${i + 1 === at ? ' aria-current="step"' : ""}>${esc(t)}</span>`)
         .join("")}</gw-steps>`;
     }
-    case "tabs": {
-      const go = items(a["go"] ?? "");
-      return `<gw-tabs>${items(text)
-        .map((t, i) => (go[i] ? `<a href="#${esc(go[i])}">${esc(t)}</a>` : `<a>${esc(t)}</a>`))
-        .join("")}</gw-tabs>`;
-    }
+    case "tabs":
+      return tabs(text, a);
     default:
       return text;
   }
+}
+
+/** Tabs, each a link when go= names its frame; at= marks the one you are on. */
+function tabs(text: string, a: Attrs): string {
+  const go = items(a["go"] ?? "");
+  const at = Number(a["at"] ?? 0);
+  return `<gw-tabs>${items(text)
+    .map(
+      (t, i) =>
+        `<a${go[i] ? ` href="#${esc(go[i])}"` : ""}${i + 1 === at ? ' aria-current="page"' : ""}>${esc(t)}</a>`,
+    )
+    .join("")}</gw-tabs>`;
 }
 
 const items = (list: string) =>
@@ -103,7 +111,13 @@ function container(b: Extract<Block, { type: "container" }>): string {
       if (l.trim() === "+++") halves.push([]);
       else halves.at(-1)!.push(l);
     }
-    return `<gw-columns>${halves.map((h) => `<div>${render(scan(h))}</div>`).join("")}</gw-columns>`;
+    return `<gw-columns${attrText(b.attrs)}>${halves.map((h) => `<div>${render(scan(h))}</div>`).join("")}</gw-columns>`;
+  }
+  if (b.name === "app") {
+    // The sidebar is its own column; everything else is the page beside it.
+    const side = b.body.filter((x) => x.type === "container" && x.name === "side");
+    const page = b.body.filter((x) => !side.includes(x));
+    return `<gw-app${attrText(b.attrs)}>${render(side)}<main>${render(page)}</main></gw-app>`;
   }
   return `<gw-${b.name}${attrText(b.attrs)}>${render(b.body)}</gw-${b.name}>`;
 }

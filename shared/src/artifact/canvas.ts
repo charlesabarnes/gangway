@@ -2,7 +2,7 @@
 
 export const CANVAS_LAYOUTS = ["grid", "row", "column"] as const;
 export type CanvasLayout = (typeof CANVAS_LAYOUTS)[number];
-export const FRAME_STYLES = ["card", "plain", "note"] as const;
+export const FRAME_STYLES = ["card", "plain", "note", "window"] as const;
 export const FRAME_WIDTH = 400;
 export const CANVAS_GAP = 80;
 

@@ -139,7 +139,7 @@ describe("lintMarkdown", () => {
 
   test("an unknown or unclosed block is named with its line", () => {
     expect(issues(doc("::: carousel\nx\n:::"))).toEqual([
-      "5: unknown block :::carousel; blocks are callout | grid | card | section | columns | facts | stats | note",
+      "5: unknown block :::carousel; blocks are callout | grid | card | section | columns | facts | stats | note | app | side | bar",
     ]);
     expect(issues(doc("::: callout\nx"))).toEqual(["5: :::callout is never closed with :::"]);
   });
@@ -200,8 +200,11 @@ describe("lintMarkdown", () => {
     expect(issues(src)).toEqual([]);
   });
 
-  test("a prototype's controls are no longer pieces", () => {
-    expect(issues(doc(":button[Next]{go=done}"))[0]).toContain("unknown :button[…]");
+  test("screen controls are pieces", () => {
+    const src = doc(
+      ':button[Pay]{} :button[Back]{ghost}\n:input[Card]{value="4242"}\n:select[Seat]{options="14A,14C"}\n:toggle[Bag]{on}\n:tabs[Best,Cheapest]{at=1}',
+    );
+    expect(issues(src)).toEqual([]);
   });
 
   test("an unknown inline directive is refused", () => {
@@ -229,6 +232,18 @@ describe("canvases", () => {
       "7: -> nowhere: no frame has the id #nowhere",
     ]);
     expect(issues(canvas("{#a}\n-> b\n\n---\n\n{#b}\nok"))).toEqual([]);
+  });
+
+  test("a frame's style is one the kit draws", () => {
+    expect(issues(canvas("{#a frame=window url=app.example.com/pay w=1280 h=800}\nx"))).toEqual([]);
+    expect(issues(canvas("{#a frame=bogus}\nx"))[0]).toContain('frame="bogus"');
+  });
+
+  test("an app screen's blocks nest", () => {
+    const src = canvas(
+      "{#a frame=window}\n::::: app\n::: side\nSkyway\n\n- **Search**\n:::\n\n::: bar\n## Pay\n:button[Pay]{}\n:::\n\n:::: columns wide\n::: card\nx\n:::\n\n+++\n\ny\n::::\n:::::",
+    );
+    expect(issues(src)).toEqual([]);
   });
 
   test("layout, columns and gap are checked", () => {

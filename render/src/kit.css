@@ -354,10 +354,10 @@ gw-card,
   color: var(--ink-muted);
 }
 
-/* Document: a page of sections, each with its number and title in a 200px aside and the
-   content beside it, closed by a dotted rule. */
+/* Document: a page of sections, each with its number and title above the content, closed by
+   a dotted rule. layout="aside" puts the number and title in a 200px column beside it instead. */
 gw-doc {
-  max-width: 1080px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 56px 48px 96px;
   counter-reset: gw-part;
@@ -374,8 +374,8 @@ gw-doc > .gw-lead > p {
 }
 .gw-part {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 32px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
   padding: 28px 0 32px;
   border-top: 1px dotted var(--rule);
 }
@@ -385,8 +385,8 @@ gw-doc > .gw-lead > p {
 }
 .gw-part > .gw-part-head {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: baseline;
+  gap: 14px;
   counter-increment: gw-part;
 }
 .gw-part > .gw-part-head::before {
@@ -395,15 +395,10 @@ gw-doc > .gw-lead > p {
   color: var(--ink-muted);
 }
 .gw-part > .gw-part-head h2 {
-  font-size: 24px;
+  font-size: 28px;
 }
 .gw-part > .gw-part-body {
   min-width: 0;
-}
-/* A section with a chart too wide for its column puts its title above, as in layout: single. */
-.gw-part:has(> .gw-part-body > gw-flow.wide) {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
 }
 .gw-part-body > :is(p, ul, ol, blockquote) {
   max-width: 68ch;
@@ -432,20 +427,25 @@ gw-doc > .gw-lead > p {
 .gw-part-body h3 {
   margin: 24px 0 8px;
 }
-gw-doc[layout="single"] {
-  max-width: 860px;
+gw-doc[layout="aside"] {
+  max-width: 1080px;
 }
-gw-doc[layout="single"] .gw-part {
+gw-doc[layout="aside"] .gw-part {
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 32px;
+}
+gw-doc[layout="aside"] .gw-part > .gw-part-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+gw-doc[layout="aside"] .gw-part > .gw-part-head h2 {
+  font-size: 24px;
+}
+/* A section with a chart too wide for its column puts its title above, as in the default. */
+gw-doc[layout="aside"] .gw-part:has(> .gw-part-body > gw-flow.wide) {
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-}
-gw-doc[layout="single"] .gw-part > .gw-part-head {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 14px;
-}
-gw-doc[layout="single"] .gw-part > .gw-part-head h2 {
-  font-size: 28px;
+  gap: 12px;
 }
 gw-doc > footer {
   margin-top: 24px;
@@ -1602,6 +1602,290 @@ gw-frame > .gw-frame-body > svg {
   max-width: 100%;
   height: auto;
 }
+/* A desktop window: a title bar with its address, then the page, drawn edge to edge. */
+gw-frame[frame="window"] > .gw-frame-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: var(--paper);
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 28px 64px -28px rgb(0 0 0 / 0.35);
+}
+.gw-window-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 68px 0 16px;
+  background: var(--paper-raised);
+  border-bottom: 1px solid var(--rule);
+}
+.gw-window-bar > i {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--rule);
+}
+.gw-window-bar > span {
+  flex: 0 1 460px;
+  margin: 0 auto;
+  padding: 4px 14px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  font: 12px var(--font-mono);
+  color: var(--ink-muted);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gw-window-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px 26px;
+}
+.gw-window-view:has(> gw-app) {
+  padding: 0;
+}
+
+/* App: a product screen, a sidebar beside the page, in sans type with rounded controls. */
+gw-app {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100%;
+  font: 15px/1.5 var(--font-sans);
+}
+gw-app:not(:has(> gw-side)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+gw-app :is(h1, h2, h3) {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+gw-app h1 {
+  font-size: 30px;
+}
+gw-app h2 {
+  font-size: 24px;
+}
+gw-app h3 {
+  font-size: 17px;
+}
+gw-app > main {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  padding: 28px 36px;
+  overflow: hidden;
+}
+gw-app :is(main, gw-card, gw-columns > div) > * {
+  margin: 0;
+}
+gw-app :is(gw-card, gw-columns > div) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+gw-app gw-card {
+  padding: 22px 24px;
+  border-radius: 12px;
+  background: var(--paper-raised);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+gw-app gw-columns {
+  gap: 24px;
+}
+gw-app gw-columns:has(> :nth-child(3)) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+gw-app gw-columns[wide] {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+gw-app :is(th, gw-facts dt) {
+  font: 500 13px var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+gw-app td {
+  padding: 12px 14px 12px 0;
+}
+gw-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 22px 14px;
+  background: var(--paper-raised);
+  border-right: 1px solid var(--rule);
+}
+gw-side > p:first-child {
+  margin: 0 10px 18px;
+  font: 700 17px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+gw-side > :last-child:not(:first-child, ul) {
+  margin: auto 10px 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+gw-side ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+gw-side li {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+gw-side li::marker {
+  content: none;
+}
+/* The page you are on is the bold one. */
+gw-side li:has(> strong) {
+  background: var(--flag-wash);
+  color: var(--ink);
+}
+gw-side li > strong {
+  font-weight: 600;
+}
+gw-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+gw-bar > * {
+  margin: 0;
+}
+gw-app > main > gw-bar:first-child {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Controls in a frame. A paragraph of fields is a row of them; a paragraph of buttons, a button
+   row. */
+gw-frame p:has(> :is(label, button)) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 16px;
+}
+gw-frame p > label:not(.gw-toggle-field) {
+  flex: 1 1 140px;
+}
+gw-frame button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--flag);
+  color: var(--flag-fg);
+  font: 600 14px var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+gw-frame button.ghost {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+gw-frame label {
+  display: grid;
+  gap: 6px;
+}
+gw-frame label > span {
+  font: 500 13px var(--font-sans);
+  color: var(--ink-muted);
+}
+gw-frame :is(input:not([type="checkbox"]), select, textarea) {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 15px var(--font-sans);
+}
+gw-frame :is(input, select, textarea):focus-visible {
+  outline: none;
+  border-color: var(--flag);
+  box-shadow: 0 0 0 3px var(--flag-wash);
+}
+gw-frame label.gw-toggle-field {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 10px;
+}
+gw-frame label.gw-toggle-field > span {
+  font-size: 14px;
+  color: var(--ink);
+}
+gw-frame input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--rule);
+  cursor: pointer;
+}
+gw-frame input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 0.15s;
+}
+gw-frame input[type="checkbox"]:checked {
+  background: var(--flag);
+}
+gw-frame input[type="checkbox"]:checked::after {
+  transform: translateX(16px);
+}
+gw-frame gw-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--rule);
+}
+gw-frame gw-tabs > a {
+  margin-bottom: -1px;
+  padding: 8px 0 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-muted);
+  font: 500 14px var(--font-sans);
+  text-decoration: none;
+}
+gw-frame gw-tabs > a[aria-current] {
+  border-bottom-color: var(--flag);
+  color: var(--ink);
+}
 .gw-canvas-head {
   position: absolute;
   z-index: 5;
@@ -1784,7 +2068,7 @@ body:has(gw-deck) .gw-toggle {
   gw-doc {
     padding: 32px 20px 64px;
   }
-  .gw-part {
+  gw-doc[layout="aside"] .gw-part {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
   }

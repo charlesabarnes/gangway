@@ -66,7 +66,21 @@ class Canvas extends HTMLElement {
       img.addEventListener("load", () => this.#layout(), { once: true });
     const sized = new ResizeObserver(() => this.#layout());
     for (const f of this.#frames) sized.observe(f);
-    new ResizeObserver(() => this.#paint()).observe(this.#port);
+    new ResizeObserver(() => {
+      this.#shrink();
+      this.#paint();
+    }).observe(this.#port);
+  }
+
+  /** In the list, a desktop window wider than the page is scaled down whole, not cut off. */
+  #shrink() {
+    const list = this.classList.contains("gw-list");
+    const room = this.#port.clientWidth - 32;
+    for (const f of this.#frames) {
+      if (f.getAttribute("frame") !== "window") continue;
+      const w = num(f.getAttribute("w"), FRAME_WIDTH)!;
+      f.style.zoom = list && room > 0 && room < w ? String(room / w) : "";
+    }
   }
 
   #head(): HTMLElement {
@@ -84,7 +98,19 @@ class Canvas extends HTMLElement {
     const body = document.createElement("div");
     body.className = "gw-frame-body";
     const links = [...f.querySelectorAll(":scope > gw-link")];
-    body.append(...[...f.childNodes].filter((n) => !links.includes(n as Element)));
+    const content = [...f.childNodes].filter((n) => !links.includes(n as Element));
+    if (f.getAttribute("frame") === "window") {
+      // A desktop window: a title bar with its address, then the page.
+      const bar = document.createElement("div");
+      bar.className = "gw-window-bar";
+      bar.setAttribute("aria-hidden", "true");
+      const url = f.getAttribute("url");
+      bar.innerHTML = `<i></i><i></i><i></i>${url ? `<span>${esc(url)}</span>` : ""}`;
+      const view = document.createElement("div");
+      view.className = "gw-window-view";
+      view.append(...content);
+      body.append(bar, view);
+    } else body.append(...content);
     const label = document.createElement("div");
     label.className = "gw-frame-label";
     const title = f.getAttribute("title") ?? f.id;
@@ -120,7 +146,10 @@ class Canvas extends HTMLElement {
       else if (act === "out") this.#zoomBy(0.8);
       else if (act === "one") this.#zoomBy(1 / this.#view.k);
       else if (act === "fit") this.#fit(true);
-      else if (act === "list") this.classList.toggle("gw-list");
+      else if (act === "list") {
+        this.classList.toggle("gw-list");
+        this.#shrink();
+      }
     });
     c.querySelector("select")?.addEventListener("change", (e) => {
       const id = (e.target as HTMLSelectElement).value;
