@@ -2,20 +2,14 @@ import { Bounded, sourceKey } from "../auth/limiter.ts";
 
 /** Per minute; 0 turns that limit off. */
 export type RateLimits = {
-  /** Requests one client may make to previews. */
   perClient: number;
-  /** Requests one preview takes from everyone together. */
   perPreview: number;
-  /** WebSockets one client may hold open. */
   socketsPerClient: number;
 };
 
 type Bucket = { tokens: number; at: number };
 
-/**
- * Token buckets that fill at the limit per minute and hold a minute's worth, so a page's burst
- * of assets passes and a flood does not. A client is its address, an IPv6 one its /64.
- */
+/** Token buckets holding a minute's worth: a page's burst passes, a flood does not. */
 export class RequestRates {
   readonly #limits: () => RateLimits;
   readonly #now: () => number;
@@ -26,7 +20,6 @@ export class RequestRates {
   #refused = 0;
   #reportedAt = 0;
 
-  /** report hears how many were refused, at most once a minute, not once a request. */
   constructor(
     limits: () => RateLimits,
     o: { now?: () => number; report?: (refused: number) => void } = {},
@@ -80,7 +73,6 @@ export class RequestRates {
     this.#reportedAt = now;
   }
 
-  // Milliseconds until a token is there; 0 when one is now.
   #check(buckets: Bounded<Bucket>, key: string, perMinute: number): number {
     if (perMinute <= 0) return 0;
     const b = this.#fill(buckets, key, perMinute);

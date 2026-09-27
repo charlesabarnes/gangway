@@ -1,6 +1,5 @@
 import { Resolver } from "node:dns/promises";
 
-/** The two questions a claim asks of public DNS. */
 export interface ClaimDns {
   /** The CNAME targets at a name, lowercased, without the trailing dot; empty when none. */
   cnames(name: string): Promise<string[]>;

@@ -1,8 +1,6 @@
 import type { ThemeStyleKey, ThemeToken } from '../../core/artifacts.types';
 import { parseColor, toHex } from './color';
 
-// How the theme editor groups the tokens and names the fonts.
-
 export const GROUPS: { title: string; tokens: ThemeToken[] }[] = [
   { title: 'Paper and ink', tokens: ['paper', 'paper-raised', 'ink', 'ink-muted', 'rule'] },
   { title: 'Accent', tokens: ['flag', 'on-flag', 'primary', 'on-primary'] },
@@ -12,7 +10,6 @@ export const GROUPS: { title: string; tokens: ThemeToken[] }[] = [
   { title: 'Chart series', tokens: ['s1', 's2', 's3', 's4', 's5', 's6'] },
 ];
 
-// Font names come with the theme list (fontLabels); these name the other choices.
 export const CHOICE_NAMES: Record<string, string> = {
   'italic-serif': 'Italic serif (default)',
   serif: 'Upright serif',
@@ -38,7 +35,7 @@ export const STYLE_FIELDS: { key: ThemeStyleKey; label: string; group: 'Shape' |
   { key: 'headings', label: 'Headings', group: 'Layout' },
 ];
 
-/** A colour input needs #rrggbb: any colour this can read, else black (it still shows as a swatch). */
+/** A colour input needs #rrggbb: any colour this reads, else black. */
 export const hexOf = (v: string) => {
   const rgb = parseColor(v);
   return rgb ? toHex(rgb) : '#000000';

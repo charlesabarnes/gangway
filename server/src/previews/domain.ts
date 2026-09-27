@@ -15,10 +15,7 @@ export function checkDomainChoice(
   ctx.domains?.assertAvailable(domain, projectId);
 }
 
-/**
- * Stored now, used on the next deploy or rebuild: the preview's hostnames are its routes, and
- * those only move when it is built again.
- */
+/** Stored now, used on the next deploy: a preview's hostnames move only when it is rebuilt. */
 export function setPreviewDomain(
   ctx: Pick<PreviewContext, "previews" | "audit" | "domains">,
   actor: Actor,

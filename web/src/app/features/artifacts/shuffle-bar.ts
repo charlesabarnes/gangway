@@ -52,7 +52,6 @@ export class ShuffleBar {
     });
   }
 
-  /** A new look for every part not kept. */
   shuffle(): void {
     const k = this.kept();
     const t = randomTheme();
@@ -66,5 +65,4 @@ export class ShuffleBar {
       ...(k.has('shape') ? {} : { style: t.style }),
     });
   }
-
 }

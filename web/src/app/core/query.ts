@@ -2,7 +2,6 @@ import { Injectable, computed, signal, type Signal, type WritableSignal } from '
 import { toProblem, type ProblemError } from './problem';
 
 export type Query<T> = {
-  /** The last answer, kept across pages; undefined until the first one. */
   data: Signal<T | undefined>;
   error: Signal<ProblemError | null>;
   loaded: Signal<boolean>;
@@ -48,7 +47,6 @@ export class QueryCache {
     this.#entries.get(key)?.data.set(value);
   }
 
-  /** Forgets every key that starts with `prefix`, so the next page loads it fresh. */
   invalidate(prefix: string): void {
     for (const key of [...this.#entries.keys()])
       if (key.startsWith(prefix)) this.#entries.delete(key);

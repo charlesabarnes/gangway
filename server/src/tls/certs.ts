@@ -33,10 +33,7 @@ const BACKOFF_MS = 3_600_000;
 const MAX_BACKOFF_MS = 24 * 3_600_000;
 const keyOf = (u: CertUnit) => u.names[0]!;
 
-/**
- * One certificate per unit, chosen by SNI. A unit that fails backs off alone, from an hour up
- * to a day, so one bad domain never holds up the rest or burns the CA's failed-validation limit.
- */
+/** One certificate per unit, by SNI; a failing unit backs off alone, an hour up to a day. */
 export class CertManager {
   readonly #o: CertManagerOptions;
   readonly #now: () => number;

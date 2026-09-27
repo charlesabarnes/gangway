@@ -5,9 +5,7 @@
 export type ThemeFontSlot = "serif" | "sans" | "mono" | "display";
 
 export type KitFont = {
-  /** What the editor calls it. */
   label: string;
-  /** The CSS font-family value. */
   stack: string;
   /** A face the kit serves: the @fontsource package, the file prefix and the cuts it ships. */
   face?: { family: string; pkg: string; file: string; weights: number[]; italic?: number[] };

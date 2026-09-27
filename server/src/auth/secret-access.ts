@@ -15,7 +15,6 @@ export type SecretTarget =
   | {
       kind: "preview";
       preview: Preview;
-      /** What the user calls it, for the refusal. */
       name: string;
       provenance: Provenance;
       project: Project | null;

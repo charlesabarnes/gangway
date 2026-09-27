@@ -2,9 +2,8 @@ import { z } from "zod";
 import { THEME_FONT_CHOICES, type ThemeFontSlot } from "./fonts.ts";
 import { HOUSE_THEME, THEME_ID } from "./vocab.ts";
 
-// A theme is a set of the kit's tokens for light and dark, font choices, a title style, a
-// shape and layout style and an optional logo. It compiles to a small stylesheet the kit loads after its own, so a
-// theme can only change what the tokens reach: no selectors and no free CSS.
+// A theme is the kit's tokens for light and dark, fonts, a title style, a shape and layout
+// style and a logo, compiled to a stylesheet after the kit's own: no selectors, no free CSS.
 
 export const THEME_TOKENS = [
   "paper",
@@ -103,10 +102,7 @@ export type TitleStyle = (typeof TITLE_STYLES)[number];
 export const TITLE_WEIGHTS = ["light", "regular", "semibold", "bold"] as const;
 export const TITLE_CASES = ["normal", "upper"] as const;
 
-/**
- * The theme's shape and layout: each a named choice that compiles to fixed values, with
- * gangway's own look first. Left out means gangway's.
- */
+/** A theme's shape and layout: named choices compiling to fixed values, gangway's first. */
 export const THEME_STYLE = {
   corners: ["square", "soft", "round"],
   edges: ["neatline", "hairline", "shadow", "flat"],

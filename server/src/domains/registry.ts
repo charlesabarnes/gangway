@@ -17,22 +17,14 @@ export type RegistryDeps = {
 
 type Snapshot = {
   rows: Domain[];
-  /** The org's active wildcard claims; the pinned domains join them on read. */
   org: string[];
-  /** Active wildcards a project claimed for itself. */
   byProject: Map<string, string[]>;
-  /** An active exact hostname and the preview it answers for. */
   aliases: Map<string, string>;
-  /** The exact hostnames whose DNS was last seen reaching gangway. */
   routable: Set<string>;
-  /** Every wildcard gangway answers under, kept for the default domain it was built with. */
   all?: { defaultDomain: string; list: string[] };
 };
 
-/**
- * The domains gangway answers for and which one a preview is named under. Reads come from a
- * snapshot, so the request path never touches the database; every write goes through refresh.
- */
+/** The domains gangway answers for; reads come from a snapshot, writes go through refresh. */
 export class DomainRegistry {
   readonly #d: RegistryDeps;
   #snap: Snapshot | null = null;
@@ -56,7 +48,6 @@ export class DomainRegistry {
     return this.#d.settings.get(SETTINGS.previewDomain) || this.control();
   }
 
-  /** The wildcard domains the environment pins; they need no claim. */
   pinned(): string[] {
     return [...new Set([this.defaultDomain(), ...this.#d.pinned])];
   }
@@ -72,14 +63,12 @@ export class DomainRegistry {
     return s.all.list;
   }
 
-  /** The wildcard domains a preview of this project (or of none) may be named under. */
   availableTo(projectId: string | null): string[] {
     const s = this.#snapshot();
     const own = projectId === null ? [] : (s.byProject.get(projectId) ?? []);
     return [...new Set([...this.pinned(), ...s.org, ...own])];
   }
 
-  /** Refuses a domain this project may not choose, naming the ones it may. */
   assertAvailable(name: string, projectId: string | null): void {
     const options = this.availableTo(projectId);
     if (!options.includes(name))
@@ -89,10 +78,7 @@ export class DomainRegistry {
       );
   }
 
-  /**
-   * The preview's own choice, then its project's, then the default. A choice that stopped being
-   * available (its claim removed) falls through rather than failing a redeploy.
-   */
+  /** Its own choice, then its project's, then the default; a lost claim falls through. */
   resolve(choice: {
     preview?: string | null | undefined;
     project?: Pick<Project, "id" | "domain"> | null | undefined;
@@ -104,21 +90,16 @@ export class DomainRegistry {
     return this.defaultDomain();
   }
 
-  /** Where an existing preview belongs now: its choice, then its project's, then the default. */
   domainOf(preview: { domain: string | null; projectId: string | null }): string {
     const project = preview.projectId ? this.#d.projects.get(preview.projectId) : undefined;
     return this.resolve({ preview: preview.domain, project: project ?? null });
   }
 
-  /** The preview an exact hostname answers for, if it is one. */
   aliasTarget(host: string): string | undefined {
     return this.#snapshot().aliases.get(host);
   }
 
-  /**
-   * Every active exact hostname for this preview, its own and its project's production ones;
-   * routable keeps only those whose DNS already reaches gangway.
-   */
+  /** Its exact hostnames, own and production; routable keeps those DNS already sends here. */
   aliasesOf(previewId: string, o: { routable?: boolean } = {}): string[] {
     const s = this.#snapshot();
     const out: string[] = [];
@@ -131,15 +112,11 @@ export class DomainRegistry {
     return this.#snapshot().rows;
   }
 
-  /** A destroyed preview answers on none of its custom hostnames. */
   releasePreview(previewId: string): void {
     if (this.#d.domains.releasePreview(previewId)) this.refresh();
   }
 
-  /**
-   * The certificates gangway holds, the control domain's first (what a client with no SNI
-   * gets): each pinned wildcard proves itself in its own zone, each claim at its delegate.
-   */
+  /** The certificates to hold; the control domain's first, for clients with no SNI. */
   certUnits(): CertUnit[] {
     const control = this.control();
     const wildcard = (d: string) => [`*.${d}`, d];

@@ -1,9 +1,7 @@
 import type { ThemeToken, TokenMap } from '../../core/artifacts.types';
 import { contrast } from './color';
 
-// The pairs of colours an artifact sets text in, and the WCAG contrast each needs: 7:1 for body
-// text (AAA, since artifacts are read at length), 4.5:1 for everything else read as text, 3:1
-// for the brand colour as a line or a bar on the page.
+// WCAG contrast per text pair: 7:1 body text (read at length), 4.5:1 other text, 3:1 marks.
 
 export type Check = { fg: ThemeToken; bg: ThemeToken; min: number; what: string };
 

@@ -1,4 +1,3 @@
-// API tokens, OAuth consent and connected agents, and where a credential may set secrets.
 import type { Permission, Scope } from './api.types';
 
 /** Where a credential with the secrets scope may set them; null when it is not narrowed. */

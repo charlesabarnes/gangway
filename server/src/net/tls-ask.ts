@@ -7,10 +7,7 @@ export const TLS_ASK_PATH = "/_gangway/tls/ask";
 
 export type TlsAsk = (req: Request, peer: string) => Response | null;
 
-/**
- * Only names that answer today: a surface, a preview's hostname, a custom hostname, a domain's
- * apex. Not every label under a wildcard, or anyone could spend the CA's rate limit on random ones.
- */
+/** Only names that answer today, not every label under a wildcard (the CA's rate limit). */
 export function tlsAsk(o: {
   trustedProxies: readonly string[];
   answers: (host: string) => boolean;

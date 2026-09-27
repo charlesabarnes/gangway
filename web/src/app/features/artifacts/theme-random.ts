@@ -2,11 +2,9 @@ import type { ThemeFonts, ThemeStyle, TokenMap } from '../../core/artifacts.type
 import { derivePalette } from './palette';
 import { FONTS } from './theme-css';
 
-// A random theme: every part drawn on its own -- each font, the title treatment, each shape and
-// layout setting, the colour scheme -- with a few rules so the draw stays something a designer
-// might pick: a handwritten title is never uppercase or light, round corners lean to soft edges,
-// the brand colour stays dark enough to read on the page. Tens of thousands of combinations,
-// before the hue.
+// A random theme, every part drawn on its own (fonts, titles, each shape and layout setting,
+// the colour scheme) with a few rules to keep it sensible: no uppercase or light handwriting,
+// round corners lean to soft edges, the brand colour stays dark enough to read.
 
 type Rng = () => number;
 /** Choices with weights; a missing weight is 1. */
@@ -80,7 +78,10 @@ const SCHEMES: Record<string, readonly number[]> = {
 };
 
 export function randomColours(h: number, rng: Rng): { light: TokenMap; dark: TokenMap } {
-  const turn = pick(SCHEMES[weighted({ complementary: 2, split: 2, triadic: 1.5, analogous: 1.5, mono: 1 }, rng)]!, rng);
+  const turn = pick(
+    SCHEMES[weighted({ complementary: 2, split: 2, triadic: 1.5, analogous: 1.5, mono: 1 }, rng)]!,
+    rng,
+  );
   const strength = weighted({ muted: 1, medium: 2, vivid: 1.5 }, rng);
   const c = { muted: 0.07, medium: 0.12, vivid: 0.18 }[strength] + (rng() - 0.5) * 0.03;
   const paper = weighted({ white: 1.5, tinted: 2, warm: 1.2, washed: 0.8 }, rng);
@@ -103,8 +104,25 @@ export function randomColours(h: number, rng: Rng): { light: TokenMap; dark: Tok
 }
 
 const WORDS = [
-  'Atlas', 'Bright', 'Civic', 'Crisp', 'Dawn', 'Field', 'Folio', 'Ledger', 'Lumen',
-  'Margin', 'Meridian', 'Night', 'North', 'Quiet', 'Signal', 'Slate', 'Studio', 'Summit', 'Tide',
+  'Atlas',
+  'Bright',
+  'Civic',
+  'Crisp',
+  'Dawn',
+  'Field',
+  'Folio',
+  'Ledger',
+  'Lumen',
+  'Margin',
+  'Meridian',
+  'Night',
+  'North',
+  'Quiet',
+  'Signal',
+  'Slate',
+  'Studio',
+  'Summit',
+  'Tide',
 ];
 
 const HUES: [number, string][] = [

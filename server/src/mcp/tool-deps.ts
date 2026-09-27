@@ -17,7 +17,6 @@ export type ToolDeps = {
   logger: Logger;
   uploads?: Uploads | undefined;
   secretUploads?: SecretUploads | undefined;
-  /** For secret targets: finding a project by slug. */
   findProject?: ((ref: string) => Project | undefined) | undefined;
   /** For the project tool; without it the tool answers that projects are not available. */
   projects?:

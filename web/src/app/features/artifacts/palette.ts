@@ -1,16 +1,14 @@
 import type { ThemeToken, TokenMap } from '../../core/artifacts.types';
 import { contrast, oklch, parseColor, toOklch, type Oklch } from './color';
 
-// Every token for light and dark from a few decisions: the brand colour, the highlight and
-// the paper. Neutrals take the brand's hue at low chroma, so greys lean the brand's way;
-// text on a colour is whichever of near-white and near-black reads better on it.
+// Every token for light and dark from the brand colour, the highlight and the paper: greys
+// lean the brand's hue, and text on a colour is whichever of white and near-black reads better.
 
 export type PaperTone = 'white' | 'tinted' | 'warm';
 
 export type PaletteSpec = {
   /** The brand colour; `exact` is kept as written for light mode's primary. */
   primary: Oklch & { exact?: string };
-  /** The highlight: callouts, the flag square, the second series. */
   flag: Oklch & { exact?: string };
   paper: Oklch;
 };
@@ -97,10 +95,7 @@ const PAPER: Record<PaperTone, (h: number) => Oklch> = {
   warm: () => ({ l: 0.97, c: 0.015, h: 85 }),
 };
 
-/**
- * A palette from the colours a brand gives: its main colour, and a second one if it has one
- * (else the colour opposite on the wheel). Null when the brand colour cannot be read.
- */
+/** From a brand colour and an optional second one (else the opposite hue); null if unreadable. */
 export function brandPalette(
   brand: string,
   accent: string | null,
@@ -111,8 +106,7 @@ export function brandPalette(
   const p = toOklch(main);
   const page = PAPER[paper](p.h);
   const second = accent ? parseColor(accent) : null;
-  // A brand colour too light for links and buttons on the page (a yellow, a pastel) becomes
-  // the highlight, and a deeper shade of its hue takes the brand's place.
+  // A brand colour too light for links on the page becomes the highlight; a deeper shade leads.
   const light = (contrast(brand, oklch(page.l, page.c, page.h)) ?? 0) < 3;
   const primary: PaletteSpec['primary'] = light
     ? { l: 0.4, c: Math.min(p.c, 0.12), h: p.h }
