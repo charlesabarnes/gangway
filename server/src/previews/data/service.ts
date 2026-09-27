@@ -192,7 +192,7 @@ export class DataBrowser {
           new: {
             addon,
             kind,
-            text: text.slice(0, 2_048),
+            text: auditText(addon, text).slice(0, 2_048),
             write,
             outcome: x.outcome,
             rows: result?.rows.length ?? 0,
@@ -202,4 +202,20 @@ export class DataBrowser {
       }
     }
   }
+}
+
+/**
+ * What the audit log keeps of a statement: its shape, not its values. A query can carry
+ * passwords or personal data in its literals, so SQL strings and numbers become ?, and a Redis
+ * command keeps only its name and key.
+ */
+export function auditText(addon: AddonId, text: string): string {
+  if (addon === "redis") {
+    const [cmd = "", key, ...rest] = text.trim().split(/\s+/);
+    return [cmd, key, ...rest.map(() => "?")].filter((w) => w !== undefined).join(" ");
+  }
+  return text
+    .replace(/\$([A-Za-z_]\w*)?\$[\s\S]*?\$\1\$/g, "?")
+    .replace(/[EeXxBbNn]?'(?:[^']|'')*'/g, "?")
+    .replace(/\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, "?");
 }

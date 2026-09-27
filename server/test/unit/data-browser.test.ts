@@ -12,7 +12,7 @@ import {
   rowsQuery,
   tokenize,
 } from "../../src/previews/data/drivers.ts";
-import { DataBrowser, MAX_GLOBAL } from "../../src/previews/data/service.ts";
+import { auditText, DataBrowser, MAX_GLOBAL } from "../../src/previews/data/service.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import contract from "../../../web/src/testing/fixtures/contract.json";
@@ -149,6 +149,20 @@ describe("the service", () => {
       .entries.find((e) => e.action === "preview.data.query")!;
     expect(JSON.stringify(entry)).toContain("select n, secret_value from t");
     expect(JSON.stringify(entry)).not.toContain("hunter2");
+  });
+
+  test("the audit keeps a statement's shape but not its values", () => {
+    expect(
+      auditText(
+        "postgres",
+        "update users set password = 'hunter2', pin = 1234, note = E'it''s' where id = 7",
+      ),
+    ).toBe("update users set password = ?, pin = ?, note = ? where id = ?");
+    expect(auditText("postgres", "select $$secret$$, $x$also$x$ from t1")).toBe(
+      "select ?, ? from t1",
+    );
+    expect(auditText("redis", "SET session:42 s3cr3t EX 60")).toBe("SET session:42 ? ? ?");
+    expect(auditText("redis", "KEYS *")).toBe("KEYS *");
   });
 
   test("rows only for a table the database listed", async () => {
