@@ -1,17 +1,20 @@
-import { LOOKS, randomTheme } from './theme-random';
+import { randomTheme } from './theme-random';
 
 describe('randomTheme', () => {
-  it('names the theme after its look and hue, and gives every colour', () => {
+  it('names the theme with a word and its hue, and gives every colour', () => {
     const t = randomTheme(() => 0.5);
-    expect(t.name).toMatch(new RegExp(`^${t.look} [A-Z][a-z]+$`));
+    expect(t.name).toMatch(new RegExp(`^${t.word} [A-Z][a-z]+$`));
     expect(Object.keys(t.tokens.light)).toHaveLength(24);
     expect(Object.keys(t.tokens.dark)).toHaveLength(24);
   });
 
-  it('never repeats the look it is told to move on from', () => {
-    for (const look of LOOKS) {
-      for (let i = 0; i < 20; i++)
-        expect(randomTheme(Math.random, look.name).look).not.toBe(look.name);
+  it('keeps handwritten titles in their own case and weight', () => {
+    for (let i = 0; i < 500; i++) {
+      const { fonts } = randomTheme();
+      if (fonts.display === 'caveat' || fonts.display === 'kalam') {
+        expect(fonts.titleCase).toBeUndefined();
+        expect(fonts.titleWeight).not.toBe('light');
+      }
     }
   });
 });

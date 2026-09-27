@@ -88,7 +88,7 @@ export class FontPicker {
   protected readonly sample = computed(() => SAMPLE[this.slot()]);
 
   protected nameOf(key: string | undefined): string {
-    return key ? (this.labels()[key] ?? key) : `${HOUSE_NAME[this.slot()]} (gangway's)`;
+    return key ? (this.labels()[key] ?? key) : `${HOUSE_NAME[this.slot()]} (default)`;
   }
 
   protected stackOf(key: string | undefined): string {

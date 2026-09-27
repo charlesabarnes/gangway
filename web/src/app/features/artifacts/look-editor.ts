@@ -33,7 +33,7 @@ import { CHOICE_NAMES, STYLE_FIELDS } from './theme-tokens';
             (change)="setFont(k, $any($event.target).value)"
             [attr.data-testid]="'font-' + k"
           >
-            <option value="" [selected]="!fonts()[k]">gangway's</option>
+            <option value="" [selected]="!fonts()[k]">Default</option>
             @for (f of fontChoices()[k]; track f) {
               <option [value]="f" [selected]="fonts()[k] === f">{{ fontName(f) }}</option>
             }
@@ -59,7 +59,7 @@ import { CHOICE_NAMES, STYLE_FIELDS } from './theme-tokens';
                   [value]="first ? '' : c"
                   [selected]="first ? !style()[s.key] : style()[s.key] === c"
                 >
-                  {{ first ? "gangway's (" + c + ')' : c }}
+                  {{ first ? 'Default (' + c + ')' : c }}
                 </option>
               }
             </select></label

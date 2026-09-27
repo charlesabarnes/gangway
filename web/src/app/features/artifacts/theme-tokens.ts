@@ -14,7 +14,7 @@ export const GROUPS: { title: string; tokens: ThemeToken[] }[] = [
 
 // Font names come with the theme list (fontLabels); these name the other choices.
 export const CHOICE_NAMES: Record<string, string> = {
-  'italic-serif': 'Italic serif (gangway)',
+  'italic-serif': 'Italic serif (default)',
   serif: 'Upright serif',
   sans: 'Sans, semibold',
   display: 'Display font',

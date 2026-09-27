@@ -142,7 +142,11 @@ export class ArtifactFrame {
       return;
     }
     f.style.opacity = '1';
-    for (const old of frames) if (old !== f) old.remove();
+    // The old page stays underneath until the new one has faded in and painted: a browser
+    // paints a frame it held back while invisible a moment after it shows.
+    setTimeout(() => {
+      for (const old of frames) if (old !== f && old !== this.#current) old.remove();
+    }, 1500);
     this.#current = f;
     this.shown.set(true);
     this.#release?.();

@@ -34,9 +34,10 @@ const frame = (v: string) => `<!doctype html>
     document.getElementById("gw-theme").textContent = (d.themeCss || "") + (d.chrome ? "" : ".gw-chrome{display:none!important}") + (d.still ? "html,body{overflow:hidden!important}" : "");
     document.documentElement.dataset.pref = d.mode || "light";
     if (d.hash) location.hash = d.hash;
-    import("/_gangway/kit.js?v=${v}").then(function () {
-      setTimeout(function () { parent.postMessage({ type: "gw-rendered" }, "*"); }, 60);
-    });
+    var told = false;
+    function drawn() { if (!told) { told = true; parent.postMessage({ type: "gw-rendered" }, "*"); } }
+    document.addEventListener("gw-drawn", drawn);
+    import("/_gangway/kit.js?v=${v}").then(function () { setTimeout(drawn, 4000); }, drawn);
   });
   parent.postMessage({ type: "gw-frame-ready" }, "*");
 })();

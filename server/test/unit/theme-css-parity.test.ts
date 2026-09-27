@@ -9,7 +9,7 @@ import {
 } from "@gangway/shared/artifact/theme";
 import { themeCss } from "../../../web/src/app/features/artifacts/theme-css.ts";
 import { readability } from "../../../web/src/app/features/artifacts/readability.ts";
-import { LOOKS, randomTheme } from "../../../web/src/app/features/artifacts/theme-random.ts";
+import { randomTheme } from "../../../web/src/app/features/artifacts/theme-random.ts";
 
 // The theme editor compiles a theme in the browser to preview it before it is saved; it must
 // write what the server will.
@@ -62,20 +62,21 @@ describe("the editor's random themes", () => {
     return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
   };
 
-  test("are readable themes the server takes, in every look, never one twice", () => {
-    const looks = new Set<string>();
-    for (let seed = 1; seed <= 300; seed++) {
+  test("are readable themes the server takes, and nearly never the same twice", () => {
+    const seen = new Set<string>();
+    const draws = 300;
+    for (let seed = 1; seed <= draws; seed++) {
       const t = randomTheme(seeded(seed));
-      looks.add(t.look);
-      const { look: _, ...fields } = t;
+      seen.add(JSON.stringify([t.fonts, t.style]));
+      const { word: _, ...fields } = t;
       const parsed = ThemeCreateSchema.safeParse({ id: "random", ...fields });
       expect({ seed, issues: parsed.error?.issues ?? [] }).toEqual({ seed, issues: [] });
       expect({ seed, unreadable: readability(t.tokens, HOUSE_TOKENS) }).toEqual({
         seed,
         unreadable: [],
       });
-      expect(randomTheme(seeded(seed), t.look).look).not.toBe(t.look);
     }
-    expect([...looks].sort()).toEqual(LOOKS.map((l) => l.name).sort());
+    // Type and shape alone, before the colours: all but a handful of draws are new.
+    expect(seen.size).toBeGreaterThan(draws * 0.97);
   });
 });

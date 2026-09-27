@@ -1,172 +1,110 @@
 import type { ThemeFonts, ThemeStyle, TokenMap } from '../../core/artifacts.types';
 import { derivePalette } from './palette';
+import { FONTS } from './theme-css';
 
-// A "random" theme: one of a few looks that hang together (type, shape and layout chosen as a
-// set), recoloured from a random hue. Random per look, not per setting, so every result reads
-// as something a designer might have made rather than a slot machine.
+// A random theme: every part drawn on its own -- each font, the title treatment, each shape and
+// layout setting, the colour scheme -- with a few rules so the draw stays something a designer
+// might pick: a handwritten title is never uppercase or light, round corners lean to soft edges,
+// the brand colour stays dark enough to read on the page. Tens of thousands of combinations,
+// before the hue.
 
 type Rng = () => number;
+/** Choices with weights; a missing weight is 1. */
+type Weighted<T extends string> = Partial<Record<T, number>>;
 
-type Look = {
-  name: string;
-  fonts: { [K in keyof ThemeFonts]?: readonly NonNullable<ThemeFonts[K]>[] };
-  style: ThemeStyle;
-  /** Paper lightness and chroma; the brand colour's lightness and chroma. */
-  paper: [number, number];
-  primary: [number, number];
-  /** How far round the wheel the highlight sits from the brand hue. */
-  flagTurn: readonly number[];
+const pick = <T>(xs: readonly T[], rng: Rng): T => xs[Math.floor(rng() * xs.length)]!;
+
+function weighted<T extends string>(w: Weighted<T>, rng: Rng): T {
+  const entries = Object.entries(w) as [T, number][];
+  let at = rng() * entries.reduce((s, [, n]) => s + n, 0);
+  for (const [k, n] of entries) if ((at -= n) < 0) return k;
+  return entries[entries.length - 1]![0];
+}
+
+const keys = (slot: keyof typeof FONTS) => Object.keys(FONTS[slot]);
+const HAND = new Set(['caveat', 'kalam']);
+
+export function randomFonts(rng: Rng): ThemeFonts {
+  const fonts: ThemeFonts = {
+    serif: pick(keys('serif'), rng),
+    sans: pick(keys('sans'), rng),
+    mono: pick(keys('mono'), rng),
+  };
+  const titles = weighted({ 'italic-serif': 1, serif: 1.2, sans: 1.5, display: 2 } as const, rng);
+  fonts.titles = titles;
+  if (titles === 'display') {
+    fonts.display = pick(keys('display'), rng);
+    const hand = HAND.has(fonts.display);
+    fonts.titleWeight = hand
+      ? weighted({ regular: 1, bold: 2 } as const, rng)
+      : weighted({ regular: 2, semibold: 1, bold: 2 } as const, rng);
+    if (!hand && rng() < 0.3) fonts.titleCase = 'upper';
+  } else if (titles === 'sans') {
+    fonts.titleWeight = weighted({ light: 1, regular: 1, semibold: 2, bold: 2 } as const, rng);
+    if (rng() < 0.25) fonts.titleCase = 'upper';
+  } else {
+    fonts.titleWeight = weighted({ regular: 3, semibold: 1 } as const, rng);
+    if (titles === 'serif' && rng() < 0.15) fonts.titleCase = 'upper';
+  }
+  return fonts;
+}
+
+export function randomStyle(rng: Rng): ThemeStyle {
+  const corners = weighted({ square: 1, soft: 1.2, round: 1 } as const, rng);
+  const edges =
+    corners === 'square'
+      ? weighted({ neatline: 2, hairline: 2, flat: 1.5, shadow: 0.5 } as const, rng)
+      : weighted({ neatline: 0.3, hairline: 2, flat: 1.2, shadow: 2 } as const, rng);
+  const around = <T extends string>(house: T, others: T[]) =>
+    weighted({ [house]: 2, ...Object.fromEntries(others.map((o) => [o, 1])) } as Weighted<T>, rng);
+  return {
+    corners,
+    edges,
+    stroke: around('regular', ['light', 'bold']),
+    nodes: weighted({ outline: 1, tint: 1.3, solid: 0.8 }, rng),
+    grid: weighted({ lines: 1, dots: 1.2, none: 1 }, rng),
+    density: around('regular', ['compact', 'airy']),
+    text: around('regular', ['small', 'large']),
+    headings: around('regular', ['modest', 'dramatic']),
+  };
+}
+
+// How far round the wheel the highlight sits from the brand: complementary, split,
+// triadic, analogous, or the brand's own hue lighter.
+const SCHEMES: Record<string, readonly number[]> = {
+  complementary: [180],
+  split: [150, 210],
+  triadic: [120, 240],
+  analogous: [30, -30, 45, -45],
+  mono: [0],
 };
 
-export const LOOKS: readonly Look[] = [
-  {
-    name: 'Editorial',
-    fonts: {
-      serif: ['source-serif', 'libre-baskerville', 'lora'],
-      sans: ['source-sans', 'plex-sans'],
-      display: ['playfair-display', 'fraunces'],
-      titles: ['display'],
-      titleWeight: ['regular', 'semibold'],
+export function randomColours(h: number, rng: Rng): { light: TokenMap; dark: TokenMap } {
+  const turn = pick(SCHEMES[weighted({ complementary: 2, split: 2, triadic: 1.5, analogous: 1.5, mono: 1 }, rng)]!, rng);
+  const strength = weighted({ muted: 1, medium: 2, vivid: 1.5 }, rng);
+  const c = { muted: 0.07, medium: 0.12, vivid: 0.18 }[strength] + (rng() - 0.5) * 0.03;
+  const paper = weighted({ white: 1.5, tinted: 2, warm: 1.2, washed: 0.8 }, rng);
+  const page = {
+    white: { l: 0.99, c: 0.003, h },
+    tinted: { l: 0.975, c: 0.012, h },
+    warm: { l: 0.97, c: 0.016, h: 80 + rng() * 15 },
+    washed: { l: 0.955, c: 0.028, h },
+  }[paper];
+  return derivePalette({
+    // 0.34-0.5 keeps the brand colour 3:1 or better on any of the papers.
+    primary: { l: 0.34 + rng() * 0.16, c, h },
+    flag: {
+      l: turn === 0 ? 0.86 : 0.76 + rng() * 0.1,
+      c: 0.1 + rng() * 0.07,
+      h: (h + turn + 360) % 360,
     },
-    style: {
-      corners: 'square',
-      edges: 'hairline',
-      nodes: 'outline',
-      grid: 'none',
-      density: 'airy',
-      text: 'large',
-      headings: 'dramatic',
-    },
-    paper: [0.97, 0.015],
-    primary: [0.4, 0.12],
-    flagTurn: [30, 180],
-  },
-  {
-    name: 'Product',
-    fonts: {
-      sans: ['inter', 'manrope', 'dm-sans'],
-      titles: ['sans'],
-      titleWeight: ['bold', 'semibold'],
-    },
-    style: {
-      corners: 'round',
-      edges: 'shadow',
-      stroke: 'light',
-      nodes: 'tint',
-      grid: 'dots',
-    },
-    paper: [0.985, 0.004],
-    primary: [0.5, 0.19],
-    flagTurn: [150, 180, 200],
-  },
-  {
-    name: 'Terminal',
-    fonts: {
-      sans: ['space-grotesk', 'plex-sans'],
-      mono: ['jetbrains-mono', 'fira-code'],
-      display: ['space-grotesk'],
-      titles: ['display'],
-      titleWeight: ['bold'],
-      titleCase: ['upper'],
-    },
-    style: {
-      corners: 'square',
-      edges: 'flat',
-      stroke: 'bold',
-      nodes: 'solid',
-      grid: 'lines',
-      density: 'compact',
-      text: 'small',
-      headings: 'modest',
-    },
-    paper: [0.96, 0.01],
-    primary: [0.5, 0.17],
-    flagTurn: [120, 180],
-  },
-  {
-    name: 'Notebook',
-    fonts: {
-      serif: ['lora', 'merriweather'],
-      sans: ['dm-sans', 'source-sans'],
-      display: ['caveat', 'kalam'],
-      titles: ['display'],
-      titleWeight: ['bold'],
-    },
-    style: { corners: 'soft', edges: 'hairline', nodes: 'tint', grid: 'dots' },
-    paper: [0.965, 0.02],
-    primary: [0.45, 0.13],
-    flagTurn: [40, 160],
-  },
-  {
-    name: 'Corporate',
-    fonts: {
-      serif: ['source-serif'],
-      sans: ['plex-sans', 'source-sans'],
-      titles: ['sans'],
-      titleWeight: ['semibold'],
-    },
-    style: {
-      corners: 'soft',
-      edges: 'hairline',
-      nodes: 'outline',
-      grid: 'none',
-      density: 'compact',
-      headings: 'modest',
-    },
-    paper: [0.98, 0.006],
-    primary: [0.45, 0.13],
-    flagTurn: [180, 200],
-  },
-  {
-    name: 'Minimal',
-    fonts: {
-      sans: ['inter', 'manrope'],
-      titles: ['sans'],
-      titleWeight: ['light', 'regular'],
-    },
-    style: {
-      corners: 'soft',
-      edges: 'flat',
-      stroke: 'light',
-      nodes: 'outline',
-      grid: 'none',
-      density: 'airy',
-      headings: 'dramatic',
-    },
-    paper: [0.99, 0.002],
-    primary: [0.35, 0.08],
-    flagTurn: [150, 180],
-  },
-  {
-    name: 'Magazine',
-    fonts: {
-      serif: ['fraunces', 'source-serif'],
-      sans: ['dm-sans'],
-      display: ['fraunces', 'playfair-display'],
-      titles: ['display'],
-      titleWeight: ['bold'],
-      titleCase: ['upper'],
-    },
-    style: {
-      corners: 'square',
-      edges: 'flat',
-      stroke: 'bold',
-      nodes: 'solid',
-      grid: 'none',
-      headings: 'dramatic',
-    },
-    paper: [0.96, 0.02],
-    primary: [0.46, 0.2],
-    flagTurn: [60, 180],
-  },
-  {
-    name: 'Chart',
-    fonts: { titles: ['italic-serif'] },
-    style: {},
-    paper: [0.97, 0.012],
-    primary: [0.33, 0.09],
-    flagTurn: [190],
-  },
+    paper: page,
+  });
+}
+
+const WORDS = [
+  'Atlas', 'Bright', 'Civic', 'Crisp', 'Dawn', 'Field', 'Folio', 'Ledger', 'Lumen',
+  'Margin', 'Meridian', 'Night', 'North', 'Quiet', 'Signal', 'Slate', 'Studio', 'Summit', 'Tide',
 ];
 
 const HUES: [number, string][] = [
@@ -184,44 +122,27 @@ const HUES: [number, string][] = [
   [360, 'Rose'],
 ];
 
-const pick = <T>(xs: readonly T[], rng: Rng): T => xs[Math.floor(rng() * xs.length)]!;
-
 export function hueName(h: number): string {
   return HUES.find(([top]) => h < top)?.[1] ?? 'Rose';
 }
 
-/** Light and dark colours from a brand hue, in a look's weights. */
-export function palette(look: Look, h: number, rng: Rng): { light: TokenMap; dark: TokenMap } {
-  const [pl, pc] = look.paper;
-  const [prl, prc] = look.primary;
-  return derivePalette({
-    primary: { l: prl, c: prc, h },
-    flag: { l: 0.82, c: 0.14, h: (h + pick(look.flagTurn, rng)) % 360 },
-    paper: { l: pl, c: pc, h },
-  });
-}
-
 export type RandomTheme = {
   name: string;
-  look: string;
+  /** The name's first word, kept when only the colours change. */
+  word: string;
   tokens: { light: TokenMap; dark: TokenMap };
   fonts: ThemeFonts;
   style: ThemeStyle;
 };
 
-/** A theme in one of the looks, never the look it is given as `after`. */
-export function randomTheme(rng: Rng = Math.random, after?: string): RandomTheme {
-  const looks = LOOKS.filter((l) => l.name !== after);
-  const look = pick(looks, rng);
+export function randomTheme(rng: Rng = Math.random): RandomTheme {
   const h = Math.floor(rng() * 360);
-  const fonts: ThemeFonts = {};
-  for (const [k, choices] of Object.entries(look.fonts))
-    (fonts as Record<string, string>)[k] = pick(choices as readonly string[], rng);
+  const word = pick(WORDS, rng);
   return {
-    name: `${look.name} ${hueName(h)}`,
-    look: look.name,
-    tokens: palette(look, h, rng),
-    fonts,
-    style: { ...look.style },
+    name: `${word} ${hueName(h)}`,
+    word,
+    tokens: randomColours(h, rng),
+    fonts: randomFonts(rng),
+    style: randomStyle(rng),
   };
 }

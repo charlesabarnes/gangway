@@ -46,6 +46,11 @@ async function boot(): Promise<void> {
   }
   if (document.querySelector(LEGACY)) sheet("legacy.css");
   chrome();
+  // Drawn, and in its own fonts: a frame showing the page waits for this, not for the script.
+  // A timer, not requestAnimationFrame, which a browser holds back in a frame not yet shown.
+  await new Promise((r) => setTimeout(r, 0));
+  await document.fonts?.ready;
+  document.dispatchEvent(new Event("gw-drawn"));
 }
 
 if (document.readyState === "loading")

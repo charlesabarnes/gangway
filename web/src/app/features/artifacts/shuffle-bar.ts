@@ -41,8 +41,8 @@ export class ShuffleBar {
   readonly shuffled = output<Shuffle>();
   protected readonly parts: Part[] = ['colours', 'type', 'shape'];
   protected readonly kept = signal(new Set<Part>());
-  // The look the last shuffle landed on, so the next is a different one.
-  #look: string | undefined;
+  // The last name's first word, for a shuffle of the colours alone.
+  #word: string | undefined;
 
   protected toggle(p: Part): void {
     this.kept.update((k) => {
@@ -55,15 +55,16 @@ export class ShuffleBar {
   /** A new look for every part not kept. */
   shuffle(): void {
     const k = this.kept();
-    const t = randomTheme(Math.random, this.#look);
-    // Only the colours new: the look is still the last one, and so is the name's first word.
-    const recolour = k.has('type') && k.has('shape') && this.#look;
-    if (!recolour) this.#look = t.look;
+    const t = randomTheme();
+    // Only the colours new: the name keeps its first word and takes the new hue's.
+    const recolour = k.has('type') && k.has('shape') && this.#word;
+    if (!recolour) this.#word = t.word;
     this.shuffled.emit({
-      name: recolour ? `${this.#look} ${t.name.split(' ').pop()}` : t.name,
+      name: recolour ? `${this.#word} ${t.name.split(' ').pop()}` : t.name,
       ...(k.has('colours') ? {} : { tokens: t.tokens }),
       ...(k.has('type') ? {} : { fonts: t.fonts }),
       ...(k.has('shape') ? {} : { style: t.style }),
     });
   }
+
 }
