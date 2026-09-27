@@ -77,6 +77,9 @@ const answerHistory = async (
 ) => {
   r.http.match(`/v1/previews/${ID}/events`).forEach((q) => q.flush({ events }));
   r.http.match(`/v1/previews/${ID}/builds`).forEach((q) => q.flush({ builds }));
+  r.http
+    .match(`/v1/previews/${ID}/share`)
+    .forEach((q) => q.flush({ available: false, local: false, maxTtlMs: 0, share: null }));
   await r.settle();
 };
 

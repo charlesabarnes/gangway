@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseDuration } from "@gangway/shared/duration";
 import { parseBytes } from "./util/bytes.ts";
 
 export type SettingSource = "config" | "database" | "default";
@@ -90,6 +91,12 @@ export const SETTINGS = {
   artifactCustomCss: def("artifacts.customCss", z.boolean(), true),
   // Off puts static sites and artifacts back in nginx containers.
   previewsServeStatic: def("previews.serveStatic", z.boolean(), true),
+  previewsShare: def("previews.share.enabled", z.boolean(), true),
+  previewsShareMaxTtl: def(
+    "previews.share.maxTtl",
+    z.string().refine((v) => parseDuration(v) !== null, "a duration like 30m, 24h or 7d"),
+    "24h",
+  ),
   // Per container. Memory and processes are what take a host down; 0 turns a limit off.
   previewsMemory: def(
     "previews.limits.memory",

@@ -92,8 +92,13 @@ To serve previews publicly, also:
 - A **wildcard certificate** for it. gangway can get one itself over DNS-01 with a Cloudflare
   API token, or a reverse proxy in front can hold it.
 
-On a laptop, gangway runs locally on `preview.localhost` instead, with no domain or certificate
-to set up (experimental).
+Or run it **local-only**, with none of that: `--local` puts the dashboard, API, MCP and previews
+on `*.preview.localhost`, which answers only on the machine gangway runs on. It is the default
+on a laptop. To show a preview to anyone else, press **Share** on its page (or ask your agent to
+share it): gangway opens a [Cloudflare quick tunnel](https://developers.cloudflare.com/tunnel/get-started/#quick-tunnels-development)
+and hands back a public `https://….trycloudflare.com` link, until you stop it or it expires.
+Quick tunnels need no Cloudflare account and are meant for testing: at most 200 requests at
+once, no server-sent events, and a new link each time. They work on a domain install too.
 
 ### Run it
 
@@ -103,8 +108,9 @@ On the host, as root or a user in the `docker` group:
 curl -fsSL gangway.sh/install | sh
 ```
 
-The installer asks for your domain and whether a reverse proxy or gangway itself holds port
-443; with gangway holding it, it also asks for a Cloudflare API token so it can get a Let's
+The installer asks whether gangway runs local-only or on your domain (`curl -fsSL
+gangway.sh/install | sh -s -- --local` skips the question), then for your domain and whether a
+reverse proxy or gangway itself holds port 443; with gangway holding it, it also asks for a Cloudflare API token so it can get a Let's
 Encrypt wildcard certificate over DNS-01. It checks Docker, DNS and the ports, writes
 `/opt/gangway/.env` (with a generated admin token) and `compose.yaml`, starts gangway, and
 prints a one-time link.
@@ -280,6 +286,8 @@ Everything can be set in the environment. Settings not pinned there are editable
 | `GANGWAY_CONTROL_ALLOW`                      | _(everyone)_        | Networks allowed to reach the UI and API; previews stay public     |
 | `GANGWAY_PREVIEW_MEMORY` / `_CPUS` / `_PIDS` | `1g` / off / `1024` | Limits for every preview container                                 |
 | `GANGWAY_SURFACE_MCP`                        | `false`             | Pin the MCP surface on or off                                      |
+| `GANGWAY_SHARE`                              | `true`              | Pin public share links (Cloudflare quick tunnels) on or off        |
+| `GANGWAY_CLOUDFLARED`                        | `cloudflared`       | The cloudflared binary share links run; the image carries one      |
 
 <!-- Expand from compose.yaml: listen ports, hosts, reconcile, ACME email, GitHub App vars. -->
 

@@ -42,7 +42,13 @@ export type PreviewSource =
 export type SourceKind = PreviewSource['kind'];
 
 /** custom: a hostname claimed for it, not one gangway named. */
-export type PreviewUrl = { service: string; url: string; primary: boolean; custom?: true };
+export type PreviewUrl = {
+  service: string;
+  url: string;
+  primary: boolean;
+  custom?: true;
+  share?: true;
+};
 
 export type PasswordMode = 'inherit' | 'none' | 'set' | 'generated';
 export type PasswordChoice =
@@ -149,6 +155,7 @@ export const PERMISSIONS = [
   'previews.update_own',
   'previews.watermark',
   'previews.domain',
+  'previews.share',
   'previews.data',
   'previews.view_private',
   'previews.skip_password',
@@ -208,6 +215,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     'previews.update_own',
     'previews.watermark',
     'previews.domain',
+    'previews.share',
   ],
   update: ['previews.update'],
   artifacts: [
@@ -217,6 +225,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     'previews.destroy_own',
     'previews.watermark',
     'previews.domain',
+    'previews.share',
   ],
   projects: ['previews.read', 'repos.manage', 'repos.domains'],
   themes: ['artifacts.manage'],
@@ -359,7 +368,10 @@ export type Capabilities = {
   mcpUrl: string;
   /** Every wildcard domain previews may be named under. */
   previewDomains?: string[];
+  /** Whether previews can get a public share link, and whether they need one to be seen. */
+  share?: { available: boolean; local: boolean };
 };
+
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';

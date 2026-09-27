@@ -15,6 +15,7 @@ import { EmailSettings } from './email-settings';
 import { WatermarkSettings } from './watermark-settings';
 import { DomainSettings } from './domain-settings';
 import { LimitSettings } from './limit-settings';
+import { ShareSettings } from './share-settings';
 import { Skeleton } from '../../ui/skeleton';
 
 export const SETTINGS_GROUPS = ['previews', 'domains', 'github', 'server'] as const;
@@ -35,6 +36,7 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
     WatermarkSettings,
     DomainSettings,
     LimitSettings,
+    ShareSettings,
   ],
   host: { class: 'flex flex-col gap-7 [&>:last-child>.gw-section]:border-b-0' },
   template: `
@@ -67,6 +69,7 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
       @if (show('domains') && canReadSettings()) {
         <app-domain-settings [settings]="settings()" [(saving)]="saving" />
         <app-limit-settings [settings]="settings()" [(saving)]="saving" />
+        <app-share-settings [settings]="settings()" [(saving)]="saving" />
       }
       @if (show('previews') && canSecrets()) {
         <app-global-secrets />

@@ -12,6 +12,8 @@ export type AuditAction =
   | "preview.icon"
   | "preview.watermark"
   | "preview.domain"
+  | "preview.share"
+  | "preview.unshare"
   | "project.domain"
   | "project.production"
   | "domain.claimed"

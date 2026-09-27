@@ -34,7 +34,7 @@ function nameFrom(from: string): string {
 
 /** Custom hostnames first, when DNS already sends them here, then the ones gangway named. */
 export function urlsFor(
-  ctx: Pick<PreviewContext, "table" | "origin" | "domains">,
+  ctx: Pick<PreviewContext, "table" | "origin" | "domains" | "shares">,
   previewId: string,
 ): PreviewUrl[] {
   const own = ctx.table
@@ -53,5 +53,9 @@ export function urlsFor(
     primary: true,
     custom: true as const,
   }));
-  return [...custom, ...own];
+  const share = ctx.shares?.get(previewId);
+  const shared = share
+    ? [{ service, url: `${share.url}/`, primary: false, share: true as const }]
+    : [];
+  return [...custom, ...own, ...shared];
 }

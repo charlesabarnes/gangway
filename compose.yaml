@@ -112,6 +112,8 @@ services:
       # smtp://user:password@smtp.example.com:587, or smtps://…:465.
       GANGWAY_SMTP_URL: ${GANGWAY_SMTP_URL:-}
       GANGWAY_MAIL_FROM: ${GANGWAY_MAIL_FROM:-}
+      # false turns off public share links (Cloudflare quick tunnels) and locks them off.
+      GANGWAY_SHARE: ${GANGWAY_SHARE:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${GANGWAY_STATE_PATH:?set GANGWAY_STATE_PATH in .env}:/state

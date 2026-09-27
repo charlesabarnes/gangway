@@ -209,6 +209,9 @@ export const PreviewWatermarkChangeSchema = z.strictObject({
   watermark: z.enum(WATERMARK_CHOICES),
 });
 
+/** How long a public share link lasts; the server caps it at its own maximum. */
+export const PreviewShareSchema = z.strictObject({ ttl: z.string().max(16).optional() });
+
 export const PREVIEW_PASSWORD_HEADER = "gangway-preview-password";
 
 export const DeployRequestSchema = z.strictObject({

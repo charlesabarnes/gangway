@@ -30,6 +30,7 @@ import { LogViewer } from './log-viewer';
 import { PreviewSecretsPanel } from './secrets-panel';
 import { WatermarkPanel } from './watermark-panel';
 import { DomainPanel } from './domain-panel';
+import { SharePanel } from './share-panel';
 import { PasswordPanel } from './password-panel';
 import { PreviewsStore } from './previews.store';
 import { PreviewTitle } from './preview-title';
@@ -57,6 +58,7 @@ import { Skeleton } from '../../ui/skeleton';
     StateBadge,
     WatermarkPanel,
     DomainPanel,
+    SharePanel,
   ],
   template: `
     <section class="gw-page gap-9">
@@ -105,7 +107,20 @@ import { Skeleton } from '../../ui/skeleton';
                 <li class="flex items-center gap-4 border-b border-rule py-3" data-testid="url-row">
                   <span class="w-32 shrink-0 truncate text-[15px] font-medium"
                     >{{ u.service }}
-                    @if (u.primary) {
+                    @if (u.share) {
+                      <span
+                        class="ml-1 text-[10px] font-semibold tracking-[.12em] text-ok uppercase"
+                        data-testid="url-public"
+                        >public</span
+                      >
+                    } @else if (onThisMachine(u.url)) {
+                      <span
+                        class="ml-1 text-[10px] font-semibold tracking-[.12em] text-muted uppercase"
+                        title="*.localhost opens only on the machine gangway runs on"
+                        data-testid="url-local"
+                        >this machine</span
+                      >
+                    } @else if (u.primary) {
                       <span
                         class="ml-1 text-[10px] font-semibold tracking-[.12em] text-muted uppercase"
                         >primary</span
@@ -195,6 +210,7 @@ import { Skeleton } from '../../ui/skeleton';
         </div>
 
         @if (p.state !== 'destroyed' && p.state !== 'destroying') {
+          <app-share-panel [preview]="p" />
           <app-password-panel [preview]="p" />
           <app-watermark-panel [preview]="p" />
           <app-domain-panel [preview]="p" />
@@ -375,6 +391,12 @@ export class PreviewDetail {
     if (this.id() !== id) return;
     this.events.set([...events].reverse());
     this.builds.set(builds);
+  }
+
+  /** Browsers send every *.localhost name to their own machine, so no one else can open it. */
+  protected onThisMachine(url: string): boolean {
+    const host = URL.canParse(url) ? new URL(url).hostname : '';
+    return host === 'localhost' || host.endsWith('.localhost');
   }
 
   protected copy(url: string): Promise<void> {

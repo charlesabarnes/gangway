@@ -13,6 +13,9 @@ import type { SourceStore } from "../previews/source/store.ts";
 import type { Workdirs } from "../previews/source/workdir.ts";
 import { RouteTable } from "../routing/table.ts";
 import { SETTINGS, Settings } from "../settings.ts";
+import { Shares } from "../share/shares.ts";
+import { listenerOrigin, QuickTunnels } from "../share/tunnels.ts";
+import { parseDuration } from "@gangway/shared/duration";
 import { UpdateCheck } from "../updates.ts";
 import { openStorage, restoreState, seedConfiguredHosts, type Repos } from "./storage.ts";
 
@@ -26,6 +29,7 @@ export type Core = {
   baseDomain: () => string;
   previewDomain: () => string;
   domains: DomainRegistry;
+  shares: Shares;
   publicOrigin: PublicOrigin;
   origin: (label: string) => string;
   bus: EventBus;
@@ -58,6 +62,8 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
   });
   const previewDomain = () => domains.defaultDomain();
   const publicOrigin: PublicOrigin = { scheme: config.publicScheme, port: config.publicPort };
+  const bus = new EventBus(repos.events, (e) => logger.warn("event listener threw", { err: e }));
+  const shares = sharesFor(config, settings, bus, logger);
   const core: Core = {
     config,
     stateDir,
@@ -68,11 +74,12 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     baseDomain,
     previewDomain,
     domains,
+    shares,
     publicOrigin,
     origin: (label) =>
       publicOriginFor(label ? `${label}.${baseDomain()}` : baseDomain(), publicOrigin),
-    bus: new EventBus(repos.events, (e) => logger.warn("event listener threw", { err: e })),
-    table: new RouteTable(repos.routes, (host) => domains.aliasTarget(host)),
+    bus,
+    table: new RouteTable(repos.routes, (host) => domains.aliasTarget(host) ?? shares.target(host)),
     audit: new Audit(repos.audit, logger.child({ mod: "audit" })),
     updates: new UpdateCheck({
       current: config.version,
@@ -88,4 +95,22 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     logger,
   });
   return { core, seeded, workdirs, sources, sites };
+}
+
+const DAY_MS = 86_400_000;
+
+function sharesFor(config: Config, settings: Settings, bus: EventBus, logger: Logger): Shares {
+  return new Shares({
+    provider: new QuickTunnels({ binary: config.cloudflaredPath }),
+    origin: listenerOrigin(config.listenAddress, config.listenPort),
+    enabled: () => settings.get(SETTINGS.previewsShare),
+    maxTtlMs: () => parseDuration(settings.get(SETTINGS.previewsShareMaxTtl)) ?? DAY_MS,
+    logger: logger.child({ mod: "share" }),
+    onChange: (share, end) =>
+      bus.publish(
+        end ? "preview.share.ended" : "preview.share.started",
+        end ? { url: share.url, reason: end } : { url: share.url, expiresAt: share.expiresAt },
+        share.previewId,
+      ),
+  });
 }

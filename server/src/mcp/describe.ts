@@ -3,6 +3,7 @@ import { cmdText, type AppPlan } from "@gangway/shared/app-plan";
 import type { PreviewContext } from "../previews/context.ts";
 import { urlsFor } from "../previews/deploy.ts";
 import { nameOf } from "./resolve.ts";
+import { isLocalDomain } from "@gangway/shared/hostname";
 
 const PLAN_REASONS_SHOWN = 8;
 
@@ -26,6 +27,19 @@ export function describePreview(ctx: PreviewContext, p: Preview): string {
   const moving = movingTo(ctx, p);
   if (moving) parts.push(`moves to ${moving} on its next rebuild`);
   return parts.join(" — ");
+}
+
+/**
+ * On a local-only install its URL works only where gangway runs, which an agent cannot tell from
+ * the URL; the share tool is the way to show it to anyone else.
+ */
+export function localNote(ctx: PreviewContext, p: Preview): string {
+  const control = ctx.domains?.control();
+  if (!control || !isLocalDomain(control) || ctx.shares?.get(p.id)) return "";
+  const how = ctx.shares?.available()
+    ? `; the share tool gives it a public link (ask the user first)`
+    : "";
+  return `\nThis URL works only on the machine gangway runs on${how}.`;
 }
 
 /** The domain it will be named under once rebuilt, when that is not where it is now. */

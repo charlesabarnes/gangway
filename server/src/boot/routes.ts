@@ -1,4 +1,5 @@
 import { TRIGGERS, type Trigger } from "@gangway/shared/domain";
+import { isLocalDomain } from "@gangway/shared/hostname";
 import { publicOriginFor } from "@gangway/shared/url";
 import type { Hono } from "hono";
 import type { AppEnv } from "../app/env.ts";
@@ -87,6 +88,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     mcpOrigin: () => d.origin("mcp"),
     onMcpDisabled: () => d.mcp.dropAll(),
     previewDomains: () => d.domains.availableTo(null),
+    share: () => shareCapability(ctx, d.domains.control()),
   });
   projectRoutes(api, {
     projects: repos.projects,
@@ -134,6 +136,10 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   });
 }
 
+function shareCapability(ctx: PreviewContext, control: string) {
+  return { available: ctx.shares?.available() ?? false, local: isLocalDomain(control) };
+}
+
 export type PublicRouteDeps = {
   ctx: PreviewContext;
   auth: AuthDeps;
@@ -157,7 +163,9 @@ export function publicRoutes(pub: Hono<AppEnv>, { ctx, auth, identity, gate }: P
         const e = table.lookup(host);
         return e ? gate.gateable(e) : { private: false, passwordSkippable: false };
       },
-      originFor: (host) => publicOriginFor(host, ctx.origin),
+      // A share link is Cloudflare's https on 443, whatever gangway's own public port is.
+      originFor: (host) =>
+        ctx.shares?.isShareHost(host) ? `https://${host}` : publicOriginFor(host, ctx.origin),
       safePath,
     },
   });

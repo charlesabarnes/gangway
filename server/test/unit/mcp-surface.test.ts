@@ -116,7 +116,7 @@ describe("the mcp surface", () => {
     expect((await s.call({ path: "/v1/previews", method: "GET" })).status).toBe(404);
   });
 
-  test("2026-07-28: tools/list names the nine tools; tools/call deploys and answers", async () => {
+  test("2026-07-28: tools/list names the ten tools; tools/call deploys and answers", async () => {
     const s = surface();
     const list = await s.messages(await s.modern(1, "tools/list"));
     expect(
@@ -132,6 +132,7 @@ describe("the mcp surface", () => {
       "logs",
       "project",
       "secrets",
+      "share",
       "status",
       "theme",
     ]);
@@ -188,7 +189,7 @@ describe("the mcp surface", () => {
     expect(text).toContain('upload: "new"');
     // A prompt is not a tool.
     expect((await s.messages(await s.modern(4, "tools/list"))).at(-1)!.result.tools).toHaveLength(
-      9,
+      10,
     );
   });
 

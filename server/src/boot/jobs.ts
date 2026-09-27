@@ -104,6 +104,13 @@ function registerPreviewJobs(scheduler: Scheduler, d: JobDeps): void {
     intervalMs: config.idleSweepIntervalMs,
     run: (signal) => sweepIdle(ctx, logger.child({ job: "idle-sleep" }), signal),
   });
+  scheduler.register({
+    name: "share-expiry",
+    intervalMs: 60_000,
+    run: () => {
+      ctx.shares?.expire();
+    },
+  });
   // Pending claims wait on someone's DNS change; a minute is as soon as it is worth asking.
   const claims = claimDeps(d);
   scheduler.register({

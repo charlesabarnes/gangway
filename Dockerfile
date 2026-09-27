@@ -2,7 +2,8 @@
 #
 # The docker CLI is here because gangway drives hosts by shelling out to `docker compose`
 # against DOCKER_HOST. The compose plugin is a separate package and the one people forget;
-# git is for git sources, openssh-client for `ssh://` docker hosts.
+# git is for git sources, openssh-client for `ssh://` docker hosts. cloudflared gives a preview a
+# public share link through a Cloudflare quick tunnel; it is a static binary, pinned and checked.
 
 # The web and render stages emit only JS, CSS and fonts, so they run on the build machine
 # rather than under emulation for each target platform.
@@ -36,6 +37,21 @@ RUN bun scripts/precompress.ts web/dist/browser render/dist
 FROM oven/bun:1.4.2-alpine
 
 RUN apk add --no-cache docker-cli docker-cli-compose git openssh-client tini
+
+ARG TARGETARCH
+ARG CLOUDFLARED_VERSION=2026.9.3
+# TARGETARCH is BuildKit's; the classic builder leaves it empty and builds for the machine it is on.
+RUN set -eu; \
+    arch=${TARGETARCH:-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')}; \
+    case "$arch" in \
+      amd64) sum=77e26d8d900e0b8469f416239d14b5f296525fdf79fee6f511ef55609e3fbac2 ;; \
+      arm64) sum=aaeb2d7d0da3614634c7e03ab13487a1522c2e79165ed2929cfe23d5e95b326d ;; \
+      *) echo "no cloudflared for $arch" >&2; exit 1 ;; \
+    esac; \
+    wget -qO /usr/local/bin/cloudflared \
+      "https://github.com/cloudflare/cloudflared/releases/download/$CLOUDFLARED_VERSION/cloudflared-linux-$arch"; \
+    echo "$sum  /usr/local/bin/cloudflared" | sha256sum -c -; \
+    chmod 0755 /usr/local/bin/cloudflared
 
 WORKDIR /app
 

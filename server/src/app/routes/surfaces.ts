@@ -16,6 +16,8 @@ export type SurfacesDeps = {
   onMcpDisabled?: (() => void) | undefined;
   /** Every wildcard domain previews may be named under, for an agent's allowlist. */
   previewDomains?: (() => readonly string[]) | undefined;
+  /** Whether a preview can get a public share link here, and whether it needs one to be seen. */
+  share?: (() => { available: boolean; local: boolean }) | undefined;
 };
 
 const SURFACES = { ui: SETTINGS.surfacesUi, mcp: SETTINGS.surfacesMcp } as const satisfies Record<
@@ -44,6 +46,7 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
       },
       mcpUrl: d.mcpOrigin(),
       ...(d.previewDomains ? { previewDomains: d.previewDomains() } : {}),
+      ...(d.share ? { share: d.share() } : {}),
     }),
   );
 

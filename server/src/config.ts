@@ -82,6 +82,9 @@ const ConfigSchema = z.object({
 
   adminToken: z.string().optional(),
 
+  // Spawned for a preview's public share link; the image carries it, elsewhere it is on PATH.
+  cloudflaredPath: z.string().min(1).default("cloudflared"),
+
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
   // Baked into the image: a release's semver, or edge or dev.
@@ -119,6 +122,7 @@ const ENV_MAP = {
   GANGWAY_ADMIN_TOKEN: "adminToken",
   GANGWAY_LOG_LEVEL: "logLevel",
   GANGWAY_VERSION: "version",
+  GANGWAY_CLOUDFLARED: "cloudflaredPath",
 } as const satisfies Record<string, keyof Config>;
 
 const SETTING_ENV_MAP = {
@@ -133,6 +137,7 @@ const SETTING_ENV_MAP = {
   GANGWAY_PREVIEW_MEMORY: "previews.limits.memory",
   GANGWAY_PREVIEW_CPUS: "previews.limits.cpus",
   GANGWAY_PREVIEW_PIDS: "previews.limits.pids",
+  GANGWAY_SHARE: "previews.share.enabled",
   GANGWAY_UPDATE_CHECK: "updates.check",
   GANGWAY_CF_API_TOKEN: "acme.cloudflare.apiToken",
   GANGWAY_CF_ZONE_ID: "acme.cloudflare.zoneId",

@@ -39,10 +39,13 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [options]
 
+  --local                 no domain: gangway answers only on this machine, at *.preview.localhost,
+                          and a preview goes public through its Share link (same as --tls local)
   --domain <domain>       base domain, e.g. preview.example.com (*.<domain> must point here)
-  --tls proxy|acme        proxy: a reverse proxy in front holds 443 and the certificate
+  --tls proxy|acme|local  proxy: a reverse proxy in front holds 443 and the certificate
                           acme:  gangway holds 443 and gets a wildcard certificate itself
                                  (Let's Encrypt over DNS-01, needs a Cloudflare API token)
+                          local: see --local
   --cf-token <token>      Cloudflare API token that can edit the domain's DNS (acme only)
   --acme-email <email>    contact address for Let's Encrypt (acme only, optional)
   --version <v>           image tag to run, e.g. 0.1.0 or edge (default latest)
@@ -71,6 +74,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --domain) DOMAIN=${2:?--domain needs a value}; shift ;;
     --tls) TLS=${2:?--tls needs a value}; shift ;;
+    --local) TLS=local ;;
     --cf-token) CF_TOKEN=${2:?--cf-token needs a value}; shift ;;
     --acme-email) ACME_EMAIL=${2:?--acme-email needs a value}; shift ;;
     --version) VERSION=${2:?--version needs a value}; shift ;;
@@ -247,19 +251,30 @@ esac
 
 if [ "$UPGRADE" = 1 ]; then
   DOMAIN=$(conf_get GANGWAY_BASE_DOMAIN)
-  if [ "$(conf_get GANGWAY_TLS_MODE)" = acme ]; then TLS=acme; else TLS=proxy; fi
+  case "$DOMAIN" in
+    localhost | *.localhost) TLS=local ;;
+    *) if [ "$(conf_get GANGWAY_TLS_MODE)" = acme ]; then TLS=acme; else TLS=proxy; fi ;;
+  esac
 fi
 
 # --- settings ---------------------------------------------------------------------------------
 
 if [ "$UPGRADE" = 0 ]; then
   step "Settings"
-  if [ "$PLATFORM" = desktop ]; then
+  [ "$PLATFORM" = desktop ] && TLS=${TLS:-local}
+  if [ -z "$TLS" ] && [ -z "$DOMAIN" ]; then
+    say "Where should gangway answer?"
+    say "  local  only on this machine, with no domain; share a preview publicly from its page"
+    say "  proxy  your domain, behind a reverse proxy already on this host"
+    say "  acme   your domain, with gangway holding 443 and its own certificate"
+    TLS=$(ask "local, proxy or acme" local)
+  fi
+  if [ "$TLS" = local ]; then
     # *.localhost resolves to this machine in browsers and curl, so no DNS or certificate to set up.
-    DOMAIN=${DOMAIN:-preview.localhost} TLS=local
+    DOMAIN=${DOMAIN:-preview.localhost}
   else
     [ -n "$DOMAIN" ] || DOMAIN=$(ask "Base domain for previews (e.g. preview.example.com)" "")
-    [ -n "$DOMAIN" ] || die "a base domain is required (--domain)"
+    [ -n "$DOMAIN" ] || die "a base domain is required (--domain), or install with --local"
   fi
   case "$DOMAIN" in
     *[!a-z0-9.-]* | .* | *. | *..*) die "\"$DOMAIN\" is not a domain name (lowercase, like preview.example.com)" ;;
@@ -274,7 +289,7 @@ if [ "$UPGRADE" = 0 ]; then
     say "  acme   gangway itself, with a Let's Encrypt certificate over Cloudflare DNS"
     TLS=$(ask "proxy or acme" "$suggest")
   fi
-  case "$TLS" in proxy | acme | local) ;; *) die "--tls must be proxy or acme, not \"$TLS\"" ;; esac
+  case "$TLS" in proxy | acme | local) ;; *) die "--tls must be proxy, acme or local, not \"$TLS\"" ;; esac
 
   if [ "$TLS" = acme ]; then
     [ -n "$CF_TOKEN" ] || CF_TOKEN=$(ask_secret "Cloudflare API token with Zone:DNS:Edit on $DOMAIN")
@@ -704,6 +719,11 @@ NEXT
   if [ "$TLS" = local ]; then
     say ""
     say "Browsers warn about the certificate: it is gangway's own. Its CA is $STATE/dev-ca/ca.pem."
+    say "Previews open only on this machine. To show one to anyone else, press Share on its page"
+    say "for a public link through a Cloudflare quick tunnel."
+    if [ "$PLATFORM" != desktop ]; then
+      say "From another computer, tunnel to it first:  ssh -L $PORT:localhost:$PORT <this host>"
+    fi
   fi
 
   # Printed on every start until the first account exists; only this run's link works.

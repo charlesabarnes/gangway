@@ -78,3 +78,4 @@ Always give a `title` (what the user calls it, e.g. "Checkout redesign") and an 
 
 - The `check` results and a `curl` or two of API routes are enough. Open a browser only when the user asks, or when the change is purely visual and can't be checked any other way.
 - Finish with the URL, one line on what is there, and what is not done or not checked. Leave the preview running. It expires on its own, and `destroy` is the user's call.
+- A URL under `.localhost` (or one the user's audience cannot reach) opens only on their machine. To show it to someone else, offer the `share` tool's public link and start it on yes: `share` with `preview: "<name>"` and `action: "start"` returns an `https://….trycloudflare.com` URL until it expires or `action: "stop"`. It is a Cloudflare quick tunnel: public to anyone with the link, no server-sent events.

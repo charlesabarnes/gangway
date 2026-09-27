@@ -8,10 +8,11 @@ import { AppError, unprocessable } from "../errors.ts";
 import { destroy } from "../previews/destroy.ts";
 import { runtimeLogs } from "../previews/runtime-logs.ts";
 import { DeployTool } from "./deploy-tool.ts";
-import { describePreview, logTail, refusalDetail } from "./describe.ts";
+import { describePreview, localNote, logTail, refusalDetail } from "./describe.ts";
 import { connectProject } from "./project-tool.ts";
 import { setSecrets } from "./secrets-tool.ts";
 import { DOMAINS_TOOL, manageDomains, type DomainsArgs } from "./domains-tool.ts";
+import { manageShare, SHARE_TOOL, type ShareArgs } from "./share-tool.ts";
 import { saveTheme } from "./theme-tool.ts";
 import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
 import { nameOf, resolveFor, visibleTo } from "./resolve.ts";
@@ -110,6 +111,9 @@ export class Tools {
     s.registerTool("domains", DOMAINS_TOOL, (args) =>
       this.#guard("domains", () => this.domains(scope, args)),
     );
+    s.registerTool("share", SHARE_TOOL, (args) =>
+      this.#guard("share", () => this.share(scope, args)),
+    );
     return s;
   }
 
@@ -197,10 +201,18 @@ export class Tools {
     return manageDomains(this.#d, scope.actor, args);
   }
 
+  share(scope: CallScope, args: ShareArgs): Promise<string> {
+    need(scope.actor, ...TOOL_PERMISSIONS.share);
+    return manageShare(this.#d, scope.actor, args);
+  }
+
   async status(scope: CallScope, ref: string | undefined): Promise<string> {
     const { ctx } = this.#d;
     need(scope.actor, ...TOOL_PERMISSIONS.status);
-    if (ref !== undefined) return describePreview(ctx, resolveFor(ctx, scope.actor, ref));
+    if (ref !== undefined) {
+      const p = resolveFor(ctx, scope.actor, ref);
+      return describePreview(ctx, p) + localNote(ctx, p);
+    }
     const visible = visibleTo(ctx, scope.actor);
     const all = ctx.previews.list({}).filter((p) => p.state !== "destroyed" && visible(p));
     if (all.length === 0) return "no previews";

@@ -47,6 +47,11 @@ export const PERMISSIONS = [
     description: "Choose the domain of a preview you may change, and claim hostnames for it",
   },
   {
+    id: "previews.share",
+    feature: "previews",
+    description: "Give a preview a public link through a Cloudflare quick tunnel, and end it",
+  },
+  {
     id: "previews.data",
     feature: "previews",
     description: "Browse and query a preview's add-on databases (every query is audited)",
@@ -179,6 +184,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.update_own",
     "previews.watermark",
     "previews.domain",
+    "previews.share",
   ],
   update: ["previews.update"],
   // For an agent you do not trust with a container: it sees and touches only what it deployed.
@@ -189,6 +195,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.destroy_own",
     "previews.watermark",
     "previews.domain",
+    "previews.share",
   ],
   // Connecting a repository for pull-request previews, e.g. from an agent's setup skill.
   projects: ["previews.read", "repos.manage", "repos.domains"],
@@ -217,6 +224,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
     "previews.update_own",
     "previews.watermark",
     "previews.domain",
+    "previews.share",
     "previews.secrets",
     "previews.view_private",
     "previews.skip_password",

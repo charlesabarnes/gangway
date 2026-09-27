@@ -13,6 +13,8 @@ import { clientIpResolver, type ClientIpResolver } from "../net/trusted-proxy.ts
 import { serveSite, THEME_LOGO_PATH } from "../net/site.ts";
 import { markScript } from "../net/watermark.ts";
 import { useFontHostFor } from "../net/page-chrome.ts";
+import { normalizeHost } from "@gangway/shared/hostname";
+import { tunnelClientIp, tunnelPeerFor } from "../share/client-ip.ts";
 import { NodeHttpUpstream, PerHostUpstream } from "../net/upstream.ts";
 import { renderDist } from "../previews/artifact-render.ts";
 import type { PreviewContext } from "../previews/context.ts";
@@ -68,10 +70,14 @@ export function startNetwork(d: NetworkDeps): Network {
   const risk = controlAllowRisk(config.controlAllow, config.trustedProxies);
   if (risk) logger.warn(risk);
 
-  const { domains } = d.ctx;
+  const { domains, shares } = d.ctx;
+  // A custom or share hostname has no gangway apex above it to load fonts from.
   useFontHostFor(
     domains
-      ? (host) => (domains.aliasTarget(host) ? `app.${domains.control()}` : undefined)
+      ? (host) =>
+          domains.aliasTarget(host) || shares?.isShareHost(host)
+            ? `app.${domains.control()}`
+            : undefined
       : undefined,
   );
   const certStore = new CertStore(d.bundle);
@@ -126,9 +132,25 @@ function dispatchDeps(
       mcp: http.mcp.handler(),
     },
     logTailFor: (id) => ctx.logs.tail(id, 50),
-    clientIpFor: (req) => resolveClientIp(clientIpOf(req), req.headers.get("x-forwarded-for")),
+    clientIpFor: clientIpFor(d, resolveClientIp),
     onProxied: (entry) => table.touch(entry.hostname, Date.now()),
     watermark: watermarkFor(d),
+  };
+}
+
+// Visitors on a share link arrive through cloudflared on this machine, which is no trusted
+// proxy; without its header they would all share one rate-limit and password-guess bucket.
+function clientIpFor(
+  { ctx, config }: NetworkDeps,
+  resolveClientIp: ClientIpResolver,
+): DispatchDeps["clientIpFor"] {
+  const tunnelPeer = tunnelPeerFor(config.listenAddress);
+  return (req) => {
+    const peer = clientIpOf(req);
+    const host = normalizeHost(req.headers.get("host"));
+    if (host && ctx.shares?.isShareHost(host) && tunnelPeer(peer))
+      return tunnelClientIp(req.headers) ?? peer;
+    return resolveClientIp(peer, req.headers.get("x-forwarded-for"));
   };
 }
 

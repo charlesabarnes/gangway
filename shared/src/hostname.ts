@@ -172,3 +172,9 @@ export function buildLabel(
   if (!check.ok) return { ok: false, reason: check.reason, message: check.message };
   return { ok: true, label };
 }
+
+/** Browsers send every *.localhost name to loopback, so such an install is local-only. */
+export function isLocalDomain(domain: string): boolean {
+  const d = domain.toLowerCase().replace(/\.$/, "");
+  return d === "localhost" || d.endsWith(".localhost");
+}

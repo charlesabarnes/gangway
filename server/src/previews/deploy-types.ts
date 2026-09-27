@@ -80,6 +80,7 @@ export type PreviewUrl = {
   primary: boolean;
   /** A custom hostname claimed for it, not one gangway named. */
   custom?: true;
+  share?: true;
 };
 
 export type DeployResult = {

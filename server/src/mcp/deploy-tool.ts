@@ -16,7 +16,7 @@ import { redeploy } from "../previews/redeploy.ts";
 import { serveSite } from "../net/site.ts";
 import { renderDist } from "../previews/artifact-render.ts";
 import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
-import { describePlan, describePreview, logTail } from "./describe.ts";
+import { describePlan, describePreview, localNote, logTail } from "./describe.ts";
 import { packFiles } from "./pack.ts";
 import { nameOf, resolveFor } from "./resolve.ts";
 import { secretTarget, secretUploads } from "./secrets-tool.ts";
@@ -194,7 +194,7 @@ export class DeployTool {
     if (done.state === "failed") {
       return `failed: ${done.error ?? "the deploy failed"}${again}\n\nlast log lines:\n${logTail(ctx, done.id, FAIL_TAIL)}`;
     }
-    return `ready: ${primary}${again}\n${describePreview(ctx, done)}${await this.#report(done, res.plan, args.check)}${missingLabels(args)}`;
+    return `ready: ${primary}${again}\n${describePreview(ctx, done)}${localNote(ctx, done)}${await this.#report(done, res.plan, args.check)}${missingLabels(args)}`;
   }
 
   async #source(scope: CallScope, args: DeployArgs, addons: Addons | undefined): Promise<Sourced> {

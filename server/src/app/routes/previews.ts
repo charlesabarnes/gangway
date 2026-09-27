@@ -28,6 +28,7 @@ import { redeploy } from "../../previews/redeploy.ts";
 import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
 import { setPreviewWatermark } from "../../previews/watermark.ts";
 import { setPreviewDomain } from "../../previews/domain.ts";
+import { shareRoutes } from "./share.ts";
 import { PreviewDomainChangeSchema } from "@gangway/shared/domains-api";
 import {
   mayDestroy,
@@ -406,5 +407,6 @@ export function previewRoutes(
   sourceRoutes(api, previews);
   passwordRoutes(api, previews);
   titleRoutes(api, previews);
+  shareRoutes(api, ctx, (id, actor) => findFor(ctx, actor, previews.find(id)));
   logRoutes(api, previews, o);
 }
