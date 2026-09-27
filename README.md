@@ -98,7 +98,8 @@ on a laptop. To show a preview to anyone else, press **Share** on its page (or a
 share it): gangway opens a [Cloudflare quick tunnel](https://developers.cloudflare.com/tunnel/get-started/#quick-tunnels-development)
 and hands back a public `https://….trycloudflare.com` link, until you stop it or it expires.
 Quick tunnels need no Cloudflare account and are meant for testing: at most 200 requests at
-once, no server-sent events, and a new link each time. They work on a domain install too.
+once, no server-sent events, and a new link each time. Sharing is on by default only for a
+local-only install; on a domain install an admin turns it on in Admin, or with `GANGWAY_SHARE=true`.
 
 ### Run it
 
@@ -286,7 +287,7 @@ Everything can be set in the environment. Settings not pinned there are editable
 | `GANGWAY_CONTROL_ALLOW`                      | _(everyone)_        | Networks allowed to reach the UI and API; previews stay public     |
 | `GANGWAY_PREVIEW_MEMORY` / `_CPUS` / `_PIDS` | `1g` / off / `1024` | Limits for every preview container                                 |
 | `GANGWAY_SURFACE_MCP`                        | `false`             | Pin the MCP surface on or off                                      |
-| `GANGWAY_SHARE`                              | `true`              | `false` turns public share links off; cloudflared is never started |
+| `GANGWAY_SHARE`                              | on if local-only    | Pin share links on or off; while off, cloudflared never starts     |
 | `GANGWAY_CLOUDFLARED`                        | `cloudflared`       | The cloudflared binary share links run; the image carries one      |
 
 <!-- Expand from compose.yaml: listen ports, hosts, reconcile, ACME email, GitHub App vars. -->

@@ -43,6 +43,35 @@ describe("precedence: config ?? database ?? default", () => {
   });
 });
 
+describe("a default that depends on the install", () => {
+  test("share links are off unless the install says otherwise", () => {
+    expect(mk().settings.get(SETTINGS.previewsShare)).toBe(false);
+  });
+
+  test("the computed default stands in for the fixed one, and is read each time", () => {
+    const { settings } = mk();
+    let local = true;
+    settings.defaultTo(SETTINGS.previewsShare, () => local);
+    expect(settings.effective(SETTINGS.previewsShare)).toMatchObject({
+      value: true,
+      source: "default",
+    });
+    local = false;
+    expect(settings.get(SETTINGS.previewsShare)).toBe(false);
+  });
+
+  test("a stored value and a config pin both beat it", () => {
+    const stored = mk();
+    stored.settings.defaultTo(SETTINGS.previewsShare, () => true);
+    stored.store.set("previews.share.enabled", false);
+    expect(stored.settings.get(SETTINGS.previewsShare)).toBe(false);
+
+    const pinned = mk({ "previews.share.enabled": false });
+    pinned.settings.defaultTo(SETTINGS.previewsShare, () => true);
+    expect(pinned.settings.get(SETTINGS.previewsShare)).toBe(false);
+  });
+});
+
 describe("writes", () => {
   test("a config-pinned setting refuses runtime writes", () => {
     const { settings } = mk({ "surfaces.ui": true });

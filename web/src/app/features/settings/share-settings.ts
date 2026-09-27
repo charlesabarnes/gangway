@@ -22,8 +22,9 @@ const MAX = 'previews.share.maxTtl';
         <h2 class="gw-h2">Share links</h2>
         <p class="gw-section-note">
           Share on a preview's page gives it a public https link through a Cloudflare quick tunnel,
-          with no account and no DNS. It is how a local-only install shows a preview to anyone else.
-          Quick tunnels are for testing: 200 requests at once, no server-sent events.
+          with no account and no DNS. It is how a local-only install shows a preview to anyone else,
+          and is on by default only there. Quick tunnels are for testing: 200 requests at once, no
+          server-sent events.
         </p>
       </div>
       <div class="flex flex-col gap-5">
@@ -75,7 +76,7 @@ export class ShareSettings {
   protected readonly max$ = MAX;
   protected readonly canWrite = computed(() => this.#auth.can('settings.write'));
   readonly #row = (key: string) => this.settings().find((s) => s.key === key);
-  protected readonly on = linkedSignal(() => this.#row(ON)?.value !== false);
+  protected readonly on = linkedSignal(() => this.#row(ON)?.value === true);
   protected readonly savedMax = linkedSignal(() => String(this.#row(MAX)?.value ?? '24h'));
   protected readonly max = linkedSignal(() => this.savedMax());
   protected readonly managed = (key: string) => this.#row(key)?.managedByConfig === true;

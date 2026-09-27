@@ -16,6 +16,7 @@ import { SETTINGS, Settings } from "../settings.ts";
 import { Shares } from "../share/shares.ts";
 import { listenerOrigin, QuickTunnels } from "../share/tunnels.ts";
 import { parseDuration } from "@gangway/shared/duration";
+import { isLocalDomain } from "@gangway/shared/hostname";
 import { UpdateCheck } from "../updates.ts";
 import { openStorage, restoreState, seedConfiguredHosts, type Repos } from "./storage.ts";
 
@@ -61,6 +62,9 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     pinned: config.previewDomains,
   });
   const previewDomain = () => domains.defaultDomain();
+  // Quick tunnels are for testing: only a local-only install, which has no other way out, shares
+  // unless an admin says otherwise.
+  settings.defaultTo(SETTINGS.previewsShare, () => isLocalDomain(domains.control()));
   const publicOrigin: PublicOrigin = { scheme: config.publicScheme, port: config.publicPort };
   const bus = new EventBus(repos.events, (e) => logger.warn("event listener threw", { err: e }));
   const shares = sharesFor(config, settings, bus, logger);

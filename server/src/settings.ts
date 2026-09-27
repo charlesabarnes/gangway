@@ -91,7 +91,7 @@ export const SETTINGS = {
   artifactCustomCss: def("artifacts.customCss", z.boolean(), true),
   // Off puts static sites and artifacts back in nginx containers.
   previewsServeStatic: def("previews.serveStatic", z.boolean(), true),
-  previewsShare: def("previews.share.enabled", z.boolean(), true),
+  previewsShare: def("previews.share.enabled", z.boolean(), false),
   previewsShareMaxTtl: def(
     "previews.share.maxTtl",
     z.string().refine((v) => parseDuration(v) !== null, "a duration like 30m, 24h or 7d"),
@@ -165,10 +165,16 @@ export class Settings {
   #store: SettingsStore;
   #parsed = new Map<string, Effective<unknown>>();
   #parsedAt = -1;
+  #defaults = new Map<string, () => unknown>();
 
   constructor(overrides: Record<string, unknown>, store: SettingsStore) {
     this.#overrides = overrides;
     this.#store = store;
+  }
+
+  defaultTo<T>(d: SettingDef<T>, fallback: () => T): void {
+    this.#defaults.set(d.key, fallback);
+    this.#parsed.clear();
   }
 
   isManagedByConfig(key: string): boolean {
@@ -211,7 +217,9 @@ export class Settings {
       }
     }
 
-    return { key: d.key, value: d.fallback, source: "default", managedByConfig: false };
+    const fallback = this.#defaults.get(d.key);
+    const value = fallback ? (fallback() as T) : d.fallback;
+    return { key: d.key, value, source: "default", managedByConfig: false };
   }
 
   get<T>(d: SettingDef<T>): T {
