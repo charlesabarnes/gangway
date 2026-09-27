@@ -176,12 +176,12 @@ export function kitFaces(): NonNullable<KitFont["face"]>[] {
   return [...seen.values()];
 }
 
-/** The @font-face rules for kitFaces(), with urls relative to kit.css. */
-export function kitFaceCss(): string {
+/** The @font-face rules for kitFaces(); `base` is where the files are, relative to kit.css by default. */
+export function kitFaceCss(base = "fonts/"): string {
   const rules: string[] = [];
   for (const f of kitFaces()) {
     const rule = (w: number, italic: boolean) =>
-      `@font-face{font-family:"${f.family}";font-weight:${w};${italic ? "font-style:italic;" : ""}font-display:swap;src:url(fonts/${f.file}-${w}${italic ? "-italic" : ""}.woff2) format("woff2")}`;
+      `@font-face{font-family:"${f.family}";font-weight:${w};${italic ? "font-style:italic;" : ""}font-display:swap;src:url(${base}${f.file}-${w}${italic ? "-italic" : ""}.woff2) format("woff2")}`;
     for (const w of f.weights) rules.push(rule(w, false));
     for (const w of f.italic ?? []) rules.push(rule(w, true));
   }

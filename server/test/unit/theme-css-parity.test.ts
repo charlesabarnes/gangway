@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { THEME_FONTS, THEME_STYLE, compileTheme, type Theme } from "@gangway/shared/artifact/theme";
+import {
+  THEME_FONTS,
+  THEME_STYLE,
+  ThemeCreateSchema,
+  compileTheme,
+  type Theme,
+} from "@gangway/shared/artifact/theme";
 import { themeCss } from "../../../web/src/app/features/artifacts/theme-css.ts";
+import { LOOKS, randomTheme } from "../../../web/src/app/features/artifacts/theme-random.ts";
 
 // The theme editor compiles a theme in the browser to preview it before it is saved; it must
 // write what the server will.
@@ -36,5 +43,29 @@ describe("the editor's theme stylesheet", () => {
       for (const titleWeight of ["light", "regular", "semibold", "bold"] as const)
         for (const titleCase of ["normal", "upper"] as const)
           same({ ...base, fonts: { titles, titleWeight, titleCase } });
+  });
+});
+
+describe("the editor's random themes", () => {
+  // A seeded generator, so a failure names a seed that reproduces it.
+  const seeded = (seed: number) => () => {
+    // mulberry32
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+  };
+
+  test("are themes the server takes, cover every look, and never repeat a look", () => {
+    const looks = new Set<string>();
+    for (let seed = 1; seed <= 300; seed++) {
+      const t = randomTheme(seeded(seed));
+      looks.add(t.look);
+      const { look: _, ...fields } = t;
+      const parsed = ThemeCreateSchema.safeParse({ id: "random", ...fields });
+      expect({ seed, issues: parsed.error?.issues ?? [] }).toEqual({ seed, issues: [] });
+      expect(randomTheme(seeded(seed), t.look).look).not.toBe(t.look);
+    }
+    expect([...looks].sort()).toEqual(LOOKS.map((l) => l.name).sort());
   });
 });

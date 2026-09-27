@@ -3,9 +3,16 @@
     "target": "https://app.preview.localhost:8443",
     "secure": false,
     "changeOrigin": true,
-    "headers": { "origin": "https://app.preview.localhost:8443" }
+    "headers": {
+      "origin": "https://app.preview.localhost:8443"
+    }
   },
   "/healthz": {
+    "target": "https://app.preview.localhost:8443",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/_gangway": {
     "target": "https://app.preview.localhost:8443",
     "secure": false,
     "changeOrigin": true

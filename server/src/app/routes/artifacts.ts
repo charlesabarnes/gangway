@@ -16,7 +16,7 @@ import {
   TITLE_WEIGHTS,
   type Theme,
 } from "@gangway/shared/artifact/theme";
-import { THEME_FONT_CHOICES } from "@gangway/shared/artifact/fonts";
+import { kitFaceCss, THEME_FONT_CHOICES } from "@gangway/shared/artifact/fonts";
 import {
   ARTIFACT_FILE,
   ARTIFACT_KINDS,
@@ -42,6 +42,7 @@ import type { PreviewContext } from "../../previews/context.ts";
 import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import type { Settings } from "../../settings.ts";
 import type { AppEnv } from "../env.ts";
+import { FONT_PATH } from "../../net/page-chrome.ts";
 import { requirePermission } from "../middleware/auth.ts";
 import { readJson } from "../problem.ts";
 
@@ -102,6 +103,8 @@ function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
           Object.entries(m).map(([k, f]) => [k, f.label]),
         ),
       ),
+      // The faces themselves, from this host, so the UI can show each font in its own face.
+      fontCss: kitFaceCss(FONT_PATH),
       titles: TITLE_STYLES,
       titleWeights: TITLE_WEIGHTS,
       titleCases: TITLE_CASES,

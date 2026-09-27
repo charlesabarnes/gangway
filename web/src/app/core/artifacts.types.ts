@@ -78,6 +78,8 @@ export type ThemeList = {
   house: { light: Record<ThemeToken, string>; dark: Record<ThemeToken, string> };
   fonts: { serif: string[]; sans: string[]; mono: string[]; display: string[] };
   fontLabels: Record<string, string>;
+  /** @font-face rules for every font the kit serves, from the app host. */
+  fontCss: string;
   titles: NonNullable<ThemeFonts['titles']>[];
   titleWeights: NonNullable<ThemeFonts['titleWeight']>[];
   titleCases: NonNullable<ThemeFonts['titleCase']>[];

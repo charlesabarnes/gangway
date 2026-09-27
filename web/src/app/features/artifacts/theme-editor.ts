@@ -1,11 +1,19 @@
-import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import {
+  Component,
+  computed,
+  DOCUMENT,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   type ArtifactTheme,
   type ThemeFonts,
   type ThemeStyle,
-  type ThemeStyleKey,
   type TokenMap,
 } from '../../core/artifacts.types';
 import { AuthService } from '../../core/auth.service';
@@ -16,9 +24,10 @@ import { FIELD } from '../../ui/field';
 import { ToastService } from '../../ui/toast';
 import { ArtifactFrame } from './artifact-frame';
 import { ArtifactsService } from './artifacts.service';
+import { LookEditor } from './look-editor';
 import { SAMPLE_CANVAS, SAMPLE_DECK, SAMPLE_DOC, sampleFiles } from './samples';
 import { themeCss } from './theme-css';
-import { CHOICE_NAMES, STYLE_FIELDS } from './theme-tokens';
+import { randomTheme } from './theme-random';
 import { TokenEditor } from './token-editor';
 
 type Mode = 'light' | 'dark';
@@ -26,7 +35,7 @@ type Mode = 'light' | 'dark';
 /** Make or change a theme, and see it on a document, a deck and a canvas as you go. */
 @Component({
   selector: 'app-theme-editor',
-  imports: [ArtifactFrame, Btn, ConfirmDialog, RouterLink, TokenEditor],
+  imports: [ArtifactFrame, Btn, ConfirmDialog, LookEditor, RouterLink, TokenEditor],
   template: `
     <section class="gw-page !max-w-[1400px]">
       <a class="gw-back" routerLink="/artifacts" [queryParams]="{ tab: 'themes' }">← Themes</a>
@@ -38,6 +47,18 @@ type Mode = 'light' | 'dark';
           <h1 class="gw-h1">{{ name() || 'Untitled theme' }}</h1>
         </div>
         <div class="mb-1 ml-auto flex flex-wrap gap-2.5">
+          @if (!readonly()) {
+            <button
+              appBtn
+              variant="ghost"
+              type="button"
+              (click)="shuffle()"
+              title="A new look: type, shape and colours chosen to go together"
+              data-testid="random-theme"
+            >
+              Random look
+            </button>
+          }
           @if (!isNew() && canManage() && !isDefault()) {
             <button
               appBtn
@@ -101,51 +122,13 @@ type Mode = 'light' | 'dark';
             /></label>
           </div>
 
-          <div class="grid gap-3">
-            <span class="gw-label">Type</span>
-            @for (k of fontKeys; track k) {
-              <label class="flex items-center justify-between gap-3 text-sm"
-                ><span class="text-muted">{{ fontLabels[k] }}</span>
-                <select
-                  [class]="field + ' max-w-60'"
-                  [disabled]="readonly()"
-                  (change)="setFont(k, $any($event.target).value)"
-                  [attr.data-testid]="'font-' + k"
-                >
-                  <option value="" [selected]="!fonts()[k]">gangway's</option>
-                  @for (f of fontChoices()[k]; track f) {
-                    <option [value]="f" [selected]="fonts()[k] === f">{{ fontName(f) }}</option>
-                  }
-                </select></label
-              >
-            }
-          </div>
-
-          @for (g of styleGroups; track g) {
-            <div class="grid gap-3">
-              <span class="gw-label">{{ g }}</span>
-              @for (s of styleFields(g); track s.key) {
-                <label class="flex items-center justify-between gap-3 text-sm"
-                  ><span class="text-muted">{{ s.label }}</span>
-                  <select
-                    [class]="field + ' max-w-60'"
-                    [disabled]="readonly()"
-                    (change)="setStyle(s.key, $any($event.target).value)"
-                    [attr.data-testid]="'style-' + s.key"
-                  >
-                    @for (c of styleChoices()[s.key]; track c; let first = $first) {
-                      <option
-                        [value]="first ? '' : c"
-                        [selected]="first ? !style()[s.key] : style()[s.key] === c"
-                      >
-                        {{ first ? "gangway's (" + c + ')' : c }}
-                      </option>
-                    }
-                  </select></label
-                >
-              }
-            </div>
-          }
+          <app-look-editor
+            [fonts]="fonts()"
+            [style]="style()"
+            [readonly]="readonly()"
+            (fontsChange)="fonts.set($event)"
+            (styleChange)="style.set($event)"
+          />
 
           <div class="grid gap-2">
             <span class="gw-label">Logo</span>
@@ -251,25 +234,6 @@ export class ThemeEditor {
   readonly #params = toSignal(inject(ActivatedRoute).paramMap, { requireSync: true });
   protected readonly confirm = viewChild.required(ConfirmDialog);
   protected readonly field = FIELD;
-  protected readonly fontKeys = [
-    'serif',
-    'sans',
-    'mono',
-    'display',
-    'titles',
-    'titleWeight',
-    'titleCase',
-  ] as const;
-  protected readonly fontLabels: Record<(typeof this.fontKeys)[number], string> = {
-    serif: 'Serif',
-    sans: 'Sans',
-    mono: 'Mono',
-    display: 'Display',
-    titles: 'Titles',
-    titleWeight: 'Title weight',
-    titleCase: 'Title case',
-  };
-  protected readonly styleGroups = ['Shape', 'Layout'] as const;
   protected readonly doc = sampleFiles(SAMPLE_DOC);
   protected readonly deck = sampleFiles(SAMPLE_DECK);
   protected readonly canvas = sampleFiles(SAMPLE_CANVAS);
@@ -293,21 +257,6 @@ export class ThemeEditor {
   protected readonly busy = signal(false);
   protected readonly problem = signal<ProblemError | null>(null);
 
-  protected readonly fontChoices = computed(() => {
-    const f = this.#svc.themes()?.fonts;
-    return {
-      serif: f?.serif ?? [],
-      sans: f?.sans ?? [],
-      mono: f?.mono ?? [],
-      display: f?.display ?? [],
-      titles: this.#svc.themes()?.titles ?? [],
-      titleWeight: this.#svc.themes()?.titleWeights ?? [],
-      titleCase: this.#svc.themes()?.titleCases ?? [],
-    };
-  });
-  protected readonly styleChoices = computed(
-    () => this.#svc.themes()?.style ?? ({} as Record<ThemeStyleKey, string[]>),
-  );
   protected readonly css = computed(() =>
     themeCss({
       builtin: false,
@@ -322,11 +271,40 @@ export class ThemeEditor {
     this.logo() ? `data:image/svg+xml,${encodeURIComponent(this.logo()!)}` : '',
   );
 
+  readonly #doc = inject(DOCUMENT);
+  readonly #random = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
+  // The look the last shuffle landed on, so the next is a different one.
+  #look: string | undefined;
+  #randomName = '';
+
   constructor() {
     effect(() => {
       const id = this.#routeId();
       untracked(() => void this.#load(id));
     });
+    // Every font the kit serves, once per page, so each choice can be shown in its own face.
+    effect(() => {
+      const css = this.#svc.themes()?.fontCss;
+      if (!css || this.#doc.getElementById('gw-kit-fonts')) return;
+      const style = this.#doc.createElement('style');
+      style.id = 'gw-kit-fonts';
+      style.textContent = css;
+      this.#doc.head.append(style);
+    });
+  }
+
+  /** A theme in a new look; a new theme's name follows it until someone types one. */
+  protected shuffle(): void {
+    const t = randomTheme(Math.random, this.#look);
+    this.#look = t.look;
+    this.tokens.set(t.tokens);
+    this.fonts.set(t.fonts);
+    this.style.set(t.style);
+    if (this.isNew() && (!this.name() || this.name() === this.#randomName)) {
+      this.name.set(t.name);
+      this.id.set(t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+    }
+    this.#randomName = t.name;
   }
 
   async #load(id: string): Promise<void> {
@@ -338,6 +316,7 @@ export class ThemeEditor {
       this.fonts.set({});
       this.style.set({});
       this.logo.set(null);
+      if (this.#random().has('random')) this.shuffle();
       return;
     }
     const t: ArtifactTheme | undefined = list.themes.find((x) => x.id === id);
@@ -357,32 +336,6 @@ export class ThemeEditor {
     this.fonts.set({ ...t.fonts });
     this.style.set({ ...t.style });
     this.logo.set(t.logo);
-  }
-
-  protected fontName(f: string): string {
-    return this.#svc.themes()?.fontLabels[f] ?? CHOICE_NAMES[f] ?? f;
-  }
-
-  protected styleFields(group: 'Shape' | 'Layout') {
-    return STYLE_FIELDS.filter((f) => f.group === group);
-  }
-
-  protected setStyle(k: ThemeStyleKey, v: string): void {
-    this.style.update((s) => {
-      const next: ThemeStyle = { ...s };
-      if (v) next[k] = v;
-      else delete next[k];
-      return next;
-    });
-  }
-
-  protected setFont(k: keyof ThemeFonts, v: string): void {
-    this.fonts.update((f) => {
-      const next: ThemeFonts = { ...f };
-      if (v) (next as Record<string, string>)[k] = v;
-      else delete next[k];
-      return next;
-    });
   }
 
   protected async upload(e: Event): Promise<void> {

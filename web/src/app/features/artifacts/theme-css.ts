@@ -10,7 +10,7 @@ import type {
 // being edited: the preview shows it before it is saved. server/test/unit/theme-css-parity.test.ts
 // holds the two to the same output.
 
-const FONTS: Record<'serif' | 'sans' | 'mono' | 'display', Record<string, string>> = {
+export const FONTS: Record<'serif' | 'sans' | 'mono' | 'display', Record<string, string>> = {
   serif: {
     'plex-serif': '"IBM Plex Serif", Georgia, serif',
     'source-serif': '"Source Serif 4", Georgia, serif',

@@ -66,12 +66,19 @@ export class ThemeCard {
     <div class="flex flex-col gap-6">
       <div class="flex flex-wrap items-end gap-4">
         <p class="m-0 max-w-[70ch] text-sm leading-snug text-muted">
-          A theme sets the colours, type and logo every artifact is drawn with. An artifact uses the
+          A theme sets the colours, type, shape and logo every artifact is drawn with. An artifact uses the
           default unless it names another; editing a theme restyles every artifact that uses it on
           its next load.
         </p>
         @if (canManage()) {
-          <a class="gw-action ml-auto" routerLink="/artifacts/themes/new" data-testid="new-theme"
+          <a
+            class="gw-action ml-auto"
+            routerLink="/artifacts/themes/new"
+            [queryParams]="{ random: 1 }"
+            data-testid="random-theme"
+            >Random theme</a
+          >
+          <a class="gw-action" routerLink="/artifacts/themes/new" data-testid="new-theme"
             >New theme</a
           >
         }
