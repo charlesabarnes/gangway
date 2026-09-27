@@ -286,7 +286,7 @@ Everything can be set in the environment. Settings not pinned there are editable
 | `GANGWAY_CONTROL_ALLOW`                      | _(everyone)_        | Networks allowed to reach the UI and API; previews stay public     |
 | `GANGWAY_PREVIEW_MEMORY` / `_CPUS` / `_PIDS` | `1g` / off / `1024` | Limits for every preview container                                 |
 | `GANGWAY_SURFACE_MCP`                        | `false`             | Pin the MCP surface on or off                                      |
-| `GANGWAY_SHARE`                              | `true`              | Pin public share links (Cloudflare quick tunnels) on or off        |
+| `GANGWAY_SHARE`                              | `true`              | `false` turns public share links off; cloudflared is never started |
 | `GANGWAY_CLOUDFLARED`                        | `cloudflared`       | The cloudflared binary share links run; the image carries one      |
 
 <!-- Expand from compose.yaml: listen ports, hosts, reconcile, ACME email, GitHub App vars. -->
