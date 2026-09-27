@@ -23,19 +23,19 @@ import { ConfirmDialog } from '../../ui/confirm-dialog';
 import { FIELD } from '../../ui/field';
 import { ToastService } from '../../ui/toast';
 import { ArtifactFrame } from './artifact-frame';
+import { ColourEditor } from './colour-editor';
 import { ArtifactsService } from './artifacts.service';
 import { LookEditor } from './look-editor';
 import { SAMPLE_CANVAS, SAMPLE_DECK, SAMPLE_DOC, sampleFiles } from './samples';
 import { themeCss } from './theme-css';
-import { randomTheme } from './theme-random';
-import { TokenEditor } from './token-editor';
+import { ShuffleBar, type Shuffle } from './shuffle-bar';
 
 type Mode = 'light' | 'dark';
 
 /** Make or change a theme, and see it on a document, a deck and a canvas as you go. */
 @Component({
   selector: 'app-theme-editor',
-  imports: [ArtifactFrame, Btn, ConfirmDialog, LookEditor, RouterLink, TokenEditor],
+  imports: [ArtifactFrame, Btn, ColourEditor, ConfirmDialog, LookEditor, RouterLink, ShuffleBar],
   template: `
     <section class="gw-page !max-w-[1400px]">
       <a class="gw-back" routerLink="/artifacts" [queryParams]="{ tab: 'themes' }">← Themes</a>
@@ -48,16 +48,7 @@ type Mode = 'light' | 'dark';
         </div>
         <div class="mb-1 ml-auto flex flex-wrap gap-2.5">
           @if (!readonly()) {
-            <button
-              appBtn
-              variant="ghost"
-              type="button"
-              (click)="shuffle()"
-              title="A new look: type, shape and colours chosen to go together"
-              data-testid="random-theme"
-            >
-              Random look
-            </button>
+            <app-shuffle-bar (shuffled)="apply($event)" />
           }
           @if (!isNew() && canManage() && !isDefault()) {
             <button
@@ -153,7 +144,7 @@ type Mode = 'light' | 'dark';
             }
           </div>
 
-          <app-token-editor
+          <app-colour-editor
             [tokens]="tokens()"
             [house]="houseTokens()"
             [readonly]="readonly()"
@@ -273,8 +264,7 @@ export class ThemeEditor {
 
   readonly #doc = inject(DOCUMENT);
   readonly #random = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
-  // The look the last shuffle landed on, so the next is a different one.
-  #look: string | undefined;
+  private readonly bar = viewChild(ShuffleBar);
   #randomName = '';
 
   constructor() {
@@ -293,13 +283,11 @@ export class ThemeEditor {
     });
   }
 
-  /** A theme in a new look; a new theme's name follows it until someone types one. */
-  protected shuffle(): void {
-    const t = randomTheme(Math.random, this.#look);
-    this.#look = t.look;
-    this.tokens.set(t.tokens);
-    this.fonts.set(t.fonts);
-    this.style.set(t.style);
+  /** A shuffled look; a new theme's name follows it until someone types one. */
+  protected apply(t: Shuffle): void {
+    if (t.tokens) this.tokens.set(t.tokens);
+    if (t.fonts) this.fonts.set(t.fonts);
+    if (t.style) this.style.set(t.style);
     if (this.isNew() && (!this.name() || this.name() === this.#randomName)) {
       this.name.set(t.name);
       this.id.set(t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
@@ -316,7 +304,7 @@ export class ThemeEditor {
       this.fonts.set({});
       this.style.set({});
       this.logo.set(null);
-      if (this.#random().has('random')) this.shuffle();
+      if (this.#random().has('random')) this.bar()?.shuffle();
       return;
     }
     const t: ArtifactTheme | undefined = list.themes.find((x) => x.id === id);

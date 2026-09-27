@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  HOUSE_TOKENS,
   THEME_FONTS,
   THEME_STYLE,
   ThemeCreateSchema,
@@ -7,6 +8,7 @@ import {
   type Theme,
 } from "@gangway/shared/artifact/theme";
 import { themeCss } from "../../../web/src/app/features/artifacts/theme-css.ts";
+import { readability } from "../../../web/src/app/features/artifacts/readability.ts";
 import { LOOKS, randomTheme } from "../../../web/src/app/features/artifacts/theme-random.ts";
 
 // The theme editor compiles a theme in the browser to preview it before it is saved; it must
@@ -47,6 +49,10 @@ describe("the editor's theme stylesheet", () => {
 });
 
 describe("the editor's random themes", () => {
+  test("gangway's own colours pass every readability check", () => {
+    expect(readability({ light: {}, dark: {} }, HOUSE_TOKENS)).toEqual([]);
+  });
+
   // A seeded generator, so a failure names a seed that reproduces it.
   const seeded = (seed: number) => () => {
     // mulberry32
@@ -56,7 +62,7 @@ describe("the editor's random themes", () => {
     return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
   };
 
-  test("are themes the server takes, cover every look, and never repeat a look", () => {
+  test("are readable themes the server takes, in every look, never one twice", () => {
     const looks = new Set<string>();
     for (let seed = 1; seed <= 300; seed++) {
       const t = randomTheme(seeded(seed));
@@ -64,6 +70,10 @@ describe("the editor's random themes", () => {
       const { look: _, ...fields } = t;
       const parsed = ThemeCreateSchema.safeParse({ id: "random", ...fields });
       expect({ seed, issues: parsed.error?.issues ?? [] }).toEqual({ seed, issues: [] });
+      expect({ seed, unreadable: readability(t.tokens, HOUSE_TOKENS) }).toEqual({
+        seed,
+        unreadable: [],
+      });
       expect(randomTheme(seeded(seed), t.look).look).not.toBe(t.look);
     }
     expect([...looks].sort()).toEqual(LOOKS.map((l) => l.name).sort());

@@ -66,9 +66,9 @@ export class ThemeCard {
     <div class="flex flex-col gap-6">
       <div class="flex flex-wrap items-end gap-4">
         <p class="m-0 max-w-[70ch] text-sm leading-snug text-muted">
-          A theme sets the colours, type, shape and logo every artifact is drawn with. An artifact uses the
-          default unless it names another; editing a theme restyles every artifact that uses it on
-          its next load.
+          A theme sets the colours, type, shape and logo every artifact is drawn with. An artifact
+          uses the default unless it names another; editing a theme restyles every artifact that
+          uses it on its next load.
         </p>
         @if (canManage()) {
           <a

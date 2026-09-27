@@ -1,4 +1,5 @@
-import type { ThemeFonts, ThemeStyle, ThemeToken, TokenMap } from '../../core/artifacts.types';
+import type { ThemeFonts, ThemeStyle, TokenMap } from '../../core/artifacts.types';
+import { derivePalette } from './palette';
 
 // A "random" theme: one of a few looks that hang together (type, shape and layout chosen as a
 // set), recoloured from a random hue. Random per look, not per setting, so every result reads
@@ -55,7 +56,7 @@ export const LOOKS: readonly Look[] = [
       grid: 'dots',
     },
     paper: [0.985, 0.004],
-    primary: [0.55, 0.19],
+    primary: [0.5, 0.19],
     flagTurn: [150, 180, 200],
   },
   {
@@ -155,7 +156,7 @@ export const LOOKS: readonly Look[] = [
       headings: 'dramatic',
     },
     paper: [0.96, 0.02],
-    primary: [0.5, 0.2],
+    primary: [0.46, 0.2],
     flagTurn: [60, 180],
   },
   {
@@ -184,76 +185,20 @@ const HUES: [number, string][] = [
 ];
 
 const pick = <T>(xs: readonly T[], rng: Rng): T => xs[Math.floor(rng() * xs.length)]!;
-const round = (n: number, d = 3) => Number(n.toFixed(d));
-const ok = (l: number, c: number, h: number) =>
-  `oklch(${round(l)} ${round(c)} ${round(((h % 360) + 360) % 360, 1)})`;
 
 export function hueName(h: number): string {
   return HUES.find(([top]) => h < top)?.[1] ?? 'Rose';
 }
 
-/** Light and dark colours from a brand hue, in a look's weights; contrast by lightness. */
+/** Light and dark colours from a brand hue, in a look's weights. */
 export function palette(look: Look, h: number, rng: Rng): { light: TokenMap; dark: TokenMap } {
-  const f = h + pick(look.flagTurn, rng);
   const [pl, pc] = look.paper;
   const [prl, prc] = look.primary;
-  const series = (l: number, c: number) =>
-    [60, 120, 240, 300].map((turn) => ok(l, c, h + turn + 15));
-  const [s3, s4, s5, s6] = series(0.6, 0.13);
-  const [d3, d4, d5, d6] = series(0.74, 0.12);
-  const light: Record<ThemeToken, string> = {
-    paper: ok(pl, pc, h),
-    'paper-raised': ok(Math.min(pl + 0.02, 0.995), pc / 2, h),
-    ink: ok(0.25, 0.04, h),
-    'ink-muted': ok(0.48, 0.03, h),
-    rule: ok(0.86, 0.02, h),
-    primary: ok(prl, prc, h),
-    'on-primary': ok(0.98, 0.01, h),
-    flag: ok(0.82, 0.14, f),
-    'on-flag': ok(0.25, 0.05, h),
-    awake: ok(0.58, 0.13, 155),
-    warn: ok(0.6, 0.13, 70),
-    danger: ok(0.55, 0.19, 28),
-    'header-bg': ok(0.26, Math.min(prc, 0.08), h),
-    'header-fg': ok(0.97, 0.01, h),
-    'header-muted': ok(0.76, 0.03, h),
-    'header-rule': ok(0.4, 0.05, h),
-    'log-bg': ok(0.2, 0.03, h),
-    'log-fg': ok(0.94, 0.01, h),
-    s1: ok(prl, prc, h),
-    s2: ok(0.72, 0.14, f),
-    s3: s3!,
-    s4: s4!,
-    s5: s5!,
-    s6: s6!,
-  };
-  const dark: Record<ThemeToken, string> = {
-    paper: ok(0.2, 0.03, h),
-    'paper-raised': ok(0.25, 0.035, h),
-    ink: ok(0.94, 0.012, h),
-    'ink-muted': ok(0.72, 0.03, h),
-    rule: ok(0.36, 0.04, h),
-    primary: ok(0.8, Math.min(prc, 0.14), h),
-    'on-primary': ok(0.2, 0.04, h),
-    flag: ok(0.82, 0.14, f),
-    'on-flag': ok(0.25, 0.05, h),
-    awake: ok(0.75, 0.14, 155),
-    warn: ok(0.8, 0.13, 75),
-    danger: ok(0.64, 0.18, 28),
-    'header-bg': ok(0.15, 0.03, h),
-    'header-fg': ok(0.94, 0.012, h),
-    'header-muted': ok(0.72, 0.03, h),
-    'header-rule': ok(0.32, 0.04, h),
-    'log-bg': ok(0.14, 0.03, h),
-    'log-fg': ok(0.94, 0.012, h),
-    s1: ok(0.8, Math.min(prc, 0.14), h),
-    s2: ok(0.82, 0.14, f),
-    s3: d3!,
-    s4: d4!,
-    s5: d5!,
-    s6: d6!,
-  };
-  return { light, dark };
+  return derivePalette({
+    primary: { l: prl, c: prc, h },
+    flag: { l: 0.82, c: 0.14, h: (h + pick(look.flagTurn, rng)) % 360 },
+    paper: { l: pl, c: pc, h },
+  });
 }
 
 export type RandomTheme = {

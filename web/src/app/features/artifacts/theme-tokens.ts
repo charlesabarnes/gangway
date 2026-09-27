@@ -1,4 +1,5 @@
 import type { ThemeStyleKey, ThemeToken } from '../../core/artifacts.types';
+import { parseColor, toHex } from './color';
 
 // How the theme editor groups the tokens and names the fonts.
 
@@ -37,10 +38,8 @@ export const STYLE_FIELDS: { key: ThemeStyleKey; label: string; group: 'Shape' |
   { key: 'headings', label: 'Headings', group: 'Layout' },
 ];
 
-/** A colour input needs #rrggbb; anything else starts it at black but still shows as a swatch. */
-export const hexOf = (v: string) =>
-  /^#[0-9a-f]{6}$/i.test(v)
-    ? v
-    : /^#[0-9a-f]{3}$/i.test(v)
-      ? `#${[...v.slice(1)].map((c) => c + c).join('')}`
-      : '#000000';
+/** A colour input needs #rrggbb: any colour this can read, else black (it still shows as a swatch). */
+export const hexOf = (v: string) => {
+  const rgb = parseColor(v);
+  return rgb ? toHex(rgb) : '#000000';
+};

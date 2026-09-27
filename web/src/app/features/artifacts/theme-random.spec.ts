@@ -10,7 +10,8 @@ describe('randomTheme', () => {
 
   it('never repeats the look it is told to move on from', () => {
     for (const look of LOOKS) {
-      for (let i = 0; i < 20; i++) expect(randomTheme(Math.random, look.name).look).not.toBe(look.name);
+      for (let i = 0; i < 20; i++)
+        expect(randomTheme(Math.random, look.name).look).not.toBe(look.name);
     }
   });
 });
