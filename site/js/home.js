@@ -34,7 +34,7 @@ const MADE = {
     name: "growth-dashboard",
     glyph: "app-window",
     color: "#687283",
-    host: "growth-dashboard.acme.dev",
+    host: "growth-dashboard.gway.app",
     files: 3,
     bytes: 61240,
     site: "dash",
@@ -45,7 +45,7 @@ const MADE = {
     name: "Q3 board review",
     glyph: "presentation",
     color: "#1d3a66",
-    host: "q3-board-review.acme.dev",
+    host: "q3-board-review.gway.app",
     files: 5,
     bytes: 38912,
     site: "deck",
@@ -193,7 +193,7 @@ function startDemo(demo) {
       s.hidden = k !== which;
       s.scrollTop = 0;
     }
-    el.url.textContent = `gangway.acme.dev${ADDRESS[which] ?? `/previews/${p.host.split(".")[0]}`}`;
+    el.url.textContent = `gangway.sh${ADDRESS[which] ?? `/previews/${p.host.split(".")[0]}`}`;
     el.tabTitle.textContent = TITLE[which];
     if (which !== "detail") return;
     el.dIcon.style.setProperty("--c", p.color);
