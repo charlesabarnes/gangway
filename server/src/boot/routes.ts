@@ -8,6 +8,7 @@ import { addonRoutes } from "../app/routes/addons.ts";
 import { artifactRoutes } from "../app/routes/artifacts.ts";
 import { auditRoutes } from "../app/routes/audit.ts";
 import { authRoutes } from "../app/routes/auth.ts";
+import { domainRoutes } from "../app/routes/domains.ts";
 import { eventRoutes } from "../app/routes/events.ts";
 import { githubRoutes } from "../app/routes/github.ts";
 import { hostRoutes } from "../app/routes/hosts.ts";
@@ -35,11 +36,12 @@ import { previewAccess } from "../previews/password.ts";
 import type { Pulls } from "../projects/pulls.ts";
 import type { Secrets } from "../secrets/secrets.ts";
 import type { Core } from "./core.ts";
+import { claimDeps } from "./domains.ts";
 import type { Identity } from "./identity.ts";
 
 export type ApiRouteDeps = Pick<
   Core,
-  "repos" | "bus" | "audit" | "settings" | "origin" | "baseDomain" | "updates"
+  "repos" | "bus" | "audit" | "settings" | "origin" | "baseDomain" | "updates" | "domains" | "table"
 > & {
   ctx: PreviewContext;
   deploys: IdempotentDeploys;
@@ -72,7 +74,8 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   tokenRoutes(api, identity.tokens);
   userRoutes(api, identity.accounts);
   roleRoutes(api, identity.roles);
-  settingsRoutes(api, settings, audit, repos.templates, (plain) => d.previewPasswords.hash(plain));
+  const hash = (plain: string) => d.previewPasswords.hash(plain);
+  settingsRoutes(api, settings, audit, repos.templates, hash, d.domains);
   updateRoutes(api, d.updates);
   oauthRoutes(api, { oauth, enabled: d.mcpOn });
   surfaceRoutes(api, {
@@ -82,6 +85,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     hasActiveAdmin: () => repos.tokens.hasActiveAdmin(Date.now()),
     mcpOrigin: () => d.origin("mcp"),
     onMcpDisabled: () => d.mcp.dropAll(),
+    previewDomains: () => d.domains.availableTo(null),
   });
   projectRoutes(api, {
     projects: repos.projects,
@@ -91,6 +95,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     templates: repos.templates,
     pulls: d.pulls,
     apiOrigin,
+    domains: ctx.domains,
     wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
   });
   templateRoutes(api, {
@@ -110,6 +115,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
       wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
       ctx,
     });
+  domainRoutes(api, { ...claimDeps(d), projects: repos.projects });
   secretRoutes(api, { secrets: d.secrets, previews: ctx.previews });
   previewSecretRoutes(api, {
     secrets: d.secrets,

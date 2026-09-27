@@ -3,6 +3,7 @@ import type { RouteEntry } from "../routing/table.ts";
 import type { CertStore } from "../tls/certstore.ts";
 import { dispatch, hostKind, type DispatchDeps } from "./dispatch.ts";
 import { stripGangwayCookies } from "./gate.ts";
+import { tooManyPage } from "./error-pages.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
 import { normalizeHost } from "@gangway/shared/hostname";
 import { wsRelay, type WsData } from "./ws-relay.ts";
@@ -36,9 +37,19 @@ function socketEntry(req: Request, deps: DispatchDeps): RouteEntry | null {
   return deps.visibilityGate?.(entry, req) ? null : entry;
 }
 
-function upgradeToPreview(req: Request, server: Server<WsData>, deps: DispatchDeps): boolean {
+// A Response when the client is over its allowance, true once upgraded, false to dispatch it.
+function upgradeToPreview(
+  req: Request,
+  server: Server<WsData>,
+  deps: DispatchDeps,
+): boolean | Response {
   const entry = socketEntry(req, deps);
   if (!entry) return false;
+  const clientIp = deps.clientIpFor(req);
+  const wait = deps.rates?.take(clientIp, entry.previewId);
+  if (wait) return tooManyPage(entry.hostname, wait);
+  const release = deps.rates ? deps.rates.openSocket(clientIp) : undefined;
+  if (release === null) return tooManyPage(entry.hostname, 60);
   const url = new URL(req.url);
   const protocol = req.headers.get("sec-websocket-protocol")?.split(",")[0]?.trim();
   const data: WsData = {
@@ -46,10 +57,13 @@ function upgradeToPreview(req: Request, server: Server<WsData>, deps: DispatchDe
     path: url.pathname + url.search,
     protocol,
     cookie: stripGangwayCookies(req.headers.get("cookie")) ?? undefined,
+    release,
   };
-  return protocol
+  const upgraded = protocol
     ? server.upgrade(req, { data, headers: { "Sec-WebSocket-Protocol": protocol } })
     : server.upgrade(req, { data });
+  if (!upgraded) release?.();
+  return upgraded;
 }
 
 export function startListener(o: ListenerOptions): RunningListener {
@@ -65,7 +79,11 @@ export function startListener(o: ListenerOptions): RunningListener {
 
     fetch(req: Request, server: Server<WsData>): Response | Promise<Response> | undefined {
       peers.set(req, server.requestIP(req)?.address ?? "");
-      if (isWebSocketUpgrade(req) && upgradeToPreview(req, server, o.deps)) return undefined;
+      if (isWebSocketUpgrade(req)) {
+        const upgraded = upgradeToPreview(req, server, o.deps);
+        if (upgraded instanceof Response) return upgraded;
+        if (upgraded) return undefined;
+      }
 
       // SSE and slow uploads must outlive the idle timeout.
       server.timeout(req, 0);

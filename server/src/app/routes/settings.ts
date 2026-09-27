@@ -5,6 +5,7 @@ import { conflict, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { SETTINGS, SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
+import type { DomainRegistry } from "../../domains/registry.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
@@ -14,6 +15,7 @@ export function settingsRoutes(
   audit: AuditSink,
   templates?: Pick<TemplatesRepo, "get">,
   hashPassword?: (plain: string) => Promise<{ hash: string; salt: string }>,
+  domains?: DomainRegistry,
 ): void {
   api.get("/settings", requirePermission("settings.read"), (c) =>
     c.json({ settings: settings.view() }),
@@ -27,7 +29,16 @@ export function settingsRoutes(
     const writes = Object.entries(values).map(([key, raw]) =>
       validateWrite(settings, templates, key, raw),
     );
+    const next = (key: string, now: string) =>
+      (writes.find((w) => w.key === key)?.value as string | undefined) ?? now;
+    const domainWrite = writes.some((w) => DOMAIN_KEYS.has(w.key));
+    if (domains && domainWrite)
+      domains.assertSettingsFit(
+        next(SETTINGS.baseDomain.key, settings.get(SETTINGS.baseDomain)),
+        next(SETTINGS.previewDomain.key, settings.get(SETTINGS.previewDomain)),
+      );
     for (const w of writes) settings.set(SETTINGS_BY_KEY.get(w.key)!, w.value);
+    if (domainWrite) domains?.refresh();
 
     audit.record(actor, "settings.changed", null, {
       old: Object.fromEntries(writes.map((w) => [w.key, shown(w, w.old)])),
@@ -81,6 +92,11 @@ export function settingsRoutes(
     return c.json({ settings: settings.view() });
   });
 }
+
+const DOMAIN_KEYS: ReadonlySet<string> = new Set([
+  SETTINGS.baseDomain.key,
+  SETTINGS.previewDomain.key,
+]);
 
 type SettingWrite = { key: string; value: unknown; secret: boolean; old: unknown };
 

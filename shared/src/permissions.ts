@@ -42,6 +42,11 @@ export const PERMISSIONS = [
     description: "Switch the gangway watermark on or off for a preview or repository",
   },
   {
+    id: "previews.domain",
+    feature: "previews",
+    description: "Choose the domain of a preview you may change, and claim hostnames for it",
+  },
+  {
     id: "previews.data",
     feature: "previews",
     description: "Browse and query a preview's add-on databases (every query is audited)",
@@ -103,6 +108,11 @@ export const PERMISSIONS = [
     feature: "settings",
     description: "Enable and disable the UI and MCP surfaces",
   },
+  {
+    id: "domains.manage",
+    feature: "settings",
+    description: "Add and remove the server's preview domains",
+  },
   { id: "github.manage", feature: "github", description: "Connect the GitHub App" },
   {
     id: "repos.manage",
@@ -113,6 +123,12 @@ export const PERMISSIONS = [
     id: "repos.secrets",
     feature: "repos",
     description: "Set secrets, global and per repository (values are never shown)",
+  },
+  {
+    id: "repos.domains",
+    feature: "repos",
+    description:
+      "Choose a repository's domain, claim domains for it and pick its production preview",
   },
   {
     id: "templates.manage",
@@ -162,6 +178,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.destroy_own",
     "previews.update_own",
     "previews.watermark",
+    "previews.domain",
   ],
   update: ["previews.update"],
   // For an agent you do not trust with a container: it sees and touches only what it deployed.
@@ -171,9 +188,10 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.update_own",
     "previews.destroy_own",
     "previews.watermark",
+    "previews.domain",
   ],
   // Connecting a repository for pull-request previews, e.g. from an agent's setup skill.
-  projects: ["previews.read", "repos.manage"],
+  projects: ["previews.read", "repos.manage", "repos.domains"],
   // Making and changing artifact themes, and choosing the server's default, e.g. from a brand.
   themes: ["artifacts.manage"],
   // Write-only: set and unset secrets, list their names; values are never shown. Narrowed by
@@ -198,6 +216,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
     "previews.destroy_own",
     "previews.update_own",
     "previews.watermark",
+    "previews.domain",
     "previews.secrets",
     "previews.view_private",
     "previews.skip_password",

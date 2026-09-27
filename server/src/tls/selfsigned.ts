@@ -49,7 +49,10 @@ export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<
   const caCert = new x509.X509Certificate(ca.certPem);
   const caKey = await importKey(ca.keyPem);
   const keys = await crypto.subtle.generateKey(ALG, true, ["sign", "verify"]);
-  const serialNumber = Date.now().toString(16).padStart(16, "0");
+  // Random: leaves issued in the same millisecond must not share one, or Firefox refuses them.
+  const serialBytes = crypto.getRandomValues(new Uint8Array(16));
+  serialBytes[0] = serialBytes[0]! & 0x7f;
+  const serialNumber = Buffer.from(serialBytes).toString("hex");
 
   const cert = await x509.X509CertificateGenerator.create({
     serialNumber,
@@ -78,6 +81,7 @@ export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<
 
   return {
     serverName: sans[0]!,
+    names: sans,
     // The leaf must carry the CA after it, or clients get UNABLE_TO_VERIFY_LEAF_SIGNATURE.
     cert: chain,
     key: await exportKey(keys.privateKey),

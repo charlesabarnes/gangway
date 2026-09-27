@@ -20,3 +20,4 @@ export {
 } from "./templates.ts";
 export { OAuthGrantsRepo, type CreateGrant, type GrantRecord } from "./oauth-grants.ts";
 export { ArtifactTemplatesRepo, ArtifactThemesRepo } from "./artifacts.ts";
+export { DomainsRepo, type CreateDomain, type DomainCheck } from "./domains.ts";

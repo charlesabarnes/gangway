@@ -56,6 +56,13 @@ const routesOf = (ctx: PreviewContext, previewId: string): PlannedRoute[] =>
     primary: e.primary,
   }));
 
+/** A domain chosen since the last build takes effect now, before the stack sees its URLs. */
+function moveToChosenDomain(ctx: PreviewContext, preview: Preview): void {
+  if (!ctx.domains) return;
+  const moves = ctx.table.moveToDomain(preview.id, ctx.domains.domainOf(preview));
+  for (const [from, to] of moves) ctx.logs.append(preview.id, "system", `moving ${from} to ${to}`);
+}
+
 async function checkRebuildable(
   ctx: PreviewContext,
   input: RedeployInput,
@@ -128,6 +135,14 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     ctx.inflight.delete(id);
     throw e;
   });
+  try {
+    moveToChosenDomain(ctx, preview);
+  } catch (e) {
+    await wd.cleanup();
+    ctx.inflight.delete(id);
+    settle({ preview, buildId, outcome: "failed", error: errorMessage(e) });
+    throw conflict(errorMessage(e));
+  }
   const b: Rebuild = { input, sources, preview, host, wd, routes: routesOf(ctx, id) };
   let plan: RebuildPlan;
   try {

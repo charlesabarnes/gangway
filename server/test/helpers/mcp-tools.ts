@@ -1,7 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { dirname } from "node:path";
 import { tokenActor, type Actor } from "../../src/auth/actor.ts";
-import { IdempotencyRepo, ProjectsRepo } from "../../src/db/repos/index.ts";
+import { DomainsRepo, IdempotencyRepo, ProjectsRepo } from "../../src/db/repos/index.ts";
+import type { ClaimDeps } from "../../src/domains/claims.ts";
+import { DomainRegistry } from "../../src/domains/registry.ts";
 import type { CallScope } from "../../src/mcp/tool-deps.ts";
 import { Tools } from "../../src/mcp/tools.ts";
 import { SecretUploads } from "../../src/mcp/secret-uploads.ts";
@@ -10,7 +12,7 @@ import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
 import { SecretBox } from "../../src/secrets/box.ts";
 import { Secrets } from "../../src/secrets/secrets.ts";
-import { MemorySettingsStore } from "../../src/settings.ts";
+import { MemorySettingsStore, Settings } from "../../src/settings.ts";
 import { tempDir } from "./db.ts";
 import { silentLogger } from "./logger.ts";
 import { ACTOR, setupPreviewContext } from "./preview-context.ts";
@@ -48,8 +50,30 @@ export function setupTools(o: { uploads?: { maxBytes?: number } } = {}) {
     url: (id) => `https://mcp.preview.localhost:8443/secret-uploads/${id}`,
     now: s.ctx.now,
   });
+  const registry = new DomainRegistry({
+    settings: new Settings({ baseDomain: "preview.localhost" }, new MemorySettingsStore()),
+    domains: new DomainsRepo(s.db),
+    projects,
+    pinned: ["alt.localhost"],
+  });
+  s.ctx.domains = registry;
+  /** Public DNS as the test sets it: CNAMEs and addresses by name. */
+  const dns = { cname: new Map<string, string>(), a: new Map<string, string>() };
+  const domains: ClaimDeps = {
+    registry,
+    domains: new DomainsRepo(s.db),
+    previews: s.previews,
+    hostnames: () => s.table.hostnames(),
+    audit: s.ctx.audit,
+    dns: {
+      cnames: async (n) => (dns.cname.has(n) ? [dns.cname.get(n)!] : []),
+      addresses: async (n) => (dns.a.has(n) ? [dns.a.get(n)!] : []),
+    },
+    now: s.ctx.now,
+  };
   const tools = new Tools({
     ctx: s.ctx,
+    domains,
     deploys,
     logger: silentLogger(),
     ...(uploads ? { uploads } : {}),
@@ -61,5 +85,17 @@ export function setupTools(o: { uploads?: { maxBytes?: number } } = {}) {
     actor,
     signal,
   });
-  return { ...s, deploys, tools, scope, uploads, uploadDir, projects, secrets, secretUploads };
+  return {
+    ...s,
+    deploys,
+    tools,
+    scope,
+    uploads,
+    uploadDir,
+    projects,
+    secrets,
+    secretUploads,
+    registry,
+    dns,
+  };
 }

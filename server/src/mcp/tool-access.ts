@@ -11,6 +11,7 @@ export const TOOL_PERMISSIONS = {
   project: ["repos.manage"],
   theme: ["artifacts.manage"],
   secrets: ["previews.secrets", "repos.secrets"],
+  domains: ["previews.domain", "repos.domains", "domains.manage"],
 } as const satisfies Record<string, readonly Permission[]>;
 export type ToolName = keyof typeof TOOL_PERMISSIONS;
 export const REDEPLOY_PERMISSION: Permission = "previews.update";

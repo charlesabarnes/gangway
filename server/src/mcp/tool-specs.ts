@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DomainNameSchema } from "@gangway/shared/domains-api";
 import { ARTIFACT_KINDS, TemplateInputSchema } from "@gangway/shared/artifact/index";
 import { VISIBILITY_VALUES } from "@gangway/shared/api";
 import { PREVIEW_ICON_COLORS, PREVIEW_ICONS } from "@gangway/shared/preview-icon";
@@ -182,6 +183,9 @@ export const DeployArgs = z.object({
     .describe(
       "The gangway watermark in the bottom-right corner of every page: inherit (the repository's, then the server's setting), on or off. With preview, it changes with no rebuild.",
     ),
+  domain: DomainNameSchema.optional().describe(
+    "The domain to name it under, when the server has more than one (the domains tool lists them); absent follows the project, then the server's default. With preview, it moves on its next rebuild.",
+  ),
   addons: z
     .array(z.string())
     .optional()

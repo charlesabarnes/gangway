@@ -70,9 +70,17 @@ export type DeployInput = {
   password?: PasswordChoice | undefined;
   passwordLogin?: PasswordLogin | undefined;
   watermark?: WatermarkChoice | undefined;
+  /** The wildcard domain chosen; absent follows the project, then the default. */
+  domain?: string | undefined;
 };
 
-export type PreviewUrl = { service: string; url: string; primary: boolean };
+export type PreviewUrl = {
+  service: string;
+  url: string;
+  primary: boolean;
+  /** A custom hostname claimed for it, not one gangway named. */
+  custom?: true;
+};
 
 export type DeployResult = {
   preview: Preview;

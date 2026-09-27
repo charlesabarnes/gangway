@@ -125,6 +125,16 @@ describe("AcmeProvider.issue", () => {
     expect(m.notAfter!.getTime()).toBeGreaterThan(Date.now() + 80 * DAY);
   });
 
+  test("a claimed domain's challenges go where its _acme-challenge CNAME points", async () => {
+    const s = await setup();
+    await s.provider.issue(DOMAINS, undefined, { delegate: "c123.acme.gw.test" });
+    expect(s.log.filter((l) => l.startsWith("txt+") || l.startsWith("propagated"))).toEqual([
+      "txt+ c123.acme.gw.test=ka-d0",
+      "txt+ c123.acme.gw.test=ka-d1",
+      "propagated? c123.acme.gw.test [ka-d0,ka-d1]",
+    ]);
+  });
+
   test("stored before it is returned, with the directory that issued it", async () => {
     const s = await setup();
     await s.provider.issue(DOMAINS);

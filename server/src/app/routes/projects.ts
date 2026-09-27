@@ -24,6 +24,7 @@ import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../../projects/workflow.ts";
 import { changeSecrets, listSecrets, type SecretChangeDeps } from "../../secrets/change.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
 import { parseDuration } from "../../util/duration.ts";
+import type { DomainRegistry } from "../../domains/registry.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
@@ -36,6 +37,7 @@ export type ProjectRouteDeps = {
   pulls?: Pulls | undefined;
   wire?: ((p: Preview) => Preview & { urls: PreviewUrl[] }) | undefined;
   apiOrigin?: (() => string) | undefined;
+  domains?: DomainRegistry | undefined;
 };
 
 export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
@@ -62,6 +64,11 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     checkTemplate(d, patch.templateId);
     if (patch.watermark !== undefined && !can(c.get("actor"), "previews.watermark"))
       throw forbidden('switching the gangway watermark needs "previews.watermark"');
+    if (patch.domain !== undefined) {
+      if (!can(c.get("actor"), "repos.domains"))
+        throw forbidden('choosing a repository\'s domain needs "repos.domains"');
+      if (patch.domain !== null) d.domains?.assertAvailable(patch.domain, before.id);
+    }
     if (patch.slug !== undefined && patch.slug !== before.slug) {
       const taken = projects.getBySlug(patch.slug);
       if (taken)
@@ -81,6 +88,11 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
       old: auditFields(before),
       new: auditFields(after),
     });
+    if (after.domain !== before.domain)
+      audit.record(c.get("actor"), "project.domain", before.id, {
+        old: before.domain,
+        new: after.domain,
+      });
     return c.json({ project: after });
   });
 

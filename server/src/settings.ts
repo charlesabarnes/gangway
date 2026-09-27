@@ -80,6 +80,10 @@ export const SETTINGS = {
   ),
   previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 0),
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
+  // Per minute, for preview traffic; 0 turns a limit off.
+  limitsRequestsClient: def("limits.requests.client", z.coerce.number().int().min(0), 1200),
+  limitsRequestsPreview: def("limits.requests.preview", z.coerce.number().int().min(0), 12000),
+  limitsSocketsClient: def("limits.websockets.client", z.coerce.number().int().min(0), 100),
   // Days kept before the daily prune deletes them; 0 keeps them for good.
   retentionEvents: def("retention.events.days", z.coerce.number().int().min(0), 30),
   retentionAudit: def("retention.audit.days", z.coerce.number().int().min(0), 0),

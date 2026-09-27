@@ -2,11 +2,12 @@
 
 Ship what Claude would normally make as an artifact to a real HTTPS URL on your gangway server, and keep iterating on it at the same URL.
 
-- **MCP server**: your gangway's `mcp.<base>` surface (`deploy`, `status`, `logs`, `destroy`, `catalog`, the artifact.md guide and templates, `project`, which connects a repository for PR previews, `theme`, which creates or changes an artifact theme, and `secrets`, which sets secrets write-only).
+- **MCP server**: your gangway's `mcp.<base>` surface (`deploy`, `status`, `logs`, `destroy`, `catalog`, the artifact.md guide and templates, `project`, which connects a repository for PR previews, `theme`, which creates or changes an artifact theme, `secrets`, which sets secrets write-only, and `domains`, which chooses and claims domains).
 - **`/gangway:generate-artifact [what to build]`**: the fast path. Write each file once, ship it with `files` or upload by reference, check the routes in the deploy answer, and patch in place.
 - **`/gangway:setup-pr-previews`**: run it in a GitHub repository. It connects the repository to gangway, adds a Dockerfile if there is none, and opens a PR with the preview workflow; that PR's own run is the first preview. The `project` tool needs the **projects** scope: tick it on gangway's consent page (or re-authenticate with `/mcp` when asked).
 - **`/gangway:create-theme [URL, file or description]`**: turn a website, a stylesheet or tokens file, a brand guide or a few words into a gangway theme (colours for light and dark, fonts, logo), and show it on a sample artifact. The `theme` tool needs the **themes** scope.
 - **Secrets:** agents set API keys and other secrets with the `secrets` tool, or with `deploy secrets` at deploy time; they see names, never values. For a `.env` file they get a one-use URL and `curl` the file straight to gangway, so the values never pass through the conversation. It needs the **secrets** scope. On the consent page you choose where it may set them: previews it deploys (the default), any preview it may rebuild, chosen repositories, or org-wide.
+- **Domains:** the `domains` tool picks which of the server's domains previews are named under, and claims the user's own: a wildcard such as `*.previews.example.com` for PR previews, or a hostname such as `www.example.com` for one site. It answers with the two DNS records to add; gangway checks them and gets the certificate. Choosing a preview's domain comes with the **deploy** scope; a repository's needs **projects**.
 - **`/gangway:deploy-once`**: put the app in the current directory on a gangway URL once, from the files on disk (what git would ship, so `.env` stays behind), and redeploy it to the same URL later.
 
 ## Install

@@ -38,6 +38,8 @@ export type ProjectPatch = {
   prClearance?: Clearance | null | undefined;
   forkClearance?: Clearance | undefined;
   watermark?: "on" | "off" | null | undefined;
+  domain?: string | null | undefined;
+  productionPreviewId?: string | null | undefined;
 };
 
 const COLUMNS: Record<keyof ProjectPatch, string> = {
@@ -55,6 +57,8 @@ const COLUMNS: Record<keyof ProjectPatch, string> = {
   prClearance: "pr_clearance",
   forkClearance: "fork_clearance",
   watermark: "watermark",
+  domain: "domain",
+  productionPreviewId: "production_preview_id",
 };
 
 export class ProjectsRepo {

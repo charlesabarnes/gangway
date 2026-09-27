@@ -8,7 +8,7 @@ const CONNECTOR = tokenActor("t-projects", ["read", "deploy", "projects"]);
 
 describe("the project tool", () => {
   test("the projects scope is what connecting a repository needs, and no more", () => {
-    expect(SCOPE_PERMISSIONS.projects).toEqual(["previews.read", "repos.manage"]);
+    expect(SCOPE_PERMISSIONS.projects).toEqual(["previews.read", "repos.manage", "repos.domains"]);
   });
 
   test("creates a workflow project and returns its workflow with the port filled in", () => {

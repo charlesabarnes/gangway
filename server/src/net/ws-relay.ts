@@ -6,6 +6,8 @@ export type WsData = {
   path: string;
   protocol?: string | undefined;
   cookie?: string | undefined;
+  /** Counts the socket out of its client's allowance. */
+  release?: (() => void) | undefined;
 };
 
 type Relay = { upstream: WebSocket; pending: (string | ArrayBuffer)[] };
@@ -64,6 +66,7 @@ export const wsRelay = {
   },
 
   close(ws: ServerWebSocket<WsData>, code: number, reason: string) {
+    ws.data.release?.();
     const relay = relays.get(ws);
     if (!relay) return;
     // 1005 and 1006 are local-only close codes and may not be sent on the wire.

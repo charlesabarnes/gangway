@@ -7,6 +7,9 @@ import {
   labelUnder,
   classifyHost,
   domainPairProblem,
+  domainsProblem,
+  isDomainName,
+  isWithin,
   fqdn,
   slugify,
   buildLabel,
@@ -213,5 +216,63 @@ describe("domainPairProblem", () => {
     ["gw.example.com", "example.com", true],
   ])("%s with %s", (control, preview, problem) => {
     expect(domainPairProblem(control, preview) !== null).toBe(problem);
+  });
+});
+
+describe("classifyHost with several preview domains", () => {
+  const CONTROL = "gangway.example";
+  const DOMAINS = ["gangway-preview.app", "previews.client.com"];
+  test.each<[string, "surface" | "preview" | "unknown" | "misdirected"]>([
+    ["acme.gangway-preview.app", "preview"],
+    ["acme.previews.client.com", "preview"],
+    ["previews.client.com", "unknown"],
+    ["app.previews.client.com", "unknown"],
+    ["app.gangway.example", "surface"],
+    ["old.gangway.example", "preview"],
+    ["deep.acme.previews.client.com", "misdirected"],
+    ["client.com", "misdirected"],
+  ])("%s is %s", (host, want) => {
+    expect(classifyHost(host, CONTROL, DOMAINS).kind).toBe(want);
+  });
+});
+
+describe("domainsProblem", () => {
+  test.each<[string[], boolean]>([
+    [["gangway-preview.app", "previews.client.com"], false],
+    [["gangway-preview.app", "gangway-preview.app"], false],
+    [["example.com", "x.example.com"], true],
+    [["deep.x.example.com", "example.com"], false],
+    [["example.org", "gw.example.org"], true],
+  ])("%j", (domains, problem) => {
+    expect(domainsProblem("gw.example.net", domains) !== null).toBe(problem);
+  });
+
+  test("still refuses a control domain one label under a preview domain", () => {
+    expect(domainsProblem("gw.example.com", ["other.app", "example.com"])).toContain("control");
+  });
+});
+
+describe("isDomainName", () => {
+  test.each<[string, boolean]>([
+    ["client.com", true],
+    ["previews.client.com", true],
+    ["xn--e1afmkfd.example.com", true],
+    ["localhost", false],
+    ["*.client.com", false],
+    ["Client.com", false],
+    ["client.com.", false],
+    ["-bad.com", false],
+    ["10.0.0.1", false],
+    ["", false],
+  ])("%s -> %s", (name, want) => {
+    expect(isDomainName(name)).toBe(want);
+  });
+});
+
+describe("isWithin", () => {
+  test("the domain and any depth under it", () => {
+    expect(isWithin("client.com", "client.com")).toBe(true);
+    expect(isWithin("a.b.client.com", "client.com")).toBe(true);
+    expect(isWithin("notclient.com", "client.com")).toBe(false);
   });
 });

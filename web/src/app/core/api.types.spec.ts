@@ -75,6 +75,7 @@ describe('the /v1 wire contract', () => {
       'password',
       'passwordLogin',
       'watermark',
+      'domain',
       'access',
       'lastSeenAt',
       'error',
@@ -116,6 +117,8 @@ describe('the /v1 wire contract', () => {
       'prClearance',
       'forkClearance',
       'watermark',
+      'domain',
+      'productionPreviewId',
       'createdAt',
       'updatedAt',
     ];

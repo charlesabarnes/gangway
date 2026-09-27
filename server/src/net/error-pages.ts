@@ -133,6 +133,21 @@ export function busyPage(hostname: string): Response {
   });
 }
 
+export function tooManyPage(hostname: string, retryAfterSec: number): Response {
+  const res = page({
+    hostname,
+    status: 429,
+    title: "Slow down",
+    heading: "Slow down",
+    label: "Slow down",
+    tone: "bad",
+    body: `<h1>Too many requests from you, or to this preview</h1>${host(hostname)}
+<p>Try again in ${retryAfterSec} second${retryAfterSec === 1 ? "" : "s"}.</p>`,
+  });
+  res.headers.set("retry-after", String(retryAfterSec));
+  return res;
+}
+
 export function payloadTooLargePage(): Response {
   return page({
     status: 413,

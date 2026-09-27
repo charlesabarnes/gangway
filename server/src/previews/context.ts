@@ -21,6 +21,7 @@ import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
 import type { PreviewPasswordDeps } from "./password-deps.ts";
 import type { PreviewLimits } from "./compose-model.ts";
+import type { DomainRegistry } from "../domains/registry.ts";
 
 export type PreviewTimings = {
   startTimeoutMs: number;
@@ -39,6 +40,7 @@ export type PreviewContext = {
   env: string;
   origin: PublicOrigin;
   previewDomain: () => string;
+  domains?: DomainRegistry | undefined;
   policy: Policy;
   hosts: HostsRepo;
   previews: PreviewsRepo;

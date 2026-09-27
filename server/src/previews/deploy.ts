@@ -9,6 +9,7 @@ import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
 import { checkContainerAllowed } from "./container-access.ts";
 import { checkWatermarkAllowed } from "./watermark.ts";
+import { checkDomainChoice } from "./domain.ts";
 import type { PreviewContext } from "./context.ts";
 import { claimPreview } from "./deploy-claim.ts";
 import { urlsFor } from "./deploy-names.ts";
@@ -234,6 +235,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
     template: input.template,
     projectId: input.projectId,
   });
+  checkDomainChoice(ctx, input.actor, input.domain, policy.project?.id ?? null);
   const host = resolveHost(ctx, input, policy.template);
   const wd = await ctx.workdirs.create(id);
 

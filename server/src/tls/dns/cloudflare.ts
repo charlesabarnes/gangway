@@ -118,12 +118,14 @@ export class CloudflareDnsProvider implements DnsProvider {
     });
   }
 
+  // The pinned zone answers for the names inside it; another preview domain finds its own.
   async #lookupZone(name: string): Promise<CfZone> {
     if (this.#zoneId !== undefined) {
       const zone = await this.#request<CfZone>("GET", `/zones/${encodeURIComponent(this.#zoneId)}`);
       if (!zone)
         throw notFound(`Cloudflare zone ${this.#zoneId} not found`, { zoneId: this.#zoneId });
-      return { id: zone.id, name: zone.name };
+      if (name === zone.name || name.endsWith(`.${zone.name}`))
+        return { id: zone.id, name: zone.name };
     }
 
     const tried = zoneCandidates(name);

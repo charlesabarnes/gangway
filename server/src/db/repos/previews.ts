@@ -34,6 +34,7 @@ export type CreatePreview = {
   password?: StoredPreviewPassword;
   passwordLogin?: PasswordLogin;
   watermark?: WatermarkChoice | undefined;
+  domain?: string | null | undefined;
 };
 
 export type StoredPreviewPassword = {
@@ -59,6 +60,11 @@ export type PreviewFilter = {
 const watermarkColumn = (w: WatermarkChoice | undefined): string | null =>
   w === "on" || w === "off" ? w : null;
 
+const choiceColumns = (p: CreatePreview) => ({
+  watermark: watermarkColumn(p.watermark),
+  domain: p.domain ?? null,
+});
+
 const labelColumns = (p: CreatePreview) => ({
   title: p.title ?? null,
   icon: p.icon?.name ?? null,
@@ -80,10 +86,10 @@ export class PreviewsRepo {
     this.#db.run(
       `INSERT INTO previews (id, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, credential,
-                             password_mode, password_hash, password_salt, password_login, signed_in_only, watermark, created_at, updated_at)
+                             password_mode, password_hash, password_salt, password_login, signed_in_only, watermark, domain, created_at, updated_at)
        VALUES ($id, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $credential,
-               $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $watermark, $now, $now)`,
+               $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $watermark, $domain, $now, $now)`,
       {
         id: p.id,
         project: p.project,
@@ -107,7 +113,7 @@ export class PreviewsRepo {
         pwLogin:
           p.passwordLogin === "only" || p.passwordLogin === undefined ? "inherit" : p.passwordLogin,
         only: p.passwordLogin === "only" ? 1 : 0,
-        watermark: watermarkColumn(p.watermark),
+        ...choiceColumns(p),
         now,
       },
     );
@@ -205,6 +211,38 @@ export class PreviewsRepo {
     );
     const w = r?.own ?? r?.project ?? null;
     return w === null ? null : w === "on";
+  }
+
+  setDomain(id: string, domain: string | null): void {
+    this.#db.run("UPDATE previews SET domain = $d, updated_at = $now WHERE id = $id", {
+      id,
+      d: domain,
+      now: this.#now(),
+    });
+  }
+
+  /** Stops every preview and project choosing this domain, so they follow the next level up. */
+  forgetDomain(domain: string): void {
+    const now = this.#now();
+    this.#db.run("UPDATE previews SET domain = NULL, updated_at = $now WHERE domain = $d", {
+      d: domain,
+      now,
+    });
+    this.#db.run("UPDATE projects SET domain = NULL, updated_at = $now WHERE domain = $d", {
+      d: domain,
+      now,
+    });
+  }
+
+  /** Whether a preview that is not destroyed, or a project, has chosen this domain. */
+  domainChosen(domain: string): boolean {
+    return (
+      this.#db.get<{ n: number }>(
+        `SELECT (SELECT COUNT(*) FROM previews WHERE domain = $d AND state != 'destroyed')
+              + (SELECT COUNT(*) FROM projects WHERE domain = $d) AS n`,
+        { d: domain },
+      )!.n > 0
+    );
   }
 
   setIcon(id: string, icon: PreviewIcon | null): void {

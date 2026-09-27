@@ -12,10 +12,15 @@ type Recipe = { label: string; steps: Step[]; link?: { href: string; text: strin
 
 const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 
-/** Auto mode's trusted-infrastructure note for this server, for ~/.claude/settings.json. */
-export function autoModeSettings(url: string): string {
+/**
+ * Auto mode's trusted-infrastructure note for this server, for ~/.claude/settings.json. Without
+ * the server's preview domains, previews are assumed to sit beside the MCP host.
+ */
+export function autoModeSettings(url: string, previewDomains: readonly string[] = []): string {
   const host = new URL(url).host;
-  const previews = `*.${host.replace(/^mcp\./, '')}`;
+  const previews = previewDomains.length
+    ? previewDomains.map((d) => `*.${d}`).join(', ')
+    : `*.${host.replace(/^mcp\./, '')}`;
   return JSON.stringify(
     {
       autoMode: {
@@ -31,7 +36,7 @@ export function autoModeSettings(url: string): string {
   );
 }
 
-function claudeRecipe(url: string): Recipe {
+function claudeRecipe(url: string, previewDomains: readonly string[]): Recipe {
   return {
     label: 'Claude Code',
     steps: [
@@ -56,15 +61,18 @@ function claudeRecipe(url: string): Recipe {
       },
       {
         note: "Auto mode: Claude Code's safety check does not know this server is yours, so it can block a deploy that carries hostnames or other details from a repo as exfiltration. Tell it in ~/.claude/settings.json (it reads this from user settings only):",
-        code: autoModeSettings(url),
+        code: autoModeSettings(url, previewDomains),
       },
     ],
   };
 }
 
-export function recipes(url: string): Record<AgentClient, Recipe> {
+export function recipes(
+  url: string,
+  previewDomains: readonly string[] = [],
+): Record<AgentClient, Recipe> {
   return {
-    claude: claudeRecipe(url),
+    claude: claudeRecipe(url, previewDomains),
     codex: {
       label: 'Codex',
       steps: [
@@ -220,7 +228,7 @@ export class ConnectAgent {
   protected readonly copied = signal<number | null>(null);
   protected readonly all = computed(() => {
     const c = this.caps();
-    return c ? recipes(c.mcpUrl.replace(/\/?$/, '/')) : null;
+    return c ? recipes(c.mcpUrl.replace(/\/?$/, '/'), c.previewDomains) : null;
   });
   protected readonly shown = computed(() => this.all()?.[this.tab()] ?? null);
 

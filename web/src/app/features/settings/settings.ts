@@ -12,6 +12,8 @@ import { PreviewPolicies } from './preview-policies';
 import { SurfacesSettings } from './surfaces-settings';
 import { UpdateSettings } from './update-settings';
 import { WatermarkSettings } from './watermark-settings';
+import { DomainSettings } from './domain-settings';
+import { LimitSettings } from './limit-settings';
 import { Skeleton } from '../../ui/skeleton';
 
 @Component({
@@ -25,6 +27,8 @@ import { Skeleton } from '../../ui/skeleton';
     SurfacesSettings,
     UpdateSettings,
     WatermarkSettings,
+    DomainSettings,
+    LimitSettings,
   ],
   template: `
     <section class="gw-page [&>:last-child>.gw-section]:border-b-0">
@@ -51,6 +55,8 @@ import { Skeleton } from '../../ui/skeleton';
         @if (canReadSettings()) {
           <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
           <app-watermark-settings [settings]="settings()" [(saving)]="saving" />
+          <app-domain-settings [settings]="settings()" [(saving)]="saving" />
+          <app-limit-settings [settings]="settings()" [(saving)]="saving" />
         }
         @if (canSecrets()) {
           <app-global-secrets />

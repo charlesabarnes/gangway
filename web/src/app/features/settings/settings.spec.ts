@@ -109,6 +109,14 @@ async function open(
       .flush({ secrets: (o.globalNames ?? []).map((name) => ({ name, level: 'standard' })) });
   else r.http.expectNone('/v1/secrets');
   await r.settle();
+  for (const req of r.http.match('/v1/domains'))
+    req.flush({
+      control: 'preview.example.com',
+      defaultDomain: 'preview.example.com',
+      available: ['preview.example.com'],
+      domains: [],
+    });
+  await r.settle();
   return r;
 }
 

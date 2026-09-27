@@ -32,11 +32,12 @@ function nameFrom(from: string): string {
   return slugify(last.split(/[:@]/)[0] ?? last) || "preview";
 }
 
+/** Custom hostnames first, when DNS already sends them here, then the ones gangway named. */
 export function urlsFor(
-  ctx: Pick<PreviewContext, "table" | "origin">,
+  ctx: Pick<PreviewContext, "table" | "origin" | "domains">,
   previewId: string,
 ): PreviewUrl[] {
-  return ctx.table
+  const own = ctx.table
     .forPreview(previewId)
     .map((e) => ({
       service: e.service,
@@ -44,4 +45,13 @@ export function urlsFor(
       primary: e.primary,
     }))
     .sort((a, b) => Number(b.primary) - Number(a.primary) || a.service.localeCompare(b.service));
+  const service = own.find((u) => u.primary)?.service;
+  if (service === undefined) return own;
+  const custom = (ctx.domains?.aliasesOf(previewId, { routable: true }) ?? []).map((host) => ({
+    service,
+    url: `${publicOriginFor(host, ctx.origin)}/`,
+    primary: true,
+    custom: true as const,
+  }));
+  return [...custom, ...own];
 }

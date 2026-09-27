@@ -65,6 +65,7 @@ function createPreview(ctx: PreviewContext, c: Claim, project: string): Preview 
     password: c.password.stored,
     passwordLogin: c.input.passwordLogin ?? "inherit",
     watermark: c.input.watermark,
+    domain: c.input.domain ?? null,
   });
 }
 
@@ -113,7 +114,9 @@ export function claimPreview(
   const routes = planRoutes({
     previewId: c.id,
     slug,
-    previewDomain: ctx.previewDomain(),
+    previewDomain:
+      ctx.domains?.resolve({ preview: c.input.domain, project: c.policy.project }) ??
+      ctx.previewDomain(),
     host: c.host,
     exposed: c.exposed,
     allocate: (n) =>

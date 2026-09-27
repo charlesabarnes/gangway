@@ -16,7 +16,15 @@ const FACES: [string, string, number, string][] = [
 
 // Fonts come from the parent of the host a page stands in for: the app apex, or the preview apex.
 export const FONT_PATH = "/_gangway/fonts/";
-export const appHostOf = (previewHost: string) => previewHost.split(".").slice(1).join(".");
+
+// A custom hostname has no gangway apex above it; boot says where its pages load fonts instead.
+let customFontHost: ((host: string) => string | undefined) | undefined;
+export function useFontHostFor(fn: ((host: string) => string | undefined) | undefined): void {
+  customFontHost = fn;
+}
+
+export const appHostOf = (previewHost: string) =>
+  customFontHost?.(previewHost) ?? previewHost.split(".").slice(1).join(".");
 
 // A host with no parent domain keeps the fallback fonts.
 export function fontFaces(previewHost: string): string {

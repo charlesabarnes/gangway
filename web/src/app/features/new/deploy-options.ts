@@ -15,6 +15,7 @@ export type DeployOptions = {
   project: string;
   template: string;
   network: string;
+  domain: string;
 };
 export const NO_OPTIONS: DeployOptions = {
   title: '',
@@ -27,6 +28,7 @@ export const NO_OPTIONS: DeployOptions = {
   project: '',
   template: '',
   network: '',
+  domain: '',
 };
 
 const PASSWORD_LOGIN: Record<Who, string> = {
@@ -64,6 +66,7 @@ export function optionsQuery(
     password: passwordParam(o),
     passwordLogin: PASSWORD_LOGIN[o.who],
     network: o.network,
+    domain: o.domain,
   });
 }
 
@@ -99,6 +102,20 @@ export function optionsQuery(
             (input)="set('name', $any($event.target).value)"
             data-testid="name"
         /></label>
+        @if (domains().length > 1) {
+          <label class="gw-label flex flex-col gap-1 sm:col-span-2"
+            >Domain<select
+              [class]="field"
+              (change)="set('domain', $any($event.target).value)"
+              data-testid="domain"
+            >
+              <option value="">the repository's, or the server's</option>
+              @for (d of domains(); track d) {
+                <option [value]="d" [selected]="d === options().domain">{{ d }}</option>
+              }
+            </select></label
+          >
+        }
         <label class="gw-label flex flex-col gap-1"
           >Visibility<select
             [class]="field"
@@ -203,6 +220,8 @@ export class DeployOptionsForm {
   readonly projects = input.required<Project[]>();
   readonly templates = input.required<Template[]>();
   readonly namePlaceholder = input.required<string>();
+  /** The domains a preview may be named under; the choice shows only when there are several. */
+  readonly domains = input<string[]>([]);
 
   // The label is set in caps; the control inside it is not.
   protected readonly field = `${FIELD} font-normal tracking-normal normal-case`;

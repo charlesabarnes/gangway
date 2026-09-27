@@ -65,6 +65,14 @@ export class RoutesRepo {
     );
   }
 
+  /** Moves routes to new hostnames together, or none of them. */
+  rename(moves: ReadonlyMap<string, string>): void {
+    this.#db.transaction(() => {
+      for (const [from, to] of moves)
+        this.#db.run("UPDATE routes SET hostname = $to WHERE hostname = $from", { from, to });
+    });
+  }
+
   deleteForPreview(previewId: string): number {
     return this.#db.run("DELETE FROM routes WHERE preview_id = $p", { p: previewId }).changes;
   }

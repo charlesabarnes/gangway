@@ -145,6 +145,8 @@ describe("deploy follows the template", () => {
       drafts: false,
       forkClearance: "none",
       watermark: null,
+      domain: null,
+      productionPreviewId: null,
       createdAt: new Date(0),
       updatedAt: new Date(0),
       ...repo,

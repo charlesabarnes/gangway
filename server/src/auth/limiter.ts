@@ -30,7 +30,8 @@ export function sourceKey(ip: string): string {
     .join(":")}::/64`;
 }
 
-class Bounded<V> {
+/** A map that forgets its oldest key past max, so an attacker cannot grow it without bound. */
+export class Bounded<V> {
   readonly #max: number;
   readonly #map = new Map<string, V>();
   constructor(max: number) {

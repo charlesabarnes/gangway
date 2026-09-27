@@ -58,6 +58,7 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   if (!servedByGangway(ctx.previews.get(previewId) ?? preview)) await downStack(ctx, preview, host);
 
   ctx.table.removePreview(previewId);
+  ctx.domains?.releasePreview(previewId);
   const gone = ctx.states.transition(previewId, "destroyed");
   // Its own secrets go with it; a PR's new head has already taken its copy.
   ctx.previews.setEnvCiphertext(previewId, null);

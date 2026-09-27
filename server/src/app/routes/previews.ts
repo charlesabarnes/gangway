@@ -27,6 +27,8 @@ import type { RedeployInput } from "../../previews/redeploy-input.ts";
 import { redeploy } from "../../previews/redeploy.ts";
 import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
 import { setPreviewWatermark } from "../../previews/watermark.ts";
+import { setPreviewDomain } from "../../previews/domain.ts";
+import { PreviewDomainChangeSchema } from "@gangway/shared/domains-api";
 import {
   mayDestroy,
   mayReadLogs,
@@ -321,6 +323,13 @@ function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       return c.json({ preview: wire(ctx.previews.get(p.id)!) });
     },
   );
+  api.put("/previews/:id/domain", requirePermission("previews.domain"), async (c) => {
+    const p = find(c.req.param("id"));
+    changeable(ctx, c, p, "domain");
+    const { domain } = PreviewDomainChangeSchema.parse(await readJson(c));
+    setPreviewDomain(ctx, c.get("actor"), p.id, domain);
+    return c.json({ preview: wire(ctx.previews.get(p.id)!) });
+  });
   api.put(
     "/previews/:id/icon",
     requirePermission("previews.update_own", "previews.update"),

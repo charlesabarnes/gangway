@@ -56,6 +56,7 @@ Call `deploy` with `upload: "<the id>"` and:
 - `title`: what the user calls it, e.g. "Shop front". `icon` + `iconColor`: what it is about.
 - `check`: the paths that matter, e.g. `["/", "/api/health"]`.
 - `addons`, `project` and `secretsUpload` (or `secrets`) if step 1 found them.
+- `domain`, only if the user names one of the server's domains (the `domains` tool lists them). For their own hostname, like `www.example.com`, deploy first, then `domains` with `target: {preview: "<name>"}` and `claim`; it answers with the DNS records to add.
 
 Leave `visibility` out: the server's setting decides. Pass it only when the user asks for public, unlisted or private. The same goes for `ttl`: the server's default applies unless the user says how long.
 

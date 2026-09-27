@@ -4,6 +4,7 @@ import type {
   AuditActorType,
   AuditEntry,
   Certificate,
+  Domain,
   Clearance,
   ForgeId,
   ForkPolicy,
@@ -92,6 +93,7 @@ export type PreviewRow = {
   password_login?: string | null;
   signed_in_only?: number | null;
   watermark?: string | null;
+  domain?: string | null;
   title?: string | null;
   icon?: string | null;
   icon_color?: string | null;
@@ -120,6 +122,7 @@ export function rowToPreview(r: PreviewRow): Preview {
       ? "only"
       : ((r.password_login ?? "inherit") as Preview["passwordLogin"]),
     watermark: (r.watermark ?? "inherit") as Preview["watermark"],
+    domain: r.domain ?? null,
     lastSeenAt: toDate(r.last_seen_at),
     error: r.error,
     createdAt: new Date(r.created_at),
@@ -332,6 +335,8 @@ export type ProjectRow = {
   drafts: number;
   fork_clearance: string;
   watermark?: string | null;
+  domain?: string | null;
+  production_preview_id?: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -354,6 +359,8 @@ export const rowToProject = (r: ProjectRow): Project => ({
   drafts: bool(r.drafts),
   forkClearance: r.fork_clearance as Clearance,
   watermark: (r.watermark ?? null) as Project["watermark"],
+  domain: r.domain ?? null,
+  productionPreviewId: r.production_preview_id ?? null,
   createdAt: new Date(r.created_at),
   updatedAt: new Date(r.updated_at),
 });
@@ -382,6 +389,40 @@ export const rowToTemplate = (r: TemplateRow): Template => ({
   idleAfter: r.idle_after,
   clearance: r.clearance as Clearance,
   hostId: r.host_id,
+  createdAt: new Date(r.created_at),
+  updatedAt: new Date(r.updated_at),
+});
+
+export type DomainRow = {
+  id: string;
+  name: string;
+  kind: string;
+  project_id: string | null;
+  preview_id: string | null;
+  status: string;
+  claim_id: string;
+  routing_ok: number;
+  last_error: string | null;
+  checked_at: number | null;
+  verified_at: number | null;
+  created_by: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+export const rowToDomain = (r: DomainRow): Domain => ({
+  id: r.id,
+  name: r.name,
+  kind: r.kind as Domain["kind"],
+  projectId: r.project_id,
+  previewId: r.preview_id,
+  status: r.status as Domain["status"],
+  claimId: r.claim_id,
+  routingOk: bool(r.routing_ok),
+  lastError: r.last_error,
+  checkedAt: toDate(r.checked_at),
+  verifiedAt: toDate(r.verified_at),
+  createdBy: r.created_by,
   createdAt: new Date(r.created_at),
   updatedAt: new Date(r.updated_at),
 });

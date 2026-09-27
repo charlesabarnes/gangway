@@ -14,12 +14,11 @@ export class CertStore {
     return this.#bundle;
   }
 
+  /** One entry per name; the first is also what a client that sends no SNI gets. */
   tlsConfig(): { serverName: string; cert: string; key: string }[] {
-    return this.#bundle.materials.map((m) => ({
-      serverName: m.serverName,
-      cert: m.cert,
-      key: m.key,
-    }));
+    return this.#bundle.materials.flatMap((m) =>
+      (m.names ?? [m.serverName]).map((serverName) => ({ serverName, cert: m.cert, key: m.key })),
+    );
   }
 
   onSwap(fn: CertListener): () => void {

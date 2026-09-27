@@ -7,21 +7,34 @@ import { Reconciler } from "../reconcile/reconciler.ts";
 import type { ClientSource, ReconcileReport } from "../reconcile/reconciler-types.ts";
 import { flushLastSeen, sweepExpired } from "../scheduler/jobs.ts";
 import { Scheduler } from "../scheduler/scheduler.ts";
-import type { AcmeProvider } from "../tls/acme.ts";
+import type { CertManager } from "../tls/certs.ts";
 import type { CertStore } from "../tls/certstore.ts";
 import { SETTINGS, type SettingDef } from "../settings.ts";
 import type { Core } from "./core.ts";
+import { claimDeps } from "./domains.ts";
+import { checkDue } from "../domains/claims.ts";
 
 export type CertRenewal = {
-  acme: AcmeProvider;
-  domains: string[];
+  manager: CertManager;
   certStore: CertStore;
   listener: RunningListener;
 };
 
 export type Reconciling = { reconciler: Reconciler; reconciled: Promise<ReconcileReport | null> };
 
-export type JobDeps = Pick<Core, "config" | "logger" | "repos" | "updates" | "settings" | "db"> &
+export type JobDeps = Pick<
+  Core,
+  | "config"
+  | "logger"
+  | "repos"
+  | "updates"
+  | "settings"
+  | "db"
+  | "domains"
+  | "table"
+  | "audit"
+  | "bus"
+> &
   Reconciling & {
     ctx: PreviewContext;
     deploys: IdempotentDeploys;
@@ -52,7 +65,7 @@ export function startScheduler(d: JobDeps): Scheduler {
   // stop() waits for running jobs, so nothing touches the database after it closes.
   const scheduler = new Scheduler({ logger: d.logger.child({ mod: "scheduler" }) });
   registerPreviewJobs(scheduler, d);
-  if (d.renewal) registerCertRenewal(scheduler, d.renewal);
+  if (d.renewal) registerCertRenewal(scheduler, d.renewal, d.domains);
   registerPurges(scheduler, d);
   scheduler.register({
     name: "update-check",
@@ -91,18 +104,36 @@ function registerPreviewJobs(scheduler: Scheduler, d: JobDeps): void {
     intervalMs: config.idleSweepIntervalMs,
     run: (signal) => sweepIdle(ctx, logger.child({ job: "idle-sleep" }), signal),
   });
+  // Pending claims wait on someone's DNS change; a minute is as soon as it is worth asking.
+  const claims = claimDeps(d);
+  scheduler.register({
+    name: "domain-verify",
+    intervalMs: 60_000,
+    run: async (signal) => {
+      await checkDue(claims, signal);
+    },
+  });
 }
 
-function registerCertRenewal(scheduler: Scheduler, r: CertRenewal): void {
+function registerCertRenewal(scheduler: Scheduler, r: CertRenewal, domains: Core["domains"]): void {
   r.certStore.onSwap(() => r.listener.swapCerts());
+  // A domain that changes mid-run is caught by running again, not left for the next hour.
+  let changed = false;
+  domains.onChange(() => {
+    changed = true;
+    scheduler.trigger("cert-renew").catch(() => {});
+  });
   // Hourly because Let's Encrypt allows 5 failed validations per hour.
   scheduler.register({
     name: "cert-renew",
     intervalMs: 3_600_000,
     initialDelayMs: 0,
     run: async (signal) => {
-      const next = await r.acme.renewIfDue(r.domains, signal);
-      if (next) await r.certStore.swap(next);
+      do {
+        changed = false;
+        const next = await r.manager.refresh(signal);
+        if (next) await r.certStore.swap(next);
+      } while (changed && !signal.aborted);
     },
   });
 }

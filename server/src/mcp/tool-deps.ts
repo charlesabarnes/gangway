@@ -3,6 +3,7 @@ import type { Actor } from "../auth/actor.ts";
 import type { ArtifactThemesRepo } from "../db/repos/artifacts.ts";
 import type { ProjectsRepo } from "../db/repos/projects.ts";
 import type { TemplatesRepo } from "../db/repos/templates.ts";
+import type { ClaimDeps } from "../domains/claims.ts";
 import type { Logger } from "../logger.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import type { IdempotentDeploys } from "../previews/idempotent.ts";
@@ -26,6 +27,7 @@ export type ToolDeps = {
         apiOrigin: () => string;
       }
     | undefined;
+  domains?: ClaimDeps | undefined;
   /** For the theme tool, with ctx.artifacts. */
   themes?: { themes: ArtifactThemesRepo; settings: Settings } | undefined;
 };

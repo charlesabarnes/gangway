@@ -79,26 +79,68 @@ export type HostKind =
 
 // Surfaces only ever answer under the control domain. Non-surface hosts there stay previews, so
 // previews named before a preview domain was set keep answering until they expire.
-export function classifyHost(host: string, controlDomain: string, previewDomain: string): HostKind {
+export function classifyHost(
+  host: string,
+  controlDomain: string,
+  previewDomains: string | readonly string[],
+): HostKind {
   const control = labelUnder(host, controlDomain);
   if (control === "" || (control !== null && RESERVED_LABELS.has(control)))
     return { kind: "surface", label: control };
-  const preview = labelUnder(host, previewDomain);
-  if (preview !== null && preview !== "" && !RESERVED_LABELS.has(preview))
-    return { kind: "preview" };
+  let apex = false;
+  for (const domain of typeof previewDomains === "string" ? [previewDomains] : previewDomains) {
+    const preview = labelUnder(host, domain);
+    if (preview === null) continue;
+    if (preview !== "" && !RESERVED_LABELS.has(preview)) return { kind: "preview" };
+    apex = true;
+  }
   if (control !== null) return { kind: "preview" };
-  if (preview !== null) return { kind: "unknown" };
+  if (apex) return { kind: "unknown" };
   return { kind: "misdirected" };
 }
 
+const bare = (domain: string) => domain.toLowerCase().replace(/\.$/, "");
+
 export function domainPairProblem(controlDomain: string, previewDomain: string): string | null {
-  const control = controlDomain.toLowerCase().replace(/\.$/, "");
-  const preview = previewDomain.toLowerCase().replace(/\.$/, "");
+  const control = bare(controlDomain);
+  const preview = bare(previewDomain);
   if (control === preview) return null;
   // `gw.example.com` under preview domain `example.com` is also the name of a preview called `gw`.
   if (labelUnder(control, preview) !== null)
     return `the control domain ${control} is a name under the preview domain ${preview}; choose domains that are not nested that way`;
   return null;
+}
+
+/** Every pair checked: one preview domain one label under another names a preview on the other. */
+export function domainsProblem(
+  controlDomain: string,
+  previewDomains: readonly string[],
+): string | null {
+  const domains = [...new Set(previewDomains.map(bare))];
+  for (const d of domains) {
+    const problem = domainPairProblem(controlDomain, d);
+    if (problem) return problem;
+    for (const other of domains) {
+      if (other !== d && labelUnder(d, other) !== null)
+        return `the preview domain ${d} is a name under the preview domain ${other}; choose domains that are not nested that way`;
+    }
+  }
+  return null;
+}
+
+/** A name DNS can hold: two labels or more, each a valid LDH label. No wildcard, no trailing dot. */
+export function isDomainName(name: string): boolean {
+  if (name.length === 0 || name.length > 253 || name !== name.toLowerCase()) return false;
+  const labels = name.split(".");
+  return (
+    labels.length >= 2 && labels.every((l) => LABEL_RE.test(l)) && !/^\d+$/.test(labels.at(-1)!)
+  );
+}
+
+/** The domain itself or any name under it, at any depth. */
+export function isWithin(host: string, domain: string): boolean {
+  const d = bare(domain);
+  return host === d || host.endsWith("." + d);
 }
 
 export function fqdn(label: string, baseDomain: string): string {

@@ -1,11 +1,11 @@
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Host } from "@gangway/shared/domain";
-import { domainPairProblem } from "@gangway/shared/hostname";
 import { publicOriginFor, type PublicOrigin } from "@gangway/shared/url";
 import { Audit } from "../audit/audit.ts";
 import type { Config } from "../config.ts";
 import type { Db } from "../db/types.ts";
+import { DomainRegistry } from "../domains/registry.ts";
 import { EventBus } from "../events/bus.ts";
 import type { Logger } from "../logger.ts";
 import type { SiteStore } from "../previews/site.ts";
@@ -25,6 +25,7 @@ export type Core = {
   settings: Settings;
   baseDomain: () => string;
   previewDomain: () => string;
+  domains: DomainRegistry;
   publicOrigin: PublicOrigin;
   origin: (label: string) => string;
   bus: EventBus;
@@ -48,9 +49,14 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
   const { db, repos } = openStorage(config.databasePath ?? join(stateDir, "gangway.db"), logger);
   const settings = new Settings(config.overrides, repos.settings);
   const baseDomain = () => settings.get(SETTINGS.baseDomain);
-  const previewDomain = () => settings.get(SETTINGS.previewDomain) || baseDomain();
-  const problem = domainPairProblem(baseDomain(), previewDomain());
-  if (problem) throw new Error(problem);
+  // Throws at boot on a nested pair or a malformed GANGWAY_PREVIEW_DOMAINS.
+  const domains = new DomainRegistry({
+    settings,
+    domains: repos.domains,
+    projects: repos.projects,
+    pinned: config.previewDomains,
+  });
+  const previewDomain = () => domains.defaultDomain();
   const publicOrigin: PublicOrigin = { scheme: config.publicScheme, port: config.publicPort };
   const core: Core = {
     config,
@@ -61,11 +67,12 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     settings,
     baseDomain,
     previewDomain,
+    domains,
     publicOrigin,
     origin: (label) =>
       publicOriginFor(label ? `${label}.${baseDomain()}` : baseDomain(), publicOrigin),
     bus: new EventBus(repos.events, (e) => logger.warn("event listener threw", { err: e })),
-    table: new RouteTable(repos.routes),
+    table: new RouteTable(repos.routes, (host) => domains.aliasTarget(host)),
     audit: new Audit(repos.audit, logger.child({ mod: "audit" })),
     updates: new UpdateCheck({
       current: config.version,

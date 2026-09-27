@@ -49,6 +49,15 @@ describe('ConnectAgent', () => {
     expect(env[1]).toBe('Trusted internal domains: mcp.preview.example.com, *.preview.example.com');
   });
 
+  it('with preview domains of its own, the note names each of them', () => {
+    const env: string[] = JSON.parse(
+      autoModeSettings(`${MCP}/`, ['gway.app', 'previews.client.com']),
+    ).autoMode.environment;
+    expect(env[1]).toBe(
+      'Trusted internal domains: mcp.preview.example.com, *.gway.app, *.previews.client.com',
+    );
+  });
+
   it("Cursor's install link carries the config as base64 JSON", () => {
     const href = recipes(`${MCP}/`).cursor.link!.href;
     const config = new URL(href).searchParams.get('config')!;

@@ -82,6 +82,7 @@ async function open(permissions: Permission[] = ['previews.read', 'previews.depl
     r.http.expectOne('/v1/runtimes').flush(RUNTIMES);
     await r.settle();
     r.http.expectOne('/v1/projects').flush({ projects: [] });
+    r.http.expectOne('/v1/domains').flush({ available: ['preview.example.com'] });
     r.http.expectOne('/v1/templates').flush({ templates: [] });
     await r.settle();
   }

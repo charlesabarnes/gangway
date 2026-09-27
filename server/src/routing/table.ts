@@ -58,18 +58,55 @@ function toEntry(s: RouteSeed): RouteEntry {
   };
 }
 
+/** The preview a custom hostname answers for, if it is one. */
+export type AliasResolver = (hostname: string) => string | undefined;
+
 export class RouteTable {
   readonly #byHostname = new Map<string, RouteEntry>();
   readonly #byPreview = new Map<string, Set<string>>();
+  readonly #aliases = new Map<string, RouteEntry>();
   readonly #seen = new Set<string>();
   readonly #repo: RoutesRepo;
+  readonly #aliasOf: AliasResolver | undefined;
 
-  constructor(repo: RoutesRepo) {
+  constructor(repo: RoutesRepo, aliasOf?: AliasResolver) {
     this.#repo = repo;
+    this.#aliasOf = aliasOf;
   }
 
+  /** A preview's own hostname, or a custom hostname standing in for its primary route. */
   lookup(hostname: string): RouteEntry | undefined {
-    return this.#byHostname.get(hostname);
+    return this.#byHostname.get(hostname) ?? this.#alias(hostname);
+  }
+
+  // Reads fall through to the preview's own entry, so its state, visibility, password and
+  // upstream port stay in step; the name and the request counters are the alias's own.
+  #alias(hostname: string): RouteEntry | undefined {
+    const previewId = this.#aliasOf?.(hostname);
+    const routes = previewId ? this.forPreview(previewId) : [];
+    const primary = routes.find((e) => e.primary) ?? routes[0];
+    if (!primary) {
+      this.#aliases.delete(hostname);
+      return undefined;
+    }
+    const cached = this.#aliases.get(hostname);
+    if (cached && Object.getPrototypeOf(cached) === primary) return cached;
+    const own = (value: unknown) => ({ value, writable: true, enumerable: true });
+    const entry = Object.create(primary, {
+      hostname: { value: hostname, enumerable: true },
+      inflight: own(0),
+      bytesInFlight: own(0),
+      lastSeenAt: own(0),
+    }) as RouteEntry;
+    this.#aliases.set(hostname, entry);
+    return entry;
+  }
+
+  /** The preview's own entry behind a custom hostname's. */
+  canonical(entry: RouteEntry): RouteEntry {
+    return this.#byHostname.get(entry.hostname) === entry
+      ? entry
+      : (Object.getPrototypeOf(entry) as RouteEntry);
   }
 
   get size(): number {
@@ -125,6 +162,32 @@ export class RouteTable {
     return entry;
   }
 
+  /**
+   * Names every route of a preview under another domain, keeping each label and upstream. Throws
+   * before changing anything when a new name is another preview's.
+   */
+  moveToDomain(previewId: string, domain: string): Map<string, string> {
+    const moves = new Map<string, string>();
+    for (const e of this.forPreview(previewId)) {
+      const to = `${e.hostname.split(".")[0]}.${domain}`;
+      if (to === e.hostname) continue;
+      const taken = this.#byHostname.get(to);
+      if (taken && taken.previewId !== previewId)
+        throw new Error(`${to} is already another preview's hostname`);
+      moves.set(e.hostname, to);
+    }
+    if (moves.size === 0) return moves;
+    this.#repo.rename(moves);
+    const entries = this.forPreview(previewId);
+    for (const e of entries) this.#byHostname.delete(e.hostname);
+    this.#byPreview.delete(previewId);
+    for (const e of entries) {
+      const to = moves.get(e.hostname);
+      this.#index(to ? { ...e, hostname: to } : e);
+    }
+    return moves;
+  }
+
   updateUpstreamPort(hostname: string, port: number): void {
     const e = this.#byHostname.get(hostname);
     if (!e) return;
@@ -153,8 +216,9 @@ export class RouteTable {
   }
 
   touch(hostname: string, at: number): void {
-    const e = this.#byHostname.get(hostname);
-    if (!e) return;
+    const found = this.lookup(hostname);
+    if (!found) return;
+    const e = this.canonical(found);
     e.lastSeenAt = at;
     this.#seen.add(e.previewId);
   }

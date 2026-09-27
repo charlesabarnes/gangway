@@ -41,7 +41,8 @@ export type PreviewSource =
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];
 
-export type PreviewUrl = { service: string; url: string; primary: boolean };
+/** custom: a hostname claimed for it, not one gangway named. */
+export type PreviewUrl = { service: string; url: string; primary: boolean; custom?: true };
 
 export type PasswordMode = 'inherit' | 'none' | 'set' | 'generated';
 export type PasswordChoice =
@@ -69,6 +70,8 @@ export type Preview = {
   password: PasswordMode;
   passwordLogin: PasswordLogin;
   watermark: WatermarkChoice;
+  /** The domain chosen for it; null follows its repository, then the server. */
+  domain: string | null;
   access: PreviewAccess;
   lastSeenAt: string | null;
   error: string | null;
@@ -145,6 +148,7 @@ export const PERMISSIONS = [
   'previews.update',
   'previews.update_own',
   'previews.watermark',
+  'previews.domain',
   'previews.data',
   'previews.view_private',
   'previews.skip_password',
@@ -166,6 +170,8 @@ export const PERMISSIONS = [
   'github.manage',
   'repos.manage',
   'repos.secrets',
+  'repos.domains',
+  'domains.manage',
   'templates.manage',
   'artifacts.manage',
   'apps.read',
@@ -201,6 +207,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     'previews.destroy_own',
     'previews.update_own',
     'previews.watermark',
+    'previews.domain',
   ],
   update: ['previews.update'],
   artifacts: [
@@ -209,8 +216,9 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     'previews.update_own',
     'previews.destroy_own',
     'previews.watermark',
+    'previews.domain',
   ],
-  projects: ['previews.read', 'repos.manage'],
+  projects: ['previews.read', 'repos.manage', 'repos.domains'],
   themes: ['artifacts.manage'],
   secrets: ['previews.secrets'],
   admin: PERMISSIONS,
@@ -274,6 +282,8 @@ export type Project = {
   forkClearance: Clearance;
   /** null follows the setting. */
   watermark: 'on' | 'off' | null;
+  domain: string | null;
+  productionPreviewId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -292,6 +302,7 @@ export type ProjectPatch = Partial<
     | 'prClearance'
     | 'forkClearance'
     | 'watermark'
+    | 'domain'
   >
 > & { repository?: string | null };
 export type ProjectCreate = {
@@ -343,7 +354,12 @@ export type Surfaces = {
   adminTokenExists: boolean;
   reenableUi: string;
 };
-export type Capabilities = { surfaces: { ui: boolean; mcp: boolean }; mcpUrl: string };
+export type Capabilities = {
+  surfaces: { ui: boolean; mcp: boolean };
+  mcpUrl: string;
+  /** Every wildcard domain previews may be named under. */
+  previewDomains?: string[];
+};
 export const DISABLE_UI_PHRASE = 'disable the UI';
 
 export type RuntimeId = 'static' | 'node' | 'bun' | 'deno' | 'workerd' | 'python' | 'php';

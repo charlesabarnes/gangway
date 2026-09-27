@@ -14,6 +14,8 @@ export type SurfacesDeps = {
   apiOrigin: () => string;
   mcpOrigin: () => string;
   onMcpDisabled?: (() => void) | undefined;
+  /** Every wildcard domain previews may be named under, for an agent's allowlist. */
+  previewDomains?: (() => readonly string[]) | undefined;
 };
 
 const SURFACES = { ui: SETTINGS.surfacesUi, mcp: SETTINGS.surfacesMcp } as const satisfies Record<
@@ -41,6 +43,7 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
         mcp: d.settings.get(SETTINGS.surfacesMcp),
       },
       mcpUrl: d.mcpOrigin(),
+      ...(d.previewDomains ? { previewDomains: d.previewDomains() } : {}),
     }),
   );
 

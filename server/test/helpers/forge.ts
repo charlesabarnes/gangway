@@ -101,6 +101,7 @@ export function fakePreviews(instance = "test") {
         id,
         project: `gw-${instance}-${slug}`,
         watermark: "inherit",
+        domain: null,
         title: null,
         icon: null,
         hostId: "local",

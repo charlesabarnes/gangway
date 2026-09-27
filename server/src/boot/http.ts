@@ -22,6 +22,7 @@ import type { Core } from "./core.ts";
 import type { ForgeWiring } from "./forge.ts";
 import type { Identity } from "./identity.ts";
 import { publicRoutes, v1Routes } from "./routes.ts";
+import { claimDeps } from "./domains.ts";
 
 export type HttpParts = PreviewWiring &
   Pick<ForgeWiring, "githubApp" | "pulls"> & {
@@ -118,6 +119,7 @@ function createMcp(d: HttpDeps): McpSurface {
         apiOrigin: () => d.origin("api"),
       },
       themes: { themes: d.repos.artifactThemes, settings },
+      domains: claimDeps(d),
     }),
     uploads,
     secretUploads,

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { controlGate } from "../../src/net/control-allow.ts";
 import { dispatch, type DispatchDeps, type Surface } from "../../src/net/dispatch.ts";
 import { BodyTooLarge, DEFAULT_LIMITS } from "../../src/net/limits.ts";
+import { RequestRates } from "../../src/net/rates.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
 import type { PreviewState } from "@gangway/shared/domain";
 
@@ -143,7 +144,7 @@ describe("reserved labels", () => {
 
 describe("a separate preview domain", () => {
   const PREVIEWS = "gangway-preview.app";
-  const two = (e: RouteEntry | null) => deps({ previewDomain: () => PREVIEWS }, e);
+  const two = (e: RouteEntry | null) => deps({ previewDomains: () => [PREVIEWS] }, e);
 
   test("a preview answers on the preview domain", async () => {
     const res = await dispatch(
@@ -168,7 +169,7 @@ describe("a separate preview domain", () => {
   test("the preview apex serves only the fonts gangway's own pages load", async () => {
     const font = async (req: Request) =>
       new URL(req.url).pathname.startsWith("/_gangway/fonts/") ? new Response("FONT") : null;
-    const d = deps({ previewDomain: () => PREVIEWS, font }, null);
+    const d = deps({ previewDomains: () => [PREVIEWS], font }, null);
     const at = (path: string) =>
       dispatch(new Request(`https://x${path}`, { headers: { host: PREVIEWS } }), d);
     expect(await (await at("/_gangway/fonts/plex.woff2")).text()).toBe("FONT");
@@ -370,5 +371,31 @@ describe("a private control plane", () => {
     ])
       expect((await dispatch(at(BASE, path), stranger)).status).toBe(200);
     expect((await dispatch(at(BASE, "/v1/previews"), stranger)).status).toBe(404);
+  });
+});
+
+describe("rate limits and custom hostnames", () => {
+  test("a client over its allowance gets 429 with Retry-After, before the upstream", async () => {
+    const rates = new RequestRates(() => ({ perClient: 1, perPreview: 0, socketsPerClient: 0 }));
+    let calls = 0;
+    const upstream = {
+      name: "count",
+      fetch: async () => {
+        calls++;
+        return new Response("ok");
+      },
+    };
+    const d = deps({ rates, upstream });
+    expect((await dispatch(get(`acme-pr-1.${BASE}`), d)).status).toBe(200);
+    const refused = await dispatch(get(`acme-pr-1.${BASE}`), d);
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("retry-after")).toBe("60");
+    expect(calls).toBe(1);
+  });
+
+  test("a host under no domain is a preview when the table has it as a custom hostname", async () => {
+    const custom = entry({ hostname: "www.client.example" });
+    expect((await dispatch(get("www.client.example"), deps({}, custom))).status).toBe(200);
+    expect((await dispatch(get("other.client.example"), deps({}, custom))).status).toBe(421);
   });
 });

@@ -10,7 +10,8 @@ import { previewRoutes } from "../../src/app/routes/previews.ts";
 import { roleRoutes } from "../../src/app/routes/roles.ts";
 import { githubRoutes } from "../../src/app/routes/github.ts";
 import { projectRoutes } from "../../src/app/routes/projects.ts";
-import { secretRoutes } from "../../src/app/routes/secrets.ts";
+import { previewSecretRoutes, secretRoutes } from "../../src/app/routes/secrets.ts";
+import { domainRoutes } from "../../src/app/routes/domains.ts";
 import { settingsRoutes } from "../../src/app/routes/settings.ts";
 import { surfaceRoutes } from "../../src/app/routes/surfaces.ts";
 import { oauthRoutes } from "../../src/app/routes/oauth.ts";
@@ -38,6 +39,8 @@ export function registerAuthenticated(api: Hono<AppEnv>): void {
   oauthRoutes(api, none);
   projectRoutes(api, none);
   secretRoutes(api, none);
+  previewSecretRoutes(api, none);
+  domainRoutes(api, none);
   githubRoutes(api, none);
   templateRoutes(api, none);
   runtimeRoutes(api);

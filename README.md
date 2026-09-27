@@ -268,19 +268,63 @@ idempotent, and it waits until the URL answers.
 
 Everything can be set in the environment. Settings not pinned there are editable in the UI.
 
-| Variable                                     | Default             |                                                                |
-| -------------------------------------------- | ------------------- | -------------------------------------------------------------- |
-| `GANGWAY_BASE_DOMAIN`                        | required            | Domain for the UI, API, MCP and, by default, previews          |
-| `GANGWAY_PREVIEW_DOMAIN`                     | _(base domain)_     | Optional: put previews on their own registrable domain         |
-| `GANGWAY_INSTANCE`                           | required            | Prefix for this install's containers, networks and volumes     |
-| `GANGWAY_ADMIN_TOKEN`                        | _(none)_            | Break-glass admin token, the only one that can mint tokens     |
-| `GANGWAY_TLS_MODE`                           | `selfsigned`        | `selfsigned`, `acme` (DNS-01) or `file`                        |
-| `GANGWAY_TRUSTED_PROXIES`                    | _(none)_            | Proxies whose `X-Forwarded-For` is believed                    |
-| `GANGWAY_CONTROL_ALLOW`                      | _(everyone)_        | Networks allowed to reach the UI and API; previews stay public |
-| `GANGWAY_PREVIEW_MEMORY` / `_CPUS` / `_PIDS` | `1g` / off / `1024` | Limits for every preview container                             |
-| `GANGWAY_SURFACE_MCP`                        | `false`             | Pin the MCP surface on or off                                  |
+| Variable                                     | Default             |                                                                    |
+| -------------------------------------------- | ------------------- | ------------------------------------------------------------------ |
+| `GANGWAY_BASE_DOMAIN`                        | required            | Domain for the UI, API, MCP and, by default, previews              |
+| `GANGWAY_PREVIEW_DOMAIN`                     | _(base domain)_     | Optional: put previews on their own registrable domain             |
+| `GANGWAY_PREVIEW_DOMAINS`                    | _(none)_            | More wildcard domains previews may be named under, comma-separated |
+| `GANGWAY_INSTANCE`                           | required            | Prefix for this install's containers, networks and volumes         |
+| `GANGWAY_ADMIN_TOKEN`                        | _(none)_            | Break-glass admin token, the only one that can mint tokens         |
+| `GANGWAY_TLS_MODE`                           | `selfsigned`        | `selfsigned`, `acme` (DNS-01) or `file`                            |
+| `GANGWAY_TRUSTED_PROXIES`                    | _(none)_            | Proxies whose `X-Forwarded-For` is believed                        |
+| `GANGWAY_CONTROL_ALLOW`                      | _(everyone)_        | Networks allowed to reach the UI and API; previews stay public     |
+| `GANGWAY_PREVIEW_MEMORY` / `_CPUS` / `_PIDS` | `1g` / off / `1024` | Limits for every preview container                                 |
+| `GANGWAY_SURFACE_MCP`                        | `false`             | Pin the MCP surface on or off                                      |
 
 <!-- Expand from compose.yaml: listen ports, hosts, reconcile, ACME email, GitHub App vars. -->
+
+### Domains
+
+Previews are named `<label>.<domain>`. Beyond the domains in the environment, anyone with the
+permission can claim one they own, in Settings (for every repository), on a repository's
+Domains tab (its previews, or a hostname for its production preview), or on a preview (a
+hostname such as `www.example.com`). A claim asks for two DNS records at the owner's provider:
+
+- `_acme-challenge.<name>` as a CNAME to the `<id>.acme.<your base domain>` name gangway shows.
+  It proves the name is theirs, and gangway answers the certificate challenge there.
+- `*.<name>` (or the hostname) as a CNAME to your base domain, which sends the traffic here.
+
+gangway checks every minute. With `GANGWAY_TLS_MODE=acme` and a Cloudflare token for the base
+domain's zone, it then gets a certificate for the name and serves it by SNI, one certificate per
+domain. A repository or preview chooses its domain from those it may use; a preview moves when
+it is next deployed or rebuilt.
+
+Behind a reverse proxy the proxy holds the certificates. Caddy can get one per name on demand:
+
+```caddyfile
+{
+  on_demand_tls {
+    ask http://gangway:8080/_gangway/tls/ask
+  }
+}
+https:// {
+  tls {
+    on_demand
+  }
+  reverse_proxy https://gangway:8443 {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}
+```
+
+The ask is on gangway's plain-HTTP listener (`GANGWAY_LISTEN_HTTP_PORT`, 8080 unless set empty).
+gangway answers it only from loopback or `GANGWAY_TRUSTED_PROXIES`, and only for names it
+serves today. Nginx Proxy Manager needs a proxy host and certificate per domain, added by hand.
+
+Preview traffic is rate limited per visitor and per preview (Settings → Traffic limits); past
+the limit a preview answers 429.
 
 ## Security
 

@@ -143,6 +143,19 @@ export class PreviewsStore {
     }
   }
 
+  /** Stored now; the preview moves to it on its next deploy or rebuild. */
+  async setDomain(id: string, domain: string | null): Promise<Preview> {
+    try {
+      const { preview } = await firstValueFrom(
+        this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/domain`, { domain }),
+      );
+      this.#put(preview);
+      return preview;
+    } catch (e) {
+      throw toProblem(e);
+    }
+  }
+
   async setWatermark(id: string, watermark: WatermarkChoice): Promise<Preview> {
     try {
       const { preview } = await firstValueFrom(

@@ -7,12 +7,14 @@ import {
   failedPage,
   misdirectedPage,
   payloadTooLargePage,
+  tooManyPage,
   unknownPage,
   upstreamTimeoutPage,
   wakingPage,
 } from "./error-pages.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
 import { release, tryAcquire, type Limits } from "./limits.ts";
+import type { RequestRates } from "./rates.ts";
 import { isBodyTooLarge, isTimeout, type Upstream } from "./upstream.ts";
 import { forMark, MARK_PATH, markResponse, stamp, wantsMark } from "./watermark.ts";
 
@@ -25,11 +27,13 @@ export type SurfaceHandler = (
 
 export type DispatchDeps = {
   baseDomain: () => string;
-  /** Defaults to baseDomain. */
-  previewDomain?: () => string;
+  /** Every wildcard domain previews are named under; defaults to baseDomain. */
+  previewDomains?: () => readonly string[];
   table: RouteTable;
   upstream: Upstream;
   limits: Limits;
+  /** Request and socket rates for preview traffic, per client and per preview. */
+  rates?: RequestRates | undefined;
   surfaceEnabled: (s: Surface) => boolean;
   /** When set, the UI and API answer only the clients it allows. */
   controlGate?: ((req: Request, clientIp: string) => boolean) | undefined;
@@ -54,10 +58,14 @@ export type DispatchDeps = {
 
 export function hostKind(
   host: string,
-  d: Pick<DispatchDeps, "baseDomain" | "previewDomain">,
+  d: Pick<DispatchDeps, "baseDomain" | "previewDomains" | "table">,
 ): HostKind {
   const base = d.baseDomain();
-  return classifyHost(host, base, d.previewDomain?.() || base);
+  const domains = d.previewDomains?.() ?? [];
+  const kind = classifyHost(host, base, domains.length > 0 ? domains : [base]);
+  // A custom hostname sits under none of them.
+  if (kind.kind === "misdirected" && d.table.lookup(host)) return { kind: "preview" };
+  return kind;
 }
 
 function surfaceFor(label: string): Surface {
@@ -160,6 +168,8 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
 
   const entry = d.table.lookup(host);
   if (!entry) return unknownPage(host);
+  const wait = d.rates?.take(clientIp, entry.previewId);
+  if (wait) return tooManyPage(host, wait);
   if (d.watermark && req.url.includes(MARK_PATH) && new URL(req.url).pathname === MARK_PATH)
     return markResponse(req, d.watermark.script());
 

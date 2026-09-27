@@ -67,10 +67,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
   const signal = shutdown.signal;
   const http = createHttp(core, { ...previews, ...forge, deploys, identity, adminToken, signal });
 
-  const domains = [
-    ...new Set([core.baseDomain(), core.previewDomain()].flatMap((d) => [`*.${d}`, d])),
-  ];
-  const certs = await resolveCertificates(core, domains, o.acme);
+  const certs = await resolveCertificates(core, o.acme);
   const surfaceEnabled = surfaceEnabledBy(core.settings);
   const { hooks } = forge;
   const network = startNetwork({ ...core, ctx, surfaceEnabled, http, hooks, bundle: certs.bundle });
@@ -83,7 +80,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     ctx,
     deploys,
     sessions: identity.sessions,
-    renewal: certs.acme && { acme: certs.acme, domains, ...network },
+    renewal: certs.manager && { manager: certs.manager, ...network },
   });
 
   const setupUrl = announceStartup({ core, identity, surfaceEnabled, announce, seeded, network });

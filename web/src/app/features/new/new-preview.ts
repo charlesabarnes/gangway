@@ -109,6 +109,7 @@ import { problemNotes } from './upload';
           [(options)]="options"
           [projects]="projects()"
           [templates]="templates()"
+          [domains]="domains()"
           [namePlaceholder]="upload() ? 'from the upload' : 'automatic, e.g. bun-k3x9'"
         />
 
@@ -152,6 +153,7 @@ export class NewPreview {
   protected readonly runtimesError = signal<string | null>(null);
   protected readonly projects = signal<Project[]>([]);
   protected readonly templates = signal<Template[]>([]);
+  protected readonly domains = signal<string[]>([]);
   protected readonly starting = signal<RuntimeId | null>(null);
 
   protected readonly upload = signal<Collected | null>(null);
@@ -242,6 +244,10 @@ export class NewPreview {
     }
     void firstValueFrom(this.#http.get<{ projects: Project[] }>('/v1/projects')).then(
       (r) => this.projects.set(r.projects),
+      () => {},
+    );
+    void firstValueFrom(this.#http.get<{ available: string[] }>('/v1/domains')).then(
+      (r) => this.domains.set(r.available),
       () => {},
     );
     void firstValueFrom(this.#http.get<{ templates: Template[] }>('/v1/templates')).then(

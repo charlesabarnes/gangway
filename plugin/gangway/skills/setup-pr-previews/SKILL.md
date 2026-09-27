@@ -49,10 +49,20 @@ Call the gangway MCP `project` tool with `repository` (`owner/name` from step 1)
 ## 3b. Runtime secrets, if the app needs them
 
 Secrets every PR preview needs go on the project; gangway adds them when a PR deploys. Use the `secrets` tool:
+
 - From the user's `.env` (never read it yourself): `secrets` with `target: {project: "<slug>"}` and `upload: "new"`, run the `curl … --data-binary @.env` line it prints, then `secrets` with the same target and `upload: "<id>"`. Only names come back.
 - Values the user typed to you: `secrets` with `target: {project: "<slug>"}` and `set`.
 - One PR's own value (e.g. a feature flag): `target: {preview: "<slug>-pr-<n>"}`; it is kept across that PR's pushes.
 - "may not set secrets on project": the connection's secrets scope is limited to its own previews. Ask the user to reconnect (`/mcp`) and allow this repository, or to add them on the project's Secrets page in gangway.
+
+## 3c. The user's own domain, if they ask for one
+
+Previews are named `<slug>-pr-<n>.<the server's domain>`. To put them under the user's domain instead, use the `domains` tool with `target: {project: "<slug>"}`:
+
+- `claim: "*.previews.example.com"` names every PR preview under it. `claim: "www.example.com"` is one hostname for the project's production preview (`production: "<preview>"`).
+- The answer lists two DNS records the user must add at their DNS provider: the `_acme-challenge` CNAME proves they own it, the other sends traffic here. Nothing moves the domain's DNS elsewhere.
+- Once added, `domains` with `check: true` shows it active; then `use: "previews.example.com"` so new PR previews are named under it. Existing previews move on their next push.
+- "lacks the repos.domains permission": the connection lacks the `projects` scope; ask the user to reconnect (`/mcp`).
 
 ## 4. Open the pull request
 

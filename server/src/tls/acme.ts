@@ -46,6 +46,9 @@ const ACCOUNTS_KEY = "acme.accounts";
 
 const challengeName = (identifier: string) => `_acme-challenge.${identifier.replace(/^\*\./, "")}`;
 
+/** A claimed domain's `_acme-challenge` is a CNAME to `delegate`, so its records go there. */
+export type OrderOptions = { delegate?: string | undefined };
+
 export class AcmeProvider implements CertProvider {
   readonly name = "acme" as const;
   readonly #o: AcmeOptions;
@@ -89,6 +92,7 @@ export class AcmeProvider implements CertProvider {
       materials: [
         {
           serverName: domains[0]!,
+          names: domains,
           key: row.keyPem,
           cert: row.certPem + (row.chainPem ?? ""),
           notBefore: row.notBefore ?? undefined,
@@ -99,14 +103,18 @@ export class AcmeProvider implements CertProvider {
     };
   }
 
-  async ensure(domains: string[], signal?: AbortSignal): Promise<CertBundle> {
+  async ensure(domains: string[], signal?: AbortSignal, o: OrderOptions = {}): Promise<CertBundle> {
     const stored = this.load(domains);
-    return stored && !this.isDue(stored) ? stored : this.issue(domains, signal);
+    return stored && !this.isDue(stored) ? stored : this.issue(domains, signal, o);
   }
 
-  async renewIfDue(domains: string[], signal?: AbortSignal): Promise<CertBundle | null> {
+  async renewIfDue(
+    domains: string[],
+    signal?: AbortSignal,
+    o: OrderOptions = {},
+  ): Promise<CertBundle | null> {
     const stored = this.load(domains);
-    return stored && !this.isDue(stored) ? null : this.issue(domains, signal);
+    return stored && !this.isDue(stored) ? null : this.issue(domains, signal, o);
   }
 
   async #client(): Promise<AcmeApi> {
@@ -130,7 +138,7 @@ export class AcmeProvider implements CertProvider {
     return client;
   }
 
-  async issue(domains: string[], signal?: AbortSignal): Promise<CertBundle> {
+  async issue(domains: string[], signal?: AbortSignal, o: OrderOptions = {}): Promise<CertBundle> {
     const { dns, logger, directoryUrl } = this.#o;
     const began = this.#now();
     logger.info("acme order starting", { domains, directoryUrl });
@@ -143,7 +151,7 @@ export class AcmeProvider implements CertProvider {
 
     const created: TxtRecord[] = [];
     try {
-      const pending = await this.#publishChallenges(client, authzs, created, signal);
+      const pending = await this.#publishChallenges(client, authzs, created, signal, o.delegate);
       await this.#validate(client, pending, signal);
       return await this.#finalize(client, order, domains, began);
     } finally {
@@ -164,6 +172,7 @@ export class AcmeProvider implements CertProvider {
     authzs: acme.Authorization[],
     created: TxtRecord[],
     signal: AbortSignal | undefined,
+    delegate: string | undefined,
   ): Promise<PendingChallenges> {
     const pending: PendingChallenges = { challenges: [], byName: new Map() };
     for (const authz of authzs) {
@@ -171,7 +180,7 @@ export class AcmeProvider implements CertProvider {
       const challenge = authz.challenges.find((c) => c.type === "dns-01");
       if (!challenge)
         throw new Error(`the CA offered no dns-01 challenge for ${authz.identifier.value}`);
-      const name = challengeName(authz.identifier.value);
+      const name = delegate ?? challengeName(authz.identifier.value);
       const value = await client.getChallengeKeyAuthorization(challenge);
       signal?.throwIfAborted();
       created.push({ ...(await this.#o.dns.createTxt(name, value)), name });
@@ -247,6 +256,7 @@ export class AcmeProvider implements CertProvider {
       materials: [
         {
           serverName: domains[0]!,
+          names: domains,
           key: key.toString(),
           cert: leaf + chainPem,
           notBefore: info.notBefore,

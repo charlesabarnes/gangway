@@ -19,17 +19,19 @@ import { ToastService } from '../../ui/toast';
 import { PreviewsStore } from '../previews/previews.store';
 import { ProjectPreviews } from './project-previews';
 import { ProjectSecrets } from './project-secrets';
+import { ProjectDomains } from './project-domains';
 import { ProjectSettings } from './project-settings';
 import { ProjectWorkflow } from './project-workflow';
 import { Skeleton } from '../../ui/skeleton';
 
-type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
+type Tab = 'previews' | 'settings' | 'secrets' | 'domains' | 'workflow';
 
 @Component({
   selector: 'app-project',
   imports: [
     ProjectPreviews,
     ProjectSecrets,
+    ProjectDomains,
     ProjectSettings,
     ProjectWorkflow,
     RouterLink,
@@ -100,6 +102,9 @@ type Tab = 'previews' | 'settings' | 'secrets' | 'workflow';
           @case ('secrets') {
             <app-project-secrets [project]="p" />
           }
+          @case ('domains') {
+            <app-project-domains [project]="p" (saved)="saved($event)" />
+          }
           @case ('workflow') {
             <app-project-workflow [project]="p" [(port)]="port" />
           }
@@ -140,6 +145,7 @@ export class ProjectPage {
       { id: 'previews' as Tab, label: 'Previews' },
       ...(this.#auth.can('repos.manage') ? [{ id: 'settings' as Tab, label: 'Settings' }] : []),
       ...(this.#auth.can('repos.secrets') ? [{ id: 'secrets' as Tab, label: 'Secrets' }] : []),
+      ...(this.#auth.can('repos.domains') ? [{ id: 'domains' as Tab, label: 'Domains' }] : []),
       ...(p?.fullName && p.prTrigger === 'workflow'
         ? [{ id: 'workflow' as Tab, label: 'Workflow' }]
         : []),

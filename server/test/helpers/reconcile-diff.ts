@@ -19,6 +19,7 @@ export const mkPreview = (
   id,
   project: `gw-${id}`,
   watermark: "inherit",
+  domain: null,
   title: null,
   icon: null,
   hostId: HOST,

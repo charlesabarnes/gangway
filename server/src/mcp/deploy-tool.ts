@@ -11,6 +11,7 @@ import type { DeploySource } from "../previews/deploy-types.ts";
 import { requestHash } from "../previews/idempotent.ts";
 import type { RedeployInput } from "../previews/redeploy-input.ts";
 import { setPreviewWatermark } from "../previews/watermark.ts";
+import { setPreviewDomain } from "../previews/domain.ts";
 import { redeploy } from "../previews/redeploy.ts";
 import { serveSite } from "../net/site.ts";
 import { renderDist } from "../previews/artifact-render.ts";
@@ -140,6 +141,7 @@ function deployInput(
     ...(args.password ? { password: { mode: args.password } } : {}),
     ...(args.passwordLogin ? { passwordLogin: args.passwordLogin } : {}),
     ...(args.watermark ? { watermark: args.watermark } : {}),
+    ...(args.domain ? { domain: args.domain } : {}),
     ...(secrets ? { secrets } : {}),
   };
 }
@@ -264,7 +266,7 @@ export class DeployTool {
     return `ready: ${url} (rebuilt)\n${describePreview(ctx, outcome.preview)}${await this.#report(outcome.preview, res.plan, args.check)}`;
   }
 
-  /** Sets a title, icon or watermark given with preview; none of them needs a rebuild. */
+  /** Sets a title, icon, watermark or domain given with preview; a domain moves on its next rebuild. */
   #label(actor: Actor, target: Preview, args: DeployArgs): boolean {
     const { ctx } = this.#d;
     const icon = iconOf(args);
@@ -277,7 +279,8 @@ export class DeployTool {
       ctx.audit.record(actor, "preview.icon", target.id, { old: target.icon, new: icon });
     }
     if (args.watermark !== undefined) setPreviewWatermark(ctx, actor, target.id, args.watermark);
-    return args.title !== undefined || icon !== undefined || args.watermark !== undefined;
+    if (args.domain !== undefined) setPreviewDomain(ctx, actor, target.id, args.domain);
+    return [args.title, icon, args.watermark, args.domain].some((x) => x !== undefined);
   }
 
   /** Secrets sent with a new deploy: they need previews.secrets, and are the new preview's own. */

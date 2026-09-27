@@ -23,7 +23,16 @@ export function describePreview(ctx: PreviewContext, p: Preview): string {
   if (p.ttlExpiresAt !== null)
     parts.push(`expires in ${inTime(p.ttlExpiresAt.getTime() - ctx.now())}`);
   if (p.state === "failed" && p.error) parts.push(`error: ${p.error}`);
+  const moving = movingTo(ctx, p);
+  if (moving) parts.push(`moves to ${moving} on its next rebuild`);
   return parts.join(" — ");
+}
+
+/** The domain it will be named under once rebuilt, when that is not where it is now. */
+function movingTo(ctx: PreviewContext, p: Preview): string | null {
+  const now = ctx.table.forPreview(p.id)[0]?.hostname;
+  const next = ctx.domains?.domainOf(p);
+  return now && next && !now.endsWith(`.${next}`) ? next : null;
 }
 
 const listOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);

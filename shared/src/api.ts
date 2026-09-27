@@ -4,6 +4,7 @@ import { RUNTIME_IDS } from "./runtimes.ts";
 import { ADDON_IDS, isAddonId } from "./addons.ts";
 import { WATERMARK_CHOICES, NETWORK_CHOICES } from "./domain.ts";
 import { PREVIEW_ICON_COLORS, PREVIEW_ICONS, PreviewIconSchema } from "./preview-icon.ts";
+import { DomainNameSchema } from "./domains-api.ts";
 
 export const PREVIEW_STATE_VALUES = [
   "building",
@@ -113,6 +114,7 @@ export const TarballDeployQuerySchema = z.object({
   passwordLogin: z.enum(["inherit", "on", "off", "only"]).optional(),
   network: z.enum(NETWORK_CHOICES).optional(),
   watermark: z.enum(WATERMARK_CHOICES).optional(),
+  domain: DomainNameSchema.optional(),
   /** The old name for watermark. */
   brand: z.enum(WATERMARK_CHOICES).optional(),
 });
@@ -222,6 +224,8 @@ export const DeployRequestSchema = z.strictObject({
   password: PasswordChoiceSchema.optional(),
   passwordLogin: PasswordLoginSchema.optional(),
   watermark: z.enum(WATERMARK_CHOICES).optional(),
+  /** The wildcard domain it is named under; absent follows the project, then the default. */
+  domain: DomainNameSchema.optional(),
   /** Secrets for this preview alone: stored on it, merged over the org's and project's. */
   secrets: envMap.optional(),
 });
@@ -379,6 +383,7 @@ export const ProjectPatchSchema = z.strictObject({
   prClearance: z.enum(["none", "low", "standard", "high"]).nullable().optional(),
   forkClearance: z.enum(["none", "low", "standard", "high"]).optional(),
   watermark: z.enum(["on", "off"]).nullable().optional(),
+  domain: DomainNameSchema.nullable().optional(),
 });
 export type ProjectPatchRequest = z.infer<typeof ProjectPatchSchema>;
 

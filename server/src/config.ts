@@ -68,6 +68,8 @@ const ConfigSchema = z.object({
   trustedProxies: addressList,
   // Who may reach the UI and API; empty is everyone.
   controlAllow: addressList,
+  // More wildcard preview domains, beside previewDomain; each needs `*.<domain>` DNS to here.
+  previewDomains: addressList,
 
   // Keep under the orchestrator's kill timeout (Docker's default is 10s).
   shutdownGraceMs: z.coerce.number().int().min(0).default(8_000),
@@ -110,6 +112,7 @@ const ENV_MAP = {
   GANGWAY_SHUTDOWN_GRACE_MS: "shutdownGraceMs",
   GANGWAY_TRUSTED_PROXIES: "trustedProxies",
   GANGWAY_CONTROL_ALLOW: "controlAllow",
+  GANGWAY_PREVIEW_DOMAINS: "previewDomains",
   GANGWAY_TLS_MODE: "tlsMode",
   GANGWAY_TLS_CERT_PATH: "tlsCertPath",
   GANGWAY_TLS_KEY_PATH: "tlsKeyPath",

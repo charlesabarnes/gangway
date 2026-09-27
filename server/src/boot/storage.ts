@@ -9,6 +9,7 @@ import {
   AuditRepo,
   BuildsRepo,
   CertificatesRepo,
+  DomainsRepo,
   EventsRepo,
   HostsRepo,
   IdempotencyRepo,
@@ -41,6 +42,7 @@ export type Repos = {
   audit: AuditRepo;
   builds: BuildsRepo;
   certificates: CertificatesRepo;
+  domains: DomainsRepo;
   events: EventsRepo;
   hosts: HostsRepo;
   idempotency: IdempotencyRepo;
@@ -76,6 +78,7 @@ function openRepos(db: Db): Repos {
     audit: new AuditRepo(db),
     builds: new BuildsRepo(db),
     certificates: new CertificatesRepo(db),
+    domains: new DomainsRepo(db),
     events: new EventsRepo(db),
     hosts: new HostsRepo(db),
     idempotency: new IdempotencyRepo(db),

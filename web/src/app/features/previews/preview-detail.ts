@@ -29,6 +29,7 @@ import { DbBrowser } from './db-browser';
 import { LogViewer } from './log-viewer';
 import { PreviewSecretsPanel } from './secrets-panel';
 import { WatermarkPanel } from './watermark-panel';
+import { DomainPanel } from './domain-panel';
 import { PasswordPanel } from './password-panel';
 import { PreviewsStore } from './previews.store';
 import { PreviewTitle } from './preview-title';
@@ -55,6 +56,7 @@ import { Skeleton } from '../../ui/skeleton';
     SourcePanel,
     StateBadge,
     WatermarkPanel,
+    DomainPanel,
   ],
   template: `
     <section class="gw-page gap-9">
@@ -194,6 +196,7 @@ import { Skeleton } from '../../ui/skeleton';
         @if (p.state !== 'destroyed' && p.state !== 'destroying') {
           <app-password-panel [preview]="p" />
           <app-watermark-panel [preview]="p" />
+          <app-domain-panel [preview]="p" />
           <app-preview-secrets-panel [preview]="p" />
           <app-source-panel [previewId]="p.id" [uploaded]="p.source.kind === 'tarball'" />
         }

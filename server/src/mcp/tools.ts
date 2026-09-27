@@ -11,6 +11,7 @@ import { DeployTool } from "./deploy-tool.ts";
 import { describePreview, logTail, refusalDetail } from "./describe.ts";
 import { connectProject } from "./project-tool.ts";
 import { setSecrets } from "./secrets-tool.ts";
+import { DOMAINS_TOOL, manageDomains, type DomainsArgs } from "./domains-tool.ts";
 import { saveTheme } from "./theme-tool.ts";
 import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
 import { nameOf, resolveFor, visibleTo } from "./resolve.ts";
@@ -106,6 +107,9 @@ export class Tools {
     s.registerTool("secrets", SECRETS_TOOL, (args) =>
       this.#guard("secrets", async () => this.secrets(scope, args)),
     );
+    s.registerTool("domains", DOMAINS_TOOL, (args) =>
+      this.#guard("domains", () => this.domains(scope, args)),
+    );
     return s;
   }
 
@@ -186,6 +190,11 @@ export class Tools {
         "reconnect gangway (in Claude Code: /mcp, then re-authenticate) and grant the secrets scope, choosing where it may set them",
       );
     return setSecrets(this.#d, scope.actor, args);
+  }
+
+  domains(scope: CallScope, args: DomainsArgs): Promise<string> {
+    need(scope.actor, ...TOOL_PERMISSIONS.domains);
+    return manageDomains(this.#d, scope.actor, args);
   }
 
   async status(scope: CallScope, ref: string | undefined): Promise<string> {

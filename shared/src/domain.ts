@@ -87,6 +87,30 @@ export type Project = {
   forkClearance: Clearance;
   /** null follows the setting. */
   watermark: "on" | "off" | null;
+  /** The wildcard domain its previews are named under; null follows the setting. */
+  domain: string | null;
+  productionPreviewId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type DomainKind = "wildcard" | "exact";
+export type DomainStatus = "pending" | "active" | "failed";
+
+/** A claimed name: a wildcard for previews, or one exact hostname; org-owned with neither id. */
+export type Domain = {
+  id: string;
+  name: string;
+  kind: DomainKind;
+  projectId: string | null;
+  previewId: string | null;
+  status: DomainStatus;
+  claimId: string;
+  routingOk: boolean;
+  lastError: string | null;
+  checkedAt: Date | null;
+  verifiedAt: Date | null;
+  createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -138,6 +162,8 @@ export type Preview = {
   password: PasswordMode;
   passwordLogin: PasswordLogin;
   watermark: WatermarkChoice;
+  /** The wildcard domain chosen for this preview; null follows its project, then the setting. */
+  domain: string | null;
   lastSeenAt: Date | null;
   error: string | null;
   createdAt: Date;
