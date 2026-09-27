@@ -9,6 +9,7 @@ import {
   RolesRepo,
   SessionsRepo,
   TokensRepo,
+  UserLinksRepo,
   UsersRepo,
 } from "../../src/db/repos/index.ts";
 import { tempDb } from "./db.ts";
@@ -32,6 +33,7 @@ export function setupAccounts() {
   const sessions = new Sessions(sessionsRepo, roles, now);
   const passwords = new Passwords({ ln: 10 });
   const limiter = new LoginLimiter({}, now);
+  const userLinks = new UserLinksRepo(db, now);
   const accounts = new Accounts({
     db,
     users,
@@ -41,6 +43,8 @@ export function setupAccounts() {
     limiter,
     audit,
     now,
+    // As boot wires it: a new password or a disabled account ends any emailed link.
+    onCredentialsRevoked: (id) => userLinks.deleteForUser(id),
   });
   const actions = () =>
     auditRepo
@@ -61,6 +65,7 @@ export function setupAccounts() {
     audit,
     passwords,
     limiter,
+    userLinks,
     accounts,
     actions,
     tokensRepo: new TokensRepo(db, now),

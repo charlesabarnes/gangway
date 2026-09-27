@@ -251,9 +251,9 @@ export const PreviewLogsQuerySchema = z.object({
 });
 
 // Lowercased because users.email is UNIQUE without NOCASE.
-const email = z.string().trim().toLowerCase().pipe(z.string().email().max(254));
+export const email = z.string().trim().toLowerCase().pipe(z.string().email().max(254));
 
-const password = z.string().min(12, "at least 12 characters").max(256);
+export const password = z.string().min(12, "at least 12 characters").max(256);
 
 export const LoginRequestSchema = z.strictObject({
   email,
@@ -271,7 +271,17 @@ export type SetupRequest = z.infer<typeof SetupRequestSchema>;
 
 const roleId = z.string().min(1).max(64);
 
-export const CreateUserSchema = z.strictObject({ email, password, roleId });
+// A first password to hand over, or `invite: true` to email a link to choose one.
+export const CreateUserSchema = z
+  .strictObject({
+    email,
+    roleId,
+    password: password.optional(),
+    invite: z.literal(true).optional(),
+  })
+  .refine((u) => (u.password === undefined) !== (u.invite === undefined), {
+    message: "give a first password, or invite: true to email a link, not both",
+  });
 export type CreateUserRequest = z.infer<typeof CreateUserSchema>;
 
 export const UpdateUserSchema = z

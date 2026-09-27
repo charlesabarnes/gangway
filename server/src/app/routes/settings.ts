@@ -1,11 +1,13 @@
 import type { Hono } from "hono";
 import { DefaultPasswordSchema, SetSettingsSchema } from "@gangway/shared/api";
+import { MailTestSchema } from "@gangway/shared/mail-api";
 import type { AuditSink } from "../../audit/audit.ts";
 import { conflict, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
 import { SETTINGS, SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
 import type { DomainRegistry } from "../../domains/registry.ts";
+import type { Mailer } from "../../mail/mailer.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
@@ -90,6 +92,24 @@ export function settingsRoutes(
       },
     });
     return c.json({ settings: settings.view() });
+  });
+}
+
+export function mailSettingsRoutes(api: Hono<AppEnv>, audit: AuditSink, mailer: Mailer): void {
+  // Sends with the saved settings, so a green result means invitations and resets will work.
+  api.post("/settings/mail/test", requirePermission("settings.write"), async (c) => {
+    const { to } = MailTestSchema.parse(await readJson(c));
+    await mailer.send({
+      to,
+      subject: "gangway can send email",
+      text: [
+        "This is a test from gangway's Admin > Server settings.",
+        "",
+        "Invitations and password resets will arrive like this one.",
+      ].join("\n"),
+    });
+    audit.record(c.get("actor"), "settings.mail.tested", null, { new: { to } });
+    return c.body(null, 204);
   });
 }
 

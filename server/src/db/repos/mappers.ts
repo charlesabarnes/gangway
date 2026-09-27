@@ -19,7 +19,6 @@ import type {
   Route,
   Session,
   Template,
-  User,
   Visibility,
 } from "@gangway/shared/domain";
 import type { Scope, SecretTargets } from "@gangway/shared/permissions";
@@ -28,7 +27,7 @@ const toDate = (n: number | null | undefined): Date | null =>
   n === null || n === undefined ? null : new Date(n);
 export const fromDate = (d: Date | null | undefined): number | null =>
   d === null || d === undefined ? null : d.getTime();
-const bool = (n: number): boolean => n === 1;
+export const bool = (n: number): boolean => n === 1;
 export const num = (b: boolean): number => (b ? 1 : 0);
 
 export type HostRow = {
@@ -216,23 +215,6 @@ export const rowToRole = (r: RoleRow): Role => ({
   name: r.name,
   description: r.description,
   builtin: bool(r.builtin),
-  createdAt: new Date(r.created_at),
-});
-
-export const USER_COLUMNS = "id, email, role_id, disabled, created_at";
-export type UserRow = {
-  id: string;
-  email: string;
-  role_id: string;
-  disabled: number;
-  created_at: number;
-};
-
-export const rowToUser = (r: UserRow): User => ({
-  id: r.id,
-  email: r.email,
-  roleId: r.role_id,
-  disabled: bool(r.disabled),
   createdAt: new Date(r.created_at),
 });
 

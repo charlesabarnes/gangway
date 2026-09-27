@@ -1,7 +1,8 @@
 import type { OAuthGrant, User } from "@gangway/shared/domain";
 import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
-import { parseTargets, rowToUser, type UserRow } from "./mappers.ts";
+import { parseTargets } from "./mappers.ts";
+import { rowToUser, type UserRow } from "./users.ts";
 
 type GrantRow = {
   id: string;
@@ -69,9 +70,10 @@ type Joined = GrantRow & {
   u_email: string;
   u_role_id: string;
   u_disabled: number;
+  u_invited: number;
   u_created_at: number;
 };
-const JOIN = `SELECT ${cols("g")}, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.created_at AS u_created_at
+const JOIN = `SELECT ${cols("g")}, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
                 FROM oauth_grants g JOIN users u ON u.id = g.user_id`;
 
 const toRecord = (r: Joined): GrantRecord => {
@@ -80,6 +82,7 @@ const toRecord = (r: Joined): GrantRecord => {
     email: r.u_email,
     role_id: r.u_role_id,
     disabled: r.u_disabled,
+    invited: r.u_invited,
     created_at: r.u_created_at,
   };
   return {

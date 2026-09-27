@@ -1,7 +1,8 @@
 import type { ApiToken, User } from "@gangway/shared/domain";
 import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
-import { TOKEN_COLUMNS, rowToToken, rowToUser, type TokenRow, type UserRow } from "./mappers.ts";
+import { TOKEN_COLUMNS, rowToToken, type TokenRow } from "./mappers.ts";
+import { rowToUser, type UserRow } from "./users.ts";
 
 export type CreateToken = {
   id: string;
@@ -59,13 +60,14 @@ export class TokensRepo {
         u_email: string | null;
         u_role_id: string | null;
         u_disabled: number | null;
+        u_invited: number | null;
         u_created_at: number | null;
       }
     >(
       `SELECT ${TOKEN_COLUMNS.split(", ")
         .map((c) => `t.${c}`)
         .join(", ")},
-              u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.created_at AS u_created_at
+              u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
          FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id
         WHERE t.token_hash = $hash AND t.revoked_at IS NULL
           AND (t.expires_at IS NULL OR t.expires_at > $now)
@@ -81,6 +83,7 @@ export class TokensRepo {
             email: r.u_email!,
             role_id: r.u_role_id!,
             disabled: r.u_disabled!,
+            invited: r.u_invited!,
             created_at: r.u_created_at!,
           };
     return { token: rowToToken(r), owner: owner ? rowToUser(owner) : null };

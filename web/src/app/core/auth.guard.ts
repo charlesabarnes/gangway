@@ -10,7 +10,9 @@ export function safeReturnUrl(raw: string | null | undefined): string {
     raw.startsWith('//') ||
     raw.startsWith('/\\') ||
     raw.startsWith('/login') ||
-    raw.startsWith('/setup')
+    raw.startsWith('/setup') ||
+    raw.startsWith('/forgot-password') ||
+    raw.startsWith('/set-password')
   )
     return '/';
   return raw;

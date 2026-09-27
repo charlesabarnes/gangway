@@ -108,6 +108,10 @@ services:
       GANGWAY_CONTROL_ALLOW: ${GANGWAY_CONTROL_ALLOW:-}
       # false stops the daily check for a new release on GitHub, and locks it off in Settings.
       GANGWAY_UPDATE_CHECK: ${GANGWAY_UPDATE_CHECK:-}
+      # Outgoing email for invitations and password resets. Empty leaves it to Admin > Server.
+      # smtp://user:password@smtp.example.com:587, or smtps://…:465.
+      GANGWAY_SMTP_URL: ${GANGWAY_SMTP_URL:-}
+      GANGWAY_MAIL_FROM: ${GANGWAY_MAIL_FROM:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${GANGWAY_STATE_PATH:?set GANGWAY_STATE_PATH in .env}:/state

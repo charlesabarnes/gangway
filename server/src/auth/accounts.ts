@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { User } from "@gangway/shared/domain";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
@@ -65,7 +66,7 @@ export class Accounts {
     }
 
     const user = users.getByEmail(email);
-    const usable = user && !user.disabled ? users.credentials(user.id) : undefined;
+    const usable = user && !user.disabled && !user.invited ? users.credentials(user.id) : undefined;
     const ok = usable
       ? await passwords.verify(password, usable)
       : await passwords.verifyDummy(password);
@@ -117,13 +118,16 @@ export class Accounts {
     return this.#d.users.get(id);
   }
 
+  /** Without a password the account is invited: nobody can log in until its link is used. */
   async createUser(
     actor: Actor,
-    input: { email: string; password: string; roleId: string },
+    input: { email: string; password?: string | undefined; roleId: string },
   ): Promise<User> {
     const { db, users, roles, passwords, audit } = this.#d;
     if (!roles.get(input.roleId)) throw unprocessable(`no such role: ${input.roleId}`);
-    const credentials = await passwords.hash(input.password);
+    const invited = input.password === undefined;
+    // A random password nobody knows, so the NOT NULL columns hold a hash that never matches.
+    const credentials = await passwords.hash(input.password ?? randomBytes(32).toString("base64"));
     const user = db.transaction(() => {
       if (users.getByEmail(input.email))
         throw conflict("an account with that email already exists");
@@ -131,11 +135,12 @@ export class Accounts {
         id: ulid(this.#now()),
         email: input.email,
         roleId: input.roleId,
+        invited,
         ...credentials,
       });
     });
     audit.record(actor, "user.created", user.id, {
-      new: { email: user.email, roleId: user.roleId },
+      new: { email: user.email, roleId: user.roleId, ...(invited ? { invited } : {}) },
     });
     return user;
   }

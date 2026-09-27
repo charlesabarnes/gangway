@@ -10,6 +10,18 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login').then((m) => m.Login),
   },
   {
+    path: 'forgot-password',
+    title: 'Forgot password · gangway',
+    canActivate: [anonymousOnly],
+    loadComponent: () => import('./features/auth/forgot-password').then((m) => m.ForgotPassword),
+  },
+  // Unguarded: a link opened while logged in as someone else still works, and logs in as its owner.
+  {
+    path: 'set-password',
+    title: 'Choose a password · gangway',
+    loadComponent: () => import('./features/auth/set-password').then((m) => m.SetPassword),
+  },
+  {
     path: 'setup',
     title: 'Set up · gangway',
     canActivate: [setupOnly],

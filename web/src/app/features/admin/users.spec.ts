@@ -32,13 +32,16 @@ const user = (over: Partial<User>): User => ({
   email: 'ada@example.com',
   roleId: 'admin',
   disabled: false,
+  invited: false,
   createdAt: '2026-01-01T00:00:00Z',
   ...over,
 });
 const ADA = user({});
 const BOB = user({ id: 'u2', email: 'bob@example.com', roleId: 'member' });
 
-async function open(o: { permissions?: readonly Permission[]; users?: User[] } = {}) {
+async function open(
+  o: { permissions?: readonly Permission[]; users?: User[]; email?: boolean } = {},
+) {
   const r = await render(Host);
   const permissions = o.permissions ?? PERMISSIONS;
   const loading = TestBed.inject(AuthService).refresh();
@@ -50,7 +53,7 @@ async function open(o: { permissions?: readonly Permission[]; users?: User[] } =
   });
   await loading;
   await r.settle();
-  r.http.expectOne('/v1/users').flush({ users: o.users ?? [ADA, BOB] });
+  r.http.expectOne('/v1/users').flush({ users: o.users ?? [ADA, BOB], email: o.email ?? false });
   if (permissions.includes('roles.read')) r.http.expectOne('/v1/roles').flush({ roles: ROLES });
   await r.settle();
   return r;
@@ -108,6 +111,71 @@ describe('Admin · Users', () => {
     expect(r.text('handoff-password')).toBe(password);
     expect((r.byTestId('new-password') as HTMLInputElement).value).not.toBe(password);
     r.http.verify();
+  });
+
+  it('with email set up, invites by default and needs no password', async () => {
+    const r = await open({ email: true });
+    expect(r.byTestId('new-password')!.closest('[hidden]')).not.toBeNull();
+    type(r, 'new-email', 'cy@example.com');
+    await r.settle();
+    expect(r.text('create-user')).toBe('Send invitation');
+    r.byTestId('user-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    const req = r.http.expectOne({ method: 'POST', url: '/v1/users' });
+    expect(req.request.body).toEqual({ email: 'cy@example.com', roleId: 'member', invite: true });
+    req.flush(
+      {
+        user: user({ id: 'u3', email: 'cy@example.com', roleId: 'member', invited: true }),
+        invite: { sent: true },
+      },
+      { status: 201, statusText: 'Created' },
+    );
+    await r.settle();
+    expect(r.byTestId('handoff')).toBeNull();
+    expect(row(r, 'cy@').querySelector('[data-testid="user-status"]')!.textContent).toContain(
+      'Invited',
+    );
+    expect(row(r, 'cy@').querySelector('[data-testid="email-link"]')!.textContent).toContain(
+      'Resend invitation',
+    );
+    r.http.verify();
+  });
+
+  it('says when the account was added but the invitation did not go', async () => {
+    const r = await open({ email: true });
+    type(r, 'new-email', 'cy@example.com');
+    await r.settle();
+    r.byTestId('user-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    r.http.expectOne({ method: 'POST', url: '/v1/users' }).flush(
+      {
+        user: user({ id: 'u3', email: 'cy@example.com', roleId: 'member', invited: true }),
+        invite: { sent: false, error: 'the mail server refused: Invalid login' },
+      },
+      { status: 201, statusText: 'Created' },
+    );
+    await r.settle();
+    expect(r.text('user-error')).toContain('the mail server refused: Invalid login');
+    expect(r.allByTestId('user-row')).toHaveLength(3);
+  });
+
+  it('can still hand over a password when email is set up', async () => {
+    const r = await open({ email: true });
+    await click(r, r.byTestId('how-password')!);
+    expect(r.byTestId('new-password')!.closest('[hidden]')).toBeNull();
+    expect(r.text('create-user')).toBe('Add user');
+  });
+
+  it('emails an active account a reset link', async () => {
+    const r = await open({ email: true });
+    await click(r, row(r, 'bob@').querySelector<HTMLElement>('[data-testid="email-link"]')!);
+    r.http.expectOne({ method: 'POST', url: '/v1/users/u2/email-link' }).flush({ sent: 'reset' });
+    await r.settle();
+    r.http.verify();
+  });
+
+  it('without email, offers no invitation and no email buttons', async () => {
+    const r = await open();
+    expect(r.byTestId('invite-choice')).toBeNull();
+    expect(r.byTestId('email-link')).toBeNull();
   });
 
   it('refuses a short password before asking the server', async () => {

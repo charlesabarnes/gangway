@@ -37,6 +37,24 @@ const templateRef = z
     "a template id is 1-32 lowercase letters, digits and hyphens",
   );
 
+// smtp:// upgrades with STARTTLS when the server offers it; smtps:// is TLS from the start (465).
+const smtpUrl = z
+  .string()
+  .trim()
+  .refine(
+    (v) => v === "" || (/^smtps?:\/\/[^/]/.test(v) && URL.canParse(v)),
+    "an smtp:// or smtps:// URL, like smtp://user:password@smtp.example.com:587",
+  );
+
+const mailFrom = z
+  .string()
+  .trim()
+  .max(320)
+  .refine(
+    (v) => v === "" || /^(?:[^<>@\r\n]*<[^<>\s@]+@[^<>\s@]+>|[^<>\s@]+@[^<>\s@]+)$/.test(v),
+    'an address, or a name and an address like "gangway <noreply@example.com>"',
+  );
+
 // A PEM pasted into an env var arrives with literal \n sequences.
 const pem = z.string().transform((v) => v.replace(/\\n/g, "\n").trim());
 
@@ -97,6 +115,8 @@ export const SETTINGS = {
     "https://acme-staging-v02.api.letsencrypt.org/directory",
   ),
   acmeEmail: def("acme.email", z.string().email().or(z.literal("")), ""),
+  mailSmtpUrl: def("mail.smtp.url", smtpUrl, "", { secret: true }),
+  mailFrom: def("mail.from", mailFrom, ""),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
   githubAppId: def("github.appId", z.string(), ""),

@@ -1,6 +1,7 @@
 import type { Session, User } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
-import { rowToSession, rowToUser, type SessionRow, type UserRow } from "./mappers.ts";
+import { rowToSession, type SessionRow } from "./mappers.ts";
+import { rowToUser, type UserRow } from "./users.ts";
 
 export type CreateSession = {
   id: string;
@@ -38,10 +39,11 @@ export class SessionsRepo {
         u_email: string;
         u_role_id: string;
         u_disabled: number;
+        u_invited: number;
         u_created_at: number;
       }
     >(
-      `SELECT s.*, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.created_at AS u_created_at
+      `SELECT s.*, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
          FROM sessions s JOIN users u ON u.id = s.user_id
         WHERE s.id = $id AND s.expires_at > $now AND u.disabled = 0`,
       { id, now },
@@ -52,6 +54,7 @@ export class SessionsRepo {
       email: r.u_email,
       role_id: r.u_role_id,
       disabled: r.u_disabled,
+      invited: r.u_invited,
       created_at: r.u_created_at,
     };
     return { session: rowToSession(r), user: rowToUser(user) };

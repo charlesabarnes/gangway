@@ -227,7 +227,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
 export type SessionUser = { id: string; email: string; role: { id: string; name: string } };
 
 export type SessionInfo =
-  | { authenticated: false; setupRequired: boolean }
+  | { authenticated: false; setupRequired: boolean; passwordReset?: boolean }
   | {
       authenticated: true;
       setupRequired: false;

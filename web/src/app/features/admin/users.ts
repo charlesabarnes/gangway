@@ -4,29 +4,21 @@ import { firstValueFrom } from 'rxjs';
 import type { RolesResponse, User } from '../../core/admin.types';
 import { AuthService } from '../../core/auth.service';
 import { Clock } from '../../core/clock';
-import { issuesOrDetail, toProblem } from '../../core/problem';
+import { toProblem } from '../../core/problem';
 import { Btn } from '../../ui/button';
 import { ClipboardService } from '../../ui/clipboard';
 import { ConfirmDialog } from '../../ui/confirm-dialog';
-import { FIELD } from '../../ui/field';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { Skeleton } from '../../ui/skeleton';
 import { ToastService } from '../../ui/toast';
-
-// No 0/O or 1/l/I, so a password read aloud or copied by hand survives.
-const ALPHABET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-export function generatePassword(length = 20): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join('');
-}
+import { AddUser, generatePassword, type Added } from './add-user';
 
 type Pending = { kind: 'disable' | 'reset'; user: User };
 
 /** Every account: add one, change its role, disable it, or give it a new password. */
 @Component({
   selector: 'app-users-list',
-  imports: [Btn, ConfirmDialog, RelativeTimePipe, Skeleton],
+  imports: [AddUser, Btn, ConfirmDialog, RelativeTimePipe, Skeleton],
   host: { class: 'flex flex-col gap-7' },
   template: `
     @if (handoff(); as h) {
@@ -70,82 +62,12 @@ type Pending = { kind: 'disable' | 'reset'; user: User };
     }
 
     @if (canManage()) {
-      <div class="gw-section">
-        <div class="flex flex-col gap-1">
-          <h2 class="gw-h2">Add a user</h2>
-          <p class="gw-section-note">
-            There are no invitations: you set a first password and hand it over. The role decides
-            what they may do, and you can change it at any time.
-          </p>
-        </div>
-        <form
-          (submit)="create($event)"
-          novalidate
-          class="flex flex-col gap-[18px]"
-          data-testid="user-form"
-        >
-          <div class="grid gap-6 sm:grid-cols-2">
-            <label class="gw-label block"
-              >Email
-              <input
-                [class]="field"
-                type="email"
-                autocomplete="off"
-                placeholder="ada@example.com"
-                [value]="email()"
-                (input)="email.set($any($event.target).value)"
-                data-testid="new-email"
-            /></label>
-            <label class="gw-label block"
-              >Role
-              <select
-                [class]="field"
-                [value]="roleId()"
-                (change)="roleId.set($any($event.target).value)"
-                data-testid="new-role"
-              >
-                @for (r of roleOptions(); track r.id) {
-                  <option [value]="r.id" [selected]="r.id === roleId()">{{ r.name }}</option>
-                }
-              </select></label
-            >
-          </div>
-          <div class="flex items-end gap-3">
-            <label class="gw-label block min-w-0 flex-1"
-              >First password
-              <input
-                [class]="field + ' font-mono'"
-                type="text"
-                autocomplete="new-password"
-                spellcheck="false"
-                [value]="password()"
-                (input)="password.set($any($event.target).value)"
-                data-testid="new-password"
-            /></label>
-            <button
-              appBtn
-              variant="ghost"
-              size="sm"
-              type="button"
-              (click)="password.set(generate())"
-              data-testid="generate"
-            >
-              Generate
-            </button>
-          </div>
-          <div class="flex flex-wrap items-center gap-3">
-            <button appBtn type="submit" [disabled]="!ready() || busy()" data-testid="create-user">
-              {{ busy() ? 'Adding…' : 'Add user' }}
-            </button>
-            @if (password().length > 0 && password().length < 12) {
-              <span class="text-sm text-muted">At least 12 characters.</span>
-            }
-            @if (error(); as e) {
-              <span class="text-sm text-danger" role="alert" data-testid="user-error">{{ e }}</span>
-            }
-          </div>
-        </form>
-      </div>
+      <app-add-user
+        [roles]="roleOptions()"
+        [defaultRole]="defaultRole()"
+        [mail]="mail()"
+        (added)="added($event)"
+      />
     }
 
     <div class="flex flex-col gap-3">
@@ -199,13 +121,24 @@ type Pending = { kind: 'disable' | 'reset'; user: User };
                     }
                   </td>
                   <td class="py-2.5 pr-4" data-testid="user-status">
-                    {{ u.disabled ? 'Disabled' : 'Active' }}
+                    {{ u.disabled ? 'Disabled' : u.invited ? 'Invited' : 'Active' }}
                   </td>
                   <td class="py-2.5 pr-4 whitespace-nowrap text-muted">
                     {{ u.createdAt | relativeTime: clock.now() }}
                   </td>
                   @if (canManage()) {
                     <td class="py-2.5 text-right whitespace-nowrap">
+                      @if (mail() && !u.disabled) {
+                        <button
+                          type="button"
+                          class="gw-action mr-4"
+                          [disabled]="rowBusy() === u.id"
+                          (click)="emailLink(u)"
+                          data-testid="email-link"
+                        >
+                          {{ u.invited ? 'Resend invitation' : 'Email a reset link' }}
+                        </button>
+                      }
                       <button
                         type="button"
                         class="gw-action"
@@ -213,7 +146,7 @@ type Pending = { kind: 'disable' | 'reset'; user: User };
                         (click)="ask('reset', u)"
                         data-testid="reset-password"
                       >
-                        Reset password
+                        {{ u.invited ? 'Set a password' : 'Reset password' }}
                       </button>
                       @if (u.id !== me()) {
                         @if (u.disabled) {
@@ -275,15 +208,10 @@ export class UsersList {
   protected readonly clock = inject(Clock);
   private readonly dialog = viewChild.required(ConfirmDialog);
 
-  protected readonly field = FIELD;
-  protected readonly generate = generatePassword;
-
   protected readonly users = signal<User[]>([]);
   readonly #roles = signal<RolesResponse['roles']>([]);
   protected readonly loading = signal(true);
-  protected readonly busy = signal(false);
   protected readonly rowBusy = signal<string | null>(null);
-  protected readonly error = signal<string | null>(null);
   protected readonly pending = signal<Pending | null>(null);
   protected readonly handoff = signal<{
     email: string;
@@ -291,9 +219,9 @@ export class UsersList {
     created: boolean;
   } | null>(null);
 
-  protected readonly email = signal('');
-  protected readonly password = signal(generatePassword());
-  protected readonly roleId = signal('');
+  /** The server can send email, so an account can be an invitation instead of a password. */
+  protected readonly mail = signal(false);
+  protected readonly defaultRole = signal('');
 
   protected readonly canManage = computed(() => this.#auth.can('users.manage'));
   protected readonly me = computed(() => this.#auth.user()?.id ?? null);
@@ -303,9 +231,6 @@ export class UsersList {
     if (roles.length > 0) return roles.map((r) => ({ id: r.id, name: r.name }));
     return [...new Set(this.users().map((u) => u.roleId))].map((id) => ({ id, name: id }));
   });
-  protected readonly ready = computed(
-    () => this.email().trim().includes('@') && this.password().length >= 12 && this.roleId() !== '',
-  );
 
   constructor() {
     void this.#load();
@@ -313,16 +238,17 @@ export class UsersList {
 
   async #load(): Promise<void> {
     try {
-      const [{ users }, roles] = await Promise.all([
-        firstValueFrom(this.#http.get<{ users: User[] }>('/v1/users')),
+      const [{ users, email }, roles] = await Promise.all([
+        firstValueFrom(this.#http.get<{ users: User[]; email?: boolean }>('/v1/users')),
         this.#auth.can('roles.read')
           ? firstValueFrom(this.#http.get<RolesResponse>('/v1/roles')).then((r) => r.roles)
           : Promise.resolve([]),
       ]);
       this.users.set(users);
+      this.mail.set(email === true);
       this.#roles.set(roles);
       // Default to a role the matrix can narrow, so a new account is never everything by accident.
-      this.roleId.set(roles.find((r) => r.editable)?.id ?? this.roleOptions()[0]?.id ?? '');
+      this.defaultRole.set(roles.find((r) => r.editable)?.id ?? this.roleOptions()[0]?.id ?? '');
     } catch (e) {
       this.#toasts.problem('Could not load users', toProblem(e));
     } finally {
@@ -334,29 +260,9 @@ export class UsersList {
     return this.roleOptions().find((r) => r.id === id)?.name ?? id;
   }
 
-  protected async create(e: Event): Promise<void> {
-    e.preventDefault();
-    if (!this.ready() || this.busy()) return;
-    this.busy.set(true);
-    this.error.set(null);
-    const password = this.password();
-    try {
-      const { user } = await firstValueFrom(
-        this.#http.post<{ user: User }>('/v1/users', {
-          email: this.email().trim(),
-          password,
-          roleId: this.roleId(),
-        }),
-      );
-      this.users.update((us) => [...us, user]);
-      this.handoff.set({ email: user.email, password, created: true });
-      this.email.set('');
-      this.password.set(generatePassword());
-    } catch (err) {
-      this.error.set(issuesOrDetail(toProblem(err)));
-    } finally {
-      this.busy.set(false);
-    }
+  protected added({ user, password }: Added): void {
+    this.users.update((us) => [...us, user]);
+    if (password !== null) this.handoff.set({ email: user.email, password, created: true });
   }
 
   protected async changeRole(u: User, select: HTMLSelectElement): Promise<void> {
@@ -370,6 +276,22 @@ export class UsersList {
 
   protected setDisabled(u: User, disabled: boolean): Promise<User | null> {
     return this.#patch(u, { disabled }, `Could not ${disabled ? 'disable' : 'enable'} ${u.email}`);
+  }
+
+  protected async emailLink(u: User): Promise<void> {
+    this.rowBusy.set(u.id);
+    try {
+      const { sent } = await firstValueFrom(
+        this.#http.post<{ sent: 'invite' | 'reset' }>(`/v1/users/${u.id}/email-link`, {}),
+      );
+      this.#toasts.info(
+        sent === 'invite' ? `Invitation sent to ${u.email}` : `Reset link sent to ${u.email}`,
+      );
+    } catch (err) {
+      this.#toasts.problem(`Could not email ${u.email}`, toProblem(err));
+    } finally {
+      this.rowBusy.set(null);
+    }
   }
 
   protected ask(kind: Pending['kind'], user: User): void {

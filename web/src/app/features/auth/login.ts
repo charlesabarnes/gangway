@@ -1,5 +1,5 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HARD_NAVIGATE, isServerReturn, safeReturnUrl } from '../../core/auth.guard';
 import { AuthService } from '../../core/auth.service';
 import { toProblem } from '../../core/problem';
@@ -9,7 +9,7 @@ import { AuthCard, FIELD, LABEL } from './auth-card';
 
 @Component({
   selector: 'app-login',
-  imports: [AuthCard, Btn, ErrorAlert],
+  imports: [AuthCard, Btn, ErrorAlert, RouterLink],
   template: `
     <app-auth-card heading="Log in">
       <span lede>Use the account your gangway admin gave you.</span>
@@ -52,6 +52,15 @@ import { AuthCard, FIELD, LABEL } from './auth-card';
             (input)="password.set($any($event.target).value)"
             data-testid="password"
           />
+          @if (auth.passwordReset()) {
+            <a
+              routerLink="/forgot-password"
+              [queryParams]="email().trim() ? { email: email().trim() } : {}"
+              class="mt-2 inline-block text-xs text-muted hover:text-ink"
+              data-testid="forgot"
+              >Forgot your password?</a
+            >
+          }
         </div>
 
         <button

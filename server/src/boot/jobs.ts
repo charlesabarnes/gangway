@@ -149,6 +149,7 @@ function registerPurges(scheduler: Scheduler, d: JobDeps): void {
     intervalMs: 3_600_000,
     run: () => {
       d.sessions.purge();
+      d.repos.userLinks.purge();
     },
   });
   scheduler.register({

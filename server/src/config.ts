@@ -128,6 +128,8 @@ const SETTING_ENV_MAP = {
   GANGWAY_SURFACE_MCP: "surfaces.mcp",
   GANGWAY_ACME_DIRECTORY_URL: "acme.directoryUrl",
   GANGWAY_ACME_EMAIL: "acme.email",
+  GANGWAY_SMTP_URL: "mail.smtp.url",
+  GANGWAY_MAIL_FROM: "mail.from",
   GANGWAY_PREVIEW_MEMORY: "previews.limits.memory",
   GANGWAY_PREVIEW_CPUS: "previews.limits.cpus",
   GANGWAY_PREVIEW_PIDS: "previews.limits.pids",

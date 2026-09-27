@@ -11,6 +11,7 @@ import { PreviewPasswords } from './preview-passwords';
 import { PreviewPolicies } from './preview-policies';
 import { SurfacesSettings } from './surfaces-settings';
 import { UpdateSettings } from './update-settings';
+import { EmailSettings } from './email-settings';
 import { WatermarkSettings } from './watermark-settings';
 import { DomainSettings } from './domain-settings';
 import { LimitSettings } from './limit-settings';
@@ -30,6 +31,7 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
     Skeleton,
     SurfacesSettings,
     UpdateSettings,
+    EmailSettings,
     WatermarkSettings,
     DomainSettings,
     LimitSettings,
@@ -41,6 +43,9 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
     } @else {
       @if (show('server') && canReadSettings()) {
         <app-update-settings [settings]="settings()" [(saving)]="saving" />
+      }
+      @if (show('server') && canReadSettings()) {
+        <app-email-settings [settings]="settings()" [(saving)]="saving" />
       }
       @if (show('server') && canSurfaces()) {
         <app-surfaces-settings [(saving)]="saving" />

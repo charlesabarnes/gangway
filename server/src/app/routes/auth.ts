@@ -1,9 +1,15 @@
 import type { Context, Hono } from "hono";
 import { ChangePasswordSchema, LoginRequestSchema, SetupRequestSchema } from "@gangway/shared/api";
+import {
+  EmailLinkSchema,
+  PasswordResetRequestSchema,
+  RedeemEmailLinkSchema,
+} from "@gangway/shared/mail-api";
 import type { User } from "@gangway/shared/domain";
 import type { Accounts, RequestMeta } from "../../auth/accounts.ts";
 import type { Actor } from "../../auth/actor.ts";
 import type { Bootstrap } from "../../auth/bootstrap.ts";
+import type { EmailLinks } from "../../auth/links.ts";
 import type { RolePermissions } from "../../auth/roles.ts";
 import { forbidden, notFound, unauthorized } from "../../errors.ts";
 import { readJson } from "../problem.ts";
@@ -32,6 +38,7 @@ export type AuthRouteDeps = {
   gate?: GateDeps | undefined;
   accounts: Accounts;
   bootstrap: Bootstrap;
+  links?: EmailLinks | undefined;
   roles: RolePermissions;
   sessionMaxAgeSec: number;
 };
@@ -137,12 +144,53 @@ function gateRoute(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   });
 }
 
+// Forgot password, and the page an emailed link opens. The link's secret travels in the body,
+// never a URL gangway logs.
+function emailLinkRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
+  const links = () => {
+    if (!d.links) throw notFound("no such resource");
+    return d.links;
+  };
+
+  pub.post("/auth/password-reset", async (c) => {
+    appOnly(c);
+    refuseForeignOrigin(c, d);
+    const { email } = PasswordResetRequestSchema.parse(await readJson(c));
+    links().requestReset(email, meta(c));
+    return c.body(null, 202);
+  });
+
+  pub.post("/auth/link", async (c) => {
+    appOnly(c);
+    refuseForeignOrigin(c, d);
+    const { token } = EmailLinkSchema.parse(await readJson(c));
+    c.header("cache-control", "no-store");
+    return c.json(links().inspect(token));
+  });
+
+  pub.post("/auth/link/redeem", async (c) => {
+    appOnly(c);
+    refuseForeignOrigin(c, d);
+    const { token, password } = RedeemEmailLinkSchema.parse(await readJson(c));
+    const { user, secret } = await links().redeem(token, password, meta(c));
+    setSessionCookie(c, secret, d.sessionMaxAgeSec);
+    c.header("cache-control", "no-store");
+    return c.json({ user: wireUser(d, user), permissions: [...d.roles.for(user.roleId)].sort() });
+  });
+}
+
 export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   pub.get("/auth/session", async (c) => {
     c.header("cache-control", "no-store");
     const actor = await resolveActor(c, d.auth).catch(() => null);
     return c.json(
-      actor ? describe(d, actor) : { authenticated: false, setupRequired: d.bootstrap.pending },
+      actor
+        ? describe(d, actor)
+        : {
+            authenticated: false,
+            setupRequired: d.bootstrap.pending,
+            passwordReset: d.links?.available === true,
+          },
     );
   });
 
@@ -173,6 +221,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   });
 
   gateRoute(pub, d);
+  emailLinkRoutes(pub, d);
 
   const required = async (c: Context<AppEnv>): Promise<Actor> => {
     const actor = await resolveActor(c, d.auth);

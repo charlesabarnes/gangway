@@ -61,6 +61,7 @@ for (const [name, open] of DRIVERS) {
           email: "ada@example.com",
           roleId: "admin",
           disabled: false,
+          invited: false,
           createdAt: new Date(clock),
         });
         expect(

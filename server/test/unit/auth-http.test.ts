@@ -76,6 +76,7 @@ describe("first-run setup over HTTP", () => {
     expect(await (await t.app("/v1/auth/session")).json()).toEqual({
       authenticated: false,
       setupRequired: true,
+      passwordReset: false,
     });
 
     const res = await t.app("/v1/auth/setup", {

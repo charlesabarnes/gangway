@@ -13,6 +13,11 @@ export class AuthService {
   readonly loaded = computed(() => this.#info() !== null);
   readonly authenticated = computed(() => this.#info()?.authenticated === true);
   readonly setupRequired = computed(() => this.#info()?.setupRequired === true);
+  /** The server can email a reset link, so the login page offers one. */
+  readonly passwordReset = computed(() => {
+    const i = this.#info();
+    return i?.authenticated === false && i.passwordReset === true;
+  });
   readonly user = computed<SessionUser | null>(() => {
     const i = this.#info();
     return i?.authenticated ? (i.user ?? null) : null;
@@ -80,11 +85,22 @@ export class AuthService {
     );
   }
 
+  /** Uses an emailed invitation or reset link, and is then logged in. */
+  async redeemLink(token: string, password: string): Promise<void> {
+    this.#signedIn(
+      await firstValueFrom(
+        this.#http.post<LoginResponse>('/v1/auth/link/redeem', { token, password }),
+      ),
+    );
+  }
+
   async logout(): Promise<void> {
     try {
       await firstValueFrom(this.#http.post('/v1/auth/logout', null));
     } finally {
       this.clear();
+      // The anonymous session says whether the login page may offer a password reset.
+      void this.refresh();
     }
   }
 

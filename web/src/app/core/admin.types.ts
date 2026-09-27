@@ -5,6 +5,8 @@ export type User = {
   email: string;
   roleId: string;
   disabled: boolean;
+  /** Emailed a link to set a first password, and has not used it yet. */
+  invited: boolean;
   createdAt: string;
 };
 

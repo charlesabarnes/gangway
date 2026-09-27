@@ -49,7 +49,8 @@
   },
   "sessionAnonymous": {
     "authenticated": false,
-    "setupRequired": true
+    "setupRequired": true,
+    "passwordReset": false
   },
   "sessionUser": {
     "authenticated": true,

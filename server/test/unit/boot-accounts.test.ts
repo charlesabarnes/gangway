@@ -82,6 +82,7 @@ test("first run announces an unlogged setup URL that makes the admin, once", asy
   expect(await (await first.call("app", "/v1/auth/session")).json()).toEqual({
     authenticated: false,
     setupRequired: true,
+    passwordReset: false,
   });
 
   const made = await first.call("app", "/v1/auth/setup", {
@@ -128,6 +129,7 @@ test("first run announces an unlogged setup URL that makes the admin, once", asy
   expect(await (await second.call("app", "/v1/auth/session")).json()).toEqual({
     authenticated: false,
     setupRequired: false,
+    passwordReset: false,
   });
   expect(
     (

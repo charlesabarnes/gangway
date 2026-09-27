@@ -18,7 +18,7 @@ import { projectRoutes } from "../app/routes/projects.ts";
 import { roleRoutes } from "../app/routes/roles.ts";
 import { runtimeRoutes, schemaRoutes } from "../app/routes/runtimes.ts";
 import { previewSecretRoutes, secretRoutes } from "../app/routes/secrets.ts";
-import { settingsRoutes } from "../app/routes/settings.ts";
+import { mailSettingsRoutes, settingsRoutes } from "../app/routes/settings.ts";
 import { surfaceRoutes } from "../app/routes/surfaces.ts";
 import { templateRoutes } from "../app/routes/templates.ts";
 import { tokenRoutes } from "../app/routes/tokens.ts";
@@ -72,10 +72,11 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   addonRoutes(api, new DataBrowser(ctx));
   auditRoutes(api, repos.audit);
   tokenRoutes(api, identity.tokens);
-  userRoutes(api, identity.accounts);
+  userRoutes(api, identity.accounts, identity.links);
   roleRoutes(api, identity.roles);
   const hash = (plain: string) => d.previewPasswords.hash(plain);
   settingsRoutes(api, settings, audit, repos.templates, hash, d.domains);
+  mailSettingsRoutes(api, audit, identity.mailer);
   updateRoutes(api, d.updates);
   oauthRoutes(api, { oauth, enabled: d.mcpOn });
   surfaceRoutes(api, {
@@ -146,6 +147,7 @@ export function publicRoutes(pub: Hono<AppEnv>, { ctx, auth, identity, gate }: P
     auth,
     accounts: identity.accounts,
     bootstrap: identity.bootstrap,
+    links: identity.links,
     roles: identity.roles,
     sessionMaxAgeSec: Math.floor(identity.sessions.timings.absoluteMs / 1000),
     gate: {

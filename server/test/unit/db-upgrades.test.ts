@@ -88,7 +88,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -212,7 +212,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -268,7 +268,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
       ]);
       const holders = db
         .query<{ role_id: string }>(
@@ -302,7 +302,7 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19, 20, 21, 22]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19, 20, 21, 22, 23]);
       const rows = db.query<{ id: string; watermark: string | null; source_json: string }>(
         "SELECT id, watermark, source_json FROM previews ORDER BY id",
       );
@@ -327,10 +327,24 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, created_at, updated_at) VALUES ('acme', 'Acme', '', '{\"light\":{},\"dark\":{}}', '{}', 1, 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([22]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([22, 23]);
       expect(db.query("SELECT id, style_json FROM artifact_themes")).toEqual([
         { id: "acme", style_json: "{}" },
       ]);
+      db.close();
+    });
+  });
+
+  describe(`0023 user links on ${name}`, () => {
+    test("existing accounts are not invited, and start with no links", () => {
+      const at = databaseAt(open, 22);
+      at.db.run(
+        "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual([23]);
+      expect(db.query("SELECT id, invited FROM users")).toEqual([{ id: "u1", invited: 0 }]);
+      expect(db.query("SELECT * FROM user_links")).toEqual([]);
       db.close();
     });
   });
