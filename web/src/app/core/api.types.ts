@@ -156,6 +156,7 @@ export const PERMISSIONS = [
   'previews.watermark',
   'previews.domain',
   'previews.share',
+  'previews.extend',
   'previews.data',
   'previews.view_private',
   'previews.skip_password',
@@ -216,6 +217,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     'previews.watermark',
     'previews.domain',
     'previews.share',
+    'previews.extend',
   ],
   update: ['previews.update'],
   artifacts: [
@@ -226,6 +228,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     'previews.watermark',
     'previews.domain',
     'previews.share',
+    'previews.extend',
   ],
   projects: ['previews.read', 'repos.manage', 'repos.domains'],
   themes: ['artifacts.manage'],

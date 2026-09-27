@@ -30,6 +30,7 @@ import { LogViewer } from './log-viewer';
 import { PreviewSecretsPanel } from './secrets-panel';
 import { WatermarkPanel } from './watermark-panel';
 import { DomainPanel } from './domain-panel';
+import { ExtendTtl } from './extend-ttl';
 import { SharePanel } from './share-panel';
 import { PasswordPanel } from './password-panel';
 import { PreviewsStore } from './previews.store';
@@ -46,6 +47,7 @@ import { Skeleton } from '../../ui/skeleton';
     DbBrowser,
     EmptyState,
     ErrorAlert,
+    ExtendTtl,
     LogViewer,
     PasswordBadge,
     PasswordPanel,
@@ -184,8 +186,11 @@ import { Skeleton } from '../../ui/skeleton';
                 }
                 <div class="gw-fact">
                   <dt>Expires</dt>
-                  <dd [title]="p.ttlExpiresAt ?? ''" data-testid="ttl">
-                    {{ p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never' }}
+                  <dd class="flex flex-wrap items-baseline gap-x-3">
+                    <span [title]="p.ttlExpiresAt ?? ''" data-testid="ttl">{{
+                      p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never'
+                    }}</span>
+                    <app-extend-ttl [preview]="p" />
                   </dd>
                 </div>
               }

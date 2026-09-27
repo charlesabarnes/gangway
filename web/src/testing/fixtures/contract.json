@@ -194,6 +194,7 @@
     "previews.watermark",
     "previews.domain",
     "previews.share",
+    "previews.extend",
     "previews.data",
     "previews.view_private",
     "previews.skip_password",
@@ -235,7 +236,8 @@
       "previews.update_own",
       "previews.watermark",
       "previews.domain",
-      "previews.share"
+      "previews.share",
+      "previews.extend"
     ],
     "update": ["previews.update"],
     "artifacts": [
@@ -245,7 +247,8 @@
       "previews.destroy_own",
       "previews.watermark",
       "previews.domain",
-      "previews.share"
+      "previews.share",
+      "previews.extend"
     ],
     "projects": ["previews.read", "repos.manage", "repos.domains"],
     "themes": ["artifacts.manage"],
@@ -262,6 +265,7 @@
       "previews.watermark",
       "previews.domain",
       "previews.share",
+      "previews.extend",
       "previews.data",
       "previews.view_private",
       "previews.skip_password",

@@ -13,6 +13,7 @@ import { connectProject } from "./project-tool.ts";
 import { setSecrets } from "./secrets-tool.ts";
 import { DOMAINS_TOOL, manageDomains, type DomainsArgs } from "./domains-tool.ts";
 import { manageShare, SHARE_TOOL, type ShareArgs } from "./share-tool.ts";
+import { extend, EXTEND_TOOL, type ExtendArgs } from "./extend-tool.ts";
 import { saveTheme } from "./theme-tool.ts";
 import { artifactPrompt, INSTRUCTIONS } from "./guide.ts";
 import { nameOf, resolveFor, visibleTo } from "./resolve.ts";
@@ -114,6 +115,9 @@ export class Tools {
     s.registerTool("share", SHARE_TOOL, (args) =>
       this.#guard("share", () => this.share(scope, args)),
     );
+    s.registerTool("extend", EXTEND_TOOL, (args) =>
+      this.#guard("extend", async () => this.extend(scope, args)),
+    );
     return s;
   }
 
@@ -206,12 +210,18 @@ export class Tools {
     return manageShare(this.#d, scope.actor, args);
   }
 
+  extend(scope: CallScope, args: ExtendArgs): string {
+    need(scope.actor, ...TOOL_PERMISSIONS.extend);
+    return extend(this.#d, scope.actor, args);
+  }
+
   async status(scope: CallScope, ref: string | undefined): Promise<string> {
     const { ctx } = this.#d;
     need(scope.actor, ...TOOL_PERMISSIONS.status);
     if (ref !== undefined) {
       const p = resolveFor(ctx, scope.actor, ref);
-      return describePreview(ctx, p) + localNote(ctx, p);
+      const keep = p.ttlExpiresAt ? "\nThe extend tool keeps it longer if the user asks." : "";
+      return describePreview(ctx, p) + localNote(ctx, p) + keep;
     }
     const visible = visibleTo(ctx, scope.actor);
     const all = ctx.previews.list({}).filter((p) => p.state !== "destroyed" && visible(p));

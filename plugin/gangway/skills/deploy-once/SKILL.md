@@ -76,6 +76,6 @@ Read the answer: each checked path's status, the plan gangway followed (runtime,
 
 ## 6. Hand over
 
-The URL, one line on what is running (the plan), what the checks returned, and what you did not check (no secrets, an empty database…). Leave it running: it expires on its own, and `destroy` is the user's call.
+The URL, one line on what is running (the plan), what the checks returned, and what you did not check (no secrets, an empty database…). Leave it running: it expires on its own (`extend` keeps it longer if the user asks), and `destroy` is the user's call.
 
 - A URL under `.localhost` (or one the user's audience cannot reach) opens only on their machine. To show it to someone else, offer the `share` tool's public link and start it on yes: `share` with `preview: "<name>"` and `action: "start"` returns an `https://….trycloudflare.com` URL until it expires or `action: "stop"`. It is a Cloudflare quick tunnel: public to anyone with the link, no server-sent events.

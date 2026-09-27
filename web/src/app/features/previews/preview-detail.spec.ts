@@ -131,6 +131,38 @@ describe('PreviewDetail', () => {
     expect(r.byTestId('slug')).toBeNull();
   });
 
+  it('extends the expiry in one click, and keeps it forever', async () => {
+    const r = await open({
+      permissions: ['previews.read', 'previews.update_own', 'previews.extend'],
+    });
+    await answerHistory(r);
+    r.byTestId('extend-7d')!.click();
+    await r.settle();
+    const put = r.http.expectOne(`/v1/previews/${ID}/ttl`);
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ extend: '7d' });
+    put.flush({ preview: { ...base, ttlExpiresAt: null, updatedAt: 'later' } });
+    await r.settle();
+    await answerHistory(r);
+    expect(r.text('ttl')).toBe('never');
+    expect(r.byTestId('extend-7d')).toBeNull();
+  });
+
+  it('offers no extend without the permission', async () => {
+    const without = await open({ permissions: ['previews.read', 'previews.update'] });
+    await answerHistory(without);
+    expect(without.byTestId('extend-7d')).toBeNull();
+  });
+
+  it('offers no extend once it is going', async () => {
+    const going = await open({
+      preview: { ...base, state: 'destroying' },
+      permissions: ['previews.read', 'previews.update', 'previews.extend'],
+    });
+    await answerHistory(going);
+    expect(going.byTestId('extend-7d')).toBeNull();
+  });
+
   it('does not fetch the preview again when the list already holds it', async () => {
     const r = await open();
     await answerHistory(r);

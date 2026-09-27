@@ -156,6 +156,19 @@ export class PreviewsStore {
     }
   }
 
+  /** Adds `by` (like "7d") to what it has left; "none" keeps it until it is destroyed. */
+  async extend(id: string, by: string): Promise<Preview> {
+    try {
+      const { preview } = await firstValueFrom(
+        this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/ttl`, { extend: by }),
+      );
+      this.#put(preview);
+      return preview;
+    } catch (e) {
+      throw toProblem(e);
+    }
+  }
+
   async setWatermark(id: string, watermark: WatermarkChoice): Promise<Preview> {
     try {
       const { preview } = await firstValueFrom(

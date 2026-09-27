@@ -2,6 +2,7 @@ import type { Context, Hono } from "hono";
 import type { Preview } from "@gangway/shared/domain";
 import {
   DeployRequestSchema,
+  PreviewExtendSchema,
   PreviewPasswordChangeSchema,
   PreviewIconChangeSchema,
   PreviewWatermarkChangeSchema,
@@ -28,6 +29,7 @@ import { redeploy } from "../../previews/redeploy.ts";
 import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
 import { setPreviewWatermark } from "../../previews/watermark.ts";
 import { setPreviewDomain } from "../../previews/domain.ts";
+import { extendPreview } from "../../previews/extend.ts";
 import { shareRoutes } from "./share.ts";
 import { PreviewDomainChangeSchema } from "@gangway/shared/domains-api";
 import {
@@ -330,6 +332,12 @@ function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     const { domain } = PreviewDomainChangeSchema.parse(await readJson(c));
     setPreviewDomain(ctx, c.get("actor"), p.id, domain);
     return c.json({ preview: wire(ctx.previews.get(p.id)!) });
+  });
+  api.put("/previews/:id/ttl", requirePermission("previews.extend"), async (c) => {
+    const p = find(c.req.param("id"));
+    changeable(ctx, c, p, "expiry");
+    const { extend } = PreviewExtendSchema.parse(await readJson(c));
+    return c.json({ preview: wire(extendPreview(ctx, c.get("actor"), p.id, extend)) });
   });
   api.put(
     "/previews/:id/icon",

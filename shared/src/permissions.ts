@@ -52,6 +52,11 @@ export const PERMISSIONS = [
     description: "Give a preview a public link through a Cloudflare quick tunnel, and end it",
   },
   {
+    id: "previews.extend",
+    feature: "previews",
+    description: "Extend how long a preview you may change lives, or keep it forever",
+  },
+  {
     id: "previews.data",
     feature: "previews",
     description: "Browse and query a preview's add-on databases (every query is audited)",
@@ -185,6 +190,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.watermark",
     "previews.domain",
     "previews.share",
+    "previews.extend",
   ],
   update: ["previews.update"],
   // For an agent you do not trust with a container: it sees and touches only what it deployed.
@@ -196,6 +202,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
     "previews.watermark",
     "previews.domain",
     "previews.share",
+    "previews.extend",
   ],
   // Connecting a repository for pull-request previews, e.g. from an agent's setup skill.
   projects: ["previews.read", "repos.manage", "repos.domains"],
@@ -225,6 +232,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
     "previews.watermark",
     "previews.domain",
     "previews.share",
+    "previews.extend",
     "previews.secrets",
     "previews.view_private",
     "previews.skip_password",

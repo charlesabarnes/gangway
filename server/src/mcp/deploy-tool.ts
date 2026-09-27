@@ -70,6 +70,8 @@ function checkRebuildArgs(args: DeployArgs): void {
     throw unprocessable(
       "preview rebuilds from files or an upload; an image or a repository is a new deploy",
     );
+  if (args.ttl !== undefined)
+    throw unprocessable("a rebuild keeps the preview's expiry; change it with the extend tool");
   if (args.upload !== undefined && (args.files !== undefined || args.remove !== undefined))
     throw unprocessable(
       "upload replaces the whole source; files and remove edit it -- give one or the other",

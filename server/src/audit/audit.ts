@@ -13,6 +13,7 @@ export type AuditAction =
   | "preview.watermark"
   | "preview.domain"
   | "preview.share"
+  | "preview.extend"
   | "preview.unshare"
   | "project.domain"
   | "project.production"

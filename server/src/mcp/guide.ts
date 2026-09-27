@@ -55,5 +55,5 @@ WHEN SOMETHING IS WRONG
 
 HAND OVER
 - The check results and a curl or two of API routes are enough verification. Open a browser only if asked, or if the change is purely visual and can't be checked any other way.
-- End with the URL, one line on what is there, and what is not done or not checked. Leave the preview running; it expires on its own, and destroy is the user's call.`;
+- End with the URL, one line on what is there, and what is not done or not checked. Leave the preview running; it expires on its own (extend keeps it longer if the user asks), and destroy is the user's call.`;
 }

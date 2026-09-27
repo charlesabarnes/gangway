@@ -133,7 +133,9 @@ export const DeployArgs = z.object({
     .string()
     .max(16)
     .optional()
-    .describe("How long it lives, e.g. 2h or 7d. Defaults to the server's."),
+    .describe(
+      "New deploys only: how long it lives, e.g. 2h or 7d. Defaults to the server's. To keep an existing preview longer, use the extend tool.",
+    ),
   template: z
     .string()
     .optional()

@@ -194,6 +194,14 @@ export class PreviewsRepo {
     });
   }
 
+  setTtlExpiresAt(id: string, at: Date | null): void {
+    this.#db.run("UPDATE previews SET ttl_expires_at = $at, updated_at = $now WHERE id = $id", {
+      id,
+      at: at === null ? null : at.getTime(),
+      now: this.#now(),
+    });
+  }
+
   setWatermark(id: string, watermark: WatermarkChoice): void {
     this.#db.run("UPDATE previews SET watermark = $w, updated_at = $now WHERE id = $id", {
       id,
