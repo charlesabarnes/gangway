@@ -15,7 +15,6 @@ export class UserLinksRepo {
     this.#now = now;
   }
 
-  /** Replaces the user's earlier links: only the newest one works. */
   create(id: string, userId: string, purpose: LinkPurpose, ttlMs: number): void {
     const now = this.#now();
     this.#db.run("DELETE FROM user_links WHERE user_id = $userId", { userId });
@@ -26,7 +25,6 @@ export class UserLinksRepo {
     );
   }
 
-  /** A live link, or undefined for one that is unknown, used or expired. */
   get(id: string): UserLink | undefined {
     const r = this.#db.get<Row>(
       "SELECT user_id, purpose, expires_at FROM user_links WHERE id = $id AND expires_at > $now",

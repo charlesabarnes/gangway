@@ -14,7 +14,6 @@ export type ShareEnd = "stopped" | "expired" | "disabled" | "destroyed" | "dropp
 
 export type SharesOptions = {
   provider: ShareProvider;
-  /** Where the provider forwards to: gangway's own listener. */
   origin: string;
   enabled: () => boolean;
   maxTtlMs: () => number;
@@ -26,11 +25,8 @@ export type SharesOptions = {
 
 type Live = Share & { tunnel: Tunnel };
 
-/**
- * One public link per preview, kept in memory: a restart ends every share, and a quick tunnel's
- * name could not outlive its process anyway. The link is an alias of the preview's primary
- * route, so its visibility and password still apply.
- */
+/** One public link per preview, in memory: a restart ends every share. The link aliases the
+ * preview's primary route, so its visibility and password still apply. */
 export class Shares {
   readonly #o: SharesOptions;
   readonly #byPreview = new Map<string, Live>();
@@ -55,7 +51,6 @@ export class Shares {
     return this.#o.maxTtlMs();
   }
 
-  /** The preview a share hostname answers for. */
   target(host: string): string | undefined {
     return this.#byHost.get(host)?.previewId;
   }

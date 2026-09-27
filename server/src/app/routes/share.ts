@@ -8,10 +8,7 @@ import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
-/**
- * A public link through a tunnel. Sending one is like changing the preview, so the caller must
- * be able to rebuild it as well as hold previews.share (checked in startShare / stopShare).
- */
+// Sharing is like changing the preview: startShare / stopShare also need the right to rebuild it.
 export function shareRoutes(
   api: Hono<AppEnv>,
   ctx: PreviewContext,

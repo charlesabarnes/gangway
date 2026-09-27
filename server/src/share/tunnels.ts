@@ -1,11 +1,9 @@
 import { promises as dnsPromises } from "node:dns";
 import { Resolver } from "node:dns/promises";
 
-/** A public hostname that forwards to gangway's own listener, until stopped or it drops. */
 export type Tunnel = {
   host: string;
   url: string;
-  /** Resolves when the tunnel ends, whether stopped or not. */
   ended: Promise<void>;
   stop(): void;
 };
@@ -35,12 +33,10 @@ const URL_RE = /https:\/\/([a-z0-9-]+\.trycloudflare\.com)\b/;
 const READY_RE = /Registered tunnel connection/;
 const TAIL = 20;
 
-/** Whether a hostname is in public DNS yet. */
 export type Resolves = (host: string) => Promise<boolean>;
 
-// Asks trycloudflare.com's own nameservers, which cache nothing. Measured: they answer a few
-// seconds after the tunnel registers; 1.1.1.1, asked a second too early, kept the miss for 45 s.
-// A resolver per lookup, because c-ares caches a miss for the zone's negative TTL too.
+// Asks trycloudflare.com's own nameservers, which cache nothing: 1.1.1.1, asked a second early,
+// kept the miss for 45 s. A resolver per lookup, since c-ares caches misses too.
 export function resolvesAtAuthority(zone = "trycloudflare.com"): Resolves {
   let servers: Promise<string[]> | null = null;
   const load = async () => {
@@ -71,10 +67,8 @@ export type QuickTunnelOptions = {
   dnsPollMs?: number;
 };
 
-/**
- * `cloudflared tunnel --url`: no account, a random *.trycloudflare.com name each time, 200
- * requests at once and no server-sent events. Cloudflare says it is for testing.
- */
+/** `cloudflared tunnel --url`: no account, a random *.trycloudflare.com name each time, 200
+ * requests at once and no server-sent events. Cloudflare says it is for testing. */
 export class QuickTunnels implements ShareProvider {
   readonly name = "cloudflare-quick";
   readonly #binary: string;
@@ -147,8 +141,7 @@ export class QuickTunnels implements ShareProvider {
     const name = host!;
     let gone = false;
     void exited.then(() => (gone = true));
-    // The record appears some seconds after the tunnel registers, and a lookup before then is
-    // a miss the visitor's resolver keeps for a minute: hand the link out once it resolves.
+    // An early lookup is a miss the visitor's resolver keeps for a minute: wait until it resolves.
     const deadline = Date.now() + this.#dnsWaitMs;
     while (!gone && !signal?.aborted && Date.now() < deadline && !(await this.#resolves(name)))
       await Bun.sleep(this.#dnsPollMs);
@@ -186,7 +179,6 @@ async function readLines(stream: ReadableStream<Uint8Array>, onLine: (line: stri
   }
 }
 
-/** The address cloudflared dials: the listener itself, on loopback when it listens everywhere. */
 export function listenerOrigin(address: string, port: number): string {
   const host = address === "::" || address === "0.0.0.0" || address === "" ? "127.0.0.1" : address;
   return `https://${host.includes(":") ? `[${host}]` : host}:${port}`;

@@ -7,7 +7,6 @@ export type Send = (m: Mail & { from: string }) => Promise<void>;
 export type MailerDeps = {
   url: () => string;
   from: () => string;
-  /** Tests pass a fake; production speaks SMTP through nodemailer. */
   transport?: (url: string) => Send;
 };
 
@@ -24,7 +23,6 @@ function smtp(url: string): Send {
   };
 }
 
-/** Outgoing email over SMTP; unconfigured until an SMTP URL and a From address are set. */
 export class Mailer {
   readonly #d: MailerDeps;
   readonly #transport: (url: string) => Send;
@@ -43,13 +41,11 @@ export class Mailer {
     const url = this.#d.url();
     const from = this.#d.from();
     if (url === "" || from === "") throw conflict("email is not set up on this server");
-    // One transport per URL, so a changed setting takes effect on the next send.
     if (this.#cached?.url !== url) this.#cached = { url, send: this.#transport(url) };
     try {
       await this.#cached.send({ ...m, from });
     } catch (e) {
-      // A 4xx, because a 5xx's detail is hidden and the relay's own words (bad login, refused
-      // sender) are what the admin needs. The URL, and so the password, is not in them.
+      // A 4xx: a 5xx hides its detail, and the admin needs the relay's words (no URL in them).
       throw unprocessable(`the mail server refused: ${errorMessage(e)}`);
     }
   }

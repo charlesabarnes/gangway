@@ -41,7 +41,6 @@ function checkMayShare(ctx: ShareCtx, actor: Actor, previewId: string): void {
     );
 }
 
-/** Starts the preview's public link, or returns the one it has. */
 export async function startShare(
   ctx: ShareCtx,
   actor: Actor,

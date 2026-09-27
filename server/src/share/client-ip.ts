@@ -1,10 +1,7 @@
 import { isIP } from "node:net";
 import { unmap } from "../net/trusted-proxy.ts";
 
-/**
- * Whether a connection could be cloudflared's: it dials the listener on loopback, or on the
- * address gangway listens on when that is a single one.
- */
+// cloudflared dials the listener on loopback, or on the listen address when it is a single one.
 export function tunnelPeerFor(listenAddress: string): (peer: string) => boolean {
   const own = listenAddress === "::" || listenAddress === "0.0.0.0" ? null : unmap(listenAddress);
   return (peer) => {
@@ -13,10 +10,7 @@ export function tunnelPeerFor(listenAddress: string): (peer: string) => boolean 
   };
 }
 
-/**
- * The visitor behind a share link. Cloudflare's edge sets CF-Connecting-IP and cloudflared
- * passes it on; a client cannot choose it.
- */
+// Cloudflare's edge sets CF-Connecting-IP and cloudflared passes it on; a client cannot choose it.
 export function tunnelClientIp(headers: Headers): string | null {
   const cf = headers.get("cf-connecting-ip")?.trim();
   if (cf && isIP(cf) !== 0) return cf;
