@@ -93,7 +93,7 @@ export function stamp(res: Response, req: Request): Response {
 
 const svg = (s: string) => s.replace(/<title>.*?<\/title>/s, "").replace(/\s*\n\s*/g, "");
 
-// Chart tokens; light or dark after the OS, or the page's own data-theme on <html>.
+// Chart tokens; light or dark after the page's data-theme, the gw-theme cookie, or the OS.
 const CSS = `
 :host{all:initial;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:2147483000;
   --paper:oklch(0.97 0.012 85);--ink:oklch(0.27 0.06 255);--rule:oklch(0.84 0.025 240)}
@@ -128,8 +128,8 @@ export function markScript(link: string): string {
   return `(()=>{if(window.top!==window.self||customElements.get("gangway-mark"))return;
 try{var h=location.hostname.split(".").slice(1).join(".");if(h.indexOf(".")>0&&window.FontFace){var f=new FontFace("gw-mark-mono","url(//"+h+"/_gangway/fonts/mono-600.woff2)",{weight:"600"});f.load().then(function(x){document.fonts.add(x)},function(){})}}catch(e){}
 customElements.define("gangway-mark",class extends HTMLElement{constructor(){super();this.attachShadow({mode:"closed"}).innerHTML=${JSON.stringify(html)}}
-connectedCallback(){var m=this,d=document.documentElement,f=function(){var t=d.getAttribute("data-theme");t==="light"||t==="dark"?m.setAttribute("data-theme",t):m.removeAttribute("data-theme")};
-f();new MutationObserver(f).observe(d,{attributes:true,attributeFilter:["data-theme"]})}});
+connectedCallback(){var m=this,d=document.documentElement,f=function(){var t=d.getAttribute("data-theme");if(t!=="light"&&t!=="dark")try{t=(/(?:^|;\\s*)gw-theme=(light|dark)(?:;|$)/.exec(document.cookie)||[])[1]}catch(e){}t?m.setAttribute("data-theme",t):m.removeAttribute("data-theme")};
+f();new MutationObserver(f).observe(d,{attributes:true,attributeFilter:["data-theme"]});document.addEventListener("visibilitychange",f)}});
 var put=function(){if(!document.querySelector("gangway-mark"))document.documentElement.appendChild(document.createElement("gangway-mark"))};
 document.body?put():document.addEventListener("DOMContentLoaded",put);})();
 `;

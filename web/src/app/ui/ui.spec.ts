@@ -5,7 +5,7 @@ import { ConnectionDot } from './connection-dot';
 import { relativeTime } from './relative-time.pipe';
 import { StateBadge } from './state-badge';
 import { ThemeToggle } from './theme-toggle';
-import { THEME_KEY } from '../core/theme';
+import { THEME_KEY, readThemeCookie, writeThemeCookie } from '../core/theme';
 import { ToastService, Toasts } from './toast';
 
 describe('StateBadge', () => {
@@ -81,31 +81,53 @@ describe('toasts', () => {
 });
 
 describe('ThemeToggle', () => {
-  afterEach(() => localStorage.removeItem(THEME_KEY));
+  const cookie = () => readThemeCookie(document);
+  afterEach(() => {
+    writeThemeCookie(document, null);
+    localStorage.removeItem(THEME_KEY);
+  });
 
-  it('overrides the system, remembers it, and goes back to following it', async () => {
+  it('overrides the system in the shared cookie, and goes back to following it', async () => {
     const r = await render(ThemeToggle);
     expect(r.byTestId('theme-system')!.getAttribute('aria-pressed')).toBe('true');
 
     r.byTestId('theme-dark')!.click();
     await r.settle();
     expect(document.documentElement.dataset['theme']).toBe('dark');
-    expect(localStorage.getItem(THEME_KEY)).toBe('dark');
+    expect(cookie()).toBe('dark');
     expect(r.byTestId('theme-dark')!.getAttribute('aria-pressed')).toBe('true');
 
     r.byTestId('theme-light')!.click();
     await r.settle();
     expect(document.documentElement.dataset['theme']).toBe('light');
+    expect(cookie()).toBe('light');
 
     r.byTestId('theme-system')!.click();
     await r.settle();
-    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+    expect(cookie()).toBeNull();
   });
 
-  it('starts from the stored choice', async () => {
-    localStorage.setItem(THEME_KEY, 'dark');
+  it('starts from the cookie a preview or the app left', async () => {
+    writeThemeCookie(document, 'dark');
     const r = await render(ThemeToggle);
     expect(r.byTestId('theme-dark')!.getAttribute('aria-pressed')).toBe('true');
     expect(document.documentElement.dataset['theme']).toBe('dark');
+  });
+
+  it('moves a choice kept in local storage into the cookie', async () => {
+    localStorage.setItem(THEME_KEY, 'dark');
+    const r = await render(ThemeToggle);
+    expect(r.byTestId('theme-dark')!.getAttribute('aria-pressed')).toBe('true');
+    expect(cookie()).toBe('dark');
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+  });
+
+  it('picks up a change made elsewhere when the tab comes back', async () => {
+    const r = await render(ThemeToggle);
+    writeThemeCookie(document, 'light');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await r.settle();
+    expect(r.byTestId('theme-light')!.getAttribute('aria-pressed')).toBe('true');
+    expect(document.documentElement.dataset['theme']).toBe('light');
   });
 });

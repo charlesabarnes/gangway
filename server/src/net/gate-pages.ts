@@ -1,6 +1,6 @@
 import LOGO from "../../../web/public/logo.svg" with { type: "text" };
 import LOGO_LIGHT from "../../../web/public/logo-light.svg" with { type: "text" };
-import { FAVICON_LINK, fontFaces, fontSrc } from "./page-chrome.ts";
+import { FAVICON_LINK, fontFaces, fontSrc, ownPage } from "./page-chrome.ts";
 
 export const PASSWORD_PATH = "/__gangway/password";
 const MAX_FORM_BYTES = 8 * 1024;
@@ -84,7 +84,7 @@ ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
     "referrer-policy": "no-referrer",
   };
   if (retryAfterSec !== undefined) headers["retry-after"] = String(retryAfterSec);
-  return new Response(html, { status, headers });
+  return ownPage(new Response(html, { status, headers }));
 }
 
 export function plain(status: number, message: string): Response {

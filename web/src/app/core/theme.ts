@@ -3,8 +3,22 @@ import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular
 export type ThemeChoice = 'system' | 'light' | 'dark';
 export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark'];
 
-/** Also read by the inline script in index.html, which applies the theme before the app boots. */
+// A cookie on the parent domain, so the app and every preview share one choice.
 export const THEME_KEY = 'gw-theme';
+
+export function readThemeCookie(doc: Document): 'light' | 'dark' | null {
+  const m = /(?:^|;\s*)gw-theme=(light|dark)(?:;|$)/.exec(doc.cookie);
+  return m ? (m[1] as 'light' | 'dark') : null;
+}
+
+export function writeThemeCookie(doc: Document, value: 'light' | 'dark' | null): void {
+  const { hostname, protocol } = doc.location;
+  const parent = hostname.split('.').slice(1).join('.');
+  const domain = parent.includes('.') ? `; domain=${parent}` : '';
+  const secure = protocol === 'https:' ? '; secure' : '';
+  const life = value ? 'max-age=31536000' : 'max-age=0';
+  doc.cookie = `${THEME_KEY}=${value ?? ''}; path=/; ${life}; samesite=lax${domain}${secure}`;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
@@ -20,6 +34,7 @@ export class ThemeService {
 
   constructor() {
     this.#media?.addEventListener('change', (e) => this.#systemDark.set(e.matches));
+    this.#doc.addEventListener('visibilitychange', () => this.choice.set(this.#stored()));
     effect(() => {
       this.#doc.documentElement.dataset['theme'] = this.dark() ? 'dark' : 'light';
     });
@@ -27,20 +42,23 @@ export class ThemeService {
 
   set(choice: ThemeChoice): void {
     this.choice.set(choice);
-    try {
-      if (choice === 'system') localStorage.removeItem(THEME_KEY);
-      else localStorage.setItem(THEME_KEY, choice);
-    } catch {
-      // Storage can be blocked; the choice still holds for this page.
-    }
+    writeThemeCookie(this.#doc, choice === 'system' ? null : choice);
   }
 
   #stored(): ThemeChoice {
+    const shared = readThemeCookie(this.#doc);
+    if (shared) return shared;
+    // Before the cookie the choice lived in this host's storage; move it over once.
     try {
       const v = localStorage.getItem(THEME_KEY);
-      return v === 'light' || v === 'dark' ? v : 'system';
+      localStorage.removeItem(THEME_KEY);
+      if (v === 'light' || v === 'dark') {
+        writeThemeCookie(this.#doc, v);
+        return v;
+      }
     } catch {
-      return 'system';
+      // Storage can be blocked; the cookie is what counts.
     }
+    return 'system';
   }
 }

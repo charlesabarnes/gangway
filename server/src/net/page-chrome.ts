@@ -61,3 +61,31 @@ p{margin:0;color:var(--muted)}
 pre{margin:6px 0 0;padding:12px 14px;background:var(--log);color:var(--log-fg);font:12px/1.55 'IBM Plex Mono',ui-monospace,Menlo,monospace;overflow-x:auto;box-shadow:inset 3px 0 0 var(--danger)}
 a{color:inherit;text-decoration-color:var(--flag);text-decoration-thickness:2px;text-underline-offset:3px}
 `;
+
+const OWN = new WeakSet<Response>();
+
+export function ownPage(res: Response): Response {
+  OWN.add(res);
+  return res;
+}
+
+export function themeChoice(req: Request): "light" | "dark" | null {
+  const m = /(?:^|;\s*)gw-theme=(light|dark)(?:;|$)/.exec(req.headers.get("cookie") ?? "");
+  return (m?.[1] as "light" | "dark" | undefined) ?? null;
+}
+
+/** Scriptless pages get the choice in their CSS; a WeakSet marks them, so no preview can pose as one. */
+export async function themed(res: Response, req: Request): Promise<Response> {
+  const t = themeChoice(req);
+  if (!OWN.has(res) || !t) return res;
+  const [dark, light] = t === "dark" ? ["all", "not all"] : ["not all", "all"];
+  const html = (await res.text())
+    .replaceAll("@media not (prefers-color-scheme:dark)", `@media ${light}`)
+    .replaceAll("@media (prefers-color-scheme:dark)", `@media ${dark}`)
+    .replaceAll("color-scheme:light dark", `color-scheme:${t}`);
+  return new Response(html, {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+  });
+}

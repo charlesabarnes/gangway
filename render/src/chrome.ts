@@ -1,8 +1,33 @@
 const KEY = "gw-theme";
 
-function stored(): string | null {
+// A cookie on the parent domain: the app and every preview under it share one choice.
+function cookie(): string | null {
   try {
-    return localStorage.getItem(KEY);
+    return /(?:^|;\s*)gw-theme=(light|dark)(?:;|$)/.exec(document.cookie)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function save(value: string | null): void {
+  const parent = location.hostname.split(".").slice(1).join(".");
+  const domain = parent.includes(".") ? `; domain=${parent}` : "";
+  const secure = location.protocol === "https:" ? "; secure" : "";
+  const life = value ? "max-age=31536000" : "max-age=0";
+  try {
+    document.cookie = `${KEY}=${value ?? ""}; path=/; ${life}; samesite=lax${domain}${secure}`;
+  } catch {}
+}
+
+function stored(): string | null {
+  const shared = cookie();
+  if (shared) return shared;
+  // Before the cookie the choice lived in this host's storage; move it over once.
+  try {
+    const v = localStorage.getItem(KEY);
+    localStorage.removeItem(KEY);
+    if (v === "light" || v === "dark") save(v);
+    return v;
   } catch {
     return null;
   }
@@ -39,10 +64,7 @@ function toggle(): HTMLElement {
     b.textContent = glyph;
     b.onclick = () => {
       current = id;
-      try {
-        if (id === "system") localStorage.removeItem(KEY);
-        else localStorage.setItem(KEY, id);
-      } catch {}
+      save(id === "system" ? null : id);
       applyTheme();
       paint();
     };
@@ -50,6 +72,11 @@ function toggle(): HTMLElement {
   }
   paint();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+  document.addEventListener("visibilitychange", () => {
+    current = stored() ?? "system";
+    applyTheme();
+    paint();
+  });
   return t;
 }
 

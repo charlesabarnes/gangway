@@ -1,5 +1,5 @@
 import { escapeHtml } from "../util/html.ts";
-import { BRAND, CHART_CSS, FAVICON_LINK, fontFaces } from "./page-chrome.ts";
+import { BRAND, CHART_CSS, FAVICON_LINK, fontFaces, ownPage } from "./page-chrome.ts";
 
 type PageOpts = {
   title: string;
@@ -23,14 +23,16 @@ ${FAVICON_LINK}
 ${o.refreshSeconds ? `<meta http-equiv="refresh" content="${o.refreshSeconds}">` : ""}
 <style>${o.hostname ? fontFaces(o.hostname) : ""}${CHART_CSS}</style></head>
 <body><main>${BRAND}<span class="label ${o.tone ?? "plain"}">${escapeHtml(o.label)}</span>${o.body}</main></body></html>`;
-  return new Response(html, {
-    status: o.status,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-      "x-robots-tag": "noindex, nofollow",
-    },
-  });
+  return ownPage(
+    new Response(html, {
+      status: o.status,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "x-robots-tag": "noindex, nofollow",
+      },
+    }),
+  );
 }
 
 const host = (h: string) => `<p class="host">${escapeHtml(h)}</p>`;

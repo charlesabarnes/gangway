@@ -12,6 +12,7 @@ import {
   upstreamTimeoutPage,
   wakingPage,
 } from "./error-pages.ts";
+import { themed } from "./page-chrome.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
 import { release, tryAcquire, type Limits } from "./limits.ts";
 import type { RequestRates } from "./rates.ts";
@@ -154,6 +155,10 @@ async function proxy(
 }
 
 export async function dispatch(req: Request, d: DispatchDeps): Promise<Response> {
+  return themed(await route(req, d), req);
+}
+
+async function route(req: Request, d: DispatchDeps): Promise<Response> {
   const host = normalizeHost(req.headers.get("host"));
   if (!host) return new Response("bad request", { status: 400 });
 
