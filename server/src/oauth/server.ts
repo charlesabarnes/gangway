@@ -291,6 +291,7 @@ export class OAuthServer {
     return {
       kind: "token",
       tokenId: `${OAUTH_TOKEN_PREFIX}${rec.grant.id}`,
+      name: rec.grant.clientName,
       scopes,
       permissions,
       userId: rec.owner.id,

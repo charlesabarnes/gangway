@@ -5,6 +5,7 @@ import { rowToAuditEntry, type AuditRow } from "./mappers.ts";
 export type AppendAudit = {
   actorType: AuditActorType;
   actorId: string | null;
+  actorName?: string | null;
   action: string;
   target: string | null;
   old?: unknown;
@@ -23,11 +24,12 @@ export class AuditRepo {
   append(e: AppendAudit): number {
     const json = (v: unknown) => (v === undefined || v === null ? null : JSON.stringify(v));
     return this.#db.run(
-      `INSERT INTO audit (actor_type, actor_id, action, target, old_json, new_json, created_at)
-       VALUES ($type, $id, $action, $target, $old, $new, $now)`,
+      `INSERT INTO audit (actor_type, actor_id, actor_name, action, target, old_json, new_json, created_at)
+       VALUES ($type, $id, $name, $action, $target, $old, $new, $now)`,
       {
         type: e.actorType,
         id: e.actorId,
+        name: e.actorName ?? null,
         action: e.action,
         target: e.target,
         old: json(e.old),

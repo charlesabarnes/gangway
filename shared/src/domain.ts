@@ -263,6 +263,8 @@ export type AuditEntry = {
   seq: number;
   actorType: AuditActorType;
   actorId: string | null;
+  /** The agent's or API token's name, when the actor was a credential. */
+  actorName: string | null;
   action: string;
   target: string | null;
   old: unknown;

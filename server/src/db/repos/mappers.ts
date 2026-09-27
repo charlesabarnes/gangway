@@ -279,6 +279,7 @@ export type AuditRow = {
   seq: number;
   actor_type: string;
   actor_id: string | null;
+  actor_name: string | null;
   action: string;
   target: string | null;
   old_json: string | null;
@@ -291,6 +292,7 @@ export function rowToAuditEntry(r: AuditRow): AuditEntry {
     seq: r.seq,
     actorType: r.actor_type as AuditActorType,
     actorId: r.actor_id,
+    actorName: r.actor_name,
     action: r.action,
     target: r.target,
     old: r.old_json === null ? null : JSON.parse(r.old_json),

@@ -60,6 +60,7 @@ export class Tokens {
       return {
         kind: "token",
         tokenId: token.id,
+        name: token.name,
         scopes: token.scopes,
         permissions: bundle,
         ...targets,
@@ -69,6 +70,7 @@ export class Tokens {
     return {
       kind: "token",
       tokenId: token.id,
+      name: token.name,
       scopes: token.scopes,
       permissions,
       userId: owner.id,

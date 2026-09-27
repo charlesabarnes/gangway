@@ -89,6 +89,7 @@ export class Audit implements AuditSink {
       this.#repo.append({
         actorType: who.type,
         actorId: who.id,
+        actorName: ("name" in who ? who.name : undefined) ?? null,
         action,
         target,
         old: change.old === undefined ? undefined : redact(change.old),

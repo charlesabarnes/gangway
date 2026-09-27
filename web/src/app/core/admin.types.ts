@@ -28,6 +28,7 @@ export type AuditEntry = {
   seq: number;
   actorType: 'user' | 'token' | 'app' | 'system' | 'github';
   actorId: string | null;
+  actorName: string | null;
   action: string;
   target: string | null;
   old: unknown;

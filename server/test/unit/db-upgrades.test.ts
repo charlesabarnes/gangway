@@ -88,7 +88,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -212,7 +212,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -268,7 +268,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25,
       ]);
       const holders = db
         .query<{ role_id: string }>(
@@ -302,7 +302,7 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19, 20, 21, 22, 23]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19, 20, 21, 22, 23, 25]);
       const rows = db.query<{ id: string; watermark: string | null; source_json: string }>(
         "SELECT id, watermark, source_json FROM previews ORDER BY id",
       );
@@ -327,7 +327,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, created_at, updated_at) VALUES ('acme', 'Acme', '', '{\"light\":{},\"dark\":{}}', '{}', 1, 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([22, 23]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([22, 23, 25]);
       expect(db.query("SELECT id, style_json FROM artifact_themes")).toEqual([
         { id: "acme", style_json: "{}" },
       ]);
@@ -342,9 +342,35 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([23]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([23, 25]);
       expect(db.query("SELECT id, invited FROM users")).toEqual([{ id: "u1", invited: 0 }]);
       expect(db.query("SELECT * FROM user_links")).toEqual([]);
+      db.close();
+    });
+  });
+  describe(`0025 audit actor name on ${name}`, () => {
+    test("entries by an agent or an API token take its name; the rest have none", () => {
+      const at = databaseAt(open, 23);
+      at.db.run(
+        "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
+      );
+      at.db.run(
+        "INSERT INTO api_tokens (id, name, prefix, token_hash, user_id, created_at) VALUES ('t1', 'ci', 'gw_abc', 'hash', 'u1', 1)",
+      );
+      at.db.run(
+        "INSERT INTO oauth_grants (id, user_id, client_id, client_name, redirect_uri, resource, access_hash, access_expires_at, refresh_hash, refresh_expires_at, absolute_expires_at, created_at) VALUES ('g1', 'u1', 'c1', 'Claude Code', 'http://localhost/cb', 'r', 'a', 1, 'f', 1, 1, 1)",
+      );
+      at.db.run(
+        "INSERT INTO audit (actor_type, actor_id, action, created_at) VALUES ('token', 'oauth:g1', 'preview.deploy', 1), ('token', 't1', 'preview.deploy', 2), ('token', 'oauth:gone', 'preview.deploy', 3), ('user', 'u1', 'auth.login', 4)",
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual([25]);
+      expect(db.query("SELECT actor_id, actor_name FROM audit ORDER BY seq")).toEqual([
+        { actor_id: "oauth:g1", actor_name: "Claude Code" },
+        { actor_id: "t1", actor_name: "ci" },
+        { actor_id: "oauth:gone", actor_name: null },
+        { actor_id: "u1", actor_name: null },
+      ]);
       db.close();
     });
   });

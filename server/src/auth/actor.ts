@@ -18,6 +18,8 @@ export type Actor =
       scopes: readonly Scope[];
       permissions: ReadonlySet<Permission>;
       userId?: string;
+      /** The agent's client name or the API token's name, for the audit log. */
+      name?: string;
       /** With the secrets scope: where this credential may set them. Absent: not narrowed. */
       secretTargets?: SecretTargets;
     }
@@ -166,13 +168,17 @@ export const mayDeploy = (a: Actor): boolean =>
 
 export const mayRunContainers = (a: Actor): boolean => can(a, "previews.deploy");
 
-export function auditActor(a: Actor): { type: "user" | "token" | "system" | "github"; id: string } {
+export function auditActor(a: Actor): {
+  type: "user" | "token" | "system" | "github";
+  id: string;
+  name?: string;
+} {
   if (a.kind === "user") return { type: "user", id: a.userId };
   if (a.kind === "forge") return { type: a.forge, id: a.login };
   if (a.kind === "workflow") return { type: "github", id: `actions:${a.repository}#${a.runId}` };
   return a.tokenId.startsWith("system:")
     ? { type: "system", id: a.tokenId.slice("system:".length) }
-    : { type: "token", id: a.tokenId };
+    : { type: "token", id: a.tokenId, ...(a.name === undefined ? {} : { name: a.name }) };
 }
 
 export type TokenVerifier = (presented: string) => Actor | null | Promise<Actor | null>;

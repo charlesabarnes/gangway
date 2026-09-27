@@ -18,6 +18,7 @@ const entry = (seq: number, over: Partial<AuditEntry> = {}): AuditEntry => ({
   seq,
   actorType: 'user',
   actorId: 'u1',
+  actorName: null,
   action: 'user.created',
   target: 'u2',
   old: null,
@@ -47,7 +48,12 @@ describe('Admin · Audit log', () => {
   it('names users by email, pages back with before, and filters by action', async () => {
     const r = await open();
     r.http.expectOne(page('limit=50')).flush({
-      entries: [entry(3), entry(2, { actorType: 'system', actorId: null, action: 'boot' })],
+      entries: [
+        entry(5, { actorType: 'token', actorId: 'oauth:g1', actorName: 'Claude Code' }),
+        entry(4, { actorType: 'token', actorId: 'env:admin' }),
+        entry(3),
+        entry(2, { actorType: 'system', actorId: null, action: 'boot' }),
+      ],
       nextBefore: 2,
     });
     r.http.expectOne('/v1/users').flush({
@@ -58,13 +64,18 @@ describe('Admin · Audit log', () => {
     });
     await r.settle();
     const who = r.allByTestId('audit-who').map((e) => e.textContent!.trim());
-    expect(who).toEqual(['ada@example.com', 'gangway']);
+    expect(who).toEqual([
+      'Claude Code (agent)',
+      'token env:admin',
+      'ada@example.com',
+      'gangway',
+    ]);
     expect(r.el.textContent).toContain('"roleId":"member"');
 
     r.byTestId('audit-more')!.click();
     r.http.expectOne(page('limit=50&before=2')).flush({ entries: [entry(1)], nextBefore: null });
     await r.settle();
-    expect(r.allByTestId('audit-entry')).toHaveLength(3);
+    expect(r.allByTestId('audit-entry')).toHaveLength(5);
     expect(r.byTestId('audit-more')).toBeNull();
 
     const input = r.byTestId('audit-action') as HTMLInputElement;

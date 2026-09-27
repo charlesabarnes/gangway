@@ -177,6 +177,12 @@ export class AuditLog {
     if (e.actorType === 'system') return 'gangway';
     if (e.actorId === null) return e.actorType;
     if (e.actorType === 'user') return this.#emails().get(e.actorId) ?? e.actorId;
+    if (e.actorType === 'token') {
+      const kind = e.actorId.startsWith('oauth:') ? 'agent' : 'token';
+      if (e.actorName) return `${e.actorName} (${kind})`;
+      // An agent's grant id means nothing to a reader; a token id such as env:admin does.
+      return kind === 'agent' ? 'agent' : `token ${e.actorId}`;
+    }
     return `${e.actorType} ${e.actorId}`;
   }
 

@@ -126,6 +126,23 @@ describe("Audit.record", () => {
     });
   });
 
+  test("a connected agent is recorded under its client name, with no secret", () => {
+    const s = setup();
+    const agent: Actor = {
+      kind: "token",
+      tokenId: "oauth:g1",
+      name: "Claude Code",
+      scopes: ["deploy"],
+      permissions: new Set(),
+    };
+    new Audit(s.audit, quiet).record(agent, "preview.title", "p1");
+    expect(all(s.audit)[0]).toMatchObject({
+      actorType: "token",
+      actorId: "oauth:g1",
+      actorName: "Claude Code",
+    });
+  });
+
   test("never throws: a failed write is logged, not raised", () => {
     const lines: string[] = [];
     const broken = {
