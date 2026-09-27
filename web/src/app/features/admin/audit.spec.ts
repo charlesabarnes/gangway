@@ -64,12 +64,7 @@ describe('Admin · Audit log', () => {
     });
     await r.settle();
     const who = r.allByTestId('audit-who').map((e) => e.textContent!.trim());
-    expect(who).toEqual([
-      'Claude Code (agent)',
-      'token env:admin',
-      'ada@example.com',
-      'gangway',
-    ]);
+    expect(who).toEqual(['Claude Code (agent)', 'token env:admin', 'ada@example.com', 'gangway']);
     expect(r.el.textContent).toContain('"roleId":"member"');
 
     r.byTestId('audit-more')!.click();
