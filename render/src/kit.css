@@ -1762,15 +1762,20 @@ gw-side li:has(> strong) {
 gw-side li > strong {
   font-weight: 600;
 }
+/* A bar: the title on the left, and whatever follows it (steps, flags, buttons) together on the
+   right. */
 gw-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: flex-end;
+  gap: 12px 16px;
 }
 gw-bar > * {
   margin: 0;
+}
+gw-bar > :first-child {
+  margin-right: auto;
 }
 gw-app > main > gw-bar:first-child {
   padding-bottom: 20px;
@@ -2072,14 +2077,14 @@ body:has(gw-deck) .gw-toggle {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
   }
-  gw-grid,
-  gw-columns {
+  /* A desktop window is drawn at its own width, so what is inside it keeps its columns. */
+  :is(gw-grid, gw-columns):not(gw-frame[frame="window"] *) {
     grid-template-columns: minmax(0, 1fr);
   }
-  gw-grid > * {
+  gw-grid:not(gw-frame[frame="window"] *) > * {
     grid-column: auto !important;
   }
-  gw-grid > gw-stat + gw-stat::before {
+  gw-grid:not(gw-frame[frame="window"] *) > gw-stat + gw-stat::before {
     inset: 0 16px auto;
     border-left: 0;
     border-top: 1px solid var(--rule);
