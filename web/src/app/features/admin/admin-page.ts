@@ -5,21 +5,29 @@ import { map } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { AuditLog } from './audit';
 import { RolesMatrix } from './roles';
+import { SettingsSections, type SettingsGroup } from '../settings/settings';
+import { adminTabs, type AdminTab } from './tabs';
 import { UsersList } from './users';
 
-type Tab = 'users' | 'roles' | 'audit';
+const GROUPS: Partial<Record<AdminTab, readonly SettingsGroup[]>> = {
+  previews: ['previews'],
+  domains: ['domains'],
+  github: ['github'],
+  server: ['server'],
+};
 
-/** Who can get in and what they may do: accounts, roles, and the record of changes. */
+/** Everything about running the server: who may use it, how previews behave, and what changed. */
 @Component({
   selector: 'app-admin',
-  imports: [AuditLog, RolesMatrix, RouterLink, UsersList],
+  imports: [AuditLog, RolesMatrix, RouterLink, SettingsSections, UsersList],
   template: `
     <section class="gw-page">
       <div class="flex flex-col gap-5">
         <div class="gw-title-rule flex flex-col gap-2.5">
           <h1 class="gw-h1">Admin</h1>
           <p class="m-0 max-w-[62ch] font-serif text-base leading-snug text-muted">
-            The people who use this server, what each role may do, and a record of every change.
+            Who may use this server and what each role may do, how previews behave, and a record of
+            every change.
           </p>
         </div>
         <nav
@@ -55,6 +63,9 @@ type Tab = 'users' | 'roles' | 'audit';
             @case ('audit') {
               <app-audit-log />
             }
+            @default {
+              <app-settings [groups]="groups[t]!" />
+            }
           }
         </div>
       } @empty {
@@ -68,19 +79,14 @@ export class AdminPage {
   readonly #query = toSignal(inject(ActivatedRoute).queryParamMap.pipe(map((q) => q.get('tab'))), {
     initialValue: null,
   });
-  protected readonly tabs = computed(() =>
-    [
-      { id: 'users' as Tab, label: 'Users', can: this.#auth.can('users.read') },
-      { id: 'roles' as Tab, label: 'Roles', can: this.#auth.can('roles.read') },
-      { id: 'audit' as Tab, label: 'Audit log', can: this.#auth.can('audit.read') },
-    ].filter((t) => t.can),
-  );
-  protected readonly tab = computed<Tab | null>(() => {
+  protected readonly groups = GROUPS;
+  protected readonly tabs = computed(() => adminTabs((p) => this.#auth.can(p)));
+  protected readonly tab = computed<AdminTab | null>(() => {
     const want = this.#query();
     const tabs = this.tabs();
     return tabs.find((t) => t.id === want)?.id ?? tabs[0]?.id ?? null;
   });
-  readonly #opened = new Set<Tab>();
+  readonly #opened = new Set<AdminTab>();
   protected readonly opened = computed(() => {
     const t = this.tab();
     if (t) this.#opened.add(t);

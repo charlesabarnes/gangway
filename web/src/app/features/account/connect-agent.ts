@@ -155,7 +155,7 @@ const TABS: AgentClient[] = ['claude', 'codex', 'cursor', 'vscode', 'other'];
         <div class="min-w-0">
           @if (!c.surfaces.mcp) {
             <p class="text-sm text-muted" data-testid="mcp-off">
-              MCP is switched off on this server. An admin can turn it on in Settings → Surfaces.
+              MCP is switched off on this server. An admin can turn it on in Admin → Server.
             </p>
           } @else {
             <div

@@ -16,7 +16,7 @@ import { Skeleton } from '../../ui/skeleton';
     <div class="flex flex-col gap-3" data-testid="secrets">
       <p class="m-0 max-w-3xl font-serif text-base leading-snug text-muted">
         Given to this repository's previews at or below their clearance, on top of the global ones
-        in Settings; a name here wins.
+        in Admin → Previews; a name here wins.
         @if (p.prTrigger === 'workflow' && p.fullName) {
           With a workflow they reach the running container as its environment — build-time secrets
           stay in GitHub.

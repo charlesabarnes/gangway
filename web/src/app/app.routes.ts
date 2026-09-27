@@ -86,12 +86,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/artifacts/theme-editor').then((m) => m.ThemeEditor),
   },
   { path: 'templates', redirectTo: 'artifacts?tab=templates' },
-  {
-    path: 'settings',
-    title: 'Settings · gangway',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
-  },
+  { path: 'settings', redirectTo: 'admin' },
   {
     path: 'admin',
     title: 'Admin · gangway',
@@ -105,7 +100,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/settings/github-callback').then((m) => m.GitHubCallback),
   },
-  { path: 'github', redirectTo: 'settings' },
+  { path: 'github', redirectTo: 'admin?tab=github' },
   {
     path: 'connect',
     title: 'Connect an app · gangway',

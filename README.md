@@ -176,11 +176,11 @@ The answer includes the URL once the preview serves it. Create tokens under **Ac
 
 ## Connect an agent
 
-**1. Turn on MCP.** It is off by default. Under **Settings → Surfaces**, choose **Turn on**.
+**1. Turn on MCP.** It is off by default. Under **Admin → Server → Surfaces**, choose **Turn on**.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/mcp-off-dark.png">
-  <img alt="Settings → Surfaces, with MCP off and a Turn on button." src=".github/assets/screenshots/mcp-off-light.png" width="100%">
+  <img alt="Surfaces, with MCP off and a Turn on button." src=".github/assets/screenshots/mcp-off-light.png" width="100%">
 </picture>
 
 **2. Copy the setup for your client.** **Account → Connect an agent** shows the exact commands
@@ -256,7 +256,7 @@ idempotent, and it waits until the URL answers.
 
 ## Pull-request previews
 
-1. Under **Settings → GitHub**, create a GitHub App in one click through GitHub's manifest
+1. Under **Admin → GitHub**, create a GitHub App in one click through GitHub's manifest
    flow, so no secret is copied by hand. Install it on your repositories.
 2. Under **Repositories**, connect a repository. By default gangway gives you a workflow file to
    commit. It builds on GitHub Actions and hands gangway the image, authenticated by the run's
@@ -286,7 +286,7 @@ Everything can be set in the environment. Settings not pinned there are editable
 ### Domains
 
 Previews are named `<label>.<domain>`. Beyond the domains in the environment, anyone with the
-permission can claim one they own, in Settings (for every repository), on a repository's
+permission can claim one they own, in Admin → Domains & traffic (for every repository), on a repository's
 Domains tab (its previews, or a hostname for its production preview), or on a preview (a
 hostname such as `www.example.com`). A claim asks for two DNS records at the owner's provider:
 
@@ -323,7 +323,7 @@ The ask is on gangway's plain-HTTP listener (`GANGWAY_LISTEN_HTTP_PORT`, 8080 un
 gangway answers it only from loopback or `GANGWAY_TRUSTED_PROXIES`, and only for names it
 serves today. Nginx Proxy Manager needs a proxy host and certificate per domain, added by hand.
 
-Preview traffic is rate limited per visitor and per preview (Settings → Traffic limits); past
+Preview traffic is rate limited per visitor and per preview (Admin → Domains & traffic); past
 the limit a preview answers 429.
 
 ## Security

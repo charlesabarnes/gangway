@@ -44,6 +44,25 @@ describe('the Admin page', () => {
     expect(r.byTestId('panel-users')!.hidden).toBe(false);
   });
 
+  it('shows the server settings as tabs, each loading only what it needs', async () => {
+    const r = await open(['settings.read', 'github.manage'], '/admin?tab=domains');
+    expect(tabs(r)).toEqual(['tab-previews', 'tab-domains', 'tab-github', 'tab-server']);
+    r.http.expectOne('/v1/settings').flush({ settings: [] });
+    r.http.expectNone('/v1/templates');
+    await r.settle();
+    const panel = r.byTestId('panel-domains')!;
+    expect(panel.querySelector('app-domain-settings')).not.toBeNull();
+    expect(panel.querySelector('app-limit-settings')).not.toBeNull();
+    expect(panel.querySelector('app-watermark-settings')).toBeNull();
+    expect(panel.querySelector('app-github-settings')).toBeNull();
+  });
+
+  it('opens Previews for a role that may only set global secrets', async () => {
+    const r = await open(['repos.secrets']);
+    expect(tabs(r)).toEqual(['tab-previews']);
+    expect(r.byTestId('panel-previews')!.querySelector('app-global-secrets')).not.toBeNull();
+  });
+
   it('says so when there is nothing to show', async () => {
     const r = await open(['previews.read']);
     expect(r.byTestId('no-admin')).not.toBeNull();

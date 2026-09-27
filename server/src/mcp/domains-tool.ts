@@ -104,7 +104,7 @@ function describeClaim(v: DomainView): string {
 function useDomain(d: ToolDeps, c: ClaimDeps, actor: Actor, t: DomainTarget, use: string | null) {
   if (t.kind === "org")
     throw unprocessable(
-      "the server's default domain is a setting: change previewDomain in Settings",
+      "the server's default domain is a setting: change it in Admin → Domains & traffic",
     );
   if (t.kind === "preview") return setPreviewDomain(d.ctx, actor, t.preview.id, use);
   if (!can(actor, "repos.domains"))

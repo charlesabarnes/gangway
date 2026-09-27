@@ -29,21 +29,7 @@
           data-testid="nav-repositories"
           >Repositories</a
         >
-        @if (
-          auth.can('settings.read') ||
-          auth.can('github.manage') ||
-          auth.can('repos.secrets') ||
-          auth.can('templates.manage')
-        ) {
-          <a
-            routerLink="/settings"
-            routerLinkActive="!opacity-100 shadow-[inset_0_-3px_0_var(--gw-flag)]"
-            class="flex items-center px-3.5 opacity-70 hover:opacity-100"
-            data-testid="nav-settings"
-            >Settings</a
-          >
-        }
-        @if (auth.can('users.read') || auth.can('roles.read') || auth.can('audit.read')) {
+        @if (admin()) {
           <a
             routerLink="/admin"
             routerLinkActive="!opacity-100 shadow-[inset_0_-3px_0_var(--gw-flag)]"

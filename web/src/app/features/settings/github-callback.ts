@@ -17,7 +17,9 @@ import { ToastService } from '../../ui/toast';
         <p class="mt-2 text-sm text-danger" role="alert" data-testid="error">
           {{ e }}
         </p>
-        <a appBtn routerLink="/settings" class="mt-6 inline-block">Back to Settings</a>
+        <a appBtn routerLink="/admin" [queryParams]="{ tab: 'github' }" class="mt-6 inline-block"
+          >Back to GitHub settings</a
+        >
       } @else {
         <h1 class="font-serif text-3xl italic" data-testid="working">Connecting the GitHub App…</h1>
       }
@@ -51,7 +53,7 @@ export class GitHubCallback {
         `Connected as ${status.appSlug}`,
         'Now install the App on your repositories.',
       );
-      await this.#router.navigateByUrl('/settings');
+      await this.#router.navigateByUrl('/admin?tab=github');
     } catch (e) {
       this.error.set(toProblem(e).detail);
     }

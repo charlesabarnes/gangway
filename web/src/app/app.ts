@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { AuthService } from './core/auth.service';
+import { adminTabs } from './features/admin/tabs';
 import { HealthService } from './health';
 import { ThemeService } from './core/theme';
 import { Mark } from './ui/mark';
@@ -32,6 +33,8 @@ export class App {
     // Created at boot so it follows the system theme on every page, header or not.
     inject(ThemeService);
   }
+
+  protected readonly admin = computed(() => adminTabs((p) => this.auth.can(p)).length > 0);
 
   protected readonly chrome = computed(
     () => this.auth.authenticated() && !/^\/(login|setup)(\?|\/|$)/.test(this.#url()),

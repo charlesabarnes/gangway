@@ -61,9 +61,10 @@ const CSS = 'artifacts.customCss';
         <p class="text-[15px]">
           {{ watermark() ? 'Shown' : 'Hidden' }} on previews that do not choose.
           <a
-            routerLink="/settings"
+            routerLink="/admin"
+            [queryParams]="{ tab: 'previews' }"
             class="underline decoration-flag decoration-2 underline-offset-4"
-            >Change it in Settings</a
+            >Change it in Admin</a
           >
         </p>
       </div>

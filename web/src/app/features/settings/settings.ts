@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import type { SettingView, Template } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
@@ -16,6 +16,10 @@ import { DomainSettings } from './domain-settings';
 import { LimitSettings } from './limit-settings';
 import { Skeleton } from '../../ui/skeleton';
 
+export const SETTINGS_GROUPS = ['previews', 'domains', 'github', 'server'] as const;
+export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
+
+/** The server's settings, one group or several; Admin shows each group as a tab. */
 @Component({
   selector: 'app-settings',
   imports: [
@@ -30,42 +34,44 @@ import { Skeleton } from '../../ui/skeleton';
     DomainSettings,
     LimitSettings,
   ],
+  host: { class: 'flex flex-col gap-7 [&>:last-child>.gw-section]:border-b-0' },
   template: `
-    <section class="gw-page [&>:last-child>.gw-section]:border-b-0">
-      <div class="gw-title-rule"><h1 class="gw-h1">Settings</h1></div>
-      @if (!ready()) {
-        <app-skeleton [count]="8" label="Loading settings" />
-      } @else {
-        @if (canReadSettings()) {
-          <app-update-settings [settings]="settings()" [(saving)]="saving" />
-        }
-        @if (canSurfaces()) {
-          <app-surfaces-settings [(saving)]="saving" />
-        }
-        @if (canManage()) {
-          <app-github-settings />
-        }
-        @if (canReadSettings() || canManagePolicies()) {
-          <app-preview-policies
-            [(templates)]="templates"
-            [settings]="settings()"
-            [(saving)]="saving"
-          />
-        }
-        @if (canReadSettings()) {
-          <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
-          <app-watermark-settings [settings]="settings()" [(saving)]="saving" />
-          <app-domain-settings [settings]="settings()" [(saving)]="saving" />
-          <app-limit-settings [settings]="settings()" [(saving)]="saving" />
-        }
-        @if (canSecrets()) {
-          <app-global-secrets />
-        }
+    @if (!ready()) {
+      <app-skeleton [count]="4" label="Loading settings" />
+    } @else {
+      @if (show('server') && canReadSettings()) {
+        <app-update-settings [settings]="settings()" [(saving)]="saving" />
       }
-    </section>
+      @if (show('server') && canSurfaces()) {
+        <app-surfaces-settings [(saving)]="saving" />
+      }
+      @if (show('github') && canManage()) {
+        <app-github-settings />
+      }
+      @if (show('previews') && (canReadSettings() || canManagePolicies())) {
+        <app-preview-policies
+          [(templates)]="templates"
+          [settings]="settings()"
+          [(saving)]="saving"
+        />
+      }
+      @if (show('previews') && canReadSettings()) {
+        <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
+        <app-watermark-settings [settings]="settings()" [(saving)]="saving" />
+      }
+      @if (show('domains') && canReadSettings()) {
+        <app-domain-settings [settings]="settings()" [(saving)]="saving" />
+        <app-limit-settings [settings]="settings()" [(saving)]="saving" />
+      }
+      @if (show('previews') && canSecrets()) {
+        <app-global-secrets />
+      }
+    }
   `,
 })
-export class SettingsPage {
+export class SettingsSections {
+  readonly groups = input<readonly SettingsGroup[]>(SETTINGS_GROUPS);
+
   readonly #auth = inject(AuthService);
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
@@ -84,20 +90,27 @@ export class SettingsPage {
   constructor() {
     effect(() => {
       const read = this.canReadSettings();
-      if (read || this.canManagePolicies()) untracked(() => void this.#load(read));
+      const policies = this.show('previews') && (read || this.canManagePolicies());
+      if (read || policies) untracked(() => void this.#load(read, policies));
       else this.ready.set(true);
     });
   }
 
-  async #load(withSettings: boolean): Promise<void> {
+  protected show(group: SettingsGroup): boolean {
+    return this.groups().includes(group);
+  }
+
+  async #load(withSettings: boolean, withTemplates: boolean): Promise<void> {
     try {
-      const [{ templates }, settings] = await Promise.all([
-        firstValueFrom(this.#http.get<{ templates: Template[] }>('/v1/templates')),
+      const [templates, settings] = await Promise.all([
+        withTemplates
+          ? firstValueFrom(this.#http.get<{ templates: Template[] }>('/v1/templates'))
+          : null,
         withSettings
           ? firstValueFrom(this.#http.get<{ settings: SettingView[] }>('/v1/settings'))
           : null,
       ]);
-      this.templates.set(templates);
+      if (templates) this.templates.set(templates.templates);
       if (settings) this.settings.set(settings.settings);
     } catch (e) {
       this.#toasts.problem('Could not load settings', toProblem(e));

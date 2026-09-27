@@ -158,7 +158,8 @@ import { Skeleton } from '../../ui/skeleton';
                     <dt>Policy</dt>
                     <dd>
                       <a
-                        routerLink="/settings"
+                        routerLink="/admin"
+                        [queryParams]="{ tab: 'previews' }"
                         class="underline underline-offset-2"
                         data-testid="template"
                         >{{ p.templateId }}</a

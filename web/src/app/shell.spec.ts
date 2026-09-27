@@ -76,13 +76,18 @@ describe('the app shell', () => {
     expect(menu().hidden).toBe(true);
   });
 
-  it('shows Admin only to a role that can read users, roles or the audit log', async () => {
+  it('shows Admin only to a role that can see one of its tabs', async () => {
     const member = await shell(ADA);
     expect(member.byTestId('nav-admin')).toBeNull();
     TestBed.resetTestingModule();
 
     const r = await shell({ ...ADA, permissions: ['previews.read', 'audit.read'] });
     expect(r.byTestId('nav-admin')!.getAttribute('href')).toBe('/admin');
+    TestBed.resetTestingModule();
+
+    const github = await shell({ ...ADA, permissions: ['github.manage'] });
+    expect(github.byTestId('nav-admin')).not.toBeNull();
+    expect(github.byTestId('nav-settings')).toBeNull();
   });
 
   it('Previews, the home page, is the first link in the nav', async () => {

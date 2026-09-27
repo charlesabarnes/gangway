@@ -18,11 +18,11 @@ import { AuthService } from '../../core/auth.service';
 import { Toasts } from '../../ui/toast';
 import { GitHubCallback } from './github-callback';
 import { GitHubSettings } from './github-settings';
-import { SettingsPage } from './settings';
+import { SettingsSections } from './settings';
 
 installDialogPolyfill();
 
-@Component({ imports: [SettingsPage, Toasts], template: '<app-settings /><app-toasts />' })
+@Component({ imports: [SettingsSections, Toasts], template: '<app-settings /><app-toasts />' })
 class Host {}
 
 const status = (over: Partial<GitHubStatus> = {}): GitHubStatus => ({
@@ -428,16 +428,16 @@ describe('GitHubCallback', () => {
     useValue: { snapshot: { queryParamMap: convertToParamMap(query) } },
   });
 
-  it('exchanges code+state once and moves to /settings', async () => {
+  it('exchanges code+state once and moves to the GitHub tab', async () => {
     const r = await render(GitHubCallback, {
       providers: [route({ code: 'c0de', state: 'st4te' })],
-      routes: [{ path: 'settings', children: [] }],
+      routes: [{ path: 'admin', children: [] }],
     });
     expect(r.byTestId('working')).not.toBeNull();
     const req = r.http.expectOne({ method: 'POST', url: '/v1/github/manifest/exchange' });
     expect(req.request.body).toEqual({ code: 'c0de', state: 'st4te' });
     req.flush(status(), { status: 201, statusText: 'Created' });
-    await r.until(() => TestBed.inject(Router).url === '/settings', 'navigation');
+    await r.until(() => TestBed.inject(Router).url === '/admin?tab=github', 'navigation');
   });
 
   it('a refused exchange stays put and says why', async () => {
