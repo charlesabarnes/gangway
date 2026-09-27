@@ -20,6 +20,14 @@ curl -fsSL gangway.sh/install | sh
 
 It needs Docker or Podman with Compose, and a domain with a wildcard DNS record (for example `*.preview.example.com`) pointing at the server. The installer asks for the domain and how TLS is handled, then prints a one-time link to create the first admin. Run it again to upgrade. `--help` lists flags for an unattended install.
 
+No domain? Install local-only, the default on a laptop:
+
+```sh
+curl -fsSL gangway.sh/install | sh -s -- --local
+```
+
+The dashboard, API, MCP and previews then answer only on that machine, at `*.preview.localhost`. To show a preview to anyone else, press Share on its page, or have the agent call the MCP `share` tool: gangway opens a Cloudflare quick tunnel and returns a public `https://….trycloudflare.com` link until it is stopped or expires. Quick tunnels need no Cloudflare account and are for testing: at most 200 requests at once, no server-sent events, and a new link each time.
+
 ## Connect an agent
 
 1. In gangway, turn on MCP under Admin → Server → Surfaces.
@@ -27,7 +35,7 @@ It needs Docker or Podman with Compose, and a domain with a wildcard DNS record 
    `claude plugin marketplace add charlesabarnes/gangway && claude plugin install gangway@gangway --config mcp_url=https://mcp.<your-domain>/`
 3. Sign in through the client (`/mcp` in Claude Code) and approve the agent in the browser.
 
-The MCP tools are `deploy`, `status`, `logs` and `destroy`. `deploy` is idempotent.
+The main MCP tools are `deploy`, `status`, `logs`, `destroy` and `share`. `deploy` is idempotent.
 
 ## Docs
 

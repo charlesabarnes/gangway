@@ -951,12 +951,22 @@
             </div>
             <ul class="needs">
               <li>Docker or Podman with Compose</li>
-              <li>A domain with a wildcard DNS record</li>
+              <li>A domain with a wildcard DNS record, or none</li>
             </ul>
             <p class="needs-note">
               Run it on the server that will host your previews. It sets up the rest and prints a
               link to create the first admin. Run it again to upgrade.
             </p>
+            <p class="needs-note" data-testid="local-note">
+              No domain? Run it local-only. Everything answers on this machine at
+              <code>*.preview.localhost</code>, and Share on a preview gives it a public link
+              through a Cloudflare quick tunnel.
+            </p>
+            <div class="command">
+              <!-- prettier-ignore -->
+              <code data-command>curl -fsSL gangway.sh/install | sh -s -- --local</code>
+              <button class="command-copy" type="button" data-copy hidden>Copy</button>
+            </div>
             <a class="plan-link" href="https://github.com/charlesabarnes/gangway#quickstart"
               >Install options ↗</a
             >

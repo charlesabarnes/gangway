@@ -447,14 +447,15 @@ function startDemo(demo) {
 }
 
 function startCopy(button) {
-  const command = document.querySelector("[data-command]").textContent.trim().replace(/\s+/g, " ");
+  const code = button.closest(".command").querySelector("[data-command]");
+  const command = code.textContent.trim().replace(/\s+/g, " ");
   button.hidden = false;
   button.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(command);
       button.textContent = "Copied";
     } catch {
-      getSelection().selectAllChildren(document.querySelector("[data-command]"));
+      getSelection().selectAllChildren(code);
       button.textContent = "Selected";
     }
     setTimeout(() => (button.textContent = "Copy"), 2000);
@@ -462,7 +463,6 @@ function startCopy(button) {
 }
 
 renderBrandIcons();
-const copy = document.querySelector("[data-copy]");
-if (copy) startCopy(copy);
+for (const copy of document.querySelectorAll("[data-copy]")) startCopy(copy);
 const demo = document.querySelector("[data-demo]");
 if (demo) startDemo(demo);
