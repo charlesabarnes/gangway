@@ -190,6 +190,10 @@
 
 /* Page frame */
 
+/* The header stays pinned, so anchor jumps stop below it. */
+html {
+  scroll-padding-top: 56px;
+}
 .site-header {
   --rib: var(--header-bg);
   background: var(--header-bg);
@@ -202,6 +206,9 @@
   white-space: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 .site-header .home {
   display: flex;
@@ -282,8 +289,6 @@
    JavaScript (no data-menu) the header keeps its sideways-scrolling row instead. */
 @media (max-width: 720px) {
   .site-header[data-menu] {
-    position: relative;
-    z-index: 10;
     overflow: visible;
   }
   .site-header[data-menu] .menu-toggle {
