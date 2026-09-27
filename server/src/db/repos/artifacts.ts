@@ -1,4 +1,4 @@
-import type { Theme, ThemeFonts, ThemeTokens } from "@gangway/shared/artifact/theme";
+import type { Theme, ThemeFonts, ThemeStyle, ThemeTokens } from "@gangway/shared/artifact/theme";
 import type { ArtifactKind } from "@gangway/shared/artifact/vocab";
 import type { Db, Params } from "../types.ts";
 
@@ -8,6 +8,7 @@ type ThemeRow = {
   description: string;
   tokens_json: string;
   fonts_json: string;
+  style_json: string;
   logo_svg: string | null;
 };
 
@@ -18,6 +19,7 @@ const toTheme = (r: ThemeRow): Theme => ({
   builtin: false,
   tokens: JSON.parse(r.tokens_json) as ThemeTokens,
   fonts: JSON.parse(r.fonts_json) as ThemeFonts,
+  style: JSON.parse(r.style_json) as ThemeStyle,
   logo: r.logo_svg,
 });
 
@@ -26,6 +28,7 @@ export type ThemeWrite = {
   description?: string | undefined;
   tokens?: ThemeTokens | undefined;
   fonts?: ThemeFonts | undefined;
+  style?: ThemeStyle | undefined;
   logo?: string | null | undefined;
 };
 
@@ -67,14 +70,15 @@ export class ArtifactThemesRepo {
     const now = this.#now();
     this.#byId.delete(id);
     this.#db.run(
-      `INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, logo_svg, created_by, created_at, updated_at)
-       VALUES ($id, $name, $description, $tokens, $fonts, $logo, $by, $now, $now)`,
+      `INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, style_json, logo_svg, created_by, created_at, updated_at)
+       VALUES ($id, $name, $description, $tokens, $fonts, $style, $logo, $by, $now, $now)`,
       {
         id,
         name: t.name,
         description: t.description ?? "",
         tokens: JSON.stringify(t.tokens),
         fonts: JSON.stringify(t.fonts ?? {}),
+        style: JSON.stringify(t.style ?? {}),
         logo: t.logo ?? null,
         by,
         now,
@@ -94,6 +98,7 @@ export class ArtifactThemesRepo {
     if (t.description !== undefined) put("description", "description", t.description);
     if (t.tokens !== undefined) put("tokens_json", "tokens", JSON.stringify(t.tokens));
     if (t.fonts !== undefined) put("fonts_json", "fonts", JSON.stringify(t.fonts));
+    if (t.style !== undefined) put("style_json", "style", JSON.stringify(t.style));
     if (t.logo !== undefined) put("logo_svg", "logo", t.logo);
     if (sets.length)
       this.#db.run(

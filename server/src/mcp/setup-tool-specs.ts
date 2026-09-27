@@ -2,10 +2,15 @@
 import { z } from "zod";
 import { ProjectSlugSchema, RepositorySchema } from "@gangway/shared/api";
 import {
+  THEME_FONTS,
   THEME_TOKENS,
   ThemeFieldsSchema,
   ThemeFontsSchema,
+  ThemeStyleSchema,
   ThemeTokensSchema,
+  TITLE_CASES,
+  TITLE_STYLES,
+  TITLE_WEIGHTS,
 } from "@gangway/shared/artifact/theme";
 import { THEME_ID } from "@gangway/shared/artifact/vocab";
 import { jsonObject, plain, SecretLevel, SecretName } from "./tool-specs.ts";
@@ -65,7 +70,19 @@ export const ThemeArgs = z.object({
     .preprocess(jsonObject, ThemeFontsSchema)
     .optional()
     .describe(
-      "The closest of the fonts gangway serves: {serif, sans, mono, titles}. titles is italic-serif, serif or sans.",
+      `The closest of the fonts gangway serves: {serif, sans, mono, display, titles, titleWeight, titleCase}. ${Object.entries(
+        THEME_FONTS,
+      )
+        .map(([k, v]) => `${k}: ${Object.keys(v).join(", ")}`)
+        .join(
+          "; ",
+        )}. titles: ${TITLE_STYLES.join(", ")} (display uses the display font). titleWeight: ${TITLE_WEIGHTS.join(", ")}. titleCase: ${TITLE_CASES.join(", ")}.`,
+    ),
+  style: z
+    .preprocess(jsonObject, ThemeStyleSchema)
+    .optional()
+    .describe(
+      `The theme's shape and layout, each a named choice; the first is gangway's own and a key left out keeps it. Replaces the theme's style, so send every key you set. corners: square, soft, round (cards, slides, frames, flowchart boxes). edges: neatline, hairline, shadow, flat (the edge of cards, stats, slides and canvas frames). stroke: regular, light, bold (rule and line weight). nodes: outline, tint, solid (flowchart node fill). grid: lines, dots, none (the canvas background). density: regular, compact, airy (padding and gaps). text: regular, small, large (body size). headings: regular, modest, dramatic (heading scale).`,
     ),
   logo: z
     .string()
@@ -87,7 +104,7 @@ export type ThemeArgs = z.infer<typeof ThemeArgs>;
 export const THEME_TOOL = {
   title: "Create or change an artifact theme",
   description:
-    "Create or change one of the server's artifact themes: the kit's colours for light and dark, fonts from gangway's list, a title style and a logo. Use it when the user asks for a theme of their own, e.g. from a brand, a website, a stylesheet or a design file. Artifacts pick it with artifact.theme or theme: <id> in artifact.md, and restyle on their next load when it changes. Call with just id to read a theme. Needs the themes scope.",
+    "Create or change one of the server's artifact themes: the kit's colours for light and dark, fonts from gangway's list, a title style, a shape and layout style (corners, edges, line weight, flowchart nodes, canvas grid, density, text size) and a logo. Use it when the user asks for a theme of their own, e.g. from a brand, a website, a stylesheet or a design file. Artifacts pick it with artifact.theme or theme: <id> in artifact.md, and restyle on their next load when it changes. Call with just id to read a theme. Needs the themes scope.",
   inputSchema: plain(ThemeArgs),
   annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
 };

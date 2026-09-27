@@ -9,11 +9,15 @@ import type {
 import { GROUP_HEAD } from "./flow-elk.ts";
 
 const NS = "http://www.w3.org/2000/svg";
-export const FONT = '600 13px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
-const DETAIL_FONT = '400 12px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
-const LABEL_FONT = '400 12px "IBM Plex Mono", ui-monospace, monospace';
-const CODE_FONT = '400 11px "IBM Plex Mono", ui-monospace, monospace';
-const GROUP_FONT = '600 11px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
+const HOUSE_SANS = '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif';
+const HOUSE_MONO = '"IBM Plex Mono", ui-monospace, monospace';
+let FONT = `600 13px ${HOUSE_SANS}`;
+let DETAIL_FONT = `400 12px ${HOUSE_SANS}`;
+let LABEL_FONT = `400 12px ${HOUSE_MONO}`;
+let CODE_FONT = `400 11px ${HOUSE_MONO}`;
+let GROUP_FONT = `600 11px ${HOUSE_SANS}`;
+// The theme's corner radius (--radius), for box and round nodes and group boxes.
+let RADIUS = 0;
 const PAD_X = 14;
 const PAD_Y = 10;
 const MAX_W = 170;
@@ -30,10 +34,28 @@ const LOOK: Record<Line["kind"], { font: string; height: number; max: number }> 
   code: { font: CODE_FONT, height: 15, max: MAX_DETAIL_W },
 };
 
+/**
+ * Measures and rounds as the page's theme draws: its sans and mono fonts, since boxes are
+ * sized to their words, and its corner radius. Answers the font to load before measuring.
+ */
+export function useTheme(el: Element): string {
+  const css = getComputedStyle(el);
+  const sans = css.getPropertyValue("--font-sans").trim() || HOUSE_SANS;
+  const mono = css.getPropertyValue("--font-mono").trim() || HOUSE_MONO;
+  FONT = LOOK.name.font = `600 13px ${sans}`;
+  DETAIL_FONT = LOOK.detail.font = `400 12px ${sans}`;
+  CODE_FONT = LOOK.code.font = `400 11px ${mono}`;
+  LABEL_FONT = `400 12px ${mono}`;
+  GROUP_FONT = `600 11px ${sans}`;
+  RADIUS = Number.parseFloat(css.getPropertyValue("--radius")) || 0;
+  return FONT;
+}
+
 let counter = 0;
 let canvas: CanvasRenderingContext2D | null = null;
 
-export function measure(text: string, font = FONT): number {
+export function measure(text: string, font?: string): number {
+  font ??= FONT;
   canvas ??= document.createElement("canvas").getContext("2d");
   if (!canvas) return text.length * 7;
   canvas.font = font;
@@ -126,8 +148,10 @@ function shape(n: PlacedNode, g: SVGGElement): void {
       );
       return;
     }
-    default:
-      svg("rect", { ...at, rx: n.shape === "stadium" ? h / 2 : n.shape === "round" ? 10 : 2 }, g);
+    default: {
+      const rx = n.shape === "stadium" ? h / 2 : n.shape === "round" ? RADIUS + 10 : RADIUS || 2;
+      svg("rect", { ...at, rx: Math.min(rx, h / 2) }, g);
+    }
   }
 }
 
@@ -144,7 +168,7 @@ function text(lines: Line[], x: number, y: number, g: SVGGElement, cls: string):
 
 function group(x: PlacedGroup, parent: SVGGElement): void {
   const g = svg("g", { class: `group${x.tone ? ` tone-${x.tone}` : ""}`, "data-id": x.id }, parent);
-  svg("rect", { x: x.x, y: x.y, width: x.w, height: x.h, rx: 4, class: "gshape" }, g);
+  svg("rect", { x: x.x, y: x.y, width: x.w, height: x.h, rx: RADIUS || 4, class: "gshape" }, g);
   const t = svg("text", { x: x.x + 12, y: x.y + GROUP_HEAD / 2 + 1, class: "glabel" }, g);
   t.textContent = x.label.toUpperCase();
 }

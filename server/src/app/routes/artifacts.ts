@@ -10,9 +10,13 @@ import {
   THEME_FONTS,
   ThemeCreateSchema,
   ThemePatchSchema,
+  THEME_STYLE,
+  TITLE_CASES,
   TITLE_STYLES,
+  TITLE_WEIGHTS,
   type Theme,
 } from "@gangway/shared/artifact/theme";
+import { THEME_FONT_CHOICES } from "@gangway/shared/artifact/fonts";
 import {
   ARTIFACT_FILE,
   ARTIFACT_KINDS,
@@ -93,7 +97,15 @@ function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
       defaultTheme: def,
       house: HOUSE_TOKENS,
       fonts: Object.fromEntries(Object.entries(THEME_FONTS).map(([k, v]) => [k, Object.keys(v)])),
+      fontLabels: Object.fromEntries(
+        Object.values(THEME_FONT_CHOICES).flatMap((m) =>
+          Object.entries(m).map(([k, f]) => [k, f.label]),
+        ),
+      ),
       titles: TITLE_STYLES,
+      titleWeights: TITLE_WEIGHTS,
+      titleCases: TITLE_CASES,
+      style: THEME_STYLE,
     });
   });
 

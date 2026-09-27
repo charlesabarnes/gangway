@@ -88,7 +88,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -212,7 +212,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
       ]);
       expect(
         db.get<Record<string, unknown>>(
@@ -268,7 +268,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
       ]);
       const holders = db
         .query<{ role_id: string }>(
@@ -302,7 +302,7 @@ for (const [name, open] of DRIVERS) {
       );
 
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19, 20, 21]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19, 20, 21, 22]);
       const rows = db.query<{ id: string; watermark: string | null; source_json: string }>(
         "SELECT id, watermark, source_json FROM previews ORDER BY id",
       );
@@ -316,6 +316,21 @@ for (const [name, open] of DRIVERS) {
       expect(grants(db, "member")).toContain("previews.watermark");
       expect(grants(db, "admin")).toContain("previews.watermark");
       expect(grants(db, "looker")).not.toContain("previews.watermark");
+      db.close();
+    });
+  });
+
+  describe(`0022 artifact theme style on ${name}`, () => {
+    test("a theme made before it keeps gangway's shape and layout", () => {
+      const at = databaseAt(open, 21);
+      at.db.run(
+        "INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, created_at, updated_at) VALUES ('acme', 'Acme', '', '{\"light\":{},\"dark\":{}}', '{}', 1, 1)",
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual([22]);
+      expect(db.query("SELECT id, style_json FROM artifact_themes")).toEqual([
+        { id: "acme", style_json: "{}" },
+      ]);
       db.close();
     });
   });

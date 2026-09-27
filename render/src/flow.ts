@@ -9,11 +9,11 @@ import {
 import {
   draw,
   edgeLabelWidth,
-  FONT,
   groupLabelWidth,
   plain,
   sizeFor,
   svg,
+  useTheme,
   wrap,
   type Drawn,
 } from "./flow-draw.ts";
@@ -69,7 +69,7 @@ class Flow extends HTMLElement {
     this.#graph = g;
     this.#order = walkOrder(g);
     void document.fonts
-      .load(FONT)
+      .load(useTheme(this))
       .catch(() => {})
       .then(() => this.#render(plot, title));
   }

@@ -75,6 +75,15 @@
   --font-serif: "IBM Plex Serif", Georgia, serif;
   --font-sans: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-display: var(--font-serif);
+  /* Shape and layout: a theme's style (shared/src/artifact/theme.ts) sets these. */
+  --radius: 0px;
+  --radius-sm: 0px;
+  --stroke: 1px;
+  --stroke-n: 1;
+  --space: 1;
+  --text: 16px;
+  --h-scale: 1;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -120,10 +129,16 @@
 /* Derived, and the names older artifacts and legacy.css use. */
 :root {
   --flag-wash: color-mix(in oklch, var(--flag) 22%, transparent);
-  --neatline: inset 0 0 0 1px var(--ink), inset 0 0 0 4px var(--paper), inset 0 0 0 5px var(--ink);
+  --neatline:
+    inset 0 0 0 var(--stroke) var(--stroke-ink, var(--ink)),
+    inset 0 0 0 calc(var(--stroke) + 3px) var(--paper),
+    inset 0 0 0 calc(2 * var(--stroke) + 3px) var(--stroke-ink, var(--ink));
   --neatline-soft:
-    inset 0 0 0 1px var(--ink), inset 0 0 0 4px var(--paper), inset 0 0 0 5px var(--rule);
-  --hairline: inset 0 0 0 1px var(--rule);
+    inset 0 0 0 var(--stroke) var(--stroke-ink, var(--ink)),
+    inset 0 0 0 calc(var(--stroke) + 3px) var(--paper),
+    inset 0 0 0 calc(2 * var(--stroke) + 3px) var(--rule);
+  --hairline: inset 0 0 0 var(--stroke) var(--rule);
+  --card-edge: var(--neatline-soft);
   --sheet: var(--paper-raised);
   --muted: var(--ink-muted);
   --grid: var(--rule);
@@ -151,7 +166,7 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background: var(--paper);
-  font: 16px/1.55 var(--font-sans);
+  font: var(--text) / 1.55 var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 a {
@@ -196,6 +211,8 @@ h3 {
   font-family: var(--font-title, var(--font-serif));
   font-style: var(--title-style, italic);
   font-weight: var(--title-weight, 400);
+  text-transform: var(--title-case, none);
+  letter-spacing: var(--title-track, normal);
   text-wrap: balance;
 }
 /* A theme's logo: nothing until a theme sets --logo and its width. */
@@ -208,16 +225,16 @@ h3 {
   background: var(--logo, none) no-repeat left center / contain;
 }
 h1 {
-  font-size: clamp(40px, 6vw, 60px);
+  font-size: clamp(calc(40px * var(--h-scale)), 6vw, calc(60px * var(--h-scale)));
   line-height: 1.02;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--title-track, -0.01em);
 }
 h2 {
-  font-size: 26px;
+  font-size: calc(26px * var(--h-scale));
   line-height: 1.15;
 }
 h3 {
-  font-size: 20px;
+  font-size: calc(20px * var(--h-scale));
   line-height: 1.2;
 }
 h4 {
@@ -255,12 +272,14 @@ code {
   font: 0.86em var(--font-mono);
   padding: 1px 5px;
   background: var(--paper-raised);
+  border-radius: var(--radius-sm);
   box-shadow: var(--hairline);
 }
 pre {
   margin: 0 0 1em;
   padding: 16px 18px;
   overflow-x: auto;
+  border-radius: var(--radius);
   color: var(--log-fg);
   background: var(--log-bg);
   font: 13px/1.65 var(--font-mono);
@@ -313,16 +332,17 @@ img {
 gw-card,
 .gw-panel {
   background: var(--paper);
-  box-shadow: var(--neatline-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--card-edge);
 }
 
 /* Title block: a caps label and mono metadata, the italic serif title, an upright serif
    intro, closed by a 1px ink rule. */
 .gw-title {
   display: grid;
-  gap: 12px;
-  padding-bottom: 22px;
-  margin-bottom: 36px;
+  gap: calc(12px * var(--space));
+  padding-bottom: calc(22px * var(--space));
+  margin-bottom: calc(36px * var(--space));
   border-bottom: 1px solid var(--ink);
 }
 .gw-title-top {
@@ -359,14 +379,14 @@ gw-card,
 gw-doc {
   max-width: 860px;
   margin: 0 auto;
-  padding: 56px 48px 96px;
+  padding: calc(56px * var(--space)) calc(48px * var(--space)) calc(96px * var(--space));
   counter-reset: gw-part;
 }
 gw-doc > .gw-lead {
-  margin-bottom: 36px;
+  margin-bottom: calc(36px * var(--space));
 }
 gw-doc > .gw-lead > * + * {
-  margin-top: 20px;
+  margin-top: calc(20px * var(--space));
 }
 gw-doc > .gw-lead > p {
   max-width: 68ch;
@@ -375,8 +395,8 @@ gw-doc > .gw-lead > p {
 .gw-part {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  padding: 28px 0 32px;
+  gap: calc(16px * var(--space));
+  padding: calc(28px * var(--space)) 0 calc(32px * var(--space));
   border-top: 1px dotted var(--rule);
 }
 .gw-part:first-of-type {
@@ -395,7 +415,7 @@ gw-doc > .gw-lead > p {
   color: var(--ink-muted);
 }
 .gw-part > .gw-part-head h2 {
-  font-size: 28px;
+  font-size: calc(28px * var(--h-scale));
 }
 .gw-part > .gw-part-body {
   min-width: 0;
@@ -416,7 +436,7 @@ gw-doc > .gw-lead > p {
     gw-image,
     gw-facts
   ) {
-  margin: 20px 0;
+  margin: calc(20px * var(--space)) 0;
 }
 .gw-part-body > :first-child {
   margin-top: 0;
@@ -432,7 +452,7 @@ gw-doc[layout="aside"] {
 }
 gw-doc[layout="aside"] .gw-part {
   grid-template-columns: 200px minmax(0, 1fr);
-  gap: 32px;
+  gap: calc(32px * var(--space));
 }
 gw-doc[layout="aside"] .gw-part > .gw-part-head {
   flex-direction: column;
@@ -440,7 +460,7 @@ gw-doc[layout="aside"] .gw-part > .gw-part-head {
   gap: 8px;
 }
 gw-doc[layout="aside"] .gw-part > .gw-part-head h2 {
-  font-size: 24px;
+  font-size: calc(24px * var(--h-scale));
 }
 /* A section with a chart too wide for its column puts its title above, as in the default. */
 gw-doc[layout="aside"] .gw-part:has(> .gw-part-body > gw-flow.wide) {
@@ -456,7 +476,7 @@ gw-doc > footer {
 /* Grids and columns */
 gw-grid {
   display: grid;
-  gap: 16px;
+  gap: calc(16px * var(--space));
   grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
 }
 gw-grid > [span="2"] {
@@ -470,7 +490,7 @@ gw-grid > :is([span="4"], [span="full"]) {
 }
 gw-columns {
   display: grid;
-  gap: 40px;
+  gap: calc(40px * var(--space));
   grid-template-columns: 1fr 1fr;
   align-items: start;
 }
@@ -480,17 +500,17 @@ gw-columns > div > :last-child {
 
 /* Section and card */
 gw-section {
-  margin: 32px 0;
+  margin: calc(32px * var(--space)) 0;
 }
 gw-section > .gw-section-head {
   display: grid;
   gap: 6px;
-  padding-bottom: 14px;
-  margin-bottom: 18px;
+  padding-bottom: calc(14px * var(--space));
+  margin-bottom: calc(18px * var(--space));
   border-bottom: 1px solid var(--ink);
 }
 gw-card {
-  padding: 22px 24px 20px;
+  padding: calc(22px * var(--space)) calc(24px * var(--space)) calc(20px * var(--space));
 }
 gw-card > .gw-caps {
   display: block;
@@ -513,12 +533,14 @@ gw-stat {
   display: grid;
   gap: 6px;
   align-content: start;
-  padding: 18px 22px 16px;
-  box-shadow: var(--neatline-soft);
+  padding: calc(18px * var(--space)) calc(22px * var(--space)) calc(16px * var(--space));
+  border-radius: var(--radius);
+  box-shadow: var(--card-edge);
 }
 gw-grid:has(> gw-stat) {
   gap: 0;
-  box-shadow: var(--neatline-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--card-edge);
 }
 gw-grid > gw-stat {
   position: relative;
@@ -605,7 +627,9 @@ gw-flag::before {
 
 /* Callout: the notice, a washed panel with a 3px bar on the left. */
 gw-callout {
-  padding: 16px 20px 16px 22px;
+  padding: calc(16px * var(--space)) calc(20px * var(--space)) calc(16px * var(--space))
+    calc(22px * var(--space));
+  border-radius: var(--radius);
   background: color-mix(in oklch, var(--tone, var(--flag)) 15%, transparent);
   box-shadow: inset 3px 0 0 var(--tone, var(--flag));
 }
@@ -696,6 +720,7 @@ gw-image {
       transparent calc(50% + 0.5px)
     ),
     var(--paper-raised);
+  border-radius: var(--radius);
   box-shadow: var(--hairline);
 }
 gw-image > span {
@@ -741,6 +766,7 @@ gw-note {
   display: block;
   padding: 10px 14px;
   font-size: 14px;
+  border-radius: var(--radius-sm);
   background: var(--flag-wash);
   box-shadow: inset 0 0 0 1px var(--flag);
 }
@@ -766,16 +792,16 @@ gw-flow svg {
   overflow: visible;
 }
 gw-flow .shape {
-  fill: var(--sheet);
-  stroke: var(--ink);
-  stroke-width: 1.5;
+  fill: var(--node-fill, var(--sheet));
+  stroke: var(--stroke-ink, var(--ink));
+  stroke-width: calc(1.5 * var(--stroke-n));
   transition:
     fill 0.2s,
     stroke-width 0.2s;
 }
 gw-flow .label {
   font: 600 13px var(--sans);
-  fill: var(--ink);
+  fill: var(--node-ink, var(--ink));
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
@@ -847,20 +873,20 @@ gw-flow .node.acts {
 }
 gw-flow .node:focus-visible .shape {
   stroke: var(--primary);
-  stroke-width: 3;
+  stroke-width: calc(3 * var(--stroke-n));
 }
 gw-flow .has-note {
   fill: var(--primary);
 }
 gw-flow .edge .line {
   stroke: var(--ink);
-  stroke-width: 1.5;
+  stroke-width: calc(1.5 * var(--stroke-n));
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   transition: stroke-dashoffset 0.55s ease calc(var(--d, 0ms) + 80ms);
 }
 gw-flow .edge.thick .line {
-  stroke-width: 3;
+  stroke-width: calc(3 * var(--stroke-n));
 }
 gw-flow .edge.dotted .line {
   stroke-dasharray: 4 4;
@@ -894,7 +920,7 @@ gw-flow .elabel text {
 /* A box's detail lines, under its name */
 gw-flow .label .detail {
   font: 400 12px var(--sans);
-  fill: var(--muted);
+  fill: var(--node-muted, var(--muted));
 }
 gw-flow .label .code {
   font: 400 11px var(--mono);
@@ -1197,6 +1223,7 @@ gw-slide {
   height: 720px;
   padding: 80px var(--slide-pad-x) 104px;
   overflow: hidden;
+  border-radius: var(--radius);
   background: var(--paper);
   font-size: 26px;
   line-height: 1.4;
@@ -1210,7 +1237,8 @@ gw-slide::before {
   position: absolute;
   inset: 24px;
   pointer-events: none;
-  box-shadow: var(--neatline-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--card-edge);
 }
 gw-slide > .gw-slide-body {
   flex: 1;
@@ -1236,15 +1264,15 @@ gw-slide > .gw-slide-foot .gw-meta {
   font-size: 13px;
 }
 gw-slide h1 {
-  font-size: 88px;
+  font-size: calc(88px * var(--h-scale));
   line-height: 1;
 }
 gw-slide h2 {
-  font-size: 52px;
+  font-size: calc(52px * var(--h-scale));
   line-height: 1.06;
 }
 gw-slide h3 {
-  font-size: 32px;
+  font-size: calc(32px * var(--h-scale));
 }
 gw-slide :is(p, li) {
   margin-bottom: 0.4em;
@@ -1327,7 +1355,7 @@ gw-slide[layout="title"] > .gw-slide-body {
 }
 gw-slide[layout="title"] h1 {
   max-width: 17ch;
-  font-size: 96px;
+  font-size: calc(96px * var(--h-scale));
 }
 gw-slide[layout="title"] h1 + p,
 gw-slide[layout="end"] h1 + p {
@@ -1369,7 +1397,7 @@ gw-slide[layout="end"] > .gw-slide-body {
   align-items: flex-start;
 }
 gw-slide[layout="end"] h1 {
-  font-size: 88px;
+  font-size: calc(88px * var(--h-scale));
 }
 gw-slide[layout="end"] gw-facts {
   min-width: 560px;
@@ -1488,11 +1516,14 @@ gw-canvas > [data-part="viewport"] {
   touch-action: none;
   outline: none;
   background-color: var(--paper);
-  background-image:
+  /* A theme's grid: lines (this), dots or none. */
+  background-image: var(
+    --canvas-grid,
     linear-gradient(var(--grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid) 1px, transparent 1px),
     linear-gradient(var(--grid-fine) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px);
+    linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px)
+  );
 }
 gw-canvas > [data-part="viewport"].grabbing {
   cursor: grabbing;
@@ -1523,7 +1554,7 @@ gw-canvas svg[data-part="links"] {
 gw-canvas .gw-arrow path {
   fill: none;
   stroke: var(--ink);
-  stroke-width: 1.5;
+  stroke-width: calc(1.5 * var(--stroke-n));
 }
 gw-canvas marker path {
   fill: var(--ink);
@@ -1566,10 +1597,11 @@ gw-frame > .gw-frame-label a:hover {
 }
 gw-frame > .gw-frame-body {
   height: 100%;
-  padding: 24px 26px;
+  padding: calc(24px * var(--space)) calc(26px * var(--space));
   overflow: hidden;
+  border-radius: var(--radius);
   background: var(--paper-raised);
-  box-shadow: var(--neatline-soft);
+  box-shadow: var(--card-edge);
 }
 gw-frame > .gw-frame-body > :last-child {
   margin-bottom: 0;
@@ -1594,6 +1626,7 @@ gw-frame[frame="plain"] > .gw-frame-body > :is(svg, img, gw-image) {
   height: auto;
 }
 gw-frame[frame="note"] > .gw-frame-body {
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--flag) 26%, var(--paper));
   box-shadow: inset 0 0 0 1px var(--flag);
 }
@@ -1898,6 +1931,7 @@ gw-frame gw-tabs > a[aria-current] {
   left: 16px;
   max-width: min(460px, calc(100vw - 32px));
   padding: 14px 18px 12px;
+  border-radius: var(--radius);
   background: var(--paper);
   box-shadow: var(--neatline);
   pointer-events: none;

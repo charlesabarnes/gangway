@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { THEME_FONT_CHOICES, type ThemeFontSlot } from "./fonts.ts";
 import { HOUSE_THEME, THEME_ID } from "./vocab.ts";
 
-// A theme is a set of the kit's tokens for light and dark, three font choices, a title style
-// and an optional logo. It compiles to a small stylesheet the kit loads after its own, so a
+// A theme is a set of the kit's tokens for light and dark, font choices, a title style, a
+// shape and layout style and an optional logo. It compiles to a small stylesheet the kit loads after its own, so a
 // theme can only change what the tokens reach: no selectors and no free CSS.
 
 export const THEME_TOKENS = [
@@ -89,26 +90,34 @@ export const HOUSE_TOKENS: Record<"light" | "dark", Record<ThemeToken, string>> 
   },
 };
 
-/** Fonts the kit ships or every system has; a theme picks from these and nothing else. */
-export const THEME_FONTS = {
-  serif: {
-    "plex-serif": '"IBM Plex Serif", Georgia, serif',
-    georgia: 'Georgia, "Times New Roman", serif',
-    "system-serif": 'ui-serif, "New York", Georgia, serif',
-  },
-  sans: {
-    "plex-sans-condensed": '"IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif',
-    inter: '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif',
-    "system-sans": 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-  },
-  mono: {
-    "plex-mono": '"IBM Plex Mono", ui-monospace, Menlo, monospace',
-    "system-mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-  },
-} as const;
+/** Font stacks by slot and key: the kit's own faces or ones every system has, nothing else. */
+export const THEME_FONTS = Object.fromEntries(
+  Object.entries(THEME_FONT_CHOICES).map(([slot, m]) => [
+    slot,
+    Object.fromEntries(Object.entries(m).map(([k, f]) => [k, f.stack])),
+  ]),
+) as { [S in ThemeFontSlot]: Record<keyof (typeof THEME_FONT_CHOICES)[S], string> };
 
-export const TITLE_STYLES = ["italic-serif", "serif", "sans"] as const;
+export const TITLE_STYLES = ["italic-serif", "serif", "sans", "display"] as const;
 export type TitleStyle = (typeof TITLE_STYLES)[number];
+export const TITLE_WEIGHTS = ["light", "regular", "semibold", "bold"] as const;
+export const TITLE_CASES = ["normal", "upper"] as const;
+
+/**
+ * The theme's shape and layout: each a named choice that compiles to fixed values, with
+ * gangway's own look first. Left out means gangway's.
+ */
+export const THEME_STYLE = {
+  corners: ["square", "soft", "round"],
+  edges: ["neatline", "hairline", "shadow", "flat"],
+  stroke: ["regular", "light", "bold"],
+  nodes: ["outline", "tint", "solid"],
+  grid: ["lines", "dots", "none"],
+  density: ["regular", "compact", "airy"],
+  text: ["regular", "small", "large"],
+  headings: ["regular", "modest", "dramatic"],
+} as const;
+export type ThemeStyleKey = keyof typeof THEME_STYLE;
 
 // A colour, in a syntax a browser reads, and nothing that could end the declaration.
 const COLOR =
@@ -123,16 +132,32 @@ const color = z
   );
 
 const tokenMap = z.partialRecord(z.enum(THEME_TOKENS), color);
+const fontKey = (slot: ThemeFontSlot) =>
+  z.enum(Object.keys(THEME_FONT_CHOICES[slot]) as [string, ...string[]]).optional();
 
 export const ThemeTokensSchema = z.strictObject({ light: tokenMap, dark: tokenMap });
 export const ThemeFontsSchema = z.strictObject({
-  serif: z.enum(Object.keys(THEME_FONTS.serif) as [string, ...string[]]).optional(),
-  sans: z.enum(Object.keys(THEME_FONTS.sans) as [string, ...string[]]).optional(),
-  mono: z.enum(Object.keys(THEME_FONTS.mono) as [string, ...string[]]).optional(),
+  serif: fontKey("serif"),
+  sans: fontKey("sans"),
+  mono: fontKey("mono"),
+  display: fontKey("display"),
   titles: z.enum(TITLE_STYLES).optional(),
+  titleWeight: z.enum(TITLE_WEIGHTS).optional(),
+  titleCase: z.enum(TITLE_CASES).optional(),
+});
+export const ThemeStyleSchema = z.strictObject({
+  corners: z.enum(THEME_STYLE.corners).optional(),
+  edges: z.enum(THEME_STYLE.edges).optional(),
+  stroke: z.enum(THEME_STYLE.stroke).optional(),
+  nodes: z.enum(THEME_STYLE.nodes).optional(),
+  grid: z.enum(THEME_STYLE.grid).optional(),
+  density: z.enum(THEME_STYLE.density).optional(),
+  text: z.enum(THEME_STYLE.text).optional(),
+  headings: z.enum(THEME_STYLE.headings).optional(),
 });
 export type ThemeTokens = z.infer<typeof ThemeTokensSchema>;
 export type ThemeFonts = z.infer<typeof ThemeFontsSchema>;
+export type ThemeStyle = z.infer<typeof ThemeStyleSchema>;
 
 export const themeId = z
   .string()
@@ -144,6 +169,7 @@ export const ThemeFieldsSchema = z.strictObject({
   description: z.string().trim().max(300).optional(),
   tokens: ThemeTokensSchema,
   fonts: ThemeFontsSchema.optional(),
+  style: ThemeStyleSchema.optional(),
   /** An SVG shown as an image beside titles; scripts and foreign content are stripped. */
   logo: z
     .string()
@@ -163,6 +189,7 @@ export type Theme = {
   builtin: boolean;
   tokens: ThemeTokens;
   fonts: ThemeFonts;
+  style: ThemeStyle;
   logo: string | null;
 };
 
@@ -173,6 +200,7 @@ export const HOUSE: Theme = {
   builtin: true,
   tokens: { light: {}, dark: {} },
   fonts: {},
+  style: {},
   logo: null,
 };
 
@@ -197,13 +225,90 @@ const TITLES: Record<TitleStyle, string> = {
   "italic-serif": "--font-title:var(--font-serif);--title-style:italic;",
   serif: "--font-title:var(--font-serif);--title-style:normal;",
   sans: "--font-title:var(--font-sans);--title-style:normal;--title-weight:600;",
+  display: "--font-title:var(--font-display);--title-style:normal;",
 };
+const TITLE_WEIGHT: Record<(typeof TITLE_WEIGHTS)[number], string> = {
+  light: "--title-weight:300;",
+  regular: "--title-weight:400;",
+  semibold: "--title-weight:600;",
+  bold: "--title-weight:700;",
+};
+const TITLE_CASE: Record<(typeof TITLE_CASES)[number], string> = {
+  normal: "--title-case:none;--title-track:normal;",
+  upper: "--title-case:uppercase;--title-track:0.04em;",
+};
+
+// What each style choice sets. The first of each is kit.css's own value, spelled out so a
+// theme that names it gets exactly gangway's look.
+const SHADOW =
+  "0 1px 2px color-mix(in oklch, var(--ink) 12%, transparent), 0 6px 20px -6px color-mix(in oklch, var(--ink) 22%, transparent), var(--hairline)";
+const GRID_LINES =
+  "linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px), linear-gradient(var(--grid-fine) 1px, transparent 1px), linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px)";
+// canvas.ts sizes the layers major, major, fine, fine; dots need one of each, so the second
+// layer is empty.
+const GRID_DOTS =
+  "radial-gradient(circle at 1px 1px, var(--grid) 1.25px, transparent 1.75px), linear-gradient(transparent, transparent), radial-gradient(circle at 1px 1px, var(--grid-fine) 1px, transparent 1.5px)";
+export const STYLE_CSS: { [K in ThemeStyleKey]: Record<(typeof THEME_STYLE)[K][number], string> } =
+  {
+    corners: {
+      square: "--radius:0px;--radius-sm:0px;",
+      soft: "--radius:6px;--radius-sm:3px;",
+      round: "--radius:14px;--radius-sm:8px;",
+    },
+    edges: {
+      neatline: "--card-edge:var(--neatline-soft);",
+      hairline: "--card-edge:var(--hairline);",
+      shadow: `--card-edge:${SHADOW};`,
+      flat: "--card-edge:none;",
+    },
+    stroke: {
+      regular: "--stroke:1px;--stroke-n:1;",
+      light: "--stroke:1px;--stroke-n:0.7;--stroke-ink:var(--rule);",
+      bold: "--stroke:2px;--stroke-n:1.6;",
+    },
+    nodes: {
+      outline: "--node-fill:var(--paper-raised);--node-ink:var(--ink);",
+      tint: "--node-fill:color-mix(in oklch, var(--primary) 12%, var(--paper-raised));--node-ink:var(--ink);",
+      solid:
+        "--node-fill:var(--primary);--node-ink:var(--on-primary);--node-muted:color-mix(in oklch, var(--on-primary) 75%, transparent);",
+    },
+    grid: {
+      lines: `--canvas-grid:${GRID_LINES};`,
+      dots: `--canvas-grid:${GRID_DOTS};`,
+      none: "--canvas-grid:none;",
+    },
+    density: {
+      regular: "--space:1;",
+      compact: "--space:0.8;",
+      airy: "--space:1.25;",
+    },
+    text: {
+      regular: "--text:16px;",
+      small: "--text:15px;",
+      large: "--text:17.5px;",
+    },
+    headings: {
+      regular: "--h-scale:1;",
+      modest: "--h-scale:0.85;",
+      dramatic: "--h-scale:1.2;",
+    },
+  };
+
+/** The declarations a theme's style sets, in a fixed order. */
+export function styleDecls(style: ThemeStyle): string {
+  return (Object.keys(THEME_STYLE) as ThemeStyleKey[])
+    .map((k) => {
+      const v = style[k];
+      return v ? ((STYLE_CSS[k] as Record<string, string>)[v] ?? "") : "";
+    })
+    .join("");
+}
 
 /** The stylesheet the kit loads after its own. `logoUrl` is where the logo is served. */
 export function compileTheme(t: Theme, logoUrl?: string): string {
   if (t.builtin) return `/* ${t.name}: gangway's own theme */\n`;
   const f = t.fonts;
-  const font = (k: "serif" | "sans" | "mono") => {
+  const font = (k: ThemeFontSlot) => {
     const stack = f[k] ? (THEME_FONTS[k] as Record<string, string>)[f[k]] : undefined;
     return stack ? `--font-${k}:${stack};` : "";
   };
@@ -212,7 +317,11 @@ export function compileTheme(t: Theme, logoUrl?: string): string {
     font("serif") +
     font("sans") +
     font("mono") +
+    font("display") +
     (f.titles ? TITLES[f.titles] : "") +
+    (f.titleWeight ? TITLE_WEIGHT[f.titleWeight] : "") +
+    (f.titleCase ? TITLE_CASE[f.titleCase] : "") +
+    styleDecls(t.style ?? {}) +
     (t.logo && logoUrl ? `--logo:url("${logoUrl}");--logo-w:120px;--logo-gap:14px;` : "");
   const lines = [`/* theme: ${t.name.replace(/\*\//g, "")} */`, `:root{${root}}`];
   const dark = decls(t.tokens.dark);

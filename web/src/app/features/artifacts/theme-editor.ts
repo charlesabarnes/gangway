@@ -1,7 +1,13 @@
 import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { type ArtifactTheme, type ThemeFonts, type TokenMap } from '../../core/artifacts.types';
+import {
+  type ArtifactTheme,
+  type ThemeFonts,
+  type ThemeStyle,
+  type ThemeStyleKey,
+  type TokenMap,
+} from '../../core/artifacts.types';
 import { AuthService } from '../../core/auth.service';
 import type { ProblemError } from '../../core/problem';
 import { Btn } from '../../ui/button';
@@ -12,7 +18,7 @@ import { ArtifactFrame } from './artifact-frame';
 import { ArtifactsService } from './artifacts.service';
 import { SAMPLE_CANVAS, SAMPLE_DECK, SAMPLE_DOC, sampleFiles } from './samples';
 import { themeCss } from './theme-css';
-import { FONT_NAMES } from './theme-tokens';
+import { CHOICE_NAMES, STYLE_FIELDS } from './theme-tokens';
 import { TokenEditor } from './token-editor';
 
 type Mode = 'light' | 'dark';
@@ -99,7 +105,7 @@ type Mode = 'light' | 'dark';
             <span class="gw-label">Type</span>
             @for (k of fontKeys; track k) {
               <label class="flex items-center justify-between gap-3 text-sm"
-                ><span class="text-muted">{{ k === 'titles' ? 'Titles' : k }}</span>
+                ><span class="text-muted">{{ fontLabels[k] }}</span>
                 <select
                   [class]="field + ' max-w-60'"
                   [disabled]="readonly()"
@@ -114,6 +120,32 @@ type Mode = 'light' | 'dark';
               >
             }
           </div>
+
+          @for (g of styleGroups; track g) {
+            <div class="grid gap-3">
+              <span class="gw-label">{{ g }}</span>
+              @for (s of styleFields(g); track s.key) {
+                <label class="flex items-center justify-between gap-3 text-sm"
+                  ><span class="text-muted">{{ s.label }}</span>
+                  <select
+                    [class]="field + ' max-w-60'"
+                    [disabled]="readonly()"
+                    (change)="setStyle(s.key, $any($event.target).value)"
+                    [attr.data-testid]="'style-' + s.key"
+                  >
+                    @for (c of styleChoices()[s.key]; track c; let first = $first) {
+                      <option
+                        [value]="first ? '' : c"
+                        [selected]="first ? !style()[s.key] : style()[s.key] === c"
+                      >
+                        {{ first ? "gangway's (" + c + ')' : c }}
+                      </option>
+                    }
+                  </select></label
+                >
+              }
+            </div>
+          }
 
           <div class="grid gap-2">
             <span class="gw-label">Logo</span>
@@ -219,7 +251,25 @@ export class ThemeEditor {
   readonly #params = toSignal(inject(ActivatedRoute).paramMap, { requireSync: true });
   protected readonly confirm = viewChild.required(ConfirmDialog);
   protected readonly field = FIELD;
-  protected readonly fontKeys = ['serif', 'sans', 'mono', 'titles'] as const;
+  protected readonly fontKeys = [
+    'serif',
+    'sans',
+    'mono',
+    'display',
+    'titles',
+    'titleWeight',
+    'titleCase',
+  ] as const;
+  protected readonly fontLabels: Record<(typeof this.fontKeys)[number], string> = {
+    serif: 'Serif',
+    sans: 'Sans',
+    mono: 'Mono',
+    display: 'Display',
+    titles: 'Titles',
+    titleWeight: 'Title weight',
+    titleCase: 'Title case',
+  };
+  protected readonly styleGroups = ['Shape', 'Layout'] as const;
   protected readonly doc = sampleFiles(SAMPLE_DOC);
   protected readonly deck = sampleFiles(SAMPLE_DECK);
   protected readonly canvas = sampleFiles(SAMPLE_CANVAS);
@@ -237,6 +287,7 @@ export class ThemeEditor {
   protected readonly description = signal('');
   protected readonly tokens = signal<{ light: TokenMap; dark: TokenMap }>({ light: {}, dark: {} });
   protected readonly fonts = signal<ThemeFonts>({});
+  protected readonly style = signal<ThemeStyle>({});
   protected readonly logo = signal<string | null>(null);
   protected readonly mode = signal<Mode>('light');
   protected readonly busy = signal(false);
@@ -248,11 +299,23 @@ export class ThemeEditor {
       serif: f?.serif ?? [],
       sans: f?.sans ?? [],
       mono: f?.mono ?? [],
+      display: f?.display ?? [],
       titles: this.#svc.themes()?.titles ?? [],
+      titleWeight: this.#svc.themes()?.titleWeights ?? [],
+      titleCase: this.#svc.themes()?.titleCases ?? [],
     };
   });
+  protected readonly styleChoices = computed(
+    () => this.#svc.themes()?.style ?? ({} as Record<ThemeStyleKey, string[]>),
+  );
   protected readonly css = computed(() =>
-    themeCss({ builtin: false, tokens: this.tokens(), fonts: this.fonts(), logo: this.logo() }),
+    themeCss({
+      builtin: false,
+      tokens: this.tokens(),
+      fonts: this.fonts(),
+      style: this.style(),
+      logo: this.logo(),
+    }),
   );
   protected readonly houseTokens = computed(() => this.#svc.themes()?.house ?? null);
   protected readonly logoUrl = computed(() =>
@@ -273,6 +336,7 @@ export class ThemeEditor {
       this.name.set('');
       this.tokens.set({ light: {}, dark: {} });
       this.fonts.set({});
+      this.style.set({});
       this.logo.set(null);
       return;
     }
@@ -291,11 +355,25 @@ export class ThemeEditor {
     this.description.set(t.description);
     this.tokens.set(structuredClone(t.tokens));
     this.fonts.set({ ...t.fonts });
+    this.style.set({ ...t.style });
     this.logo.set(t.logo);
   }
 
   protected fontName(f: string): string {
-    return FONT_NAMES[f] ?? f;
+    return this.#svc.themes()?.fontLabels[f] ?? CHOICE_NAMES[f] ?? f;
+  }
+
+  protected styleFields(group: 'Shape' | 'Layout') {
+    return STYLE_FIELDS.filter((f) => f.group === group);
+  }
+
+  protected setStyle(k: ThemeStyleKey, v: string): void {
+    this.style.update((s) => {
+      const next: ThemeStyle = { ...s };
+      if (v) next[k] = v;
+      else delete next[k];
+      return next;
+    });
   }
 
   protected setFont(k: keyof ThemeFonts, v: string): void {
@@ -324,6 +402,7 @@ export class ThemeEditor {
           description: this.description().trim(),
           tokens: this.tokens(),
           fonts: this.fonts(),
+          style: this.style(),
           logo: this.logo(),
         },
         this.isNew(),

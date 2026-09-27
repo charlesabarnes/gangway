@@ -125,7 +125,7 @@ export class ArtifactsService {
 
   async saveTheme(
     id: string,
-    body: Pick<ArtifactTheme, 'name' | 'description' | 'tokens' | 'fonts' | 'logo'>,
+    body: Pick<ArtifactTheme, 'name' | 'description' | 'tokens' | 'fonts' | 'style' | 'logo'>,
     create: boolean,
   ): Promise<ArtifactTheme> {
     const req = create

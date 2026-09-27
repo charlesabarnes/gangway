@@ -1,6 +1,6 @@
 ---
 name: create-theme
-description: Create or update a gangway artifact theme from a source -- a website, a stylesheet or design-tokens file, a Tailwind config, a brand guide, a logo, or a description -- so the user's documents, decks and canvases come out in their own brand. Maps the source onto gangway's colour tokens for light and dark, its fonts and a logo, saves it with the MCP theme tool, and shows it on a sample artifact. Use when the user asks for a custom theme, their brand's look, or to change an existing theme.
+description: Create or update a gangway artifact theme from a source -- a website, a stylesheet or design-tokens file, a Tailwind config, a brand guide, a logo, or a description -- so the user's documents, decks and canvases come out in their own brand. Maps the source onto gangway's colour tokens for light and dark, its fonts, a shape and layout style and a logo, saves it with the MCP theme tool, and shows it on a sample artifact. Use when the user asks for a custom theme, their brand's look, or to change an existing theme.
 argument-hint: "[URL, file path, or description of the look]"
 ---
 
@@ -11,10 +11,11 @@ The source: $ARGUMENTS (if empty or unexpanded, the user's request; if there is 
 A theme is data, not CSS. It has:
 
 - the kit's colour tokens, for light and dark;
-- a serif, a sans and a mono font from gangway's short list, and a title style;
+- a serif, a sans, a mono and a display font from gangway's list, and a title style, weight and case;
+- a style: corners, card edges, line weight, flowchart nodes, the canvas grid, spacing, text size and heading scale, each a named choice;
 - an optional SVG logo.
 
-Every artifact that names the theme (`theme: <id>`) picks it up, and changing the theme restyles those artifacts on their next load, with no redeploy. It cannot reach selectors or layout. For one artifact's one-off look, `css:` in that artifact is the tool, not a theme.
+Every artifact that names the theme (`theme: <id>`) picks it up, and changing the theme restyles those artifacts on their next load, with no redeploy. It cannot reach selectors or free CSS. For one artifact's one-off look, `css:` in that artifact is the tool, not a theme.
 
 ## 1. Read the source
 
@@ -74,10 +75,29 @@ Colours are `#hex`, `rgb()`, `hsl()` or `oklch()`. Gradients, `var()` and named 
 
 **Fonts.** gangway serves a fixed list, so pick the nearest:
 
-- **serif:** `plex-serif`, `georgia`, `system-serif`
-- **sans:** `plex-sans-condensed` (gangway's labels), `inter` (most modern brands), `system-sans`
-- **mono:** `plex-mono`, `system-mono`
-- **titles:** `italic-serif` (gangway's), `serif`, or `sans` for a brand whose headings are sans
+- **serif:** `plex-serif`, `source-serif`, `merriweather`, `lora`, `fraunces`, `libre-baskerville`, `georgia`, `system-serif`
+- **sans:** `plex-sans-condensed` (gangway's labels), `plex-sans`, `inter`, `source-sans`, `manrope`, `dm-sans`, `space-grotesk`, `system-sans`
+- **mono:** `plex-mono`, `jetbrains-mono`, `fira-code`, `source-code-pro`, `system-mono`
+- **display** (titles only): `playfair-display`, `fraunces`, `space-grotesk`, `caveat` and `kalam` (both handwritten)
+- **titles:** `italic-serif` (gangway's), `serif`, `sans` for a brand whose headings are sans, or `display` for the display font
+- **titleWeight:** `light`, `regular`, `semibold`, `bold`; **titleCase:** `normal`, `upper`
+
+Common matches: Helvetica or Arial → `inter`; Roboto or Open Sans → `source-sans`; geometric sans (Circular, Poppins, Gilroy) → `manrope` or `dm-sans`; Times or Garamond → `source-serif` or `libre-baskerville`; a big editorial serif → `display: playfair-display`.
+
+**Style.** The first choice of each is gangway's own; leave a key out to keep it.
+
+| Key        | Choices                                  | From the source                                                                               |
+| ---------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `corners`  | `square`, `soft`, `round`                | the `border-radius` of the site's buttons and cards: 0, 4-8px, 12px and up                    |
+| `edges`    | `neatline`, `hairline`, `shadow`, `flat` | how cards are set off: a thin border → `hairline`, a drop shadow → `shadow`, nothing → `flat` |
+| `stroke`   | `regular`, `light`, `bold`               | border weight: pale thin lines → `light`, 2px borders → `bold`                                |
+| `nodes`    | `outline`, `tint`, `solid`               | flowchart boxes: `tint` suits most brands; `solid` fills them with `primary`                  |
+| `grid`     | `lines`, `dots`, `none`                  | the canvas background; `none` for a clean brand, `dots` for a whiteboard feel                 |
+| `density`  | `regular`, `compact`, `airy`             | the site's padding: dense dashboards → `compact`, marketing pages → `airy`                    |
+| `text`     | `regular`, `small`, `large`              | body size: 15px, 16px or 17-18px                                                              |
+| `headings` | `regular`, `modest`, `dramatic`          | how big headings are next to body text                                                        |
+
+A rounded, soft brand is usually `corners: soft, edges: shadow, stroke: light, nodes: tint`.
 
 Tell the user which of their fonts you could not match.
 
@@ -90,9 +110,9 @@ Call the gangway MCP `theme` tool with:
 - `id`: short, lowercase, e.g. `acme`;
 - `name`, e.g. "Acme";
 - `description`: one line on the source, e.g. "From acme.com, September 2026";
-- `tokens: {light: {...}, dark: {...}}`, `fonts`, and `logo` if you have one.
+- `tokens: {light: {...}, dark: {...}}`, `fonts`, `style`, and `logo` if you have one.
 
-`tokens` replaces the theme's whole token set, so send every token each time.
+`tokens`, `fonts` and `style` each replace the theme's whole set, so send every key each time.
 
 - **"… lacks the artifacts.manage permission":** the connection lacks the `themes` scope. Tell the user to run `/mcp`, re-authenticate gangway, and tick "themes" on the consent page. If they may not have it, a gangway admin can enter the values in the UI (Artifacts › Themes); give them the JSON.
 - **"not part of this plan":** custom themes are not available on this server.
@@ -106,9 +126,9 @@ Deploy one sample with `deploy`:
 - `artifact: {template: "document/report", title: "<Name> theme", theme: "<id>"}`;
 - `name: "<id>-theme"`, `title`, `icon: "palette"`, `iconColor`, `check: ["/"]`.
 
-A report shows most tokens at once: headline stats, a chart with several series and a table. For a brand that mostly makes slides, add a `deck/pitch` too: its title and section slides show the `header-*` tokens. Artifacts have a light/dark toggle, so one URL shows both modes.
+A report shows most tokens at once: headline stats, a chart with several series and a table. For a brand that mostly makes slides, add a `deck/pitch` too: its title and section slides show the `header-*` tokens. If you set `grid` or `nodes`, add a `canvas/architecture` too. Artifacts have a light/dark toggle, so one URL shows both modes.
 
-To iterate, call `theme` again with the changed tokens. The sample restyles on reload, so there is no need to redeploy it.
+To iterate, call `theme` again with the changed tokens, fonts or style. The sample restyles on reload, so there is no need to redeploy it.
 
 ## 5. Hand over
 

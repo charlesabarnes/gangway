@@ -1,4 +1,12 @@
-import { HOUSE_TOKENS, THEME_FONTS, type Theme } from "@gangway/shared/artifact/theme";
+import {
+  HOUSE_TOKENS,
+  THEME_FONTS,
+  THEME_STYLE,
+  TITLE_CASES,
+  TITLE_STYLES,
+  TITLE_WEIGHTS,
+  type Theme,
+} from "@gangway/shared/artifact/theme";
 import { HOUSE_THEME } from "@gangway/shared/artifact/vocab";
 import type { Actor } from "../auth/actor.ts";
 import { createTheme, setDefaultTheme, updateTheme, type ThemeDeps } from "../artifacts/themes.ts";
@@ -46,6 +54,7 @@ export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {
         description: theme.description,
         tokens: theme.tokens,
         fonts: theme.fonts,
+        style: theme.style,
         logo: theme.logo ? "set" : null,
       },
       null,
@@ -59,6 +68,11 @@ export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {
       JSON.stringify(HOUSE_TOKENS),
       `Fonts: ${Object.entries(THEME_FONTS)
         .map(([k, v]) => `${k}: ${Object.keys(v).join(", ")}`)
+        .join(
+          "; ",
+        )}. titles: ${TITLE_STYLES.join(", ")}; titleWeight: ${TITLE_WEIGHTS.join(", ")}; titleCase: ${TITLE_CASES.join(", ")}.`,
+      `Style (the first of each is gangway's own): ${Object.entries(THEME_STYLE)
+        .map(([k, v]) => `${k}: ${v.join(", ")}`)
         .join("; ")}.`,
     );
   return lines.join("\n");

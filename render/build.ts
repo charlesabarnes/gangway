@@ -1,5 +1,6 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { kitFaceCss, kitFaces } from "@gangway/shared/artifact/fonts";
 
 const HERE = import.meta.dir;
 const OUT = path.join(HERE, "dist");
@@ -12,13 +13,14 @@ const FONTS: Record<string, string> = {
   "serif-500-italic": "ibm-plex-serif/files/ibm-plex-serif-latin-500-italic.woff2",
   "mono-400": "ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2",
   "mono-600": "ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2",
-  "inter-400": "inter/files/inter-latin-400-normal.woff2",
-  "inter-500": "inter/files/inter-latin-500-normal.woff2",
-  "inter-600": "inter/files/inter-latin-600-normal.woff2",
-  "inter-700": "inter/files/inter-latin-700-normal.woff2",
-  "hand-400": "kalam/files/kalam-latin-400-normal.woff2",
-  "hand-700": "kalam/files/kalam-latin-700-normal.woff2",
 };
+// The faces a theme may pick (shared/src/artifact/fonts.ts), Inter and Kalam among them.
+for (const f of kitFaces()) {
+  for (const w of f.weights)
+    FONTS[`${f.file}-${w}`] = `${f.pkg}/files/${f.pkg}-latin-${w}-normal.woff2`;
+  for (const w of f.italic ?? [])
+    FONTS[`${f.file}-${w}-italic`] = `${f.pkg}/files/${f.pkg}-latin-${w}-italic.woff2`;
+}
 
 await rm(OUT, { recursive: true, force: true });
 await mkdir(path.join(OUT, "fonts"), { recursive: true });
@@ -49,7 +51,10 @@ if (!elk.success) {
   for (const log of elk.logs) console.error(log);
   process.exit(1);
 }
-await Bun.write(path.join(OUT, "kit.css"), Bun.file(path.join(HERE, "src/kit.css")));
+await Bun.write(
+  path.join(OUT, "kit.css"),
+  (await Bun.file(path.join(HERE, "src/kit.css")).text()) + kitFaceCss(),
+);
 await Bun.write(path.join(OUT, "legacy.css"), Bun.file(path.join(HERE, "src/legacy.css")));
 // The house theme overrides nothing; gangway answers /_gangway/theme.css with the chosen one.
 await Bun.write(

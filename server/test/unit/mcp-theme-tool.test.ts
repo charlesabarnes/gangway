@@ -4,6 +4,7 @@ import { ArtifactLibrary } from "../../src/artifacts/library.ts";
 import { tokenActor } from "../../src/auth/actor.ts";
 import { ArtifactThemesRepo } from "../../src/db/repos/artifacts.ts";
 import { Tools } from "../../src/mcp/tools.ts";
+import { ThemeArgs } from "../../src/mcp/setup-tool-specs.ts";
 import { MissingPermission } from "../../src/mcp/tool-access.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
@@ -62,6 +63,35 @@ describe("the theme tool", () => {
     expect(s.tools.theme(s.scope(DESIGNER), { id: "acme" })).toStartWith(
       'theme acme ("Acme") unchanged.',
     );
+  });
+
+  test("keeps a style and lists the choices; an unknown choice is refused", () => {
+    const s = setup();
+    const out = s.tools.theme(s.scope(DESIGNER), {
+      id: "acme",
+      name: "Acme",
+      tokens: TOKENS,
+      fonts: {
+        sans: "manrope",
+        display: "playfair-display",
+        titles: "display",
+        titleCase: "upper",
+      },
+      style: { corners: "round", edges: "shadow", grid: "none" },
+    });
+    expect(out).toContain('"grid": "none"');
+    expect(out).toContain("grid: lines, dots, none");
+    expect(out).toContain("display: playfair-display");
+    expect(s.themes.get("acme")!.style).toEqual({
+      corners: "round",
+      edges: "shadow",
+      grid: "none",
+    });
+    s.tools.theme(s.scope(DESIGNER), { id: "acme", style: { density: "airy" } });
+    expect(s.themes.get("acme")!.style).toEqual({ density: "airy" });
+    expect(s.themes.get("acme")!.fonts.sans).toBe("manrope");
+    expect(ThemeArgs.safeParse({ id: "acme", style: { corners: "blobby" } }).success).toBe(false);
+    expect(ThemeArgs.safeParse({ id: "acme", style: '{"grid":"dots"}' }).success).toBe(true);
   });
 
   test("makeDefault makes it the server's default", () => {

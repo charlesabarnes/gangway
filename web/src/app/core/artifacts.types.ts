@@ -40,8 +40,25 @@ export type ThemeFonts = {
   serif?: string;
   sans?: string;
   mono?: string;
-  titles?: 'italic-serif' | 'serif' | 'sans';
+  display?: string;
+  titles?: 'italic-serif' | 'serif' | 'sans' | 'display';
+  titleWeight?: 'light' | 'regular' | 'semibold' | 'bold';
+  titleCase?: 'normal' | 'upper';
 };
+
+/** A theme's shape and layout; each key is one of ThemeList.style's choices, the first gangway's. */
+export const THEME_STYLE_KEYS = [
+  'corners',
+  'edges',
+  'stroke',
+  'nodes',
+  'grid',
+  'density',
+  'text',
+  'headings',
+] as const;
+export type ThemeStyleKey = (typeof THEME_STYLE_KEYS)[number];
+export type ThemeStyle = Partial<Record<ThemeStyleKey, string>>;
 
 export type ArtifactTheme = {
   id: string;
@@ -51,6 +68,7 @@ export type ArtifactTheme = {
   isDefault: boolean;
   tokens: { light: TokenMap; dark: TokenMap };
   fonts: ThemeFonts;
+  style?: ThemeStyle;
   logo: string | null;
 };
 
@@ -58,8 +76,12 @@ export type ThemeList = {
   themes: ArtifactTheme[];
   defaultTheme: string;
   house: { light: Record<ThemeToken, string>; dark: Record<ThemeToken, string> };
-  fonts: { serif: string[]; sans: string[]; mono: string[] };
+  fonts: { serif: string[]; sans: string[]; mono: string[]; display: string[] };
+  fontLabels: Record<string, string>;
   titles: NonNullable<ThemeFonts['titles']>[];
+  titleWeights: NonNullable<ThemeFonts['titleWeight']>[];
+  titleCases: NonNullable<ThemeFonts['titleCase']>[];
+  style: Record<ThemeStyleKey, string[]>;
 };
 
 export type TemplateOption =

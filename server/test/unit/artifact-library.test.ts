@@ -29,6 +29,7 @@ function theme(over: Partial<Theme> = {}): Theme {
     builtin: false,
     tokens: TOKENS,
     fonts: { sans: "inter", titles: "sans" },
+    style: {},
     logo: null,
     ...over,
   };
@@ -41,6 +42,33 @@ describe("themes", () => {
     expect(css).toContain("--font-title:var(--font-sans);--title-style:normal;--title-weight:600;");
     expect(css).toContain('--logo:url("/_gangway/theme-logo.svg");');
     expect(css).toContain(':root[data-theme="dark"]{--paper:#000;}');
+  });
+
+  test("compile a style and the new fonts to fixed values, nothing for one left out", () => {
+    const css = compileTheme(
+      theme({
+        fonts: { serif: "lora", display: "caveat", titles: "display", titleWeight: "bold" },
+        style: { corners: "round", grid: "none", density: "compact" },
+      }),
+    );
+    expect(css).toContain("--font-serif:Lora, Georgia, serif;");
+    expect(css).toContain("--font-display:Caveat,");
+    expect(css).toContain(
+      "--font-title:var(--font-display);--title-style:normal;--title-weight:700;",
+    );
+    expect(css).toContain("--radius:14px;--radius-sm:8px;");
+    expect(css).toContain("--canvas-grid:none;");
+    expect(css).toContain("--space:0.8;");
+    expect(css).not.toContain("--card-edge");
+    expect(compileTheme(theme({ style: {} }))).not.toContain("--radius");
+    expect(
+      ThemeCreateSchema.safeParse({ id: "x", name: "X", tokens: TOKENS, style: { grid: "hex" } })
+        .success,
+    ).toBe(false);
+    expect(
+      ThemeCreateSchema.safeParse({ id: "x", name: "X", tokens: TOKENS, style: { radius: 4 } })
+        .success,
+    ).toBe(false);
   });
 
   test("take colours only: anything that could end a declaration is refused", () => {
