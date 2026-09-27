@@ -309,6 +309,13 @@
   align-items: center;
   gap: 6px;
 }
+.gw-caret {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
 .gw-role {
   font: 600 9px var(--font-sans);
   letter-spacing: 0.14em;

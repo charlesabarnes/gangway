@@ -43,6 +43,15 @@
             >Settings</a
           >
         }
+        @if (auth.can('users.read') || auth.can('roles.read') || auth.can('audit.read')) {
+          <a
+            routerLink="/admin"
+            routerLinkActive="!opacity-100 shadow-[inset_0_-3px_0_var(--gw-flag)]"
+            class="flex items-center px-3.5 opacity-70 hover:opacity-100"
+            data-testid="nav-admin"
+            >Admin</a
+          >
+        }
       </nav>
 
       <div class="ml-auto flex items-center gap-[18px] text-sm">
@@ -55,28 +64,18 @@
           }
         }
         @if (auth.user(); as user) {
-          <a
-            routerLink="/account"
-            routerLinkActive="!opacity-100"
-            class="flex items-center gap-1.5 opacity-85 hover:opacity-100"
-            data-testid="who"
+          <app-user-menu [user]="user" (logout)="logout()" />
+        } @else {
+          <app-theme-toggle />
+          <button
+            type="button"
+            (click)="logout()"
+            class="opacity-70 hover:opacity-100"
+            data-testid="logout"
           >
-            <span>{{ user.email }}</span>
-            <span
-              class="px-1.5 py-0.5 text-[10px] font-semibold tracking-[.14em] uppercase shadow-[inset_0_0_0_1px_var(--gw-header-fg)]"
-              >{{ user.role.name }}</span
-            >
-          </a>
+            Log out
+          </button>
         }
-        <app-theme-toggle />
-        <button
-          type="button"
-          (click)="logout()"
-          class="opacity-70 hover:opacity-100"
-          data-testid="logout"
-        >
-          Log out
-        </button>
       </div>
     </div>
   </header>

@@ -34,11 +34,55 @@ async function shell(session: SessionInfo | null) {
 }
 
 describe('the app shell', () => {
-  it('shows who is logged in with the role name from the server, linking to account', async () => {
+  it('shows who is logged in and their role, with a menu under it', async () => {
     const r = await shell(ADA);
-    expect(r.byTestId('who')!.querySelectorAll('span')[0]!.textContent).toBe('ada@example.com');
-    expect(r.byTestId('who')!.querySelectorAll('span')[1]!.textContent).toBe('member');
-    expect(r.byTestId('who')!.getAttribute('href')).toBe('/account');
+    const who = r.byTestId('who')!;
+    expect(who.querySelectorAll('span')[0]!.textContent).toBe('ada@example.com');
+    expect(who.querySelectorAll('span')[1]!.textContent).toBe('member');
+    expect(who.getAttribute('aria-expanded')).toBe('false');
+    expect(r.byTestId('user-menu')!.hidden).toBe(true);
+
+    who.click();
+    await r.settle();
+    expect(who.getAttribute('aria-expanded')).toBe('true');
+    expect(r.byTestId('user-menu')!.hidden).toBe(false);
+    expect(r.byTestId('menu-account')!.getAttribute('href')).toBe('/account');
+    expect(r.byTestId('user-menu')!.querySelector('[data-testid="theme"]')).not.toBeNull();
+  });
+
+  it('closes the menu on Escape, on a click elsewhere, and on navigation', async () => {
+    const r = await shell(ADA);
+    const menu = () => r.byTestId('user-menu')!;
+    const open = async () => {
+      r.byTestId('who')!.click();
+      await r.settle();
+      expect(menu().hidden).toBe(false);
+    };
+
+    await open();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await r.settle();
+    expect(menu().hidden).toBe(true);
+    expect(document.activeElement).toBe(r.byTestId('who'));
+
+    await open();
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    await r.settle();
+    expect(menu().hidden).toBe(true);
+
+    await open();
+    r.byTestId('menu-account')!.click();
+    await r.until(() => TestBed.inject(Router).url === '/account', 'navigation to /account');
+    expect(menu().hidden).toBe(true);
+  });
+
+  it('shows Admin only to a role that can read users, roles or the audit log', async () => {
+    const member = await shell(ADA);
+    expect(member.byTestId('nav-admin')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const r = await shell({ ...ADA, permissions: ['previews.read', 'audit.read'] });
+    expect(r.byTestId('nav-admin')!.getAttribute('href')).toBe('/admin');
   });
 
   it('Previews, the home page, is the first link in the nav', async () => {
@@ -62,6 +106,8 @@ describe('the app shell', () => {
 
   it('log out ends the session and goes to login even if the server is unreachable', async () => {
     const r = await shell(ADA);
+    r.byTestId('who')!.click();
+    await r.settle();
     r.byTestId('logout')!.click();
     r.http.expectOne('/v1/auth/logout').error(new ProgressEvent('error'));
     await r.until(() => TestBed.inject(Router).url === '/login', 'navigation to /login');

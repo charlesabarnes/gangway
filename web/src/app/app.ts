@@ -8,9 +8,10 @@ import { ThemeService } from './core/theme';
 import { Mark } from './ui/mark';
 import { ThemeToggle } from './ui/theme-toggle';
 import { Toasts } from './ui/toast';
+import { UserMenu } from './ui/user-menu';
 
 @Component({
-  imports: [Mark, RouterLink, RouterLinkActive, RouterOutlet, ThemeToggle, Toasts],
+  imports: [Mark, RouterLink, RouterLinkActive, RouterOutlet, ThemeToggle, Toasts, UserMenu],
   selector: 'app-root',
   templateUrl: './app.html',
 })

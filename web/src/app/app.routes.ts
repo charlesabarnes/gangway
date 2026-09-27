@@ -93,6 +93,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/settings/settings').then((m) => m.SettingsPage),
   },
   {
+    path: 'admin',
+    title: 'Admin · gangway',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/admin/admin-page').then((m) => m.AdminPage),
+  },
+  {
     path: 'github/callback',
     title: 'GitHub · gangway',
     canActivate: [authGuard],
