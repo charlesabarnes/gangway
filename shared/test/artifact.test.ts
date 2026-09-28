@@ -82,6 +82,24 @@ describe("templates", () => {
     });
   });
 
+  test("a deck's look is its template's own, and checked", () => {
+    const look = (template: string) =>
+      /\nlook: (\w+)\n/.exec(renderTemplate({ template })["artifact.md"]!)?.[1];
+    expect(["deck/pitch", "deck/review", "deck/talk"].map(look)).toEqual([
+      "poster",
+      "classic",
+      "sidebar",
+    ]);
+    expect(issues(doc("# A", "kind: deck\ntitle: T\nlook: loud"))).toEqual([
+      '1: look="loud": one of classic | sidebar | poster',
+    ]);
+    expect(
+      issues(
+        doc("# A\n\n---\n\n{layout=steps}\n## B\n1. C", "kind: deck\ntitle: T\nlook: sidebar"),
+      ),
+    ).toEqual([]);
+  });
+
   test("old template names still work", () => {
     expect(renderTemplate({ template: "document/proposal" })).toEqual(
       renderTemplate({ template: "document/memo" }),

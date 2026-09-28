@@ -6,7 +6,19 @@ const H = 720;
 const pad = (n: number) => String(n).padStart(2, "0");
 const hashSlide = () => Number(/^#\/(\d+)/.exec(location.hash)?.[1] ?? 0);
 
-function dress(s: HTMLElement, i: number, total: number, footer: string, n: number): void {
+/** Layouts that open with a `##` title: the current section's name goes above it. */
+const TITLED = new Set(["", "split", "agenda", "stats", "compare", "steps", "cards"]);
+
+type Place = {
+  i: number;
+  total: number;
+  footer: string;
+  n: number;
+  section: string;
+  look: string;
+};
+
+function dress(s: HTMLElement, { i, total, footer, n, section, look }: Place): void {
   const notes = s.querySelector(":scope > aside.notes");
   const body = document.createElement("div");
   body.className = "gw-slide-body";
@@ -17,11 +29,30 @@ function dress(s: HTMLElement, i: number, total: number, footer: string, n: numb
       "afterbegin",
       `<span class="gw-caps">${esc(s.getAttribute("eyebrow") ?? "")}</span>`,
     );
+  const titled =
+    TITLED.has(s.getAttribute("layout") ?? "") && body.firstElementChild?.localName === "h2";
+  if (titled && section)
+    body.insertAdjacentHTML("afterbegin", `<span class="gw-kicker gw-caps">${esc(section)}</span>`);
+  if (titled && look === "sidebar") sidebar(body);
   s.replaceChildren(body, ...(notes ? [notes] : []));
+  s.style.setProperty("--progress", String((i + 1) / total));
   s.insertAdjacentHTML(
     "beforeend",
-    `<div class="gw-slide-foot"><span><span class="gw-logo" aria-hidden="true"></span><span class="gw-caps">${esc(footer)}</span></span><span class="gw-meta">${pad(i + 1)} / ${pad(total)}</span></div>`,
+    `<div class="gw-slide-foot"><span><span class="gw-logo" aria-hidden="true"></span><span class="gw-caps">${esc(footer)}</span></span><span class="gw-meta">${pad(i + 1)} / ${pad(total)}</span></div><div class="gw-slide-progress" aria-hidden="true"></div>`,
   );
+}
+
+/** The sidebar look: the kicker and title in a column, the rest beside it. */
+function sidebar(body: HTMLElement): void {
+  const head = document.createElement("div");
+  head.className = "gw-slide-head";
+  const main = document.createElement("div");
+  main.className = "gw-slide-main";
+  const h2 = body.querySelector(":scope > h2")!;
+  head.append(...[...body.children].slice(0, [...body.children].indexOf(h2) + 1));
+  main.append(...body.childNodes);
+  body.classList.add("gw-sided");
+  body.append(head, main);
 }
 
 class Deck extends HTMLElement {
@@ -46,10 +77,21 @@ class Deck extends HTMLElement {
     nav.innerHTML = `<button type="button" aria-label="Previous slide">←</button><span></span><button type="button" aria-label="Next slide">→</button>`;
     this.replaceChildren(stage, nav);
     const footer = this.getAttribute("footer") ?? this.getAttribute("title") ?? "";
-    let section = 0;
+    const look = this.getAttribute("look") ?? "classic";
+    let sections = 0;
+    let section = "";
     slides.forEach((s, i) => {
-      const n = s.getAttribute("layout") === "section" ? ++section : 0;
-      dress(s, i, slides.length, footer, n);
+      const divider = s.getAttribute("layout") === "section";
+      if (divider) section = s.querySelector("h1, h2")?.textContent?.trim() ?? "";
+      const n = divider ? ++sections : 0;
+      dress(s, {
+        i,
+        total: slides.length,
+        footer,
+        n,
+        section: section && `${pad(sections)} · ${section}`,
+        look,
+      });
     });
     const [prev, count, next] = [...nav.children] as [
       HTMLButtonElement,

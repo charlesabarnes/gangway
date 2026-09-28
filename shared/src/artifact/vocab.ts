@@ -25,10 +25,13 @@ export const ROOT_TAG: Record<ArtifactKind | RetiredKind, string> = {
 const COMMON_KEYS = ["kind", "title", "subtitle", "accent", "mode", "theme", "css", "label"];
 export const FRONT_MATTER_KEYS: Record<ArtifactKind, readonly string[]> = {
   document: [...COMMON_KEYS, "byline", "date", "layout"],
-  deck: [...COMMON_KEYS, "footer"],
+  deck: [...COMMON_KEYS, "footer", "look"],
   canvas: [...COMMON_KEYS, "layout", "columns", "gap"],
 };
 export const DOC_LAYOUTS = ["single", "aside"] as const;
+/** How a deck arranges its slides, all in the one theme: titles on top, beside, or centred (ADR-0039). */
+export const DECK_LOOKS = ["classic", "sidebar", "poster"] as const;
+export type DeckLook = (typeof DECK_LOOKS)[number];
 
 export const CONTAINERS = [
   "callout",
@@ -54,6 +57,12 @@ export const SLIDE_LAYOUTS = [
   "quote",
   "split",
   "end",
+  "agenda",
+  "stats",
+  "compare",
+  "steps",
+  "cards",
+  "image",
 ] as const;
 export const INLINE_DIRECTIVES = [
   "flag",

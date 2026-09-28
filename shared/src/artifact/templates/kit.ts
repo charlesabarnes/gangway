@@ -1,4 +1,4 @@
-import type { ArtifactAccent, ArtifactKind, ArtifactMode } from "../vocab.ts";
+import type { ArtifactAccent, ArtifactKind, ArtifactMode, DeckLook } from "../vocab.ts";
 
 export type OptionValue = number | string | boolean;
 export type TemplateOption =
@@ -50,6 +50,14 @@ export function choice(key: string, label: string, def: string, values: [string,
     choices: values.map(([value, l]) => ({ value, label: l })),
   };
 }
+
+/** A deck template's look, defaulting to the one that suits it. */
+export const lookOption = (def: DeckLook) =>
+  choice("look", "Look", def, [
+    ["classic", "Classic: titles ruled off at the top"],
+    ["sidebar", "Sidebar: titles in a column beside"],
+    ["poster", "Poster: large, centred"],
+  ]);
 
 export function front(
   s: TemplateSettings,

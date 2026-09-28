@@ -35,14 +35,20 @@ Say in your reply which of these you used and why.
 Plain markdown: paragraphs, lists, tables, `>` quotes, code, plus the blocks and charts below. Each `##` heading starts a numbered section, its title above the text (`layout: aside` puts it in a column beside instead). What comes before the first `##` is the lead: a callout and a row of stats read well there. `###` is a subheading inside a section.
 
 ## Decks
-Separate slides with a line that is only `---`. The first slide is the title slide (`# Title` and one line). A slide starting `## Title` is a content slide with the title ruled off at the top. Choose a layout with a first line `{layout=…}`:
+Separate slides with a line that is only `---`. The first slide is the title slide (`# Title` and one line). A slide starting `## Title` is a content slide with the title ruled off at the top; after a section divider it carries that section's name above the title. Every deck is in the server's theme; `look` in front matter only arranges it: `look: classic` (titles ruled off at the top; the default), `look: sidebar` (titles in a column on the left, section numbers beside their names) or `look: poster` (large, centred titles and statements). Choose a slide's layout with a first line `{layout=…}`:
 - `section`: a navy divider, numbered (`## Name`)
 - `statement`: one sentence set large (`## The sentence.` and an optional line under it)
-- `big`: one number (`::stat{…}`)
+- `big`: one number (`::stat{…}`, an optional `## line` above it)
+- `stats`: `## Title` and a `::: stats` block, three or four numbers at slide scale
+- `agenda`: `## Title` and a numbered list, set as an index
+- `steps`: `## Title` and a numbered list of 3 to 5 steps in a row, each `**Name** what happens`
+- `compare`: `## Title` and a `::: columns` block, each half a `### Label` and a list; the second is marked as the better one
+- `cards`: `## Title` and a `:::: grid columns=3` of `::: card title="…"` blocks
 - `quote`: a `>` quote, its last line the attribution (`> — Name, role`)
 - `split`: `## Title` and a `::: columns` block, words beside a chart, list or image
+- `image`: `:image[alt]{src=…}` to the edges, an optional `## caption` and line over it
 - `end`: the closing slide (`# Thank you`, a line, a `::: facts` block)
-A slide with only `# Heading` is a section divider, and one with only `## Title` and a `::stat{}` a big number, without saying so. Speaker notes: a line `Notes:` then text, at the end of a slide; press n to show them.
+A slide with only `# Heading` is a section divider, and one with only `## Title` and a `::stat{}` a big number, without saying so. Vary the layouts: a deck of plain content slides reads as a document. Speaker notes: a line `Notes:` then text, at the end of a slide; press n to show them.
 
 ## Canvases
 A board of frames the reader pans and zooms, like a design file: screens of a flow, illustrations, a mood board. For system and architecture diagrams, give each question its own frame: a `## heading` that states the finding, a line of context, then one flow chart with groups (see Flowcharts); the canvas/architecture template starts one. Frames of prose joined by arrows read worse than that; a long written explanation belongs in a document. Separate frames with a line that is only `---`, each starting `{#id title="Frame title"}`. A frame holds markdown, any block, an inline `<svg>` or `:image[…]{src=…}`. Size it with `w=390` (pixels; default 400) and `h=` (default: its content); place it with `x=` and `y=`, or leave them out and the frames flow in a grid (front matter `layout`, `columns`, `gap`). `frame=plain` drops the frame around an illustration; `frame=note` is a sticky note; `frame=window url=app.example.com/page` draws a desktop browser window with that address. A line `-> other-id "label"` in a frame draws an arrow to another frame. Readers drag to pan, pinch or ctrl+scroll to zoom, press 0 to fit, and click a frame's title to zoom to it; `#id` in the URL opens on that frame.

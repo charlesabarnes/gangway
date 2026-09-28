@@ -17,6 +17,7 @@ import {
   ARTIFACT_MODES,
   CHART_TYPES,
   CONTAINERS,
+  DECK_LOOKS,
   DOC_LAYOUTS,
   FORMATS,
   FRONT_MATTER_KEYS,
@@ -247,6 +248,7 @@ function checkFrontMatter(c: Ctx, meta: Record<string, string>): ArtifactKind | 
   checkValue(c, 1, "accent", meta["accent"], ARTIFACT_ACCENTS);
   checkValue(c, 1, "mode", meta["mode"], ARTIFACT_MODES);
   if (k === "document") checkValue(c, 1, "layout", meta["layout"], DOC_LAYOUTS);
+  if (k === "deck") checkValue(c, 1, "look", meta["look"], DECK_LOOKS);
   if (k === "canvas") {
     checkValue(c, 1, "layout", meta["layout"], CANVAS_LAYOUTS);
     for (const key of ["columns", "gap"])

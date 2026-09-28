@@ -1195,17 +1195,33 @@ gw-chart .total {
 }
 
 /* Deck: 1280x720 slides on the navy table, scaled to fit. Paper slides carry a neatline;
-   title, section and end slides are navy. */
-body:has(gw-deck) {
-  background: var(--header-bg);
-}
+   title, section and end slides are navy. The look (ADR-0039) only arranges them: classic
+   rules the title off at the top, sidebar sets it in a column, poster centres it. */
 gw-deck {
+  --hero-bg: var(--header-bg);
+  --hero-fg: var(--header-fg);
+  --hero-muted: var(--header-muted);
+  --hero-rule: var(--header-rule);
+  --hero-mark: var(--flag);
+  /* The accent as text on paper: dark enough to read in light, bright enough in dark. */
+  --flag-text: oklch(from var(--flag) min(l, 0.5) c h);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
   min-height: 100vh;
+}
+:root[data-theme="dark"] gw-deck {
+  /* Navy on a dark deck is no contrast; the hero slides lift and take the accent's tint. */
+  --hero-bg: color-mix(in oklch, var(--flag) 16%, var(--paper-raised));
+  --hero-fg: var(--ink);
+  --hero-muted: var(--ink-muted);
+  --hero-rule: color-mix(in oklch, var(--flag) 30%, var(--rule));
+  --flag-text: oklch(from var(--flag) max(l, 0.78) c h);
+}
+body:has(gw-deck) {
+  background: var(--header-bg);
 }
 gw-deck > [data-part="stage"] {
   position: relative;
@@ -1246,7 +1262,7 @@ gw-slide > .gw-slide-body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 24px;
+  gap: calc(24px * var(--space));
 }
 gw-slide > .gw-slide-foot {
   position: absolute;
@@ -1262,6 +1278,22 @@ gw-slide > .gw-slide-foot .gw-caps {
 }
 gw-slide > .gw-slide-foot .gw-meta {
   font-size: 13px;
+}
+gw-slide > .gw-slide-foot > :first-child {
+  display: flex;
+  align-items: center;
+}
+gw-slide > .gw-slide-foot .gw-logo {
+  height: 22px;
+}
+/* How far through the deck: a line along the bottom of the frame. */
+gw-slide > .gw-slide-progress {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  width: calc((100% - 48px) * var(--progress, 0));
+  height: 4px;
+  background: var(--hero-mark);
 }
 gw-slide h1 {
   font-size: calc(88px * var(--h-scale));
@@ -1283,14 +1315,48 @@ gw-slide ul,
 gw-slide ol {
   margin-bottom: 0;
 }
-/* A content slide's title sits at the top under an ink rule, like a page header. */
-gw-slide:not([layout]) > .gw-slide-body {
+gw-slide .gw-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: -8px;
+  font-size: 14px;
+  color: var(--flag-text);
+}
+gw-slide .gw-kicker::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--flag);
+}
+/* A content slide's title sits at the top on an ink rule, the accent marking its start. */
+gw-slide:is(
+    :not([layout]),
+    [layout="split"],
+    [layout="agenda"],
+    [layout="stats"],
+    [layout="compare"],
+    [layout="steps"],
+    [layout="cards"]
+  )
+  > .gw-slide-body {
   justify-content: flex-start;
 }
-gw-slide:is(:not([layout]), [layout="split"]) > .gw-slide-body > h2:first-child {
+gw-slide:is(
+    :not([layout]),
+    [layout="split"],
+    [layout="agenda"],
+    [layout="stats"],
+    [layout="compare"],
+    [layout="steps"],
+    [layout="cards"]
+  )
+  > .gw-slide-body
+  > h2:is(:first-child, .gw-kicker + h2) {
   padding-bottom: 20px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--ink);
+  background: linear-gradient(var(--flag), var(--flag)) left bottom / 96px 5px no-repeat;
 }
 gw-slide:not([layout]) > .gw-slide-body > :is(gw-chart, gw-grid, table, gw-columns, gw-flow) {
   margin-top: 8px;
@@ -1325,8 +1391,21 @@ gw-slide gw-facts dd {
 gw-slide table {
   font-size: 22px;
 }
+gw-slide th {
+  font-size: 13px;
+}
+gw-slide td {
+  padding-block: 16px;
+}
 gw-slide td:is(.num, [align="right"]) {
   font-size: 19px;
+}
+gw-slide gw-flag {
+  font-size: 14px;
+}
+gw-slide gw-flag::before {
+  width: 12px;
+  height: 12px;
 }
 gw-slide gw-columns {
   gap: 64px;
@@ -1335,18 +1414,26 @@ gw-slide gw-columns {
 gw-slide blockquote {
   font-size: 34px;
 }
-
-/* Navy slides: the title, a section divider, the end. */
-gw-slide:is([layout="title"], [layout="section"], [layout="end"]) {
-  --ink: var(--header-fg);
-  --ink-muted: var(--header-muted);
-  --rule: var(--header-rule);
-  --paper: var(--header-bg);
-  color: var(--ink);
-  background: var(--header-bg);
+gw-slide pre {
+  margin: 0;
+  padding: 32px 36px;
+  font-size: 22px;
+  line-height: 1.6;
+  box-shadow: inset 6px 0 0 var(--flag);
 }
-gw-slide:is([layout="title"], [layout="section"], [layout="end"])::before {
-  box-shadow: inset 0 0 0 1px var(--rule);
+
+/* Hero slides: the title, a section divider, the end. */
+gw-slide:is([layout="title"], [layout="section"], [layout="end"]) {
+  --ink: var(--hero-fg);
+  --ink-muted: var(--hero-muted);
+  --rule: var(--hero-rule);
+  --paper: var(--hero-bg);
+  --flag-text: var(--hero-mark);
+  color: var(--ink);
+  background: var(--hero-bg);
+}
+gw-slide:is([layout="title"], [layout="section"], [layout="end"])::before::before {
+  box-shadow: inset 0 0 0 var(--stroke) var(--rule);
 }
 gw-slide[layout="title"] > .gw-slide-body {
   justify-content: flex-end;
@@ -1367,31 +1454,34 @@ gw-slide[layout="title"] > .gw-slide-body::before {
   content: "";
   width: 96px;
   height: 6px;
-  background: var(--flag);
+  background: var(--hero-mark);
+}
+/* The title slide names the deck at the top, and has no page number or progress. */
+gw-slide[layout="title"] > .gw-slide-foot {
+  top: 64px;
+  bottom: auto;
+}
+gw-slide[layout="title"] > .gw-slide-foot .gw-meta,
+gw-slide[layout="title"] > .gw-slide-progress {
+  display: none;
 }
 gw-slide[layout="section"] > .gw-slide-body {
   gap: 20px;
 }
 gw-slide[layout="section"] > .gw-slide-body::before {
   content: attr(data-n);
-  font: 600 22px var(--font-mono);
-  color: var(--flag);
-}
-gw-slide > .gw-slide-foot > :first-child {
-  display: flex;
-  align-items: center;
-}
-gw-slide > .gw-slide-foot .gw-logo {
-  height: 22px;
+  font: 600 120px/1 var(--font-mono);
+  letter-spacing: -0.04em;
+  color: var(--hero-mark);
 }
 gw-slide[layout="section"] :is(h1, h2) {
   max-width: 18ch;
-  font-size: 80px;
+  font-size: calc(80px * var(--h-scale));
   line-height: 1.02;
 }
 gw-slide[layout="section"] .gw-slide-body .gw-caps {
   font-size: 15px;
-  color: var(--flag);
+  color: var(--hero-mark);
 }
 gw-slide[layout="end"] > .gw-slide-body {
   align-items: flex-start;
@@ -1407,13 +1497,20 @@ gw-slide[layout="end"] gw-facts {
 /* A statement: one sentence, set large. */
 gw-slide[layout="statement"] > .gw-slide-body > :first-child {
   max-width: 24ch;
-  font: var(--title-style, italic) var(--title-weight, 400) 64px/1.12
+  font: var(--title-style, italic) var(--title-weight, 400) calc(64px * var(--h-scale)) / 1.12
     var(--font-title, var(--font-serif));
+  letter-spacing: var(--title-track, normal);
   text-wrap: balance;
 }
 gw-slide[layout="statement"] > .gw-slide-body > :first-child ~ * {
   max-width: 48ch;
   color: var(--ink-muted);
+}
+gw-slide[layout="statement"] > .gw-slide-body::before {
+  content: "";
+  width: 64px;
+  height: 6px;
+  background: var(--hero-mark);
 }
 
 /* One number. */
@@ -1421,30 +1518,48 @@ gw-slide[layout="big"] > .gw-slide-body {
   align-items: center;
   text-align: center;
 }
+gw-slide[layout="big"] > .gw-slide-body > h2 {
+  font-size: calc(40px * var(--h-scale));
+  color: var(--ink-muted);
+}
 gw-slide[layout="big"] gw-stat {
   justify-items: center;
   box-shadow: none;
 }
 gw-slide[layout="big"] gw-stat [data-part="value"] {
-  font-size: 180px;
-  letter-spacing: -0.03em;
+  font-size: 200px;
+  letter-spacing: -0.04em;
+  text-decoration: underline var(--flag) 10px;
+  text-underline-offset: 18px;
 }
 gw-slide[layout="big"] gw-stat [data-part="label"] {
   font-size: 16px;
 }
 gw-slide[layout="big"] gw-stat [data-part="foot"] {
   justify-content: center;
+  margin-top: 24px;
   font-size: 24px;
 }
 gw-slide[layout="big"] gw-stat [data-part="delta"] {
   font-size: 20px;
 }
 
-/* A quote. */
+/* A quote, under a large opening mark in the accent. */
+gw-slide[layout="quote"] > .gw-slide-body {
+  gap: 0;
+}
+gw-slide[layout="quote"] > .gw-slide-body::before {
+  content: "\201C";
+  height: 110px;
+  margin-left: -8px;
+  font: 400 240px/1 var(--font-serif);
+  color: var(--flag-text);
+}
 gw-slide[layout="quote"] blockquote {
   max-width: 30ch;
   margin: 0;
-  padding-left: 36px;
+  padding: 0;
+  border: 0;
 }
 gw-slide[layout="quote"] blockquote > p:first-child {
   font-size: 52px;
@@ -1452,17 +1567,352 @@ gw-slide[layout="quote"] blockquote > p:first-child {
 }
 gw-slide[layout="quote"] blockquote :is(cite, footer),
 gw-slide[layout="quote"] blockquote > p + p:last-child {
-  margin-top: 28px;
+  margin-top: 32px;
   font-size: 16px;
 }
 
 /* Two halves: words on one side, a chart, an image or a list on the other. */
-gw-slide[layout="split"] > .gw-slide-body {
-  justify-content: flex-start;
-}
-gw-slide[layout="split"] > .gw-slide-body > gw-columns {
+gw-slide[layout="split"] :is(.gw-slide-body, .gw-slide-main) > gw-columns {
   flex: 1;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+}
+
+/* An agenda: a numbered index, in two columns past six. */
+gw-slide[layout="agenda"] ol {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rows, 6), auto);
+  max-width: 900px;
+  column-gap: 64px;
+  align-content: start;
+  padding: 0;
+  list-style: none;
+  counter-reset: agenda;
+}
+gw-slide[layout="agenda"] ol:has(> li:nth-child(7)) {
+  --rows: 5;
+  max-width: none;
+}
+gw-slide[layout="agenda"] li {
+  display: flex;
+  align-items: baseline;
+  gap: 28px;
+  margin: 0;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--rule);
+  font: var(--title-style, italic) var(--title-weight, 400) calc(34px * var(--h-scale)) / 1.2
+    var(--font-title, var(--font-serif));
+  counter-increment: agenda;
+}
+gw-slide[layout="agenda"] li::before {
+  content: counter(agenda, decimal-leading-zero);
+  flex: none;
+  width: 44px;
+  font: 600 22px var(--font-mono);
+  font-style: normal;
+  color: var(--flag-text);
+}
+
+/* A row of numbers at slide scale. */
+gw-slide[layout="stats"] :is(.gw-slide-body, .gw-slide-main) > gw-grid {
+  margin-block: auto;
+}
+gw-slide[layout="stats"] gw-stat {
+  gap: 12px;
+  padding: calc(40px * var(--space)) calc(36px * var(--space));
+}
+gw-slide[layout="stats"] gw-stat [data-part="value"] {
+  font-size: 80px;
+  letter-spacing: -0.03em;
+}
+gw-slide[layout="stats"] gw-stat [data-part="label"] {
+  font-size: 15px;
+}
+gw-slide[layout="stats"] gw-stat [data-part="foot"] {
+  font-size: 20px;
+}
+gw-slide[layout="stats"] gw-stat [data-part="delta"] {
+  font-size: 17px;
+}
+
+/* Before and after: two panels, the second washed in the accent. */
+gw-slide[layout="compare"] :is(.gw-slide-body, .gw-slide-main) > gw-columns {
+  flex: 1;
+  gap: 32px;
+  align-items: stretch;
+}
+gw-slide[layout="compare"] gw-columns > div {
+  padding: calc(32px * var(--space)) calc(36px * var(--space));
+  border-radius: var(--radius);
+  box-shadow: var(--hairline);
+}
+gw-slide[layout="compare"] gw-columns > div + div {
+  background: color-mix(in oklch, var(--flag) 14%, var(--paper));
+  box-shadow: inset 0 6px 0 var(--flag);
+}
+gw-slide[layout="compare"] gw-columns h3 {
+  margin-bottom: 16px;
+  font: 600 15px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+gw-slide[layout="compare"] gw-columns > div + div h3 {
+  color: var(--flag-text);
+}
+gw-slide[layout="compare"] gw-columns li {
+  font-size: 24px;
+}
+
+/* Steps: a numbered row joined by a rule. */
+gw-slide[layout="steps"] ol {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 36px;
+  margin-block: auto;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+gw-slide[layout="steps"] li {
+  position: relative;
+  margin: 0;
+  padding-top: 88px;
+  font-size: 22px;
+  counter-increment: step;
+}
+gw-slide[layout="steps"] li::before {
+  content: counter(step);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  font: 600 24px var(--font-mono);
+  color: var(--on-flag);
+  background: var(--flag);
+}
+gw-slide[layout="steps"] li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 28px;
+  left: 72px;
+  right: -20px;
+  border-top: calc(2px * var(--stroke-n)) solid var(--rule);
+}
+gw-slide[layout="steps"] li strong {
+  display: block;
+  margin-bottom: 8px;
+  font: var(--title-style, italic) var(--title-weight, 400) calc(30px * var(--h-scale)) / 1.15
+    var(--font-title, var(--font-serif));
+}
+
+/* Cards at slide scale. */
+gw-slide[layout="cards"] :is(.gw-slide-body, .gw-slide-main) > gw-grid {
+  flex: 1;
+  gap: 28px;
+  align-content: center;
+}
+gw-slide[layout="cards"] gw-card {
+  padding: calc(30px * var(--space)) calc(32px * var(--space));
+  background: var(--paper-raised);
+}
+gw-slide[layout="cards"] gw-card > .gw-caps {
+  font-size: 13px;
+}
+gw-slide[layout="cards"] gw-card > h3 {
+  margin-bottom: 12px;
+}
+gw-slide[layout="cards"] gw-card :is(p, li) {
+  font-size: 21px;
+  color: var(--ink-muted);
+}
+gw-slide[layout="cards"] gw-card gw-flag {
+  margin-bottom: 14px;
+}
+
+/* A picture to the edges, its caption on a scrim. */
+gw-slide[layout="image"] {
+  padding: 0;
+}
+gw-slide[layout="image"]::before {
+  z-index: 1;
+}
+gw-slide[layout="image"] > .gw-slide-body {
+  position: relative;
+  justify-content: flex-end;
+  padding: 0 var(--slide-pad-x) 112px;
+}
+gw-slide[layout="image"] gw-image {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  aspect-ratio: auto !important;
+  border-radius: 0;
+  box-shadow: none;
+}
+gw-slide[layout="image"]:has(img) > .gw-slide-body {
+  color: oklch(0.98 0.01 85);
+  background: linear-gradient(to top, oklch(0.15 0.03 255 / 0.8), transparent 55%);
+}
+gw-slide[layout="image"]:has(img) > .gw-slide-foot {
+  --ink-muted: oklch(0.9 0.02 85);
+  z-index: 1;
+}
+gw-slide[layout="image"] h2 {
+  max-width: 20ch;
+}
+gw-slide[layout="image"] p {
+  max-width: 44ch;
+}
+
+/* Sidebar: a content slide's title in a column on the left, ruled off like a document's aside;
+   a section divider sets its number beside its name. */
+gw-slide > .gw-slide-body.gw-sided {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 56px;
+}
+.gw-sided > .gw-slide-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 300px;
+  padding-right: 40px;
+  border-right: 1px solid var(--ink);
+}
+.gw-sided > .gw-slide-head::before {
+  content: "";
+  width: 64px;
+  height: 5px;
+  background: var(--flag);
+}
+.gw-sided > .gw-slide-head > h2 {
+  font-size: calc(44px * var(--h-scale));
+  line-height: 1.08;
+}
+.gw-sided > .gw-slide-head > .gw-kicker {
+  margin: 0;
+}
+.gw-sided > .gw-slide-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(24px * var(--space));
+}
+gw-deck[look="sidebar"] gw-slide[layout="section"] > .gw-slide-body {
+  flex-direction: row;
+  align-items: center;
+  gap: 48px;
+}
+gw-deck[look="sidebar"] gw-slide[layout="section"] > .gw-slide-body::before {
+  flex: none;
+  width: 300px;
+  padding-right: 40px;
+  font-size: 180px;
+  text-align: right;
+  border-right: 1px solid var(--rule);
+}
+gw-deck[look="sidebar"] gw-slide:is([layout="statement"], [layout="quote"]) > .gw-slide-body {
+  padding-left: 356px;
+}
+gw-deck[look="sidebar"] gw-slide[layout="statement"] > .gw-slide-body::before {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: auto;
+  background: none;
+  top: 80px;
+  bottom: 104px;
+  left: calc(var(--slide-pad-x) + 300px);
+  border-left: 1px solid var(--ink);
+}
+gw-deck[look="sidebar"] gw-slide[layout="quote"] > .gw-slide-body::before {
+  position: absolute;
+  top: 50%;
+  left: var(--slide-pad-x);
+  width: 300px;
+  height: auto;
+  margin: 0;
+  padding-right: 40px;
+  font-size: 320px;
+  text-align: right;
+  transform: translateY(-30%);
+}
+
+/* Poster: everything centred and set larger, the accent bar under each title. */
+gw-deck[look="poster"] gw-slide > .gw-slide-body {
+  align-items: center;
+  text-align: center;
+}
+gw-deck[look="poster"] gw-slide :is(ul, ol, table, gw-columns, gw-grid, gw-card, pre) {
+  text-align: left;
+}
+gw-deck[look="poster"] gw-slide .gw-kicker {
+  justify-content: center;
+}
+gw-deck[look="poster"]
+  gw-slide:is(
+    :not([layout]),
+    [layout="split"],
+    [layout="agenda"],
+    [layout="stats"],
+    [layout="compare"],
+    [layout="steps"],
+    [layout="cards"]
+  )
+  > .gw-slide-body
+  > h2:is(:first-child, .gw-kicker + h2) {
+  padding-bottom: 28px;
+  margin-bottom: 8px;
+  border-bottom: 0;
+  font-size: calc(60px * var(--h-scale));
+  background-position: center bottom;
+  background-size: 72px 5px;
+}
+gw-deck[look="poster"] gw-slide :is(gw-grid, gw-columns, table, gw-chart, gw-flow) {
+  align-self: stretch;
+}
+gw-deck[look="poster"] gw-slide[layout="title"] > .gw-slide-body {
+  justify-content: center;
+  padding-bottom: 0;
+}
+gw-deck[look="poster"] gw-slide[layout="title"] h1 {
+  max-width: 16ch;
+  font-size: calc(112px * var(--h-scale));
+}
+gw-deck[look="poster"] gw-slide[layout="title"] > .gw-slide-foot {
+  justify-content: center;
+}
+gw-deck[look="poster"] gw-slide[layout="section"] :is(h1, h2) {
+  font-size: calc(96px * var(--h-scale));
+}
+gw-deck[look="poster"] gw-slide[layout="statement"] > .gw-slide-body > :first-child {
+  max-width: 22ch;
+  font-size: calc(72px * var(--h-scale));
+}
+gw-deck[look="poster"] gw-slide[layout="quote"] blockquote {
+  max-width: 34ch;
+}
+gw-deck[look="poster"] gw-slide[layout="quote"] blockquote > p:first-child {
+  font-size: 58px;
+}
+gw-deck[look="poster"] gw-slide[layout="agenda"] ol {
+  align-self: center;
+  min-width: 640px;
+}
+gw-deck[look="poster"] gw-slide[layout="end"] > .gw-slide-body {
+  align-items: center;
+}
+gw-deck[look="poster"] gw-slide[layout="end"] gw-facts {
+  text-align: left;
 }
 
 gw-deck > nav {
