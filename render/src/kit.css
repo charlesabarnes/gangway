@@ -1235,9 +1235,24 @@ gw-deck > [data-part="stage"] {
   overflow: clip;
 }
 gw-deck > [data-part="stage"] > [data-part="canvas"] {
+  position: relative;
   width: 1280px;
   height: 720px;
   transform-origin: 0 0;
+}
+/* Before an export: every slide laid out off to the side, unseen, so its charts can draw. */
+@media screen {
+  gw-deck.gw-laying-out gw-slide:not(.on) {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: -20000px;
+    visibility: hidden;
+  }
+}
+gw-slide {
+  cursor: pointer;
 }
 gw-slide {
   --slide-pad-x: 96px;
@@ -1939,6 +1954,14 @@ gw-deck > nav button {
   font-size: 18px;
   cursor: pointer;
 }
+gw-deck > nav .gw-export {
+  margin-left: 10px;
+  padding: 3px 9px;
+  font: 600 11px var(--font-sans);
+  letter-spacing: 0.12em;
+  border: 1px solid color-mix(in oklch, currentColor 45%, transparent);
+  border-radius: var(--radius-sm);
+}
 gw-deck > nav button:disabled {
   opacity: 0.3;
 }
@@ -2569,14 +2592,15 @@ body:has(gw-deck) .gw-toggle {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
   }
-  /* A desktop window is drawn at its own width, so what is inside it keeps its columns. */
-  :is(gw-grid, gw-columns):not(gw-frame[frame="window"] *) {
+  /* A desktop window and a slide are drawn at their own width, so what is inside keeps its
+     columns. */
+  :is(gw-grid, gw-columns):not(gw-frame[frame="window"] *, gw-slide *) {
     grid-template-columns: minmax(0, 1fr);
   }
-  gw-grid:not(gw-frame[frame="window"] *) > * {
+  gw-grid:not(gw-frame[frame="window"] *, gw-slide *) > * {
     grid-column: auto !important;
   }
-  gw-grid:not(gw-frame[frame="window"] *) > gw-stat + gw-stat::before {
+  gw-grid:not(gw-frame[frame="window"] *, gw-slide *) > gw-stat + gw-stat::before {
     inset: 0 16px auto;
     border-left: 0;
     border-top: 1px solid var(--rule);
@@ -2626,10 +2650,24 @@ body:has(gw-deck) .gw-toggle {
     flex-direction: column;
     break-after: page;
     page: slide;
+    cursor: auto;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  gw-slide *,
+  gw-slide *::before,
+  gw-slide *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  gw-deck {
+    display: block;
+    min-height: 0;
   }
   gw-deck > [data-part="stage"] {
     width: auto !important;
     height: auto !important;
+    overflow: visible;
   }
   gw-deck > [data-part="stage"] > [data-part="canvas"] {
     height: auto;

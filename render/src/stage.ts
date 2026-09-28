@@ -74,7 +74,7 @@ class Deck extends HTMLElement {
     canvas.append(...slides);
     stage.append(canvas);
     const nav = document.createElement("nav");
-    nav.innerHTML = `<button type="button" aria-label="Previous slide">←</button><span></span><button type="button" aria-label="Next slide">→</button>`;
+    nav.innerHTML = `<button type="button" aria-label="Previous slide">←</button><span></span><button type="button" aria-label="Next slide">→</button><button type="button" class="gw-export" title="Save as PDF, one slide a page">PDF</button><button type="button" class="gw-full" aria-label="Full screen" title="Full screen (f)">⛶</button>`;
     this.replaceChildren(stage, nav);
     const footer = this.getAttribute("footer") ?? this.getAttribute("title") ?? "";
     const look = this.getAttribute("look") ?? "classic";
@@ -93,9 +93,11 @@ class Deck extends HTMLElement {
         look,
       });
     });
-    const [prev, count, next] = [...nav.children] as [
+    const [prev, count, next, pdf, full] = [...nav.children] as [
       HTMLButtonElement,
       HTMLElement,
+      HTMLButtonElement,
+      HTMLButtonElement,
       HTMLButtonElement,
     ];
     const go = (i: number) => {
@@ -119,6 +121,12 @@ class Deck extends HTMLElement {
     next.onclick = () => go(this.#at + 1);
     window.addEventListener("resize", fit);
     this.#swipe(stage, go);
+    this.#click(stage, go);
+    pdf.onclick = () => void this.#export();
+    // An iPhone has no full screen for a page, only for video; the button shows where it works.
+    full.hidden = !document.fullscreenEnabled;
+    full.onclick = () => this.#fullscreen();
+    window.addEventListener("beforeprint", () => this.#drawAll());
     window.addEventListener("hashchange", () => {
       const n = hashSlide();
       if (n && n - 1 !== this.#at) go(n - 1);
@@ -127,6 +135,8 @@ class Deck extends HTMLElement {
     fit();
     go(Math.max(0, hashSlide() - 1));
   }
+
+  #swiped = 0;
 
   /** A horizontal swipe on the slide turns it, as the arrow keys do. */
   #swipe(stage: HTMLElement, go: (i: number) => void) {
@@ -139,8 +149,52 @@ class Deck extends HTMLElement {
       const t = e.changedTouches[0]!;
       const dx = t.clientX - x;
       if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(t.clientY - y)) return;
+      this.#swiped = Date.now();
       go(this.#at + (dx < 0 ? 1 : -1));
     });
+  }
+
+  /** A click on the slide advances it, shift-click goes back; what is itself clickable, or a
+   *  drag to select text, keeps the click. */
+  #click(stage: HTMLElement, go: (i: number) => void) {
+    let x = 0;
+    let y = 0;
+    stage.addEventListener("mousedown", (e) => {
+      ({ clientX: x, clientY: y } = e);
+      // Shift would extend a text selection rather than go back.
+      if (e.shiftKey) e.preventDefault();
+    });
+    stage.addEventListener("click", (e) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (t?.closest("a, button, input, select, textarea, label, summary, [data-go], .acts"))
+        return;
+      const dragged = Math.hypot(e.clientX - x, e.clientY - y) > 5;
+      if (dragged || Date.now() - this.#swiped < 500) return;
+      go(this.#at + (e.shiftKey ? -1 : 1));
+    });
+  }
+
+  #fullscreen() {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void document.documentElement.requestFullscreen().catch(() => {});
+  }
+
+  /** Lays every slide out, out of sight, so charts on slides not yet shown get drawn. */
+  #drawAll() {
+    this.classList.add("gw-laying-out");
+    for (const f of this.querySelectorAll("gw-flow")) f.classList.add("drawn");
+  }
+
+  /** The browser's print dialog, where "Save as PDF" makes one 16:9 page a slide. */
+  async #export() {
+    this.#drawAll();
+    // Charts draw on the resize their layout causes; two frames and a moment let them.
+    for (let i = 0; i < 2; i++) await new Promise(requestAnimationFrame);
+    await new Promise((r) => setTimeout(r, 200));
+    window.addEventListener("afterprint", () => this.classList.remove("gw-laying-out"), {
+      once: true,
+    });
+    print();
   }
 
   #key(e: KeyboardEvent, go: (i: number) => void) {
@@ -150,6 +204,7 @@ class Deck extends HTMLElement {
     else if (e.key === "Home") go(0);
     else if (e.key === "End") go(Number.MAX_SAFE_INTEGER);
     else if (e.key === "n") this.classList.toggle("notes");
+    else if (e.key === "f" && document.fullscreenEnabled) this.#fullscreen();
     else return;
     e.preventDefault();
   }
