@@ -127,7 +127,7 @@ class Flow extends HTMLElement {
 
   /**
    * Never enlarged; shrunk to the width down to 72%, then it scrolls sideways so labels stay
-   * readable. On a slide it shrinks to fit the slide instead. In a document, a chart wider than
+   * readable. On a slide it shrinks to fit the slide instead, except on a phone. In a document, a chart wider than
    * its column takes the whole section, title above, and may run on to the window's edge.
    */
   #fit(plot: HTMLElement, s: SVGSVGElement, layout: FlowLayout) {
@@ -143,7 +143,8 @@ class Flow extends HTMLElement {
       const avail = plot.clientWidth;
       if (avail <= 0) return;
       let k = Math.min(1, avail / layout.width);
-      if (slide) k = Math.min(k, 430 / layout.height);
+      // A slide reflowed on a phone reads like a document, so it scrolls rather than shrinks.
+      if (slide && !matchMedia("(max-width: 760px)").matches) k = Math.min(k, 430 / layout.height);
       else k = Math.max(0.72, k);
       s.style.width = `${layout.width * k}px`;
     };

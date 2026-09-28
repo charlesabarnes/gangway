@@ -4,6 +4,8 @@ import { esc } from "./md.ts";
 const W = 1280;
 const H = 720;
 const pad = (n: number) => String(n).padStart(2, "0");
+/** A phone: slides reflow into one scrolling column instead of scaling down (kit.css). */
+const NARROW = matchMedia("(max-width: 760px)");
 const hashSlide = () => Number(/^#\/(\d+)/.exec(location.hash)?.[1] ?? 0);
 
 /** Layouts that open with a `##` title: the current section's name goes above it. */
@@ -98,7 +100,7 @@ class Deck extends HTMLElement {
       HTMLElement,
       HTMLButtonElement,
     ];
-    const go = (i: number) => {
+    const mark = (i: number) => {
       this.#at = Math.max(0, Math.min(slides.length - 1, i));
       slides.forEach((s, j) => s.classList.toggle("on", j === this.#at));
       count.textContent = `${this.#at + 1} / ${slides.length}`;
@@ -106,7 +108,24 @@ class Deck extends HTMLElement {
       next.disabled = this.#at === slides.length - 1;
       history.replaceState(null, "", `#/${this.#at + 1}`);
     };
+    const go = (i: number) => {
+      mark(i);
+      if (NARROW.matches) slides[this.#at]!.scrollIntoView({ block: "start" });
+    };
+    // Reading down the column keeps the address on the slide in view.
+    const seen = new IntersectionObserver(
+      (entries) => {
+        const e = entries.find((x) => x.isIntersecting);
+        if (NARROW.matches && e) mark(slides.indexOf(e.target as HTMLElement));
+      },
+      { rootMargin: "-45% 0px -55% 0px" },
+    );
+    for (const s of slides) seen.observe(s);
     const fit = () => {
+      if (NARROW.matches) {
+        stage.style.width = stage.style.height = canvas.style.transform = "";
+        return;
+      }
       const k = Math.min(innerWidth / W, (innerHeight - 48) / H);
       stage.style.width = `${W * k}px`;
       stage.style.height = `${H * k}px`;
@@ -115,17 +134,37 @@ class Deck extends HTMLElement {
     prev.onclick = () => go(this.#at - 1);
     next.onclick = () => go(this.#at + 1);
     window.addEventListener("resize", fit);
+    this.#swipe(stage, go);
     window.addEventListener("hashchange", () => {
       const n = hashSlide();
       if (n && n - 1 !== this.#at) go(n - 1);
     });
     window.addEventListener("keydown", (e) => this.#key(e, go));
     fit();
-    go(Math.max(0, hashSlide() - 1));
+    const start = hashSlide();
+    if (NARROW.matches && start <= 1) mark(0);
+    else go(Math.max(0, start - 1));
+  }
+
+  /** A horizontal swipe on the slide turns it, as the arrow keys do. */
+  #swipe(stage: HTMLElement, go: (i: number) => void) {
+    let x = 0;
+    let y = 0;
+    stage.addEventListener("touchstart", (e) => ({ clientX: x, clientY: y } = e.touches[0]!), {
+      passive: true,
+    });
+    stage.addEventListener("touchend", (e) => {
+      const t = e.changedTouches[0]!;
+      const dx = t.clientX - x;
+      if (NARROW.matches || Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(t.clientY - y)) return;
+      go(this.#at + (dx < 0 ? 1 : -1));
+    });
   }
 
   #key(e: KeyboardEvent, go: (i: number) => void) {
     if (e.target instanceof Element && e.target.closest("input,textarea,select")) return;
+    // In the column the keys scroll the page, as anywhere else.
+    if (NARROW.matches && e.key !== "n") return;
     if (["ArrowRight", "PageDown", " "].includes(e.key)) go(this.#at + 1);
     else if (["ArrowLeft", "PageUp"].includes(e.key)) go(this.#at - 1);
     else if (e.key === "Home") go(0);

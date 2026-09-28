@@ -1950,6 +1950,337 @@ gw-deck.notes gw-slide.on aside.notes {
   background: var(--log-bg);
 }
 
+/* A phone: no scaling. The slides reflow into one column the reader scrolls, each a card
+   at reading sizes; the looks keep their arrangement where it fits and stack where not. */
+@media (max-width: 760px) {
+  gw-deck {
+    justify-content: flex-start;
+    padding: 12px 12px 72px;
+  }
+  gw-deck > nav {
+    display: none;
+  }
+  gw-deck > [data-part="stage"],
+  gw-deck > [data-part="stage"] > [data-part="canvas"] {
+    width: 100%;
+    height: auto;
+    transform: none;
+  }
+  gw-deck > [data-part="stage"] > [data-part="canvas"] {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  gw-slide {
+    --slide-pad-x: 26px;
+    display: flex;
+    flex-direction: column;
+    width: auto;
+    height: auto;
+    min-height: min(62svh, 520px);
+    padding: 40px var(--slide-pad-x) 76px;
+    font-size: 17px;
+    scroll-margin-top: 12px;
+  }
+  gw-slide::before {
+    inset: 8px;
+  }
+  gw-slide > .gw-slide-foot {
+    bottom: 26px;
+  }
+  gw-slide > .gw-slide-foot .gw-caps {
+    font-size: 10px;
+  }
+  gw-slide > .gw-slide-foot .gw-meta {
+    font-size: 11px;
+  }
+  gw-slide > .gw-slide-progress {
+    left: 8px;
+    bottom: 8px;
+    width: calc((100% - 16px) * var(--progress, 0));
+    height: 3px;
+  }
+  gw-slide h1,
+  gw-slide[layout="end"] h1 {
+    font-size: calc(40px * var(--h-scale));
+  }
+  gw-slide h2 {
+    font-size: calc(28px * var(--h-scale));
+  }
+  gw-slide h3 {
+    font-size: calc(21px * var(--h-scale));
+  }
+  gw-slide :is(p, li) {
+    font-size: 17px;
+  }
+  gw-slide .gw-kicker {
+    margin-bottom: -4px;
+    font-size: 11px;
+  }
+  gw-slide .gw-kicker::before {
+    width: 8px;
+    height: 8px;
+  }
+  gw-slide:is(:not([layout]), [layout]) > .gw-slide-body > h2:is(:first-child, .gw-kicker + h2) {
+    padding-bottom: 12px;
+    margin-bottom: 4px;
+    background-size: 56px 4px;
+  }
+  gw-slide > .gw-slide-body {
+    gap: 16px;
+  }
+  gw-slide table {
+    display: block;
+    overflow-x: auto;
+    font-size: 15px;
+  }
+  gw-slide td {
+    padding-block: 10px;
+    min-width: 7em;
+  }
+  gw-slide :is(th, gw-flag) {
+    font-size: 10px;
+  }
+  gw-slide pre {
+    padding: 16px 18px;
+    font-size: 13px;
+  }
+  gw-slide gw-columns {
+    gap: 20px;
+  }
+  gw-slide gw-callout {
+    padding: 14px 18px;
+    font-size: 17px;
+  }
+  gw-slide gw-callout > [data-part="title"] {
+    font-size: 21px;
+  }
+  gw-slide gw-facts dd {
+    font-size: 15px;
+  }
+  gw-slide gw-facts dt {
+    font-size: 10px;
+  }
+  gw-slide gw-stat [data-part="value"] {
+    font-size: 36px;
+  }
+
+  gw-slide[layout="title"] > .gw-slide-body {
+    gap: 18px;
+    padding-top: 36px;
+    padding-bottom: 0;
+  }
+  gw-slide[layout="title"] > .gw-slide-foot {
+    top: 26px;
+  }
+  gw-slide[layout="title"] h1,
+  gw-deck[look="poster"] gw-slide[layout="title"] h1 {
+    font-size: calc(44px * var(--h-scale));
+  }
+  gw-slide[layout="title"] > .gw-slide-body::before {
+    width: 56px;
+    height: 4px;
+  }
+  gw-slide:is([layout="title"], [layout="end"]) h1 + p {
+    font-size: 19px;
+  }
+  gw-slide:is([layout="section"], [layout="statement"], [layout="quote"]) {
+    min-height: min(44svh, 380px);
+  }
+  gw-slide[layout="section"] > .gw-slide-body::before {
+    font-size: 56px;
+  }
+  gw-slide[layout="section"] :is(h1, h2),
+  gw-deck[look="poster"] gw-slide[layout="section"] :is(h1, h2) {
+    font-size: calc(36px * var(--h-scale));
+  }
+  gw-slide[layout="end"] gw-facts {
+    min-width: 0;
+    width: 100%;
+  }
+  gw-slide[layout="statement"] > .gw-slide-body > :first-child,
+  gw-deck[look="poster"] gw-slide[layout="statement"] > .gw-slide-body > :first-child {
+    font-size: calc(30px * var(--h-scale));
+  }
+  gw-slide[layout="statement"] > .gw-slide-body::before {
+    width: 48px;
+    height: 4px;
+  }
+  gw-slide[layout="big"] > .gw-slide-body > h2 {
+    font-size: calc(22px * var(--h-scale));
+  }
+  gw-slide[layout="big"] gw-stat [data-part="value"] {
+    font-size: 88px;
+    text-decoration-thickness: 6px;
+    text-underline-offset: 10px;
+  }
+  gw-slide[layout="big"] gw-stat [data-part="foot"] {
+    margin-top: 12px;
+    font-size: 16px;
+  }
+  gw-slide[layout="quote"] > .gw-slide-body::before {
+    height: 56px;
+    font-size: 120px;
+  }
+  gw-slide[layout="quote"] blockquote > p:first-child,
+  gw-deck[look="poster"] gw-slide[layout="quote"] blockquote > p:first-child {
+    font-size: 25px;
+  }
+  gw-slide[layout="quote"] blockquote > p + p:last-child {
+    margin-top: 18px;
+    font-size: 11px;
+  }
+  gw-slide[layout="split"] > .gw-slide-body > gw-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  gw-slide[layout="agenda"] ol {
+    grid-auto-flow: row;
+    grid-template-rows: none;
+  }
+  gw-slide[layout="agenda"] li {
+    gap: 16px;
+    padding: 12px 0;
+    font-size: calc(21px * var(--h-scale));
+  }
+  gw-slide[layout="agenda"] li::before {
+    width: 28px;
+    font-size: 14px;
+  }
+  gw-slide[layout="stats"] gw-stat {
+    padding: 20px 22px;
+  }
+  gw-slide[layout="stats"] gw-stat [data-part="value"] {
+    font-size: 44px;
+  }
+  gw-slide[layout="stats"] gw-stat [data-part="label"] {
+    font-size: 11px;
+  }
+  gw-slide[layout="stats"] gw-stat [data-part="foot"] {
+    font-size: 15px;
+  }
+  gw-slide[layout="compare"] gw-columns {
+    gap: 14px;
+  }
+  gw-slide[layout="compare"] gw-columns > div {
+    padding: 18px 20px;
+  }
+  gw-slide[layout="compare"] gw-columns h3 {
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+  gw-slide[layout="compare"] gw-columns li {
+    font-size: 16px;
+  }
+  gw-slide[layout="steps"] ol {
+    grid-auto-flow: row;
+    gap: 22px;
+  }
+  gw-slide[layout="steps"] li {
+    padding: 4px 0 0 58px;
+    font-size: 16px;
+  }
+  gw-slide[layout="steps"] li::before {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+  }
+  gw-slide[layout="steps"] li:not(:last-child)::after {
+    top: 48px;
+    bottom: -18px;
+    left: 20px;
+    right: auto;
+    border-top: 0;
+    border-left: calc(2px * var(--stroke-n)) solid var(--rule);
+  }
+  gw-slide[layout="steps"] li strong {
+    margin-bottom: 4px;
+    font-size: calc(20px * var(--h-scale));
+  }
+  gw-slide[layout="cards"] :is(.gw-slide-body, .gw-slide-main) > gw-grid {
+    gap: 12px;
+  }
+  gw-slide[layout="cards"] gw-card {
+    padding: 18px 20px;
+  }
+  gw-slide[layout="cards"] gw-card :is(p, li) {
+    font-size: 16px;
+  }
+  gw-slide[layout="image"] {
+    min-height: 70svh;
+  }
+  gw-slide[layout="image"] > .gw-slide-body {
+    padding-bottom: 76px;
+  }
+
+  /* Sidebar stacks: the title over its content, ruled off beneath. */
+  gw-slide > .gw-slide-body.gw-sided {
+    flex-direction: column;
+    gap: 18px;
+  }
+  .gw-sided > .gw-slide-head {
+    width: auto;
+    gap: 12px;
+    padding: 0 0 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--ink);
+  }
+  .gw-sided > .gw-slide-head::before {
+    width: 48px;
+    height: 4px;
+  }
+  .gw-sided > .gw-slide-head > h2 {
+    font-size: calc(28px * var(--h-scale));
+  }
+  gw-deck[look="sidebar"] gw-slide[layout="section"] > .gw-slide-body {
+    gap: 20px;
+  }
+  gw-deck[look="sidebar"] gw-slide[layout="section"] > .gw-slide-body::before {
+    width: auto;
+    padding-right: 20px;
+    font-size: 64px;
+  }
+  gw-deck[look="sidebar"] gw-slide:is([layout="statement"], [layout="quote"]) > .gw-slide-body {
+    padding-left: 0;
+  }
+  gw-deck[look="sidebar"] gw-slide[layout="statement"] > .gw-slide-body::before {
+    display: none;
+  }
+  gw-deck[look="sidebar"] gw-slide[layout="quote"] > .gw-slide-body::before {
+    position: static;
+    width: auto;
+    padding: 0;
+    font-size: 120px;
+    text-align: left;
+    transform: none;
+  }
+
+  /* Poster keeps its centring, at phone sizes. */
+  gw-deck[look="poster"]
+    gw-slide:is(
+      :not([layout]),
+      [layout="split"],
+      [layout="agenda"],
+      [layout="stats"],
+      [layout="compare"],
+      [layout="steps"],
+      [layout="cards"]
+    )
+    > .gw-slide-body
+    > h2:is(:first-child, .gw-kicker + h2) {
+    padding-bottom: 16px;
+    font-size: calc(30px * var(--h-scale));
+    background-size: 48px 4px;
+  }
+  gw-deck[look="poster"] gw-slide[layout="agenda"] ol {
+    min-width: 0;
+    align-self: stretch;
+  }
+  gw-slide aside.notes,
+  gw-deck.notes gw-slide.on aside.notes {
+    display: none;
+  }
+}
+
 /* Canvas: frames on the chart grid, panned and zoomed as one layer. */
 body:has(gw-canvas) {
   overflow: hidden;
