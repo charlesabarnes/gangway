@@ -1954,6 +1954,20 @@ gw-deck > nav button {
   font-size: 18px;
   cursor: pointer;
 }
+/* Full screen: the slide alone, as large as the screen allows, on black. */
+:root:fullscreen body {
+  background: #000;
+}
+:root:fullscreen :is(.gw-chrome, gangway-mark, gw-deck > nav) {
+  display: none !important;
+}
+:root:fullscreen gw-deck {
+  gap: 0;
+}
+:root:fullscreen gw-deck.idle,
+:root:fullscreen gw-deck.idle gw-slide {
+  cursor: none;
+}
 gw-deck > nav .gw-export {
   margin-left: 10px;
   padding: 3px 9px;

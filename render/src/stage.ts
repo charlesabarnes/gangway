@@ -112,7 +112,9 @@ class Deck extends HTMLElement {
     // 1280px, and innerWidth would then follow it and leave the slide cut off.
     const fit = () => {
       const root = document.documentElement;
-      const k = Math.min(root.clientWidth / W, (root.clientHeight - 48) / H);
+      // Full screen has no controls under the slide to leave room for.
+      const nav = document.fullscreenElement ? 0 : 48;
+      const k = Math.min(root.clientWidth / W, (root.clientHeight - nav) / H);
       stage.style.width = `${W * k}px`;
       stage.style.height = `${H * k}px`;
       canvas.style.transform = `scale(${k})`;
@@ -126,6 +128,8 @@ class Deck extends HTMLElement {
     // An iPhone has no full screen for a page, only for video; the button shows where it works.
     full.hidden = !document.fullscreenEnabled;
     full.onclick = () => this.#fullscreen();
+    document.addEventListener("fullscreenchange", fit);
+    this.#idle();
     window.addEventListener("beforeprint", () => this.#drawAll());
     window.addEventListener("hashchange", () => {
       const n = hashSlide();
@@ -171,6 +175,17 @@ class Deck extends HTMLElement {
       const dragged = Math.hypot(e.clientX - x, e.clientY - y) > 5;
       if (dragged || Date.now() - this.#swiped < 500) return;
       go(this.#at + (e.shiftKey ? -1 : 1));
+    });
+  }
+
+  /** In full screen the pointer hides once it has been still for two seconds. */
+  #idle() {
+    let timer = 0;
+    document.addEventListener("mousemove", () => {
+      this.classList.remove("idle");
+      clearTimeout(timer);
+      if (document.fullscreenElement)
+        timer = window.setTimeout(() => this.classList.add("idle"), 2000);
     });
   }
 
