@@ -4,8 +4,6 @@ import { esc } from "./md.ts";
 const W = 1280;
 const H = 720;
 const pad = (n: number) => String(n).padStart(2, "0");
-/** A phone: slides reflow into one scrolling column instead of scaling down (kit.css). */
-const NARROW = matchMedia("(max-width: 760px)");
 const hashSlide = () => Number(/^#\/(\d+)/.exec(location.hash)?.[1] ?? 0);
 
 /** Layouts that open with a `##` title: the current section's name goes above it. */
@@ -100,7 +98,7 @@ class Deck extends HTMLElement {
       HTMLElement,
       HTMLButtonElement,
     ];
-    const mark = (i: number) => {
+    const go = (i: number) => {
       this.#at = Math.max(0, Math.min(slides.length - 1, i));
       slides.forEach((s, j) => s.classList.toggle("on", j === this.#at));
       count.textContent = `${this.#at + 1} / ${slides.length}`;
@@ -108,25 +106,11 @@ class Deck extends HTMLElement {
       next.disabled = this.#at === slides.length - 1;
       history.replaceState(null, "", `#/${this.#at + 1}`);
     };
-    const go = (i: number) => {
-      mark(i);
-      if (NARROW.matches) slides[this.#at]!.scrollIntoView({ block: "start" });
-    };
-    // Reading down the column keeps the address on the slide in view.
-    const seen = new IntersectionObserver(
-      (entries) => {
-        const e = entries.find((x) => x.isIntersecting);
-        if (NARROW.matches && e) mark(slides.indexOf(e.target as HTMLElement));
-      },
-      { rootMargin: "-45% 0px -55% 0px" },
-    );
-    for (const s of slides) seen.observe(s);
+    // The viewport's own size: a phone browser can widen the page to a slide's unscaled
+    // 1280px, and innerWidth would then follow it and leave the slide cut off.
     const fit = () => {
-      if (NARROW.matches) {
-        stage.style.width = stage.style.height = canvas.style.transform = "";
-        return;
-      }
-      const k = Math.min(innerWidth / W, (innerHeight - 48) / H);
+      const root = document.documentElement;
+      const k = Math.min(root.clientWidth / W, (root.clientHeight - 48) / H);
       stage.style.width = `${W * k}px`;
       stage.style.height = `${H * k}px`;
       canvas.style.transform = `scale(${k})`;
@@ -141,9 +125,7 @@ class Deck extends HTMLElement {
     });
     window.addEventListener("keydown", (e) => this.#key(e, go));
     fit();
-    const start = hashSlide();
-    if (NARROW.matches && start <= 1) mark(0);
-    else go(Math.max(0, start - 1));
+    go(Math.max(0, hashSlide() - 1));
   }
 
   /** A horizontal swipe on the slide turns it, as the arrow keys do. */
@@ -156,15 +138,13 @@ class Deck extends HTMLElement {
     stage.addEventListener("touchend", (e) => {
       const t = e.changedTouches[0]!;
       const dx = t.clientX - x;
-      if (NARROW.matches || Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(t.clientY - y)) return;
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(t.clientY - y)) return;
       go(this.#at + (dx < 0 ? 1 : -1));
     });
   }
 
   #key(e: KeyboardEvent, go: (i: number) => void) {
     if (e.target instanceof Element && e.target.closest("input,textarea,select")) return;
-    // In the column the keys scroll the page, as anywhere else.
-    if (NARROW.matches && e.key !== "n") return;
     if (["ArrowRight", "PageDown", " "].includes(e.key)) go(this.#at + 1);
     else if (["ArrowLeft", "PageUp"].includes(e.key)) go(this.#at - 1);
     else if (e.key === "Home") go(0);
