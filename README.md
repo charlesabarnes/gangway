@@ -14,8 +14,15 @@
 
 ---
 
-**gangway** gives any containerized app a public HTTPS URL on your own domain. You get a URL
-in three ways, and all three produce the same kind of preview:
+**gangway** gives any containerized app a public HTTPS URL on your own domain.
+
+Hosted platforms will put your app on a URL, but on their servers, for the frameworks they
+support, at their prices. I had a server with room to spare and kept needing a link for
+something: a visual review for a frontend pull request, a build for a client, a deck an agent
+had just made. gangway is the one place, on hardware you already own, that turns any of those
+into a URL in seconds.
+
+You get a URL in three ways, and all three produce the same kind of preview:
 
 1. **A pull request** opens or updates. The preview is linked from a sticky comment and torn
    down when the PR closes.
