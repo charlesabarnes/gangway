@@ -6,9 +6,10 @@ import { oauthRootRoutes, oauthRoutes } from "../../src/app/routes/oauth.ts";
 import { chainVerifiers, staticTokenVerifier } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
-import { IdempotencyRepo, OAuthGrantsRepo } from "../../src/db/repos/index.ts";
+import { IdempotencyRepo, OAuthClientsRepo, OAuthGrantsRepo } from "../../src/db/repos/index.ts";
 import { Tools } from "../../src/mcp/tools.ts";
 import { ClientMetadataError } from "../../src/oauth/client-metadata.ts";
+import { ClientRegistry, clientResolver } from "../../src/oauth/client-registration.ts";
 import { OAuthServer } from "../../src/oauth/server.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { PASSWORD, setupAccounts } from "./accounts.ts";
@@ -30,6 +31,7 @@ export async function setupOAuth() {
   const { user } = await s.admin();
   const grants = new OAuthGrantsRepo(s.db, s.now);
   const docs: Record<string, string[]> = { [CLAUDE]: [CONNECTOR, "http://localhost/callback"] };
+  const registry = new ClientRegistry(new OAuthClientsRepo(s.db), s.now);
   const oauth = new OAuthServer({
     grants,
     roles: s.roles,
@@ -37,13 +39,14 @@ export async function setupOAuth() {
     issuer: () => ISSUER,
     resource: () => RESOURCE,
     now: s.now,
-    clients: {
+    clients: clientResolver(registry, {
       get: async (id) => {
         const r = docs[id];
         if (!r) throw new ClientMetadataError("unknown");
         return { clientId: id, clientName: "Claude", redirectUris: r };
       },
-    },
+    }),
+    registry,
   });
   const ada = {
     kind: "user",
@@ -103,7 +106,19 @@ export async function setupOAuth() {
         ...over,
       }),
     );
-  return { ...s, grants, oauth, ada, docs, authorizeQuery, code, exchange, refresh, user };
+  return {
+    ...s,
+    grants,
+    oauth,
+    registry,
+    ada,
+    docs,
+    authorizeQuery,
+    code,
+    exchange,
+    refresh,
+    user,
+  };
 }
 
 /** The app, API and MCP surfaces wired to one OAuthServer, with `ada` signed in on the app. */

@@ -7,6 +7,8 @@ export type ClientMetadata = {
   clientId: string;
   clientName: string;
   redirectUris: string[];
+  /** Registered at /oauth/register rather than published at a URL, so its name is its own claim. */
+  registered?: boolean;
 };
 
 export class ClientMetadataError extends Error {}
@@ -196,12 +198,18 @@ export function parseDocument(url: string, f: Fetched): ClientMetadata {
     throw new ClientMetadataError(
       `token_endpoint_auth_method ${JSON.stringify(method)} is not supported; gangway serves public clients only`,
     );
-  const rawName = typeof d["client_name"] === "string" ? d["client_name"].trim() : "";
   const clientName =
-    rawName
-      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, "")
-      .slice(0, 80) || new URL(url).hostname;
+    (typeof d["client_name"] === "string" ? cleanClientName(d["client_name"]) : "") ||
+    new URL(url).hostname;
   return { clientId: url, clientName, redirectUris: uris as string[] };
+}
+
+/** A client's own name, without control or direction-changing characters, at most 80 long. */
+export function cleanClientName(raw: string): string {
+  return raw
+    .trim()
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+    .slice(0, 80);
 }
 
 export class ClientMetadataStore {

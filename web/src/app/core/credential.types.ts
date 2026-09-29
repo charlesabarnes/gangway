@@ -26,7 +26,8 @@ export type OAuthScope =
   'read' | 'deploy' | 'update' | 'artifacts' | 'projects' | 'themes' | 'secrets';
 export type ConsentRequest = {
   id: string;
-  client: { id: string; name: string; host: string };
+  /** verified is false for a client that registered itself: its name is only its own claim. */
+  client: { id: string; name: string; host: string; verified: boolean };
   redirectUri: string;
   redirectHost: string;
   resource: string;

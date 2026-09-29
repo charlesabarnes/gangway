@@ -536,7 +536,8 @@
     "client": {
       "id": "https://claude.ai/oauth/claude-code-client-metadata",
       "name": "Claude",
-      "host": "claude.ai"
+      "host": "claude.ai",
+      "verified": true
     },
     "redirectUri": "https://claude.ai/api/mcp/auth_callback",
     "redirectHost": "claude.ai",

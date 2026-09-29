@@ -173,6 +173,7 @@ function registerPurges(scheduler: Scheduler, d: JobDeps): void {
     intervalMs: 3_600_000,
     run: () => {
       d.repos.oauthGrants.purge(Date.now() - 7 * 86_400_000);
+      d.repos.oauthClients.purgeUnused(Date.now() - 86_400_000);
     },
   });
 }

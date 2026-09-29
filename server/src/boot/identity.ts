@@ -10,6 +10,7 @@ import { Tokens } from "../auth/tokens.ts";
 import { Mailer } from "../mail/mailer.ts";
 import { SETTINGS } from "../settings.ts";
 import { ClientMetadataStore } from "../oauth/client-metadata.ts";
+import { ClientRegistry, clientResolver } from "../oauth/client-registration.ts";
 import { OAuthServer } from "../oauth/server.ts";
 import type { Core } from "./core.ts";
 
@@ -27,9 +28,11 @@ export type Identity = {
 export function createIdentity({ db, repos, audit, origin, settings, logger }: Core): Identity {
   const roles = new RolePermissions(repos.roles, audit);
   const sessions = new Sessions(repos.sessions, roles);
+  const registry = new ClientRegistry(repos.oauthClients);
   const oauth = new OAuthServer({
     grants: repos.oauthGrants,
-    clients: new ClientMetadataStore(),
+    clients: clientResolver(registry, new ClientMetadataStore()),
+    registry,
     roles,
     audit,
     issuer: () => origin("app"),

@@ -47,21 +47,14 @@ import { Skeleton } from '../../ui/skeleton';
                   <span class="gw-label">URL</span
                   ><code class="font-mono text-[13px]" data-testid="mcp-url">{{ sf.mcp.url }}</code>
                 </p>
-                <p class="text-xs text-muted">
-                  Claude Code, with an API token that has the deploy scope:
-                </p>
-                <pre
-                  class="overflow-x-auto bg-log px-3 py-2.5 font-mono text-xs leading-normal whitespace-pre-wrap text-log-fg"
-                  data-testid="mcp-snippet"
-                >
-claude mcp add --transport http gangway {{ sf.mcp.url }} --header "Authorization: Bearer gw_…"</pre>
-                <p class="text-xs text-muted" data-testid="mcp-oauth">
-                  Or with no token: add the URL as a custom connector in claude.ai (or
-                  <code class="font-mono"
-                    >claude mcp add --transport http gangway {{ sf.mcp.url }}</code
-                  >
-                  and <code class="font-mono">/mcp</code> in Claude Code). You will be sent here to
-                  approve it, and can disconnect it under Account.
+                <p class="text-sm" data-testid="mcp-connect">
+                  <a
+                    routerLink="/account"
+                    fragment="connect-agent"
+                    class="underline underline-offset-2"
+                    >Connect your agent</a
+                  >: your account has the setup for Claude Code, Codex, Cursor and VS Code, with
+                  this URL filled in.
                 </p>
               }
             </div>

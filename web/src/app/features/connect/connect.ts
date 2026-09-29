@@ -54,9 +54,15 @@ const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
               <dd class="font-medium" data-testid="client-name">{{ r.client.name }}</dd>
               <dt class="text-muted">Published by</dt>
               <dd>
-                <span class="font-mono font-semibold" data-testid="client-host">{{
-                  r.client.host
-                }}</span>
+                @if (r.client.verified) {
+                  <span class="font-mono font-semibold" data-testid="client-host">{{
+                    r.client.host
+                  }}</span>
+                } @else {
+                  <span class="text-warn" data-testid="client-unverified"
+                    >Not verified: it registered itself, so the name is its own claim</span
+                  >
+                }
               </dd>
               <dt class="text-muted">Sends you to</dt>
               <dd>
@@ -66,8 +72,9 @@ const EXCLUSIVE: Partial<Record<OAuthScope, readonly OAuthScope[]>> = {
               </dd>
             </dl>
             <p class="mt-4 text-[13px] leading-snug text-muted">
-              Only continue if you just asked {{ r.client.host }} to connect. It will act as you, on
-              the MCP surface only, until you disconnect it under Account.
+              Only continue if you just asked
+              {{ r.client.verified ? r.client.host : r.client.name }} to connect. It will act as
+              you, on the MCP surface only, until you disconnect it under Account.
             </p>
           </div>
 

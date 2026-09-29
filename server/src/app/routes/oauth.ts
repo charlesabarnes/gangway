@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { z } from "zod";
 import { SecretTargetsSchema } from "@gangway/shared/api";
 import { notFound } from "../../errors.ts";
+import { RegistrationError } from "../../oauth/client-registration.ts";
 import { OAuthError, type OAuthServer } from "../../oauth/server.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -57,6 +58,43 @@ class Budget {
   }
 }
 
+// RFC 7591, for MCP clients that cannot publish a client metadata document. Public clients only.
+function registerRoute(
+  app: Hono<AppEnv>,
+  d: OAuthRouteDeps,
+  on: (surface: string) => boolean,
+): void {
+  const registrations = new Budget(10);
+  app.post("/oauth/register", async (c) => {
+    if (!on(c.env.surface)) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    const fail = (code: string, description: string, status = 400) =>
+      c.json({ error: code, error_description: description }, status as 400, NO_STORE);
+    if (!registrations.take(c.env.clientIp))
+      return c.json(
+        { error: "slow_down", error_description: "too many registrations; wait a minute" },
+        429,
+        { ...NO_STORE, "retry-after": "60" },
+      );
+    if (!(c.req.header("content-type") ?? "").toLowerCase().startsWith("application/json"))
+      return fail("invalid_client_metadata", "send the client metadata as application/json");
+    const text = await c.req.text();
+    if (text.length > 16 * 1024) return fail("invalid_client_metadata", "the request is too large");
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return fail("invalid_client_metadata", "the body is not valid JSON");
+    }
+    try {
+      return c.json(d.oauth.register(body), 201, NO_STORE);
+    } catch (err) {
+      if (err instanceof RegistrationError)
+        return fail(err.code, err.message, err.code === "temporarily_unavailable" ? 503 : 400);
+      throw err;
+    }
+  });
+}
+
 export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
   const budget = new Budget(60);
   const on = (surface: string) => surface === "app" && d.enabled();
@@ -77,6 +115,8 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
       headers: { location: to, "cache-control": "no-store", "referrer-policy": "no-referrer" },
     });
   });
+
+  registerRoute(app, d, on);
 
   app.post("/oauth/token", async (c) => {
     if (!on(c.env.surface)) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));

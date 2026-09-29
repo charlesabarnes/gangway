@@ -20,5 +20,6 @@ export {
   type TemplatePatch,
 } from "./templates.ts";
 export { OAuthGrantsRepo, type CreateGrant, type GrantRecord } from "./oauth-grants.ts";
+export { OAuthClientsRepo, type RegisteredClient } from "./oauth-clients.ts";
 export { ArtifactTemplatesRepo, ArtifactThemesRepo } from "./artifacts.ts";
 export { DomainsRepo, type CreateDomain, type DomainCheck } from "./domains.ts";

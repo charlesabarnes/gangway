@@ -18,6 +18,7 @@ import {
   redirectAllowed,
   type ClientMetadataStore,
 } from "./client-metadata.ts";
+import type { ClientRegistry, RegistrationResponse } from "./client-registration.ts";
 import {
   sameResource,
   TokenEndpoint,
@@ -49,6 +50,8 @@ type Pending = {
   id: string;
   clientId: string;
   clientName: string;
+  /** Registered itself at /oauth/register, so nobody vouches for its name. */
+  registered: boolean;
   redirectUri: string;
   state: string | null;
   challenge: string;
@@ -59,7 +62,8 @@ type Pending = {
 
 export type ConsentView = {
   id: string;
-  client: { id: string; name: string; host: string };
+  /** host is who publishes a metadata-document client; verified is false for one that registered itself. */
+  client: { id: string; name: string; host: string; verified: boolean };
   redirectUri: string;
   redirectHost: string;
   resource: string;
@@ -73,6 +77,8 @@ export type ConsentView = {
 export type OAuthServerDeps = {
   grants: OAuthGrantsRepo;
   clients: Pick<ClientMetadataStore, "get">;
+  /** Dynamic client registration; without it the server takes metadata documents only. */
+  registry?: ClientRegistry;
   roles: RolePermissions;
   audit: AuditSink;
   issuer: () => string;
@@ -105,8 +111,15 @@ export class OAuthServer {
       token_endpoint_auth_methods_supported: ["none"],
       scopes_supported: [...OAUTH_SCOPES],
       client_id_metadata_document_supported: true,
+      ...(this.#d.registry ? { registration_endpoint: `${iss}/oauth/register` } : {}),
       authorization_response_iss_parameter_supported: true,
     };
+  }
+
+  /** RFC 7591: issues a public client. Throws RegistrationError for a request it refuses. */
+  register(body: unknown): RegistrationResponse {
+    if (!this.#d.registry) throw notFound("client registration is off");
+    return this.#d.registry.register(body);
   }
 
   resourceMetadata() {
@@ -168,6 +181,7 @@ export class OAuthServer {
       id,
       clientId,
       clientName: client.clientName,
+      registered: client.registered === true,
       redirectUri,
       state,
       challenge: request.challenge,
@@ -202,7 +216,12 @@ export class OAuthServer {
     const p = this.#pendingFor(id);
     return {
       id,
-      client: { id: p.clientId, name: p.clientName, host: new URL(p.clientId).host },
+      client: {
+        id: p.clientId,
+        name: p.clientName,
+        host: p.registered ? new URL(p.redirectUri).host : new URL(p.clientId).host,
+        verified: !p.registered,
+      },
       redirectUri: p.redirectUri,
       redirectHost: new URL(p.redirectUri).host,
       resource: p.resource,

@@ -11,6 +11,7 @@ const PUBLIC_PATHS = new Set([
   "/v1/schema/gangway.yml",
   "/.well-known/oauth-authorization-server",
   "/oauth/token",
+  "/oauth/register",
 ]);
 
 export function isPublicControlPath(pathname: string): boolean {

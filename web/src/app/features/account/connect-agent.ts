@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import type { Capabilities } from '../../core/api.types';
 import { ClipboardService } from '../../ui/clipboard';
@@ -142,7 +143,7 @@ const TABS: AgentClient[] = ['claude', 'codex', 'cursor', 'vscode', 'other'];
   host: { class: 'contents' },
   template: `
     @if (caps(); as c) {
-      <div class="gw-section">
+      <div class="gw-section scroll-mt-6" id="connect-agent">
         <div class="flex flex-col gap-1">
           <h2 class="gw-h2">Connect an agent</h2>
           @if (c.surfaces.mcp) {
@@ -232,9 +233,20 @@ export class ConnectAgent {
   });
   protected readonly shown = computed(() => this.all()?.[this.tab()] ?? null);
 
+  readonly #route = inject(ActivatedRoute, { optional: true });
+  readonly #injector = inject(Injector);
+
   constructor() {
     firstValueFrom(this.#http.get<Capabilities>('/v1/capabilities')).then(
-      (c) => this.caps.set(c),
+      (c) => {
+        this.caps.set(c);
+        // Admin → Surfaces links here once MCP is on; the section only exists after this load.
+        if (this.#route?.snapshot.fragment === 'connect-agent')
+          afterNextRender(
+            () => document.getElementById('connect-agent')?.scrollIntoView({ block: 'start' }),
+            { injector: this.#injector },
+          );
+      },
       () => this.caps.set(null),
     );
   }

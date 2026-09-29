@@ -10,6 +10,8 @@ import { ToastService } from '../../ui/toast';
 import { describeTargets } from '../secrets/secret-targets';
 
 function hostOf(url: string): string {
+  // A client that registered at /oauth/register has a gwc_ id, not a URL.
+  if (url.startsWith('gwc_')) return 'registered itself';
   try {
     return new URL(url).host;
   } catch {

@@ -254,7 +254,11 @@ only), with your own domains. The Connect an agent page shows this with them fil
 ```
 
 The plugin adds `/gangway:generate-artifact`, which builds something and ships it to a URL you
-can keep iterating on. Other clients only need the MCP URL. See
+can keep iterating on. Other clients only need the MCP URL: gangway takes both OAuth client
+styles, a Client ID Metadata Document (Claude, Codex, ChatGPT) or dynamic client registration
+at `/oauth/register` (most other MCP clients). A client that registered itself is marked
+unverified on the consent page, since its name is its own claim. A client with no OAuth at all
+can send an API token as `Authorization: Bearer gw_…`. See
 [plugin/gangway](plugin/gangway/README.md). A connected agent is listed under **Account →
 Connected agents**, where you can disconnect it.
 

@@ -134,7 +134,7 @@ describe('Settings: surfaces', () => {
     return r.http.expectOne({ method: 'PUT', url: '/v1/surfaces' });
   };
 
-  it('one click turns MCP on, then shows its URL and the Claude Code command', async () => {
+  it('one click turns MCP on, then shows its URL and links to connecting an agent', async () => {
     const r = await open();
     expect(r.text('surface-mcp')).toContain('MCP is off');
     expect(r.byTestId('mcp-url')).toBeNull();
@@ -143,9 +143,8 @@ describe('Settings: surfaces', () => {
     req.flush({ surfaces: surfaces({ mcp: { ...surfaces().mcp, enabled: true } }) });
     await r.settle();
     expect(r.text('mcp-url')).toBe('https://mcp.preview.localhost:8443');
-    expect(r.text('mcp-snippet')).toContain(
-      'claude mcp add --transport http gangway https://mcp.preview.localhost:8443',
-    );
+    const link = r.byTestId('mcp-connect')!.querySelector('a')!;
+    expect(link.getAttribute('href')).toBe('/account#connect-agent');
   });
 
   it('without an admin token the UI cannot be turned off, and the page says why', async () => {

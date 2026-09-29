@@ -24,6 +24,7 @@ import {
   UserLinksRepo,
   UsersRepo,
 } from "../db/repos/index.ts";
+import { OAuthClientsRepo } from "../db/repos/oauth-clients.ts";
 import { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { openDatabase } from "../db/sqlite.ts";
 import type { Db } from "../db/types.ts";
@@ -48,6 +49,7 @@ export type Repos = {
   hosts: HostsRepo;
   idempotency: IdempotencyRepo;
   oauthGrants: OAuthGrantsRepo;
+  oauthClients: OAuthClientsRepo;
   previews: PreviewsRepo;
   projects: ProjectsRepo;
   roles: RolesRepo;
@@ -85,6 +87,7 @@ function openRepos(db: Db): Repos {
     hosts: new HostsRepo(db),
     idempotency: new IdempotencyRepo(db),
     oauthGrants: new OAuthGrantsRepo(db),
+    oauthClients: new OAuthClientsRepo(db),
     previews: new PreviewsRepo(db),
     projects: new ProjectsRepo(db),
     roles: new RolesRepo(db),

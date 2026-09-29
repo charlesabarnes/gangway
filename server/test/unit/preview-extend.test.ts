@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Actor } from "../../src/auth/actor.ts";
-import { tokenActor } from "../../src/auth/actor.ts";
+import { tokenActor, type Actor } from "../../src/auth/actor.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
 import { DAY } from "../helpers/preview-context.ts";
