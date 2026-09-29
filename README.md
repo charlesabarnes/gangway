@@ -352,8 +352,8 @@ the limit a preview answers 429.
   cookie is host-only and CSRF is checked by `Origin`, but a separate preview domain is the
   stronger setup for untrusted pull requests.
 
-Report vulnerabilities privately through GitHub's **Security → Report a vulnerability**, not in
-an issue.
+Report vulnerabilities privately through GitHub's **Security → Report a vulnerability**, or by
+email to security@gangway.sh, not in an issue.
 
 ## Known limits
 

@@ -1,0 +1,6 @@
+Contact: mailto:security@gangway.sh
+Contact: https://github.com/charlesabarnes/gangway/security/advisories/new
+Expires: 2027-09-28T00:00:00Z
+Preferred-Languages: en
+Canonical: https://gangway.sh/.well-known/security.txt
+Policy: https://github.com/charlesabarnes/gangway/blob/master/SECURITY.md
