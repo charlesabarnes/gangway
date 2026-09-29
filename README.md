@@ -12,11 +12,6 @@
   <a href="#pull-request-previews">Pull-request previews</a>
 </p>
 
-<p align="center">
-  <a href="https://gangway.sh/#watch"><img alt="A 26-second screen recording: an agent in a terminal is asked to diagram gangway's repository, deploys it, and the canvas opens on its own URL. Click to watch." src=".github/assets/demo-video.jpg" width="100%"></a>
-  <br><sub>▶ <a href="https://gangway.sh/#watch">Watch the 26-second demo</a>: real time, no edits.</sub>
-</p>
-
 ---
 
 **[gangway](https://gangway.sh)** gives any containerized app a public HTTPS URL on your own domain.
@@ -39,10 +34,7 @@ You get a URL in three ways, and all three produce the same kind of preview:
 It runs as a single process on a plain Docker host, with no Kubernetes. You self-host it on
 your own domain.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/previews-dark.png">
-  <img alt="The Previews list: a Node app with Postgres, a dashboard, a slide deck, a handbook visible only to gangway users, and a landing page, each with its own URL." src=".github/assets/screenshots/previews-light.png" width="100%">
-</picture>
+<img alt="A 26-second screen recording: the Previews list, then an agent in a terminal is asked to diagram gangway's repository and deploy it, and the canvas opens on its own URL." src=".github/assets/demo.gif" width="100%">
 
 ## What you get
 

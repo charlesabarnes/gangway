@@ -1389,13 +1389,6 @@
 .intro {
   gap: 10px;
 }
-.real-demo {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-}
 .big-quote {
   margin: 0;
   font: italic 400 clamp(30px, 4vw, 44px) / 1.08 var(--font-serif);
