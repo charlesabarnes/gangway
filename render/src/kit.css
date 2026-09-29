@@ -1518,18 +1518,18 @@ gw-slide[layout="end"] gw-facts {
 }
 
 /* A statement: one sentence, set large. */
-gw-slide[layout="statement"] > .gw-slide-body > :first-child {
+gw-slide[layout="statement"] :is(.gw-slide-body:not(.gw-sided), .gw-slide-main) > :first-child {
   max-width: 24ch;
   font: var(--title-style, italic) var(--title-weight, 400) calc(64px * var(--h-scale)) / 1.12
     var(--font-title, var(--font-serif));
   letter-spacing: var(--title-track, normal);
   text-wrap: balance;
 }
-gw-slide[layout="statement"] > .gw-slide-body > :first-child ~ * {
+gw-slide[layout="statement"] :is(.gw-slide-body:not(.gw-sided), .gw-slide-main) > :first-child ~ * {
   max-width: 48ch;
   color: var(--ink-muted);
 }
-gw-slide[layout="statement"] > .gw-slide-body::before {
+gw-slide[layout="statement"] > .gw-slide-body:not(.gw-sided)::before {
   content: "";
   width: 64px;
   height: 6px;
@@ -1843,19 +1843,8 @@ gw-deck[look="sidebar"] gw-slide[layout="section"] > .gw-slide-body::before {
   text-align: right;
   border-right: 1px solid var(--rule);
 }
-gw-deck[look="sidebar"] gw-slide:is([layout="statement"], [layout="quote"]) > .gw-slide-body {
+gw-deck[look="sidebar"] gw-slide[layout="quote"] > .gw-slide-body {
   padding-left: 356px;
-}
-gw-deck[look="sidebar"] gw-slide[layout="statement"] > .gw-slide-body::before {
-  content: "";
-  position: absolute;
-  width: 0;
-  height: auto;
-  background: none;
-  top: 80px;
-  bottom: 104px;
-  left: calc(var(--slide-pad-x) + 300px);
-  border-left: 1px solid var(--ink);
 }
 gw-deck[look="sidebar"] gw-slide[layout="quote"] > .gw-slide-body::before {
   position: absolute;

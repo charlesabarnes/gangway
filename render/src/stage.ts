@@ -29,11 +29,15 @@ function dress(s: HTMLElement, { i, total, footer, n, section, look }: Place): v
       "afterbegin",
       `<span class="gw-caps">${esc(s.getAttribute("eyebrow") ?? "")}</span>`,
     );
-  const titled =
-    TITLED.has(s.getAttribute("layout") ?? "") && body.firstElementChild?.localName === "h2";
-  if (titled && section)
+  const layout = s.getAttribute("layout") ?? "";
+  const titled = TITLED.has(layout) && body.firstElementChild?.localName === "h2";
+  // A statement in the sidebar look carries its section in the column, which is otherwise empty.
+  const sidedStatement = layout === "statement" && look === "sidebar";
+  if ((titled || sidedStatement) && section)
     body.insertAdjacentHTML("afterbegin", `<span class="gw-kicker gw-caps">${esc(section)}</span>`);
-  if (titled && look === "sidebar") sidebar(body);
+  if (titled && look === "sidebar") sidebar(body, body.querySelector(":scope > h2"));
+  else if (sidedStatement) sidebar(body, body.querySelector(":scope > .gw-kicker"));
+  if (layout === "quote") splitCite(body);
   s.replaceChildren(body, ...(notes ? [notes] : []));
   s.style.setProperty("--progress", String((i + 1) / total));
   s.insertAdjacentHTML(
@@ -42,17 +46,60 @@ function dress(s: HTMLElement, { i, total, footer, n, section, look }: Place): v
   );
 }
 
-/** The sidebar look: the kicker and title in a column, the rest beside it. */
-function sidebar(body: HTMLElement): void {
+/** The sidebar look: the kicker and title (up to `last`) in a column, the rest beside it. */
+function sidebar(body: HTMLElement, last: Element | null): void {
   const head = document.createElement("div");
   head.className = "gw-slide-head";
   const main = document.createElement("div");
   main.className = "gw-slide-main";
-  const h2 = body.querySelector(":scope > h2")!;
-  head.append(...[...body.children].slice(0, [...body.children].indexOf(h2) + 1));
+  if (last) head.append(...[...body.children].slice(0, [...body.children].indexOf(last) + 1));
   main.append(...body.childNodes);
   body.classList.add("gw-sided");
   body.append(head, main);
+}
+
+/** A quote's `> — Name, role` line, written straight under the quote, becomes its own
+    paragraph, as markdown joins the two into one. */
+function splitCite(body: HTMLElement): void {
+  const p = body.querySelector("blockquote > p:only-of-type");
+  if (!p?.lastChild) return;
+  const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+  for (let t = w.nextNode() as Text | null; t; t = w.nextNode() as Text | null) {
+    const m = /\n\s*(?=[—–]\s)/.exec(t.data);
+    if (!m) continue;
+    const r = document.createRange();
+    r.setStart(t, m.index);
+    r.setEndAfter(p.lastChild);
+    const cite = document.createElement("p");
+    cite.append(r.extractContents());
+    cite.normalize();
+    if (cite.firstChild instanceof Text) cite.firstChild.data = cite.firstChild.data.trimStart();
+    p.after(cite);
+    return;
+  }
+}
+
+/** Shrinks a slide's numbers together until the longest word in each fits its column. */
+function fitNumbers(s: HTMLElement): void {
+  if (s.dataset["fitted"] || !s.offsetWidth) return;
+  const values = [...s.querySelectorAll<HTMLElement>('gw-stat [data-part="value"]')];
+  if (document.fonts && document.fonts.status !== "loaded") return;
+  s.dataset["fitted"] = "1";
+  if (!values.length) return;
+  // A value grows to its widest word rather than overflowing, so it is measured against the
+  // room inside its stat's padding.
+  const room = values.map((v) => {
+    const t = getComputedStyle(v.closest("gw-stat")!);
+    return (
+      v.closest("gw-stat")!.clientWidth - parseFloat(t.paddingLeft) - parseFloat(t.paddingRight)
+    );
+  });
+  const over = () => values.some((v, i) => v.scrollWidth > room[i]! + 1);
+  let size = parseFloat(getComputedStyle(values[0]!).fontSize);
+  while (over() && size > 24) {
+    size -= 2;
+    for (const v of values) v.style.fontSize = `${size}px`;
+  }
 }
 
 class Deck extends HTMLElement {
@@ -103,6 +150,7 @@ class Deck extends HTMLElement {
     const go = (i: number) => {
       this.#at = Math.max(0, Math.min(slides.length - 1, i));
       slides.forEach((s, j) => s.classList.toggle("on", j === this.#at));
+      fitNumbers(slides[this.#at]!);
       count.textContent = `${this.#at + 1} / ${slides.length}`;
       prev.disabled = this.#at === 0;
       next.disabled = this.#at === slides.length - 1;
@@ -138,6 +186,7 @@ class Deck extends HTMLElement {
     window.addEventListener("keydown", (e) => this.#key(e, go));
     fit();
     go(Math.max(0, hashSlide() - 1));
+    void document.fonts?.ready.then(() => fitNumbers(slides[this.#at]!));
   }
 
   #swiped = 0;
@@ -197,6 +246,7 @@ class Deck extends HTMLElement {
   /** Lays every slide out, out of sight, so charts on slides not yet shown get drawn. */
   #drawAll() {
     this.classList.add("gw-laying-out");
+    for (const s of this.querySelectorAll<HTMLElement>("gw-slide")) fitNumbers(s);
     for (const f of this.querySelectorAll("gw-flow")) f.classList.add("drawn");
   }
 
