@@ -34,7 +34,7 @@ You get a URL in three ways, and all three produce the same kind of preview:
 It runs as a single process on a plain Docker host, with no Kubernetes. You self-host it on
 your own domain.
 
-<img alt="A 26-second screen recording: the Previews list, then an agent in a terminal is asked to diagram gangway's repository and deploy it, and the canvas opens on its own URL." src=".github/assets/demo.gif" width="100%">
+https://github.com/user-attachments/assets/f53178ca-89fc-4ecf-b6b7-bf7490b57ac2
 
 ## What you get
 
