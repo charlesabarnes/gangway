@@ -58,8 +58,7 @@ function sidebar(body: HTMLElement, last: Element | null): void {
   body.append(head, main);
 }
 
-/** A quote's `> — Name, role` line, written straight under the quote, becomes its own
-    paragraph, as markdown joins the two into one. */
+/** Markdown joins a quote and its `> — Name, role` line; this splits them into two paragraphs. */
 function splitCite(body: HTMLElement): void {
   const p = body.querySelector("blockquote > p:only-of-type");
   if (!p?.lastChild) return;
@@ -86,8 +85,7 @@ function fitNumbers(s: HTMLElement): void {
   if (document.fonts && document.fonts.status !== "loaded") return;
   s.dataset["fitted"] = "1";
   if (!values.length) return;
-  // A value grows to its widest word rather than overflowing, so it is measured against the
-  // room inside its stat's padding.
+  // A value grows to its widest word, so it is measured against the room inside its padding.
   const room = values.map((v) => {
     const t = getComputedStyle(v.closest("gw-stat")!);
     return (
@@ -156,8 +154,7 @@ class Deck extends HTMLElement {
       next.disabled = this.#at === slides.length - 1;
       history.replaceState(null, "", `#/${this.#at + 1}`);
     };
-    // The viewport's own size: a phone browser can widen the page to a slide's unscaled
-    // 1280px, and innerWidth would then follow it and leave the slide cut off.
+    // Not innerWidth: a phone browser widens the page to the slide's 1280px and innerWidth follows.
     const fit = () => {
       const root = document.documentElement;
       // Full screen has no controls under the slide to leave room for.
@@ -207,8 +204,7 @@ class Deck extends HTMLElement {
     });
   }
 
-  /** A click on the slide advances it, shift-click goes back; what is itself clickable, or a
-   *  drag to select text, keeps the click. */
+  /** Click advances, shift-click goes back; links, controls and text selection keep the click. */
   #click(stage: HTMLElement, go: (i: number) => void) {
     let x = 0;
     let y = 0;
