@@ -12,9 +12,14 @@
   <a href="#pull-request-previews">Pull-request previews</a>
 </p>
 
+<p align="center">
+  <a href="https://gangway.sh/#watch"><img alt="A 26-second screen recording: an agent in a terminal is asked to diagram gangway's repository, deploys it, and the canvas opens on its own URL. Click to watch." src=".github/assets/demo-video.jpg" width="100%"></a>
+  <br><sub>▶ <a href="https://gangway.sh/#watch">Watch the 26-second demo</a>: real time, no edits.</sub>
+</p>
+
 ---
 
-**gangway** gives any containerized app a public HTTPS URL on your own domain.
+**[gangway](https://gangway.sh)** gives any containerized app a public HTTPS URL on your own domain.
 
 Hosted platforms will put your app on a URL, but on their servers, for the frameworks they
 support, at their prices. I had a server with room to spare and kept needing a link for
