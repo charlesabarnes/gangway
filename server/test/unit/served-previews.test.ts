@@ -7,7 +7,7 @@ import { dispatch, type DispatchDeps } from "../../src/net/dispatch.ts";
 import { sharedEncodedCache } from "../../src/net/encode.ts";
 import { DEFAULT_LIMITS } from "../../src/net/limits.ts";
 import { serveSite, type ServedSite } from "../../src/net/site.ts";
-import { renderDist } from "../../src/previews/artifact-render.ts";
+import { renderAssets, renderDist } from "../../src/previews/artifact-render.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { redeploy } from "../../src/previews/redeploy.ts";
 import { runtimeLogs } from "../../src/previews/runtime-logs.ts";
@@ -190,6 +190,55 @@ describe("the file server", () => {
     expect(await (await get(kit, "/_gangway/config.json")).text()).toBe("{}\n");
     expect((await get(kit, "/_gangway/nope.js")).status).toBe(404);
     expect(await (await get(await site(SITE), "/_gangway/kit.js")).text()).toBe("<h1>home</h1>");
+  });
+});
+
+describe("a kit page after an upgrade", () => {
+  const now = renderAssets().version;
+  const page = (v: string) =>
+    `<link rel="stylesheet" href="/_gangway/kit.css?v=${v}"><script type="module" src="/_gangway/kit.js?v=${v}"></script>`;
+
+  test("links the kit the server has now, not the one the page was rendered with", async () => {
+    const s = await site({ "index.html": page("0ld0ld0ld0ld") }, { kit: true });
+    const res = await get(s, "/");
+    const html = await res.text();
+    expect(html).toBe(page(now));
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    expect(res.headers.get("etag")).toEndWith(`-${now}"`);
+    // The kit at the new URL is the one cached for good.
+    const kit = await get(s, `/_gangway/kit.js?v=${now}`);
+    expect(kit.headers.get("cache-control")).toContain("immutable");
+  });
+
+  test("a browser holding the old page is never told it is still current", async () => {
+    const s = await site({ "index.html": page("0ld0ld0ld0ld") }, { kit: true });
+    const first = await get(s, "/");
+    const oldEtag = first.headers.get("etag")!.replace(`-${now}"`, '"');
+    expect((await get(s, "/", { headers: { "if-none-match": oldEtag } })).status).toBe(200);
+    const future = new Date(Date.now() + 86_400_000).toUTCString();
+    expect((await get(s, "/", { headers: { "if-modified-since": future } })).status).toBe(200);
+    const again = await get(s, "/", { headers: { "if-none-match": first.headers.get("etag")! } });
+    expect(again.status).toBe(304);
+  });
+
+  test("gzips a rewritten page for a browser that takes it; the single-page fallback too", async () => {
+    const big = page("0ld0ld0ld0ld") + `<p>${"x".repeat(4000)}</p>`;
+    const s = await site({ "index.html": big }, { kit: true });
+    const res = await get(s, "/", { headers: { "accept-encoding": "gzip" } });
+    expect(res.headers.get("content-encoding")).toBe("gzip");
+    expect(gunzipSync(new Uint8Array(await res.arrayBuffer())).toString()).toContain(
+      `kit.js?v=${now}`,
+    );
+    expect(await (await get(s, "/some/route")).text()).toContain(`kit.js?v=${now}`);
+  });
+
+  test("a page already on the current kit, and a plain site, are served as they are", async () => {
+    const current = await site({ "index.html": page(now) }, { kit: true });
+    const res = await get(current, "/");
+    expect(await res.text()).toBe(page(now));
+    expect(res.headers.get("etag")).not.toContain(now);
+    const plainSite = await site({ "index.html": page("0ld0ld0ld0ld") });
+    expect(await (await get(plainSite, "/")).text()).toBe(page("0ld0ld0ld0ld"));
   });
 });
 

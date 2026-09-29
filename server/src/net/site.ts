@@ -2,8 +2,11 @@ import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { renderAssets } from "../previews/artifact-render.ts";
 import {
+  compress,
+  compressible,
   encodedFile,
   HASHED,
+  negotiate,
   notModified,
   siblingSidecar,
   singleRange,
@@ -90,6 +93,75 @@ export function siteSidecar(site: Pick<ServedSite, "root" | "dir">) {
       ENCODED_DIR,
       `${path.relative(site.root, abs)}.${enc === "br" ? "br" : "gz"}`,
     );
+}
+
+const KIT_LINK = /(\/_gangway\/kit\.(?:css|js))\?v=[\w-]+/g;
+const MAX_PAGES = 500;
+type Page = { key: string; html: Uint8Array; gzip: Uint8Array | null };
+const pages = new Map<string, Page>();
+
+// A kit site's page links the kit by the version it was rendered with, and a matching version is
+// cached for good, so a page from before an upgrade would keep its visitors on the old kit.
+async function kitPage(f: Found, version: string): Promise<Page | null> {
+  const key = `${f.size}:${f.mtime}:${version}`;
+  const hit = pages.get(f.abs);
+  if (hit?.key === key) return hit;
+  const text = await Bun.file(f.abs).text();
+  let stale = false;
+  const out = text.replace(KIT_LINK, (m, link: string) => {
+    const now = `${link}?v=${version}`;
+    if (now !== m) stale = true;
+    return now;
+  });
+  if (!stale) return null;
+  const html = new TextEncoder().encode(out);
+  const page = {
+    key,
+    html,
+    gzip: compressible("text/html", html.byteLength) ? await compress(html, "gzip", true) : null,
+  };
+  if (pages.size >= MAX_PAGES) pages.delete(pages.keys().next().value!);
+  pages.set(f.abs, page);
+  return page;
+}
+
+async function sendKitPage(
+  req: Request,
+  page: Page,
+  f: Found,
+  version: string,
+  o: SiteServeOptions,
+  status: number,
+): Promise<Response> {
+  // The version is in the validator, and If-Modified-Since is not consulted, so an upgrade is never a 304.
+  const etag = `W/"${f.size.toString(16)}-${Math.floor(f.mtime).toString(16)}-${version}"`;
+  const headers: Record<string, string> = {
+    "content-type": "text/html; charset=utf-8",
+    "x-content-type-options": "nosniff",
+    "cache-control": "no-cache",
+    etag,
+    vary: "accept-encoding",
+  };
+  if (o.unlisted) headers["x-robots-tag"] = "noindex, nofollow";
+  if (status === 200 && notModified(req, etag)) return new Response(null, { status: 304, headers });
+  if (req.method === "HEAD") return new Response(null, { status, headers });
+  const gzip = page.gzip && negotiate(req.headers.get("accept-encoding")) !== null;
+  if (gzip) headers["content-encoding"] = "gzip";
+  return new Response(gzip ? page.gzip : page.html, { status, headers });
+}
+
+/** A file from a site's root: a kit page whose kit links are stale gets them rewritten first. */
+async function sendSiteFile(
+  req: Request,
+  f: Found,
+  o: SiteServeOptions,
+  site: ServedSite,
+  status = 200,
+): Promise<Response> {
+  const version = site.kit && /\.html?$/i.test(f.abs) ? kitVersion(o.kitDir) : null;
+  const page = version ? await kitPage(f, version) : null;
+  if (page && version) return sendKitPage(req, page, f, version, o, status);
+  return send(req, f, o, { status, site });
 }
 
 async function send(
@@ -206,7 +278,7 @@ async function fallback(req: Request, site: ServedSite, o: SiteServeOptions): Pr
   const spa = site.fallback === "spa";
   const f = await fileAt(site.root, [spa ? "index.html" : "404.html"]);
   if (!f) return plain(404, "not found");
-  return spa ? send(req, f, o, { site }) : send(req, f, o, { status: 404, site });
+  return spa ? sendSiteFile(req, f, o, site) : sendSiteFile(req, f, o, site, 404);
 }
 
 /** Answers from a site's files the way the static runtime's nginx did. */
@@ -226,5 +298,5 @@ export async function serveSite(
   const hit = await lookup(site.root, url, parts);
   if (hit && "redirect" in hit)
     return new Response(null, { status: 301, headers: { location: hit.redirect } });
-  return hit ? send(req, hit.found, o, { site }) : fallback(req, site, o);
+  return hit ? sendSiteFile(req, hit.found, o, site) : fallback(req, site, o);
 }
