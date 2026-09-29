@@ -4,13 +4,9 @@ import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { conflict, forbidden, unprocessable } from "../errors.ts";
 import type { PreviewContext } from "./context.ts";
 
-/** What `extend` takes to mean "never expires". */
 export const EXTEND_FOREVER = "none";
 
-/**
- * Adds `by` to what the preview has left (or to now, if it has lapsed), or keeps it forever.
- * Never shortens a preview's life; the TTL sweep reads the new expiry on its next pass.
- */
+// Adds `by` to what is left (or to now, if lapsed), or keeps it forever; never shortens a life.
 export function extendPreview(
   ctx: Pick<PreviewContext, "previews" | "audit" | "now">,
   actor: Actor,
