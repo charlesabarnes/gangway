@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/charlesabarnes/gangway/issues</Support>
   <Project>https://github.com/charlesabarnes/gangway</Project>
-  <ReadMe>https://github.com/charlesabarnes/gangway/blob/master/unraid/README.md</ReadMe>
+  <ReadMe>https://gangway.sh/docs/install/unraid/</ReadMe>
   <Overview>gangway in a box creates a Debian VM on this server that runs gangway, so previews run inside the VM and never touch Unraid's own Docker. gangway gives decks, dashboards and small apps their own HTTPS URL, from an agent (MCP), a pull request, or a folder dropped in the browser.&#13;
 &#13;
 Pick how gangway is reached with Mode. proxy, the default, puts it behind a reverse proxy on this server (Nginx Proxy Manager, SWAG) on your own domain. lan needs no domain, to try it out: gangway answers at https://app.[VM IP].sslip.io:8443 on your network, and a preview goes public through its Share link. acme gives the VM ports 80 and 443 and a Let's Encrypt wildcard certificate over Cloudflare DNS.&#13;

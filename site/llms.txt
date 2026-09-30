@@ -39,9 +39,12 @@ The main MCP tools are `deploy`, `status`, `logs`, `destroy` and `share`. `deplo
 
 ## Docs
 
-- [README](https://github.com/charlesabarnes/gangway#readme): features, install options, configuration, security
-- [Quickstart](https://github.com/charlesabarnes/gangway#quickstart): requirements, installer and manual setup
-- [Pull-request previews](https://github.com/charlesabarnes/gangway#pull-request-previews): GitHub App and project setup
+- [Documentation](https://gangway.sh/docs/): install, modes, deploying, agents, domains, configuration, security
+- [Quickstart](https://gangway.sh/docs/quickstart/): requirements, installer and first deploy
+- [Install on Unraid](https://gangway.sh/docs/install/unraid/): gangway-inabox (in a VM) and the plain template
+- [Connect an agent](https://gangway.sh/docs/use/agents/): MCP setup, scopes and tools
+- [Pull-request previews](https://gangway.sh/docs/use/pull-requests/): GitHub App and project setup
+- [README](https://github.com/charlesabarnes/gangway#readme): the overview
 - [Agent plugin](https://github.com/charlesabarnes/gangway/blob/master/plugin/gangway/README.md): the Claude Code plugin and `/gangway:generate-artifact`
 - [Configuration](https://github.com/charlesabarnes/gangway/blob/master/compose.yaml): every setting, documented inline
 

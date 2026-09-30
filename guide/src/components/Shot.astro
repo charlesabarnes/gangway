@@ -1,0 +1,18 @@
+---
+// A screenshot from .github/assets/screenshots, in the reader's theme: <Shot name="new" alt="…" />.
+import { Image } from "astro:assets";
+
+const shots = import.meta.glob<{ default: ImageMetadata }>(
+  "../../../.github/assets/screenshots/*.png",
+  { eager: true },
+);
+const { name, alt, width } = Astro.props as { name: string; alt: string; width?: number };
+const pick = (theme: string) => {
+  const shot = shots[`../../../.github/assets/screenshots/${name}-${theme}.png`];
+  if (!shot) throw new Error(`no screenshot ${name}-${theme}.png`);
+  return shot.default;
+};
+---
+
+<Image class="dark:sl-hidden" src={pick("light")} alt={alt} width={width} />
+<Image class="light:sl-hidden" src={pick("dark")} alt={alt} width={width} />

@@ -1,12 +1,18 @@
-# Publishes site/ (the marketing pages) to GitHub Pages. The only build step is scripts/build-site.ts,
-# which tags each stylesheet and script link with a hash of its file so browsers never mix deploys.
+# Publishes site/ (the marketing pages) and guide/ (the docs, at /docs) to GitHub Pages.
+# scripts/build-site.ts tags each stylesheet and script link with a hash of its file so browsers
+# never mix deploys; the docs are an Astro Starlight build.
 # The waitlist form posts to the Cloudflare Worker in waitlist/, which is deployed separately.
 name: pages
 
 on:
   push:
     branches: [master]
-    paths: ["site/**", "scripts/build-site.ts", ".github/workflows/pages.yml"]
+    paths:
+      - "site/**"
+      - "guide/**"
+      - ".github/assets/screenshots/**"
+      - "scripts/build-site.ts"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +27,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -31,6 +37,8 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: bun scripts/build-site.ts
+      - run: bun install --frozen-lockfile && bun run build && cp -R dist ../dist/site/docs
+        working-directory: guide
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

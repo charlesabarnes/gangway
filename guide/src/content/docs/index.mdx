@@ -1,0 +1,70 @@
+---
+title: What gangway is
+description: gangway gives any containerized app a public HTTPS URL on your own domain, from a pull request, an agent or a person.
+---
+
+import Shot from "../../components/Shot.astro";
+
+gangway gives any containerized app a public HTTPS URL on your own domain. It runs as a single
+process on a plain Docker host, with no Kubernetes, and you host it yourself.
+
+You get a URL in three ways, and all three make the same kind of preview:
+
+1. **A pull request** opens or updates. The preview is linked from a sticky comment and torn down
+   when the pull request closes.
+2. **An agent** calls the MCP `deploy` tool. It works with Claude Code, Codex, Cursor, VS Code or
+   any MCP client. The call returns once the URL actually answers.
+3. **A person** deploys from the web UI or the REST API: drop in a folder, paste a Compose stack,
+   or point at a git ref.
+
+<Shot
+  name="previews"
+  alt="The Previews page: a list of previews with their state, source and URL."
+/>
+
+## What you get
+
+- **A URL per preview under one wildcard certificate**, such as `shop-pr-142.preview.example.com`.
+  There is no certificate per preview, so Let's Encrypt rate limits never bite.
+- **Full Docker Compose stacks**, not just single containers. Several services, healthchecks and
+  seed hooks all work, and each exposed service gets its own hostname.
+- **No Dockerfile needed.** Static, Node, Bun, Deno, workerd, Python and PHP apps are detected from
+  their files, and a [`gangway.yml`](/docs/use/deploy/#gangwayyml) can say more.
+- **Throwaway databases.** Postgres, MySQL or Redis run beside the app, their URLs are handed to it
+  as environment variables, and they are gone when the preview is. The preview page has a data
+  browser.
+- **Previews expire and sleep.** Each preview has a time to live, idle ones go to sleep, and the
+  first request wakes them.
+- **You decide who sees a preview.** Public, unlisted (an unguessable hostname), password-protected,
+  or only people signed in to gangway.
+- **Static sites and artifacts are served by gangway itself.** They need no container and deploy in
+  milliseconds. One `artifact.md` renders as a document, a slide deck, a dashboard or a prototype.
+- **Accounts and permissions.** Roles are made of per-feature permissions you can remap. There are
+  API tokens, OAuth for MCP clients, and an audit log.
+
+## How it works
+
+```
+app.<domain>   ─┐
+api.<domain>   ─┼─▶  UI · REST API · OAuth ─┐
+mcp.<domain>   ─┤    MCP                    │
+hooks.<domain> ─┘    GitHub webhooks        ├─▶ builder · scheduler · SQLite
+                                            │          │
+*.<domain>     ───▶  proxy: gate, wake ─────┘          ▼ Docker API
+                          │                     Docker host(s)
+                          └──────────────────▶  your preview's containers
+```
+
+gangway routes every request by its `Host` header. The reserved labels (`app`, `api`, `mcp`,
+`hooks`) reach gangway itself, and every other label is a preview. It runs your stack with
+`docker compose`, under a policy that refuses anything that would reach the host: privileged
+mode, bind mounts, host networking, the Docker socket and the like. It also drops Linux
+capabilities and applies memory and process limits. SQLite is the source of truth, and every
+container carries labels that describe it, so a restart reconciles the two.
+
+:::note[Status: early]
+gangway is v0.x and runs in production for its author. Expect rough edges, and read
+[Security](/docs/reference/security/) before you expose it.
+:::
+
+**Next:** [Quickstart](/docs/quickstart/).

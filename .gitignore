@@ -7,7 +7,7 @@ dist/
 state/
 
 # Local-only design notes: kept on disk, never committed.
-docs/
+/docs/
 spec.md
 
 # Your own dev host config; start from scripts/dev.example.json.
@@ -15,3 +15,6 @@ scripts/dev.json
 
 # wrangler dev state (local D1, build cache).
 .wrangler/
+
+# Astro's generated types for guide/.
+.astro/

@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/charlesabarnes/gangway/issues</Support>
   <Project>https://github.com/charlesabarnes/gangway</Project>
-  <ReadMe>https://github.com/charlesabarnes/gangway/blob/master/unraid/README.md</ReadMe>
+  <ReadMe>https://gangway.sh/docs/install/unraid/</ReadMe>
   <Overview>gangway gives decks, dashboards and small apps their own HTTPS URL on your domain, from an agent (MCP), a pull request, or a folder dropped in the browser. Previews run as containers on this server's Docker. To keep them in a VM instead, install gangway-inabox.&#13;
 &#13;
 The defaults put gangway behind a reverse proxy on this server (Nginx Proxy Manager, SWAG): proxy *.your-domain and your-domain to https://172.17.0.1:8443 with websockets on, and use a wildcard certificate. Without a domain, set Base domain to [server IP with dashes].sslip.io (e.g. 192-168-1-10.sslip.io), Listen address to ::, Public port to 8443 and Share to true, then open https://app.192-168-1-10.sslip.io:8443.&#13;

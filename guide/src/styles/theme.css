@@ -1,0 +1,64 @@
+/* gangway.sh's palette and type (site/css/tokens), mapped onto Starlight's variables. Starlight's
+   own dark theme is :root; its light theme is [data-theme="light"]. */
+:root {
+  --sl-font: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+  --sl-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --gw-serif: "IBM Plex Serif", Georgia, serif;
+  --gw-header-bg: oklch(0.15 0.03 255);
+  --gw-header-fg: oklch(0.94 0.015 85);
+
+  --sl-color-accent-low: oklch(0.32 0.06 88);
+  --sl-color-accent: oklch(0.84 0.15 88);
+  --sl-color-accent-high: oklch(0.93 0.07 88);
+  --sl-color-white: oklch(0.97 0.012 85);
+  --sl-color-gray-1: oklch(0.94 0.015 85);
+  --sl-color-gray-2: oklch(0.85 0.02 250);
+  --sl-color-gray-3: oklch(0.72 0.03 250);
+  --sl-color-gray-4: oklch(0.52 0.035 250);
+  --sl-color-gray-5: oklch(0.36 0.04 250);
+  --sl-color-gray-6: oklch(0.25 0.04 255);
+  --sl-color-black: oklch(0.2 0.035 255);
+}
+:root[data-theme="light"] {
+  --gw-header-bg: oklch(0.27 0.07 255);
+  --gw-header-fg: oklch(0.97 0.012 85);
+
+  --sl-color-accent-low: oklch(0.9 0.07 88);
+  --sl-color-accent: oklch(0.33 0.09 255);
+  --sl-color-accent-high: oklch(0.25 0.07 255);
+  --sl-color-white: oklch(0.27 0.06 255);
+  --sl-color-gray-1: oklch(0.33 0.06 255);
+  --sl-color-gray-2: oklch(0.4 0.05 255);
+  --sl-color-gray-3: oklch(0.48 0.04 255);
+  --sl-color-gray-4: oklch(0.62 0.03 250);
+  --sl-color-gray-5: oklch(0.84 0.025 240);
+  --sl-color-gray-6: oklch(0.93 0.015 85);
+  --sl-color-gray-7: oklch(0.95 0.012 85);
+  --sl-color-black: oklch(0.97 0.012 85);
+}
+
+/* The header is the site's navy band in both themes, as on gangway.sh. */
+header.header {
+  --sl-color-bg-nav: var(--gw-header-bg);
+  --sl-color-hairline-shade: var(--gw-header-bg);
+  --sl-color-white: var(--gw-header-fg);
+  --sl-color-text: var(--gw-header-fg);
+  --sl-color-gray-1: var(--gw-header-fg);
+  --sl-color-gray-2: oklch(0.85 0.02 250);
+  --sl-color-gray-5: oklch(0.4 0.04 250);
+  --sl-color-gray-6: oklch(0.22 0.04 255);
+  --sl-color-black: var(--gw-header-bg);
+  --sl-color-text-accent: oklch(0.84 0.15 88);
+}
+.site-title {
+  color: var(--gw-header-fg);
+  font: 600 1.2rem var(--sl-font-mono);
+  letter-spacing: -0.04em;
+}
+
+.sl-markdown-content h1,
+h1#_top {
+  font-family: var(--gw-serif);
+  font-style: italic;
+  font-weight: 400;
+}

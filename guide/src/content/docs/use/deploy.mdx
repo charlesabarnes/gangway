@@ -1,0 +1,108 @@
+---
+title: Deploying
+description: Deploy from the dashboard or the REST API, how gangway detects an app, gangway.yml, databases, expiry and visibility.
+---
+
+import Shot from "../../../components/Shot.astro";
+
+## From the dashboard
+
+**New preview** takes a folder, files or a `.zip`, a runtime's example to start from, and
+throwaway databases to run beside it.
+
+<Shot
+  name="new"
+  alt="The New preview page: runtime starters, a drop zone for a folder, files or a .zip, and Postgres, MySQL and Redis add-ons."
+/>
+
+## From a terminal
+
+Send a tarball to the REST API with a token from **Account**:
+
+```sh
+tar -czf - . | curl --fail -X POST \
+  -H "Authorization: Bearer $GANGWAY_TOKEN" -H "Content-Type: application/gzip" \
+  --data-binary @- "https://api.preview.example.com/v1/previews?name=hello&runtime=auto&wait=true"
+```
+
+With `wait=true` the answer comes once the preview serves, and includes its URL and `id`. Each
+`POST` makes a new preview. To update one in place, at the same URL, send the new tarball to its
+source:
+
+```sh
+tar -czf - . | curl --fail -X PUT \
+  -H "Authorization: Bearer $GANGWAY_TOKEN" -H "Content-Type: application/gzip" \
+  --data-binary @- "https://api.preview.example.com/v1/previews/$ID/source"
+```
+
+## How gangway reads an app
+
+With `runtime=auto`, gangway looks at the files at the root, in this order, and the first match
+decides:
+
+| Files                                                             | Runs as                                 |
+| ----------------------------------------------------------------- | --------------------------------------- |
+| `compose.yaml` (or `.yml`, `docker-compose.*`), or a `Dockerfile` | your own stack                          |
+| `composer.json`                                                   | PHP                                     |
+| `wrangler.toml` (or `.json`, `.jsonc`)                            | workerd                                 |
+| `deno.json` (or `.jsonc`)                                         | Deno                                    |
+| `bun.lock`, `bun.lockb` or `bunfig.toml`                          | Bun                                     |
+| `package.json`                                                    | Node                                    |
+| `requirements.txt`, `main.py` or `app.py`                         | Python                                  |
+| `index.php`                                                       | PHP                                     |
+| `index.ts`, `main.ts`, `worker.ts` or `src/index.ts`              | Bun                                     |
+| anything else                                                     | a static site, served by gangway itself |
+
+An `artifact.md` with no `index.html` renders as a document, deck, dashboard or prototype.
+
+A server listens on `$PORT`. If gangway cannot tell how to run something, it refuses the deploy
+and says which file would settle it.
+
+## gangway.yml
+
+A `gangway.yml` at the root says what detection cannot:
+
+```yaml
+runtime: node # static, node, bun, deno, workerd, python or php
+version: 22
+root: app # a subfolder to run from
+install: npm ci # or false
+build: npm run build # or false
+start: node server.js
+release: npm run migrate # before each version goes live
+port: 3000
+healthcheck: /healthz
+env:
+  FEATURE_FLAG: "on"
+addons: [postgres, redis] # or mysql
+ttl: 7d # how long the preview lives
+idle: 30m # or never
+visibility: unlisted # public, unlisted or private
+```
+
+For a static site, `static: dist` (or `static: true`) and `docroot` name what to serve.
+
+In a Compose stack, the same stack-wide settings go under `x-gangway:` (`ttl`, `idle`,
+`visibility`, `release`, and `seed`, a command run in the app's container to load sample data).
+
+## Databases
+
+Add-ons run beside the app for as long as the preview lives:
+
+| Add-on     | The app gets                                           |
+| ---------- | ------------------------------------------------------ |
+| `postgres` | `DATABASE_URL`, `POSTGRES_URL` and the `PG*` variables |
+| `mysql`    | `MYSQL_URL` (8.4; about 20s to start the first time)   |
+| `redis`    | `REDIS_URL` (append-only, so it survives a sleep)      |
+
+`seed.sql` or `db/seed.sql` loads into Postgres or MySQL on its first start. The preview page has a
+data browser.
+
+## Expiry, sleep and visibility
+
+- **Time to live.** Every preview expires. Extend it from its page, or ask your agent to.
+- **Sleep.** An idle preview sleeps and the first request wakes it.
+- **Visibility.** Public, unlisted (an unguessable hostname), private (people signed in to gangway),
+  and optionally a password.
+
+The server's defaults for all of these are in **Admin → Server**.

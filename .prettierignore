@@ -1,6 +1,6 @@
 web/
 state/
-docs/
+/docs/
 spec.md
 .claude/
 bun.lock

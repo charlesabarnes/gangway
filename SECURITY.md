@@ -17,5 +17,5 @@ Only the latest release gets security fixes.
 ## Threat model
 
 gangway talks to the Docker socket, which is root on its host, and treats preview code as
-hostile. The [Security](README.md#security) section of the README describes what that means for
-accounts, previews and networks.
+hostile. [Security](https://gangway.sh/docs/reference/security/) in the docs describes what that
+means for accounts, previews and networks.
