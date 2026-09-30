@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gangway.sh/sitemap.xml
+Sitemap: https://gangway.sh/docs/sitemap-index.xml

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The marketing pages. The docs have their own at /docs/sitemap-index.xml; robots.txt lists both. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://gangway.sh/</loc></url>
+  <url><loc>https://gangway.sh/cloud.html</loc></url>
+</urlset>
