@@ -121,11 +121,16 @@ it loads into Postgres or MySQL on the database's first start only.
 
 ## Commands
 
-A command is a string or a list:
+A command is a string, which runs in `sh`, so `$VARS`, `&&` and `|` work:
 
 ```yaml
-start: gunicorn app.wsgi --bind 0.0.0.0:$PORT # a string runs in sh: $VARS, && and | work
-start: [gunicorn, app.wsgi, --bind, "0.0.0.0:8000"] # a list runs as it is, with no shell
+start: gunicorn app.wsgi --bind 0.0.0.0:$PORT
+```
+
+or a list, which runs as it is, with no shell:
+
+```yaml
+start: [gunicorn, app.wsgi, --bind, "0.0.0.0:8000"]
 ```
 
 Commands run from the app's folder (`root`, if set). `install` and `build` run while the image
