@@ -44,6 +44,7 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
+          trivyignores: .github/trivyignore
 
   # The whole image takes a few minutes to build, so pull requests skip it.
   trivy-image:
@@ -67,3 +68,4 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
+          trivyignores: .github/trivyignore

@@ -7,6 +7,9 @@
   "engines": {
     "bun": ">=1.4.2"
   },
+  "prettier": {
+    "printWidth": 100
+  },
   "workspaces": [
     "shared",
     "server",
