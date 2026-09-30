@@ -13,6 +13,13 @@
   <a href="LICENSE">Apache-2.0</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/charlesabarnes/gangway/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/charlesabarnes/gangway/actions/workflows/ci.yml/badge.svg?branch=master"></a>
+  <a href="https://github.com/charlesabarnes/gangway/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/charlesabarnes/gangway"></a>
+  <a href="https://github.com/charlesabarnes/gangway/pkgs/container/gangway"><img alt="Container image on GHCR" src="https://img.shields.io/badge/ghcr.io-charlesabarnes%2Fgangway-blue?logo=docker&logoColor=white"></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=charlesabarnes_gangway"><img alt="Quality gate" src="https://sonarcloud.io/api/project_badges/measure?project=charlesabarnes_gangway&metric=alert_status"></a>
+</p>
+
 ---
 
 **[gangway](https://gangway.sh)** gives any containerized app a public HTTPS URL on your own domain.
