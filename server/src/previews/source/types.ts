@@ -111,7 +111,7 @@ export class GitError extends AppError {
   readonly reason: CloneRejection;
 
   constructor(reason: CloneRejection, message: string, detail?: Record<string, unknown>) {
-    super(CLONE_STATUS[reason], message, { reason, ...(detail ?? {}) });
+    super(CLONE_STATUS[reason], message, { reason, ...detail });
     this.name = "GitError";
     this.reason = reason;
   }

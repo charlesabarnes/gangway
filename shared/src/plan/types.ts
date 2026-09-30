@@ -30,6 +30,11 @@ export type ArtifactMeta = {
 
 export type Reason = { level: "info" | "warn" | "error"; found: string; then: string };
 
+/** A plan reason; built here so the `then` key the UI and MCP read is written in one place. */
+export function reason(level: Reason["level"], found: string, then: string): Reason {
+  return { level, found, then }; // NOSONAR a plain record read as JSON, never awaited
+}
+
 export type AppPlan = {
   kind: "own" | "runtime";
   runtime: RuntimeId | null;

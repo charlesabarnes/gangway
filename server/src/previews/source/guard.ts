@@ -43,9 +43,18 @@ function list(v: unknown): unknown[] {
   return v === undefined || v === null ? [] : [v];
 }
 
-export function referencedFiles(doc: unknown): { where: string; path: string }[] {
-  const out: { where: string; path: string }[] = [];
+type FileRef = { where: string; path: string };
+
+export function referencedFiles(doc: unknown): FileRef[] {
   const d = obj(doc);
+  return [
+    ...includeFiles(d),
+    ...Object.entries(obj(d["services"])).flatMap(([name, raw]) => serviceFiles(name, obj(raw))),
+  ];
+}
+
+function includeFiles(d: Record<string, unknown>): FileRef[] {
+  const out: FileRef[] = [];
   for (const inc of list(d["include"])) {
     const paths =
       typeof inc === "string"
@@ -61,23 +70,25 @@ export function referencedFiles(doc: unknown): { where: string; path: string }[]
       }
     }
   }
-  for (const [name, raw] of Object.entries(obj(d["services"]))) {
-    const s = obj(raw);
-    for (const ef of list(s["env_file"])) {
-      const p = typeof ef === "string" ? ef : obj(ef)["path"];
-      if (typeof p === "string") {
-        out.push({ where: `service "${name}": env_file`, path: p });
-      }
+  return out;
+}
+
+function serviceFiles(name: string, s: Record<string, unknown>): FileRef[] {
+  const out: FileRef[] = [];
+  for (const ef of list(s["env_file"])) {
+    const p = typeof ef === "string" ? ef : obj(ef)["path"];
+    if (typeof p === "string") {
+      out.push({ where: `service "${name}": env_file`, path: p });
     }
-    for (const lf of list(s["label_file"])) {
-      if (typeof lf === "string") {
-        out.push({ where: `service "${name}": label_file`, path: lf });
-      }
+  }
+  for (const lf of list(s["label_file"])) {
+    if (typeof lf === "string") {
+      out.push({ where: `service "${name}": label_file`, path: lf });
     }
-    const ext = obj(s["extends"])["file"];
-    if (typeof ext === "string") {
-      out.push({ where: `service "${name}": extends.file`, path: ext });
-    }
+  }
+  const ext = obj(s["extends"])["file"];
+  if (typeof ext === "string") {
+    out.push({ where: `service "${name}": extends.file`, path: ext });
   }
   return out;
 }

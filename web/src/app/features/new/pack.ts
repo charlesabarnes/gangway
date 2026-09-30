@@ -23,17 +23,17 @@ export function isJunk(path: string): boolean {
   const parts = path.split('/');
   return (
     parts.some((p) => JUNK_SEGMENTS.has(p)) ||
-    JUNK_NAMES.has(parts[parts.length - 1] ?? '') ||
-    (parts[parts.length - 1] ?? '').startsWith('._')
+    JUNK_NAMES.has(parts.at(-1) ?? '') ||
+    (parts.at(-1) ?? '').startsWith('._')
   );
 }
 
 export function normalizePath(raw: string): string {
   const parts = raw
-    .replace(/\\/g, '/')
+    .replaceAll('\\', '/')
     .split('/')
     .filter((p) => p !== '' && p !== '.');
-  if (parts.some((p) => p === '..')) throw new UploadError(`"${raw}" points outside the upload`);
+  if (parts.includes('..')) throw new UploadError(`"${raw}" points outside the upload`);
   if (parts.length === 0) throw new UploadError(`"${raw}" is not a file path`);
   return parts.join('/');
 }
@@ -66,11 +66,7 @@ export function planPayload(
   const contents: Record<string, string> = {};
   for (const f of files) {
     const parts = f.path.split('/');
-    if (
-      parts.length > 2 ||
-      !names.has(parts[parts.length - 1]!) ||
-      f.data.byteLength > MAX_PLAN_FILE_BYTES
-    )
+    if (parts.length > 2 || !names.has(parts.at(-1)!) || f.data.byteLength > MAX_PLAN_FILE_BYTES)
       continue;
     try {
       contents[f.path] = new TextDecoder('utf-8', { fatal: true }).decode(f.data);
@@ -118,8 +114,9 @@ export function finish(raw: UploadFile[], fallbackName: string | null = null): C
     throw new UploadError(
       `That is ${mib(totalBytes)}; uploads are limited to ${mib(MAX_UPLOAD_BYTES)}.`,
     );
+  files.sort((a, b) => a.path.localeCompare(b.path));
   return {
-    files: files.sort((a, b) => a.path.localeCompare(b.path)),
+    files,
     totalBytes,
     skipped,
     name: root ?? fallbackName,
@@ -174,8 +171,7 @@ export function writeTar(
 ): Uint8Array {
   const parts: Uint8Array[] = [];
   for (const f of files) {
-    parts.push(header(f.path, f.data.byteLength, '0', 0o644, mtime));
-    parts.push(f.data);
+    parts.push(header(f.path, f.data.byteLength, '0', 0o644, mtime), f.data);
     const pad = (512 - (f.data.byteLength % 512)) % 512;
     if (pad) parts.push(new Uint8Array(pad));
   }

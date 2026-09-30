@@ -20,7 +20,7 @@ const DecideSchema = z.strictObject({
   secretTargets: SecretTargetsSchema.optional(),
 });
 
-const escape = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+const escape = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.codePointAt(0)};`);
 
 function errorPage(message: string): Response {
   const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cannot connect</title>

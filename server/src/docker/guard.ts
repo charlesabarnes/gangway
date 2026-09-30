@@ -26,7 +26,7 @@ export class DockerGuardError extends AppError {
   readonly reason: GuardReason;
 
   constructor(reason: GuardReason, message: string, detail?: Record<string, unknown>) {
-    super("unavailable", message, { reason, ...(detail ?? {}) });
+    super("unavailable", message, { reason, ...detail });
     this.name = "DockerGuardError";
     this.reason = reason;
   }
@@ -110,7 +110,7 @@ export function assertHostDaemon(
   } catch (err) {
     if (err instanceof DockerGuardError) {
       throw new DockerGuardError(err.reason, `host ${host.id}: ${err.message}`, {
-        ...(err.detail ?? {}),
+        ...err.detail,
         hostId: host.id,
       });
     }

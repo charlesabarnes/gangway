@@ -56,7 +56,7 @@ button:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
 .err{margin:-8px 0 0;color:var(--danger);font-size:13px}
 `;
 
-const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.codePointAt(0)};`);
 
 export function passwordPage(
   host: string,

@@ -9,6 +9,7 @@ import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
 import { conflict, notFound } from "../errors.ts";
 import type { Actor } from "./actor.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 
 const EVERYTHING: ReadonlySet<Permission> = new Set(ALL_PERMISSIONS);
 const NOTHING: ReadonlySet<Permission> = new Set();
@@ -40,7 +41,7 @@ export class RolePermissions {
   roles(): (Role & { permissions: Permission[]; editable: boolean })[] {
     return this.#repo.list().map((r) => ({
       ...r,
-      permissions: [...this.for(r.id)].sort(),
+      permissions: [...this.for(r.id)].sort(compareCodeUnits),
       editable: r.id !== ADMIN_ROLE_ID,
     }));
   }
@@ -56,10 +57,10 @@ export class RolePermissions {
     if (roleId === ADMIN_ROLE_ID) {
       throw conflict("the admin role always holds every permission and cannot be edited");
     }
-    const old = [...this.for(roleId)].sort();
+    const old = [...this.for(roleId)].sort(compareCodeUnits);
     this.#repo.setPermissions(roleId, permissions);
     this.reload();
-    const change = { old, new: [...this.for(roleId)].sort() };
+    const change = { old, new: [...this.for(roleId)].sort(compareCodeUnits) };
     this.#audit?.record(actor, "role.permissions.changed", roleId, {
       old: { permissions: change.old },
       new: { permissions: change.new },

@@ -24,32 +24,129 @@ type EdgeMatch = {
   arrow: FlowEdge["arrow"];
 };
 
+type Hit = { len: number; label: string };
+
+const byRegex =
+  (re: RegExp) =>
+  (s: string): Hit | null => {
+    const m = re.exec(s);
+    return m ? { len: m[0].length, label: m[1] ?? "" } : null;
+  };
+
+const isSpace = (c: string | undefined) => c !== undefined && /\s/.test(c);
+const LINE_END = /[\n\r\u2028\u2029]/;
+
+function spacesAt(s: string, i: number): number {
+  let j = i;
+  while (isSpace(s[j])) {
+    j++;
+  }
+  return j - i;
+}
+
+function runOf(s: string, i: number, c: string): number {
+  let j = i;
+  while (s[j] === c) {
+    j++;
+  }
+  return j - i;
+}
+
+function firstLabel(s: string, start: number, close: (s: string, i: number) => number): Hit | null {
+  let e = start + 1;
+  while (e <= s.length && !LINE_END.test(s.charAt(e - 1))) {
+    const j = e + spacesAt(s, e);
+    const end = j === e ? -1 : close(s, j);
+    if (end !== -1) {
+      return { len: end, label: s.slice(start, e) };
+    }
+    // Every label ending inside this run of spaces meets the same failed closer, so skip them.
+    if (LINE_END.test(s.slice(e, j))) {
+      return null;
+    }
+    e = Math.max(j, e + 1);
+  }
+  return null;
+}
+
+/** "-- text -->", matched as /^open\s+(.+?)\s+close/ would be, without its backtracking. */
+function labelled(
+  open: string,
+  close: (s: string, i: number) => number,
+): (s: string) => Hit | null {
+  return (s) => {
+    if (!s.startsWith(open)) {
+      return null;
+    }
+    let start = open.length;
+    while (isSpace(s[start])) {
+      start++;
+    }
+    if (start === open.length) {
+      return null;
+    }
+    const hit = firstLabel(s, start, close);
+    if (hit) {
+      return hit;
+    }
+    // No label closes; with three or more spaces before the arrow the regex made a blank label.
+    const end = close(s, start);
+    for (let p = start - 2; p > open.length && end !== -1; p--) {
+      if (!LINE_END.test(s.charAt(p))) {
+        return { len: end, label: s.charAt(p) };
+      }
+    }
+    return null;
+  };
+}
+
+function solidClose(s: string, i: number): number {
+  const j = i + runOf(s, i, "-");
+  if (j - i < 2) {
+    return -1;
+  }
+  if (s[j] === ">") {
+    return j + 1;
+  }
+  return (s[j] === "x" || s[j] === "o") && isSpace(s[j + 1]) ? j + 1 : -1;
+}
+
+function dottedClose(s: string, i: number): number {
+  const j = i + runOf(s, i, ".");
+  return j > i && s.startsWith("->", j) ? j + 2 : -1;
+}
+
+function thickClose(s: string, i: number): number {
+  const j = i + runOf(s, i, "=");
+  return j - i >= 2 && s[j] === ">" ? j + 1 : -1;
+}
+
 // Longest forms first: "-- text -->" before "--", "-.->" before "-.-".
-const EDGES: [RegExp, FlowEdgeStyle, FlowEdge["arrow"]][] = [
-  [/^<-{2,}>/, "solid", "both"],
-  [/^<={2,}>/, "thick", "both"],
-  [/^<-\.+->/, "dotted", "both"],
-  [/^--\s+(.+?)\s+-{2,}(?:>|[xo](?=\s))/, "solid", "end"],
-  [/^-\.\s+(.+?)\s+\.+->/, "dotted", "end"],
-  [/^==\s+(.+?)\s+={2,}>/, "thick", "end"],
-  [/^-{2,}(?:>|[xo](?=\s))/, "solid", "end"],
-  [/^-\.+->/, "dotted", "end"],
-  [/^={2,}>/, "thick", "end"],
-  [/^-{3,}/, "solid", "none"],
-  [/^-\.+-/, "dotted", "none"],
-  [/^={3,}/, "thick", "none"],
+const EDGES: [(s: string) => Hit | null, FlowEdgeStyle, FlowEdge["arrow"]][] = [
+  [byRegex(/^<-{2,}>/), "solid", "both"],
+  [byRegex(/^<={2,}>/), "thick", "both"],
+  [byRegex(/^<-\.+->/), "dotted", "both"],
+  [labelled("--", solidClose), "solid", "end"],
+  [labelled("-.", dottedClose), "dotted", "end"],
+  [labelled("==", thickClose), "thick", "end"],
+  [byRegex(/^-{2,}(?:>|[xo](?=\s))/), "solid", "end"],
+  [byRegex(/^-\.+->/), "dotted", "end"],
+  [byRegex(/^={2,}>/), "thick", "end"],
+  [byRegex(/^-{3,}/), "solid", "none"],
+  [byRegex(/^-\.+-/), "dotted", "none"],
+  [byRegex(/^={3,}/), "thick", "none"],
 ];
 
 export function edgeAt(text: string): EdgeMatch | null {
   const named = /^([\p{L}\p{N}_]+)@(?=[-=<.])/u.exec(text);
   const s = named ? text.slice(named[0].length) : text;
-  for (const [re, style, arrow] of EDGES) {
-    const m = re.exec(s);
-    if (!m) {
+  for (const [match, style, arrow] of EDGES) {
+    const hit = match(s);
+    if (!hit) {
       continue;
     }
-    let len = m[0].length + (named?.[0].length ?? 0);
-    let label = m[1] ?? "";
+    let len = hit.len + (named?.[0].length ?? 0);
+    let label = hit.label;
     const pipe = /^\s*\|([^|]*)\|/.exec(text.slice(len));
     if (pipe) {
       label = must(pipe[1], "a pipe label");
@@ -58,6 +155,42 @@ export function edgeAt(text: string): EdgeMatch | null {
     return { len, id: named?.[1] ?? null, label: unquote(label.trim()), style, arrow };
   }
   return null;
+}
+
+/** Drops a `%%` comment: from the first %% with no line break after it, as /%%.*$/ did. */
+export function uncomment(raw: string): string {
+  const from = Math.max(...["\n", "\r", "\u2028", "\u2029"].map((c) => raw.lastIndexOf(c))) + 1;
+  const at = raw.indexOf("%%", from);
+  return at === -1 ? raw : raw.slice(0, at);
+}
+
+/**
+ * `class a,b tone`: its ids and its tone, split as /^class\s+([\p{L}\p{N}_,\s]+?)\s+([\w-]+)$/u
+ * splits them, without that regex's backtracking.
+ */
+export function classLine(s: string): [ids: string, tone: string] | null {
+  const head = /^class\s+/.exec(s);
+  if (!head) {
+    return null;
+  }
+  let tone = s.length;
+  while (tone > 0 && /[\w-]/.test(s.charAt(tone - 1))) {
+    tone--;
+  }
+  let gap = tone;
+  while (gap > 0 && isSpace(s.charAt(gap - 1))) {
+    gap--;
+  }
+  if (tone === s.length || gap === tone) {
+    return null;
+  }
+  const start = head[0].length;
+  if (gap > start) {
+    const ids = s.slice(start, gap);
+    return /^[\p{L}\p{N}_,\s]+$/u.test(ids) ? [ids, s.slice(tone)] : null;
+  }
+  // No ids, just spaces: the regex gave one back as the ids, which it can with three or more.
+  return start - gap >= 3 ? [s.charAt(tone - 2), s.slice(tone)] : null;
 }
 
 export const unquote = (s: string) => s.replace(/^"(.*)"$/s, "$1").replace(/<br\s*\/?>/gi, "\n");

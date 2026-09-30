@@ -39,7 +39,7 @@ describe("upload by reference", () => {
     const s = setup();
     const offer = await s.tools.deploy(s.scope(), { upload: "new" });
     expect(offer).toContain("tar --exclude=.git --exclude=node_modules -czf - . | curl");
-    expect(s.ctx.previews.list({}).length).toBe(0);
+    expect(s.ctx.previews.list({})).toHaveLength(0);
     const { archive } = await packFiles({ "index.html": "<h1>from disk</h1>", "css/a.css": "a{}" });
     const res = await s.put(s.urlOf(offer), archive);
     expect(res.status).toBe(201);

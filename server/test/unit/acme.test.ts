@@ -121,7 +121,7 @@ describe("AcmeProvider.issue", () => {
     ]);
     const m = bundle.materials[0]!;
     expect(m.serverName).toBe("*.preview.test");
-    expect(m.cert.match(/BEGIN CERTIFICATE/g)!.length).toBe(2); // leaf + chain
+    expect(m.cert.match(/BEGIN CERTIFICATE/g)!).toHaveLength(2); // leaf + chain
     expect(m.cert).not.toMatch(/-----END CERTIFICATE----------BEGIN/);
     expect(m.key).toContain("PRIVATE KEY");
     expect(m.notAfter!.getTime()).toBeGreaterThan(Date.now() + 80 * DAY);
@@ -165,11 +165,11 @@ describe("AcmeProvider.issue", () => {
     const s = await setup();
     await s.provider.issue(DOMAINS);
     await s.make().issue(DOMAINS);
-    expect(s.log.filter((l) => l === "createAccount").length).toBe(1);
+    expect(s.log.filter((l) => l === "createAccount")).toHaveLength(1);
     expect(s.connects.map((c) => c.accountUrl)).toEqual([undefined, "https://ca.test/acct/1"]);
     // Staging and production are different CAs, so each gets its own account.
     await s.make("https://other.test/directory").issue(DOMAINS);
-    expect(s.log.filter((l) => l === "createAccount").length).toBe(2);
+    expect(s.log.filter((l) => l === "createAccount")).toHaveLength(2);
   });
 
   test("an aborted signal stops before anything is written to DNS", async () => {
@@ -187,7 +187,7 @@ describe("AcmeProvider.load / renewIfDue", () => {
     const again = s.make();
     expect(again.load(DOMAINS)!.materials[0]!.cert).toContain("BEGIN CERTIFICATE");
     expect(await again.renewIfDue(DOMAINS)).toBeNull();
-    expect((await again.ensure(DOMAINS)).materials.length).toBe(1);
+    expect((await again.ensure(DOMAINS)).materials).toHaveLength(1);
     expect(s.log).toEqual([]);
   });
 

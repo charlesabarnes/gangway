@@ -31,13 +31,7 @@ export function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
   }
 
   if (scheme === "ssh") {
-    return {
-      protocol: "ssh",
-      host,
-      port: url.port === "" ? 22 : Number(url.port),
-      ...(url.username === "" ? {} : { username: decodeURIComponent(url.username) }),
-      sshOptions: { host, ...(url.port === "" ? {} : { port: Number(url.port) }) },
-    };
+    return sshTarget(url, host);
   }
   if (scheme === "tcp" || scheme === "http" || scheme === "https") {
     // https:// is how the operator says TLS; do not guess from DOCKER_TLS_VERIFY.
@@ -48,6 +42,16 @@ export function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
     };
   }
   throw badRequest(`unsupported dockerHost scheme: ${JSON.stringify(scheme)}`);
+}
+
+function sshTarget(url: URL, host: string): Dockerode.DockerOptions {
+  return {
+    protocol: "ssh",
+    host,
+    port: url.port === "" ? 22 : Number(url.port),
+    ...(url.username === "" ? {} : { username: decodeURIComponent(url.username) }),
+    sshOptions: { host, ...(url.port === "" ? {} : { port: Number(url.port) }) },
+  };
 }
 
 export type ContainerInfoLike = {

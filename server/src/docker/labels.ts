@@ -24,7 +24,7 @@ export const LABEL = {
 
 export const MANAGED_FILTER = "gangway.managed=true";
 
-const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
+const VISIBILITIES: ReadonlySet<string> = new Set<Visibility>(["public", "unlisted", "private"]);
 
 export type GangwayLabels = {
   instance: string;
@@ -173,7 +173,7 @@ const portOf = (v: string): number | undefined =>
   PORT_RE.test(v) && isPort(Number(v)) ? Number(v) : undefined;
 
 const visibilityOf = (v: string): Visibility | undefined =>
-  VISIBILITIES.includes(v as Visibility) ? (v as Visibility) : undefined;
+  VISIBILITIES.has(v) ? (v as Visibility) : undefined;
 
 const booleanOf = (v: string): boolean | undefined =>
   v === "true" || v === "false" ? v === "true" : undefined;

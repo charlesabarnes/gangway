@@ -50,7 +50,7 @@ export function renderAssets(dir = renderDist()): RenderAssets {
 }
 
 const THEME_SCRIPT =
-  '(function(){var d=document.documentElement,t;try{t=(/(?:^|;\\s*)gw-theme=(light|dark)(?:;|$)/.exec(document.cookie)||[])[1]||localStorage.getItem("gw-theme")}catch(e){}' +
+  String.raw`(function(){var d=document.documentElement,t;try{t=(/(?:^|;\s*)gw-theme=(light|dark)(?:;|$)/.exec(document.cookie)||[])[1]||localStorage.getItem("gw-theme")}catch(e){}` +
   't=t||d.dataset.pref;if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";' +
   "d.dataset.theme=t})()";
 

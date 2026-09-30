@@ -73,11 +73,15 @@ function kernelViolations(at: string, s: Json): string[] {
   return out;
 }
 
-const bareName = (image: string) =>
-  image
-    .replace(/@.*$/, "")
-    .replace(/:[^/]*$/, "")
-    .replace(/^(docker\.io\/)?(library\/)?/, "");
+/** `image` without its `@digest` and its `:tag` (a colon after the last slash). */
+const untagged = (image: string) => {
+  const at = image.indexOf("@");
+  const name = at === -1 ? image : image.slice(0, at);
+  const colon = name.indexOf(":", name.lastIndexOf("/") + 1);
+  return colon === -1 ? name : name.slice(0, colon);
+};
+
+const bareName = (image: string) => untagged(image).replace(/^(docker\.io\/)?(library\/)?/, "");
 
 /** gangway names what it builds `gw-<instance>-<slug>-<service>`: another preview's image, perhaps with its secrets in a layer. */
 export const gangwayImage = (image: unknown) =>
@@ -237,24 +241,32 @@ function inlineOnlyViolations(doc: Json): string[] {
 }
 
 function resourceViolations(project: string, doc: Json): string[] {
+  return (["networks", "volumes"] as const).flatMap((kind) =>
+    Object.entries(obj(doc[kind])).flatMap(([key, raw]) =>
+      oneResourceViolations(project, kind, key, obj(raw)),
+    ),
+  );
+}
+
+function oneResourceViolations(
+  project: string,
+  kind: "networks" | "volumes",
+  key: string,
+  r: Json,
+): string[] {
   const out: string[] = [];
-  for (const kind of ["networks", "volumes"] as const) {
-    for (const [key, raw] of Object.entries(obj(doc[kind]))) {
-      const r = obj(raw);
-      const at = `${kind.slice(0, -1)} "${key}"`;
-      if (r["external"] !== undefined && r["external"] !== false) {
-        out.push(`${at}: external is not allowed`);
-      }
-      if (typeof r["name"] === "string" && r["name"] !== `${project}_${key}`) {
-        out.push(`${at}: a custom name is not allowed`);
-      }
-      if (kind === "volumes" && Object.keys(obj(r["driver_opts"])).length > 0) {
-        out.push(`${at}: driver_opts are not allowed (a bind mount in disguise)`);
-      }
-      if (kind === "networks" && r["driver"] !== undefined && r["driver"] !== "bridge") {
-        out.push(`${at}: only the bridge driver is allowed`);
-      }
-    }
+  const at = `${kind.slice(0, -1)} "${key}"`;
+  if (r["external"] !== undefined && r["external"] !== false) {
+    out.push(`${at}: external is not allowed`);
+  }
+  if (typeof r["name"] === "string" && r["name"] !== `${project}_${key}`) {
+    out.push(`${at}: a custom name is not allowed`);
+  }
+  if (kind === "volumes" && Object.keys(obj(r["driver_opts"])).length > 0) {
+    out.push(`${at}: driver_opts are not allowed (a bind mount in disguise)`);
+  }
+  if (kind === "networks" && r["driver"] !== undefined && r["driver"] !== "bridge") {
+    out.push(`${at}: only the bridge driver is allowed`);
   }
   return out;
 }

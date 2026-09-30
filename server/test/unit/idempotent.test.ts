@@ -60,7 +60,7 @@ describe("IdempotentDeploys", () => {
     expect(again.preview.state).toBe("awake");
     expect(again.urls).toEqual(first.urls);
     expect((await again.done).state).toBe("awake");
-    expect(s.previews.list().length).toBe(1);
+    expect(s.previews.list()).toHaveLength(1);
     expect(s.fake.ups).toBe(1);
   });
 

@@ -1,5 +1,5 @@
 export class SingleFlight<T> {
-  #inflight = new Map<string, Promise<T>>();
+  readonly #inflight = new Map<string, Promise<T>>();
 
   run(key: string, fn: () => Promise<T>): Promise<T> {
     const existing = this.#inflight.get(key);

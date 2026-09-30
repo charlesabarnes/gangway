@@ -107,7 +107,8 @@ function claimState(v: DomainView): string {
 
 function describeClaim(v: DomainView): string {
   const state = claimState(v);
-  const lines = [`- ${v.kind === "wildcard" ? `*.${v.name}` : v.name}: ${state}`];
+  const host = v.kind === "wildcard" ? `*.${v.name}` : v.name;
+  const lines = [`- ${host}: ${state}`];
   if (v.status !== "active" || !v.routingOk) {
     for (const r of v.records) {
       lines.push(`    ${r.type} ${r.name} -> ${r.value}  (${r.purpose})`);
@@ -211,9 +212,9 @@ function summary(d: ToolDeps, c: ClaimDeps, t: DomainTarget): string {
   if (t.kind === "preview") {
     const now = d.ctx.table.forPreview(t.preview.id)[0]?.hostname;
     const next = c.registry.domainOf(d.ctx.previews.get(t.preview.id) ?? t.preview);
-    lines.push(
-      `named under: ${next}${now && !now.endsWith(`.${next}`) ? ` (still ${now} until its next rebuild)` : ""}`,
-    );
+    const pending =
+      now && !now.endsWith(`.${next}`) ? ` (still ${now} until its next rebuild)` : "";
+    lines.push(`named under: ${next}${pending}`);
   } else if (t.kind === "project") {
     lines.push(`named under: ${c.registry.resolve({ project: t.project })}`);
   } else {

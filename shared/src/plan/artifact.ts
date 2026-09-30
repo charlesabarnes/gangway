@@ -3,7 +3,7 @@ import { lintHtml, usesKit } from "../artifact/lint-html.ts";
 import { ARTIFACT_FILE } from "../artifact/vocab.ts";
 import { MAX_PLAN_FILE_BYTES } from "./config.ts";
 import type { RuleContext } from "./rule-context.ts";
-import type { ArtifactMeta } from "./types.ts";
+import { type ArtifactMeta, reason } from "./types.ts";
 
 function record(
   ctx: RuleContext,
@@ -14,18 +14,19 @@ function record(
   const { plan } = ctx;
   if (r.issues.length > 0 || !r.info) {
     const then = r.issues.map((i) => `line ${i.line}: ${i.message}`).join("; ");
-    plan.reasons.push({ level: "error", found: file, then: then || "not an artifact" });
+    plan.reasons.push(reason("error", file, then || "not an artifact"));
     return;
   }
   plan.artifact = { ...r.info, format };
-  plan.reasons.push({
-    level: "info",
-    found: `${file} (a ${r.info.kind})`,
-    then:
+  plan.reasons.push(
+    reason(
+      "info",
+      `${file} (a ${r.info.kind})`,
       format === "markdown"
         ? "renders it in gangway's style; the other files are served beside it"
         : "serves it with gangway's elements at /_gangway/",
-  });
+    ),
+  );
 }
 
 export function planArtifact(ctx: RuleContext): boolean {
@@ -42,11 +43,13 @@ export function planArtifact(ctx: RuleContext): boolean {
   plan.serve = { kind: "static", output: false, fallback: "spa" };
   const body = text(ARTIFACT_FILE);
   if (body === undefined) {
-    plan.reasons.push({
-      level: "error",
-      found: ARTIFACT_FILE,
-      then: `larger than ${MAX_PLAN_FILE_BYTES / 1024} KiB; move rows into data/*.csv files`,
-    });
+    plan.reasons.push(
+      reason(
+        "error",
+        ARTIFACT_FILE,
+        `larger than ${MAX_PLAN_FILE_BYTES / 1024} KiB; move rows into data/*.csv files`,
+      ),
+    );
     return true;
   }
   record(ctx, ARTIFACT_FILE, lintMarkdown(body, { has: (p) => have.has(p) }), "markdown");

@@ -2,7 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { RouteEntry } from "../routing/table.ts";
 
 export const GATE_COOKIE = "__Host-gw_pv";
-export const PASSWORD_COOKIE = "__Host-gw_pw";
+export const PASSWORD_COOKIE = "__Host-gw_pw"; // NOSONAR a cookie name, not a credential
 
 export type TokenOptions = {
   key: Buffer;
@@ -43,6 +43,7 @@ export class GateTokens {
   }
 
   #mac(kind: Kind, payload: string): Buffer {
+    // codeql[js/insufficient-password-hash] It signs tokens; a password never reaches it, only TTLs and a fingerprint.
     return createHmac("sha256", this.#o.key).update(`${kind}|${payload}`).digest();
   }
 

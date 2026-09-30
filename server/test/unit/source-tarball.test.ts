@@ -397,8 +397,8 @@ describe("Workdirs", () => {
     const workdirs = new Workdirs(scratch());
     const workdir = await workdirs.create("deploy-2");
     await workdir.cleanup();
-    await workdir.cleanup();
-    await workdirs.remove("never-created");
+    await expect(workdir.cleanup()).resolves.toBeUndefined();
+    await expect(workdirs.remove("never-created")).resolves.toBeUndefined();
   });
 
   test("with() removes the directory even when the body throws", async () => {

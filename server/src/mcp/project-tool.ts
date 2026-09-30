@@ -38,8 +38,9 @@ export function connectProject(d: ToolDeps, actor: Actor, args: ProjectArgs): st
     `${args.repository} is project "${project.slug}" (${existing ? "already connected" : "created now"}); its pull requests are previewed at ${project.slug}-pr-<n>.`,
   ];
   if (!project.enabled) {
+    const reason = project.disabledReason ? `: ${project.disabledReason}` : "";
     lines.push(
-      `It is disabled${project.disabledReason ? `: ${project.disabledReason}` : ""}. The user must enable it in gangway before previews deploy.`,
+      `It is disabled${reason}. The user must enable it in gangway before previews deploy.`,
     );
   }
   lines.push(

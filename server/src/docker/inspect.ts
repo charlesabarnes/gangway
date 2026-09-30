@@ -18,7 +18,7 @@ export type PublishedPort = {
   hostPort: number;
 };
 
-const PROTOCOLS: readonly PortProtocol[] = ["tcp", "udp", "sctp"];
+const PROTOCOLS: ReadonlySet<string> = new Set<PortProtocol>(["tcp", "udp", "sctp"]);
 
 export function parsePortKey(key: string): { port: number; protocol: PortProtocol } | null {
   const slash = key.indexOf("/");
@@ -31,7 +31,7 @@ export function parsePortKey(key: string): { port: number; protocol: PortProtoco
   if (port < 1 || port > 65535) {
     return null;
   }
-  if (!PROTOCOLS.includes(protoPart as PortProtocol)) {
+  if (!PROTOCOLS.has(protoPart)) {
     return null;
   }
   return { port, protocol: protoPart as PortProtocol };

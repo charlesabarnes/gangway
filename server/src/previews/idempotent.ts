@@ -6,6 +6,7 @@ import { SingleFlight } from "../util/async.ts";
 import type { PreviewContext } from "./context.ts";
 import { deploy, urlsFor } from "./deploy.ts";
 import type { DeployInput, DeployResult } from "./deploy-types.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 
 export const IDEMPOTENCY_TTL_MS = 24 * 3_600_000;
 
@@ -29,7 +30,7 @@ export const requestHash = ({ actor: _actor, ...request }: DeployInput): string 
   const source =
     request.source.kind === "tarball" ? { ...request.source, archive: undefined } : request.source;
   // Secret values stay out of anything stored, a hash included: their names are enough to tell.
-  const secrets = request.secrets ? Object.keys(request.secrets).sort() : undefined;
+  const secrets = request.secrets ? Object.keys(request.secrets).sort(compareCodeUnits) : undefined;
   return createHash("sha256")
     .update(canonical({ ...request, source, secrets, carrySecrets: undefined }))
     .digest("hex");

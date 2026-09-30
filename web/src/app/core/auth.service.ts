@@ -34,9 +34,10 @@ export class AuthService {
 
   ensureLoaded(): Promise<void> {
     if (this.loaded()) return Promise.resolve();
-    return (this.#loading ??= this.refresh().finally(() => {
+    this.#loading ??= this.refresh().finally(() => {
       this.#loading = null;
-    }));
+    });
+    return this.#loading;
   }
 
   async refresh(): Promise<void> {

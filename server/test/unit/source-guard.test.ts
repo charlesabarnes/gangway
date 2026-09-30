@@ -22,7 +22,7 @@ describe("assertNoEscapingSymlinks", () => {
     const dir = tree({ "a/real.txt": "x" });
     symlinkSync("real.txt", join(dir, "a/alias.txt"));
     symlinkSync(join(dir, "a"), join(dir, "abs-but-inside"));
-    await assertNoEscapingSymlinks(dir);
+    await expect(assertNoEscapingSymlinks(dir)).resolves.toBeUndefined();
   });
 
   test.each([

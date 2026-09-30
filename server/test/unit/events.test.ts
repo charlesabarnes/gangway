@@ -105,12 +105,12 @@ describe("EventBus", () => {
     }
     const got: GangwayEvent[] = [];
     const stop = bus.follow(100, (e) => got.push(e));
-    expect(got.length).toBe(350);
+    expect(got).toHaveLength(350);
     bus.publish("tick", { i: 450 });
     expect(got.map((e) => e.seq)).toEqual(Array.from({ length: 351 }, (_, k) => 101 + k));
     stop();
     bus.publish("tick", {});
-    expect(got.length).toBe(351);
+    expect(got).toHaveLength(351);
     expect(bus.listenerCount).toBe(0);
   });
 
@@ -131,7 +131,7 @@ describe("EventBus", () => {
     }
     const got: GangwayEvent[] = [];
     bus.follow(0, (e) => got.push(e));
-    expect(got.length).toBe(1001);
+    expect(got).toHaveLength(1001);
     expect(got.at(-1)).toMatchObject({ type: "reset", seq: 1200 });
     bus.publish("after");
     expect(got.at(-1)).toMatchObject({ type: "after", seq: 1201 });
@@ -259,7 +259,7 @@ describe("hosts", () => {
       lastError: "tunnel down",
     });
     expect(again!.ports).toEqual({ rangeStart: 31000, rangeEnd: 31099 });
-    expect(hosts.list().length).toBe(1);
+    expect(hosts.list()).toHaveLength(1);
   });
 
   test("GET /v1/hosts lists them and never leaks credentials in a connection string", async () => {

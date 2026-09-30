@@ -6,6 +6,7 @@ import { bootE2e, deployPreview } from "../helpers/boot-e2e.ts";
 const certFor = (port: number, servername?: string) =>
   new Promise<string[]>((resolve, reject) => {
     const s = tls.connect(
+      // codeql[js/disabling-certificate-validation] The test reads which certificate a local listener presents.
       { host: "127.0.0.1", port, servername, rejectUnauthorized: false },
       () => {
         const san = s.getPeerCertificate().subjectaltname ?? "";

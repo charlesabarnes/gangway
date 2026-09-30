@@ -12,6 +12,18 @@ const LEVEL_CLASS: Record<SecretLevel, string> = {
   high: 'shadow-[inset_0_0_0_1px_var(--gw-danger)]',
 };
 
+/** A value as written after `=`: quotes taken off, or an unquoted value cut at its " #" comment. */
+function dotenvValue(value: string): string {
+  const q = value[0];
+  const close = q === '"' || q === "'" ? value.indexOf(q, 1) : -1;
+  if (close <= 0) {
+    const hash = value.search(/\s#/);
+    return hash >= 0 ? value.slice(0, hash).trimEnd() : value;
+  }
+  const inner = value.slice(1, close);
+  return q === '"' ? inner.replaceAll(String.raw`\n`, '\n').replaceAll(String.raw`\"`, '"') : inner;
+}
+
 @Component({
   selector: 'app-secrets-editor',
   imports: [Btn],
@@ -176,7 +188,7 @@ export class SecretsEditor {
 
   protected ready(): boolean {
     const d = this.draft();
-    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(d.name) && d.value !== '';
+    return /^[A-Za-z_]\w*$/.test(d.name) && d.value !== '';
   }
 
   protected async set(e: Event): Promise<void> {
@@ -202,14 +214,9 @@ export class SecretsEditor {
       const eq = line.indexOf('=');
       if (eq <= 0) continue;
       const name = line.slice(0, eq).trim();
-      let value = line.slice(eq + 1).trim();
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
-      const q = value[0];
-      const close = q === '"' || q === "'" ? value.indexOf(q, 1) : -1;
-      if (close > 0) value = value.slice(1, close);
-      else value = value.replace(/\s+#.*$/, '');
-      if (q === '"' && close > 0) value = value.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-      out.push([name, value]);
+      const value = line.slice(eq + 1).trim();
+      if (!/^[A-Za-z_]\w*$/.test(name)) continue;
+      out.push([name, dotenvValue(value)]);
     }
     return out;
   }

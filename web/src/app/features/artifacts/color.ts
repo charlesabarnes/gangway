@@ -39,8 +39,10 @@ function hslToRgb(h: number, s: number, l: number): Rgb {
 }
 
 // A number, a percentage of `whole`, or "none".
-const num = (v: string, whole = 1) =>
-  v === 'none' ? 0 : v.endsWith('%') ? (parseFloat(v) / 100) * whole : parseFloat(v);
+const num = (v: string, whole = 1) => {
+  if (v === 'none') return 0;
+  return v.endsWith('%') ? (Number.parseFloat(v) / 100) * whole : Number.parseFloat(v);
+};
 
 /** The colour in sRGB, or null for a syntax this does not read (lab(), lch(), a typo). */
 export function parseColor(input: string): Rgb | null {
@@ -49,7 +51,7 @@ export function parseColor(input: string): Rgb | null {
   if (hex) {
     const full = hex.length <= 4 ? [...hex].map((c) => c + c).join('') : hex;
     if (full.length !== 6 && full.length !== 8) return null;
-    const at = (i: number) => parseInt(full.slice(i, i + 2), 16) / 255;
+    const at = (i: number) => Number.parseInt(full.slice(i, i + 2), 16) / 255;
     return { r: at(0), g: at(2), b: at(4) };
   }
   const fn = /^(rgba?|hsla?|oklch|oklab)\(([^)]*)\)$/.exec(s);
@@ -66,13 +68,13 @@ export function parseColor(input: string): Rgb | null {
     case 'hsl':
     case 'hsla':
       out = hslToRgb(
-        parseFloat(x),
+        Number.parseFloat(x),
         num(y.endsWith('%') ? y : `${y}%`),
         num(z.endsWith('%') ? z : `${z}%`),
       );
       break;
     case 'oklch': {
-      const h = (parseFloat(z) * Math.PI) / 180;
+      const h = (Number.parseFloat(z) * Math.PI) / 180;
       const c = num(y, 0.4);
       out = oklabToRgb(num(x), c * Math.cos(h), c * Math.sin(h));
       break;

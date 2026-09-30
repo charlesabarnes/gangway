@@ -1,8 +1,7 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { sourceKey, type LoginLimiter } from "../auth/limiter.ts";
 import type { Passwords } from "../auth/password.ts";
 import type { EntryPassword, RouteEntry } from "../routing/table.ts";
-import { sha256 } from "../util/hash.ts";
 import {
   PASSWORD_PATH,
   passwordPage,
@@ -139,7 +138,8 @@ export class PreviewGate {
     }
     let fp = this.#fps.get(raw.hash);
     if (!fp) {
-      fp = sha256(raw.hash, "base64url").slice(0, 16);
+      // codeql[js/insufficient-password-hash] It fingerprints the stored scrypt hash, not a password.
+      fp = createHash("sha256").update(raw.hash).digest("base64url").slice(0, 16);
       if (this.#fps.size > 10_000) {
         this.#fps.clear();
       }

@@ -18,7 +18,7 @@ const MAX = 4;
 const INTERACTIVE = "a,button,input,select,textarea,summary,label,[contenteditable],gw-flow svg";
 
 const num = (v: string | null) => {
-  const n = v === null ? NaN : Number(v);
+  const n = v === null ? Number.NaN : Number(v);
   return Number.isFinite(n) ? n : undefined;
 };
 const numOr = (v: string | null, d: number) => num(v) ?? d;
@@ -124,7 +124,8 @@ class Canvas extends HTMLElement {
       bar.className = "gw-window-bar";
       bar.setAttribute("aria-hidden", "true");
       const url = f.getAttribute("url");
-      bar.innerHTML = `<i></i><i></i><i></i>${url ? `<span>${esc(url)}</span>` : ""}`;
+      const address = url ? `<span>${esc(url)}</span>` : "";
+      bar.innerHTML = `<i></i><i></i><i></i>${address}`;
       const view = document.createElement("div");
       view.className = "gw-window-view";
       view.append(...content);

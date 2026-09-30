@@ -3,16 +3,16 @@ import { block, choice, flag, frames, front, md, num, str, type ArtifactTemplate
 const NAV = ["Trips", "Search", "Bookings", "Account"];
 
 /** The app's sidebar, with the page you are on in bold. */
-const side = (at: string) =>
-  block(
-    "side",
-    {},
-    `Skyway\n\n${NAV.map((n) => (n === at ? `- **${n}**` : `- ${n}`)).join("\n")}\n\nAda Lovelace · Explorer plan`,
-  );
+const side = (at: string) => {
+  const nav = NAV.map((n) => (n === at ? `- **${n}**` : `- ${n}`)).join("\n");
+  return block("side", {}, `Skyway\n\n${nav}\n\nAda Lovelace · Explorer plan`);
+};
 
 /** A screen: the sidebar, a bar with the page title and its actions, then the page. */
-const app = (at: string, title: string, actions: string, page: string) =>
-  block("app", {}, `${side(at)}\n\n${block("bar", {}, `## ${title}\n${actions}`)}\n\n${page}`, 6);
+const app = (at: string, title: string, actions: string, page: string) => {
+  const bar = block("bar", {}, `## ${title}\n${actions}`);
+  return block("app", {}, `${side(at)}\n\n${bar}\n\n${page}`, 6);
+};
 
 const card = (inner: string) => block("card", {}, inner, 4);
 const columns = (left: string, right: string, wide = false) =>
@@ -177,10 +177,10 @@ export const userFlow: ArtifactTemplate = {
   build(s) {
     const shown = SCREENS.slice(0, num(s, "screens"));
     const ids = new Set(shown.map((x) => x.id));
-    const screens = shown.map(
-      (x) =>
-        `{#${x.id} title="${x.title}" frame=window url=${x.url} w=${W} h=${H}}\n${x.body}${x.to && ids.has(x.to[0]) ? `\n-> ${x.to[0]} "${x.to[1]}"` : ""}`,
-    );
+    const screens = shown.map((x) => {
+      const arrow = x.to && ids.has(x.to[0]) ? `\n-> ${x.to[0]} "${x.to[1]}"` : "";
+      return `{#${x.id} title="${x.title}" frame=window url=${x.url} w=${W} h=${H}}\n${x.body}${arrow}`;
+    });
     const notes = flag(s, "notes") && [
       `{#note-search title="Note" frame=note w=360}\nThe last search is filled in. **Six of ten** testers searched the same route twice.`,
       `{#note-pay title="Open question" frame=note w=360}\nShow the seat map on the extras screen, or after payment? Test both next sprint.`,

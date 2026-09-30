@@ -132,7 +132,7 @@ export class RolesMatrix {
   );
 
   constructor() {
-    void this.#load();
+    void this.#load(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
   }
 
   async #load(): Promise<void> {
@@ -188,5 +188,5 @@ export class RolesMatrix {
 }
 
 function sameSet(a: ReadonlySet<Permission> | undefined, b: readonly Permission[]): boolean {
-  return a !== undefined && a.size === b.length && b.every((p) => a.has(p));
+  return a?.size === b.length && b.every((p) => a.has(p));
 }

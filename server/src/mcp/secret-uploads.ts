@@ -5,6 +5,7 @@ import { must } from "@gangway/shared/must";
 import { actorId, type Actor } from "../auth/actor.ts";
 import { AppError, conflict, notFound, unprocessable } from "../errors.ts";
 import { ENV_NAME_RE } from "../secrets/secrets.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 
 const TTL_MS = 10 * 60_000;
 export const MAX_SECRET_UPLOAD_BYTES = 64 * 1024;
@@ -25,12 +26,14 @@ export type SecretUploadIssued = { id: string; url: string; expiresAt: number };
 export function parseDotenv(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
-  for (let i = 0; i < lines.length; i++) {
+  // A while, not a for: a quoted value moves i on to the line it closes on.
+  let i = -1;
+  while (++i < lines.length) {
     const line = must(lines[i], "a line").trim();
     if (line === "" || line.startsWith("#")) {
       continue;
     }
-    const m = /^(?:export\s+)?([^=\s]+)\s*=\s*(.*)$/.exec(line);
+    const m = /^(?:export\s+)?([^=\s]+)\s*=\s*(\S.*)?$/.exec(line);
     if (!m) {
       throw unprocessable(`line ${i + 1} is not NAME=value`);
     }
@@ -38,29 +41,43 @@ export function parseDotenv(text: string): Record<string, string> {
     if (!ENV_NAME_RE.test(name)) {
       throw unprocessable(`line ${i + 1}: "${name}" is not a valid environment variable name`);
     }
-    let value = must(m[2], "a value");
+    const value = m[2] ?? "";
     const q = value[0];
     if (q === '"' || q === "'") {
       // A quoted value may run over several lines, up to its closing quote.
-      let body = value.slice(1);
-      while (!endsQuoted(body, q) && i + 1 < lines.length) {
-        body += `\n${lines[++i]}`;
-      }
-      if (!endsQuoted(body, q)) {
-        throw unprocessable(`line ${i + 1}: the ${q} quote is not closed`);
-      }
-      body = body.replace(/\s*$/, "").slice(0, -1);
-      value = q === '"' ? body.replace(/\\(["\\nrt$])/g, (_, c: string) => ESCAPES[c] ?? c) : body;
+      const quoted = readQuoted(lines, i, value.slice(1), q);
+      i = quoted.last;
+      out[name] = quoted.value;
     } else {
-      value = value.replace(/\s+#.*$/, "").trim();
+      out[name] = value.replace(/\s#.*$/, "").trim();
     }
-    out[name] = value;
   }
   return out;
 }
 
+/** The value after an opening quote on lines[i], up to its closing quote; and the line it ends on. */
+function readQuoted(
+  lines: string[],
+  i: number,
+  first: string,
+  q: string,
+): { value: string; last: number } {
+  let body = first;
+  let last = i;
+  while (!endsQuoted(body, q) && last + 1 < lines.length) {
+    body += `\n${lines[++last]}`;
+  }
+  if (!endsQuoted(body, q)) {
+    throw unprocessable(`line ${last + 1}: the ${q} quote is not closed`);
+  }
+  body = body.trimEnd().slice(0, -1);
+  const value =
+    q === '"' ? body.replace(/\\(["\\nrt$])/g, (_, c: string) => ESCAPES[c] ?? c) : body;
+  return { value, last };
+}
+
 function endsQuoted(body: string, q: string): boolean {
-  const t = body.replace(/\s*$/, "");
+  const t = body.trimEnd();
   if (!t.endsWith(q)) {
     return false;
   }
@@ -135,7 +152,7 @@ export class SecretUploads {
       throw unprocessable("the file holds no NAME=value lines");
     }
     slot.values = values;
-    return Object.keys(values).sort();
+    return Object.keys(values).sort(compareCodeUnits);
   }
 
   /** The values, once: the slot is gone after this. */

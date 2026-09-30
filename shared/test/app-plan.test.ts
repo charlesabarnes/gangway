@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readJson } from "../src/plan/project-files.ts";
 import {
   cmdText,
   planApp,
@@ -366,4 +367,12 @@ test("parseGangwayFile accepts empty, refuses a non-mapping, and bounds aliases"
 
 test("the detection data the UI gets still starts with own", () => {
   expect(DETECTION[0]!.runtime).toBe("own");
+});
+
+describe("readJson", () => {
+  test("drops a .jsonc comment line even behind a byte-order mark", () => {
+    const reasons: Parameters<typeof readJson>[2] = [];
+    expect(readJson("\uFEFF// config\n{}", "deno.jsonc", reasons)).toEqual({});
+    expect(reasons).toEqual([]);
+  });
 });

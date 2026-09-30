@@ -21,7 +21,7 @@ describe("what registration accepts", () => {
   test("loopback http, https and app schemes; the name is cleaned", () => {
     expect(
       parseRegistration({
-        client_name: "  omp‮ agent ",
+        client_name: "  omp\u202E agent ",
         redirect_uris: [
           "http://localhost:3000/callback",
           "https://example.com/cb",

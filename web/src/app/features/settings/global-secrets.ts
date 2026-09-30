@@ -40,7 +40,7 @@ export class GlobalSecrets {
   protected readonly loaded = signal(false);
 
   constructor() {
-    void this.#load();
+    void this.#load(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
   }
 
   async #load(): Promise<void> {

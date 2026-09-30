@@ -96,7 +96,8 @@ export function setSecrets(d: ToolDeps, actor: Actor, args: SecretsArgs): string
   const deps = changeDeps(d);
   if (Object.keys(change).length === 0) {
     const names = listSecrets(deps, actor, target);
-    return `${names.length} secret${names.length === 1 ? "" : "s"} at ${where(target)}${names.length ? ":" : "."}${names.map((s) => `\n  ${s.name} (${s.level})`).join("")}\nValues are never shown.`;
+    const listed = names.map((s) => `\n  ${s.name} (${s.level})`).join("");
+    return `${names.length} secret${names.length === 1 ? "" : "s"} at ${where(target)}${names.length ? ":" : "."}${listed}\nValues are never shown.`;
   }
   const out = changeSecrets(deps, actor, target, change);
   const rebuild =
@@ -105,5 +106,7 @@ export function setSecrets(d: ToolDeps, actor: Actor, args: SecretsArgs): string
     mayRebuild(actor, target.provenance)
       ? `\nTo apply it now: deploy with preview: "${target.name}" and secrets: {} (or any change).`
       : "";
-  return `${out.secrets.length} secret${out.secrets.length === 1 ? "" : "s"} at ${where(target)}:${out.secrets.map((s) => `\n  ${s.name}${target.kind === "preview" ? "" : ` (${s.level})`}`).join("")}\n${out.appliesTo}.${rebuild}`;
+  const levelOf = (s: { level: string }) => (target.kind === "preview" ? "" : ` (${s.level})`);
+  const listed = out.secrets.map((s) => `\n  ${s.name}${levelOf(s)}`).join("");
+  return `${out.secrets.length} secret${out.secrets.length === 1 ? "" : "s"} at ${where(target)}:${listed}\n${out.appliesTo}.${rebuild}`;
 }

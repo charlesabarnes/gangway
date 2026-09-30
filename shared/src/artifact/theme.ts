@@ -200,17 +200,29 @@ export const HOUSE: Theme = {
   logo: null,
 };
 
+const SVG_STRIP = [
+  /<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi,
+  /<\/?(script|foreignObject|iframe|object|embed|style)\b[^>]*>/gi,
+  /[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
+  /\s(href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>"']+)/gi,
+];
+
 /** Keeps shapes, paths and text; drops scripts, event handlers, links out and foreign content. */
 export function cleanSvg(svg: string): string | null {
   const s = svg.trim();
   if (!/^<svg[\s>]/i.test(s) || !/<\/svg>\s*$/i.test(s)) {
     return null;
   }
-  return s
-    .replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "")
-    .replace(/<(script|foreignObject|iframe|object|embed)\b[^>]*\/?>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/\s(href|xlink:href)\s*=\s*("\s*(?!#)[^"]*"|'\s*(?!#)[^']*')/gi, "");
+  // Until nothing changes, so a removal can't splice a new tag or handler together from its halves.
+  let out = s;
+  for (let prev = ""; out !== prev;) {
+    prev = out;
+    for (const re of SVG_STRIP) {
+      // codeql[js/incomplete-multi-character-sanitization] The outer loop repeats until nothing changes.
+      out = out.replace(re, "");
+    }
+  }
+  return out;
 }
 
 const decls = (m: Partial<Record<ThemeToken, string>>) =>
@@ -323,7 +335,7 @@ export function compileTheme(t: Theme, logoUrl?: string): string {
     (f.titleCase ? TITLE_CASE[f.titleCase] : "") +
     styleDecls(t.style) +
     (t.logo && logoUrl ? `--logo:url("${logoUrl}");--logo-w:120px;--logo-gap:14px;` : "");
-  const lines = [`/* theme: ${t.name.replace(/\*\//g, "")} */`, `:root{${root}}`];
+  const lines = [`/* theme: ${t.name.replaceAll("*", "")} */`, `:root{${root}}`];
   const dark = decls(t.tokens.dark);
   if (dark) {
     lines.push(`:root[data-theme="dark"]{${dark}}`);

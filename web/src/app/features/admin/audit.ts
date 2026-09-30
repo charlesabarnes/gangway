@@ -129,11 +129,13 @@ export class AuditLog {
   protected readonly applied = signal('');
   readonly #emails = signal<ReadonlyMap<string, string>>(new Map());
   readonly #actions = signal<ReadonlySet<string>>(new Set());
-  protected readonly seenActions = computed(() => [...this.#actions()].sort());
+  protected readonly seenActions = computed(() =>
+    [...this.#actions()].sort((a, b) => Number(a > b) - Number(a < b)),
+  );
 
   constructor() {
-    void this.#page();
-    if (this.#auth.can('users.read')) void this.#loadEmails();
+    void this.#page(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
+    if (this.#auth.can('users.read')) void this.#loadEmails(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
   }
 
   async #loadEmails(): Promise<void> {

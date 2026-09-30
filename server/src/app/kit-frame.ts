@@ -13,7 +13,7 @@ const TYPES: Record<string, string> = {
   css: "text/css; charset=utf-8",
 };
 
-const frame = (v: string) => `<!doctype html>
+const frame = (v: string) => String.raw`<!doctype html>
 <html lang="en" data-pref="light"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="/_gangway/kit.css?v=${v}"><style id="gw-theme"></style></head>
@@ -22,7 +22,7 @@ const frame = (v: string) => `<!doctype html>
   var files = {}, real = window.fetch.bind(window), started = false;
   window.fetch = function (u, o) {
     try {
-      var p = new URL(typeof u === "string" ? u : u.url, location.href).pathname.replace(/^\\//, "");
+      var p = new URL(typeof u === "string" ? u : u.url, location.href).pathname.replace(/^\//, "");
       if (Object.prototype.hasOwnProperty.call(files, p)) return Promise.resolve(new Response(files[p]));
     } catch (e) {}
     return real(u, o);

@@ -336,9 +336,6 @@ gw-screen ul.list a > gw-flag {
   flex: none;
   white-space: nowrap;
 }
-gw-prototype:is([look="app"], [look="wireframe"]) ul.list .gw-row > strong {
-  display: block;
-}
 gw-prototype:is([look="app"], [look="wireframe"]) ul.list .gw-sep {
   display: none;
 }
@@ -350,6 +347,7 @@ gw-prototype[look="wireframe"] ul.list .gw-row {
   color: color-mix(in srgb, var(--wf-ink) 65%, var(--wf-paper));
 }
 gw-prototype:is([look="app"], [look="wireframe"]) ul.list .gw-row > strong {
+  display: block;
   font-size: 16px;
   color: var(--ink);
 }

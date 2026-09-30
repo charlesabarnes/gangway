@@ -186,7 +186,7 @@ export class QuickTunnels implements ShareProvider {
 }
 
 function failure(what: string, tail: string[]): Error {
-  const last = tail.filter((l) => /\bERR\b|error/i.test(l)).at(-1) ?? tail.at(-1);
+  const last = tail.findLast((l) => /\bERR\b|error/i.test(l)) ?? tail.at(-1);
   return new Error(last ? `${what}: ${last.trim()}` : what);
 }
 
@@ -217,5 +217,6 @@ async function readLines(stream: ReadableStream<Uint8Array>, onLine: (line: stri
 
 export function listenerOrigin(address: string, port: number): string {
   const host = address === "::" || address === "0.0.0.0" || address === "" ? "127.0.0.1" : address;
-  return `https://${host.includes(":") ? `[${host}]` : host}:${port}`;
+  const bracketed = host.includes(":") ? `[${host}]` : host;
+  return `https://${bracketed}:${port}`;
 }

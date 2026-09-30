@@ -193,7 +193,8 @@ function startDemo(demo) {
       s.hidden = k !== which;
       s.scrollTop = 0;
     }
-    el.url.textContent = `gangway.sh${ADDRESS[which] ?? `/previews/${p.host.split(".")[0]}`}`;
+    const address = ADDRESS[which] ?? `/previews/${p.host.split(".")[0]}`;
+    el.url.textContent = `gangway.sh${address}`;
     el.tabTitle.textContent = TITLE[which];
     if (which !== "detail") return;
     el.dIcon.style.setProperty("--c", p.color);
@@ -231,7 +232,7 @@ function startDemo(demo) {
     if (jump) el.cursor.style.transition = "none";
     el.cursor.style.transform = `translate(${x}px, ${y}px)`;
     if (jump) {
-      void el.cursor.offsetWidth;
+      void el.cursor.offsetWidth; // NOSONAR forces a reflow so the animation restarts
       el.cursor.style.transition = "";
     }
     el.cursor.classList.add("is-on");
@@ -240,7 +241,7 @@ function startDemo(demo) {
     const v = el.view.getBoundingClientRect();
     el.cursor.style.transition = "none";
     el.cursor.style.transform = `translate(${v.width - 40}px, ${v.height - 30}px)`;
-    void el.cursor.offsetWidth;
+    void el.cursor.offsetWidth; // NOSONAR forces a reflow so the animation restarts
     el.cursor.style.transition = "";
   }
   // Scrolls the New preview page until `target` is in view, the way a person would.
@@ -402,7 +403,7 @@ function startDemo(demo) {
 
     scene("same URL, new version");
     el.site.classList.remove("is-fresh");
-    void el.site.offsetWidth; // restart the fade on the new slide
+    void el.site.offsetWidth; // NOSONAR forces a reflow so the animation restarts
     el.site.classList.add("is-fresh");
     el.slideTitle.textContent = "EMEA led the quarter.";
     el.slideFig.textContent = "+31%";
@@ -416,7 +417,8 @@ function startDemo(demo) {
     chapter = from;
     try {
       if (still) return await PLAY[from](mine);
-      for (;;) {
+      // A newer play() bumps run; its waits then throw STOP, and this loop ends.
+      for (let current = true; current; current = mine === run) {
         await PLAY[chapter](mine);
         chapter = CHAPTERS[(CHAPTERS.indexOf(chapter) + 1) % CHAPTERS.length];
       }

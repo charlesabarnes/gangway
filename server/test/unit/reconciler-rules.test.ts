@@ -17,7 +17,7 @@ describe("a quiet pass", () => {
       { hostId: "local", reachable: true, error: null, containers: 1 },
     ]);
     expect(report.actions.map((a) => a.kind === "LeaveAlone" && a.reason)).toEqual(["in-sync"]);
-    expect(s.eventTypes().length).toBe(before);
+    expect(s.eventTypes()).toHaveLength(before);
     expect(s.hosts.get("local")!.state).toBe("ready");
   });
 
@@ -25,7 +25,7 @@ describe("a quiet pass", () => {
     const s = setupReconciler();
     const [a, b] = await Promise.all([s.reconciler.run(), s.reconciler.run()]);
     expect(a).toBe(b);
-    expect(s.daemon.lists.length).toBe(1);
+    expect(s.daemon.lists).toHaveLength(1);
   });
 });
 

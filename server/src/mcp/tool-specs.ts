@@ -56,7 +56,7 @@ export function jsonObject(v: unknown): unknown {
   }
 }
 
-export const SecretName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name");
+export const SecretName = z.string().regex(/^[A-Za-z_]\w*$/, "not a valid variable name");
 export const SecretLevel = z.enum(["low", "standard", "high"]);
 
 export const DeployArgs = z.object({

@@ -34,9 +34,11 @@ export function toProblem(e: unknown): ProblemError {
   const body: Record<string, unknown> =
     e.error !== null && typeof e.error === 'object' ? (e.error as Record<string, unknown>) : {};
   const header = Number(e.headers.get('retry-after'));
-  const fromBody = typeof body['retryAfter'] === 'number' ? (body['retryAfter'] as number) : NaN;
-  const retryAfter =
-    Number.isFinite(header) && header > 0 ? header : Number.isFinite(fromBody) ? fromBody : null;
+  const fromBody =
+    typeof body['retryAfter'] === 'number' ? (body['retryAfter'] as number) : Number.NaN;
+  let retryAfter: number | null = null;
+  if (Number.isFinite(header) && header > 0) retryAfter = header;
+  else if (Number.isFinite(fromBody)) retryAfter = fromBody;
   const issues = Array.isArray(body['issues'])
     ? (body['issues'] as unknown[]).flatMap((i) =>
         i !== null && typeof i === 'object'

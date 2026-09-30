@@ -78,7 +78,7 @@ describe("/v1/surfaces", () => {
     const { put, s } = await make();
     const before = s.auditRepo.page({ limit: 200 }).entries.length;
     expect((await put({ ui: true, mcp: false })).status).toBe(200);
-    expect(s.auditRepo.page({ limit: 200 }).entries.length).toBe(before);
+    expect(s.auditRepo.page({ limit: 200 }).entries).toHaveLength(before);
   });
 
   test("the UI stays on without the phrase, and without a live admin token", async () => {

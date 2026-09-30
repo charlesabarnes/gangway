@@ -184,13 +184,13 @@ compatibility_date = "2026-09-01"
     port: 8000,
     entries: ["main.py", "app.py", "server.py"],
     starter: {
-      "main.py": `import os
+      "main.py": String.raw`import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        body = f"Hello from Python! You asked for {self.path}\\n".encode()
+        body = f"Hello from Python! You asked for {self.path}\n".encode()
         self.send_response(200)
         self.send_header("content-type", "text/plain; charset=utf-8")
         self.send_header("content-length", str(len(body)))
@@ -214,9 +214,9 @@ HTTPServer(("0.0.0.0", port), Handler).serve_forever()
     port: 80,
     entries: [],
     starter: {
-      "index.php": `<?php
+      "index.php": String.raw`<?php
 header('content-type: text/plain; charset=utf-8');
-echo "Hello from PHP " . PHP_VERSION . "! You asked for " . $_SERVER['REQUEST_URI'] . "\\n";
+echo "Hello from PHP " . PHP_VERSION . "! You asked for " . $_SERVER['REQUEST_URI'] . "\n";
 `,
     },
   },

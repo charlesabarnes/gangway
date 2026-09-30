@@ -62,8 +62,8 @@ export function rowsQuery(
 ): string {
   const q =
     addon === "postgres"
-      ? (s: string) => `"${s.replace(/"/g, '""')}"`
-      : (s: string) => `\`${s.replace(/`/g, "``")}\``;
+      ? (s: string) => `"${s.replaceAll('"', '""')}"`
+      : (s: string) => `\`${s.replaceAll("`", "``")}\``;
   return `select * from ${q(t.schema)}.${q(t.name)} limit ${Math.trunc(limit)} offset ${Math.trunc(offset)}`;
 }
 

@@ -16,7 +16,7 @@ function weighted<T extends string>(w: Weighted<T>, rng: Rng): T {
   const entries = Object.entries(w) as [T, number][];
   let at = rng() * entries.reduce((s, [, n]) => s + n, 0);
   for (const [k, n] of entries) if ((at -= n) < 0) return k;
-  return entries[entries.length - 1]![0];
+  return entries.at(-1)![0];
 }
 
 const keys = (slot: keyof typeof FONTS) => Object.keys(FONTS[slot]);

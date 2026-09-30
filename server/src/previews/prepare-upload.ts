@@ -148,11 +148,8 @@ export async function prepareUpload(
   assertRunnable(plan);
   checkArtifact(ctx, plan);
   for (const r of plan.reasons) {
-    ctx.logs.append(
-      logId,
-      "system",
-      `plan: ${r.level === "info" ? "" : `${r.level}: `}${r.found} -> ${r.then}`,
-    );
+    const level = r.level === "info" ? "" : `${r.level}: `;
+    ctx.logs.append(logId, "system", `plan: ${level}${r.found} -> ${r.then}`);
   }
   const sidecars = renderSidecars(ctx, logId, plan, env);
   if (plan.kind === "own") {

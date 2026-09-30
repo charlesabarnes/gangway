@@ -69,9 +69,8 @@ export class Pulls {
         );
       }
       if (actor.pull !== number) {
-        throw forbidden(
-          `this run is for ${actor.pull === null ? "no pull request" : `#${actor.pull}`}, not #${number}`,
-        );
+        const run = actor.pull === null ? "no pull request" : `#${actor.pull}`;
+        throw forbidden(`this run is for ${run}, not #${number}`);
       }
     }
     return project;
@@ -85,9 +84,8 @@ export class Pulls {
   ): Promise<PullOutcome> {
     const project = this.authorize(ref, number, actor);
     if (!project.enabled) {
-      throw conflict(
-        `project "${project.slug}" is disabled${project.disabledReason ? `: ${project.disabledReason}` : ""}`,
-      );
+      const reason = project.disabledReason ? `: ${project.disabledReason}` : "";
+      throw conflict(`project "${project.slug}" is disabled${reason}`);
     }
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);

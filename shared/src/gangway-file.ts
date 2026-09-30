@@ -12,10 +12,19 @@ export const isRelPath = (p: string): boolean =>
   p.length <= 200 &&
   REL_PATH_RE.test(p) &&
   !p.split("/").some((s) => s === "" || s === "." || s === "..");
+
+function withoutTrailingSlashes(p: string): string {
+  let end = p.length;
+  while (p.endsWith("/", end)) {
+    end--;
+  }
+  return p.slice(0, end);
+}
+
 const relPath = z
   .string()
   .trim()
-  .transform((p) => p.replace(/\/+$/, ""))
+  .transform(withoutTrailingSlashes)
   .pipe(
     z
       .string()
@@ -35,7 +44,7 @@ const command = z.union([
 ]);
 export type Command = z.infer<typeof command>;
 
-const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const ENV_NAME_RE = /^[A-Za-z_]\w*$/;
 const duration = (what: string) =>
   z.string().refine((s) => parseDuration(s) !== null, `expected a duration like ${what}`);
 

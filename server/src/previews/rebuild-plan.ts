@@ -17,6 +17,7 @@ import { extractTarball } from "./source/tarball.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { servable, servesHere, siteModel } from "./site.ts";
 import { readModel, type Planned } from "./stack-file.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 
 type TarballPreviewSource = Extract<PreviewSource, { kind: "tarball" }>;
 
@@ -52,8 +53,8 @@ function assertSameExposure(routes: PlannedRoute[], model: ComposeModel): void {
     throw unprocessable(
       "the new source exposes different services or ports than this preview; deploy it as a new preview instead",
       {
-        expected: [...want].sort(),
-        got: [...got].sort(),
+        expected: [...want].sort(compareCodeUnits),
+        got: [...got].sort(compareCodeUnits),
       },
     );
   }

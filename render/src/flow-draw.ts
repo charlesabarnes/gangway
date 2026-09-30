@@ -76,7 +76,7 @@ export function wrap(label: string): Line[] {
     const kind = kindOf(raw, i);
     const { font, max } = LOOK[kind];
     let cur = "";
-    for (const word of raw.replace(/`/g, "").split(/\s+/).filter(Boolean)) {
+    for (const word of raw.replaceAll("`", "").split(/\s+/).filter(Boolean)) {
       const next = cur ? `${cur} ${word}` : word;
       if (cur && measure(next, font) > max) {
         out.push({ text: cur, kind });
@@ -91,7 +91,7 @@ export function wrap(label: string): Line[] {
 }
 
 /** A label as one line of plain words, for a note or a screen reader. */
-export const plain = (label: string) => label.replace(/`/g, "").replace(/\n/g, ", ");
+export const plain = (label: string) => label.replaceAll("`", "").replaceAll("\n", ", ");
 
 export function svg<K extends keyof SVGElementTagNameMap>(
   name: K,
@@ -187,8 +187,11 @@ function text(
   }
 }
 
+/** The class that colours a shape by its tone, with a leading space; empty when it has none. */
+const toneClass = (tone: string | null | undefined) => (tone ? ` tone-${tone}` : "");
+
 function group(x: PlacedGroup, parent: SVGGElement): void {
-  const g = svg("g", { class: `group${x.tone ? ` tone-${x.tone}` : ""}`, "data-id": x.id }, parent);
+  const g = svg("g", { class: `group${toneClass(x.tone)}`, "data-id": x.id }, parent);
   svg("rect", { x: x.x, y: x.y, width: x.w, height: x.h, rx: RADIUS || 4, class: "gshape" }, g);
   const t = svg("text", { x: x.x + 12, y: x.y + GROUP_HEAD / 2 + 1, class: "glabel" }, g);
   t.textContent = x.label.toUpperCase();
@@ -233,7 +236,7 @@ function arrowheads(defs: SVGElement, id: string): (tone: string | null) => stri
       },
       defs,
     );
-    svg("path", { d: "M0,0 L10,5 L0,10 z", class: `arrowhead${tone ? ` tone-${tone}` : ""}` }, m);
+    svg("path", { d: "M0,0 L10,5 L0,10 z", class: `arrowhead${toneClass(tone)}` }, m);
     heads.set(key, ref);
     return ref;
   };
@@ -244,6 +247,39 @@ function nodeRole(n: PlacedNode, acts: boolean): string {
     return "link";
   }
   return acts ? "button" : "img";
+}
+
+/** One edge: its line, its arrowheads and its label. */
+function edge(
+  e: PlacedEdge,
+  tone: string | null,
+  head: (tone: string | null) => string,
+  parent: SVGGElement,
+): Drawn["edges"][number] {
+  const g = svg(
+    "g",
+    { class: `edge ${e.style}${e.back ? " back" : ""}${toneClass(tone)}` },
+    parent,
+  );
+  g.style.setProperty("--d", `${e.rank * 140 + 120}ms`);
+  const path = svg("path", { d: pathD(e), class: "line", fill: "none" }, g);
+  if (e.style !== "dotted") {
+    path.setAttribute("pathLength", "1");
+  }
+  if (e.arrow !== "none") {
+    path.setAttribute("marker-end", `url(#${head(tone)})`);
+  }
+  if (e.arrow === "both") {
+    path.setAttribute("marker-start", `url(#${head(tone)})`);
+  }
+  if (e.label) {
+    const lg = svg("g", { class: "elabel" }, g);
+    const w = edgeLabelWidth(e.label) + 10;
+    svg("rect", { x: e.labelAt[0] - w / 2, y: e.labelAt[1] - 10, width: w, height: 20 }, lg);
+    const t = svg("text", { x: e.labelAt[0], y: e.labelAt[1] }, lg);
+    t.textContent = e.label;
+  }
+  return { e, g, path };
 }
 
 export function draw(
@@ -271,31 +307,7 @@ export function draw(
   const edges: Drawn["edges"] = [];
   const edgeLayer = svg("g", { class: "edges" }, s);
   for (const e of layout.edges) {
-    const tone = edgeTone(graph, e);
-    const g = svg(
-      "g",
-      { class: `edge ${e.style}${e.back ? " back" : ""}${tone ? ` tone-${tone}` : ""}` },
-      edgeLayer,
-    );
-    g.style.setProperty("--d", `${e.rank * 140 + 120}ms`);
-    const path = svg("path", { d: pathD(e), class: "line", fill: "none" }, g);
-    if (e.style !== "dotted") {
-      path.setAttribute("pathLength", "1");
-    }
-    if (e.arrow !== "none") {
-      path.setAttribute("marker-end", `url(#${head(tone)})`);
-    }
-    if (e.arrow === "both") {
-      path.setAttribute("marker-start", `url(#${head(tone)})`);
-    }
-    if (e.label) {
-      const lg = svg("g", { class: "elabel" }, g);
-      const w = edgeLabelWidth(e.label) + 10;
-      svg("rect", { x: e.labelAt[0] - w / 2, y: e.labelAt[1] - 10, width: w, height: 20 }, lg);
-      const t = svg("text", { x: e.labelAt[0], y: e.labelAt[1] }, lg);
-      t.textContent = e.label;
-    }
-    edges.push({ e, g, path });
+    edges.push(edge(e, edgeTone(graph, e), head, edgeLayer));
   }
 
   const nodes = new Map<string, SVGGElement>();
@@ -305,10 +317,10 @@ export function draw(
     const g = svg(
       "g",
       {
-        class: `node ${n.shape}${n.tone ? ` tone-${n.tone}` : ""}${acts ? " acts" : ""}`,
+        class: `node ${n.shape}${toneClass(n.tone)}${acts ? " acts" : ""}`,
         tabindex: 0,
         role: nodeRole(n, acts),
-        "aria-label": `${plain(n.label)}${n.note ? `. ${n.note}` : ""}`,
+        "aria-label": n.note ? `${plain(n.label)}. ${n.note}` : plain(n.label),
         "data-id": n.id,
       },
       nodeLayer,

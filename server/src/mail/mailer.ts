@@ -12,12 +12,13 @@ export type MailerDeps = {
 
 // A dead relay must fail a request in seconds, not hang it on the OS's TCP timeout.
 function smtp(url: string): Send {
-  const t = nodemailer.createTransport({
+  const options = {
     url,
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 20_000,
-  });
+  };
+  const t = nodemailer.createTransport(options); // NOSONAR the operator's relay URL; smtps or STARTTLS is theirs to choose
   return async (m) => {
     await t.sendMail(m);
   };

@@ -2,7 +2,7 @@ import { must } from "../must.ts";
 import { GANGWAY_FILES } from "../gangway-file.ts";
 import { DETECTION } from "../runtimes.ts";
 import { readConfig, type ConfigRead } from "./config.ts";
-import type { AppPlan, PlanInput, ReadFile } from "./types.ts";
+import { type AppPlan, type PlanInput, type ReadFile, reason } from "./types.ts";
 
 const APP_MARKERS = new Set([
   ...DETECTION.filter((r) => r.runtime !== "own").flatMap((r) => r.markers),
@@ -31,7 +31,7 @@ export function useExplicitRoot(plan: AppPlan, input: PlanInput, root: string): 
     return false;
   }
   plan.root = root;
-  plan.reasons.push({ level: "info", found: `root: ${root}`, then: `builds ${root}/ as the app` });
+  plan.reasons.push(reason("info", `root: ${root}`, `builds ${root}/ as the app`));
   return true;
 }
 
@@ -41,11 +41,13 @@ export function useNestedRoot(plan: AppPlan, input: PlanInput): ConfigRead | nul
     return null;
   }
   plan.root = nested;
-  plan.reasons.push({
-    level: "info",
-    found: `the app is in ${nested}/`,
-    then: `builds ${nested}/ (set \`root:\` in gangway.yml to choose another)`,
-  });
+  plan.reasons.push(
+    reason(
+      "info",
+      `the app is in ${nested}/`,
+      `builds ${nested}/ (set \`root:\` in gangway.yml to choose another)`,
+    ),
+  );
   return readConfig(plan, input, nested);
 }
 
@@ -65,10 +67,12 @@ export function warnNestedContainerFiles(plan: AppPlan, have: Set<string>): void
     (have.has("Dockerfile") ||
       DETECTION.some((r) => r.runtime === "own" && r.markers.some((m) => have.has(m))))
   ) {
-    plan.reasons.push({
-      level: "warn",
-      found: `${plan.root}/ has a Dockerfile or compose file`,
-      then: "gangway uses those only at the upload's root; building with a runtime instead",
-    });
+    plan.reasons.push(
+      reason(
+        "warn",
+        `${plan.root}/ has a Dockerfile or compose file`,
+        "gangway uses those only at the upload's root; building with a runtime instead",
+      ),
+    );
   }
 }

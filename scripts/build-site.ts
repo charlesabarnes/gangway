@@ -1,12 +1,33 @@
 // Copies site/ to dist/site with a content hash on every local CSS and JS link, because Pages lets
 // browsers cache for ten minutes and a visitor could otherwise get new HTML with old CSS and JS.
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dir, "..");
 const SRC = path.join(ROOT, "site");
 const OUT = path.resolve(ROOT, process.argv[2] ?? "dist/site");
+let existing = path.dirname(OUT);
+while (!existsSync(existing)) {
+  existing = path.dirname(existing);
+}
+const inside = (p: string) => p.startsWith(realpathSync(ROOT) + path.sep);
+if (
+  !OUT.startsWith(ROOT + path.sep) ||
+  !inside(realpathSync(existing) + path.sep) ||
+  OUT === SRC ||
+  SRC.startsWith(OUT + path.sep)
+) {
+  throw new Error(`the output folder must be inside ${ROOT} and outside site/: ${OUT}`);
+}
 const ASSET = /\b(href|src)="((?:css|js)\/[^"?#]+)"/g;
 
 const hashes = new Map<string, string>();

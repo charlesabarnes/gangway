@@ -43,10 +43,10 @@
       <div class="ml-auto flex items-center gap-[18px] text-sm">
         @switch (health()?.status) {
           @case ('draining') {
-            <span class="text-flag" role="status" data-testid="health">shutting down</span>
+            <output class="text-flag" data-testid="health">shutting down</output>
           }
           @case ('unreachable') {
-            <span class="text-danger" role="status" data-testid="health">server unreachable</span>
+            <output class="text-danger" data-testid="health">server unreachable</output>
           }
         }
         @if (auth.user(); as user) {

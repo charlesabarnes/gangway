@@ -40,9 +40,10 @@ export class Prototype extends HTMLElement {
     for (const s of screens) {
       const back = s.getAttribute("back");
       if (s.hasAttribute("title")) {
+        const backLink = back ? `<a href="#${esc(back)}" aria-label="Back">←</a>` : "<span></span>";
         s.insertAdjacentHTML(
           "afterbegin",
-          `<header>${back ? `<a href="#${esc(back)}" aria-label="Back">←</a>` : "<span></span>"}<span class="gw-caps">${esc(s.getAttribute("title") ?? "")}</span><span></span></header>`,
+          `<header>${backLink}<span class="gw-caps">${esc(s.getAttribute("title") ?? "")}</span><span></span></header>`,
         );
       }
       for (const n of templated(s)) {

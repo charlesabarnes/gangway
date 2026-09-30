@@ -1,5 +1,5 @@
 import { isRelPath } from "../gangway-file.ts";
-import type { Reason } from "./types.ts";
+import { reason, type Reason } from "./types.ts";
 
 export type Json = Record<string, unknown>;
 
@@ -8,16 +8,16 @@ export function readJson(text: string | undefined, name: string, reasons: Reason
     return null;
   }
   try {
-    const v = JSON.parse(name.endsWith("c") ? text.replace(/^\s*\/\/.*$/gm, "") : text) as unknown;
+    const v = JSON.parse(
+      name.endsWith("c") ? text.replace(/^[ \t\uFEFF]*\/\/.*$/gm, "") : text,
+    ) as unknown;
     if (v && typeof v === "object" && !Array.isArray(v)) {
       return v as Json;
     }
   } catch {}
-  reasons.push({
-    level: "error",
-    found: `${name} is not valid JSON`,
-    then: "fix it, or the install step would fail anyway",
-  });
+  reasons.push(
+    reason("error", `${name} is not valid JSON`, "fix it, or the install step would fail anyway"),
+  );
   return null;
 }
 

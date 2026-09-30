@@ -93,6 +93,6 @@ describe("the MCP asks for a title and an icon", () => {
       files: { "index.html": "<h1>hi</h1>" },
       iconColor: "red",
     });
-    expect(call).rejects.toThrow("iconColor goes with icon");
+    await expect(call).rejects.toThrow("iconColor goes with icon");
   });
 });

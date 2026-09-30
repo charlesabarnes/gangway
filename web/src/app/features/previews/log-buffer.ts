@@ -27,7 +27,7 @@ export class LogBuffer {
       .filter((l) => l.n > this.#last)
       .map((l) => ({ ...l, line: stripAnsi(l.line) }));
     if (fresh.length === 0) return false;
-    this.#last = fresh[fresh.length - 1]!.n;
+    this.#last = fresh.at(-1)!.n;
     const all = this.#lines.concat(fresh);
     const over = all.length - this.#max;
     if (over > 0) this.#dropped += over;

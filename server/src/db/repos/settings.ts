@@ -34,7 +34,8 @@ export class SqliteSettingsStore implements SettingsStore {
         rows.set(r.key, JSON.parse(r.value_json));
       } catch {}
     }
-    return (this.#rows = rows);
+    this.#rows = rows;
+    return rows;
   }
 
   #changed(): void {

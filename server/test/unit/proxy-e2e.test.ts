@@ -34,6 +34,7 @@ function raw(opts: {
           host: "127.0.0.1",
           port: listener!.port,
           servername: opts.host,
+          // codeql[js/disabling-certificate-validation] The test talks to its own listener with a throwaway certificate.
           rejectUnauthorized: false,
         },
         () => {
@@ -296,6 +297,7 @@ describe("TLS", () => {
   test("SNI presents the wildcard certificate", async () => {
     const serial = await new Promise<string>((res, rej) => {
       const s = tls.connect(
+        // codeql[js/disabling-certificate-validation] The test talks to its own listener with a throwaway certificate.
         { host: "127.0.0.1", port: listener!.port, servername: PREVIEW, rejectUnauthorized: false },
         () => {
           const c = s.getPeerCertificate();
@@ -330,6 +332,7 @@ describe("TLS", () => {
             host: "127.0.0.1",
             port: listener!.port,
             servername: PREVIEW,
+            // codeql[js/disabling-certificate-validation] The test talks to its own listener with a throwaway certificate.
             rejectUnauthorized: false,
           },
           () => {

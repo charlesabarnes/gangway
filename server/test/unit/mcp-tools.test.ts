@@ -57,7 +57,7 @@ describe("the tools", () => {
       preview: "same",
       artifact: { template: "deck/pitch", title: "Renamed" },
     });
-    expect(again).toStartWith(first.split("\n")[0]!.replace("ready: ", "ready: ").trim());
+    expect(again).toStartWith(first.split("\n")[0]!.trim());
     expect(again).toContain("(rebuilt)");
   });
 
@@ -121,7 +121,7 @@ describe("the tools", () => {
     const again = await s.tools.deploy(s.scope(), args);
     expect(first).toStartWith("ready:");
     expect(again).toContain("the same preview an earlier identical call made");
-    expect(s.ctx.previews.list({}).length).toBe(1);
+    expect(s.ctx.previews.list({})).toHaveLength(1);
     await expect(
       s.tools.deploy(s.scope(), { ...args, files: { "index.html": "b" } }),
     ).rejects.toMatchObject({ code: "conflict" });
@@ -186,7 +186,7 @@ describe("the tools", () => {
   ])("refuses %s before anything starts", async (_what, args, why) => {
     const s = setupTools();
     await expect(s.tools.deploy(s.scope(), args as never)).rejects.toThrow(why);
-    expect(s.ctx.previews.list({}).length).toBe(0);
+    expect(s.ctx.previews.list({})).toHaveLength(0);
   });
 
   test("preview + files rebuilds at the same URL and needs previews.update", async () => {

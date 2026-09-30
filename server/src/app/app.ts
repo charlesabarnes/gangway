@@ -51,7 +51,7 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
   app.get("/healthz", (c) =>
     d.draining?.()
       ? c.json({ ok: false, draining: true }, 503)
-      : c.json({ ok: true, ...(d.health?.() ?? {}) }),
+      : c.json({ ok: true, ...d.health?.() }),
   );
 
   app.use(async (c, next) => {

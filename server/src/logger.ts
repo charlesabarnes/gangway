@@ -6,8 +6,8 @@ const ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 
 const SECRET_PATTERNS: RegExp[] = [
   /gw_[A-Za-z0-9_-]{16,}/g, // our own API tokens
   /gh[pousr]_[A-Za-z0-9]{20,}/g, // GitHub PAT / OAuth / installation tokens
-  /github_pat_[A-Za-z0-9_]{20,}/g,
-  /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/gi,
+  /github_pat_\w{20,}/g,
+  /\bBearer\s+[\w.~+/-]{16,}=*/gi,
   /\b[A-Za-z0-9._-]+:[^@\s/]{6,}@/g, // credentials embedded in a URL
   /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g,
 ];
@@ -60,14 +60,7 @@ export function redact(value: unknown, depth = 0): unknown {
     return Number.isNaN(value.getTime()) ? null : value.toISOString();
   }
   if (value instanceof Error) {
-    const extra = value as Error & { code?: unknown; detail?: unknown };
-    return {
-      name: value.name,
-      message: redactString(value.message),
-      stack: value.stack ? redactString(value.stack) : undefined,
-      ...(extra.code !== undefined ? { code: extra.code } : {}),
-      ...(extra.detail !== undefined ? { detail: redact(extra.detail, depth + 1) } : {}),
-    };
+    return redactError(value, depth);
   }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
@@ -76,13 +69,24 @@ export function redact(value: unknown, depth = 0): unknown {
   return out;
 }
 
+function redactError(value: Error, depth: number): Record<string, unknown> {
+  const extra = value as Error & { code?: unknown; detail?: unknown };
+  return {
+    name: value.name,
+    message: redactString(value.message),
+    stack: value.stack ? redactString(value.stack) : undefined,
+    ...(extra.code !== undefined ? { code: extra.code } : {}),
+    ...(extra.detail !== undefined ? { detail: redact(extra.detail, depth + 1) } : {}),
+  };
+}
+
 export type LogFields = Record<string, unknown>;
 export type Sink = (line: string) => void;
 
 export class Logger {
-  #level: LogLevel;
-  #base: LogFields;
-  #sink: Sink;
+  readonly #level: LogLevel;
+  readonly #base: LogFields;
+  readonly #sink: Sink;
 
   constructor(
     level: LogLevel = "info",

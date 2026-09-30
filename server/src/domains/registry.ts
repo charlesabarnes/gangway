@@ -6,6 +6,7 @@ import { unprocessable } from "../errors.ts";
 import { SETTINGS, type Settings } from "../settings.ts";
 import type { CertUnit } from "../tls/types.ts";
 import { challengeTarget } from "./claims.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 
 export type RegistryDeps = {
   settings: Settings;
@@ -116,7 +117,7 @@ export class DomainRegistry {
         out.push(host);
       }
     }
-    return out.sort();
+    return out.sort(compareCodeUnits);
   }
 
   rows(): readonly Domain[] {
@@ -187,6 +188,13 @@ export class DomainRegistry {
     return () => this.#listeners.delete(fn);
   }
 
+  /** The preview an exact hostname points at: its own, else its project's production preview. */
+  #targetOf(r: Domain): string | null | undefined {
+    return (
+      r.previewId ?? (r.projectId ? this.#d.projects.get(r.projectId)?.productionPreviewId : null)
+    );
+  }
+
   #snapshot(): Snapshot {
     if (this.#snap) {
       return this.#snap;
@@ -208,9 +216,7 @@ export class DomainRegistry {
         }
         continue;
       }
-      const target =
-        r.previewId ??
-        (r.projectId ? this.#d.projects.get(r.projectId)?.productionPreviewId : null);
+      const target = this.#targetOf(r);
       if (target) {
         aliases.set(r.name, target);
       }

@@ -50,6 +50,7 @@ async function start(env: Record<string, string>) {
 
 function handshake(port: number, servername: string, ca: string) {
   return new Promise<boolean>((resolve, reject) => {
+    // codeql[js/disabling-certificate-validation] The test checks socket.authorized itself, against its own CA.
     const socket = connect({ host: "127.0.0.1", port, servername, ca, rejectUnauthorized: false });
     socket.once("secureConnect", () => {
       resolve(socket.authorized);
@@ -80,7 +81,7 @@ test("the UI answers on the control domain and not on the preview domain", async
 });
 
 test("a control domain nested under the preview domain is refused at boot", async () => {
-  expect(
+  await expect(
     start({ GANGWAY_BASE_DOMAIN: `gw.${PREVIEWS}`, GANGWAY_PREVIEW_DOMAIN: PREVIEWS }),
   ).rejects.toThrow(/control domain/);
 });

@@ -1,7 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AppError } from "../errors.ts";
+import { readIfExists } from "../util/fs.ts";
 
 const ALG = "aes-256-gcm";
 
@@ -44,8 +45,9 @@ export class SecretBox {
 
 export function loadOrCreateSecretsKey(stateDir: string): Buffer {
   const file = join(stateDir, "secrets.key");
-  if (existsSync(file)) {
-    const key = Buffer.from(readFileSync(file, "utf8").trim(), "hex");
+  const stored = readIfExists(() => readFileSync(file, "utf8"));
+  if (stored !== null) {
+    const key = Buffer.from(stored.trim(), "hex");
     if (key.length === 32) {
       return key;
     }
@@ -53,6 +55,13 @@ export function loadOrCreateSecretsKey(stateDir: string): Buffer {
   }
   mkdirSync(stateDir, { recursive: true });
   const key = randomBytes(32);
-  writeFileSync(file, key.toString("hex") + "\n", { mode: 0o600 });
+  try {
+    writeFileSync(file, key.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") {
+      return loadOrCreateSecretsKey(stateDir);
+    }
+    throw e;
+  }
   return key;
 }

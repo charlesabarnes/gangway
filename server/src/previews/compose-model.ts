@@ -70,9 +70,8 @@ function parseExtension<T>(schema: z.ZodType<T>, raw: unknown, where: string): T
     return r.data;
   }
   const i = r.error.issues[0];
-  throw unprocessable(
-    `${where}: x-gangway${i?.path.length ? `.${i.path.join(".")}` : ""}: ${i?.message ?? "invalid"}`,
-  );
+  const path = i?.path.length ? `.${i.path.join(".")}` : "";
+  throw unprocessable(`${where}: x-gangway${path}: ${i?.message ?? "invalid"}`);
 }
 
 export function parseComposeModel(
@@ -190,32 +189,25 @@ function confine(svc: Json, cap: PreviewLimits): void {
   setOrDrop(svc, "cpus", cpus);
   setOrDrop(svc, "pids_limit", pids);
 
-  if (Object.keys(limits).length > 0) {
-    resources["limits"] = limits;
-  } else {
-    delete resources["limits"];
-  }
-  if (Object.keys(resources).length > 0) {
-    deploy["resources"] = resources;
-  } else {
-    delete deploy["resources"];
-  }
-  if (Object.keys(deploy).length > 0) {
-    svc["deploy"] = deploy;
-  } else {
-    delete svc["deploy"];
-  }
+  setIfAny(resources, "limits", limits);
+  setIfAny(deploy, "resources", resources);
+  setIfAny(svc, "deploy", deploy);
 
   svc["security_opt"] = ["no-new-privileges:true"];
   const dropped = new Set(arr(svc["cap_drop"]).map((c) => String(c).toUpperCase()));
   svc["cap_drop"] = ["ALL"];
   const kept = dropped.has("ALL") ? [] : KEPT_CAPABILITIES.filter((c) => !dropped.has(c));
-  if (kept.length > 0) {
-    svc["cap_add"] = kept;
-  } else {
-    delete svc["cap_add"];
-  }
+  setIfAny(svc, "cap_add", kept);
 }
+
+// An empty object or list is dropped rather than written.
+const setIfAny = (target: Json, key: string, value: object) => {
+  if (Object.keys(value).length > 0) {
+    target[key] = value;
+  } else {
+    delete target[key];
+  }
+};
 
 /** What an image needs to start as root, fix its files' owners and step down to its own user. */
 export const KEPT_CAPABILITIES = [
@@ -254,7 +246,11 @@ const theirLabels = (labels: unknown) =>
     ),
   );
 
-const withTag = (image: string) => (/@|:[^/]*$/.test(image) ? image : `${image}:latest`);
+// Pinned when it has a digest, or a tag: a colon after the last slash.
+const pinned = (image: string) =>
+  image.includes("@") || image.includes(":", image.lastIndexOf("/") + 1);
+
+const withTag = (image: string) => (pinned(image) ? image : `${image}:latest`);
 
 /** A built image keeps compose's `<project>-<service>` name: `image: app` is every preview's `app`. */
 function namespaceBuiltImages(services: Json, project: string): void {
@@ -276,6 +272,29 @@ function namespaceBuiltImages(services: Json, project: string): void {
       svc["image"] = to;
     }
   }
+}
+
+function stripBuildLabels(svc: Json): void {
+  if (svc["build"] && typeof svc["build"] === "object") {
+    const build = obj(svc["build"]);
+    if (build["labels"] !== undefined) {
+      build["labels"] = theirLabels(build["labels"]);
+    }
+    svc["build"] = build;
+  }
+}
+
+/** Networks or volumes, each labelled as ours and without compose's default `<project>_<key>` name. */
+function ownSection(section: Json, planProject: string, ownership: Record<string, string>): Json {
+  for (const [key, raw] of Object.entries(section)) {
+    const r = obj(raw);
+    if (r["name"] === `${planProject}_${key}`) {
+      delete r["name"];
+    }
+    r["labels"] = { ...theirLabels(r["labels"]), ...ownership };
+    section[key] = r;
+  }
+  return section;
 }
 
 export function buildStack(i: StackInput): string {
@@ -302,13 +321,7 @@ export function buildStack(i: StackInput): string {
       ? buildLabels(labelsFromRoute({ ...route, createdAt: i.createdAt }, i.ctx))
       : ownership;
     svc["labels"] = { ...theirLabels(svc["labels"]), ...mine };
-    if (svc["build"] && typeof svc["build"] === "object") {
-      const build = obj(svc["build"]);
-      if (build["labels"] !== undefined) {
-        build["labels"] = theirLabels(build["labels"]);
-      }
-      svc["build"] = build;
-    }
+    stripBuildLabels(svc);
 
     if (route) {
       svc["ports"] = [
@@ -338,15 +351,7 @@ export function buildStack(i: StackInput): string {
   namespaceBuiltImages(services, i.ctx.project);
 
   for (const kind of ["networks", "volumes"] as const) {
-    const section = obj(doc[kind]);
-    for (const [key, raw] of Object.entries(section)) {
-      const r = obj(raw);
-      if (r["name"] === `${i.planProject}_${key}`) {
-        delete r["name"];
-      }
-      r["labels"] = { ...theirLabels(r["labels"]), ...ownership };
-      section[key] = r;
-    }
+    const section = ownSection(obj(doc[kind]), i.planProject, ownership);
     if (Object.keys(section).length > 0) {
       doc[kind] = section;
     }

@@ -3,7 +3,9 @@ import type { Command } from "@gangway/shared/gangway-file";
 
 const WORKERD_COMPAT_DATE = "2026-09-01";
 
-export const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+// Ends the quote, adds an escaped one, and opens a new quote.
+const QUOTED_QUOTE = String.raw`'\''`;
+export const shq = (s: string) => `'${s.replaceAll("'", QUOTED_QUOTE)}'`;
 const SIMPLE = (s: string) => !/[;&|\n`<>()]|\$\(/.test(s);
 export const q = (s: string) => JSON.stringify(s);
 
@@ -37,17 +39,19 @@ export function collectStatic(output: string | null): string {
     `serve() { mkdir -p /out && cp -R "$1"/. /out/ && echo "gangway: serving $1/ ($(find "$1" -type f | wc -l | tr -d ' ') files)"; exit 0; }`,
   ];
   if (output) {
+    const missing = `gangway: static: ${output}/ does not exist after the build`;
     lines.push(
       `if [ -d ${shq(output)} ]; then serve ${shq(output)}; fi`,
-      `echo ${shq(`gangway: static: ${output}/ does not exist after the build`)} >&2`,
+      `echo ${shq(missing)} >&2`,
       "exit 1",
     );
   } else {
+    const none = `gangway: the build left no ${STATIC_BUILD_OUTPUTS.join(", ")} with an index.html in it; set \`static: <dir>\` in gangway.yml`;
     lines.push(
       `for d in ${STATIC_BUILD_OUTPUTS.map((o) => (o.includes("*") ? o : shq(o))).join(" ")}; do`,
       `  if [ -f "$d/index.html" ]; then serve "$d"; fi`,
       "done",
-      `echo ${shq(`gangway: the build left no ${STATIC_BUILD_OUTPUTS.join(", ")} with an index.html in it; set \`static: <dir>\` in gangway.yml`)} >&2`,
+      `echo ${shq(none)} >&2`,
       "exit 1",
     );
   }

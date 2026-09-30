@@ -153,7 +153,10 @@ async function socks5Connect(
     addr = Buffer.alloc(16);
     for (let i = 0; i < 8; i++) {
       const part = parts[i];
-      addr.writeUInt16BE(parseInt(part === undefined || part === "" ? "0" : part, 16), i * 2);
+      addr.writeUInt16BE(
+        Number.parseInt(part === undefined || part === "" ? "0" : part, 16),
+        i * 2,
+      );
     }
   } else {
     atyp = ATYP_DOMAIN;
@@ -168,9 +171,8 @@ async function socks5Connect(
   const code = must(reply[1], "a SOCKS reply code");
   if (code !== 0x00) {
     socket.destroy();
-    throw new Error(
-      `SOCKS CONNECT to ${target.host}:${target.port} failed: ${SOCKS_ERRORS[code] ?? `code ${code}`}`,
-    );
+    const reason = SOCKS_ERRORS[code] ?? `code ${code}`;
+    throw new Error(`SOCKS CONNECT to ${target.host}:${target.port} failed: ${reason}`);
   }
   const len = await boundAddressLength(reader, reply[3]);
   await reader.read(len + 2);

@@ -63,7 +63,7 @@ export function section(body: string, heading: string): string {
   if (start < 0) {
     return "";
   }
-  const end = lines.findIndex((l, i) => i > start && /^## /.test(l));
+  const end = lines.findIndex((l, i) => i > start && l.startsWith("## "));
   const text = lines
     .slice(start + 1, end < 0 ? undefined : end)
     .join("\n")
@@ -82,7 +82,7 @@ async function main(): Promise<string> {
 
   const numbers = [
     ...new Set(
-      [...generated.body.matchAll(new RegExp(`github\\.com/${REPO}/pull/(\\d+)`, "g"))].map(
+      [...generated.body.matchAll(new RegExp(String.raw`github\.com/${REPO}/pull/(\d+)`, "g"))].map(
         (m) => m[1],
       ),
     ),

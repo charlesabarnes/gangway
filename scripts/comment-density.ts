@@ -12,7 +12,7 @@ function commentLines(file: string, text: string): number {
   const lines = new Set<number>();
   const record = (range: ts.CommentRange) => {
     const comment = text.slice(range.pos, range.end);
-    if (/^\/\/\s*(eslint-|@ts-|prettier-)/.test(comment)) {
+    if (/^\/\/\s*(eslint-|@ts-|prettier-|codeql\[|NOSONAR)/.test(comment)) {
       return;
     }
     const first = source.getLineAndCharacterOfPosition(range.pos).line;
@@ -30,7 +30,7 @@ function commentLines(file: string, text: string): number {
   return lines.size;
 }
 
-const files = execFileSync("git", ["ls-files", ...ROOTS], { encoding: "utf8" })
+const files = execFileSync("git", ["ls-files", ...ROOTS], { encoding: "utf8" }) // NOSONAR a dev script run with the developer's own PATH
   .split("\n")
   .filter((f) => /\.tsx?$/.test(f) && !f.endsWith(".spec.ts"));
 

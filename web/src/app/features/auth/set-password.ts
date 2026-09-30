@@ -141,7 +141,7 @@ export class SetPassword {
   constructor() {
     // Out of the address bar and history, so a shared screen or a back button cannot replay it.
     history.replaceState(history.state, '', location.pathname);
-    void this.#open();
+    void this.#open(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
   }
 
   async #open(): Promise<void> {

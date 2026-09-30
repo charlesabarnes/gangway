@@ -125,8 +125,9 @@ export class ArtifactFrame {
     if (!this.interactive()) f.style.pointerEvents = 'none';
     box.appendChild(f);
     // The frame listens from its first script, so by `load` it will hear the files.
-    f.addEventListener('load', () =>
-      f.contentWindow?.postMessage({ type: 'gw-render', ...state }, '*'),
+    f.addEventListener(
+      'load',
+      () => f.contentWindow?.postMessage({ type: 'gw-render', ...state }, '*'), // NOSONAR the sandboxed frame's origin is opaque, so '*' is the only target
     );
   }
 

@@ -4,7 +4,8 @@ const DEFAULT_PORT: Record<PublicOrigin["scheme"], number> = { http: 80, https: 
 
 export function publicOriginFor(hostname: string, origin: PublicOrigin): string {
   const isDefault = origin.port === DEFAULT_PORT[origin.scheme];
-  return `${origin.scheme}://${hostname}${isDefault ? "" : `:${origin.port}`}`;
+  const port = isDefault ? "" : `:${origin.port}`;
+  return `${origin.scheme}://${hostname}${port}`;
 }
 
 export function publicUrlFor(hostname: string, origin: PublicOrigin, path = "/"): string {

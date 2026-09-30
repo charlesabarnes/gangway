@@ -3,6 +3,12 @@ import type { DockerEvent, LogLine, LogStream } from "./client-types.ts";
 
 const DEMUX_HEADER = 8;
 
+// A frame header is a stream type of 0, 1 or 2 followed by three zero bytes.
+const isFrameHeader = (buf: Uint8Array): boolean =>
+  (buf[0] === 0 || buf[0] === 1 || buf[0] === 2) && buf[1] === 0 && buf[2] === 0 && buf[3] === 0;
+
+const streamOf = (type: number): LogStream => (type === 2 ? "stderr" : "stdout");
+
 // Non-TTY logs carry an 8-byte frame header and TTY logs are raw; sniff rather than inspect.
 export async function* demultiplex(
   chunks: AsyncIterable<Uint8Array>,
@@ -22,9 +28,7 @@ export async function* demultiplex(
       if (type === undefined || buf.length < DEMUX_HEADER) {
         break;
       }
-      const framed =
-        (type === 0 || type === 1 || type === 2) && buf[1] === 0 && buf[2] === 0 && buf[3] === 0;
-      if (!framed) {
+      if (!isFrameHeader(buf)) {
         yield { stream: "stdout", bytes: buf };
         buf = new Uint8Array(0);
         break;
@@ -35,7 +39,7 @@ export async function* demultiplex(
         break;
       }
       yield {
-        stream: type === 2 ? "stderr" : "stdout",
+        stream: streamOf(type),
         bytes: buf.slice(DEMUX_HEADER, DEMUX_HEADER + size),
       };
       buf = buf.slice(DEMUX_HEADER + size);

@@ -65,8 +65,7 @@ export class Reconciler {
       reachable,
       hosts: hostsById,
     };
-    changes.push(...(await rescueInterrupted(recovery)));
-    changes.push(...(await wakeReturned(recovery)));
+    changes.push(...(await rescueInterrupted(recovery)), ...(await wakeReturned(recovery)));
 
     if (changes.length > 0) {
       logger.info("reconciled", { changes });

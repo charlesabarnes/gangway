@@ -27,7 +27,7 @@ export function problemResponse(
   const body = { ...err.toProblem(new URL(c.req.url).pathname), requestId: c.get("requestId") };
   return new Response(JSON.stringify(body), {
     status: err.status,
-    headers: { "content-type": "application/problem+json", ...(err.headers ?? {}), ...headers },
+    headers: { "content-type": "application/problem+json", ...err.headers, ...headers },
   });
 }
 
@@ -43,7 +43,7 @@ function toAppError(e: unknown): AppError | null {
   if (e instanceof HTTPException) {
     const code = CODE_FOR_STATUS[e.status];
     if (code) {
-      return new AppError(code, e.message || code.replace(/_/g, " "));
+      return new AppError(code, e.message || code.replaceAll("_", " "));
     }
   }
   return null;
@@ -62,7 +62,7 @@ export function errorHandler(logger: Logger) {
       err: e,
     });
     const shown = known
-      ? new AppError(known.code, known.code.replace(/_/g, " "))
+      ? new AppError(known.code, known.code.replaceAll("_", " "))
       : new AppError("internal", "internal error");
     return problemResponse(c, shown);
   };

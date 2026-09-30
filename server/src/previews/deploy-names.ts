@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { slugify } from "@gangway/shared/hostname";
 import type { RuntimeId } from "@gangway/shared/runtimes";
 import { publicOriginFor } from "@gangway/shared/url";
+import { trimEndChar } from "../util/text.ts";
 import type { PreviewContext } from "./context.ts";
 import type { DeploySource, PreviewUrl } from "./deploy-types.ts";
 
@@ -21,7 +22,7 @@ export function defaultName(source: DeploySource, runtime: RuntimeId | null): st
     case "pushed":
       return `${repoName(source.pr.repo)}-pr-${source.pr.number}`;
     case "git":
-      return nameFrom(source.repo.replace(/\/+$/, "").replace(/\.git$/, ""));
+      return nameFrom(trimEndChar(source.repo, "/").replace(/\.git$/, ""));
     case "image":
       return nameFrom(source.image);
   }

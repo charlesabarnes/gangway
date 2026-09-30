@@ -7,6 +7,7 @@ import type { Actor } from "../auth/actor.ts";
 import type { ProjectsRepo } from "../db/repos/projects.ts";
 import type { TemplatesRepo } from "../db/repos/templates.ts";
 import { conflict, unprocessable } from "../errors.ts";
+import { trimEndChar } from "../util/text.ts";
 import { ulid } from "../util/ulid.ts";
 
 export const MAX_SLUG = 24;
@@ -36,7 +37,7 @@ export function createProject(
   req: ProjectCreateRequest,
 ): Project {
   const { projects } = d;
-  const slug = req.slug ?? slugify(req.name).slice(0, MAX_SLUG).replace(/-+$/, "");
+  const slug = req.slug ?? trimEndChar(slugify(req.name).slice(0, MAX_SLUG), "-");
   if (!slug) {
     throw unprocessable("the name has no usable characters for a slug; give one");
   }

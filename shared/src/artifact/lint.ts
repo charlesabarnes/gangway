@@ -8,6 +8,7 @@ import {
   scan,
   type Attrs,
   type Block,
+  type Piece,
 } from "./grammar.ts";
 import { FLOW_DIRECTIONS, parseFlow } from "./flow.ts";
 import { CANVAS_LAYOUTS, FRAME_STYLES } from "./canvas.ts";
@@ -126,10 +127,11 @@ function checkChart(c: Ctx, b: Extract<Block, { type: "chart" }>) {
     return;
   }
   if (!inline) {
-    return void c.issues.push({
+    c.issues.push({
       line: b.line,
       message: "the chart has no rows: put CSV inside the fence, or src=data/x.csv",
     });
+    return;
   }
   const head = csvHeader(b.csv);
   const want = [a["x"], ...(a["y"] ?? "").split(",")]
@@ -155,10 +157,11 @@ function checkFlow(c: Ctx, b: Extract<Block, { type: "flow" }>) {
 
 function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
   if (!(CONTAINERS as readonly string[]).includes(b.name)) {
-    return void c.issues.push({
+    c.issues.push({
       line: b.line,
       message: `unknown block :::${b.name}; blocks are ${oneOf(CONTAINERS)}`,
     });
+    return;
   }
   if (!b.closed) {
     c.issues.push({ line: b.line, message: `:::${b.name} is never closed with :::` });
@@ -329,27 +332,32 @@ function checkSlides(c: Ctx, body: string, offset: number) {
   }
 }
 
+/** A frame's {#id x= y= w= h=} head: a unique id, and whole-pixel positions given in pairs. */
+function checkFrameHead(c: Ctx, p: Piece, ids: Set<string>) {
+  const id = p.head?.["id"];
+  if (!id) {
+    c.issues.push({ line: p.line, message: 'start each frame with {#id title="…"}' });
+  } else if (ids.has(id)) {
+    c.issues.push({ line: p.line, message: `two frames are called #${id}` });
+  } else {
+    ids.add(id);
+  }
+  for (const key of ["x", "y", "w", "h"]) {
+    const v = p.head?.[key];
+    if (v !== undefined && !/^-?\d{1,5}$/.test(v)) {
+      c.issues.push({ line: p.line, message: `${key}=${v}: a whole number of pixels` });
+    }
+  }
+  if (p.head && (p.head["x"] === undefined) !== (p.head["y"] === undefined)) {
+    c.issues.push({ line: p.line, message: "give x and y together, or neither" });
+  }
+}
+
 function checkFrames(c: Ctx, body: string, offset: number) {
   const ids = new Set<string>();
   const arrows: LintIssue[] = [];
   for (const p of pieces(body, offset)) {
-    const id = p.head?.["id"];
-    if (!id) {
-      c.issues.push({ line: p.line, message: 'start each frame with {#id title="…"}' });
-    } else if (ids.has(id)) {
-      c.issues.push({ line: p.line, message: `two frames are called #${id}` });
-    } else {
-      ids.add(id);
-    }
-    for (const key of ["x", "y", "w", "h"]) {
-      const v = p.head?.[key];
-      if (v !== undefined && !/^-?\d{1,5}$/.test(v)) {
-        c.issues.push({ line: p.line, message: `${key}=${v}: a whole number of pixels` });
-      }
-    }
-    if (p.head && (p.head["x"] === undefined) !== (p.head["y"] === undefined)) {
-      c.issues.push({ line: p.line, message: "give x and y together, or neither" });
-    }
+    checkFrameHead(c, p, ids);
     checkValue(c, p.line, ["frame", p.head?.["frame"]], FRAME_STYLES);
     const rest: string[] = [];
     p.lines.forEach((l, i) => {

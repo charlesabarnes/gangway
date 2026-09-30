@@ -55,7 +55,7 @@ class DockerodeClient implements DockerClient {
     return raw.map(toSummary);
   }
 
-  async inspectContainer(id: string): Promise<InspectJson> {
+  inspectContainer(id: string): Promise<InspectJson> {
     return this.#docker.getContainer(id).inspect();
   }
 

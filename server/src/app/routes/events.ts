@@ -19,7 +19,8 @@ function seesEventsOf(actor: Actor, d: EventRouteDeps): (previewId: string | nul
     }
     let ok = seen.get(id);
     if (ok === undefined) {
-      seen.set(id, (ok = maySee(actor, d.provenanceOf(id))));
+      ok = maySee(actor, d.provenanceOf(id));
+      seen.set(id, ok);
     }
     return ok;
   };

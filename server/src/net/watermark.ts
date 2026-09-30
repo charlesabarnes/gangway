@@ -1,6 +1,7 @@
 import LOGO from "../../../web/public/logo.svg" with { type: "text" };
 import LOGO_LIGHT from "../../../web/public/logo-light.svg" with { type: "text" };
 import { must } from "@gangway/shared/must";
+import { dropNewlineRuns } from "../util/text.ts";
 import { isWebSocketUpgrade } from "./headers.ts";
 
 // One script tag on every HTML page a preview answers; the script draws the mark (ADR-0032).
@@ -116,7 +117,7 @@ export function stamp(res: Response, req: Request): Response {
   return new Response(out, { status: 200, statusText: res.statusText, headers });
 }
 
-const svg = (s: string) => s.replace(/<title>.*?<\/title>/s, "").replace(/\s*\n\s*/g, "");
+const svg = (s: string) => dropNewlineRuns(s.replace(/<title>.*?<\/title>/s, ""));
 
 // Chart tokens; light or dark after the page's data-theme, the gw-theme cookie, or the OS.
 const CSS = `
@@ -149,11 +150,11 @@ export function markScript(link: string): string {
     `<span class="light">${svg(LOGO)}</span><span class="dark">${svg(LOGO_LIGHT)}</span>` +
     `<span class="name">gangway</span><span class="label">preview</span>`;
   const href = link ? ` href="${link.replace(/["<>&]/g, "")}" target="_blank" rel="noopener"` : "";
-  const html = `<style>${CSS.replace(/\s*\n\s*/g, "")}</style><a${href} title="Made with gangway" aria-label="Made with gangway">${inner}</a>`;
-  return `(()=>{if(window.top!==window.self||customElements.get("gangway-mark"))return;
+  const html = `<style>${dropNewlineRuns(CSS)}</style><a${href} title="Made with gangway" aria-label="Made with gangway">${inner}</a>`;
+  return String.raw`(()=>{if(window.top!==window.self||customElements.get("gangway-mark"))return;
 try{var h=location.hostname.split(".").slice(1).join(".");if(h.indexOf(".")>0&&window.FontFace){var f=new FontFace("gw-mark-mono","url(//"+h+"/_gangway/fonts/mono-600.woff2)",{weight:"600"});f.load().then(function(x){document.fonts.add(x)},function(){})}}catch(e){}
 customElements.define("gangway-mark",class extends HTMLElement{constructor(){super();this.attachShadow({mode:"closed"}).innerHTML=${JSON.stringify(html)}}
-connectedCallback(){var m=this,d=document.documentElement,f=function(){var t=d.getAttribute("data-theme");if(t!=="light"&&t!=="dark")try{t=(/(?:^|;\\s*)gw-theme=(light|dark)(?:;|$)/.exec(document.cookie)||[])[1]}catch(e){}t?m.setAttribute("data-theme",t):m.removeAttribute("data-theme")};
+connectedCallback(){var m=this,d=document.documentElement,f=function(){var t=d.getAttribute("data-theme");if(t!=="light"&&t!=="dark")try{t=(/(?:^|;\s*)gw-theme=(light|dark)(?:;|$)/.exec(document.cookie)||[])[1]}catch(e){}t?m.setAttribute("data-theme",t):m.removeAttribute("data-theme")};
 f();new MutationObserver(f).observe(d,{attributes:true,attributeFilter:["data-theme"]});document.addEventListener("visibilitychange",f)}});
 var put=function(){if(!document.querySelector("gangway-mark"))document.documentElement.appendChild(document.createElement("gangway-mark"))};
 document.body?put():document.addEventListener("DOMContentLoaded",put);})();

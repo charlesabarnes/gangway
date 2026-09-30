@@ -71,7 +71,7 @@ export class GalleryThumb {
 
   protected async start(): Promise<void> {
     // Only an https preview is framed (SafeFramePipe); anything else stays a plain card.
-    if (!/^https:\/\//.test(this.url())) return this.loaded.set(true);
+    if (!this.url().startsWith('https://')) return this.loaded.set(true);
     const release = await this.#queue.acquire();
     if (this.#destroyed) return release();
     this.#release = release;
