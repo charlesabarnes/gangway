@@ -1,0 +1,23 @@
+# Release notes are sorted by label (.github/release.yml), so a PR without a category label would
+# land under Other with nothing to say what it was. This check fails until it has one.
+name: pr-label
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  label:
+    name: release label
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          echo "$LABELS" | jq -e 'any(.[]; IN("security", "enhancement", "bug", "unraid", "documentation", "dependencies", "chore"))' >/dev/null || {
+            echo "::error::Add one of: security, enhancement, bug, unraid, documentation, dependencies, chore. Add upgrade-steps too if users must do something by hand."
+            exit 1
+          }
