@@ -186,10 +186,8 @@ function checkTemplate(
   }
   const r = lintMarkdown(md, { has: (p) => p in files, themes: d.library.themeIds() });
   if (r.issues.length > 0) {
-    throw unprocessable(
-      `${ARTIFACT_FILE}: ${r.issues.map((i) => `line ${i.line}: ${i.message}`).join("; ")}`,
-      { issues: r.issues },
-    );
+    const lines = r.issues.map((i) => `line ${i.line}: ${i.message}`).join("; ");
+    throw unprocessable(`${ARTIFACT_FILE}: ${lines}`, { issues: r.issues });
   }
   if (r.info && r.info.kind !== kind) {
     throw unprocessable(`the id says ${kind} but ${ARTIFACT_FILE} says kind: ${r.info.kind}`);

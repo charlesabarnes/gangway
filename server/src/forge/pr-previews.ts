@@ -2,6 +2,7 @@ import type { Clearance, RepoProject, Preview } from "@gangway/shared/domain";
 import { slugify } from "@gangway/shared/hostname";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
+import { trimEndChar } from "../util/text.ts";
 import type { DeployResult, DeploySource } from "../previews/deploy-types.ts";
 import { commentBody, postComment, refusalBody } from "./pr-comment.ts";
 import { finishDeployment, recordDeployment, retireDeployment } from "./pr-deployment.ts";
@@ -338,6 +339,6 @@ function isLiveAt(p: Preview, sha: string): boolean {
 }
 
 export function slugFor(repoName: string): string {
-  const s = slugify(repoName).slice(0, MAX_REPO_SLUG).replace(/-+$/, "");
+  const s = trimEndChar(slugify(repoName).slice(0, MAX_REPO_SLUG), "-");
   return s === "" ? "repo" : s;
 }

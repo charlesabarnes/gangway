@@ -8,7 +8,7 @@ export function parseBytes(v: unknown): number | null {
   if (typeof v !== "string") {
     return null;
   }
-  const m = /^\s*(\d+(?:\.\d+)?)\s*([bkmg]?)b?\s*$/i.exec(v);
+  const m = /^(\d+(?:\.\d+)?)\s*([bkmg]?)b?$/i.exec(v.trim());
   if (!m) {
     return null;
   }

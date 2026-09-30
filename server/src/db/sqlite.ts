@@ -11,7 +11,7 @@ import {
 class BunDb implements Db {
   readonly driver = "bun" as const;
   readonly sqliteVersion: string;
-  #db: Database;
+  readonly #db: Database;
 
   constructor(db: Database) {
     this.#db = db;

@@ -90,7 +90,8 @@ export class ArtifactLibrary {
   #memo(t: Theme, key: string, make: (t: Theme) => string | null): string | null {
     let m = this.#compiled.get(t);
     if (!m) {
-      this.#compiled.set(t, (m = new Map<string, string | null>()));
+      m = new Map<string, string | null>();
+      this.#compiled.set(t, m);
     }
     const cached = m.get(key);
     if (cached !== undefined) {
@@ -163,20 +164,20 @@ export class ArtifactLibrary {
   /** The catalog's list of templates for one kind, built-in first. */
   templatesText(kind: ArtifactKind): string {
     return this.templates(kind)
-      .map(
-        (t) =>
-          `- ${t.id}${t.builtin ? "" : " (made here)"}: ${t.description || t.name}\n  options: ${t.options.map(optionText).join("; ") || "none"}`,
-      )
+      .map((t) => {
+        const options = t.options.map((o) => optionText(o)).join("; ") || "none";
+        return `- ${t.id}${t.builtin ? "" : " (made here)"}: ${t.description || t.name}\n  options: ${options}`;
+      })
       .join("\n");
   }
 
   themesText(): string {
     const def = this.defaultThemeId();
     return this.themes()
-      .map(
-        (t) =>
-          `- ${t.id}${t.id === def ? " (the default)" : ""}: ${t.name}${t.description ? `. ${t.description}` : ""}`,
-      )
+      .map((t) => {
+        const description = t.description ? `. ${t.description}` : "";
+        return `- ${t.id}${t.id === def ? " (the default)" : ""}: ${t.name}${description}`;
+      })
       .join("\n");
   }
 }

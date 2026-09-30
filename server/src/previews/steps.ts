@@ -37,10 +37,8 @@ export function stepper(
           ev.line,
         );
       } else if (ev.code !== 0) {
-        throw new StepFailed(
-          `compose ${what} exited ${ev.code}${ev.signal ? ` (${ev.signal})` : ""}`,
-          ev.code,
-        );
+        const signal = ev.signal ? ` (${ev.signal})` : "";
+        throw new StepFailed(`compose ${what} exited ${ev.code}${signal}`, ev.code);
       }
     }
     o.signal.throwIfAborted();

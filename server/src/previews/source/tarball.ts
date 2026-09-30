@@ -114,7 +114,7 @@ function entrySegments(ctx: Context, name: string): string[] {
   }
 
   const segments = name.split("/").filter((s) => s !== "" && s !== ".");
-  if (segments.some((s) => s === "..")) {
+  if (segments.includes("..")) {
     throw rejectTarball("path_traversal", "entry path contains a '..' segment", name);
   }
   return segments;

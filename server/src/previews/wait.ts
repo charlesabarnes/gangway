@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Host, Preview, Route } from "@gangway/shared/domain";
-import { composeArgv, downArgv, parseComposePs } from "../docker/compose.ts";
+import { composeArgv, downArgv, parseComposePs, type ComposePsEntry } from "../docker/compose.ts";
 import { sleep } from "../util/async.ts";
 import type { PreviewContext } from "./context.ts";
 import { rmiFor } from "./destroy.ts";
@@ -18,6 +18,21 @@ export type WaitTarget = {
   health?: Record<string, string> | undefined;
 };
 
+/** A container that died, exited while routed, or went unhealthy fails the wait. */
+function assertNoneFailed(rows: readonly ComposePsEntry[], routed: ReadonlySet<string>): void {
+  for (const c of rows) {
+    const died =
+      c.state === "dead" || (c.state === "exited" && (c.exitCode !== 0 || routed.has(c.service)));
+    if (died) {
+      const code = c.exitCode === null ? "" : ` with code ${c.exitCode}`;
+      throw new StepFailed(`service "${c.service}" exited${code}`);
+    }
+    if (c.health === "unhealthy") {
+      throw new StepFailed(`service "${c.service}" is unhealthy`);
+    }
+  }
+}
+
 export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<void> {
   const deadline = Date.now() + ctx.timings.startTimeoutMs;
   const argv = r.ps;
@@ -28,18 +43,7 @@ export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<v
     const rows = res.code === 0 ? parseComposePs(res.stdout) : [];
     const routed = new Set(r.routes.map((x) => x.service));
 
-    for (const c of rows) {
-      const died =
-        c.state === "dead" || (c.state === "exited" && (c.exitCode !== 0 || routed.has(c.service)));
-      if (died) {
-        throw new StepFailed(
-          `service "${c.service}" exited${c.exitCode === null ? "" : ` with code ${c.exitCode}`}`,
-        );
-      }
-      if (c.health === "unhealthy") {
-        throw new StepFailed(`service "${c.service}" is unhealthy`);
-      }
-    }
+    assertNoneFailed(rows, routed);
     const waiting = rows
       .filter((c) => !(c.state === "exited" && c.exitCode === 0))
       .filter((c) => c.state !== "running" || (c.health !== null && c.health !== "healthy"));
@@ -80,8 +84,12 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
     }
     if (Date.now() >= deadline) {
       const health = r.health;
+      const targets = pending
+        .map((p) => `${p.service}:${p.containerPort}${health?.[p.service] ?? ""}`)
+        .join(", ");
+      const answer = health && pending.some((p) => health[p.service]) ? " with a 2xx/3xx" : " HTTP";
       throw new StepFailed(
-        `${pending.map((p) => `${p.service}:${p.containerPort}${health?.[p.service] ?? ""}`).join(", ")} never answered${health && pending.some((p) => health[p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`,
+        `${targets} never answered${answer} -- is that the right port, and does the app listen on 0.0.0.0?`,
       );
     }
     await sleep(ctx.timings.pollIntervalMs);

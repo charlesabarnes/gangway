@@ -22,7 +22,8 @@ export const REDEPLOY_OWN_PERMISSION: Permission = "previews.update_own";
 export class MissingPermission extends Error {
   readonly permission: Permission;
   constructor(permission: Permission, why?: string) {
-    super(`this credential lacks the "${permission}" permission${why ? `: ${why}` : ""}`);
+    const reason = why ? `: ${why}` : "";
+    super(`this credential lacks the "${permission}" permission${reason}`);
     this.permission = permission;
   }
 }

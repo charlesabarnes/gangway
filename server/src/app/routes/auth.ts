@@ -21,6 +21,7 @@ import {
   setSessionCookie,
   type AuthDeps,
 } from "../middleware/auth.ts";
+import { compareCodeUnits } from "../../util/compare.ts";
 
 export type GateDeps = {
   lookup(host: string): { hostname: string; previewId: string; visibility: string } | undefined;
@@ -72,7 +73,7 @@ function wireUser(d: AuthRouteDeps, u: User) {
 }
 
 function describe(d: AuthRouteDeps, actor: Actor) {
-  const permissions = [...actor.permissions].sort();
+  const permissions = [...actor.permissions].sort(compareCodeUnits);
   if (actor.kind === "token") {
     return {
       authenticated: true,
@@ -189,7 +190,10 @@ function emailLinkRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     const { user, secret } = await links().redeem(token, password, meta(c));
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
     c.header("cache-control", "no-store");
-    return c.json({ user: wireUser(d, user), permissions: [...d.roles.for(user.roleId)].sort() });
+    return c.json({
+      user: wireUser(d, user),
+      permissions: [...d.roles.for(user.roleId)].sort(compareCodeUnits),
+    });
   });
 }
 
@@ -215,7 +219,10 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     const { user, secret } = await d.accounts.login(email, password, meta(c));
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
     c.header("cache-control", "no-store");
-    return c.json({ user: wireUser(d, user), permissions: [...d.roles.for(user.roleId)].sort() });
+    return c.json({
+      user: wireUser(d, user),
+      permissions: [...d.roles.for(user.roleId)].sort(compareCodeUnits),
+    });
   });
 
   pub.post("/auth/setup", async (c) => {
@@ -232,7 +239,10 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
     c.header("cache-control", "no-store");
     return c.json(
-      { user: wireUser(d, user), permissions: [...d.roles.for(user.roleId)].sort() },
+      {
+        user: wireUser(d, user),
+        permissions: [...d.roles.for(user.roleId)].sort(compareCodeUnits),
+      },
       201,
     );
   });

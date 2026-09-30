@@ -40,7 +40,10 @@ async function manifestOf(ctx: PreviewContext, p: Preview): Promise<string | nul
   if (m.files.length > MANIFEST_SHOWN) {
     return `files as deployed: ${m.files.length}${m.truncated ? "+" : ""} (too many to list; the preview page shows them)`;
   }
-  return `files as deployed (sha256, first 12 hex; compare with shasum -a 256):\n${m.files.map((f) => `  ${f.sha256.slice(0, 12)}  ${String(f.bytes).padStart(8)}  ${f.path}`).join("\n")}`;
+  const rows = m.files.map(
+    (f) => `  ${f.sha256.slice(0, 12)}  ${String(f.bytes).padStart(8)}  ${f.path}`,
+  );
+  return `files as deployed (sha256, first 12 hex; compare with shasum -a 256):\n${rows.join("\n")}`;
 }
 
 async function checkPaths(

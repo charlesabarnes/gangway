@@ -4,6 +4,7 @@ import { pack } from "tar-stream";
 import { must } from "@gangway/shared/must";
 import { unprocessable } from "../errors.ts";
 import { checkEditPath } from "../previews/redeploy.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 
 const MAX_FILES = 1000;
 export const MAX_BYTES = 2 * 1024 * 1024;
@@ -31,7 +32,7 @@ export async function packFiles(
   files: Record<string, string>,
 ): Promise<{ archive: Uint8Array; digest: string }> {
   checkFiles(files);
-  const paths = Object.keys(files).sort();
+  const paths = Object.keys(files).sort(compareCodeUnits);
   const hash = createHash("sha256");
   const p = pack();
   const chunks: Buffer[] = [];

@@ -51,7 +51,7 @@ function segmentsOf(pathname: string): string[] | null {
     return null;
   }
   const parts = decoded.split("/").filter((s) => s !== "" && s !== ".");
-  return parts.some((s) => s === "..") ? null : parts;
+  return parts.includes("..") ? null : parts;
 }
 
 // lstat, so a symlink is never followed out of the site.
@@ -140,11 +140,11 @@ async function kitPage(f: Found, version: string): Promise<Page | null> {
 
 type KitPageServe = { page: Page; f: Found; version: string; status: number };
 
-async function sendKitPage(
+function sendKitPage(
   req: Request,
   { page, f, version, status }: KitPageServe,
   o: SiteServeOptions,
-): Promise<Response> {
+): Response {
   // The version is in the validator, and If-Modified-Since is not consulted, so an upgrade is never a 304.
   const etag = `W/"${f.size.toString(16)}-${Math.floor(f.mtime).toString(16)}-${version}"`;
   const headers: Record<string, string> = {

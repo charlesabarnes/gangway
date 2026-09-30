@@ -14,7 +14,7 @@ type SqlParams = Record<string, SQLInputValue>;
 class NodeDb implements Db {
   readonly driver = "node" as const;
   readonly sqliteVersion: string;
-  #db: DatabaseSync;
+  readonly #db: DatabaseSync;
 
   constructor(db: DatabaseSync) {
     this.#db = db;

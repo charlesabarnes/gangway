@@ -20,7 +20,7 @@ async function exportKey(k: CryptoKey): Promise<string> {
   return pem(await crypto.subtle.exportKey("pkcs8", k), "PRIVATE KEY");
 }
 
-async function importKey(p: string): Promise<CryptoKey> {
+function importKey(p: string): Promise<CryptoKey> {
   const b64 = p.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
   return crypto.subtle.importKey("pkcs8", Buffer.from(b64, "base64"), ALG, true, ["sign"]);
 }

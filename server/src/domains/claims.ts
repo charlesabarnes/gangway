@@ -244,7 +244,8 @@ function checkError(
     return `_acme-challenge.${d.name} is not yet a CNAME to ${at.want}`;
   }
   if (!found.routingOk) {
-    return `${d.kind === "wildcard" ? `*.${d.name}` : d.name} does not resolve to ${at.control} yet`;
+    const host = d.kind === "wildcard" ? `*.${d.name}` : d.name;
+    return `${host} does not resolve to ${at.control} yet`;
   }
   return null;
 }

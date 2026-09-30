@@ -100,16 +100,16 @@ export class Tools {
       this.#guard("destroy", () => this.destroy(scope, args.preview)),
     );
     s.registerTool("catalog", CATALOG_TOOL, (args) =>
-      this.#guard("catalog", async () => this.catalog(scope, args.kind, args.template)),
+      this.#guard("catalog", () => this.catalog(scope, args.kind, args.template)),
     );
     s.registerTool("project", PROJECT_TOOL, (args) =>
-      this.#guard("project", async () => this.project(scope, args)),
+      this.#guard("project", () => this.project(scope, args)),
     );
     s.registerTool("theme", THEME_TOOL, (args) =>
-      this.#guard("theme", async () => this.theme(scope, args)),
+      this.#guard("theme", () => this.theme(scope, args)),
     );
     s.registerTool("secrets", SECRETS_TOOL, (args) =>
-      this.#guard("secrets", async () => this.secrets(scope, args)),
+      this.#guard("secrets", () => this.secrets(scope, args)),
     );
     s.registerTool("domains", DOMAINS_TOOL, (args) =>
       this.#guard("domains", () => this.domains(scope, args)),
@@ -118,7 +118,7 @@ export class Tools {
       this.#guard("share", () => this.share(scope, args)),
     );
     s.registerTool("extend", EXTEND_TOOL, (args) =>
-      this.#guard("extend", async () => this.extend(scope, args)),
+      this.#guard("extend", () => this.extend(scope, args)),
     );
     return s;
   }
@@ -144,7 +144,7 @@ export class Tools {
     return mayRebuild(actor, this.#d.ctx.previews.provenanceOf(id)) ? null : REDEPLOY_PERMISSION;
   }
 
-  async #guard(tool: ToolName, run: () => Promise<string>): Promise<CallToolResult> {
+  async #guard(tool: ToolName, run: () => string | Promise<string>): Promise<CallToolResult> {
     try {
       return text(await run());
     } catch (err) {
@@ -155,9 +155,8 @@ export class Tools {
         return failure(`${tool} refused: ${err.message}${refusalDetail(err.detail)}`);
       }
       if (err instanceof z.ZodError) {
-        return failure(
-          `${tool} refused: ${err.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; ")}`,
-        );
+        const issues = err.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`);
+        return failure(`${tool} refused: ${issues.join("; ")}`);
       }
       this.#d.logger.error("mcp tool failed", { tool, err });
       return failure(`${tool} failed on the server; see the gangway log`);
@@ -248,7 +247,8 @@ export class Tools {
       return "no previews";
     }
     const shown = all.slice(0, 50).map((p) => describePreview(ctx, p));
-    return `${all.length} preview${all.length === 1 ? "" : "s"}:\n${shown.join("\n")}${all.length > 50 ? `\n… and ${all.length - 50} more` : ""}`;
+    const more = all.length > 50 ? `\n… and ${all.length - 50} more` : "";
+    return `${all.length} preview${all.length === 1 ? "" : "s"}:\n${shown.join("\n")}${more}`;
   }
 
   async logs(
@@ -272,9 +272,8 @@ export class Tools {
     if (source !== "pipeline") {
       const rt = await runtimeLogs(ctx, p, { tail: n, service: opts.service });
       const body = runtimeText(rt);
-      parts.push(
-        `runtime (what the containers print${opts.service ? `, ${opts.service} only` : ""}):\n${body}`,
-      );
+      const only = opts.service ? `, ${opts.service} only` : "";
+      parts.push(`runtime (what the containers print${only}):\n${body}`);
     }
     return parts.join("\n\n");
   }

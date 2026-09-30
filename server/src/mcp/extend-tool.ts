@@ -29,5 +29,6 @@ export const EXTEND_TOOL = {
 export function extend(d: ToolDeps, actor: Actor, args: ExtendArgs): string {
   const { ctx } = d;
   const p = extendPreview(ctx, actor, resolveFor(ctx, actor, args.preview).id, args.by);
-  return `extended: ${describePreview(ctx, p)}${p.ttlExpiresAt ? ` (until ${p.ttlExpiresAt.toISOString()})` : " (never expires)"}`;
+  const until = p.ttlExpiresAt ? ` (until ${p.ttlExpiresAt.toISOString()})` : " (never expires)";
+  return `extended: ${describePreview(ctx, p)}${until}`;
 }

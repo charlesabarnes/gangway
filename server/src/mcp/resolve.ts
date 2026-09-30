@@ -11,6 +11,19 @@ export function nameOf(ctx: Pick<PreviewContext, "instance">, p: Preview): strin
 
 const isLive = (p: Preview | undefined): p is Preview => p !== undefined && p.state !== "destroyed";
 
+/** The hostname of a URL, or the text itself, lower-cased. */
+function hostOf(text: string): string {
+  const host = text.toLowerCase();
+  if (!/^https?:\/\//.test(host)) {
+    return host;
+  }
+  try {
+    return new URL(host).hostname;
+  } catch {
+    throw unprocessable(`${JSON.stringify(text)} is not a URL`);
+  }
+}
+
 /** `visible` narrows the search, so a name the caller may not see is simply not found. */
 export function resolvePreview(
   ctx: PreviewContext,
@@ -30,14 +43,7 @@ export function resolvePreview(
     }
   }
 
-  let host = text.toLowerCase();
-  if (/^https?:\/\//.test(host)) {
-    try {
-      host = new URL(host).hostname;
-    } catch {
-      throw unprocessable(`${JSON.stringify(text)} is not a URL`);
-    }
-  }
+  const host = hostOf(text);
   if (host.includes(".")) {
     const entry = ctx.table.lookup(host);
     const p = entry ? ctx.previews.get(entry.previewId) : undefined;
@@ -64,8 +70,9 @@ export function resolvePreview(
     return only;
   }
   if (stem.length > 1) {
+    const names = stem.map((p) => `${nameOf(ctx, p)} (${p.id})`).join(", ");
     throw unprocessable(
-      `${JSON.stringify(text)} matches ${stem.length} previews: ${stem.map((p) => `${nameOf(ctx, p)} (${p.id})`).join(", ")}. Use the URL or the id`,
+      `${JSON.stringify(text)} matches ${stem.length} previews: ${names}. Use the URL or the id`,
     );
   }
   throw notFound(`no live preview is called ${JSON.stringify(text)}`);

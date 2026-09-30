@@ -292,10 +292,9 @@ export class PreviewsRepo {
 
     if (f.state) {
       const states = Array.isArray(f.state) ? f.state : [f.state];
-      where.push(`state IN (${states.map((_, i) => `$s${i}`).join(", ")})`);
-      states.forEach((s, i) => {
-        params[`s${i}`] = s;
-      });
+      const placeholders = states.map((_, i) => `$s${i}`).join(", ");
+      where.push(`state IN (${placeholders})`);
+      Object.assign(params, Object.fromEntries(states.map((s, i) => [`s${i}`, s])));
     }
     if (f.hostId) {
       where.push("host_id = $hostId");
@@ -328,7 +327,8 @@ export class PreviewsRepo {
       params["limit"] = f.limit;
     }
 
-    const sql = `SELECT * FROM previews${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC${f.limit !== undefined ? " LIMIT $limit" : ""}`;
+    const whereClause = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+    const sql = `SELECT * FROM previews${whereClause} ORDER BY id DESC${f.limit !== undefined ? " LIMIT $limit" : ""}`;
     return this.#previews(sql, Object.keys(params).length ? params : undefined);
   }
 

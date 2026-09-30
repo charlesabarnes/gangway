@@ -19,7 +19,7 @@ const QUERY_TIMEOUT_MS = 5_000;
 
 export function nodeDnsQueries(): DnsQueries {
   return {
-    async resolveNs(zone) {
+    resolveNs(zone) {
       return new Resolver({ timeout: QUERY_TIMEOUT_MS, tries: 2 }).resolveNs(zone);
     },
     async resolveAddresses(host) {

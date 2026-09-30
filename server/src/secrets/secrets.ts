@@ -6,8 +6,9 @@ import type { ProjectsRepo } from "../db/repos/projects.ts";
 import { unprocessable } from "../errors.ts";
 import type { SettingsStore } from "../settings.ts";
 import type { SecretBox } from "./box.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 
-export const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+export const ENV_NAME_RE = /^[A-Za-z_]\w*$/;
 const MAX_ENV_ENTRIES = 100;
 const MAX_ENV_VALUE_BYTES = 16 * 1024;
 const GLOBAL_KEY = "secrets.global";
@@ -76,13 +77,13 @@ class SecretMap {
 
   update(actor: Actor | null, change: SecretChange): SecretListing[] {
     const current = this.all();
-    const before = Object.keys(current).sort();
+    const before = Object.keys(current).sort(compareCodeUnits);
     applySet(current, change.set ?? {});
     applyLevels(current, change.levels ?? {});
     for (const k of change.unset ?? []) {
       delete current[k];
     }
-    const names = Object.keys(current).sort();
+    const names = Object.keys(current).sort(compareCodeUnits);
     if (names.length > MAX_ENV_ENTRIES) {
       throw unprocessable(`at most ${MAX_ENV_ENTRIES} variables may be held here`);
     }
@@ -92,8 +93,8 @@ class SecretMap {
       old: { names: before },
       new: {
         names,
-        set: Object.keys(change.set ?? {}).sort(),
-        unset: [...(change.unset ?? [])].sort(),
+        set: Object.keys(change.set ?? {}).sort(compareCodeUnits),
+        unset: [...(change.unset ?? [])].sort(compareCodeUnits),
         levels: change.levels ?? {},
       },
     });
@@ -254,10 +255,10 @@ const values = (m: Record<string, SecretEntry>): Record<string, string> =>
 // Double-quoted so compose reads the value back exactly; it expands \n inside quotes.
 export function dotenvLine(name: string, value: string): string {
   const escaped = value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\$/g, "\\$");
+    .replaceAll("\\", String.raw`\\`)
+    .replaceAll('"', String.raw`\"`)
+    .replaceAll("\n", String.raw`\n`)
+    .replaceAll("\r", String.raw`\r`)
+    .replaceAll("$", String.raw`\$`);
   return `${name}="${escaped}"`;
 }

@@ -102,7 +102,7 @@ function toResponse(cres: http.IncomingMessage, entry: RouteEntry): Response {
     if (v === undefined) {
       continue;
     }
-    out.set(k, Array.isArray(v) ? v.join(", ") : String(v));
+    out.set(k, Array.isArray(v) ? v.join(", ") : v);
   }
   const body = new ReadableStream<Uint8Array>({
     start(c) {
@@ -192,7 +192,8 @@ export class PerHostUpstream implements Upstream {
       if (!made) {
         return Promise.reject(new Error(`no such host: ${entry.hostId}`));
       }
-      this.#byHost.set(entry.hostId, (upstream = made));
+      upstream = made;
+      this.#byHost.set(entry.hostId, upstream);
     }
     return upstream.fetch(req, entry, ctx);
   }

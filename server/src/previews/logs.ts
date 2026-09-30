@@ -113,15 +113,20 @@ export class PreviewLogs {
     if (statSync(path).size > MAX_FILE) {
       this.#trim(path);
     }
+    this.#notify(previewId, out);
+  }
+
+  #notify(previewId: string, out: readonly LogLine[]): void {
     const ls = this.#listeners.get(previewId);
-    if (ls) {
-      for (const line of out) {
-        for (const l of ls) {
-          try {
-            l(line);
-          } catch {
-            // one bad listener must not stop the others
-          }
+    if (!ls) {
+      return;
+    }
+    for (const line of out) {
+      for (const l of ls) {
+        try {
+          l(line);
+        } catch {
+          // one bad listener must not stop the others
         }
       }
     }
@@ -186,7 +191,8 @@ export class PreviewLogs {
     };
     let set = this.#listeners.get(previewId);
     if (!set) {
-      this.#listeners.set(previewId, (set = new Set()));
+      set = new Set();
+      this.#listeners.set(previewId, set);
     }
     set.add(emit);
 

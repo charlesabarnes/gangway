@@ -2,7 +2,7 @@ import type { RenderedAddons } from "./addons.ts";
 
 // Compose interpolates $ in every file it reads, so $$ is a literal.
 export const literal = (env: Record<string, string> = {}) =>
-  Object.fromEntries(Object.entries(env).map(([k, v]) => [k, v.replace(/\$/g, "$$$$")]));
+  Object.fromEntries(Object.entries(env).map(([k, v]) => [k, v.replaceAll("$", "$$$$")]));
 
 type Generated = {
   port: number;
@@ -26,7 +26,7 @@ const generated = (o: Generated, web: Record<string, unknown>): string =>
             : {}),
           restart: "unless-stopped",
         },
-        ...(o.sidecars?.services ?? {}),
+        ...o.sidecars?.services,
       },
       ...(o.sidecars && Object.keys(o.sidecars.volumes).length
         ? { volumes: o.sidecars.volumes }

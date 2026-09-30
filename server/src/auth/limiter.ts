@@ -26,7 +26,7 @@ export function sourceKey(ip: string): string {
   const h = head === "" ? [] : head.split(":");
   const t = tail === "" ? [] : tail.split(":");
   const groups = ip.includes("::")
-    ? [...h, ...Array<string>(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t]
+    ? [...h, ...new Array<string>(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t]
     : h;
   return `${groups
     .slice(0, 4)

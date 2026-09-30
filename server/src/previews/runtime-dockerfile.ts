@@ -128,6 +128,7 @@ function renderPhp(b: Build): Rendered {
   const { plan, listen, files } = b;
   const composer = plan.install !== null && describe(plan.install).startsWith("composer ");
   const docroot = plan.docroot ? `/var/www/html/${plan.docroot}` : null;
+  const serving = docroot ? `, serving ${plan.docroot}/` : "";
   return {
     dockerfile:
       `${header(b.id)}FROM ${b.image}\n` +
@@ -143,7 +144,7 @@ function renderPhp(b: Build): Rendered {
         : `RUN sed -i 's/^Listen 80$/Listen ${listen}/' /etc/apache2/ports.conf && sed -i 's/:80>/:${listen}>/' /etc/apache2/sites-available/000-default.conf\n`) +
       `${b.env}\n`,
     files,
-    note: `Apache + mod_php${docroot ? `, serving ${plan.docroot}/` : ""}`,
+    note: `Apache + mod_php${serving}`,
   };
 }
 
@@ -180,7 +181,7 @@ function renderDeno(b: Build): Rendered {
   }
   const s = startWith(b, `CMD ["deno", "run", "-A", ".gangway/entry.ts"]\n`, `deno ${plan.entry}`);
   return {
-    dockerfile: `${header(b.id)}FROM ${b.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${wrapped ? `RUN deno cache .gangway/entry.ts\n` : ""}${b.env}\n${s.cmd}`,
+    dockerfile: `${header(b.id)}FROM ${b.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${wrapped ? "RUN deno cache .gangway/entry.ts\n" : ""}${b.env}\n${s.cmd}`,
     files,
     note: s.note,
   };

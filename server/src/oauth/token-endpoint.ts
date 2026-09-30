@@ -5,6 +5,7 @@ import type { AuditSink } from "../audit/audit.ts";
 import type { Actor } from "../auth/actor.ts";
 import type { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { sha256 } from "../util/hash.ts";
+import { trimEndChar } from "../util/text.ts";
 import { ulid } from "../util/ulid.ts";
 import type { OAuthScope } from "./scopes.ts";
 
@@ -18,8 +19,7 @@ const REFRESH_SHAPE = /^gwr_[A-Za-z0-9_-]{43}$/;
 const secret = (prefix: string) => `${prefix}_${randomBytes(32).toString("base64url")}`;
 const pkce = (verifier: string) => sha256(verifier, "base64url");
 
-export const sameResource = (a: string, b: string) =>
-  a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+export const sameResource = (a: string, b: string) => trimEndChar(a, "/") === trimEndChar(b, "/");
 
 export type OAuthErrorCode =
   | "invalid_request"

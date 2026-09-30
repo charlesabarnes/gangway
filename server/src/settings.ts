@@ -57,7 +57,7 @@ const mailFrom = z
   );
 
 // A PEM pasted into an env var arrives with literal \n sequences.
-const pem = z.string().transform((v) => v.replace(/\\n/g, "\n").trim());
+const pem = z.string().transform((v) => v.replaceAll(String.raw`\n`, "\n").trim());
 
 export const SETTINGS = {
   baseDomain: def("baseDomain", z.string().min(1), "preview.localhost"),
@@ -148,7 +148,7 @@ export interface SettingsStore {
 }
 
 export class MemorySettingsStore implements SettingsStore {
-  #m = new Map<string, unknown>();
+  readonly #m = new Map<string, unknown>();
   get(key: string) {
     return this.#m.get(key);
   }
@@ -161,11 +161,11 @@ export class MemorySettingsStore implements SettingsStore {
 }
 
 export class Settings {
-  #overrides: Record<string, unknown>;
-  #store: SettingsStore;
-  #parsed = new Map<string, Effective<unknown>>();
+  readonly #overrides: Record<string, unknown>;
+  readonly #store: SettingsStore;
+  readonly #parsed = new Map<string, Effective<unknown>>();
   #parsedAt = -1;
-  #defaults = new Map<string, () => unknown>();
+  readonly #defaults = new Map<string, () => unknown>();
 
   constructor(overrides: Record<string, unknown>, store: SettingsStore) {
     this.#overrides = overrides;

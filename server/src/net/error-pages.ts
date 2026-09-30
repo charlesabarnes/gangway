@@ -37,6 +37,9 @@ ${o.refreshSeconds ? `<meta http-equiv="refresh" content="${o.refreshSeconds}">`
 
 const host = (h: string) => `<p class="host">${escapeHtml(h)}</p>`;
 
+const logLink = (url: string | undefined, text: string) =>
+  url ? `<p><a href="${escapeHtml(url)}">${text}</a></p>` : "";
+
 export function buildingPage(hostname: string, logUrl?: string): Response {
   return page({
     hostname,
@@ -49,7 +52,7 @@ export function buildingPage(hostname: string, logUrl?: string): Response {
     body: `<h1>Building this preview</h1>
 ${host(hostname)}
 <p>This page refreshes every 5 seconds.</p>
-${logUrl ? `<p><a href="${escapeHtml(logUrl)}">View the build log</a></p>` : ""}`,
+${logLink(logUrl, "View the build log")}`,
   });
 }
 
@@ -70,6 +73,7 @@ ${host(hostname)}
 
 export function failedPage(hostname: string, logLines: string[] = [], logUrl?: string): Response {
   const tail = logLines.slice(-50);
+  const pre = tail.length ? `<pre>${escapeHtml(tail.join("\n"))}</pre>` : "";
   return page({
     hostname,
     status: 502,
@@ -79,8 +83,8 @@ export function failedPage(hostname: string, logLines: string[] = [], logUrl?: s
     tone: "bad",
     body: `<h1>This preview failed to start</h1>
 ${host(hostname)}
-${tail.length ? `<pre>${escapeHtml(tail.join("\n"))}</pre>` : ""}
-${logUrl ? `<p><a href="${escapeHtml(logUrl)}">View the full log</a></p>` : ""}`,
+${pre}
+${logLink(logUrl, "View the full log")}`,
   });
 }
 

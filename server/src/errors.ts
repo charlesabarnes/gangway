@@ -50,11 +50,11 @@ export class AppError extends Error {
   toProblem(instance?: string) {
     return {
       type: `https://gangway.dev/errors/${this.code}`,
-      title: this.code.replace(/_/g, " "),
+      title: this.code.replaceAll("_", " "),
       status: this.status,
       detail: this.message,
       ...(instance ? { instance } : {}),
-      ...(this.detail ?? {}),
+      ...this.detail,
     };
   }
 }

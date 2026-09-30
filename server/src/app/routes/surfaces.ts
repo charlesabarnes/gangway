@@ -26,6 +26,20 @@ const SURFACES = { ui: SETTINGS.surfacesUi, mcp: SETTINGS.surfacesMcp } as const
 >;
 type SurfaceName = keyof typeof SURFACES;
 
+function assertUiMayTurnOff(d: SurfacesDeps, confirm: string | undefined): void {
+  if (confirm !== DISABLE_UI_PHRASE) {
+    throw unprocessable(`turning the UI off needs "confirm": "${DISABLE_UI_PHRASE}"`, {
+      phrase: DISABLE_UI_PHRASE,
+    });
+  }
+  if (!d.hasActiveAdmin()) {
+    throw conflict(
+      "refusing to turn the UI off: no unexpired admin-scoped API token exists, so there would be no way back in. Create one under Account -> API tokens first",
+      { reason: "no_admin_token" },
+    );
+  }
+}
+
 export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
   const state = (name: SurfaceName) => {
     const e = d.settings.effective(SURFACES[name]);
@@ -75,17 +89,7 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
       }
     }
     if (changes.some((ch) => ch.name === "ui" && !ch.value)) {
-      if (req.confirm !== DISABLE_UI_PHRASE) {
-        throw unprocessable(`turning the UI off needs "confirm": "${DISABLE_UI_PHRASE}"`, {
-          phrase: DISABLE_UI_PHRASE,
-        });
-      }
-      if (!d.hasActiveAdmin()) {
-        throw conflict(
-          "refusing to turn the UI off: no unexpired admin-scoped API token exists, so there would be no way back in. Create one under Account -> API tokens first",
-          { reason: "no_admin_token" },
-        );
-      }
+      assertUiMayTurnOff(d, req.confirm);
     }
 
     for (const ch of changes) {

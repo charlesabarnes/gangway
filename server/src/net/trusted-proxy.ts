@@ -39,7 +39,7 @@ export function clientIpResolver(trusted: readonly string[]): ClientIpResolver {
       return peer;
     }
     const hops = forwardedFor.split(",").map((h) => unmap(h.trim()));
-    for (const hop of hops.reverse()) {
+    for (const hop of hops.toReversed()) {
       // Walking right to left, the first untrusted hop is the last one a trusted proxy vouched for.
       if (isIP(hop) === 0) {
         return peer;

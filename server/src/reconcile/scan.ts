@@ -8,7 +8,7 @@ import { redactString } from "../logger.ts";
 import type { ScannedContainer, ScannedLabels } from "./diff.ts";
 import type { HostScan, ReconcilerDeps } from "./reconciler-types.ts";
 
-const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
+const VISIBILITIES: ReadonlySet<string> = new Set<Visibility>(["public", "unlisted", "private"]);
 
 export function scanLabels(raw: Readonly<Record<string, string>>): ScannedLabels {
   const int = (v: string | undefined) =>
@@ -20,7 +20,7 @@ export function scanLabels(raw: Readonly<Record<string, string>>): ScannedLabels
     hostname: text(raw[LABEL.hostname]),
     service: text(raw[LABEL.service]),
     containerPort: int(raw[LABEL.containerPort]),
-    visibility: VISIBILITIES.includes(vis as Visibility) ? (vis as Visibility) : undefined,
+    visibility: vis !== undefined && VISIBILITIES.has(vis) ? (vis as Visibility) : undefined,
     primary: booleanLabel(raw[LABEL.primary]),
     version: int(raw[LABEL.version]),
   };

@@ -68,10 +68,13 @@ function movingTo(ctx: PreviewContext, p: Preview): string | null {
 
 const listOf = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
+// "warn: " or "error: " before a reason; nothing before an info one.
+const levelPrefix = (level: string | undefined) => (level && level !== "info" ? `${level}: ` : "");
+
 function reasonLines(detail: Record<string, unknown>): string[] {
   return listOf<{ level?: string; found?: string; then?: string }>(detail["reasons"])
     .filter((r) => r.found && r.then)
-    .map((r) => `  ${r.level && r.level !== "info" ? `${r.level}: ` : ""}${r.found} -> ${r.then}`);
+    .map((r) => `  ${levelPrefix(r.level)}${r.found} -> ${r.then}`);
 }
 
 function issueLines(detail: Record<string, unknown>): string[] {
@@ -114,16 +117,16 @@ function planRuns(plan: AppPlan, served: boolean): string | null {
 }
 
 export function describePlan(plan: AppPlan, served = false): string {
+  const version = plan.version ? ` ${plan.version}` : "";
   const what =
     plan.kind === "own"
       ? "the upload's own compose file or Dockerfile"
-      : `${plan.runtime}${plan.version ? ` ${plan.version}` : ""}`;
-  const addons = plan.addons.length
-    ? `add-ons: ${plan.addons.map((a) => `${a.id} ${a.version}`).join(", ")}`
-    : null;
+      : `${plan.runtime}${version}`;
+  const addonList = plan.addons.map((a) => `${a.id} ${a.version}`).join(", ");
+  const addons = plan.addons.length ? `add-ons: ${addonList}` : null;
   const reasons = plan.reasons
     .slice(0, PLAN_REASONS_SHOWN)
-    .map((r) => `  ${r.level === "info" ? "" : `${r.level}: `}${r.found} -> ${r.then}`);
+    .map((r) => `  ${levelPrefix(r.level)}${r.found} -> ${r.then}`);
   const more =
     plan.reasons.length > PLAN_REASONS_SHOWN
       ? [`  … ${plan.reasons.length - PLAN_REASONS_SHOWN} more in logs`]

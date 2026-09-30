@@ -71,15 +71,7 @@ export class CertManager {
   /** Brings the held certificates in line with the plan; the new bundle when anything changed. */
   async refresh(signal?: AbortSignal): Promise<CertBundle | null> {
     const units = this.#o.plan();
-    const wanted = new Set(units.map(keyOf));
-    let changed = false;
-    for (const key of this.#held.keys()) {
-      if (!wanted.has(key)) {
-        this.#held.delete(key);
-        this.#failures.delete(key);
-        changed = true;
-      }
-    }
+    let changed = this.#dropUnwanted(new Set(units.map(keyOf)));
     let orders = 0;
     for (const unit of units) {
       if (signal?.aborted) {
@@ -98,13 +90,7 @@ export class CertManager {
         continue;
       }
       const current = must(this.#held.get(keyOf(unit)), "a held certificate");
-      if (current.real && !this.#due(current)) {
-        continue;
-      }
-      if (this.#backingOff(keyOf(unit))) {
-        continue;
-      }
-      if (orders >= (this.#o.maxOrdersPerRun ?? 5)) {
+      if (!this.#wantsOrder(unit, current, orders)) {
         continue;
       }
       orders++;
@@ -113,6 +99,30 @@ export class CertManager {
       }
     }
     return changed ? this.bundle() : null;
+  }
+
+  /** Forgets certificates the plan no longer names; whether there were any. */
+  #dropUnwanted(wanted: ReadonlySet<string>): boolean {
+    let dropped = false;
+    for (const key of this.#held.keys()) {
+      if (!wanted.has(key)) {
+        this.#held.delete(key);
+        this.#failures.delete(key);
+        dropped = true;
+      }
+    }
+    return dropped;
+  }
+
+  /** A stand-in or a due certificate is ordered, unless it is backing off or this run's orders are spent. */
+  #wantsOrder(unit: CertUnit, current: Held, orders: number): boolean {
+    if (current.real && !this.#due(current)) {
+      return false;
+    }
+    if (this.#backingOff(keyOf(unit))) {
+      return false;
+    }
+    return orders < (this.#o.maxOrdersPerRun ?? 5);
   }
 
   bundle(): CertBundle {

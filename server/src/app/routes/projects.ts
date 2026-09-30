@@ -4,12 +4,13 @@ import {
   ProjectCreateSchema,
   ProjectPatchSchema,
   PullDeploySchema,
+  type ProjectPatchRequest,
 } from "@gangway/shared/api";
 import type { Preview, Project } from "@gangway/shared/domain";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { ProjectsRepo } from "../../db/repos/projects.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
-import { can } from "../../auth/actor.ts";
+import { can, type Actor } from "../../auth/actor.ts";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../../errors.ts";
 import {
   auditFields,
@@ -59,29 +60,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
     const before = findProject(projects, c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
-    if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null) {
-      throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
-    }
-    checkTemplate(d, patch.templateId);
-    if (patch.watermark !== undefined && !can(c.get("actor"), "previews.watermark")) {
-      throw forbidden('switching the gangway watermark needs "previews.watermark"');
-    }
-    if (patch.domain !== undefined) {
-      if (!can(c.get("actor"), "repos.domains")) {
-        throw forbidden('choosing a repository\'s domain needs "repos.domains"');
-      }
-      if (patch.domain !== null) {
-        d.domains?.assertAvailable(patch.domain, before.id);
-      }
-    }
-    if (patch.slug !== undefined && patch.slug !== before.slug) {
-      const taken = projects.getBySlug(patch.slug);
-      if (taken) {
-        throw conflict(`slug "${patch.slug}" is taken by project "${taken.name}"`, {
-          takenBy: taken.slug,
-        });
-      }
-    }
+    checkPatch(d, c.get("actor"), before, patch);
     if (repository !== undefined && repository !== before.fullName) {
       if (repository !== null) {
         checkRepository(projects, repository, before.id);
@@ -120,6 +99,37 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
   projectSecretRoutes(api, d);
   projectPullRoutes(api, d);
+}
+
+function checkPatch(
+  d: ProjectRouteDeps,
+  actor: Actor,
+  before: Project,
+  patch: Omit<ProjectPatchRequest, "repository">,
+): void {
+  if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null) {
+    throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
+  }
+  checkTemplate(d, patch.templateId);
+  if (patch.watermark !== undefined && !can(actor, "previews.watermark")) {
+    throw forbidden('switching the gangway watermark needs "previews.watermark"');
+  }
+  if (patch.domain !== undefined) {
+    if (!can(actor, "repos.domains")) {
+      throw forbidden('choosing a repository\'s domain needs "repos.domains"');
+    }
+    if (patch.domain !== null) {
+      d.domains?.assertAvailable(patch.domain, before.id);
+    }
+  }
+  if (patch.slug !== undefined && patch.slug !== before.slug) {
+    const taken = d.projects.getBySlug(patch.slug);
+    if (taken) {
+      throw conflict(`slug "${patch.slug}" is taken by project "${taken.name}"`, {
+        takenBy: taken.slug,
+      });
+    }
+  }
 }
 
 function findProject(projects: ProjectsRepo, ref: string): Project {

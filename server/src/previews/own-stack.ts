@@ -106,7 +106,7 @@ export async function ownStack(
     }
   }
   // No compose file to read a .env: the container gets the secrets as environment, as a runtime does.
-  const appEnv = { ...(env ?? {}), ...(plan?.env ?? {}), ...(sidecars?.appEnv ?? {}) };
+  const appEnv = { ...env, ...plan?.env, ...sidecars?.appEnv };
   if (n > 0) {
     ctx.logs.append(id, "system", `passing ${n} secret(s) to the container as environment`);
   }

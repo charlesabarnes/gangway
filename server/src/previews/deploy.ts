@@ -169,9 +169,8 @@ async function prepare(
   if (site && material.source.kind === "tarball") {
     material.source = { ...material.source, serve: "gangway" };
   }
-  const planned = site
-    ? siteModel(site, input.source.kind === "tarball" ? input.source.port : undefined)
-    : await readModel(ctx, host, wd, material);
+  const port = input.source.kind === "tarball" ? input.source.port : undefined;
+  const planned = site ? siteModel(site, port) : await readModel(ctx, host, wd, material);
   const { model } = planned;
   const exposed = selectExposed(model);
   const visibility = visibilityFor(ctx, input, policy, model);
