@@ -30,6 +30,9 @@ ACME_EMAIL=
 VERSION=latest
 IMAGE=
 PORT=8443
+LAN=0
+LISTEN=
+TRUSTED=
 COMPOSE_FILE_SRC=
 ASSUME_YES=0
 SKIP_PULL=0
@@ -41,6 +44,8 @@ Usage: install.sh [options]
 
   --local                 no domain: gangway answers only on this machine, at *.preview.localhost,
                           and a preview goes public through its Share link (same as --tls local)
+  --lan                   no domain, reachable from your network: like --local, at
+                          *.<this host's IP>.sslip.io, a public DNS name for a private address
   --domain <domain>       base domain, e.g. preview.example.com (*.<domain> must point here)
   --tls proxy|acme|local  proxy: a reverse proxy in front holds 443 and the certificate
                           acme:  gangway holds 443 and gets a wildcard certificate itself
@@ -54,6 +59,9 @@ Usage: install.sh [options]
   --dir <path>            where gangway's files live (default depends on the platform)
   --name <name>           container name, for a second gangway on one host (default gangway)
   --port <port>           port gangway listens on behind a proxy (default 8443)
+  --listen <address>      address gangway listens on behind a proxy (default the docker0
+                          gateway; 0.0.0.0 when the proxy is on another machine)
+  --trusted-proxies <cidrs>  where the proxy connects from (default the docker0 subnet)
   --image <name>          image to run instead of ghcr.io/charlesabarnes/gangway
   --compose-file <path>   use this compose.yaml instead of downloading the release's
   --no-pull               run an image already on this host (with --image)
@@ -75,6 +83,7 @@ while [ $# -gt 0 ]; do
     --domain) DOMAIN=${2:?--domain needs a value}; shift ;;
     --tls) TLS=${2:?--tls needs a value}; shift ;;
     --local) TLS=local ;;
+    --lan) TLS=local LAN=1 ;;
     --cf-token) CF_TOKEN=${2:?--cf-token needs a value}; shift ;;
     --acme-email) ACME_EMAIL=${2:?--acme-email needs a value}; shift ;;
     --version) VERSION=${2:?--version needs a value}; shift ;;
@@ -83,6 +92,8 @@ while [ $# -gt 0 ]; do
     --dir) DIR=${2:?--dir needs a value}; shift ;;
     --name) NAME=${2:?--name needs a value}; shift ;;
     --port) PORT=${2:?--port needs a value}; shift ;;
+    --listen) LISTEN=${2:?--listen needs a value}; shift ;;
+    --trusted-proxies) TRUSTED=${2:?--trusted-proxies needs a value}; shift ;;
     --image) IMAGE=${2:?--image needs a value}; shift ;;
     --compose-file) COMPOSE_FILE_SRC=${2:?--compose-file needs a value}; shift ;;
     --no-pull) SKIP_PULL=1 ;;
@@ -130,6 +141,11 @@ fetch() { # fetch <url> <file>
 }
 
 now_ms() { printf '%s000' "$(date +%s)"; }
+
+# The address other machines reach this host on: the source of its default route.
+lan_ip() {
+  ip -4 route get 1.1.1.1 2>/dev/null | awk '{ for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit } }'
+}
 
 xml_escape() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'; }
 
@@ -216,7 +232,7 @@ fi
 say "$LABEL, Docker $(docker version -f '{{.Server.Version}}' 2>/dev/null)"
 case "$PLATFORM" in
   # Written to each platform's conventions but not yet run on one. Reports are welcome.
-  unraid | truenas | synology | desktop)
+  unraid | truenas | synology | casaos | desktop)
     warn "installing on $LABEL is experimental; if something is off: https://github.com/$REPO/issues"
     ;;
 esac
@@ -253,7 +269,15 @@ if [ "$UPGRADE" = 1 ]; then
   DOMAIN=$(conf_get GANGWAY_BASE_DOMAIN)
   case "$DOMAIN" in
     localhost | *.localhost) TLS=local ;;
-    *) if [ "$(conf_get GANGWAY_TLS_MODE)" = acme ]; then TLS=acme; else TLS=proxy; fi ;;
+    *)
+      if [ "$(conf_get GANGWAY_TLS_MODE)" = acme ]; then
+        TLS=acme
+      elif [ -n "$(conf_get GANGWAY_PUBLIC_PORT)" ]; then
+        TLS=local # --lan: local, under a real domain
+      else
+        TLS=proxy
+      fi
+      ;;
   esac
 fi
 
@@ -264,30 +288,34 @@ if [ "$UPGRADE" = 0 ]; then
   [ "$PLATFORM" = desktop ] && TLS=${TLS:-local}
   if [ -z "$TLS" ] && [ -z "$DOMAIN" ]; then
     say "Where should gangway answer?"
-    say "  local  only on this machine, with no domain; share a preview publicly from its page"
     say "  proxy  your domain, behind a reverse proxy already on this host"
     say "  acme   your domain, with gangway holding 443 and its own certificate"
-    TLS=$(ask "local, proxy or acme" local)
+    say "  lan    no domain, on your network at *.<this host's IP>.sslip.io, to try it out"
+    say "  local  no domain, only on this machine"
+    TLS=$(ask "proxy, acme, lan or local" proxy)
+    [ "$TLS" = lan ] && TLS=local LAN=1
   fi
-  if [ "$TLS" = local ]; then
+  if [ "$LAN" = 1 ]; then
+    ip=$(lan_ip)
+    [ -n "$ip" ] || die "could not find this host's network address; use --local --domain <ip>.sslip.io"
+    DOMAIN=${DOMAIN:-$(printf '%s' "$ip" | tr . -).sslip.io}
+  elif [ "$TLS" = local ]; then
     # *.localhost resolves to this machine in browsers and curl, so no DNS or certificate to set up.
     DOMAIN=${DOMAIN:-preview.localhost}
   else
     [ -n "$DOMAIN" ] || DOMAIN=$(ask "Base domain for previews (e.g. preview.example.com)" "")
-    [ -n "$DOMAIN" ] || die "a base domain is required (--domain), or install with --local"
+    [ -n "$DOMAIN" ] || die "a base domain is required (--domain), or install with --lan to try it without one"
   fi
   case "$DOMAIN" in
     *[!a-z0-9.-]* | .* | *. | *..*) die "\"$DOMAIN\" is not a domain name (lowercase, like preview.example.com)" ;;
   esac
 
   if [ -z "$TLS" ]; then
-    # NAS web UIs usually hold 80 and 443 already, so a proxy is the likelier setup there.
-    case "$PLATFORM" in unraid | truenas | synology | casaos) suggest=proxy ;; *) suggest=acme ;; esac
     say ""
     say "Who holds port 443 and the wildcard certificate for *.$DOMAIN?"
     say "  proxy  a reverse proxy already on this host (Nginx Proxy Manager, Caddy, Traefik, ...)"
     say "  acme   gangway itself, with a Let's Encrypt certificate over Cloudflare DNS"
-    TLS=$(ask "proxy or acme" "$suggest")
+    TLS=$(ask "proxy or acme" proxy)
   fi
   case "$TLS" in proxy | acme | local) ;; *) die "--tls must be proxy, acme or local, not \"$TLS\"" ;; esac
 
@@ -314,13 +342,17 @@ port_busy() { # port_busy <port>: something other than our gangway listens on it
 if [ "$UPGRADE" = 0 ]; then
   step "Checking DNS and ports"
 
-  if [ "$TLS" != local ] && command -v getent >/dev/null 2>&1; then
+  if { [ "$TLS" != local ] || [ "$LAN" = 1 ]; } && command -v getent >/dev/null 2>&1; then
     # Any name under the wildcard must resolve here; a random one proves it is the wildcard.
     probe="gw-check-$(od -An -N4 -tx4 /dev/urandom | tr -d ' \n').$DOMAIN"
     base_ip=$(getent hosts "$DOMAIN" | awk '{print $1}' | head -n 1)
     wild_ip=$(getent hosts "$probe" | awk '{print $1}' | head -n 1)
     if [ -n "$base_ip" ] && [ -n "$wild_ip" ]; then
       say "$DOMAIN -> $base_ip, *.$DOMAIN -> $wild_ip"
+    elif [ "$LAN" = 1 ]; then
+      # Routers with DNS rebinding protection drop public answers that hold a private address.
+      warn "$DOMAIN does not resolve here; your router or DNS filter may block names that point at private addresses"
+      say "Allow sslip.io in it (dnsmasq: rebind-domain-ok=/sslip.io/), or install with --domain instead."
     else
       [ -n "$base_ip" ] || warn "$DOMAIN does not resolve; add a DNS record pointing it at this host"
       [ -n "$wild_ip" ] || warn "*.$DOMAIN does not resolve; add a wildcard DNS record pointing it at this host"
@@ -347,7 +379,7 @@ if [ "$UPGRADE" = 0 ]; then
       # Behind a proxy gangway listens on the docker0 gateway, where the proxy's containers reach it.
       GATEWAY=$(docker network inspect bridge -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
       SUBNET=$(docker network inspect bridge -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)
-      GATEWAY=${GATEWAY:-172.17.0.1} SUBNET=${SUBNET:-172.17.0.0/16}
+      GATEWAY=${LISTEN:-${GATEWAY:-172.17.0.1}} SUBNET=${TRUSTED:-${SUBNET:-172.17.0.0/16}}
       ! port_busy "$PORT" || die "port $PORT is already in use; pick another with --port"
       ;;
     local)
@@ -381,14 +413,20 @@ initial_env() {
       say "GANGWAY_TLS_MODE=selfsigned"
       say "GANGWAY_LISTEN_ADDRESS=$GATEWAY"
       say "GANGWAY_LISTEN_PORT=$PORT"
+      # Spelled out, not left to compose.yaml: an Unraid template gets the image's defaults instead.
+      say "GANGWAY_LISTEN_HTTP_PORT="
+      say "GANGWAY_PUBLIC_PORT=443"
       say "GANGWAY_TRUSTED_PROXIES=$SUBNET"
       ;;
     local)
       say "GANGWAY_TLS_MODE=selfsigned"
       say "GANGWAY_LISTEN_ADDRESS=::"
       say "GANGWAY_LISTEN_PORT=$PORT"
+      say "GANGWAY_LISTEN_HTTP_PORT="
       say "GANGWAY_PUBLIC_PORT=$PORT"
       say "GANGWAY_TRUSTED_PROXIES="
+      # Share is on by default only under *.localhost; on the network it is still the public path.
+      case "$DOMAIN" in localhost | *.localhost) ;; *) say "GANGWAY_SHARE=true" ;; esac
       ;;
   esac
 }
@@ -700,11 +738,13 @@ fi
 
 if [ "$UPGRADE" = 0 ]; then
   if [ "$TLS" = proxy ]; then
+    upstream=$GATEWAY
+    case "$upstream" in 0.0.0.0 | ::) upstream=$(lan_ip) ;; esac
     cat <<NEXT
 
 Point your reverse proxy at gangway:
   hosts:     $DOMAIN  and  *.$DOMAIN   (the wildcard certificate, websockets on)
-  upstream:  https://$GATEWAY:$PORT     (self-signed; do not verify it)
+  upstream:  https://$upstream:$PORT     (self-signed; do not verify it)
   nginx:     proxy_read_timeout 600s; proxy_send_timeout 600s;
              client_max_body_size 512m; proxy_request_buffering off;
 NEXT
@@ -719,9 +759,12 @@ NEXT
   if [ "$TLS" = local ]; then
     say ""
     say "Browsers warn about the certificate: it is gangway's own. Its CA is $STATE/dev-ca/ca.pem."
-    say "Previews open only on this machine. To show one to anyone else, press Share on its page"
+    case "$DOMAIN" in
+      localhost | *.localhost) say "Previews open only on this machine. To show one to anyone else, press Share on its page" ;;
+      *) say "Previews open on your network. To show one to anyone outside it, press Share on its page" ;;
+    esac
     say "for a public link through a Cloudflare quick tunnel."
-    if [ "$PLATFORM" != desktop ]; then
+    if [ "$PLATFORM" != desktop ] && [ "$LAN" = 0 ]; then
       say "From another computer, tunnel to it first:  ssh -L $PORT:localhost:$PORT <this host>"
     fi
   fi
