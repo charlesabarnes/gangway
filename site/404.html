@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gangway — page not found</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <script>
+      // Every path on gangway.sh is lowercase, but some sites that link here capitalise words in
+      // URLs (Community Applications turns install/unraid into install/Unraid), so send those home.
+      var p = location.pathname;
+      if (p !== p.toLowerCase())
+        location.replace(p.toLowerCase() + location.search + location.hash);
+    </script>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-content: center;
+        gap: 0.5rem;
+        text-align: center;
+        font:
+          1.125rem/1.5 system-ui,
+          sans-serif;
+        color: #0b2648;
+        background: #f8f4ec;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          color: #e8e4dc;
+          background: #0b1422;
+        }
+      }
+      h1 {
+        margin: 0;
+        font-size: 2rem;
+      }
+      a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Page not found</h1>
+    <p>Try the <a href="/">home page</a> or the <a href="/docs/">docs</a>.</p>
+  </body>
+</html>
