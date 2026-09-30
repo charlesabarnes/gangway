@@ -113,10 +113,10 @@ On the host, as root or a user in the `docker` group:
 curl -fsSL gangway.sh/install | sh
 ```
 
-The installer asks whether gangway runs local-only or on your domain (`curl -fsSL
-gangway.sh/install | sh -s -- --local` skips the question), then for your domain and whether a
-reverse proxy or gangway itself holds port 443; with gangway holding it, it also asks for a Cloudflare API token so it can get a Let's
-Encrypt wildcard certificate over DNS-01. It checks Docker, DNS and the ports, writes
+The installer asks where gangway answers: on your domain behind a reverse proxy (the default),
+on your domain with gangway holding port 443, or with no domain (`--lan` or `--local`). For a
+domain it asks for the domain, and when gangway holds port 443, for a Cloudflare API token so
+it can get a Let's Encrypt wildcard certificate over DNS-01. It checks Docker, DNS and the ports, writes
 `/opt/gangway/.env` (with a generated admin token) and `compose.yaml`, starts gangway, and
 prints a one-time link.
 
@@ -124,17 +124,32 @@ Open that link to create the first admin account. There are no default credentia
 changes on every start until the first account exists; `docker logs gangway | grep setup`
 shows the current one.
 
-It installs the way the host expects. On plain Linux and CasaOS (where it shows up as an app)
-that is a compose project. Unraid (a Docker-tab template with the icon), TrueNAS SCALE (a custom
-app), Synology and desktop engines (Docker Desktop, Colima, Podman, on `preview.localhost`)
-are supported but **experimental**: written to each platform's conventions, not yet verified on
-one.
+It installs the way the host expects. On plain Linux that is a compose project. CasaOS (a
+compose project that shows up as an app), Unraid (a Docker-tab template with the icon), TrueNAS
+SCALE (a custom app), Synology and desktop engines (Docker Desktop, Colima, Podman, on
+`preview.localhost`) are supported but **experimental**: written to each platform's
+conventions, not yet verified on one.
 
 Run the installer again to upgrade. gangway backs its database up before it migrates, and if
 the new version does not come up healthy the installer puts the previous version and that
 backup back; `--rollback` does the same by hand. Changes of your own to the compose setup go in
 `compose.override.yaml`, which upgrades leave alone. `--help` lists flags for everything it asks, so it can run
 unattended: `curl -fsSL gangway.sh/install | sh -s -- --domain preview.example.com --tls acme --cf-token ... --yes`.
+
+To try it from other machines on your network with no domain, use `--lan`: the dashboard is at
+`https://app.<host-ip>.sslip.io:8443` ([sslip.io](https://sslip.io) answers any name with the IP
+in it), browsers warn once about gangway's own certificate, and **Share** makes a preview public.
+
+#### In a VM, or on Unraid
+
+gangway holds the Docker socket, which is root on its host. To keep previews off a machine that
+does other work, give gangway a VM: [`vm/cloud-init.yaml`](vm/cloud-init.yaml) turns a stock
+Debian or Ubuntu cloud image into one on its first boot, in any hypervisor.
+
+On Unraid, **gangway-inabox** does that for you, like Home Assistant in a Box: it creates the
+VM, installs gangway in it, and shows the address and the first-admin link on its WebUI. The
+plain **gangway** template runs it on Unraid's own Docker instead. Both are in
+[`unraid/`](unraid/README.md).
 
 #### By hand
 

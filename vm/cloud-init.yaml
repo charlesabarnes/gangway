@@ -1,0 +1,26 @@
+#cloud-config
+# gangway in its own VM: boot a stock Debian 13 or Ubuntu 24.04 cloud image with this as its
+# user-data, and it installs Docker and gangway on first boot. Previews then run inside the VM,
+# not beside everything else on the host.
+#
+# Pick how gangway is reached by editing GANGWAY_ARGS below (install.sh --help lists them all):
+#   --lan                                    no domain; https://app.<vm-ip>.sslip.io:8443
+#   --tls proxy --domain preview.example.com --listen :: --trusted-proxies <proxy-ip>/32
+#                                            behind a reverse proxy on another machine
+#   --tls acme --domain preview.example.com --cf-token <token>
+#                                            gangway holds 80/443 on the VM's own address
+#
+# Progress and the first-admin link: /var/log/gangway-install.log, and the serial console.
+hostname: gangway
+package_update: true
+packages: [ca-certificates, curl, qemu-guest-agent, unattended-upgrades]
+# ssh_authorized_keys: [ssh-ed25519 AAAA... you@laptop]
+write_files:
+  - path: /etc/gangway/install-args
+    permissions: "0600"
+    content: |
+      GANGWAY_ARGS="--lan"
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  - sh -c 'command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh'
+  - sh -c '. /etc/gangway/install-args; curl -fsSL "${GANGWAY_INSTALLER:-https://gangway.sh/install}" | sh -s -- --yes $GANGWAY_ARGS 2>&1 | tee /var/log/gangway-install.log > /dev/console'
