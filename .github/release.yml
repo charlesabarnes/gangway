@@ -1,0 +1,18 @@
+# Sorts `--generate-notes` by label. A PR goes under the first category it matches, so a security
+# fix that is also a bug lands under Security. The pr-label check makes every PR carry one of these.
+changelog:
+  categories:
+    - title: Security
+      labels: [security]
+    - title: New
+      labels: [enhancement]
+    - title: Fixes
+      labels: [bug]
+    - title: Unraid
+      labels: [unraid]
+    - title: Docs
+      labels: [documentation]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Other
+      labels: ["*"]

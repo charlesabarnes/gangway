@@ -1,0 +1,31 @@
+# Weekly version updates, minor and patch grouped into one PR per ecosystem so they stay reviewable.
+# A new release waits a week first, so a hijacked package is usually caught before it gets here;
+# security updates skip the wait and arrive as soon as an advisory lands.
+version: 2
+updates:
+  # Also keeps the SHA-pinned actions current; the tag in each trailing comment moves with them.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups:
+      actions: { update-types: [minor, patch] }
+
+  - package-ecosystem: bun
+    directories: [/, /guide]
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups:
+      bun: { update-types: [minor, patch] }
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups:
+      web: { update-types: [minor, patch] }
+
+  - package-ecosystem: docker
+    directories: [/, /unraid/inabox]
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
