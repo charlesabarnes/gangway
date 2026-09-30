@@ -100,8 +100,7 @@ credentials. Run it again to upgrade; a new version that does not come up health
   with `compose.yaml`.
 - **[Unraid](https://gangway.sh/docs/install/unraid/)**: **gangway-inabox** runs gangway in a VM
   it creates, like Home Assistant in a Box; the plain **gangway** template runs it on Unraid's
-  Docker. The templates are in
-  [charlesabarnes/unraid-templates](https://github.com/charlesabarnes/unraid-templates).
+  Docker. Both are in Community Applications: search **Apps** for gangway.
 - **[In a VM](https://gangway.sh/docs/install/vm/)**: [`vm/cloud-init.yaml`](vm/cloud-init.yaml)
   turns a stock Debian or Ubuntu cloud image into a gangway VM, in any hypervisor.
 - **[Reverse proxy](https://gangway.sh/docs/setup/reverse-proxy/)**: Nginx Proxy Manager, SWAG,
