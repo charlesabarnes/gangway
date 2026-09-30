@@ -1,0 +1,5 @@
+# DS-0002, no USER in the Dockerfile: gangway drives the Docker socket and gangway in a box drives
+# libvirt's, and either socket is root on the host, so a non-root user inside the container would
+# not shrink what a compromise reaches. Dropping root needs the socket's group id from the host and
+# a change of owner on existing state directories; revisit it with a socket proxy.
+DS-0002
