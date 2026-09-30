@@ -28,7 +28,7 @@ export type Parsed =
 
 export const TEAM_SIZES = ["1", "2–10", "11–50", "51+"];
 export const PREVIEW_COUNTS = ["under 10", "10–50", "50–200", "200+"];
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL = /^[^\s@]+@[^\s@][^\s@.]*\.[^\s@]+$/;
 
 const text = (value: unknown, max: number) =>
   typeof value === "string" ? value.trim().slice(0, max) : "";

@@ -7,8 +7,10 @@ const REASON_LOOK: Record<PlanReason['level'], { tone: string; mark: string }> =
   info: { tone: 'text-ink', mark: '→' },
 };
 
-const commandText = (c: Command | null) =>
-  c === null ? null : typeof c === 'string' ? c : c.join(' ');
+function commandText(c: Command | null): string | null {
+  if (c === null) return null;
+  return typeof c === 'string' ? c : c.join(' ');
+}
 
 function planLine(p: AppPlan): string {
   const serve =
@@ -22,7 +24,7 @@ function planLine(p: AppPlan): string {
     commandText(p.build),
     serve ?? commandText(p.start) ?? (p.entry ? `runs ${p.entry}` : null),
   ]
-    .filter((x) => x)
+    .filter(Boolean)
     .join(' · ');
 }
 

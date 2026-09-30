@@ -61,9 +61,9 @@ export class Account {
   protected readonly canTokens = computed(() => this.auth.can('tokens.manage_own'));
   protected readonly grouped = computed(() => {
     const by = new Map<string, string[]>();
-    for (const p of [...this.auth.permissions()].sort()) {
+    for (const p of [...this.auth.permissions()].sort((a, b) => Number(a > b) - Number(a < b))) {
       const [feature = '', verb = ''] = p.split('.');
-      by.set(feature, [...(by.get(feature) ?? []), verb.replace(/_/g, ' ')]);
+      by.set(feature, [...(by.get(feature) ?? []), verb.replaceAll('_', ' ')]);
     }
     return [...by].map(([feature, verbs]) => ({ feature, verbs }));
   });

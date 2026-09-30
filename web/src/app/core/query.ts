@@ -48,12 +48,11 @@ export class QueryCache {
   }
 
   invalidate(prefix: string): void {
-    for (const key of [...this.#entries.keys()])
-      if (key.startsWith(prefix)) this.#entries.delete(key);
+    for (const key of this.#entries.keys()) if (key.startsWith(prefix)) this.#entries.delete(key);
   }
 
   #refresh(e: Entry): Promise<void> {
-    return (e.inflight ??= e
+    e.inflight ??= e
       .load()
       .then(
         (v) => {
@@ -64,6 +63,7 @@ export class QueryCache {
       )
       .finally(() => {
         e.inflight = null;
-      }));
+      });
+    return e.inflight;
   }
 }

@@ -176,7 +176,7 @@ export class SecretsEditor {
 
   protected ready(): boolean {
     const d = this.draft();
-    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(d.name) && d.value !== '';
+    return /^[A-Za-z_]\w*$/.test(d.name) && d.value !== '';
   }
 
   protected async set(e: Event): Promise<void> {
@@ -203,12 +203,16 @@ export class SecretsEditor {
       if (eq <= 0) continue;
       const name = line.slice(0, eq).trim();
       let value = line.slice(eq + 1).trim();
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
+      if (!/^[A-Za-z_]\w*$/.test(name)) continue;
       const q = value[0];
       const close = q === '"' || q === "'" ? value.indexOf(q, 1) : -1;
       if (close > 0) value = value.slice(1, close);
-      else value = value.replace(/\s+#.*$/, '');
-      if (q === '"' && close > 0) value = value.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      else {
+        // An unquoted value ends at the first " #": the comment and the spaces before it go.
+        const hash = value.search(/\s#/);
+        if (hash >= 0) value = value.slice(0, hash).trimEnd();
+      }
+      if (q === '"' && close > 0) value = value.replaceAll('\\n', '\n').replaceAll('\\"', '"');
       out.push([name, value]);
     }
     return out;

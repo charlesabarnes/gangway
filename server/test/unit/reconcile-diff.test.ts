@@ -44,7 +44,7 @@ describe("an unreachable host is not an empty host", () => {
   });
 
   test("the same input with the host reachable mutates every preview", () => {
-    expect(diff(populated(true)).filter(isMutating).length).toBe(20);
+    expect(diff(populated(true)).filter(isMutating)).toHaveLength(20);
   });
 
   test("a host absent from the reachability map defaults to unreachable", () => {

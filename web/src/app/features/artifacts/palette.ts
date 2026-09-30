@@ -111,10 +111,8 @@ export function brandPalette(
   const primary: PaletteSpec['primary'] = light
     ? { l: 0.4, c: Math.min(p.c, 0.12), h: p.h }
     : { ...p, exact: brand.trim() };
-  const flag: PaletteSpec['flag'] = second
-    ? { ...toOklch(second), exact: accent!.trim() }
-    : light
-      ? { ...p, exact: brand.trim() }
-      : { l: 0.82, c: 0.14, h: p.h + 180 };
+  let flag: PaletteSpec['flag'] = { l: 0.82, c: 0.14, h: p.h + 180 };
+  if (second) flag = { ...toOklch(second), exact: accent!.trim() };
+  else if (light) flag = { ...p, exact: brand.trim() };
   return derivePalette({ primary, flag, paper: page });
 }

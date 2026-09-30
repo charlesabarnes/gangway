@@ -11,7 +11,7 @@ export type AgentClient = 'claude' | 'codex' | 'cursor' | 'vscode' | 'other';
 type Step = { note: string; code?: string };
 type Recipe = { label: string; steps: Step[]; link?: { href: string; text: string } };
 
-const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+const b64 = (s: string) => btoa(String.fromCodePoint(...new TextEncoder().encode(s)));
 
 /**
  * Auto mode's trusted-infrastructure note for this server, for ~/.claude/settings.json. Without

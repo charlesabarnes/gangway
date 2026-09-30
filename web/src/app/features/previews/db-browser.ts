@@ -246,7 +246,7 @@ export class DbBrowser {
   readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
 
-  #base = (): string => `/v1/previews/${this.previewId()}/addons`;
+  readonly #base = (): string => `/v1/previews/${this.previewId()}/addons`;
 
   constructor() {
     effect(() => {
@@ -304,7 +304,8 @@ export class DbBrowser {
       const r = await firstValueFrom(
         this.#http.get<RedisKey>(`${this.#base()}/redis/key`, { params: { name } }),
       );
-      this.keyInfo.set(`${r.type}${r.ttl === '-1' ? '' : ` · ttl ${r.ttl}s`}`);
+      const ttl = r.ttl === '-1' ? '' : ` · ttl ${r.ttl}s`;
+      this.keyInfo.set(`${r.type}${ttl}`);
       return r.value;
     });
   }

@@ -277,7 +277,9 @@ export class TemplateDetail {
     () => this.#auth.can('previews.deploy') || this.#auth.can('previews.deploy_static'),
   );
   protected readonly themes = computed(() => this.#svc.themes()?.themes ?? []);
-  protected readonly paths = computed(() => Object.keys(this.draft()).sort());
+  protected readonly paths = computed(() =>
+    Object.keys(this.draft()).sort((a, b) => Number(a > b) - Number(a < b)),
+  );
   protected readonly width = computed(() => THUMB[this.summary()?.kind ?? 'document'].w);
   protected readonly css = computed(() => {
     const t = this.#svc.theme(this.themeId() ?? this.summary()?.themeId ?? null);

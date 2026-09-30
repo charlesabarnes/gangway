@@ -35,8 +35,8 @@ const dns: DnsProvider = {
   async removeTxt(_id, name) {
     await post("/clear-txt", { host: `${name}.` });
   },
-  async waitForPropagation() {
-    return true;
+  waitForPropagation() {
+    return Promise.resolve(true);
   },
 };
 
@@ -52,7 +52,8 @@ const presented = (port: number, servername: string) =>
   });
 
 const check = (label: string, ok: boolean, detail = "") => {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `  (${detail})` : ""}`);
+  const note = detail ? `  (${detail})` : "";
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${note}`);
   if (!ok) {
     process.exitCode = 1;
   }
@@ -89,10 +90,8 @@ const start = async () => {
     clients: {
       for: () => ({
         hostId: "local",
-        info: async () => {
-          throw new Error("no docker in the pebble check");
-        },
-        listContainers: async () => [],
+        info: () => Promise.reject(new Error("no docker in the pebble check")),
+        listContainers: () => Promise.resolve([]),
         stopContainer: async () => {},
       }),
     },

@@ -93,10 +93,8 @@ class SseConnection<T> {
     this.#drop();
     const { url } = this.#stream;
     // Callers pass the cursor as o.after: a url with its own after would send two.
-    const at =
-      this.#lastId === ''
-        ? url
-        : `${url}${url.includes('?') ? '&' : '?'}after=${encodeURIComponent(this.#lastId)}`;
+    const sep = url.includes('?') ? '&' : '?';
+    const at = this.#lastId === '' ? url : `${url}${sep}after=${encodeURIComponent(this.#lastId)}`;
     const s = (this.#source = this.#deps.factory(at));
     s.onopen = () => {
       if (s !== this.#source) return;

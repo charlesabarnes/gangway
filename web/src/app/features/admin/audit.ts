@@ -129,7 +129,9 @@ export class AuditLog {
   protected readonly applied = signal('');
   readonly #emails = signal<ReadonlyMap<string, string>>(new Map());
   readonly #actions = signal<ReadonlySet<string>>(new Set());
-  protected readonly seenActions = computed(() => [...this.#actions()].sort());
+  protected readonly seenActions = computed(() =>
+    [...this.#actions()].sort((a, b) => Number(a > b) - Number(a < b)),
+  );
 
   constructor() {
     void this.#page();

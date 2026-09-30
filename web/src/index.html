@@ -20,7 +20,9 @@
         // Signed in last time: paint the header now, before the app is up (AuthService keeps the flag).
         if (localStorage.getItem('gw-signed-in') === '1')
           document.documentElement.dataset.signedIn = '';
-      } catch (e) {}
+      } catch (e) {
+        // Storage or cookies can be off limits (blocked, sandboxed); the app sets the theme once it runs.
+      }
       // The session, asked for while the scripts download rather than after (AuthService takes it).
       window.gwSession = fetch('/v1/auth/session', { credentials: 'same-origin' }).then((r) =>
         r.ok ? r.json() : Promise.reject(r.status),

@@ -1,12 +1,12 @@
 type Listener = (e: MessageEvent) => void;
 
 export class FakeEventSource {
-  static instances: FakeEventSource[] = [];
+  static readonly instances: FakeEventSource[] = [];
   static reset(): void {
-    FakeEventSource.instances = [];
+    FakeEventSource.instances.length = 0;
   }
   static get last(): FakeEventSource {
-    return FakeEventSource.instances[FakeEventSource.instances.length - 1]!;
+    return FakeEventSource.instances.at(-1)!;
   }
 
   static readonly CONNECTING = 0;

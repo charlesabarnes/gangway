@@ -193,7 +193,8 @@ function startDemo(demo) {
       s.hidden = k !== which;
       s.scrollTop = 0;
     }
-    el.url.textContent = `gangway.sh${ADDRESS[which] ?? `/previews/${p.host.split(".")[0]}`}`;
+    const address = ADDRESS[which] ?? `/previews/${p.host.split(".")[0]}`;
+    el.url.textContent = `gangway.sh${address}`;
     el.tabTitle.textContent = TITLE[which];
     if (which !== "detail") return;
     el.dIcon.style.setProperty("--c", p.color);
@@ -416,7 +417,8 @@ function startDemo(demo) {
     chapter = from;
     try {
       if (still) return await PLAY[from](mine);
-      for (;;) {
+      // A newer play() bumps run; its waits then throw STOP, and this loop ends.
+      while (mine === run) {
         await PLAY[chapter](mine);
         chapter = CHAPTERS[(CHAPTERS.indexOf(chapter) + 1) % CHAPTERS.length];
       }

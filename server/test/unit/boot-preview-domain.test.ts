@@ -80,7 +80,7 @@ test("the UI answers on the control domain and not on the preview domain", async
 });
 
 test("a control domain nested under the preview domain is refused at boot", async () => {
-  expect(
+  await expect(
     start({ GANGWAY_BASE_DOMAIN: `gw.${PREVIEWS}`, GANGWAY_PREVIEW_DOMAIN: PREVIEWS }),
   ).rejects.toThrow(/control domain/);
 });

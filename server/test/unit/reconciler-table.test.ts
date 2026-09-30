@@ -13,7 +13,7 @@ describe("the reconciliation table", () => {
     expect(report.changes).toEqual(["gw-default-hello: no running container; marked asleep"]);
     expect(s.previews.get(preview.id)!.state).toBe("asleep");
     expect(s.table.lookup("hello.preview.localhost")!.state).toBe("asleep");
-    expect(s.daemon.composed.length).toBe(composedBefore);
+    expect(s.daemon.composed).toHaveLength(composedBefore);
     expect((await s.reconciler.run()).changes).toEqual([]);
   });
 
@@ -46,7 +46,7 @@ describe("the reconciliation table", () => {
     ]);
     expect(s.previews.get(preview.id)!.state).toBe("awake");
     expect(s.table.lookup("hello.preview.localhost")!.state).toBe("awake");
-    expect(s.daemon.composed.length).toBe(composedBefore);
+    expect(s.daemon.composed).toHaveLength(composedBefore);
     expect(s.eventTypes().slice(-3)).toEqual([
       "preview.state",
       "preview.state",

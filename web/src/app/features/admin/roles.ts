@@ -188,5 +188,5 @@ export class RolesMatrix {
 }
 
 function sameSet(a: ReadonlySet<Permission> | undefined, b: readonly Permission[]): boolean {
-  return a !== undefined && a.size === b.length && b.every((p) => a.has(p));
+  return a?.size === b.length && b.every((p) => a.has(p));
 }

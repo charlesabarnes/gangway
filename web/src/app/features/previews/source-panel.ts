@@ -152,11 +152,10 @@ export class SourcePanel {
         };
       case 'succeeded':
         return { text: 'Rebuilt: the new version is live.', tone: 'good' };
-      default:
-        return {
-          text: `Rebuild failed${e.error ? `: ${e.error}` : ''}. See the log below.`,
-          tone: 'bad',
-        };
+      default: {
+        const why = e.error ? `: ${e.error}` : '';
+        return { text: `Rebuild failed${why}. See the log below.`, tone: 'bad' };
+      }
     }
   });
 
@@ -261,7 +260,8 @@ export class SourcePanel {
 
   #nextRuntime(current: RuntimeId | null): RuntimeId | null {
     const c = this.runtimeChoice();
-    return c === '' ? current : c === 'own' ? null : c;
+    if (c === '') return current;
+    return c === 'own' ? null : c;
   }
 
   protected refuse(e: unknown): void {

@@ -154,13 +154,7 @@ export class PasswordPanel {
       const p = this.preview();
       untracked(() => {
         this.who.set(whoOf(p.access));
-        this.source.set(
-          ['set', 'generated'].includes(p.password)
-            ? 'keep'
-            : p.password === 'inherit' && (p.access === 'password' || p.access === 'either')
-              ? 'shared'
-              : 'generate',
-        );
+        this.source.set(sourceOf(p));
       });
     });
   }
@@ -170,15 +164,7 @@ export class PasswordPanel {
     const change: PasswordChange = { login: WHO_LOGIN[who] };
     if (who === 'open') change.password = { mode: 'none' };
     else if (this.needsPassword()) {
-      const src = this.source();
-      const choice: PasswordChoice | undefined =
-        src === 'generate'
-          ? { mode: 'generate' }
-          : src === 'set'
-            ? { mode: 'set', value: this.value() }
-            : src === 'shared'
-              ? { mode: 'inherit' }
-              : undefined;
+      const choice = choiceOf(this.source(), this.value());
       if (choice) change.password = choice;
     }
     this.busy.set(true);
@@ -196,6 +182,26 @@ export class PasswordPanel {
     } finally {
       this.busy.set(false);
     }
+  }
+}
+
+function sourceOf(p: Preview): Source {
+  if (['set', 'generated'].includes(p.password)) return 'keep';
+  if (p.password === 'inherit' && (p.access === 'password' || p.access === 'either'))
+    return 'shared';
+  return 'generate';
+}
+
+function choiceOf(source: Source, value: string): PasswordChoice | undefined {
+  switch (source) {
+    case 'generate':
+      return { mode: 'generate' };
+    case 'set':
+      return { mode: 'set', value };
+    case 'shared':
+      return { mode: 'inherit' };
+    default:
+      return undefined;
   }
 }
 
