@@ -13,24 +13,30 @@ export function extendPreview(
   previewId: string,
   by: string,
 ): Preview {
-  if (!can(actor, "previews.extend"))
+  if (!can(actor, "previews.extend")) {
     throw forbidden('extending how long a preview lives needs "previews.extend"');
-  if (!mayRebuild(actor, ctx.previews.provenanceOf(previewId)))
+  }
+  if (!mayRebuild(actor, ctx.previews.provenanceOf(previewId))) {
     throw forbidden(
       'this preview was deployed by someone else: extending it needs "previews.update" as well as "previews.extend"',
     );
+  }
   const forever = by.trim() === EXTEND_FOREVER;
   const ms = forever ? null : parseDuration(by);
-  if (!forever && ms === null)
+  if (!forever && ms === null) {
     throw unprocessable(`"${by}" is not a duration like 2h, 7d or 4w, or "${EXTEND_FOREVER}"`);
+  }
   const p = ctx.previews.get(previewId);
-  if (!p || p.state === "destroyed" || p.state === "destroying")
+  if (!p || p.state === "destroyed" || p.state === "destroying") {
     throw conflict("this preview is being torn down or already gone");
+  }
 
   const old = p.ttlExpiresAt;
   const next = ms === null ? null : new Date(Math.max(old?.getTime() ?? 0, ctx.now()) + ms);
   // Already kept forever: adding time would make it expire.
-  if (old === null) return p;
+  if (old === null) {
+    return p;
+  }
   ctx.previews.setTtlExpiresAt(previewId, next);
   ctx.audit.record(actor, "preview.extend", previewId, {
     old: old.toISOString(),

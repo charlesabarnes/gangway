@@ -151,9 +151,13 @@ function fakeDns(
       return [host.startsWith("ns1.") ? "10.0.0.1" : "10.0.0.2"];
     },
     async resolveTxtFrom(ip: string, name: string) {
-      if (ip === "10.0.0.1") state.rounds++; // one bump per poll round
+      if (ip === "10.0.0.1") {
+        state.rounds++;
+      } // one bump per poll round
       const a = answers(ip, name, state.rounds);
-      if (a instanceof Error) throw a;
+      if (a instanceof Error) {
+        throw a;
+      }
       return a;
     },
   };
@@ -357,7 +361,9 @@ describe("waitForTxtPropagation", () => {
   test("keeps polling while only one of two nameservers has the value", async () => {
     // ns2 catches up on the 4th round; ns1 has it from the start.
     const dns = fakeDns((ip, _name, round) => {
-      if (ip === "10.0.0.1") return ["v1"];
+      if (ip === "10.0.0.1") {
+        return ["v1"];
+      }
       return round >= 4 ? ["v1"] : [];
     });
 
@@ -380,10 +386,11 @@ describe("waitForTxtPropagation", () => {
 
   test("treats NXDOMAIN from a nameserver as 'not yet', not as a failure", async () => {
     const dns = fakeDns((ip, _n, round) => {
-      if (ip === "10.0.0.2")
+      if (ip === "10.0.0.2") {
         return round >= 3
           ? ["v1"]
           : Object.assign(new Error("queryTxt ENOTFOUND"), { code: "ENOTFOUND" });
+      }
       return ["v1"];
     });
     expect(await wait(dns, ["v1"], 2_000)).toBe(true);

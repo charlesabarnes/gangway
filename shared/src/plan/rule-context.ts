@@ -36,18 +36,21 @@ export function startOverride({ plan, file, procfile }: RuleContext): Command | 
 }
 
 export function override<T>(v: T | false | undefined, fallback: T | null): T | null {
-  if (v === false) return null;
+  if (v === false) {
+    return null;
+  }
   return v === undefined ? fallback : v;
 }
 
 export function ignored(ctx: RuleContext, keys: (keyof GangwayFile)[], why: string): void {
   const set = keys.filter((k) => ctx.file?.[k] !== undefined);
-  if (set.length > 0)
+  if (set.length > 0) {
     ctx.plan.reasons.push({
       level: "warn",
       found: `${set.join(", ")} in gangway.yml`,
       then: `ignored: ${why}`,
     });
+  }
 }
 
 export function serveBuilt({ plan, file }: RuleContext, why: string, reasonFound: string): void {

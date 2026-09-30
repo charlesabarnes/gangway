@@ -72,7 +72,9 @@ export class TemplatesRepo {
 
   default(): Template {
     const t = this.get(DEFAULT_TEMPLATE_ID);
-    if (!t) throw new Error("the default template is missing; migration 0007 did not run");
+    if (!t) {
+      throw new Error("the default template is missing; migration 0007 did not run");
+    }
     return t;
   }
 
@@ -86,11 +88,15 @@ export class TemplatesRepo {
     const sets: string[] = [];
     const params: Params = { id, now: this.#now() };
     for (const [k, v] of Object.entries(patch) as [keyof TemplatePatch, unknown][]) {
-      if (v === undefined) continue;
+      if (v === undefined) {
+        continue;
+      }
       sets.push(`${COLUMNS[k]} = $${k}`);
       params[k] = v as string | null;
     }
-    if (sets.length === 0) return this.get(id);
+    if (sets.length === 0) {
+      return this.get(id);
+    }
     this.#db.run(
       `UPDATE templates SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`,
       params,
@@ -99,7 +105,9 @@ export class TemplatesRepo {
   }
 
   delete(id: string): boolean {
-    if (id === DEFAULT_TEMPLATE_ID) return false;
+    if (id === DEFAULT_TEMPLATE_ID) {
+      return false;
+    }
     return this.#db.run("DELETE FROM templates WHERE id = $id AND builtin = 0", { id }).changes > 0;
   }
 

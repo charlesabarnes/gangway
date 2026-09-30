@@ -194,7 +194,9 @@ describe("scanning a daemon for our containers", () => {
   test("a managed container arrives with its route already rebuilt", () => {
     const row = classifyContainer(summary());
     expect("route" in row).toBe(true);
-    if (!("route" in row)) throw new Error("unreachable");
+    if (!("route" in row)) {
+      throw new Error("unreachable");
+    }
     expect(row.route.upstream).toEqual({ host: "10.0.0.4", port: 31042 });
     expect(row.project).toBe("gw-acme-pr-123");
   });
@@ -205,7 +207,9 @@ describe("scanning a daemon for our containers", () => {
         labels: { ...buildLabels(labels), "com.docker.compose.project": "gw-acme-pr-123" },
       }),
     );
-    if (!("route" in row)) throw new Error("unreachable");
+    if (!("route" in row)) {
+      throw new Error("unreachable");
+    }
     expect(row.project).toBe("gw-acme-pr-123");
   });
 

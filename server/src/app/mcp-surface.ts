@@ -63,7 +63,9 @@ export class McpSurface {
     this.#mcp = createMcpHandler(
       (ctx) => {
         const extra = ctx.authInfo?.extra as { actor: Actor; signal: AbortSignal } | undefined;
-        if (!extra) throw new Error("an MCP request reached the factory without an actor");
+        if (!extra) {
+          throw new Error("an MCP request reached the factory without an actor");
+        }
         return d.tools.server({ actor: extra.actor, signal: extra.signal });
       },
       {
@@ -90,11 +92,12 @@ export class McpSurface {
     if (d.uploads) {
       const uploads = d.uploads;
       app.put("/uploads/:id", async (c) => {
-        if (c.req.header("origin") !== undefined)
+        if (c.req.header("origin") !== undefined) {
           return problemResponse(
             c,
             forbidden("browser requests are not accepted on the MCP surface"),
           );
+        }
         const declared = Number(c.req.header("content-length"));
         const got = await uploads.receive(
           c.req.param("id"),
@@ -110,11 +113,12 @@ export class McpSurface {
     if (d.secretUploads) {
       const secretUploads = d.secretUploads;
       app.put("/secret-uploads/:id", async (c) => {
-        if (c.req.header("origin") !== undefined)
+        if (c.req.header("origin") !== undefined) {
           return problemResponse(
             c,
             forbidden("browser requests are not accepted on the MCP surface"),
           );
+        }
         const names = await secretUploads.receive(c.req.param("id"), c.req.raw.body);
         return c.text(
           `received ${names.length} secret${names.length === 1 ? "" : "s"}: ${names.join(", ")}\nnow call secrets (or deploy) with upload: "${c.req.param("id")}"\n`,
@@ -135,7 +139,9 @@ export class McpSurface {
   }
 
   dropAll(): void {
-    for (const l of this.#live) l.abort.abort();
+    for (const l of this.#live) {
+      l.abort.abort();
+    }
     this.#live.clear();
   }
 
@@ -144,19 +150,25 @@ export class McpSurface {
   }
 
   #prm(c: Context<AppEnv>): Response {
-    if (!this.#oauthOn()) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    if (!this.#oauthOn()) {
+      return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    }
     return c.json(this.#d.oauth!.resourceMetadata(), 200, {
       "cache-control": "public, max-age=300",
     });
   }
 
   #challenge(extra = ""): string {
-    if (!this.#oauthOn()) return 'Bearer realm="gangway"';
+    if (!this.#oauthOn()) {
+      return 'Bearer realm="gangway"';
+    }
     return `Bearer resource_metadata="${this.#d.oauth!.resource()}/.well-known/oauth-protected-resource", scope="read deploy"${extra}`;
   }
 
   async #stepUp(req: Request, actor: Actor): Promise<Scope | null> {
-    if (!isOAuthActor(actor)) return null;
+    if (!isOAuthActor(actor)) {
+      return null;
+    }
     let body: unknown;
     try {
       body = await req.clone().json();
@@ -164,17 +176,22 @@ export class McpSurface {
       return null;
     }
     const msg = body as { method?: unknown; params?: { name?: unknown; arguments?: unknown } };
-    if (msg?.method !== "tools/call" || typeof msg.params?.name !== "string") return null;
+    if (msg?.method !== "tools/call" || typeof msg.params?.name !== "string") {
+      return null;
+    }
     const permission = this.#d.tools.missingFor(actor, msg.params.name, msg.params.arguments);
     const scope = permission ? SCOPE_FOR[permission] : undefined;
     // Already granted means the role lacks it, and asking the user again would loop.
-    if (!scope || actor.scopes.includes(scope)) return null;
+    if (!scope || actor.scopes.includes(scope)) {
+      return null;
+    }
     return scope;
   }
 
   async #serve(req: Request, c: Context<AppEnv>): Promise<Response> {
-    if (req.headers.has("origin"))
+    if (req.headers.has("origin")) {
       return problemResponse(c, forbidden("browser requests are not accepted on the MCP surface"));
+    }
 
     const header = req.headers.get("authorization");
     const presented = header ? BEARER.exec(header)?.[1] : undefined;
@@ -246,7 +263,9 @@ export class McpSurface {
           if (end) {
             done();
             controller.close();
-          } else controller.enqueue(value);
+          } else {
+            controller.enqueue(value);
+          }
         } catch (err) {
           done();
           try {

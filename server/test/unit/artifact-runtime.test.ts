@@ -139,9 +139,10 @@ describe("pages gangway serves for a preview", () => {
     );
     expect(res?.headers.get("access-control-allow-origin")).toBe("*");
     expect(res?.headers.get("content-type")).toBe("font/woff2");
-    for (const bad of ["../manifest.json", "kit.js", "nope.woff2"])
+    for (const bad of ["../manifest.json", "kit.js", "nope.woff2"]) {
       expect(
         await serveKitFont(new Request(`https://preview.test/_gangway/fonts/${bad}`)),
       ).toBeNull();
+    }
   });
 });

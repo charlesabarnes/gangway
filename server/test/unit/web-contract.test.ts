@@ -42,14 +42,19 @@ const quiet = silentLogger();
 
 // Keys and value types, recursively; an array is the shape of its first element.
 function shapeOf(v: unknown): unknown {
-  if (v === null) return "null";
-  if (Array.isArray(v)) return v.length === 0 ? [] : [shapeOf(v[0])];
-  if (typeof v === "object")
+  if (v === null) {
+    return "null";
+  }
+  if (Array.isArray(v)) {
+    return v.length === 0 ? [] : [shapeOf(v[0])];
+  }
+  if (typeof v === "object") {
     return Object.fromEntries(
       Object.entries(v as Record<string, unknown>)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([k, x]) => [k, shapeOf(x)]),
     );
+  }
   return typeof v;
 }
 
@@ -115,7 +120,9 @@ describe("preview wire shapes", () => {
     const s = setupPreviewContext();
     await s.deployed("types");
     const published = new Set(s.ctx.bus.history(s.previews.list()[0]!.id).map((e) => e.type));
-    for (const type of published) expect(contract["streamEventTypes"]).toContain(type);
+    for (const type of published) {
+      expect(contract["streamEventTypes"]).toContain(type);
+    }
     expect(contract["streamEventTypes"]).toContain("reset");
   });
 });
@@ -431,7 +438,9 @@ describe("runtime wire shapes", () => {
     p.entry({ name: "index.ts" }, "export default {}");
     p.finalize();
     const chunks: Buffer[] = [];
-    for await (const c of p) chunks.push(c as Buffer);
+    for await (const c of p) {
+      chunks.push(c as Buffer);
+    }
     const res = await deploy(s.ctx, {
       actor: ACTOR,
       name: "rt",
@@ -459,6 +468,8 @@ describe("runtime wire shapes", () => {
     expect(
       shapeOf(events.find((e) => e.type === "preview.redeploy" && e.phase === "started")),
     ).toEqual(shapeOf(contract["redeployEvent"]));
-    for (const e of events) expect(contract["streamEventTypes"]).toContain(e.type);
+    for (const e of events) {
+      expect(contract["streamEventTypes"]).toContain(e.type);
+    }
   });
 });

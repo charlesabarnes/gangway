@@ -125,11 +125,15 @@ export class ProjectsRepo {
     const sets: string[] = [];
     const params: Params = { id, now: this.#now() };
     for (const [k, v] of Object.entries(patch) as [keyof ProjectPatch, unknown][]) {
-      if (v === undefined) continue;
+      if (v === undefined) {
+        continue;
+      }
       sets.push(`${COLUMNS[k]} = $${k}`);
       params[k] = typeof v === "boolean" ? num(v) : (v as string | null);
     }
-    if (sets.length === 0) return this.get(id);
+    if (sets.length === 0) {
+      return this.get(id);
+    }
     this.#db.run(
       `UPDATE projects SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`,
       params,

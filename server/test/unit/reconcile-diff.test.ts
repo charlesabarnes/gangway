@@ -19,7 +19,9 @@ import {
 } from "../helpers/reconcile-diff.ts";
 
 describe("the case table", () => {
-  for (const [name, input, assert] of CASES) test(name, () => assert(diff(input)));
+  for (const [name, input, assert] of CASES) {
+    test(name, () => assert(diff(input)));
+  }
 });
 
 describe("an unreachable host is not an empty host", () => {
@@ -214,16 +216,17 @@ const randomState = (seed: number, n: number): DiffInput => {
       dbRoutes.push(mkRoute(hostname, `p${id}`, port));
       previews.push(mkPreview(`p${id}`, pick(STATES)));
       const r2 = rand();
-      if (r2 < 0.5)
+      if (r2 < 0.5) {
         containers.push(
           mkContainer(`c${id}`, fullLabels(`p${id}`, hostname), { publishedPort: port }),
         );
-      else if (r2 < 0.7)
+      } else if (r2 < 0.7) {
         containers.push(
           mkContainer(`c${id}`, fullLabels(`p${id}`, hostname), { publishedPort: port + 500 }),
         );
-      else if (r2 < 0.85)
+      } else if (r2 < 0.85) {
         containers.push(mkContainer(`c${id}`, fullLabels(`p${id}`, hostname), { state: "exited" }));
+      }
     } else if (roll < 0.8) {
       // an unclaimed container: adopt or stop
       const r2 = rand();

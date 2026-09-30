@@ -26,10 +26,14 @@ function derive(password: string, salt: Buffer, { ln, r, p }: Params): Promise<B
 
 function parse(stored: string): (Params & { key: Buffer }) | null {
   const m = FORMAT.exec(stored);
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   const [ln, r, p] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const within = (v: number, [lo, hi]: readonly [number, number]) => v >= lo && v <= hi;
-  if (!within(ln, LIMITS.ln) || !within(r, LIMITS.r) || !within(p, LIMITS.p)) return null;
+  if (!within(ln, LIMITS.ln) || !within(r, LIMITS.r) || !within(p, LIMITS.p)) {
+    return null;
+  }
   const key = Buffer.from(m[4]!, "base64");
   return key.length === KEY_LEN ? { ln, r, p, key } : null;
 }
@@ -50,8 +54,9 @@ export class Passwords {
 
   async #slot<T>(work: () => Promise<T>): Promise<T> {
     if (this.#running >= this.#concurrency) {
-      if (this.#waiting.length >= this.#maxQueue)
+      if (this.#waiting.length >= this.#maxQueue) {
         throw rateLimited(2, "the server is busy; try again shortly");
+      }
       await new Promise<void>((go) => this.#waiting.push(go));
     }
     this.#running++;
@@ -75,7 +80,9 @@ export class Passwords {
 
   async verify(password: string, stored: { hash: string; salt: string }): Promise<boolean> {
     const parsed = parse(stored.hash);
-    if (!parsed) return false;
+    if (!parsed) {
+      return false;
+    }
     const key = await this.#slot(() =>
       derive(password, Buffer.from(stored.salt, "base64"), parsed),
     );

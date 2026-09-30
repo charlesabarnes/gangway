@@ -25,6 +25,8 @@ export function backupBeforeMigrating(
     .map((f) => ({ f, m: BACKUP_RE.exec(f) }))
     .filter((x) => x.m?.[1] === name)
     .sort((a, b) => Number(b.m![3]) - Number(a.m![3]));
-  for (const { f } of ours.slice(KEEP_BACKUPS)) rmSync(join(dir, f));
+  for (const { f } of ours.slice(KEEP_BACKUPS)) {
+    rmSync(join(dir, f));
+  }
   return file;
 }

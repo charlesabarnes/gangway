@@ -18,7 +18,9 @@ async function sh(cmd: string[], cwd: string): Promise<void> {
   const proc = Bun.spawn({ cmd, cwd, stdout: "pipe", stderr: "pipe" });
   const stderr = await new Response(proc.stderr).text();
   const code = await proc.exited;
-  if (code !== 0) throw new Error(`${cmd.join(" ")} failed (${code}): ${stderr}`);
+  if (code !== 0) {
+    throw new Error(`${cmd.join(" ")} failed (${code}): ${stderr}`);
+  }
 }
 
 let fixtureRoot = "";
@@ -223,7 +225,9 @@ describe("cloneRepo credential handling", () => {
     });
 
     expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) expect(line).not.toContain(TOKEN);
+    for (const line of lines) {
+      expect(line).not.toContain(TOKEN);
+    }
     expect(redactString(`cloning with ${TOKEN}`)).not.toContain(TOKEN);
   });
 
@@ -245,7 +249,9 @@ describe("cloneRepo credential handling", () => {
     );
 
     expect(err.status).toBe(502);
-    for (const line of lines) expect(line).not.toContain(TOKEN);
+    for (const line of lines) {
+      expect(line).not.toContain(TOKEN);
+    }
     expect((await stat(dest)).isDirectory()).toBe(true);
     expect(await readFile(path.join(dest, "README.md"), "utf8").catch(() => null)).toBeNull();
   });

@@ -11,14 +11,20 @@ export function redirect(location: string): Response {
 
 export async function readForm(req: Request): Promise<URLSearchParams | null> {
   const declared = Number(req.headers.get("content-length") ?? "0");
-  if (declared > MAX_FORM_BYTES) return null;
-  if (!req.body) return new URLSearchParams();
+  if (declared > MAX_FORM_BYTES) {
+    return null;
+  }
+  if (!req.body) {
+    return new URLSearchParams();
+  }
   const reader = (req.body as ReadableStream<Uint8Array>).getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      break;
+    }
     size += value.byteLength;
     if (size > MAX_FORM_BYTES) {
       await reader.cancel().catch(() => {});
@@ -83,7 +89,9 @@ ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ""}
     "x-frame-options": "DENY",
     "referrer-policy": "no-referrer",
   };
-  if (retryAfterSec !== undefined) headers["retry-after"] = String(retryAfterSec);
+  if (retryAfterSec !== undefined) {
+    headers["retry-after"] = String(retryAfterSec);
+  }
   return ownPage(new Response(html, { status, headers }));
 }
 

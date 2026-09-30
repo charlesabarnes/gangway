@@ -45,24 +45,28 @@ export class PolicyResolver implements Policy {
     let project: Project | undefined;
     if (input.projectId !== undefined) {
       project = this.#d.project(input.projectId);
-      if (!project)
+      if (!project) {
         throw new AppError("unprocessable", `no such project: ${input.projectId}`, {
           project: input.projectId,
         });
+      }
     } else {
       project = this.#d.projectForSource(input.source);
     }
     if (input.template !== undefined) {
       const named = this.#d.templates.get(input.template);
-      if (!named)
+      if (!named) {
         throw new AppError("unprocessable", `no such template: ${input.template}`, {
           template: input.template,
         });
+      }
       return { template: named, project, trigger };
     }
     const wanted = project?.templateId ?? this.#d.defaultFor(trigger);
     const found = this.#d.templates.get(wanted);
-    if (found) return { template: found, project, trigger };
+    if (found) {
+      return { template: found, project, trigger };
+    }
     if (!this.#warned.has(wanted)) {
       this.#warned.add(wanted);
       this.#d.logger?.warn("template not found; deploying with the default template", {

@@ -41,14 +41,19 @@ class SecretMap {
 
   all(): Record<string, SecretEntry> {
     const sealed = this.#backend.read();
-    if (sealed === null) return {};
+    if (sealed === null) {
+      return {};
+    }
     const parsed = JSON.parse(this.#box.open(sealed)) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
     const out: Record<string, SecretEntry> = {};
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
       // A bare string is the older shape, read as standard.
-      if (typeof v === "string") out[k] = { value: v, level: "standard" };
-      else if (
+      if (typeof v === "string") {
+        out[k] = { value: v, level: "standard" };
+      } else if (
         typeof v === "object" &&
         v !== null &&
         typeof (v as SecretEntry).value === "string"
@@ -74,10 +79,13 @@ class SecretMap {
     const before = Object.keys(current).sort();
     applySet(current, change.set ?? {});
     applyLevels(current, change.levels ?? {});
-    for (const k of change.unset ?? []) delete current[k];
+    for (const k of change.unset ?? []) {
+      delete current[k];
+    }
     const names = Object.keys(current).sort();
-    if (names.length > MAX_ENV_ENTRIES)
+    if (names.length > MAX_ENV_ENTRIES) {
       throw unprocessable(`at most ${MAX_ENV_ENTRIES} variables may be held here`);
+    }
     this.#backend.write(names.length === 0 ? null : this.#box.seal(JSON.stringify(current)));
     // Names and levels only: the audit log is readable by more people than the values are.
     this.#audit.sink?.record(actor, this.#audit.action, this.#audit.target, {
@@ -98,12 +106,14 @@ function applySet(
   set: Record<string, string | SecretEntry>,
 ): void {
   for (const [k, v] of Object.entries(set)) {
-    if (!ENV_NAME_RE.test(k))
+    if (!ENV_NAME_RE.test(k)) {
       throw unprocessable(`"${k}" is not a valid environment variable name`, { name: k });
+    }
     const entry: SecretEntry =
       typeof v === "string" ? { value: v, level: current[k]?.level ?? "standard" } : v;
-    if (Buffer.byteLength(entry.value, "utf8") > MAX_ENV_VALUE_BYTES)
+    if (Buffer.byteLength(entry.value, "utf8") > MAX_ENV_VALUE_BYTES) {
       throw unprocessable(`"${k}" is longer than ${MAX_ENV_VALUE_BYTES} bytes`, { name: k });
+    }
     assertLevel(k, entry.level);
     current[k] = entry;
   }
@@ -114,15 +124,18 @@ function applyLevels(
   levels: Record<string, SecretLevel>,
 ): void {
   for (const [k, level] of Object.entries(levels)) {
-    if (!current[k]) throw unprocessable(`"${k}" is not set`, { name: k });
+    if (!current[k]) {
+      throw unprocessable(`"${k}" is not set`, { name: k });
+    }
     assertLevel(k, level);
     current[k] = { ...current[k], level };
   }
 }
 
 function assertLevel(name: string, level: SecretLevel): void {
-  if (!SECRET_LEVELS.includes(level))
+  if (!SECRET_LEVELS.includes(level)) {
     throw unprocessable(`"${name}": level must be one of ${SECRET_LEVELS.join(", ")}`, { name });
+  }
 }
 
 export class Secrets {
@@ -174,7 +187,9 @@ export class Secrets {
   /** A preview's own secrets: set for it on purpose, so no clearance applies to them. */
   preview(previewId: string): SecretMap {
     const previews = this.#previews;
-    if (!previews) throw new Error("preview secrets need the previews table");
+    if (!previews) {
+      throw new Error("preview secrets need the previews table");
+    }
     return new SecretMap(
       {
         read: () => previews.envCiphertext(previewId),
@@ -186,7 +201,9 @@ export class Secrets {
   }
 
   previewValues(previewId: string): Record<string, string> {
-    if (!this.#previews) return {};
+    if (!this.#previews) {
+      return {};
+    }
     return values(this.preview(previewId).all());
   }
 
@@ -207,13 +224,21 @@ export class Secrets {
   }
 
   valuesFor(projectId: string | null, clearance: Clearance): Record<string, string> {
-    if (clearance === "none") return {};
+    if (clearance === "none") {
+      return {};
+    }
     const out: Record<string, string> = {};
     const take = (m: Record<string, SecretEntry>) => {
-      for (const [k, e] of Object.entries(m)) if (clears(clearance, e.level)) out[k] = e.value;
+      for (const [k, e] of Object.entries(m)) {
+        if (clears(clearance, e.level)) {
+          out[k] = e.value;
+        }
+      }
     };
     take(this.global().all());
-    if (projectId !== null) take(this.project(projectId).all());
+    if (projectId !== null) {
+      take(this.project(projectId).all());
+    }
     return out;
   }
 }

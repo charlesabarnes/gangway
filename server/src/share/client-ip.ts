@@ -13,7 +13,9 @@ export function tunnelPeerFor(listenAddress: string): (peer: string) => boolean 
 // Cloudflare's edge sets CF-Connecting-IP and cloudflared passes it on; a client cannot choose it.
 export function tunnelClientIp(headers: Headers): string | null {
   const cf = headers.get("cf-connecting-ip")?.trim();
-  if (cf && isIP(cf) !== 0) return cf;
+  if (cf && isIP(cf) !== 0) {
+    return cf;
+  }
   const last = headers.get("x-forwarded-for")?.split(",").at(-1)?.trim();
   return last && isIP(last) !== 0 ? unmap(last) : null;
 }

@@ -73,8 +73,12 @@ describe("generated build files", () => {
       const dir = await folder(rt.starter);
       const plan = await planRuntime(dir, rt.id, ["API_KEY", "PUBLIC_URL"]);
       for (const [name, code] of Object.entries(plan.files)) {
-        if (name.endsWith(".cjs")) expect(() => new Function("require", code)).not.toThrow();
-        if (name.endsWith(".ts")) expect(() => ts.transformSync(code)).not.toThrow();
+        if (name.endsWith(".cjs")) {
+          expect(() => new Function("require", code)).not.toThrow();
+        }
+        if (name.endsWith(".ts")) {
+          expect(() => ts.transformSync(code)).not.toThrow();
+        }
       }
     }
   });

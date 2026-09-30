@@ -22,21 +22,26 @@ export function coveredHostnames(actions: readonly Action[]): Set<string> {
     if (
       a.kind === "UpdateUpstream" ||
       (a.kind === "LeaveAlone" && a.reason === "in-sync" && a.hostname)
-    )
+    ) {
       covered.add(a.hostname!);
+    }
   }
   return covered;
 }
 
 function hostFor(r: Recovery, p: Preview): Host | undefined {
   const host = r.hosts.get(p.hostId);
-  if (!host || !r.reachable.get(p.hostId) || isBusy(r.ctx, p.id)) return undefined;
+  if (!host || !r.reachable.get(p.hostId) || isBusy(r.ctx, p.id)) {
+    return undefined;
+  }
   return host;
 }
 
 async function answering(r: Recovery, p: Preview, host: Host): Promise<boolean> {
   const mine = r.routes.forPreview(p.id);
-  if (mine.length === 0 || !mine.every((route) => r.covered.has(route.hostname))) return false;
+  if (mine.length === 0 || !mine.every((route) => r.covered.has(route.hostname))) {
+    return false;
+  }
   return (await Promise.all(mine.map((route) => r.ctx.probe(route, host)))).every(Boolean);
 }
 
@@ -45,9 +50,13 @@ export async function rescueInterrupted(r: Recovery): Promise<string[]> {
   const out: string[] = [];
   for (const p of ctx.previews.list({ state: ["building", "starting", "destroying"] })) {
     // The diff settles an interrupted served preview; it has no container to probe.
-    if (servedByGangway(p) && p.state !== "destroying") continue;
+    if (servedByGangway(p) && p.state !== "destroying") {
+      continue;
+    }
     const host = hostFor(r, p);
-    if (!host) continue;
+    if (!host) {
+      continue;
+    }
 
     if (p.state === "destroying") {
       out.push(await resumeTeardown(ctx, p, host));
@@ -55,7 +64,9 @@ export async function rescueInterrupted(r: Recovery): Promise<string[]> {
     }
 
     const up = await answering(r, p, host);
-    if (isBusy(ctx, p.id) || ctx.previews.get(p.id)?.state !== p.state) continue;
+    if (isBusy(ctx, p.id) || ctx.previews.get(p.id)?.state !== p.state) {
+      continue;
+    }
     out.push(up ? markInterruptedAwake(ctx, p) : await failInterrupted(ctx, p, host));
   }
   return out;
@@ -71,7 +82,9 @@ async function resumeTeardown(ctx: PreviewContext, p: Preview, host: Host): Prom
 }
 
 function markInterruptedAwake(ctx: PreviewContext, p: Preview): string {
-  if (p.state === "building") ctx.states.transition(p.id, "starting");
+  if (p.state === "building") {
+    ctx.states.transition(p.id, "starting");
+  }
   ctx.states.transition(p.id, "awake");
   ctx.logs.append(
     p.id,
@@ -94,9 +107,13 @@ export async function wakeReturned(r: Recovery): Promise<string[]> {
   const out: string[] = [];
   for (const p of ctx.previews.list({ state: ["asleep"] })) {
     const host = hostFor(r, p);
-    if (!host) continue;
+    if (!host) {
+      continue;
+    }
     const up = await answering(r, p, host);
-    if (!up || isBusy(ctx, p.id) || ctx.previews.get(p.id)?.state !== "asleep") continue;
+    if (!up || isBusy(ctx, p.id) || ctx.previews.get(p.id)?.state !== "asleep") {
+      continue;
+    }
     ctx.states.transition(p.id, "starting");
     ctx.states.transition(p.id, "awake");
     ctx.logs.append(

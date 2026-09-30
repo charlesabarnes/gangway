@@ -65,7 +65,9 @@ function previewHelpers(ctx: PreviewContext) {
     find: (id: string): Preview => {
       // The id names a log file on disk.
       const p = isUlid(id) ? ctx.previews.get(id) : undefined;
-      if (!p) throw notFound(`no such preview: ${id}`);
+      if (!p) {
+        throw notFound(`no such preview: ${id}`);
+      }
       return p;
     },
   };
@@ -73,11 +75,15 @@ function previewHelpers(ctx: PreviewContext) {
 type Previews = ReturnType<typeof previewHelpers>;
 
 function chosenPassword(chosen: string | undefined, passwordMode: TarballQuery["password"]) {
-  if (chosen !== undefined && passwordMode !== undefined)
+  if (chosen !== undefined && passwordMode !== undefined) {
     throw badRequest(`send either ?password= or the ${PREVIEW_PASSWORD_HEADER} header, not both`);
-  if (chosen !== undefined && (chosen.length === 0 || chosen.length > PREVIEW_PASSWORD_MAX))
+  }
+  if (chosen !== undefined && (chosen.length === 0 || chosen.length > PREVIEW_PASSWORD_MAX)) {
     throw unprocessable(`a password is 1 to ${PREVIEW_PASSWORD_MAX} characters`);
-  if (chosen !== undefined) return { mode: "set" as const, value: chosen };
+  }
+  if (chosen !== undefined) {
+    return { mode: "set" as const, value: chosen };
+  }
   return passwordMode ? { mode: passwordMode } : undefined;
 }
 
@@ -98,7 +104,9 @@ function tarballRequest(c: Context<AppEnv>): Omit<DeployInput, "actor"> {
     ...q
   } = TarballDeployQuerySchema.parse(c.req.query());
   const archive = c.req.raw.body;
-  if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
+  if (!archive) {
+    throw badRequest("the request has no body; send the tar or tar.gz as the body");
+  }
   const password = chosenPassword(c.req.header(PREVIEW_PASSWORD_HEADER), passwordMode);
   return {
     ...q,
@@ -136,7 +144,9 @@ function deployRoutes(api: Hono<AppEnv>, { wire }: Previews, deploys: Idempotent
         { ...req, actor: c.get("actor") },
         c.req.header("idempotency-key"),
       );
-      if (res.replayed) c.header("idempotency-replayed", "true");
+      if (res.replayed) {
+        c.header("idempotency-replayed", "true");
+      }
 
       if (c.req.query("wait") === "true") {
         const final = await res.done;
@@ -161,7 +171,9 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     // Read seq before the list so a change between the two reads is replayed, never missed.
     const seq = ctx.bus.latestSeq();
     const see = seeFilter(c.get("actor"));
-    if (see === null) return c.json({ seq, previews: [], ...(q.limit ? { next: null } : {}) });
+    if (see === null) {
+      return c.json({ seq, previews: [], ...(q.limit ? { next: null } : {}) });
+    }
     const seen = ctx.previews.list({
       ...see,
       ...(q.state ? { state: q.state } : {}),
@@ -187,10 +199,11 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     async (c) => {
       const actor = c.get("actor");
       const p = findFor(ctx, actor, find(c.req.param("id")));
-      if (!mayDestroy(actor, ctx.previews.provenanceOf(p.id)))
+      if (!mayDestroy(actor, ctx.previews.provenanceOf(p.id))) {
         throw forbidden(
           'this preview was deployed by someone else: "previews.destroy_own" covers only your own',
         );
+      }
       return c.json({ preview: wire(await destroy(ctx, p.id, actor)) });
     },
   );
@@ -211,16 +224,18 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
 
   api.get("/previews/:id/source", requirePermission("previews.read"), async (c) => {
     const p = find(c.req.param("id"));
-    if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id)))
+    if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) {
       throw notFound("this preview keeps no source: only uploaded previews do");
+    }
     const listing = await ctx.sources.list(p.id);
     return c.json({ runtime: p.source.runtime ?? null, ...listing });
   });
 
   api.get("/previews/:id/plan", requirePermission("previews.read"), async (c) => {
     const p = find(c.req.param("id"));
-    if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id)))
+    if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) {
       throw notFound("this preview keeps no source: only uploaded previews do");
+    }
     return c.json(
       await planFromDisk(ctx.sources.dirFor(p.id), "auto", {
         previous: p.source.runtime ?? "own",
@@ -277,13 +292,16 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     requirePermission("previews.update_own", "previews.update"),
     async (c) => {
       const contentType = contentTypeOf(c);
-      if (!isTarball(contentType))
+      if (!isTarball(contentType)) {
         throw badRequest(
           `send the new source as a tar or tar.gz body (${TARBALL_CONTENT_TYPES.join(", ")})`,
         );
+      }
       const { runtime, addons, network } = SourceReplaceQuerySchema.parse(c.req.query());
       const archive = c.req.raw.body;
-      if (!archive) throw badRequest("the request has no body; send the tar or tar.gz as the body");
+      if (!archive) {
+        throw badRequest("the request has no body; send the tar or tar.gz as the body");
+      }
       return rebuild(c, { kind: "replace", archive }, runtime, addons, network);
     },
   );
@@ -291,15 +309,18 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
 
 /** A preview the actor may not see answers as if it did not exist. */
 function findFor(ctx: PreviewContext, actor: Actor, p: Preview): Preview {
-  if (!maySee(actor, ctx.previews.provenanceOf(p.id))) throw notFound(`no such preview: ${p.id}`);
+  if (!maySee(actor, ctx.previews.provenanceOf(p.id))) {
+    throw notFound(`no such preview: ${p.id}`);
+  }
   return p;
 }
 
 function changeable(ctx: PreviewContext, c: Context<AppEnv>, p: Preview, what: string): void {
-  if (!mayRebuild(c.get("actor"), ctx.previews.provenanceOf(p.id)))
+  if (!mayRebuild(c.get("actor"), ctx.previews.provenanceOf(p.id))) {
     throw forbidden(
       `this preview was deployed by someone else: "previews.update_own" covers only your own, and changing any preview's ${what} needs "previews.update"`,
     );
+  }
 }
 
 function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
@@ -375,8 +396,9 @@ function passwordRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void 
 function logRoutes(api: Hono<AppEnv>, { ctx, find }: Previews, o: SseOptions): void {
   api.get("/previews/:id/logs", requirePermission("logs.read", "previews.read_own"), (c) => {
     const p = find(c.req.param("id"));
-    if (!mayReadLogs(c.get("actor"), ctx.previews.provenanceOf(p.id)))
+    if (!mayReadLogs(c.get("actor"), ctx.previews.provenanceOf(p.id))) {
       throw notFound(`no such preview: ${p.id}`);
+    }
     const after = resumeCursor(c);
     const { tail } = PreviewLogsQuerySchema.parse(c.req.query());
     const maxReplay = (o.maxQueue ?? SSE_MAX_QUEUE) - 2;

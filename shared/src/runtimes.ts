@@ -248,6 +248,10 @@ export const DETECTION: readonly { runtime: Detected; markers: readonly string[]
 
 export function detectRuntime(paths: Iterable<string>): Detected {
   const have = new Set(paths);
-  for (const rule of DETECTION) if (rule.markers.some((m) => have.has(m))) return rule.runtime;
+  for (const rule of DETECTION) {
+    if (rule.markers.some((m) => have.has(m))) {
+      return rule.runtime;
+    }
+  }
   return "static";
 }

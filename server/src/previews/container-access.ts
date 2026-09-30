@@ -6,5 +6,7 @@ const NEEDS_CONTAINER =
 
 /** An image or a repository always runs in a container; an upload is judged once it is planned. */
 export function checkContainerAllowed(actor: Actor, what: string, container: boolean): void {
-  if (container && !mayRunContainers(actor)) throw forbidden(`${what} ${NEEDS_CONTAINER}`);
+  if (container && !mayRunContainers(actor)) {
+    throw forbidden(`${what} ${NEEDS_CONTAINER}`);
+  }
 }

@@ -48,7 +48,9 @@ export class SessionsRepo {
         WHERE s.id = $id AND s.expires_at > $now AND u.disabled = 0`,
       { id, now },
     );
-    if (!r) return undefined;
+    if (!r) {
+      return undefined;
+    }
     const user: UserRow = {
       id: r.u_id,
       email: r.u_email,

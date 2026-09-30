@@ -66,13 +66,17 @@ describe("round trip", () => {
       const input = generate(rand);
       const parsed = parseLabels(buildLabels(input));
       expect(parsed.ok).toBe(true);
-      if (!parsed.ok) throw new Error("unreachable");
+      if (!parsed.ok) {
+        throw new Error("unreachable");
+      }
       expect(parsed.labels).toEqual(input);
     }
   });
 
   test("every value is a string, because Docker labels are strings", () => {
-    for (const v of Object.values(buildLabels(sample))) expect(typeof v).toBe("string");
+    for (const v of Object.values(buildLabels(sample))) {
+      expect(typeof v).toBe("string");
+    }
   });
 
   test("the marker and version are written on every container", () => {
@@ -104,7 +108,9 @@ describe("round trip", () => {
   });
 
   test("no label escapes the gangway namespace", () => {
-    for (const k of Object.keys(buildLabels(sample))) expect(k.startsWith("gangway.")).toBe(true);
+    for (const k of Object.keys(buildLabels(sample))) {
+      expect(k.startsWith("gangway.")).toBe(true);
+    }
   });
 });
 
@@ -134,7 +140,9 @@ describe("the label set alone reconstructs a Route", () => {
 
     const parsed = parseLabels(fromDaemon);
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) throw new Error("unreachable");
+    if (!parsed.ok) {
+      throw new Error("unreachable");
+    }
     expect(routeFromLabels(parsed.labels)).toEqual(route);
   });
 
@@ -181,7 +189,9 @@ describe("failures are values, never throws", () => {
     delete l[LABEL.hostname];
     const r = parseLabels(l);
     expect(r.ok).toBe(false);
-    if (r.ok || r.reason !== "malformed") throw new Error("expected malformed");
+    if (r.ok || r.reason !== "malformed") {
+      throw new Error("expected malformed");
+    }
     expect(r.missing).toContain(LABEL.hostname);
     expect(r.invalid).toEqual([]);
   });
@@ -195,7 +205,9 @@ describe("failures are values, never throws", () => {
       [LABEL.createdAt]: "the other day",
     });
     expect(r.ok).toBe(false);
-    if (r.ok || r.reason !== "malformed") throw new Error("expected malformed");
+    if (r.ok || r.reason !== "malformed") {
+      throw new Error("expected malformed");
+    }
     expect(r.invalid.sort()).toEqual(
       [LABEL.createdAt, LABEL.port, LABEL.primary, LABEL.visibility].sort(),
     );
@@ -211,7 +223,9 @@ describe("failures are values, never throws", () => {
   test("an empty string is invalid, not missing", () => {
     const r = parseLabels({ ...buildLabels(sample), [LABEL.service]: "" });
     expect(r.ok).toBe(false);
-    if (r.ok || r.reason !== "malformed") throw new Error("expected malformed");
+    if (r.ok || r.reason !== "malformed") {
+      throw new Error("expected malformed");
+    }
     expect(r.invalid).toContain(LABEL.service);
     expect(r.missing).not.toContain(LABEL.service);
   });
@@ -253,7 +267,9 @@ describe("version skew", () => {
       [LABEL.hostname]: "x.preview.example.com",
     });
     expect(r.ok).toBe(false);
-    if (r.ok || r.reason !== "future-version") throw new Error("expected future-version");
+    if (r.ok || r.reason !== "future-version") {
+      throw new Error("expected future-version");
+    }
     expect(r.version).toBe(9);
   });
 
@@ -267,7 +283,9 @@ describe("version skew", () => {
     const l = buildLabels(sample);
     delete l[LABEL.version];
     const r = parseLabels(l);
-    if (r.ok || r.reason !== "malformed") throw new Error("expected malformed");
+    if (r.ok || r.reason !== "malformed") {
+      throw new Error("expected malformed");
+    }
     expect(r.missing).toEqual([LABEL.version]);
   });
 });

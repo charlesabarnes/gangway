@@ -47,8 +47,12 @@ export type Network = {
 
 export function surfaceEnabledBy(settings: Settings): (s: Surface) => boolean {
   return (s) => {
-    if (s === "app") return settings.get(SETTINGS.surfacesUi);
-    if (s === "mcp") return settings.get(SETTINGS.surfacesMcp);
+    if (s === "app") {
+      return settings.get(SETTINGS.surfacesUi);
+    }
+    if (s === "mcp") {
+      return settings.get(SETTINGS.surfacesMcp);
+    }
     return true;
   };
 }
@@ -57,18 +61,22 @@ export function startNetwork(d: NetworkDeps): Network {
   const { config, logger } = d;
   // Throws at boot so a typo can't silently mean trust nobody.
   const resolveClientIp = clientIpResolver(config.trustedProxies);
-  if (config.trustedProxies.length > 0)
+  if (config.trustedProxies.length > 0) {
     logger.info("trusting X-Forwarded-For from reverse proxies", {
       trustedProxies: config.trustedProxies,
     });
+  }
 
   const gate = controlGate(config.controlAllow);
-  if (gate)
+  if (gate) {
     logger.info("the UI and API answer only these networks", {
       controlAllow: config.controlAllow,
     });
+  }
   const risk = controlAllowRisk(config.controlAllow, config.trustedProxies);
-  if (risk) logger.warn(risk);
+  if (risk) {
+    logger.warn(risk);
+  }
 
   const { domains, shares } = d.ctx;
   // A custom or share hostname has no gangway apex above it to load fonts from.
@@ -148,8 +156,9 @@ function clientIpFor(
   return (req) => {
     const peer = clientIpOf(req);
     const host = normalizeHost(req.headers.get("host"));
-    if (host && ctx.shares?.isShareHost(host) && tunnelPeer(peer))
+    if (host && ctx.shares?.isShareHost(host) && tunnelPeer(peer)) {
       return tunnelClientIp(req.headers) ?? peer;
+    }
     return resolveClientIp(peer, req.headers.get("x-forwarded-for"));
   };
 }
@@ -161,7 +170,9 @@ function watermarkFor({ ctx, settings }: NetworkDeps): NonNullable<DispatchDeps[
       ctx.previews.watermarkOf(entry.previewId) ?? settings.get(SETTINGS.previewWatermark),
     script: () => {
       const link = settings.get(SETTINGS.previewWatermarkLink);
-      if (cached?.link !== link) cached = { link, script: markScript(link) };
+      if (cached?.link !== link) {
+        cached = { link, script: markScript(link) };
+      }
       return cached.script;
     },
   };
@@ -184,7 +195,9 @@ function waker({ ctx, config, logger }: NetworkDeps): NonNullable<DispatchDeps["
 function siteFor({ ctx }: NetworkDeps): NonNullable<DispatchDeps["site"]> {
   return async (req, entry) => {
     const site = await ctx.sites?.open(entry.previewId);
-    if (!site) return failedPage(entry.hostname, ["this preview's files are missing: redeploy it"]);
+    if (!site) {
+      return failedPage(entry.hostname, ["this preview's files are missing: redeploy it"]);
+    }
     const lib = ctx.artifacts;
     return serveSite(req, site, {
       unlisted: entry.visibility === "unlisted",
@@ -217,7 +230,9 @@ function upstreamFor({ ctx, config }: NetworkDeps): PerHostUpstream {
 function answersFor(d: DispatchDeps): (host: string) => boolean {
   return (host) => {
     const kind = hostKind(host, d).kind;
-    if (kind === "surface" || kind === "unknown") return true;
+    if (kind === "surface" || kind === "unknown") {
+      return true;
+    }
     return kind === "preview" && d.table.lookup(host) !== undefined;
   };
 }
@@ -231,7 +246,9 @@ function startRedirect(config: Config, ask: TlsAsk): ReturnType<typeof Bun.serve
         port: config.listenHttpPort,
         fetch(req, server) {
           const answered = ask(req, server.requestIP(req)?.address ?? "");
-          if (answered) return answered;
+          if (answered) {
+            return answered;
+          }
           const u = new URL(req.url);
           u.protocol = `${config.publicScheme}:`;
           u.port = String(config.publicPort);

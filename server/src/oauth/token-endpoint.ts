@@ -90,30 +90,37 @@ const tokenResponse = (t: Issued, scopes: readonly string[]): TokenResponse => (
 
 function checkVerifier(c: Code, form: URLSearchParams): void {
   const verifier = form.get("code_verifier") ?? "";
-  if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))
+  if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) {
     throw new OAuthError("invalid_grant", "code_verifier is missing or malformed");
+  }
   const expected = Buffer.from(c.challenge);
   const got = Buffer.from(pkce(verifier));
-  if (expected.length !== got.length || !timingSafeEqual(expected, got))
+  if (expected.length !== got.length || !timingSafeEqual(expected, got)) {
     throw new OAuthError("invalid_grant", "code_verifier does not match the code_challenge");
+  }
 }
 
 function checkRefreshRequest(rec: RefreshRecord, form: URLSearchParams, now: number): void {
   const { grant } = rec;
-  if (form.get("client_id") !== grant.clientId)
+  if (form.get("client_id") !== grant.clientId) {
     throw new OAuthError("invalid_grant", "the refresh token was issued to another client");
+  }
   const resource = form.get("resource");
-  if (resource !== null && !sameResource(resource, rec.resource))
+  if (resource !== null && !sameResource(resource, rec.resource)) {
     throw new OAuthError("invalid_target", `tokens here are only for ${rec.resource}`);
-  if (rec.refreshExpiresAt <= now || grant.expiresAt.getTime() <= now)
+  }
+  if (rec.refreshExpiresAt <= now || grant.expiresAt.getTime() <= now) {
     throw new OAuthError("invalid_grant", "the grant has expired; connect again");
-  if (rec.owner.disabled)
+  }
+  if (rec.owner.disabled) {
     throw new OAuthError("invalid_grant", "the account behind this grant is disabled");
+  }
   const asked = (form.get("scope") ?? "")
     .split(" ")
     .filter((s) => s !== "" && s !== "offline_access");
-  if (asked.some((s) => !(grant.scopes as string[]).includes(s)))
+  if (asked.some((s) => !(grant.scopes as string[]).includes(s))) {
     throw new OAuthError("invalid_scope", "a refresh cannot widen the grant");
+  }
 }
 
 export class TokenEndpoint {
@@ -129,13 +136,21 @@ export class TokenEndpoint {
   }
 
   sweep(now: number): void {
-    for (const [k, c] of this.#codes) if (c.expiresAt <= now) this.#codes.delete(k);
+    for (const [k, c] of this.#codes) {
+      if (c.expiresAt <= now) {
+        this.#codes.delete(k);
+      }
+    }
   }
 
   token(form: URLSearchParams): TokenResponse {
     const grantType = form.get("grant_type");
-    if (grantType === "authorization_code") return this.#exchange(form);
-    if (grantType === "refresh_token") return this.#refresh(form);
+    if (grantType === "authorization_code") {
+      return this.#exchange(form);
+    }
+    if (grantType === "refresh_token") {
+      return this.#refresh(form);
+    }
     throw new OAuthError(
       "unsupported_grant_type",
       "grant_type must be authorization_code or refresh_token",
@@ -155,26 +170,31 @@ export class TokenEndpoint {
   #exchange(form: URLSearchParams): TokenResponse {
     const raw = form.get("code") ?? "";
     const c = this.#codes.get(raw);
-    if (!c || c.expiresAt <= this.#d.now())
+    if (!c || c.expiresAt <= this.#d.now()) {
       throw new OAuthError("invalid_grant", "the authorization code is unknown or expired");
+    }
     if (c.used) {
       // A code used twice means someone else has it, so revoke what it made.
-      if (c.grantId && this.#d.grants.revoke(c.grantId))
+      if (c.grantId && this.#d.grants.revoke(c.grantId)) {
         this.#d.audit.record(null, "oauth.grant.revoked", c.grantId, {
           new: { reason: "authorization code replayed" },
         });
+      }
       throw new OAuthError("invalid_grant", "the authorization code was already used");
     }
-    if (form.get("client_id") !== c.clientId)
+    if (form.get("client_id") !== c.clientId) {
       throw new OAuthError("invalid_grant", "the code was issued to another client");
-    if (form.get("redirect_uri") !== c.redirectUri)
+    }
+    if (form.get("redirect_uri") !== c.redirectUri) {
       throw new OAuthError(
         "invalid_grant",
         "redirect_uri does not match the authorization request",
       );
+    }
     const resource = form.get("resource");
-    if (resource !== null && !sameResource(resource, c.resource))
+    if (resource !== null && !sameResource(resource, c.resource)) {
       throw new OAuthError("invalid_target", `tokens here are only for ${c.resource}`);
+    }
     checkVerifier(c, form);
     c.used = true;
 
@@ -213,8 +233,9 @@ export class TokenEndpoint {
 
   #refresh(form: URLSearchParams): TokenResponse {
     const presented = form.get("refresh_token") ?? "";
-    if (!REFRESH_SHAPE.test(presented))
+    if (!REFRESH_SHAPE.test(presented)) {
       throw new OAuthError("invalid_grant", "the refresh token is not valid");
+    }
     const hash = sha256(presented, "hex");
     const rec = this.#d.grants.findByRefresh(hash);
     if (!rec) {

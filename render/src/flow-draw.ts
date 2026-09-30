@@ -57,7 +57,9 @@ let canvas: CanvasRenderingContext2D | null = null;
 export function measure(text: string, font?: string): number {
   font ??= FONT;
   canvas ??= document.createElement("canvas").getContext("2d");
-  if (!canvas) return text.length * 7;
+  if (!canvas) {
+    return text.length * 7;
+  }
   canvas.font = font;
   return canvas.measureText(text).width;
 }
@@ -74,7 +76,9 @@ export function wrap(label: string): Line[] {
       if (cur && measure(next, font) > max) {
         out.push({ text: cur, kind });
         cur = word;
-      } else cur = next;
+      } else {
+        cur = next;
+      }
     }
     out.push({ text: cur, kind });
   });
@@ -90,7 +94,9 @@ export function svg<K extends keyof SVGElementTagNameMap>(
   parent?: Element,
 ): SVGElementTagNameMap[K] {
   const e = document.createElementNS(NS, name);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  for (const [k, v] of Object.entries(attrs)) {
+    e.setAttribute(k, String(v));
+  }
   parent?.appendChild(e);
   return e;
 }
@@ -193,7 +199,9 @@ function arrowheads(defs: SVGElement, id: string): (tone: string | null) => stri
   const heads = new Map<string, string>();
   return (tone) => {
     const key = tone ?? "ink";
-    if (heads.has(key)) return heads.get(key)!;
+    if (heads.has(key)) {
+      return heads.get(key)!;
+    }
     const ref = `${id}-a-${key}`;
     const m = svg(
       "marker",
@@ -231,7 +239,9 @@ export function draw(
   const head = arrowheads(svg("defs", {}, s), id);
 
   const groupLayer = svg("g", { class: "groups" }, s);
-  for (const x of [...layout.groups].sort((a, b) => a.depth - b.depth)) group(x, groupLayer);
+  for (const x of [...layout.groups].sort((a, b) => a.depth - b.depth)) {
+    group(x, groupLayer);
+  }
 
   const edges: Drawn["edges"] = [];
   const edgeLayer = svg("g", { class: "edges" }, s);
@@ -244,9 +254,15 @@ export function draw(
     );
     g.style.setProperty("--d", `${e.rank * 140 + 120}ms`);
     const path = svg("path", { d: pathD(e), class: "line", fill: "none" }, g);
-    if (e.style !== "dotted") path.setAttribute("pathLength", "1");
-    if (e.arrow !== "none") path.setAttribute("marker-end", `url(#${head(tone)})`);
-    if (e.arrow === "both") path.setAttribute("marker-start", `url(#${head(tone)})`);
+    if (e.style !== "dotted") {
+      path.setAttribute("pathLength", "1");
+    }
+    if (e.arrow !== "none") {
+      path.setAttribute("marker-end", `url(#${head(tone)})`);
+    }
+    if (e.arrow === "both") {
+      path.setAttribute("marker-start", `url(#${head(tone)})`);
+    }
     if (e.label) {
       const lg = svg("g", { class: "elabel" }, g);
       const w = edgeLabelWidth(e.label) + 10;
@@ -276,8 +292,9 @@ export function draw(
     g.style.transformOrigin = `${n.x}px ${n.y}px`;
     shape(n, g);
     text(lines.get(n.id) ?? wrap(n.label), n.x, n.y, g, "label");
-    if (n.note)
+    if (n.note) {
       svg("circle", { cx: n.x + n.w / 2 - 7, cy: n.y - n.h / 2 + 7, r: 3, class: "has-note" }, g);
+    }
     nodes.set(n.id, g);
   }
   host.replaceChildren(s);

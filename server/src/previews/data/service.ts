@@ -39,7 +39,9 @@ export class DataBrowser {
   }
 
   async tables(actor: Actor, previewId: string, addon: AddonId): Promise<Table[]> {
-    if (addon === "redis") throw unprocessable("Redis has keys, not tables: use /keys");
+    if (addon === "redis") {
+      throw unprocessable("Redis has keys, not tables: use /keys");
+    }
     const r = await this.#run(actor, previewId, addon, tablesQuery(addon), false, "tables");
     return r.rows.map((row) => ({ schema: row[0] ?? "", name: row[1] ?? "" }));
   }
@@ -52,10 +54,13 @@ export class DataBrowser {
     limit: number,
     offset: number,
   ): Promise<TimedResult> {
-    if (addon === "redis") throw unprocessable("Redis has keys, not tables: use /keys");
+    if (addon === "redis") {
+      throw unprocessable("Redis has keys, not tables: use /keys");
+    }
     const known = await this.tables(actor, previewId, addon);
-    if (!known.some((t) => t.schema === table.schema && t.name === table.name))
+    if (!known.some((t) => t.schema === table.schema && t.name === table.name)) {
       throw notFound(`no table ${table.schema}.${table.name}`);
+    }
     return this.#run(
       actor,
       previewId,
@@ -72,7 +77,9 @@ export class DataBrowser {
     cursor: string,
     match: string,
   ): Promise<{ cursor: string; keys: string[] }> {
-    if (!/^\d{1,20}$/.test(cursor)) throw unprocessable("cursor is a number");
+    if (!/^\d{1,20}$/.test(cursor)) {
+      throw unprocessable("cursor is a number");
+    }
     const r = await this.#run(
       actor,
       previewId,
@@ -117,43 +124,56 @@ export class DataBrowser {
     text: string,
     write: boolean,
   ): Promise<TimedResult> {
-    if (text.trim() === "") throw unprocessable("nothing to run");
-    if (text.length > MAX_QUERY_CHARS)
+    if (text.trim() === "") {
+      throw unprocessable("nothing to run");
+    }
+    if (text.length > MAX_QUERY_CHARS) {
       throw unprocessable(`a query is at most ${MAX_QUERY_CHARS} characters`);
+    }
     if (addon === "redis") {
       const why = redisRefusal(text, write);
-      if (why) throw unprocessable(why);
+      if (why) {
+        throw unprocessable(why);
+      }
     }
     return this.#run(actor, previewId, addon, text, write, "query");
   }
 
   #preview(previewId: string): Preview {
     const p = this.#ctx.previews.get(previewId);
-    if (!p || p.state === "destroyed") throw notFound(`no such preview: ${previewId}`);
+    if (!p || p.state === "destroyed") {
+      throw notFound(`no such preview: ${previewId}`);
+    }
     return p;
   }
 
   #target(previewId: string, addon: AddonId): { preview: Preview; host: Host } {
     const p = this.#preview(previewId);
-    if (!this.list(previewId).some((a) => a.id === addon))
+    if (!this.list(previewId).some((a) => a.id === addon)) {
       throw notFound(`this preview has no ${addon} add-on`);
-    if (p.state !== "awake")
+    }
+    if (p.state !== "awake") {
       throw conflict(`the preview is ${p.state}; open it to wake it first`, { state: p.state });
+    }
     const host = this.#ctx.hosts.get(p.hostId);
-    if (!host)
+    if (!host) {
       throw new AppError("internal", `preview ${previewId} is on unknown host ${p.hostId}`);
+    }
     return { preview: p, host };
   }
 
   #claim(previewId: string): void {
-    if (this.#busy.has(previewId)) throw conflict("a query on this preview is still running");
-    if (this.#busy.size >= MAX_GLOBAL)
+    if (this.#busy.has(previewId)) {
+      throw conflict("a query on this preview is still running");
+    }
+    if (this.#busy.size >= MAX_GLOBAL) {
       throw new AppError(
         "unavailable",
         "too many queries are running; try again in a moment",
         undefined,
         { "retry-after": "2" },
       );
+    }
     this.#busy.add(previewId);
   }
 
@@ -180,7 +200,9 @@ export class DataBrowser {
       result = toResult(x, output, Date.now() - started);
       return result;
     } catch (e) {
-      if (x.outcome === "ok") x.outcome = "error";
+      if (x.outcome === "ok") {
+        x.outcome = "error";
+      }
       throw e;
     } finally {
       clearTimeout(timer);

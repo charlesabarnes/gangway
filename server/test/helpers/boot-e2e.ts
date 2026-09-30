@@ -69,7 +69,9 @@ export async function signInPlainViewer(running: Running, adminSession: string) 
     headers,
     body: JSON.stringify({ permissions: ["previews.read"] }),
   });
-  if (roles.status !== 200) throw new Error(`role edit answered ${roles.status}`);
+  if (roles.status !== 200) {
+    throw new Error(`role edit answered ${roles.status}`);
+  }
   await raw(APP, "/v1/users", {
     method: "POST",
     headers,

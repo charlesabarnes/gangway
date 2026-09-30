@@ -5,7 +5,9 @@ import { issueLeaf, loadOrCreateCa } from "./selfsigned.ts";
 export const RENEWAL_WINDOW_MS = 30 * 86_400_000;
 
 function dueBefore(bundle: CertBundle, now: number, windowMs: number): boolean {
-  if (bundle.materials.length === 0) return true;
+  if (bundle.materials.length === 0) {
+    return true;
+  }
   return bundle.materials.some((m) => !m.notAfter || m.notAfter.getTime() - now < windowMs);
 }
 

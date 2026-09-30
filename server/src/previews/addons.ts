@@ -128,7 +128,9 @@ export function renderAddons(
   for (const c of choices) {
     const a = addonById(c.id);
     const image = a.versions[c.version];
-    if (!image) throw new Error(`${a.name} has no version ${c.version}`);
+    if (!image) {
+      throw new Error(`${a.name} has no version ${c.version}`);
+    }
     const pw = password(c.id);
     out.secrets.push(pw);
     const volume = `${a.service}-data`;

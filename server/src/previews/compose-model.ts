@@ -66,7 +66,9 @@ export type ComposeModel = {
 
 function parseExtension<T>(schema: z.ZodType<T>, raw: unknown, where: string): T {
   const r = schema.safeParse(raw ?? {});
-  if (r.success) return r.data;
+  if (r.success) {
+    return r.data;
+  }
   const i = r.error.issues[0];
   throw unprocessable(
     `${where}: x-gangway${i?.path.length ? `.${i.path.join(".")}` : ""}: ${i?.message ?? "invalid"}`,
@@ -80,8 +82,9 @@ export function parseComposeModel(
 ): ComposeModel {
   const doc = obj(resolved);
   const rawServices = obj(doc["services"]);
-  if (Object.keys(rawServices).length === 0)
+  if (Object.keys(rawServices).length === 0) {
     throw unprocessable("the compose file defines no services");
+  }
 
   const services = Object.entries(rawServices).map(([name, raw]): ServiceModel => {
     const s = obj(raw);
@@ -140,8 +143,11 @@ const tightest = (...values: (number | null)[]) => {
 };
 
 const setOrDrop = (target: Json, key: string, value: unknown) => {
-  if (value === 0 || value === null || value === undefined) delete target[key];
-  else target[key] = value;
+  if (value === 0 || value === null || value === undefined) {
+    delete target[key];
+  } else {
+    target[key] = value;
+  }
 };
 
 /**
@@ -162,7 +168,9 @@ function confine(svc: Json, cap: PreviewLimits): void {
   );
   const cpus = tightest(cap.cpus || null, positive(svc["cpus"]), positive(limits["cpus"]));
   const pids = tightest(cap.pids || null, positive(svc["pids_limit"]), positive(limits["pids"]));
-  for (const key of ["memory", "cpus", "pids"]) delete limits[key];
+  for (const key of ["memory", "cpus", "pids"]) {
+    delete limits[key];
+  }
 
   setOrDrop(svc, "mem_limit", memory && String(memory));
   // Without this the container may swap as much again as its limit.
@@ -174,25 +182,39 @@ function confine(svc: Json, cap: PreviewLimits): void {
       [reservations, "memory"],
     ] as const) {
       const asked = parseBytes(target[key]);
-      if (asked !== null && asked > memory) target[key] = String(memory);
+      if (asked !== null && asked > memory) {
+        target[key] = String(memory);
+      }
     }
   }
   setOrDrop(svc, "cpus", cpus);
   setOrDrop(svc, "pids_limit", pids);
 
-  if (Object.keys(limits).length > 0) resources["limits"] = limits;
-  else delete resources["limits"];
-  if (Object.keys(resources).length > 0) deploy["resources"] = resources;
-  else delete deploy["resources"];
-  if (Object.keys(deploy).length > 0) svc["deploy"] = deploy;
-  else delete svc["deploy"];
+  if (Object.keys(limits).length > 0) {
+    resources["limits"] = limits;
+  } else {
+    delete resources["limits"];
+  }
+  if (Object.keys(resources).length > 0) {
+    deploy["resources"] = resources;
+  } else {
+    delete deploy["resources"];
+  }
+  if (Object.keys(deploy).length > 0) {
+    svc["deploy"] = deploy;
+  } else {
+    delete svc["deploy"];
+  }
 
   svc["security_opt"] = ["no-new-privileges:true"];
   const dropped = new Set(arr(svc["cap_drop"]).map((c) => String(c).toUpperCase()));
   svc["cap_drop"] = ["ALL"];
   const kept = dropped.has("ALL") ? [] : KEPT_CAPABILITIES.filter((c) => !dropped.has(c));
-  if (kept.length > 0) svc["cap_add"] = kept;
-  else delete svc["cap_add"];
+  if (kept.length > 0) {
+    svc["cap_add"] = kept;
+  } else {
+    delete svc["cap_add"];
+  }
 }
 
 /** What an image needs to start as root, fix its files' owners and step down to its own user. */
@@ -212,7 +234,9 @@ const envKey = (service: string) =>
   `GANGWAY_URL_${service.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
 
 function asMap(v: unknown): Record<string, unknown> {
-  if (!Array.isArray(v)) return { ...obj(v) };
+  if (!Array.isArray(v)) {
+    return { ...obj(v) };
+  }
   return Object.fromEntries(
     v.map((e) => {
       const text = String(e);
@@ -237,14 +261,20 @@ function namespaceBuiltImages(services: Json, project: string): void {
   const renamed = new Map<string, string>();
   for (const [name, raw] of Object.entries(services)) {
     const svc = obj(raw);
-    if (svc["build"] === undefined || svc["build"] === null) continue;
-    if (typeof svc["image"] === "string") renamed.set(withTag(svc["image"]), `${project}-${name}`);
+    if (svc["build"] === undefined || svc["build"] === null) {
+      continue;
+    }
+    if (typeof svc["image"] === "string") {
+      renamed.set(withTag(svc["image"]), `${project}-${name}`);
+    }
     delete svc["image"];
   }
   for (const raw of Object.values(services)) {
     const svc = obj(raw);
     const to = typeof svc["image"] === "string" ? renamed.get(withTag(svc["image"])) : undefined;
-    if (to && (svc["build"] === undefined || svc["build"] === null)) svc["image"] = to;
+    if (to && (svc["build"] === undefined || svc["build"] === null)) {
+      svc["image"] = to;
+    }
   }
 }
 
@@ -274,7 +304,9 @@ export function buildStack(i: StackInput): string {
     svc["labels"] = { ...theirLabels(svc["labels"]), ...mine };
     if (svc["build"] && typeof svc["build"] === "object") {
       const build = obj(svc["build"]);
-      if (build["labels"] !== undefined) build["labels"] = theirLabels(build["labels"]);
+      if (build["labels"] !== undefined) {
+        build["labels"] = theirLabels(build["labels"]);
+      }
       svc["build"] = build;
     }
 
@@ -309,18 +341,23 @@ export function buildStack(i: StackInput): string {
     const section = obj(doc[kind]);
     for (const [key, raw] of Object.entries(section)) {
       const r = obj(raw);
-      if (r["name"] === `${i.planProject}_${key}`) delete r["name"];
+      if (r["name"] === `${i.planProject}_${key}`) {
+        delete r["name"];
+      }
       r["labels"] = { ...theirLabels(r["labels"]), ...ownership };
       section[key] = r;
     }
-    if (Object.keys(section).length > 0) doc[kind] = section;
+    if (Object.keys(section).length > 0) {
+      doc[kind] = section;
+    }
   }
 
-  if (i.sharedNetwork)
+  if (i.sharedNetwork) {
     doc["networks"] = {
       ...obj(doc["networks"]),
       default: { name: i.sharedNetwork, external: true },
     };
+  }
 
   return `${JSON.stringify(doc, null, 2)}\n`;
 }

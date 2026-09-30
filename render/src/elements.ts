@@ -6,7 +6,9 @@ const attr = (e: Element, n: string, d = "") => e.getAttribute(n) ?? d;
 
 /** Upgrades once: moving an element (a deck moving its slides) calls connectedCallback again. */
 function once(e: HTMLElement): boolean {
-  if (e.dataset["ready"]) return false;
+  if (e.dataset["ready"]) {
+    return false;
+  }
   e.dataset["ready"] = "1";
   return true;
 }
@@ -31,13 +33,18 @@ function titleBlock(label: string, meta: string, title: string, subtitle: string
 
 export function rootSettings(e: Element): void {
   const accent = e.getAttribute("accent");
-  if (accent) document.documentElement.dataset["accent"] = accent;
+  if (accent) {
+    document.documentElement.dataset["accent"] = accent;
+  }
   const title = e.getAttribute("title");
-  if (title) document.title = title;
+  if (title) {
+    document.title = title;
+  }
   // `theme` named light, dark or system before `mode` did; any other value is a theme's name.
   const mode = e.getAttribute("mode") ?? e.getAttribute("theme");
-  if (mode === "light" || mode === "dark" || mode === "system")
+  if (mode === "light" || mode === "dark" || mode === "system") {
     document.documentElement.dataset["pref"] = mode;
+  }
   applyTheme();
 }
 
@@ -58,15 +65,21 @@ function parts(doc: HTMLElement): void {
       body.className = "gw-part-body";
       part.append(head, body);
       out.push(part);
-    } else body.append(n);
+    } else {
+      body.append(n);
+    }
   }
-  if (!lead.textContent?.trim() && lead.children.length === 0) out.shift();
+  if (!lead.textContent?.trim() && lead.children.length === 0) {
+    out.shift();
+  }
   doc.append(...out);
 }
 
 class Doc extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    if (!once(this)) {
+      return;
+    }
     rootSettings(this);
     parts(this);
     const meta = [attr(this, "byline"), attr(this, "date")].filter(Boolean).join(" · ");
@@ -83,7 +96,9 @@ class Doc extends HTMLElement {
 
 class Dashboard extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    if (!once(this)) {
+      return;
+    }
     rootSettings(this);
     const body = document.createElement("div");
     body.className = "gw-body";
@@ -108,15 +123,18 @@ const head = (e: Element, level: "h2" | "h3") =>
 class Section extends HTMLElement {
   connectedCallback() {
     const h = head(this, "h2");
-    if (once(this) && h)
+    if (once(this) && h) {
       this.insertAdjacentHTML("afterbegin", `<div class="gw-section-head">${h}</div>`);
+    }
   }
 }
 
 class Card extends HTMLElement {
   connectedCallback() {
     const h = head(this, "h3");
-    if (once(this) && h) this.insertAdjacentHTML("afterbegin", h);
+    if (once(this) && h) {
+      this.insertAdjacentHTML("afterbegin", h);
+    }
   }
 }
 
@@ -128,7 +146,9 @@ class Grid extends HTMLElement {
 
 class Stat extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    if (!once(this)) {
+      return;
+    }
     const raw = attr(this, "value");
     const n = Number(raw);
     const value = raw !== "" && Number.isFinite(n) ? fmt(n, attr(this, "format")) : raw;
@@ -149,26 +169,33 @@ class Stat extends HTMLElement {
       .filter(Boolean)
       .map(Number)
       .filter(Number.isFinite);
-    if (trend.length > 1) this.querySelector('[data-part="row"]')?.appendChild(sparkline(trend));
+    if (trend.length > 1) {
+      this.querySelector('[data-part="row"]')?.appendChild(sparkline(trend));
+    }
   }
 }
 
 class Callout extends HTMLElement {
   connectedCallback() {
-    if (once(this) && this.hasAttribute("title"))
+    if (once(this) && this.hasAttribute("title")) {
       this.insertAdjacentHTML(
         "afterbegin",
         `<span data-part="title">${esc(attr(this, "title"))}</span>`,
       );
+    }
   }
 }
 
 class Facts extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    if (!once(this)) {
+      return;
+    }
     const kids = [...this.children];
     kids.forEach((k, i) => {
-      if (k.localName !== "dt") return;
+      if (k.localName !== "dt") {
+        return;
+      }
       const row = document.createElement("div");
       const dd = kids[i + 1]?.localName === "dd" ? [kids[i + 1]!] : [];
       row.append(k, ...dd);
@@ -179,30 +206,35 @@ class Facts extends HTMLElement {
 
 class Chart extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    if (!once(this)) {
+      return;
+    }
     const csv = this.textContent ?? "";
     this.textContent = "";
-    if (this.hasAttribute("title"))
+    if (this.hasAttribute("title")) {
       this.insertAdjacentHTML(
         "beforeend",
         `<span data-part="title" class="gw-caps">${esc(attr(this, "title"))}</span>`,
       );
+    }
     const plot = document.createElement("div");
     plot.dataset["part"] = "plot";
     this.appendChild(plot);
-    if (this.hasAttribute("caption"))
+    if (this.hasAttribute("caption")) {
       this.insertAdjacentHTML(
         "beforeend",
         `<p data-part="caption">${esc(attr(this, "caption"))}</p>`,
       );
+    }
     void this.#load(plot, csv);
   }
 
   async #load(plot: HTMLElement, csv: string) {
     let text = csv;
     try {
-      if (this.hasAttribute("src"))
+      if (this.hasAttribute("src")) {
         text = await (await fetch(`/${attr(this, "src").replace(/^\//, "")}`)).text();
+      }
     } catch (err) {
       return problem(this, `could not load ${attr(this, "src")}: ${(err as Error).message}`);
     }
@@ -225,7 +257,9 @@ class Chart extends HTMLElement {
     let last = 0;
     new ResizeObserver(() => {
       const w = plot.clientWidth;
-      if (w <= 0 || Math.abs(w - last) <= 4) return;
+      if (w <= 0 || Math.abs(w - last) <= 4) {
+        return;
+      }
       last = w;
       try {
         drawChart(plot, rows, cfg);
@@ -251,5 +285,9 @@ export function defineElements(): void {
     ["gw-flag", class extends HTMLElement {}],
     ["gw-columns", class extends HTMLElement {}],
   ];
-  for (const [name, cls] of defs) if (!customElements.get(name)) customElements.define(name, cls);
+  for (const [name, cls] of defs) {
+    if (!customElements.get(name)) {
+      customElements.define(name, cls);
+    }
+  }
 }

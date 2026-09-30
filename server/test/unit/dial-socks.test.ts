@@ -4,7 +4,9 @@ import { dialUpstream, parseSocksProxy } from "../../src/net/dial.ts";
 
 const closers: (() => void)[] = [];
 afterEach(() => {
-  for (const c of closers.splice(0)) c();
+  for (const c of closers.splice(0)) {
+    c();
+  }
 });
 
 type ProxyOptions = {
@@ -35,18 +37,24 @@ function socksProxy(
     let stage: "greeting" | "request" | "tunnel" = "greeting";
     client.on("error", () => {});
     client.on("data", async (d: Buffer) => {
-      if (stage === "tunnel") return;
+      if (stage === "tunnel") {
+        return;
+      }
       buf = Buffer.concat([buf, d]);
       if (stage === "greeting" && buf.length >= 3) {
         buf = buf.subarray(2 + buf[1]!);
         stage = "request";
-        if (o.stall) return;
+        if (o.stall) {
+          return;
+        }
         await send(client, Buffer.from([0x05, o.method ?? 0x00]));
       }
       if (stage === "request" && buf.length >= 7) {
         const atyp = buf[3]!;
         const alen = atyp === 0x01 ? 4 : atyp === 0x04 ? 16 : 1 + buf[4]!;
-        if (buf.length < 4 + alen + 2) return;
+        if (buf.length < 4 + alen + 2) {
+          return;
+        }
         const raw = buf.subarray(4, 4 + alen);
         const host =
           atyp === 0x01 ? [...raw].join(".") : atyp === 0x03 ? raw.subarray(1).toString() : "::1";

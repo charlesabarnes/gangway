@@ -30,7 +30,9 @@ export class PreviewStates {
 
   transition(id: string, to: PreviewState, error: string | null = null): Preview {
     const current = this.#previews.get(id);
-    if (!current) throw notFound(`no such preview: ${id}`);
+    if (!current) {
+      throw notFound(`no such preview: ${id}`);
+    }
     if (!canTransition(current.state, to)) {
       throw new AppError("conflict", `preview is ${current.state}; cannot become ${to}`, {
         state: current.state,

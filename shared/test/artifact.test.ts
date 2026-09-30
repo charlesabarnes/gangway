@@ -38,18 +38,22 @@ describe("templates", () => {
     "%s lints clean at every option's extremes",
     (id) => {
       const t = ARTIFACT_TEMPLATES.find((x) => x.id === id)!;
-      for (const o of t.options)
-        for (const v of extremes(o))
+      for (const o of t.options) {
+        for (const v of extremes(o)) {
           expect([
             o.key,
             v,
             lint(renderTemplate({ template: id, options: { [o.key]: v } })),
           ]).toEqual([o.key, v, []]);
+        }
+      }
     },
   );
 
   test("every kind has at least three templates", () => {
-    for (const k of ARTIFACT_KINDS) expect(templatesFor(k).length).toBeGreaterThanOrEqual(3);
+    for (const k of ARTIFACT_KINDS) {
+      expect(templatesFor(k).length).toBeGreaterThanOrEqual(3);
+    }
   });
 
   test("title, subtitle, theme and accent land in the front matter", () => {
@@ -372,8 +376,9 @@ describe("guide", () => {
   });
 
   test("the full guide has every kind", () => {
-    for (const k of ["Documents", "Decks", "The look"])
+    for (const k of ["Documents", "Decks", "The look"]) {
       expect(guideMarkdown()).toContain(`## ${k}`);
+    }
   });
 });
 

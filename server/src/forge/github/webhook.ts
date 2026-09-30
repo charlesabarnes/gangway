@@ -18,7 +18,9 @@ export function githubFullName(cloneUrl: string): string | null {
   } catch {
     return null;
   }
-  if (u.hostname.toLowerCase() !== "github.com") return null;
+  if (u.hostname.toLowerCase() !== "github.com") {
+    return null;
+  }
   const m = /^\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(u.pathname);
   return m ? `${m[1]}/${m[2]}` : null;
 }
@@ -33,9 +35,13 @@ export function verifySignature(
   rawBody: Uint8Array,
   header: string | null,
 ): boolean {
-  if (secret === "" || header === null) return false;
+  if (secret === "" || header === null) {
+    return false;
+  }
   const m = /^sha256=([0-9a-f]{64})$/i.exec(header.trim());
-  if (!m) return false;
+  if (!m) {
+    return false;
+  }
   const expected = createHmac("sha256", secret).update(rawBody).digest();
   const presented = Buffer.from(m[1]!, "hex");
   return presented.length === expected.length && timingSafeEqual(presented, expected);
@@ -77,10 +83,13 @@ function repoOf(r: GhRepo | undefined, installationId: string): ForgeRepo | null
     typeof r.full_name !== "string" ||
     typeof r.name !== "string" ||
     typeof r.clone_url !== "string"
-  )
+  ) {
     return null;
+  }
   const owner = r.owner?.login ?? r.full_name.split("/")[0];
-  if (typeof owner !== "string" || owner === "") return null;
+  if (typeof owner !== "string" || owner === "") {
+    return null;
+  }
   return {
     forge: "github",
     fullName: r.full_name,
@@ -98,8 +107,9 @@ export function pullRequestOf(p: GhPullRequest | undefined, repo: ForgeRepo): Pu
     typeof p.number !== "number" ||
     typeof p.head?.sha !== "string" ||
     typeof p.head.ref !== "string"
-  )
+  ) {
     return null;
+  }
   const headRepo = p.head.repo?.full_name;
   return {
     repo,
@@ -151,27 +161,43 @@ function pullRequestEvent(
   repo: ForgeRepo | null,
   installationId: string,
 ): ForgeEvent {
-  if (!repo) return { type: "ignored", reason: "pull_request without a repository" };
-  if (installationId === "")
+  if (!repo) {
+    return { type: "ignored", reason: "pull_request without a repository" };
+  }
+  if (installationId === "") {
     return { type: "ignored", reason: "pull_request without an installation" };
+  }
   const pr = pullRequestOf(p.pull_request, repo);
-  if (!pr) return { type: "ignored", reason: "pull_request without a head" };
+  if (!pr) {
+    return { type: "ignored", reason: "pull_request without a head" };
+  }
   const action = p.action ?? "";
-  if (action === "closed")
+  if (action === "closed") {
     return { type: "pr.closed", pr, merged: p.pull_request?.merged === true };
-  if (PR_UPDATE_ACTIONS.has(action)) return { type: "pr.updated", pr, action: action as "opened" };
+  }
+  if (PR_UPDATE_ACTIONS.has(action)) {
+    return { type: "pr.updated", pr, action: action as "opened" };
+  }
   return { type: "ignored", reason: `pull_request.${action}` };
 }
 
 function issueCommentEvent(p: GhPayload, repo: ForgeRepo | null): ForgeEvent {
-  if (p.action !== "created") return { type: "ignored", reason: `issue_comment.${p.action ?? ""}` };
-  if (!repo) return { type: "ignored", reason: "issue_comment without a repository" };
-  if (!p.issue?.pull_request || typeof p.issue.number !== "number")
+  if (p.action !== "created") {
+    return { type: "ignored", reason: `issue_comment.${p.action ?? ""}` };
+  }
+  if (!repo) {
+    return { type: "ignored", reason: "issue_comment without a repository" };
+  }
+  if (!p.issue?.pull_request || typeof p.issue.number !== "number") {
     return { type: "ignored", reason: "a comment on an issue, not a pull request" };
+  }
   const command = parsePreviewCommand(p.comment?.body ?? "");
-  if (command === null) return { type: "ignored", reason: "not a /preview command" };
-  if (typeof p.comment?.id !== "number")
+  if (command === null) {
+    return { type: "ignored", reason: "not a /preview command" };
+  }
+  if (typeof p.comment?.id !== "number") {
     return { type: "ignored", reason: "comment without an id" };
+  }
   return {
     type: "pr.command",
     repo,

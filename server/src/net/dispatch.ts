@@ -65,7 +65,9 @@ export function hostKind(
   const domains = d.previewDomains?.() ?? [];
   const kind = classifyHost(host, base, domains.length > 0 ? domains : [base]);
   // A custom hostname sits under none of them.
-  if (kind.kind === "misdirected" && d.table.lookup(host)) return { kind: "preview" };
+  if (kind.kind === "misdirected" && d.table.lookup(host)) {
+    return { kind: "preview" };
+  }
   return kind;
 }
 
@@ -81,11 +83,17 @@ function toSurface(
   clientIp: string,
 ): Response | Promise<Response> {
   const surface = label === "" ? "app" : surfaceFor(label);
-  if (!d.surfaceEnabled(surface)) return unknownPage(host);
+  if (!d.surfaceEnabled(surface)) {
+    return unknownPage(host);
+  }
   const control = surface === "app" || surface === "api";
-  if (control && d.controlGate && !d.controlGate(req, clientIp)) return unknownPage(host);
+  if (control && d.controlGate && !d.controlGate(req, clientIp)) {
+    return unknownPage(host);
+  }
   const handler = d.handlers[surface];
-  if (!handler) return unknownPage(host);
+  if (!handler) {
+    return unknownPage(host);
+  }
   return handler(req, { clientIp });
 }
 
@@ -108,7 +116,9 @@ async function notAwake(
         d.logUrlFor?.(entry.previewId),
       );
     case "asleep":
-      if (!d.wake) return wakingPage(host);
+      if (!d.wake) {
+        return wakingPage(host);
+      }
       return d.wake(entry, req);
     case "destroying":
     case "destroyed":
@@ -123,7 +133,9 @@ async function serveFiles(
   entry: RouteEntry,
   site: NonNullable<DispatchDeps["site"]>,
 ): Promise<Response> {
-  if (!tryAcquire(entry, d.limits)) return busyPage(host);
+  if (!tryAcquire(entry, d.limits)) {
+    return busyPage(host);
+  }
   try {
     const res = await site(req, entry);
     d.onProxied?.(entry);
@@ -140,14 +152,20 @@ async function proxy(
   entry: RouteEntry,
   clientIp: string,
 ): Promise<Response> {
-  if (!tryAcquire(entry, d.limits)) return busyPage(host);
+  if (!tryAcquire(entry, d.limits)) {
+    return busyPage(host);
+  }
   try {
     const res = await d.upstream.fetch(req, entry, { clientIp });
     d.onProxied?.(entry);
     return res;
   } catch (e) {
-    if (isBodyTooLarge(e)) return payloadTooLargePage();
-    if (isTimeout(e)) return upstreamTimeoutPage(host);
+    if (isBodyTooLarge(e)) {
+      return payloadTooLargePage();
+    }
+    if (isTimeout(e)) {
+      return upstreamTimeoutPage(host);
+    }
     return badGatewayPage(host);
   } finally {
     release(entry);
@@ -160,29 +178,46 @@ export async function dispatch(req: Request, d: DispatchDeps): Promise<Response>
 
 async function route(req: Request, d: DispatchDeps): Promise<Response> {
   const host = normalizeHost(req.headers.get("host"));
-  if (!host) return new Response("bad request", { status: 400 });
+  if (!host) {
+    return new Response("bad request", { status: 400 });
+  }
 
   const clientIp = d.clientIpFor(req);
 
   // Reserved labels route to surfaces regardless of which are on, or re-enabling one could collide with a live preview.
   const kind = hostKind(host, d);
-  if (kind.kind === "misdirected") return misdirectedPage();
+  if (kind.kind === "misdirected") {
+    return misdirectedPage();
+  }
   // A page on `x.<previewDomain>` loads its fonts from `<previewDomain>`, where nothing else answers.
-  if (kind.kind === "unknown") return (await d.font?.(req)) ?? unknownPage(host);
-  if (kind.kind === "surface") return toSurface(req, d, host, kind.label, clientIp);
+  if (kind.kind === "unknown") {
+    return (await d.font?.(req)) ?? unknownPage(host);
+  }
+  if (kind.kind === "surface") {
+    return toSurface(req, d, host, kind.label, clientIp);
+  }
 
   const entry = d.table.lookup(host);
-  if (!entry) return unknownPage(host);
+  if (!entry) {
+    return unknownPage(host);
+  }
   const wait = d.rates?.take(clientIp, entry.previewId);
-  if (wait) return tooManyPage(host, wait);
-  if (d.watermark && req.url.includes(MARK_PATH) && new URL(req.url).pathname === MARK_PATH)
+  if (wait) {
+    return tooManyPage(host, wait);
+  }
+  if (d.watermark && req.url.includes(MARK_PATH) && new URL(req.url).pathname === MARK_PATH) {
     return markResponse(req, d.watermark.script());
+  }
 
   const gated = d.visibilityGate?.(entry, req, clientIp);
-  if (gated) return gated;
+  if (gated) {
+    return gated;
+  }
 
   const instead = await notAwake(req, d, host, entry);
-  if (instead) return instead;
+  if (instead) {
+    return instead;
+  }
 
   if (isWebSocketUpgrade(req)) {
     return new Response("websocket upgrade failed", { status: 400 });
@@ -203,6 +238,8 @@ function answer(
   entry: RouteEntry,
   clientIp: string,
 ): Promise<Response> {
-  if (entry.site && d.site) return serveFiles(req, d, host, entry, d.site);
+  if (entry.site && d.site) {
+    return serveFiles(req, d, host, entry, d.site);
+  }
   return proxy(req, d, host, entry, clientIp);
 }

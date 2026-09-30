@@ -104,7 +104,9 @@ describe("Docker Desktop by default", () => {
 describe(`${REFUSE_DESKTOP_ENV}=1`, () => {
   test("refuses Desktop and says why", () => {
     const r = checkDaemon(DESKTOP_MAC, null, REFUSING);
-    if (r.ok) throw new Error("unreachable");
+    if (r.ok) {
+      throw new Error("unreachable");
+    }
     expect(r.error.reason).toBe("docker-desktop");
     expect(r.error.message).toContain("Docker Desktop");
     expect(r.error.message).toContain(REFUSE_DESKTOP_ENV);
@@ -144,7 +146,9 @@ describe("expectName", () => {
   test("a mismatch throws with reason name-mismatch", () => {
     const r = checkDaemon(OTHER_LINUX, "docker-host", EMPTY);
     expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("unreachable");
+    if (r.ok) {
+      throw new Error("unreachable");
+    }
     expect(r.error.reason).toBe("name-mismatch");
     expect(r.error.detail).toMatchObject({ name: "preview-host-2", expectName: "docker-host" });
   });
@@ -158,7 +162,9 @@ describe("expectName", () => {
   test("a daemon with no Name fails a set expectName rather than passing", () => {
     const r = checkDaemon({ OperatingSystem: "Ubuntu 24.04" }, "docker-host", EMPTY);
     expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("unreachable");
+    if (r.ok) {
+      throw new Error("unreachable");
+    }
     expect(r.error.reason).toBe("name-mismatch");
   });
 
@@ -193,7 +199,9 @@ describe("the actual accident", () => {
 
   test("guard errors carry an HTTP status, so they surface as problem+json", () => {
     const r = checkDaemon(DESKTOP_MAC, null, REFUSING);
-    if (r.ok) throw new Error("unreachable");
+    if (r.ok) {
+      throw new Error("unreachable");
+    }
     expect(r.error.status).toBe(503);
     expect(r.error.toProblem()["detail"]).toContain("Docker Desktop");
   });

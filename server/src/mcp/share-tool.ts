@@ -43,9 +43,12 @@ export async function manageShare(d: ToolDeps, actor: Actor, args: ShareArgs): P
     return ended ? `stopped sharing: ${ended.url} no longer answers` : "it was not shared";
   }
   const status = shareStatus(ctx, preview.id);
-  if (status.share)
+  if (status.share) {
     return `shared: ${status.share.url}/ until ${new Date(status.share.expiresAt).toISOString()}`;
-  if (!status.available) return "not shared, and this server cannot share previews";
+  }
+  if (!status.available) {
+    return "not shared, and this server cannot share previews";
+  }
   return status.local
     ? "not shared: it answers only on the machine gangway runs on; start a share for a public link"
     : "not shared";

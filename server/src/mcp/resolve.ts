@@ -19,11 +19,15 @@ export function resolvePreview(
 ): Preview {
   const live = (p: Preview | undefined): p is Preview => isLive(p) && visible(p);
   const text = ref.trim();
-  if (text === "") throw unprocessable("name a preview: its name, URL or id");
+  if (text === "") {
+    throw unprocessable("name a preview: its name, URL or id");
+  }
 
   if (isUlid(text.toUpperCase())) {
     const p = ctx.previews.get(text.toUpperCase());
-    if (live(p)) return p;
+    if (live(p)) {
+      return p;
+    }
   }
 
   let host = text.toLowerCase();
@@ -37,30 +41,39 @@ export function resolvePreview(
   if (host.includes(".")) {
     const entry = ctx.table.lookup(host);
     const p = entry ? ctx.previews.get(entry.previewId) : undefined;
-    if (live(p)) return p;
+    if (live(p)) {
+      return p;
+    }
     throw notFound(`no preview answers at ${host}`);
   }
 
   const all = ctx.previews.list({}).filter(live);
   const exact = all.filter((p) => nameOf(ctx, p) === host);
-  if (exact.length === 1) return exact[0]!;
+  if (exact.length === 1) {
+    return exact[0]!;
+  }
   const stem =
     exact.length === 0
       ? all.filter((p) =>
           new RegExp(`^${host.replace(/[^a-z0-9-]/g, "")}-[a-z0-9]{10}$`).test(nameOf(ctx, p)),
         )
       : exact;
-  if (stem.length === 1) return stem[0]!;
-  if (stem.length > 1)
+  if (stem.length === 1) {
+    return stem[0]!;
+  }
+  if (stem.length > 1) {
     throw unprocessable(
       `${JSON.stringify(text)} matches ${stem.length} previews: ${stem.map((p) => `${nameOf(ctx, p)} (${p.id})`).join(", ")}. Use the URL or the id`,
     );
+  }
   throw notFound(`no live preview is called ${JSON.stringify(text)}`);
 }
 
 /** What this actor may see: everything, or only what it deployed. */
 export function visibleTo(ctx: PreviewContext, actor: Actor): (p: Preview) => boolean {
-  if (can(actor, "previews.read")) return () => true;
+  if (can(actor, "previews.read")) {
+    return () => true;
+  }
   const made = ctx.previews.provenances();
   return (p) => maySee(actor, made.get(p.id) ?? { owner: null, credential: null });
 }

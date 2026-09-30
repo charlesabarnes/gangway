@@ -111,7 +111,9 @@ export const CASES: readonly Case[] = [
     }),
     (a) => {
       expect(kinds(a)).toEqual(["StopOrphan", "StopOrphan", "StopOrphan"]);
-      for (const x of a) expect(x).toMatchObject({ reason: "incomplete-labels" });
+      for (const x of a) {
+        expect(x).toMatchObject({ reason: "incomplete-labels" });
+      }
     },
   ],
   [
@@ -206,8 +208,9 @@ export const CASES: readonly Case[] = [
     }),
     (a) => {
       expect(a.some(isMutating)).toBe(false);
-      for (const x of a)
+      for (const x of a) {
         expect(x).toMatchObject({ kind: "LeaveAlone", reason: "host-unreachable" });
+      }
     },
   ],
   [
@@ -241,7 +244,9 @@ export const CASES: readonly Case[] = [
     }),
     (a) => {
       expect(a.some(isMutating)).toBe(false);
-      for (const x of a) expect(x).toMatchObject({ reason: "preview-inactive" });
+      for (const x of a) {
+        expect(x).toMatchObject({ reason: "preview-inactive" });
+      }
     },
   ],
   [

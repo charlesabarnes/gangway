@@ -105,7 +105,9 @@ describe("IdempotentDeploys", () => {
     expect(a.status).toBe("fulfilled");
     expect(b).toMatchObject({ status: "rejected", reason: { code: "unprocessable" } });
     expect(s.previews.getByProject("gw-four")).toBeUndefined();
-    if (a.status === "fulfilled") await a.value.done;
+    if (a.status === "fulfilled") {
+      await a.value.done;
+    }
   });
 
   test("keys are scoped per token: another agent's identical key is a different key", async () => {

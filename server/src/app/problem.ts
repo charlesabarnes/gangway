@@ -32,7 +32,9 @@ export function problemResponse(
 }
 
 function toAppError(e: unknown): AppError | null {
-  if (e instanceof AppError) return e;
+  if (e instanceof AppError) {
+    return e;
+  }
   if (e instanceof ZodError) {
     return new AppError("unprocessable", "request validation failed", {
       issues: e.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
@@ -40,7 +42,9 @@ function toAppError(e: unknown): AppError | null {
   }
   if (e instanceof HTTPException) {
     const code = CODE_FOR_STATUS[e.status];
-    if (code) return new AppError(code, e.message || code.replace(/_/g, " "));
+    if (code) {
+      return new AppError(code, e.message || code.replace(/_/g, " "));
+    }
   }
   return null;
 }
@@ -48,7 +52,9 @@ function toAppError(e: unknown): AppError | null {
 export function errorHandler(logger: Logger) {
   return (e: unknown, c: Context<AppEnv>): Response => {
     const known = toAppError(e);
-    if (known && known.status < 500) return problemResponse(c, known);
+    if (known && known.status < 500) {
+      return problemResponse(c, known);
+    }
     logger.error("unhandled request error", {
       requestId: c.get("requestId"),
       method: c.req.method,

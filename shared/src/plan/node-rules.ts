@@ -22,18 +22,20 @@ type Pm = {
 const BUN: Pm = { install: "bun install", run: (s) => `bun run ${s}`, source: "package.json" };
 
 function packageManager(have: Set<string>): Pm {
-  if (have.has("pnpm-lock.yaml"))
+  if (have.has("pnpm-lock.yaml")) {
     return {
       install: "corepack enable && pnpm install --frozen-lockfile",
       run: (s) => `pnpm run ${s}`,
       source: "pnpm lockfile",
     };
-  if (have.has("yarn.lock"))
+  }
+  if (have.has("yarn.lock")) {
     return {
       install: "corepack enable && yarn install",
       run: (s) => `yarn run ${s}`,
       source: "yarn lockfile",
     };
+  }
   const locked = have.has("package-lock.json") || have.has("npm-shrinkwrap.json");
   return {
     install: locked ? "npm ci --no-audit --no-fund" : "npm install --no-audit --no-fund",
@@ -61,12 +63,18 @@ export function planNodeOrBun(ctx: RuleContext, runtime: "node" | "bun"): void {
     return;
   }
   plan.start = startOverride(ctx);
-  if (plan.start) return;
+  if (plan.start) {
+    return;
+  }
 
   const start = scripts["start"];
   const isDev = start !== undefined && DEV_SERVER.test(start);
-  if (start !== undefined && !(isDev && plan.build)) return runStartScript(ctx, pm, start, isDev);
-  if (runEntry(ctx, runtime, pkg)) return;
+  if (start !== undefined && !(isDev && plan.build)) {
+    return runStartScript(ctx, pm, start, isDev);
+  }
+  if (runEntry(ctx, runtime, pkg)) {
+    return;
+  }
   if (plan.build) {
     serveBuilt(
       ctx,
@@ -90,18 +98,20 @@ function installAndBuild(
 ): void {
   plan.install = override(file?.install, pkg ? pm.install : null);
   plan.build = override(file?.build, scripts["build"] !== undefined ? pm.run("build") : null);
-  if (plan.install && file?.install === undefined)
+  if (plan.install && file?.install === undefined) {
     plan.reasons.push({
       level: "info",
       found: pm.source,
       then: `installs with \`${cmdText(plan.install)}\``,
     });
-  if (plan.build && file?.build === undefined)
+  }
+  if (plan.build && file?.build === undefined) {
     plan.reasons.push({
       level: "info",
       found: "a build script",
       then: `runs \`${cmdText(plan.build)}\``,
     });
+  }
 }
 
 function runStartScript({ plan }: RuleContext, pm: Pm, start: string, isDev: boolean): void {
@@ -121,9 +131,13 @@ function runEntry({ plan, have, rt }: RuleContext, runtime: "node" | "bun", pkg:
       ? (entryFrom(have, pkg?.["module"]) ?? entryFrom(have, pkg?.["main"]))
       : entryFrom(have, pkg?.["main"]);
   const entry = main ?? firstEntry(have, rt);
-  if (!entry) return false;
+  if (!entry) {
+    return false;
+  }
   plan.entry = entry;
-  if (runtime === "node") plan.start = ["node", entry];
+  if (runtime === "node") {
+    plan.start = ["node", entry];
+  }
   plan.reasons.push({
     level: "info",
     found: main ? `package.json main: ${entry}` : entry,

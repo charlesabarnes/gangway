@@ -49,7 +49,9 @@ export async function extractTarball(
   const feed = (async () => {
     try {
       for await (const chunk of decompressed(await source)) {
-        if (ex.destroyed) return;
+        if (ex.destroyed) {
+          return;
+        }
         ctx.result.totalBytes += chunk.byteLength;
         if (ctx.result.totalBytes > resolved.maxTotalBytes) {
           throw rejectTarball(
@@ -57,7 +59,9 @@ export async function extractTarball(
             `archive exceeds ${resolved.maxTotalBytes} decompressed bytes`,
           );
         }
-        if (!ex.write(chunk)) await writable(ex);
+        if (!ex.write(chunk)) {
+          await writable(ex);
+        }
       }
       ex.end(null);
     } catch (err) {
@@ -78,15 +82,20 @@ export async function extractTarball(
   } catch (err) {
     throw asTarballError(feedError ?? err);
   } finally {
-    if (!ex.destroyed) ex.destroy();
+    if (!ex.destroyed) {
+      ex.destroy();
+    }
     await feed;
   }
 }
 
 function entrySegments(ctx: Context, name: string): string[] {
-  if (name.includes("\u0000"))
+  if (name.includes("\u0000")) {
     throw rejectTarball("invalid_path", "entry path contains a NUL byte", name);
-  if (name.length === 0) throw rejectTarball("invalid_path", "entry path is empty");
+  }
+  if (name.length === 0) {
+    throw rejectTarball("invalid_path", "entry path is empty");
+  }
   if (Buffer.byteLength(name) > ctx.limits.maxPathBytes) {
     throw rejectTarball(
       "path_too_long",
@@ -111,15 +120,17 @@ async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
   const type = entry.header.type ?? "file";
 
   if (segments.length === 0) {
-    if (type !== "directory")
+    if (type !== "directory") {
       throw rejectTarball("invalid_path", "entry path resolves to the root", name);
+    }
     ctx.result.directories++;
     return;
   }
 
   const target = resolveWithin(ctx.dest, segments.join("/"));
-  if (target === undefined)
+  if (target === undefined) {
     throw rejectTarball("path_escape", "entry path escapes the destination", name);
+  }
 
   switch (type) {
     case "directory":
@@ -198,8 +209,11 @@ async function writeLinkEntry(
 
   await ensureDir(ctx, path.dirname(target));
   try {
-    if (type === "symlink") await symlink(linkname, target);
-    else await link(resolvedTarget, target);
+    if (type === "symlink") {
+      await symlink(linkname, target);
+    } else {
+      await link(resolvedTarget, target);
+    }
   } catch (err) {
     if (isErrno(err, "EEXIST")) {
       throw rejectTarball("duplicate_entry", "two entries claim the same path", entry.header.name);
@@ -209,15 +223,21 @@ async function writeLinkEntry(
 }
 
 async function ensureDir(ctx: Context, dir: string): Promise<void> {
-  if (ctx.dirs.has(dir)) return;
+  if (ctx.dirs.has(dir)) {
+    return;
+  }
 
   let current = ctx.dest;
   for (const segment of path.relative(ctx.dest, dir).split(path.sep)) {
     current = path.join(current, segment);
-    if (ctx.dirs.has(current)) continue;
+    if (ctx.dirs.has(current)) {
+      continue;
+    }
 
     await mkdir(current, { mode: DIR_MODE }).catch((err: unknown) => {
-      if (!isErrno(err, "EEXIST")) throw err;
+      if (!isErrno(err, "EEXIST")) {
+        throw err;
+      }
     });
 
     const st = await lstat(current);
@@ -242,7 +262,9 @@ async function ensureDir(ctx: Context, dir: string): Promise<void> {
 }
 
 function writable(ex: Extract): Promise<void> {
-  if (ex.destroyed) return Promise.resolve();
+  if (ex.destroyed) {
+    return Promise.resolve();
+  }
   return new Promise<void>((resolve) => {
     const done = () => {
       ex.off("drain", done);
@@ -259,7 +281,9 @@ function writable(ex: Extract): Promise<void> {
 async function* decompressed(source: TarballSource): AsyncGenerator<Uint8Array> {
   const bytes = iterate(source);
   const first = await bytes.next();
-  if (first.done) return;
+  if (first.done) {
+    return;
+  }
 
   const head = first.value;
   const all = prepend(head, bytes);
@@ -270,7 +294,9 @@ async function* decompressed(source: TarballSource): AsyncGenerator<Uint8Array> 
     src.on("error", (e) => gz.destroy(e));
     src.pipe(gz);
     try {
-      for await (const chunk of gz) yield chunk as Uint8Array;
+      for await (const chunk of gz) {
+        yield chunk as Uint8Array;
+      }
     } finally {
       src.destroy();
       gz.destroy();
@@ -285,7 +311,9 @@ async function* iterate(source: TarballSource): AsyncGenerator<Uint8Array> {
     yield source;
     return;
   }
-  for await (const chunk of source as AsyncIterable<Uint8Array>) yield chunk;
+  for await (const chunk of source as AsyncIterable<Uint8Array>) {
+    yield chunk;
+  }
 }
 
 async function* prepend(
@@ -301,7 +329,9 @@ function isErrno(err: unknown, code: string): boolean {
 }
 
 function asTarballError(err: unknown): unknown {
-  if (err instanceof AppError) return err;
+  if (err instanceof AppError) {
+    return err;
+  }
   const message = errorMessage(err);
   return rejectTarball("malformed_archive", `could not read the archive: ${message}`);
 }

@@ -59,7 +59,9 @@ async function readFrames(res: Response, count: number, wantComments = false) {
   let comments = 0;
   while (frames.length < count || (wantComments && comments === 0)) {
     const { value, done } = await reader.read();
-    if (done) break;
+    if (done) {
+      break;
+    }
     buf += dec.decode(value, { stream: true });
     let i: number;
     while ((i = buf.indexOf("\n\n")) >= 0) {
@@ -98,7 +100,9 @@ describe("EventBus", () => {
 
   test("follow: replays the backlog, then goes live, with no gap and no duplicate", () => {
     const { bus } = setup();
-    for (let i = 0; i < 450; i++) bus.publish("tick", { i });
+    for (let i = 0; i < 450; i++) {
+      bus.publish("tick", { i });
+    }
     const got: GangwayEvent[] = [];
     const stop = bus.follow(100, (e) => got.push(e));
     expect(got.length).toBe(350);
@@ -122,7 +126,9 @@ describe("EventBus", () => {
 
   test("follow: a client hopelessly behind gets one reset, then live events", () => {
     const { bus } = setup();
-    for (let i = 0; i < 1200; i++) bus.publish("tick");
+    for (let i = 0; i < 1200; i++) {
+      bus.publish("tick");
+    }
     const got: GangwayEvent[] = [];
     bus.follow(0, (e) => got.push(e));
     expect(got.length).toBe(1001);
@@ -185,7 +191,9 @@ describe("GET /v1/events", () => {
     const deadline = Date.now() + 1000;
     while (!text.includes(": keepalive") && Date.now() < deadline) {
       const next = await Promise.race([reader.read(), Bun.sleep(200).then(() => null)]);
-      if (next?.value) text += new TextDecoder().decode(next.value);
+      if (next?.value) {
+        text += new TextDecoder().decode(next.value);
+      }
     }
     await reader.cancel().catch(() => {});
     expect(text).toStartWith(": connected\n\n");

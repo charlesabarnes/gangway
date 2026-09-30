@@ -24,14 +24,19 @@ export async function sleepPreview(
   why: string,
 ): Promise<Preview> {
   const preview = ctx.previews.get(previewId);
-  if (!preview || preview.state !== "awake")
+  if (!preview || preview.state !== "awake") {
     throw new AppError("conflict", `preview ${previewId} is not awake`);
-  if (servedByGangway(preview))
+  }
+  if (servedByGangway(preview)) {
     throw new AppError("conflict", `gangway serves preview ${previewId}'s files; nothing sleeps`);
+  }
   const host = ctx.hosts.get(preview.hostId);
-  if (!host) throw new AppError("conflict", `host ${preview.hostId} is gone`);
-  if (ctx.inflight.has(previewId) || ctx.teardowns.has(previewId))
+  if (!host) {
+    throw new AppError("conflict", `host ${preview.hostId} is gone`);
+  }
+  if (ctx.inflight.has(previewId) || ctx.teardowns.has(previewId)) {
     throw new AppError("conflict", `preview ${previewId} is busy`);
+  }
 
   const empty = await mkdtemp(join(tmpdir(), "gangway-sleep-"));
   try {
@@ -40,8 +45,9 @@ export async function sleepPreview(
       host,
       { cwd: empty },
     );
-    if (res.code !== 0)
+    if (res.code !== 0) {
       throw new Error(`compose stop exited ${res.code}: ${res.stderr.slice(-500)}`);
+    }
   } finally {
     await rm(empty, { recursive: true, force: true });
   }
@@ -60,13 +66,21 @@ export async function sweepIdle(
   const report: IdleReport = { candidates: 0, slept: [], skipped: [], failed: [] };
 
   for (const p of ctx.previews.list({ state: "awake", kind: "preview" })) {
-    if (signal?.aborted) break;
+    if (signal?.aborted) {
+      break;
+    }
     // Files cost nothing while nobody reads them.
-    if (servedByGangway(p)) continue;
+    if (servedByGangway(p)) {
+      continue;
+    }
     const windowMs = p.idleAfterMs ?? defaultMs;
-    if (windowMs <= 0) continue;
+    if (windowMs <= 0) {
+      continue;
+    }
     const lastSeen = (p.lastSeenAt ?? p.createdAt).getTime();
-    if (now - lastSeen < windowMs) continue;
+    if (now - lastSeen < windowMs) {
+      continue;
+    }
     report.candidates++;
     if (
       ctx.inflight.has(p.id) ||
@@ -119,14 +133,22 @@ export class Waker {
   async #wake(previewId: string): Promise<Preview> {
     const ctx = this.#ctx;
     const preview = ctx.previews.get(previewId);
-    if (!preview) throw new AppError("not_found", `no such preview: ${previewId}`);
-    if (preview.state === "awake") return preview;
-    if (preview.state !== "asleep")
+    if (!preview) {
+      throw new AppError("not_found", `no such preview: ${previewId}`);
+    }
+    if (preview.state === "awake") {
+      return preview;
+    }
+    if (preview.state !== "asleep") {
       throw new AppError("conflict", `preview ${previewId} is ${preview.state}, not asleep`);
+    }
     const host = ctx.hosts.get(preview.hostId);
-    if (!host) throw new AppError("conflict", `host ${preview.hostId} is gone`);
-    if (host.state === "unreachable")
+    if (!host) {
+      throw new AppError("conflict", `host ${preview.hostId} is gone`);
+    }
+    if (host.state === "unreachable") {
       throw new AppError("conflict", `host ${host.id} is unreachable`);
+    }
 
     const routes = ctx.table.forPreview(previewId).map((e) => ({
       service: e.service,
@@ -150,11 +172,12 @@ export class Waker {
         cwd: empty,
         signal: abort.signal,
       });
-      if (res.code !== 0)
+      if (res.code !== 0) {
         throw new StepFailed(
           `compose start exited ${res.code}: ${res.stderr.slice(-300)}`,
           res.code,
         );
+      }
       const target: WaitTarget = {
         previewId,
         host,
@@ -172,7 +195,9 @@ export class Waker {
       ctx.logs.append(previewId, "system", `wake failed: ${message}`);
       this.#log.warn("wake failed", { previewId, project: preview.project, err: e });
       const now = ctx.previews.get(previewId);
-      if (now?.state === "starting") ctx.states.transition(previewId, "asleep");
+      if (now?.state === "starting") {
+        ctx.states.transition(previewId, "asleep");
+      }
       throw e;
     } finally {
       ctx.inflight.delete(previewId);

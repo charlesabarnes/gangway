@@ -9,16 +9,20 @@ export const MAX_BYTES = 2 * 1024 * 1024;
 
 export function checkFiles(files: Record<string, string>): { count: number; bytes: number } {
   const paths = Object.keys(files);
-  if (paths.length === 0)
+  if (paths.length === 0) {
     throw unprocessable("files is empty: name at least one file, e.g. index.html");
-  if (paths.length > MAX_FILES) throw unprocessable(`at most ${MAX_FILES} files`);
+  }
+  if (paths.length > MAX_FILES) {
+    throw unprocessable(`at most ${MAX_FILES} files`);
+  }
   let bytes = 0;
   for (const p of paths) {
     checkEditPath(p);
     bytes += Buffer.byteLength(files[p]!, "utf8");
   }
-  if (bytes > MAX_BYTES)
+  if (bytes > MAX_BYTES) {
     throw unprocessable(`at most ${MAX_BYTES / 1024 / 1024} MiB of file contents`);
+  }
   return { count: paths.length, bytes };
 }
 

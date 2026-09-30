@@ -34,17 +34,26 @@ const same = (t: Theme) =>
 
 describe("the editor's theme stylesheet", () => {
   test("matches the server's for every font", () => {
-    for (const [slot, fonts] of Object.entries(THEME_FONTS))
-      for (const key of Object.keys(fonts)) same({ ...base, fonts: { [slot]: key } });
+    for (const [slot, fonts] of Object.entries(THEME_FONTS)) {
+      for (const key of Object.keys(fonts)) {
+        same({ ...base, fonts: { [slot]: key } });
+      }
+    }
   });
 
   test("matches the server's for every style choice and title option", () => {
-    for (const [k, choices] of Object.entries(THEME_STYLE))
-      for (const v of choices) same({ ...base, style: { [k]: v } });
-    for (const titles of ["italic-serif", "serif", "sans", "display"] as const)
-      for (const titleWeight of ["light", "regular", "semibold", "bold"] as const)
-        for (const titleCase of ["normal", "upper"] as const)
+    for (const [k, choices] of Object.entries(THEME_STYLE)) {
+      for (const v of choices) {
+        same({ ...base, style: { [k]: v } });
+      }
+    }
+    for (const titles of ["italic-serif", "serif", "sans", "display"] as const) {
+      for (const titleWeight of ["light", "regular", "semibold", "bold"] as const) {
+        for (const titleCase of ["normal", "upper"] as const) {
           same({ ...base, fonts: { titles, titleWeight, titleCase } });
+        }
+      }
+    }
   });
 });
 

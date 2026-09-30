@@ -63,7 +63,9 @@ export type StatusProbe = (
 ) => Promise<number | null>;
 
 export const httpStatus: StatusProbe = async (route, host, path) => {
-  if (!CHECK_PATH.test(path)) return null;
+  if (!CHECK_PATH.test(path)) {
+    return null;
+  }
   let socket;
   try {
     socket = await dialUpstream(route.upstream, {

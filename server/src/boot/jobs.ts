@@ -65,7 +65,9 @@ export function startScheduler(d: JobDeps): Scheduler {
   // stop() waits for running jobs, so nothing touches the database after it closes.
   const scheduler = new Scheduler({ logger: d.logger.child({ mod: "scheduler" }) });
   registerPreviewJobs(scheduler, d);
-  if (d.renewal) registerCertRenewal(scheduler, d.renewal, d.domains);
+  if (d.renewal) {
+    registerCertRenewal(scheduler, d.renewal, d.domains);
+  }
   registerPurges(scheduler, d);
   scheduler.register({
     name: "update-check",
@@ -139,7 +141,9 @@ function registerCertRenewal(scheduler: Scheduler, r: CertRenewal, domains: Core
       do {
         changed = false;
         const next = await r.manager.refresh(signal);
-        if (next) await r.certStore.swap(next);
+        if (next) {
+          await r.certStore.swap(next);
+        }
       } while (changed && !signal.aborted);
     },
   });
@@ -165,7 +169,9 @@ function registerPurges(scheduler: Scheduler, d: JobDeps): void {
     initialDelayMs: 300_000,
     run: () => {
       const pruned = prune(d);
-      if (Object.values(pruned).some((n) => n > 0)) d.logger.info("pruned old records", pruned);
+      if (Object.values(pruned).some((n) => n > 0)) {
+        d.logger.info("pruned old records", pruned);
+      }
     },
   });
   scheduler.register({

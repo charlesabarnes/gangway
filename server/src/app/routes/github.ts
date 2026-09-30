@@ -55,7 +55,9 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
   api.get("/github", requirePermission("github.manage"), (c) => c.json(status()));
 
   api.get("/github/repositories", requirePermission("repos.manage"), async (c) => {
-    if (!status().configured) return c.json({ repositories: [] });
+    if (!status().configured) {
+      return c.json({ repositories: [] });
+    }
     return c.json({ repositories: await d.app.installedRepositories() });
   });
 
@@ -81,8 +83,9 @@ export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
   api.post("/github/manifest/exchange", requirePermission("github.manage"), async (c) => {
     const body = await readJson(c);
     const { code, state } = ManifestExchangeSchema.parse(body);
-    if (!d.states.consume(state))
+    if (!d.states.consume(state)) {
       throw unprocessable("the manifest state is unknown or expired; start again");
+    }
     if (GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key))) {
       throw conflict(
         "the GitHub App is managed by config (GANGWAY_GITHUB_*); the manifest flow cannot overwrite it",

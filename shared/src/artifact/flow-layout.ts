@@ -35,29 +35,44 @@ function backEdges(g: FlowGraph): Set<number> {
     state.set(id, 1);
     for (const i of out.get(id) ?? []) {
       const to = g.edges[i]!.to;
-      if (to === id) continue;
+      if (to === id) {
+        continue;
+      }
       const s = state.get(to);
-      if (s === 1) back.add(i);
-      else if (s === undefined) visit(to);
+      if (s === 1) {
+        back.add(i);
+      } else if (s === undefined) {
+        visit(to);
+      }
     }
     state.set(id, 2);
   };
-  for (const n of g.nodes) if (!state.has(n.id)) visit(n.id);
+  for (const n of g.nodes) {
+    if (!state.has(n.id)) {
+      visit(n.id);
+    }
+  }
   return back;
 }
 
 function ranks(g: FlowGraph, dag: [string, string][]): Map<string, number> {
   const rank = new Map(g.nodes.map((n) => [n.id, 0]));
   const indeg = new Map(g.nodes.map((n) => [n.id, 0]));
-  for (const [, to] of dag) indeg.set(to, indeg.get(to)! + 1);
+  for (const [, to] of dag) {
+    indeg.set(to, indeg.get(to)! + 1);
+  }
   const queue = g.nodes.filter((n) => indeg.get(n.id) === 0).map((n) => n.id);
   while (queue.length) {
     const id = queue.shift()!;
     for (const [from, to] of dag) {
-      if (from !== id) continue;
+      if (from !== id) {
+        continue;
+      }
       rank.set(to, Math.max(rank.get(to)!, rank.get(id)! + 1));
       indeg.set(to, indeg.get(to)! - 1);
-      if (indeg.get(to) === 0) queue.push(to);
+      if (indeg.get(to) === 0) {
+        queue.push(to);
+      }
     }
   }
   return rank;
@@ -65,17 +80,24 @@ function ranks(g: FlowGraph, dag: [string, string][]): Map<string, number> {
 
 function crossings(layers: Vertex[][], links: [Vertex, Vertex][]): number {
   const pos = new Map<Vertex, number>();
-  for (const l of layers) l.forEach((v, i) => pos.set(v, i));
+  for (const l of layers) {
+    l.forEach((v, i) => pos.set(v, i));
+  }
   let n = 0;
-  for (let i = 0; i < links.length; i++)
+  for (let i = 0; i < links.length; i++) {
     for (let j = i + 1; j < links.length; j++) {
       const [a, b] = links[i]!;
       const [c, d] = links[j]!;
-      if (a.rank !== c.rank) continue;
+      if (a.rank !== c.rank) {
+        continue;
+      }
       const x = pos.get(a)! - pos.get(c)!;
       const y = pos.get(b)! - pos.get(d)!;
-      if (x * y < 0) n++;
+      if (x * y < 0) {
+        n++;
+      }
     }
+  }
   return n;
 }
 
@@ -102,8 +124,11 @@ function order(layers: Vertex[][], links: [Vertex, Vertex][]): Vertex[][] {
     }
   };
   for (let iter = 0; iter < 12 && bestCount > 0; iter++) {
-    if (iter % 2 === 0) sweep(1, cur.length, 1, up);
-    else sweep(cur.length - 2, -1, -1, down);
+    if (iter % 2 === 0) {
+      sweep(1, cur.length, 1, up);
+    } else {
+      sweep(cur.length - 2, -1, -1, down);
+    }
     const count = crossings(cur, links);
     if (count < bestCount) {
       bestCount = count;
@@ -119,7 +144,9 @@ function settle(layer: Vertex[], want: number[], gap: number): void {
   const x = [...want];
   for (let i = 1; i < layer.length; i++) {
     const min = x[i - 1]! + (layer[i - 1]!.cross + layer[i]!.cross) / 2 + gap;
-    if (x[i]! < min) x[i] = min;
+    if (x[i]! < min) {
+      x[i] = min;
+    }
   }
   const shift = want.reduce((s, w, i) => s + (w - x[i]!), 0) / Math.max(1, layer.length);
   layer.forEach((v, i) => (v.main = x[i]! + shift));
@@ -133,7 +160,9 @@ function coordinates(layers: Vertex[][], links: [Vertex, Vertex][], gap: number)
       at += v.cross + gap;
     }
     const mid = at / 2;
-    for (const v of l) v.main -= mid;
+    for (const v of l) {
+      v.main -= mid;
+    }
   }
   const near = new Map<Vertex, Vertex[]>();
   for (const [a, b] of links) {
@@ -180,11 +209,15 @@ function layered(
   );
   const top = Math.max(0, ...rank.values());
   const layers: Vertex[][] = Array.from({ length: top + 1 }, () => []);
-  for (const n of g.nodes) layers[rank.get(n.id)!]!.push(vert.get(n.id)!);
+  for (const n of g.nodes) {
+    layers[rank.get(n.id)!]!.push(vert.get(n.id)!);
+  }
   const links: [Vertex, Vertex][] = [];
   const chains = new Map<number, Vertex[]>();
   g.edges.forEach((e, i) => {
-    if (e.from === e.to) return;
+    if (e.from === e.to) {
+      return;
+    }
     const [a, b] = back.has(i) ? [e.to, e.from] : [e.from, e.to];
     const path = [vert.get(a)!];
     for (let r = rank.get(a)! + 1; r < rank.get(b)!; r++) {
@@ -193,7 +226,9 @@ function layered(
       path.push(d);
     }
     path.push(vert.get(b)!);
-    for (let k = 1; k < path.length; k++) links.push([path[k - 1]!, path[k]!]);
+    for (let k = 1; k < path.length; k++) {
+      links.push([path[k - 1]!, path[k]!]);
+    }
     chains.set(i, path);
   });
   return { vert, layers, links, chains };
@@ -209,8 +244,12 @@ function routed(e: FlowEdge, path: Vertex[], isBack: boolean, rank: number, p: P
   // Along the rank axis: leave the upper node's far side, reach the lower node's near side.
   const pts: [number, number][] = path.map((v, k) => {
     const along = p.rankAt[v.rank]!;
-    if (k === 0) return [v.main, along + p.depth(v.id) / 2];
-    if (k === path.length - 1) return [v.main, along - p.depth(v.id) / 2];
+    if (k === 0) {
+      return [v.main, along + p.depth(v.id) / 2];
+    }
+    if (k === path.length - 1) {
+      return [v.main, along - p.depth(v.id) / 2];
+    }
     return [v.main, along];
   });
   if (isBack) {
@@ -337,12 +376,20 @@ export function walkOrder(graph: FlowGraph): string[] {
   const out: string[] = [];
   const queue = starts.length ? [...starts] : g.nodes.slice(0, 1).map((n) => n.id);
   while (queue.length || out.length < g.nodes.length) {
-    if (!queue.length) queue.push(g.nodes.find((n) => !seen.has(n.id))!.id);
+    if (!queue.length) {
+      queue.push(g.nodes.find((n) => !seen.has(n.id))!.id);
+    }
     const id = queue.shift()!;
-    if (seen.has(id)) continue;
+    if (seen.has(id)) {
+      continue;
+    }
     seen.add(id);
     out.push(id);
-    for (const e of g.edges) if (e.from === id && !seen.has(e.to)) queue.push(e.to);
+    for (const e of g.edges) {
+      if (e.from === id && !seen.has(e.to)) {
+        queue.push(e.to);
+      }
+    }
   }
   return out;
 }

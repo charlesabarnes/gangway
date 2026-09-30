@@ -13,7 +13,9 @@ export type ExposedService = {
 
 function chooseExposed(model: ComposeModel): ServiceModel[] {
   const chosen = model.services.filter((s) => s.x.expose === true);
-  if (chosen.length > 0) return chosen;
+  if (chosen.length > 0) {
+    return chosen;
+  }
   const publishing = model.services.filter(
     (s) => s.publishedTargets.length > 0 && s.x.expose !== false,
   );
@@ -43,10 +45,11 @@ function exposedPort(s: ServiceModel): number {
 export function selectExposed(model: ComposeModel): ExposedService[] {
   const chosen = chooseExposed(model);
   const primaries = chosen.filter((s) => s.x.primary === true);
-  if (primaries.length > 1)
+  if (primaries.length > 1) {
     throw unprocessable(
       `only one service may be primary; found ${primaries.map((s) => s.name).join(", ")}`,
     );
+  }
 
   return chosen.map((s) => ({
     service: s.name,
@@ -76,10 +79,11 @@ export function planRoutes(i: PlanInput): PlannedRoute[] {
         isSingleService: i.exposed.length === 1,
       },
     );
-    if (!built.ok)
+    if (!built.ok) {
       throw unprocessable(`cannot build a hostname for service "${e.service}": ${built.message}`, {
         reason: built.reason,
       });
+    }
     return {
       hostname: fqdn(built.label, i.previewDomain),
       previewId: i.previewId,
@@ -91,10 +95,11 @@ export function planRoutes(i: PlanInput): PlannedRoute[] {
   });
   const seen = new Set<string>();
   for (const r of routes) {
-    if (seen.has(r.hostname))
+    if (seen.has(r.hostname)) {
       throw unprocessable(
         `two services resolve to the same hostname ${r.hostname}; give one a distinct \`x-gangway.subdomain\``,
       );
+    }
     seen.add(r.hostname);
   }
   return routes;

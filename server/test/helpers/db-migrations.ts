@@ -21,8 +21,11 @@ export const ALL_VERSIONS = [
 /** A directory holding the real migrations up to and including `version`. */
 export function migrationsUpTo(version: number): string {
   const dir = tempDir();
-  for (const f of readdirSync(MIGRATIONS))
-    if (Number.parseInt(f, 10) <= version) copyFileSync(join(MIGRATIONS, f), join(dir, f));
+  for (const f of readdirSync(MIGRATIONS)) {
+    if (Number.parseInt(f, 10) <= version) {
+      copyFileSync(join(MIGRATIONS, f), join(dir, f));
+    }
+  }
   return dir;
 }
 
@@ -48,6 +51,8 @@ export function databaseAt(open: Open, version: number) {
 export function migrationFiles(files: Record<string, string>): string {
   const d = join(tempDir(), "m");
   mkdirSync(d, { recursive: true });
-  for (const [n, c] of Object.entries(files)) writeFileSync(join(d, n), c);
+  for (const [n, c] of Object.entries(files)) {
+    writeFileSync(join(d, n), c);
+  }
   return d;
 }

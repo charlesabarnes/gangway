@@ -5,9 +5,13 @@ export function parseAttrs(text = ""): Attrs {
   const re = /([#.])?([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
   for (let m = re.exec(text); m; m = re.exec(text)) {
     const [, sigil, key = "", dq, sq, bare] = m;
-    if (sigil === "#") out["id"] = key;
-    else if (sigil === ".") out["class"] = [out["class"], key].filter(Boolean).join(" ");
-    else out[key] = dq ?? sq ?? bare ?? "";
+    if (sigil === "#") {
+      out["id"] = key;
+    } else if (sigil === ".") {
+      out["class"] = [out["class"], key].filter(Boolean).join(" ");
+    } else {
+      out[key] = dq ?? sq ?? bare ?? "";
+    }
   }
   return out;
 }
@@ -15,8 +19,9 @@ export function parseAttrs(text = ""): Attrs {
 /** A chart fence: the first bare word is the type, e.g. ```chart bar x=month y=total */
 export function chartAttrs(rest: string): Attrs {
   const [first = "", ...more] = rest.trim().split(/\s+/);
-  if (first && !first.includes("=") && !first.startsWith("#") && !first.startsWith("."))
+  if (first && !first.includes("=") && !first.startsWith("#") && !first.startsWith(".")) {
     return { type: first, ...parseAttrs(more.join(" ")) };
+  }
   return parseAttrs(rest);
 }
 
@@ -24,11 +29,15 @@ export type FrontMatter = { meta: Record<string, string>; body: string; offset: 
 
 export function frontMatter(src: string): FrontMatter {
   const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
-  if (!m) return { meta: {}, body: src, offset: 0 };
+  if (!m) {
+    return { meta: {}, body: src, offset: 0 };
+  }
   const meta: Record<string, string> = {};
   for (const line of (m[1] ?? "").split(/\r?\n/)) {
     const kv = /^([\w-]+):\s*(.*?)\s*$/.exec(line);
-    if (kv) meta[kv[1]!] = (kv[2] ?? "").replace(/\s+#.*$/, "").replace(/^(["'])(.*)\1$/, "$2");
+    if (kv) {
+      meta[kv[1]!] = (kv[2] ?? "").replace(/\s+#.*$/, "").replace(/^(["'])(.*)\1$/, "$2");
+    }
   }
   return { meta, body: src.slice(m[0].length), offset: m[0].split("\n").length - 1 };
 }
@@ -55,7 +64,9 @@ const FENCE_END = /^```\s*$/;
 function fenced(lines: string[], i: number): { end: number; inner: string[]; closed: boolean } {
   const inner: string[] = [];
   let j = i + 1;
-  for (; j < lines.length && !FENCE_END.test(lines[j]!); j++) inner.push(lines[j]!);
+  for (; j < lines.length && !FENCE_END.test(lines[j]!); j++) {
+    inner.push(lines[j]!);
+  }
   return { end: j, inner, closed: j < lines.length };
 }
 
@@ -106,7 +117,9 @@ export function scan(lines: string[], first = 1): Block[] {
       const close = new RegExp(`^:{${open[1]!.length}}\\s*$`);
       const raw: string[] = [];
       let j = i + 1;
-      for (; j < lines.length && !close.test(lines[j]!); j++) raw.push(lines[j]!);
+      for (; j < lines.length && !close.test(lines[j]!); j++) {
+        raw.push(lines[j]!);
+      }
       const [name = "", rest = ""] = [open[2], open[3]];
       out.push({
         type: "container",
@@ -141,7 +154,9 @@ export function pieces(body: string, offset: number): Piece[] {
   let inFence = false;
   const push = (end: number) => {
     let k = 0;
-    while (k < cur.length && cur[k]!.trim() === "") k++;
+    while (k < cur.length && cur[k]!.trim() === "") {
+      k++;
+    }
     const head = /^\{(.*)\}\s*$/.exec(cur[k] ?? "");
     const lead = head ? k + 1 : k;
     out.push({
@@ -154,9 +169,14 @@ export function pieces(body: string, offset: number): Piece[] {
     start = end + 1;
   };
   lines.forEach((l, i) => {
-    if (l.startsWith("```")) inFence = !inFence;
-    if (!inFence && /^---\s*$/.test(l)) push(i);
-    else cur.push(l);
+    if (l.startsWith("```")) {
+      inFence = !inFence;
+    }
+    if (!inFence && /^---\s*$/.test(l)) {
+      push(i);
+    } else {
+      cur.push(l);
+    }
   });
   push(lines.length);
   return out.filter((p) => p.lines.some((l) => l.trim() !== "") || p.head);
@@ -175,7 +195,9 @@ export function setFrontMatter(
   set: Record<string, string | null | undefined>,
 ): string {
   const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
-  if (!m) return src;
+  if (!m) {
+    return src;
+  }
   const todo = new Map(Object.entries(set).filter(([, v]) => v !== undefined));
   const lines: string[] = [];
   for (const line of (m[1] ?? "").split(/\r?\n/)) {
@@ -186,8 +208,14 @@ export function setFrontMatter(
     }
     const v = todo.get(key);
     todo.delete(key);
-    if (v !== null) lines.push(`${key}: ${v}`);
+    if (v !== null) {
+      lines.push(`${key}: ${v}`);
+    }
   }
-  for (const [k, v] of todo) if (v !== null) lines.push(`${k}: ${v}`);
+  for (const [k, v] of todo) {
+    if (v !== null) {
+      lines.push(`${k}: ${v}`);
+    }
+  }
   return `---\n${lines.join("\n")}\n---\n${src.slice(m[0].length)}`;
 }

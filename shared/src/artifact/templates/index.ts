@@ -66,20 +66,29 @@ export type TemplateInput = z.infer<typeof TemplateInputSchema>;
 export class TemplateError extends Error {}
 
 function optionValue(o: TemplateOption, v: OptionValue | undefined): OptionValue {
-  if (v === undefined) return o.default;
+  if (v === undefined) {
+    return o.default;
+  }
   if (o.kind === "number") {
     const n = typeof v === "number" ? v : Number(v);
-    if (!Number.isFinite(n)) throw new TemplateError(`options.${o.key}: expected a number`);
+    if (!Number.isFinite(n)) {
+      throw new TemplateError(`options.${o.key}: expected a number`);
+    }
     return Math.min(o.max, Math.max(o.min, Math.round(n)));
   }
   if (o.kind === "boolean") {
-    if (typeof v === "boolean") return v;
-    if (v === "true" || v === "false") return v === "true";
+    if (typeof v === "boolean") {
+      return v;
+    }
+    if (v === "true" || v === "false") {
+      return v === "true";
+    }
     throw new TemplateError(`options.${o.key}: expected true or false`);
   }
   const s = String(v);
-  if (!o.choices.some((c) => c.value === s))
+  if (!o.choices.some((c) => c.value === s)) {
     throw new TemplateError(`options.${o.key}: one of ${o.choices.map((c) => c.value).join(", ")}`);
+  }
   return s;
 }
 
@@ -98,10 +107,11 @@ export function settingsFor(
 ): TemplateSettings {
   const given = input.options ?? {};
   const unknown = Object.keys(given).filter((k) => !t.options.some((o) => o.key === k));
-  if (unknown.length > 0)
+  if (unknown.length > 0) {
     throw new TemplateError(
       `${t.id} has no option ${unknown.join(", ")}; it takes ${t.options.map((o) => o.key).join(", ") || "none"}`,
     );
+  }
   return {
     title: input.title ?? t.title,
     subtitle: input.subtitle ?? t.subtitle,
@@ -113,17 +123,22 @@ export function settingsFor(
 
 export function renderTemplate(input: TemplateInput): Record<string, string> {
   const t = templateById(input.template);
-  if (!t)
+  if (!t) {
     throw new TemplateError(
       `no template "${input.template}"; one of ${ARTIFACT_TEMPLATES.map((x) => x.id).join(", ")}`,
     );
+  }
   const { markdown, data } = t.build(settingsFor(t, input));
   return { [ARTIFACT_FILE]: markdown, ...(data ?? {}) };
 }
 
 export function optionText(o: TemplateOption): string {
-  if (o.kind === "number") return `${o.key}: ${o.min}-${o.max} (default ${o.default})`;
-  if (o.kind === "boolean") return `${o.key}: true|false (default ${o.default})`;
+  if (o.kind === "number") {
+    return `${o.key}: ${o.min}-${o.max} (default ${o.default})`;
+  }
+  if (o.kind === "boolean") {
+    return `${o.key}: true|false (default ${o.default})`;
+  }
   return `${o.key}: ${o.choices.map((c) => c.value).join("|")} (default ${o.default})`;
 }
 

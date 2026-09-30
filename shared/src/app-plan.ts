@@ -45,8 +45,9 @@ export const PLAN_FILES = [
 export const STATIC_BUILD_OUTPUTS: readonly string[] = STATIC_OUTPUTS;
 
 export function planError(p: AppPlan): string | null {
-  if (p.issues.length > 0)
+  if (p.issues.length > 0) {
     return `gangway.yml: ${p.issues.map((i) => (i.path ? `${i.path}: ${i.message}` : i.message)).join("; ")}`;
+  }
   const e = p.reasons.find((r) => r.level === "error");
   return e ? `${e.found}: ${e.then}` : null;
 }
@@ -89,37 +90,47 @@ export function planApp(input: PlanInput): AppPlan {
   const plan = emptyPlan();
   const choice = input.runtime ?? "auto";
   let cfg = readConfig(plan, input, "");
-  if (choice === "own" || wantsOwnStack(input, choice, cfg)) return planOwnStack(plan, input, cfg);
+  if (choice === "own" || wantsOwnStack(input, choice, cfg)) {
+    return planOwnStack(plan, input, cfg);
+  }
 
   const explicitRoot = cfg?.file?.root;
   if (explicitRoot !== undefined) {
-    if (!useExplicitRoot(plan, input, explicitRoot)) return plan;
+    if (!useExplicitRoot(plan, input, explicitRoot)) {
+      return plan;
+    }
   } else if (!cfg) {
     cfg = useNestedRoot(plan, input);
   }
   const scope = scopeToRoot(input, plan.root);
   const file = cfg?.file ?? null;
   plan.configFile = cfg?.name ?? null;
-  if (plan.issues.length > 0) return plan;
+  if (plan.issues.length > 0) {
+    return plan;
+  }
   warnNestedContainerFiles(plan, scope.have);
 
   const runtime = chooseRuntime(input, choice, file, scope, plan.reasons);
   const rt = runtimeById(runtime);
   plan.runtime = runtime;
-  if (!pickVersion(plan, rt, file)) return plan;
+  if (!pickVersion(plan, rt, file)) {
+    return plan;
+  }
   applySettings(plan, file);
   const procfile = applyProcfile(plan, file, scope.text);
   applyRuntimeRules({ plan, file, have: scope.have, text: scope.text, rt, procfile }, runtime);
 
-  if (file?.port !== undefined && plan.serve.kind === "static")
+  if (file?.port !== undefined && plan.serve.kind === "static") {
     plan.reasons.push({ level: "info", found: `port: ${file.port}`, then: "nginx listens there" });
+  }
   resolveAddons(plan, input, file, scope.have);
-  if (plan.addons.length > 0 && plan.serve.kind === "static")
+  if (plan.addons.length > 0 && plan.serve.kind === "static") {
     plan.reasons.push({
       level: "warn",
       found: "add-ons on a static site",
       then: "nothing in a static site can connect to them",
     });
+  }
   suggestAddons(plan, scope.text);
   return plan;
 }

@@ -42,12 +42,16 @@ function raw(opts: {
             connection: "close",
             ...(opts.headers ?? {}),
           };
-          if (opts.body !== undefined) h["content-length"] = String(Buffer.byteLength(opts.body));
+          if (opts.body !== undefined) {
+            h["content-length"] = String(Buffer.byteLength(opts.body));
+          }
           const head = Object.entries(h)
             .map(([k, v]) => `${k}: ${v}`)
             .join("\r\n");
           s.write(`${opts.method ?? "GET"} ${opts.path} HTTP/1.1\r\n${head}\r\n\r\n`);
-          if (opts.body !== undefined) s.write(opts.body);
+          if (opts.body !== undefined) {
+            s.write(opts.body);
+          }
         },
       );
       const chunks: Buffer[] = [];
@@ -60,7 +64,9 @@ function raw(opts: {
         const headers: Record<string, string> = {};
         for (const line of head.slice(1)) {
           const i = line.indexOf(":");
-          if (i > 0) headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+          if (i > 0) {
+            headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+          }
         }
         let body = buf.subarray(sep + 4);
         if (headers["transfer-encoding"] === "chunked") {
@@ -68,9 +74,13 @@ function raw(opts: {
           let p = 0;
           for (;;) {
             const e = body.indexOf("\r\n", p);
-            if (e < 0) break;
+            if (e < 0) {
+              break;
+            }
             const n = parseInt(body.subarray(p, e).toString("latin1"), 16);
-            if (!n) break;
+            if (!n) {
+              break;
+            }
             out.push(body.subarray(e + 2, e + 2 + n));
             p = e + 2 + n + 2;
           }
@@ -355,7 +365,9 @@ describe("streaming and limits", () => {
     let ticks = 0;
     while (Date.now() - t0 < 1_000) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       ticks += (new TextDecoder().decode(value).match(/data: /g) ?? []).length;
     }
     void reader.cancel();
@@ -427,8 +439,12 @@ describe("WebSocket relay", () => {
     let n = 0;
     const text = await new Promise<boolean>((res) => {
       ws.onmessage = (e) => {
-        if (e.data !== `m${n}`) return res(false);
-        if (++n >= 200) return res(true);
+        if (e.data !== `m${n}`) {
+          return res(false);
+        }
+        if (++n >= 200) {
+          return res(true);
+        }
         ws.send(`m${n}`);
       };
       ws.send("m0");

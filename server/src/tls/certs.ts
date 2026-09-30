@@ -50,15 +50,19 @@ export class CertManager {
     for (const unit of this.#o.plan()) {
       const stored = this.#o.mode === "acme" ? this.#o.acme?.load(unit.names) : null;
       const material = stored?.materials[0];
-      if (material) this.#held.set(keyOf(unit), { material, real: true });
-      else await this.#standIn(unit);
+      if (material) {
+        this.#held.set(keyOf(unit), { material, real: true });
+      } else {
+        await this.#standIn(unit);
+      }
     }
     if (this.#o.mode === "acme") {
       const waiting = this.status().filter((s) => !s.issued);
-      if (waiting.length > 0)
+      if (waiting.length > 0) {
         this.#o.logger.warn("serving the dev CA until the CA issues these certificates", {
           names: waiting.map((s) => s.names[0]),
         });
+      }
     }
     return this.bundle();
   }
@@ -68,15 +72,18 @@ export class CertManager {
     const units = this.#o.plan();
     const wanted = new Set(units.map(keyOf));
     let changed = false;
-    for (const key of this.#held.keys())
+    for (const key of this.#held.keys()) {
       if (!wanted.has(key)) {
         this.#held.delete(key);
         this.#failures.delete(key);
         changed = true;
       }
+    }
     let orders = 0;
     for (const unit of units) {
-      if (signal?.aborted) break;
+      if (signal?.aborted) {
+        break;
+      }
       const held = this.#held.get(keyOf(unit));
       if (!held) {
         await this.#standIn(unit);
@@ -90,11 +97,19 @@ export class CertManager {
         continue;
       }
       const current = this.#held.get(keyOf(unit))!;
-      if (current.real && !this.#due(current)) continue;
-      if (this.#backingOff(keyOf(unit))) continue;
-      if (orders >= (this.#o.maxOrdersPerRun ?? 5)) continue;
+      if (current.real && !this.#due(current)) {
+        continue;
+      }
+      if (this.#backingOff(keyOf(unit))) {
+        continue;
+      }
+      if (orders >= (this.#o.maxOrdersPerRun ?? 5)) {
+        continue;
+      }
       orders++;
-      if (await this.#order(unit, signal)) changed = true;
+      if (await this.#order(unit, signal)) {
+        changed = true;
+      }
     }
     return changed ? this.bundle() : null;
   }
@@ -128,7 +143,9 @@ export class CertManager {
       this.#failures.delete(key);
       return true;
     } catch (e) {
-      if (signal?.aborted) return false;
+      if (signal?.aborted) {
+        return false;
+      }
       const prior = this.#failures.get(key);
       const failure = { at: this.#now(), count: (prior?.count ?? 0) + 1, error: errorMessage(e) };
       this.#failures.set(key, failure);
@@ -143,14 +160,18 @@ export class CertManager {
 
   #backingOff(key: string): boolean {
     const f = this.#failures.get(key);
-    if (!f) return false;
+    if (!f) {
+      return false;
+    }
     const wait = Math.min(MAX_BACKOFF_MS, BACKOFF_MS * 2 ** (f.count - 1));
     return this.#now() - f.at < wait;
   }
 
   #due(held: Held): boolean {
     const m = held.material;
-    if (this.#o.mode === "acme") return this.#o.acme!.isDue({ materials: [m] }, this.#now());
+    if (this.#o.mode === "acme") {
+      return this.#o.acme!.isDue({ materials: [m] }, this.#now());
+    }
     return !m.notAfter || m.notAfter.getTime() - this.#now() < RENEWAL_WINDOW_MS;
   }
 

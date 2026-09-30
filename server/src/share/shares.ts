@@ -73,11 +73,15 @@ export class Shares {
     const ttl = Math.min(ttlMs ?? this.maxTtlMs(), this.maxTtlMs());
     const live = this.#byPreview.get(previewId);
     if (live) {
-      if (ttlMs !== undefined) live.expiresAt = this.#now() + ttl;
+      if (ttlMs !== undefined) {
+        live.expiresAt = this.#now() + ttl;
+      }
       return view(live);
     }
     const pending = this.#starting.get(previewId);
-    if (pending) return pending;
+    if (pending) {
+      return pending;
+    }
     const p = this.#open(previewId, ttl).finally(() => this.#starting.delete(previewId));
     this.#starting.set(previewId, p);
     return p;
@@ -105,7 +109,9 @@ export class Shares {
 
   stop(previewId: string, why: ShareEnd = "stopped"): Share | undefined {
     const live = this.#byPreview.get(previewId);
-    if (!live) return undefined;
+    if (!live) {
+      return undefined;
+    }
     this.#end(live, why);
     return view(live);
   }
@@ -116,7 +122,9 @@ export class Shares {
     const on = this.#o.enabled();
     let n = 0;
     for (const live of [...this.#byPreview.values()]) {
-      if (on && live.expiresAt > now) continue;
+      if (on && live.expiresAt > now) {
+        continue;
+      }
       this.#end(live, on ? "expired" : "disabled");
       n++;
     }
@@ -124,18 +132,25 @@ export class Shares {
   }
 
   stopAll(): void {
-    for (const live of [...this.#byPreview.values()]) this.#end(live, "shutdown");
+    for (const live of [...this.#byPreview.values()]) {
+      this.#end(live, "shutdown");
+    }
   }
 
   #end(live: Live, why: ShareEnd): void {
     // A tunnel that ends after being stopped reports "dropped" too; the first reason stands.
-    if (this.#byPreview.get(live.previewId) !== live) return;
+    if (this.#byPreview.get(live.previewId) !== live) {
+      return;
+    }
     this.#byPreview.delete(live.previewId);
     this.#byHost.delete(live.host);
     live.tunnel.stop();
     const fields = { previewId: live.previewId, why };
-    if (why === "dropped") this.#o.logger.warn("preview share ended", fields);
-    else this.#o.logger.info("preview share ended", fields);
+    if (why === "dropped") {
+      this.#o.logger.warn("preview share ended", fields);
+    } else {
+      this.#o.logger.info("preview share ended", fields);
+    }
     this.#o.onChange?.(view(live), why);
   }
 }

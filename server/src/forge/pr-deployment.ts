@@ -48,7 +48,9 @@ export async function retireDeployment(
   repo: ForgeRepo,
   deploymentId: number | null,
 ): Promise<void> {
-  if (deploymentId === null) return;
+  if (deploymentId === null) {
+    return;
+  }
   try {
     await d.forge.setDeploymentStatus(repo, deploymentId, "inactive");
   } catch (e) {

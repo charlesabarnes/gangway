@@ -53,7 +53,9 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
     for: () => ({
       hostId: "local",
       info: async () => {
-        if (daemon.down) throw new Error("connect ECONNREFUSED 127.0.0.1:23750");
+        if (daemon.down) {
+          throw new Error("connect ECONNREFUSED 127.0.0.1:23750");
+        }
         return daemon.info;
       },
       listContainers: async (opts: ListOptions = {}) => {
@@ -69,8 +71,9 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
   const compose: ComposeRunner = {
     async *stream(_argv, _h, opt): AsyncGenerator<ComposeEvent> {
       daemon.composed.push("up");
-      if (o.hangUp)
+      if (o.hangUp) {
         await new Promise<void>((r) => opt.signal?.addEventListener("abort", () => r()));
+      }
       opt.signal?.throwIfAborted();
       yield { type: "exit", code: 0, signal: null };
     },

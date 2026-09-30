@@ -14,10 +14,14 @@ import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
 async function tarball(files: Record<string, string>): Promise<Uint8Array> {
   const p = pack();
-  for (const [name, content] of Object.entries(files)) p.entry({ name }, content);
+  for (const [name, content] of Object.entries(files)) {
+    p.entry({ name }, content);
+  }
   p.finalize();
   const chunks: Buffer[] = [];
-  for await (const c of p) chunks.push(c as Buffer);
+  for await (const c of p) {
+    chunks.push(c as Buffer);
+  }
   return gzipSync(Buffer.concat(chunks));
 }
 

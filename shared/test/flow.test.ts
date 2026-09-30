@@ -210,12 +210,18 @@ describe("laying a flowchart out", () => {
     const g = parseFlow("a --> b\na --> c\nb --> d\nc --> d\nd --> e\na --> e");
     const l = layoutFlow(g, box);
     const at = new Map(l.nodes.map((n) => [n.id, n]));
-    for (const e of g.edges) expect(at.get(e.to)!.y).toBeGreaterThan(at.get(e.from)!.y);
+    for (const e of g.edges) {
+      expect(at.get(e.to)!.y).toBeGreaterThan(at.get(e.from)!.y);
+    }
     const byRank = new Map<number, typeof l.nodes>();
-    for (const n of l.nodes) byRank.set(n.rank, [...(byRank.get(n.rank) ?? []), n]);
+    for (const n of l.nodes) {
+      byRank.set(n.rank, [...(byRank.get(n.rank) ?? []), n]);
+    }
     for (const row of byRank.values()) {
       const xs = row.map((n) => n.x).sort((p, q) => p - q);
-      for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeGreaterThanOrEqual(100);
+      for (let i = 1; i < xs.length; i++) {
+        expect(xs[i]! - xs[i - 1]!).toBeGreaterThanOrEqual(100);
+      }
     }
     for (const n of l.nodes) {
       expect(n.x - n.w / 2).toBeGreaterThanOrEqual(0);

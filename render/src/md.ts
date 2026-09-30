@@ -90,26 +90,37 @@ function statTag(cells: string[]): string {
   const [label = "", value = "", change = "", note = ""] = cells.map((c) => c.trim());
   const down = /\s+(down-good|good)$/.test(change);
   const a: Attrs = { label, value };
-  if (change) a["delta"] = change.replace(/\s+(down-good|good)$/, "");
-  if (down) a["good"] = "down";
-  if (note) a["note"] = note;
+  if (change) {
+    a["delta"] = change.replace(/\s+(down-good|good)$/, "");
+  }
+  if (down) {
+    a["good"] = "down";
+  }
+  if (note) {
+    a["note"] = note;
+  }
   return `<gw-stat${attrText(a)}></gw-stat>`;
 }
 
 function container(b: Extract<Block, { type: "container" }>): string {
   const rows = b.raw.filter((l) => l.trim() !== "");
-  if (b.name === "stats")
+  if (b.name === "stats") {
     return `<gw-grid columns="${b.attrs["columns"] ?? Math.min(4, rows.length)}">${rows.map((l) => statTag(l.split("|"))).join("")}</gw-grid>`;
-  if (b.name === "facts")
+  }
+  if (b.name === "facts") {
     return `<gw-facts${attrText(b.attrs)}>${rows
       .map((l) => l.split(/:\s(.*)/s))
       .map(([k = "", v = ""]) => `<dt>${esc(k.trim())}</dt><dd>${inline(esc(v.trim()))}</dd>`)
       .join("")}</gw-facts>`;
+  }
   if (b.name === "columns") {
     const halves: string[][] = [[]];
     for (const l of b.raw) {
-      if (l.trim() === "+++") halves.push([]);
-      else halves.at(-1)!.push(l);
+      if (l.trim() === "+++") {
+        halves.push([]);
+      } else {
+        halves.at(-1)!.push(l);
+      }
     }
     return `<gw-columns${attrText(b.attrs)}>${halves.map((h) => `<div>${render(scan(h))}</div>`).join("")}</gw-columns>`;
   }
@@ -134,20 +145,27 @@ export function render(blocks: Block[]): string {
   const out: string[] = [];
   let text: string[] = [];
   const flush = () => {
-    if (text.length) out.push(unwrap(marked.parse(text.join("\n"), { gfm: true, async: false })));
+    if (text.length) {
+      out.push(unwrap(marked.parse(text.join("\n"), { gfm: true, async: false })));
+    }
     text = [];
   };
   for (const b of blocks) {
-    if (b.type === "text") text.push(inline(b.text));
-    else if (b.type === "code") text.push(...b.lines);
-    else {
+    if (b.type === "text") {
+      text.push(inline(b.text));
+    } else if (b.type === "code") {
+      text.push(...b.lines);
+    } else {
       flush();
-      if (b.type === "chart")
+      if (b.type === "chart") {
         out.push(`<gw-chart${attrText(b.attrs)}>${esc(b.csv.join("\n"))}</gw-chart>`);
-      else if (b.type === "flow")
+      } else if (b.type === "flow") {
         out.push(`<gw-flow${attrText(b.attrs)}>${esc(b.src.join("\n"))}</gw-flow>`);
-      else if (b.type === "stat") out.push(`<gw-stat${attrText(b.attrs)}></gw-stat>`);
-      else out.push(container(b));
+      } else if (b.type === "stat") {
+        out.push(`<gw-stat${attrText(b.attrs)}></gw-stat>`);
+      } else {
+        out.push(container(b));
+      }
     }
   }
   flush();
@@ -158,16 +176,22 @@ export function render(blocks: Block[]): string {
 function notesAt(lines: string[]): number {
   let depth = 0;
   for (const [i, l] of lines.entries()) {
-    if (/^:{3,}\s*[\w-]+/.test(l)) depth++;
-    else if (/^:{3,}\s*$/.test(l)) depth = Math.max(0, depth - 1);
-    else if (depth === 0 && /^notes:\s*/i.test(l)) return i;
+    if (/^:{3,}\s*[\w-]+/.test(l)) {
+      depth++;
+    } else if (/^:{3,}\s*$/.test(l)) {
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0 && /^notes:\s*/i.test(l)) {
+      return i;
+    }
   }
   return -1;
 }
 
 function split(p: Piece): { body: string[]; notes: string[] } {
   const i = notesAt(p.lines);
-  if (i === -1) return { body: p.lines, notes: [] };
+  if (i === -1) {
+    return { body: p.lines, notes: [] };
+  }
   return {
     body: p.lines.slice(0, i),
     notes: [p.lines[i]!.replace(/^notes:\s*/i, ""), ...p.lines.slice(i + 1)],
@@ -175,16 +199,21 @@ function split(p: Piece): { body: string[]; notes: string[] } {
 }
 
 function layoutOf(i: number, body: string[]): string | undefined {
-  if (i === 0) return "title";
+  if (i === 0) {
+    return "title";
+  }
   const lines = body.map((l) => l.trim()).filter(Boolean);
-  if (lines[0]?.startsWith("# ") && lines.length <= 2) return "section";
+  if (lines[0]?.startsWith("# ") && lines.length <= 2) {
+    return "section";
+  }
   const stats = lines.filter((l) => l.startsWith("::stat{"));
   if (
     stats.length === 1 &&
     lines.length <= 2 &&
     lines.every((l) => l.startsWith("::stat{") || l.startsWith("## "))
-  )
+  ) {
     return "big";
+  }
   return undefined;
 }
 
@@ -223,8 +252,9 @@ function frame(p: Piece): string {
   const links: string[] = [];
   const body = p.lines.filter((l) => {
     const m = ARROW_LINE.exec(l.trim());
-    if (m)
+    if (m) {
       links.push(`<gw-link${attrText({ to: m[1]!, ...(m[2] ? { label: m[2] } : {}) })}></gw-link>`);
+    }
     return !m;
   });
   return `<gw-frame${attrText(p.head ?? {})}>${render(scan(body))}${links.join("")}</gw-frame>`;
@@ -236,15 +266,19 @@ export function compile(src: string): string {
   const tag = ROOT_TAG[kind] ?? "gw-doc";
   const { kind: _kind, ...attrs } = meta;
   let inner: string;
-  if (kind === "deck") inner = pieces(body, offset).map(slide).join("\n");
-  else if (kind === "canvas") inner = pieces(body, offset).map(frame).join("\n");
-  else if (kind === "prototype")
+  if (kind === "deck") {
+    inner = pieces(body, offset).map(slide).join("\n");
+  } else if (kind === "canvas") {
+    inner = pieces(body, offset).map(frame).join("\n");
+  } else if (kind === "prototype") {
     inner = pieces(body, offset)
       .map(
         (p) =>
           `<gw-screen${attrText(p.head ?? {})}>${listLinks(render(scan(p.lines)))}</gw-screen>`,
       )
       .join("\n");
-  else inner = render(scan(body.split(/\r?\n/)));
+  } else {
+    inner = render(scan(body.split(/\r?\n/)));
+  }
   return `<${tag}${attrText(attrs)}>${inner}</${tag}>`;
 }

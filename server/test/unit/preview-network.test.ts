@@ -107,12 +107,14 @@ function networkCalls(s: ReturnType<typeof setupRuntimes>, o: { refuseIcc?: bool
   const creates: string[][] = [];
   const capture = s.ctx.compose.capture.bind(s.ctx.compose);
   s.ctx.compose.capture = async (argv, host, opts) => {
-    if (argv.includes("network") && argv.includes("inspect"))
+    if (argv.includes("network") && argv.includes("inspect")) {
       return { code: 1, stdout: "", stderr: "not found", signal: null };
+    }
     if (argv.includes("network") && argv.includes("create")) {
       creates.push(argv);
-      if (o.refuseIcc && argv.includes("com.docker.network.bridge.enable_icc=false"))
+      if (o.refuseIcc && argv.includes("com.docker.network.bridge.enable_icc=false")) {
         return { code: 1, stdout: "", stderr: "unsupported bridge network option", signal: null };
+      }
       return { code: 0, stdout: "", stderr: "", signal: null };
     }
     return capture(argv, host, opts);

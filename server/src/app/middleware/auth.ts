@@ -23,7 +23,9 @@ export function isSameOrigin(
   originFor: NonNullable<AuthDeps["originFor"]>,
 ): boolean {
   const site = c.req.header("sec-fetch-site");
-  if (site !== undefined && site !== "same-origin") return false;
+  if (site !== undefined && site !== "same-origin") {
+    return false;
+  }
   const origin = c.req.header("origin");
   return origin !== undefined && origin === originFor(c.req.header("host") ?? "");
 }
@@ -35,11 +37,17 @@ export async function resolveActor(c: Context<AppEnv>, d: AuthDeps): Promise<Act
     const presented = BEARER.exec(header)?.[1];
     return presented ? await d.verifyToken(presented) : null;
   }
-  if (!d.resolveSession || c.env.surface !== "app") return null;
+  if (!d.resolveSession || c.env.surface !== "app") {
+    return null;
+  }
   const secret = getCookie(c, SESSION_COOKIE, "host");
-  if (!secret) return null;
+  if (!secret) {
+    return null;
+  }
   const actor = d.resolveSession(secret);
-  if (!actor) return null;
+  if (!actor) {
+    return null;
+  }
   if (!SAFE.has(c.req.method) && !(d.originFor && isSameOrigin(c, d.originFor))) {
     throw forbidden("cross-origin request refused");
   }
@@ -74,8 +82,9 @@ export function requirePermission(
 ): MiddlewareHandler<AppEnv> {
   const guard: MiddlewareHandler<AppEnv> = async (c, next) => {
     const actor = c.get("actor");
-    if (![permission, ...alternatives].some((p) => can(actor, p)))
+    if (![permission, ...alternatives].some((p) => can(actor, p))) {
       return problemResponse(c, forbidden(`requires the "${permission}" permission`));
+    }
     return next();
   };
   return Object.assign(guard, { [PERMISSION_GUARD]: permission });

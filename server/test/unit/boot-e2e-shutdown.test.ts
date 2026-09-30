@@ -26,7 +26,9 @@ describe("graceful shutdown", () => {
     expect(page.status).toBe(200);
     expect(((await page.json()) as { iAm: string }).iAm).toBe("the container");
     for (;;) {
-      if ((await reader.read()).done) break;
+      if ((await reader.read()).done) {
+        break;
+      }
     }
     // stop() is idempotent, even after the database is closed.
     await running.stop();

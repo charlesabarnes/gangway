@@ -71,10 +71,14 @@ export function markServing(ctx: PreviewContext, id: string): Preview {
   let p = ctx.previews.get(id);
   while (p && p.state !== "awake") {
     const next = TOWARDS_AWAKE[p.state];
-    if (!next) throw new AppError("conflict", `preview ${id} is ${p.state}`);
+    if (!next) {
+      throw new AppError("conflict", `preview ${id} is ${p.state}`);
+    }
     p = ctx.states.transition(id, next);
   }
-  if (!p) throw new AppError("not_found", `no such preview: ${id}`);
+  if (!p) {
+    throw new AppError("not_found", `no such preview: ${id}`);
+  }
   return p;
 }
 
@@ -116,11 +120,14 @@ async function copyFiles(from: string, to: string): Promise<number> {
   let n = 0;
   await mkdir(to, { recursive: true, mode: DIR_MODE });
   for (const e of await readdir(from, { withFileTypes: true })) {
-    if (SKIPPED.has(e.name)) continue;
+    if (SKIPPED.has(e.name)) {
+      continue;
+    }
     const src = path.join(from, e.name);
     const dest = path.join(to, e.name);
-    if (e.isDirectory()) n += await copyFiles(src, dest);
-    else if (e.isFile()) {
+    if (e.isDirectory()) {
+      n += await copyFiles(src, dest);
+    } else if (e.isFile()) {
       await copyFile(src, dest);
       n++;
     }
@@ -136,9 +143,13 @@ async function encodeFiles(from: string, to: string): Promise<void> {
       await encodeFiles(src, path.join(to, e.name));
       continue;
     }
-    if (!e.isFile()) continue;
+    if (!e.isFile()) {
+      continue;
+    }
     const { size } = await stat(src);
-    if (!compressible(Bun.file(src).type, size)) continue;
+    if (!compressible(Bun.file(src).type, size)) {
+      continue;
+    }
     const data = await Bun.file(src).bytes();
     const [br, gz] = await Promise.all([compress(data, "br"), compress(data, "gzip")]);
     await mkdir(to, { recursive: true, mode: DIR_MODE });
@@ -156,15 +167,21 @@ export class SiteStore {
   }
 
   dirFor(previewId: string): string {
-    if (!isUlid(previewId)) throw badRequest("invalid preview id");
+    if (!isUlid(previewId)) {
+      throw badRequest("invalid preview id");
+    }
     return path.join(this.#root, previewId);
   }
 
   /** Build the site from a planned upload beside the live one, then swap it in. */
   async publish(previewId: string, srcDir: string, plan: AppPlan): Promise<{ files: number }> {
-    if (!servable(plan)) throw unprocessable("this upload needs a container to serve it");
+    if (!servable(plan)) {
+      throw unprocessable("this upload needs a container to serve it");
+    }
     const from = plan.root ? path.join(srcDir, plan.root) : srcDir;
-    if (!containedIn(srcDir, from)) throw unprocessable("root: leaves the upload");
+    if (!containedIn(srcDir, from)) {
+      throw unprocessable("root: leaves the upload");
+    }
 
     const dest = this.dirFor(previewId);
     const next = `${dest}.next`;
@@ -184,12 +201,15 @@ export class SiteStore {
       await writeFile(path.join(next, "root", "index.html"), html, { mode: FILE_MODE });
     }
     await writeFile(path.join(next, "site.json"), JSON.stringify(meta), { mode: FILE_MODE });
-    if (meta.kit)
+    if (meta.kit) {
       await writeFile(path.join(next, "kit-config.json"), kitConfig(), { mode: FILE_MODE });
+    }
     await encodeFiles(path.join(next, "root"), path.join(next, ENCODED_DIR));
 
     await rm(old, { recursive: true, force: true });
-    if (await this.has(previewId)) await rename(dest, old);
+    if (await this.has(previewId)) {
+      await rename(dest, old);
+    }
     await rename(next, dest);
     this.#open.delete(previewId);
     await rm(old, { recursive: true, force: true });
@@ -203,7 +223,9 @@ export class SiteStore {
   /** The site as the file server reads it, or null when it is missing or unreadable. */
   async open(previewId: string): Promise<Site | null> {
     const hit = this.#open.get(previewId);
-    if (hit !== undefined) return hit;
+    if (hit !== undefined) {
+      return hit;
+    }
     const dir = this.dirFor(previewId);
     let site: Site | null = null;
     try {

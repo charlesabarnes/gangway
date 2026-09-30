@@ -70,7 +70,9 @@ export class NodeHttpUpstream implements Upstream {
         (cres) => {
           const out = new Headers();
           for (const [k, v] of Object.entries(cres.headers)) {
-            if (v === undefined) continue;
+            if (v === undefined) {
+              continue;
+            }
             out.set(k, Array.isArray(v) ? v.join(", ") : String(v));
           }
           const body = new ReadableStream<Uint8Array>({
@@ -115,8 +117,12 @@ export class NodeHttpUpstream implements Upstream {
           try {
             for (;;) {
               const { done, value } = await reader.read();
-              if (done) break;
-              if (!creq.write(value)) await new Promise((r) => creq.once("drain", r));
+              if (done) {
+                break;
+              }
+              if (!creq.write(value)) {
+                await new Promise((r) => creq.once("drain", r));
+              }
             }
             creq.end();
           } catch (e) {
@@ -142,7 +148,9 @@ class UpstreamTimeout extends Error {
 }
 
 export function isTimeout(e: unknown): boolean {
-  if (e instanceof UpstreamTimeout) return true;
+  if (e instanceof UpstreamTimeout) {
+    return true;
+  }
   const m = String((e as Error)?.message ?? "");
   return (
     m.includes("UPSTREAM_TIMEOUT") ||
@@ -164,7 +172,9 @@ export class PerHostUpstream implements Upstream {
     let upstream = this.#byHost.get(entry.hostId);
     if (!upstream) {
       const made = this.#make(entry.hostId);
-      if (!made) return Promise.reject(new Error(`no such host: ${entry.hostId}`));
+      if (!made) {
+        return Promise.reject(new Error(`no such host: ${entry.hostId}`));
+      }
       this.#byHost.set(entry.hostId, (upstream = made));
     }
     return upstream.fetch(req, entry, ctx);

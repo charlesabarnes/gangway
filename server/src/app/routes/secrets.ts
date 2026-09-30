@@ -33,8 +33,9 @@ export type PreviewSecretDeps = SecretChangeDeps & {
 export function previewTarget(d: PreviewSecretDeps, actor: Actor, id: string): SecretTarget {
   const preview = d.ctx.previews.get(id);
   const provenance = d.ctx.previews.provenanceOf(id);
-  if (!preview || preview.state === "destroyed" || !maySee(actor, provenance))
+  if (!preview || preview.state === "destroyed" || !maySee(actor, provenance)) {
     throw notFound(`no such preview: ${id}`);
+  }
   const project = preview.projectId ? (d.projects.get(preview.projectId) ?? null) : null;
   return { kind: "preview", preview, name: nameOf(d.ctx, preview), provenance, project };
 }

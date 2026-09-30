@@ -38,7 +38,9 @@ class Canvas extends HTMLElement {
   #fitted = false;
 
   connectedCallback() {
-    if (this.dataset["ready"]) return;
+    if (this.dataset["ready"]) {
+      return;
+    }
     this.dataset["ready"] = "1";
     rootSettings(this);
     queueMicrotask(() => this.#build());
@@ -59,13 +61,18 @@ class Canvas extends HTMLElement {
     this.#port.append(this.#world);
     this.replaceChildren(this.#head(), this.#port, this.#controls(), this.#minimap());
     this.#listen();
-    if (innerWidth < 640) this.classList.add("gw-list");
+    if (innerWidth < 640) {
+      this.classList.add("gw-list");
+    }
     this.#layout();
     void document.fonts?.ready.then(() => this.#layout());
-    for (const img of this.querySelectorAll("img"))
+    for (const img of this.querySelectorAll("img")) {
       img.addEventListener("load", () => this.#layout(), { once: true });
+    }
     const sized = new ResizeObserver(() => this.#layout());
-    for (const f of this.#frames) sized.observe(f);
+    for (const f of this.#frames) {
+      sized.observe(f);
+    }
     new ResizeObserver(() => {
       this.#shrink();
       this.#paint();
@@ -77,7 +84,9 @@ class Canvas extends HTMLElement {
     const list = this.classList.contains("gw-list");
     const room = this.#port.clientWidth - 32;
     for (const f of this.#frames) {
-      if (f.getAttribute("frame") !== "window") continue;
+      if (f.getAttribute("frame") !== "window") {
+        continue;
+      }
       const w = num(f.getAttribute("w"), FRAME_WIDTH)!;
       f.style.zoom = list && room > 0 && room < w ? String(room / w) : "";
     }
@@ -110,7 +119,9 @@ class Canvas extends HTMLElement {
       view.className = "gw-window-view";
       view.append(...content);
       body.append(bar, view);
-    } else body.append(...content);
+    } else {
+      body.append(...content);
+    }
     const label = document.createElement("div");
     label.className = "gw-frame-label";
     const title = f.getAttribute("title") ?? f.id;
@@ -118,7 +129,9 @@ class Canvas extends HTMLElement {
     f.replaceChildren(label, body, ...links);
     f.style.width = `${num(f.getAttribute("w"), FRAME_WIDTH)}px`;
     const h = num(f.getAttribute("h"));
-    if (h !== undefined) f.style.height = `${h}px`;
+    if (h !== undefined) {
+      f.style.height = `${h}px`;
+    }
     return f;
   }
 
@@ -142,18 +155,24 @@ class Canvas extends HTMLElement {
     this.#zoom = c.querySelector(".gw-zoom")!;
     c.addEventListener("click", (e) => {
       const act = (e.target as Element).closest<HTMLElement>("[data-do]")?.dataset["do"];
-      if (act === "in") this.#zoomBy(1.25);
-      else if (act === "out") this.#zoomBy(0.8);
-      else if (act === "one") this.#zoomBy(1 / this.#view.k);
-      else if (act === "fit") this.#fit(true);
-      else if (act === "list") {
+      if (act === "in") {
+        this.#zoomBy(1.25);
+      } else if (act === "out") {
+        this.#zoomBy(0.8);
+      } else if (act === "one") {
+        this.#zoomBy(1 / this.#view.k);
+      } else if (act === "fit") {
+        this.#fit(true);
+      } else if (act === "list") {
         this.classList.toggle("gw-list");
         this.#shrink();
       }
     });
     c.querySelector("select")?.addEventListener("change", (e) => {
       const id = (e.target as HTMLSelectElement).value;
-      if (id) location.hash = id;
+      if (id) {
+        location.hash = id;
+      }
     });
     return c;
   }
@@ -185,7 +204,9 @@ class Canvas extends HTMLElement {
       x: num(f.getAttribute("x")),
       y: num(f.getAttribute("y")),
     }));
-    if (specs.some((s) => s.w === 0)) return;
+    if (specs.some((s) => s.w === 0)) {
+      return;
+    }
     this.#boxes = layoutFrames(specs, {
       layout: (this.getAttribute("layout") as CanvasLayout | null) ?? "grid",
       columns:
@@ -201,21 +222,27 @@ class Canvas extends HTMLElement {
     if (!this.#fitted) {
       this.#fitted = true;
       const id = decodeURIComponent(location.hash.slice(1));
-      if (!this.#focus(id, false)) this.#fit(false);
+      if (!this.#focus(id, false)) {
+        this.#fit(false);
+      }
     }
     this.#paint();
   }
 
   #arrows() {
-    for (const old of this.#links.querySelectorAll("g")) old.remove();
+    for (const old of this.#links.querySelectorAll("g")) {
+      old.remove();
+    }
     const world = bounds(this.#boxes.values());
     this.#links.setAttribute("width", String(world.x + world.w + 200));
     this.#links.setAttribute("height", String(world.y + world.h + 200));
-    for (const f of this.#frames)
+    for (const f of this.#frames) {
       for (const l of f.querySelectorAll(":scope > gw-link")) {
         const a = this.#boxes.get(f.id);
         const b = this.#boxes.get(l.getAttribute("to") ?? "");
-        if (!a || !b) continue;
+        if (!a || !b) {
+          continue;
+        }
         const c = connector(a, b);
         const g = svg("g", { class: "gw-arrow" }, this.#links);
         svg("path", { d: c.d, "marker-end": "url(#gw-canvas-arrow)" }, g);
@@ -230,6 +257,7 @@ class Canvas extends HTMLElement {
           );
         }
       }
+    }
   }
 
   #listen() {
@@ -237,9 +265,12 @@ class Canvas extends HTMLElement {
     const pointers = new Map<number, { x: number; y: number }>();
     let last: { x: number; y: number; d: number } | null = null;
     port.addEventListener("pointerdown", (e) => {
-      if (this.classList.contains("gw-list")) return;
-      if ((e.target as Element).closest(INTERACTIVE) && e.button === 0 && pointers.size === 0)
+      if (this.classList.contains("gw-list")) {
         return;
+      }
+      if ((e.target as Element).closest(INTERACTIVE) && e.button === 0 && pointers.size === 0) {
+        return;
+      }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       port.setPointerCapture(e.pointerId);
       port.classList.add("grabbing");
@@ -248,7 +279,9 @@ class Canvas extends HTMLElement {
       last = null;
     });
     port.addEventListener("pointermove", (e) => {
-      if (!pointers.has(e.pointerId)) return;
+      if (!pointers.has(e.pointerId)) {
+        return;
+      }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const ps = [...pointers.values()];
       const cx = ps.reduce((s, p) => s + p.x, 0) / ps.length;
@@ -257,28 +290,36 @@ class Canvas extends HTMLElement {
       if (last) {
         const v = { ...this.#view, x: this.#view.x + cx - last.x, y: this.#view.y + cy - last.y };
         this.#set(v, false);
-        if (d && last.d) this.#zoomAt(d / last.d, cx, cy);
+        if (d && last.d) {
+          this.#zoomAt(d / last.d, cx, cy);
+        }
       }
       last = { x: cx, y: cy, d };
     });
     const end = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
       last = null;
-      if (pointers.size === 0) port.classList.remove("grabbing");
+      if (pointers.size === 0) {
+        port.classList.remove("grabbing");
+      }
     };
     port.addEventListener("pointerup", end);
     port.addEventListener("pointercancel", end);
     port.addEventListener(
       "wheel",
       (e) => {
-        if (this.classList.contains("gw-list")) return;
+        if (this.classList.contains("gw-list")) {
+          return;
+        }
         e.preventDefault();
-        if (e.ctrlKey || e.metaKey) this.#zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
-        else
+        if (e.ctrlKey || e.metaKey) {
+          this.#zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+        } else {
           this.#set(
             { ...this.#view, x: this.#view.x - e.deltaX, y: this.#view.y - e.deltaY },
             false,
           );
+        }
       },
       { passive: false },
     );
@@ -289,18 +330,30 @@ class Canvas extends HTMLElement {
   }
 
   #key(e: KeyboardEvent) {
-    if (e.target instanceof Element && e.target.closest("input,textarea,select")) return;
+    if (e.target instanceof Element && e.target.closest("input,textarea,select")) {
+      return;
+    }
     const pan = (x: number, y: number) =>
       this.#set({ ...this.#view, x: this.#view.x + x, y: this.#view.y + y }, true);
-    if (e.key === "+" || e.key === "=") this.#zoomBy(1.25);
-    else if (e.key === "-") this.#zoomBy(0.8);
-    else if (e.key === "0" || e.key === "Escape") this.#fit(true);
-    else if (e.key === "1") this.#zoomBy(1 / this.#view.k);
-    else if (e.key === "ArrowLeft") pan(80, 0);
-    else if (e.key === "ArrowRight") pan(-80, 0);
-    else if (e.key === "ArrowUp") pan(0, 80);
-    else if (e.key === "ArrowDown") pan(0, -80);
-    else return;
+    if (e.key === "+" || e.key === "=") {
+      this.#zoomBy(1.25);
+    } else if (e.key === "-") {
+      this.#zoomBy(0.8);
+    } else if (e.key === "0" || e.key === "Escape") {
+      this.#fit(true);
+    } else if (e.key === "1") {
+      this.#zoomBy(1 / this.#view.k);
+    } else if (e.key === "ArrowLeft") {
+      pan(80, 0);
+    } else if (e.key === "ArrowRight") {
+      pan(-80, 0);
+    } else if (e.key === "ArrowUp") {
+      pan(0, 80);
+    } else if (e.key === "ArrowDown") {
+      pan(0, -80);
+    } else {
+      return;
+    }
     e.preventDefault();
   }
 
@@ -335,7 +388,9 @@ class Canvas extends HTMLElement {
 
   #focus(id: string, animate: boolean): boolean {
     const b = id ? this.#boxes.get(id) : undefined;
-    if (!b) return false;
+    if (!b) {
+      return false;
+    }
     this.#fitBox({ x: b.x, y: b.y - 32, w: b.w, h: b.h + 32 }, 32, [MIN, 1.5], animate);
     return true;
   }
@@ -359,7 +414,9 @@ class Canvas extends HTMLElement {
 
   #paintMap() {
     const world = bounds(this.#boxes.values());
-    if (world.w === 0) return;
+    if (world.w === 0) {
+      return;
+    }
     const s = Math.min(MAP_W / world.w, MAP_H / world.h);
     const ox = (MAP_W - world.w * s) / 2 - world.x * s;
     const oy = (MAP_H - world.h * s) / 2 - world.y * s;
@@ -382,5 +439,9 @@ export function defineCanvas(): void {
     ["gw-frame", class extends HTMLElement {}],
     ["gw-link", class extends HTMLElement {}],
   ];
-  for (const [name, cls] of defs) if (!customElements.get(name)) customElements.define(name, cls);
+  for (const [name, cls] of defs) {
+    if (!customElements.get(name)) {
+      customElements.define(name, cls);
+    }
+  }
 }

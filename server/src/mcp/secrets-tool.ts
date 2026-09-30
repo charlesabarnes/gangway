@@ -9,12 +9,16 @@ import type { ToolDeps } from "./tool-deps.ts";
 import type { SecretsArgs } from "./setup-tool-specs.ts";
 
 function changeDeps(d: ToolDeps): SecretChangeDeps {
-  if (!d.ctx.secrets) throw notFound("secrets are not available on this server");
+  if (!d.ctx.secrets) {
+    throw notFound("secrets are not available on this server");
+  }
   return { secrets: d.ctx.secrets, previews: d.ctx.previews };
 }
 
 export function secretUploads(d: ToolDeps): SecretUploads {
-  if (!d.secretUploads) throw unprocessable("secret uploads are not available on this server");
+  if (!d.secretUploads) {
+    throw unprocessable("secret uploads are not available on this server");
+  }
   return d.secretUploads;
 }
 
@@ -24,10 +28,14 @@ export function secretTarget(
   actor: Actor,
   t: NonNullable<SecretsArgs["target"]>,
 ): SecretTarget {
-  if ("org" in t) return { kind: "org" };
+  if ("org" in t) {
+    return { kind: "org" };
+  }
   if ("project" in t) {
     const project = d.findProject?.(t.project);
-    if (!project) throw notFound(`no such project: ${t.project}`);
+    if (!project) {
+      throw notFound(`no such project: ${t.project}`);
+    }
     return { kind: "project", project };
   }
   const preview = resolveFor(d.ctx, actor, t.preview);
@@ -57,8 +65,12 @@ export function uploadCommand(d: ToolDeps, actor: Actor): string {
 }
 
 export function setSecrets(d: ToolDeps, actor: Actor, args: SecretsArgs): string {
-  if (args.upload === "new") return uploadCommand(d, actor);
-  if (!args.target) throw unprocessable("target: {preview}, {project} or {org: true}");
+  if (args.upload === "new") {
+    return uploadCommand(d, actor);
+  }
+  if (!args.target) {
+    throw unprocessable("target: {preview}, {project} or {org: true}");
+  }
   const target = secretTarget(d, actor, args.target);
   const uploaded = args.upload ? secretUploads(d).take(args.upload, actor) : {};
   const level = args.level;

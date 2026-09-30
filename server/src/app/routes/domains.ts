@@ -27,21 +27,26 @@ const ANY = ["domains.manage", "repos.domains", "previews.domain"] as const;
 
 function projectOf(d: DomainRouteDeps, ref: string): Project {
   const p = d.projects.find(ref);
-  if (!p) throw notFound(`no such project: ${ref}`);
+  if (!p) {
+    throw notFound(`no such project: ${ref}`);
+  }
   return p;
 }
 
 /** A preview the actor can see; one it cannot answers as not found. */
 function previewOf(d: DomainRouteDeps, actor: Actor, id: string): Preview {
   const p = d.previews.get(id);
-  if (!p || p.state === "destroyed" || !maySee(actor, d.previews.provenanceOf(id)))
+  if (!p || p.state === "destroyed" || !maySee(actor, d.previews.provenanceOf(id))) {
     throw notFound(`no such preview: ${id}`);
+  }
   return p;
 }
 
 function claimOf(d: DomainRouteDeps, id: string) {
   const claim = d.domains.get(id);
-  if (!claim) throw notFound(`no such domain: ${id}`);
+  if (!claim) {
+    throw notFound(`no such domain: ${id}`);
+  }
   return claim;
 }
 
@@ -98,8 +103,9 @@ function projectDomainRoutes(api: Hono<AppEnv>, d: DomainRouteDeps): void {
     const { previewId } = ProductionChangeSchema.parse(await readJson(c));
     if (previewId !== null) {
       const p = previewOf(d, c.get("actor"), previewId);
-      if (p.projectId !== project.id)
+      if (p.projectId !== project.id) {
         throw unprocessable(`preview ${previewId} is not one of ${project.slug}'s previews`);
+      }
     }
     const after = d.projects.update(project.id, { productionPreviewId: previewId })!;
     d.audit.record(c.get("actor"), "project.production", project.id, {

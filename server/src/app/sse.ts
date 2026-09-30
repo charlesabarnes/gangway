@@ -35,21 +35,29 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
       wake?.();
     };
     const unsubscribe = source((m) => {
-      if (queue.length >= maxQueue) return close();
+      if (queue.length >= maxQueue) {
+        return close();
+      }
       queue.push(m);
       wake?.();
     });
     stream.onAbort(close);
     o.signal?.addEventListener("abort", close, { once: true });
-    if (o.signal?.aborted) close();
+    if (o.signal?.aborted) {
+      close();
+    }
 
     try {
       // Some proxies hold response headers until the first body byte, delaying onopen until the first heartbeat.
       await stream.write(": connected\n\n");
       while (open) {
         const batch = queue.splice(0);
-        for (const m of batch) await stream.writeSSE(m);
-        if (!open || queue.length > 0) continue;
+        for (const m of batch) {
+          await stream.writeSSE(m);
+        }
+        if (!open || queue.length > 0) {
+          continue;
+        }
         const timedOut = await new Promise<boolean>((resolve) => {
           const t = setTimeout(() => resolve(true), heartbeatMs);
           wake = () => {
@@ -58,7 +66,9 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
           };
         });
         wake = null;
-        if (timedOut && open) await stream.write(": keepalive\n\n");
+        if (timedOut && open) {
+          await stream.write(": keepalive\n\n");
+        }
       }
     } finally {
       o.signal?.removeEventListener("abort", close);

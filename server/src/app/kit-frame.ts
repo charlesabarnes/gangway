@@ -49,7 +49,9 @@ const IMMUTABLE = "public, max-age=31536000, immutable";
 /** The frame page and the kit it loads, for the UI; null for any other path. */
 export async function serveKitFrame(req: Request, dist = renderDist()): Promise<Response | null> {
   const url = new URL(req.url);
-  if (req.method !== "GET" && req.method !== "HEAD") return null;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return null;
+  }
   const version = renderAssets(dist).version;
   if (url.pathname === FRAME_PATH) {
     const headers = {
@@ -59,14 +61,20 @@ export async function serveKitFrame(req: Request, dist = renderDist()): Promise<
       "content-security-policy": "sandbox allow-scripts; frame-ancestors 'self'",
       "x-content-type-options": "nosniff",
     };
-    if (notModified(req, headers.etag)) return new Response(null, { status: 304, headers });
+    if (notModified(req, headers.etag)) {
+      return new Response(null, { status: 304, headers });
+    }
     return new Response(req.method === "HEAD" ? null : frame(version), { headers });
   }
   const m = ASSET.exec(url.pathname);
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   const abs = path.join(dist, m[1]!);
   const st = await stat(abs).catch(() => null);
-  if (!st?.isFile()) return null;
+  if (!st?.isFile()) {
+    return null;
+  }
   const headers: Record<string, string> = {
     "content-type": TYPES[m[1]!.split(".").pop()!]!,
     // A versioned URL names these exact bytes; any other is revalidated.
@@ -77,13 +85,17 @@ export async function serveKitFrame(req: Request, dist = renderDist()): Promise<
     "access-control-allow-origin": "*",
     "x-content-type-options": "nosniff",
   };
-  if (notModified(req, headers["etag"]!)) return new Response(null, { status: 304, headers });
+  if (notModified(req, headers["etag"]!)) {
+    return new Response(null, { status: 304, headers });
+  }
   const { body, encoding } = await encodedFile(
     req,
     abs,
     { size: st.size, mtime: st.mtimeMs, type: headers["content-type"]! },
     { sidecar: siblingSidecar },
   );
-  if (encoding) headers["content-encoding"] = encoding;
+  if (encoding) {
+    headers["content-encoding"] = encoding;
+  }
   return new Response(req.method === "HEAD" ? null : body, { headers });
 }

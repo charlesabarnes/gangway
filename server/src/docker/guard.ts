@@ -47,7 +47,9 @@ export function desktopRefused(env: Env = process.env): boolean {
 // Also match Name, so a reworded OperatingSystem cannot disarm the guard.
 export function looksLikeDockerDesktop(info: DockerInfo): boolean {
   const os = (info.OperatingSystem ?? "").toLowerCase();
-  if (os.includes("docker desktop")) return true;
+  if (os.includes("docker desktop")) {
+    return true;
+  }
   return (info.Name ?? "").toLowerCase() === "docker-desktop";
 }
 
@@ -92,7 +94,9 @@ export function assertRemoteDaemon(
   env: Env = process.env,
 ): GuardOk {
   const r = checkDaemon(info, expectName, env);
-  if (!r.ok) throw r.error;
+  if (!r.ok) {
+    throw r.error;
+  }
   return r;
 }
 

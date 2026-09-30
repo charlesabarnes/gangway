@@ -20,7 +20,9 @@ export type ComposeSpec = {
 const FILELESS_COMMANDS: ReadonlySet<string> = new Set(["down", "ps", "logs", "stop", "start"]);
 
 const assertFlagSafe = (value: string, what: string): string => {
-  if (value === "") throw badRequest(`${what} is empty`);
+  if (value === "") {
+    throw badRequest(`${what} is empty`);
+  }
   if (value.startsWith("-")) {
     throw badRequest(`${what} must not start with "-": ${JSON.stringify(value)}`);
   }
@@ -44,12 +46,20 @@ export function composeArgv(spec: ComposeSpec): string[] {
   if (spec.projectDirectory !== undefined) {
     argv.push("--project-directory", assertFlagSafe(spec.projectDirectory, "projectDirectory"));
   }
-  for (const f of spec.files) argv.push("--file", assertFlagSafe(f, "compose file"));
-  for (const e of spec.envFiles ?? []) argv.push("--env-file", assertFlagSafe(e, "env file"));
-  for (const p of spec.profiles ?? []) argv.push("--profile", assertFlagSafe(p, "profile"));
+  for (const f of spec.files) {
+    argv.push("--file", assertFlagSafe(f, "compose file"));
+  }
+  for (const e of spec.envFiles ?? []) {
+    argv.push("--env-file", assertFlagSafe(e, "env file"));
+  }
+  for (const p of spec.profiles ?? []) {
+    argv.push("--profile", assertFlagSafe(p, "profile"));
+  }
 
   argv.push(assertFlagSafe(spec.command, "compose command"));
-  for (const a of spec.args ?? []) argv.push(a);
+  for (const a of spec.args ?? []) {
+    argv.push(a);
+  }
 
   return argv;
 }
@@ -139,9 +149,13 @@ export function composeEnv(
   const env: Record<string, string> = {};
   for (const k of INHERITED_ENV) {
     const v = base[k];
-    if (v !== undefined) env[k] = v;
+    if (v !== undefined) {
+      env[k] = v;
+    }
   }
-  for (const k of NEUTRALISED_ENV) env[k] = "";
+  for (const k of NEUTRALISED_ENV) {
+    env[k] = "";
+  }
   Object.assign(env, input.extra ?? {});
   // An empty DOCKER_CONTEXT disables an active context, which would otherwise beat DOCKER_HOST.
   env["DOCKER_HOST"] = input.dockerHost;
@@ -205,14 +219,18 @@ async function* streamLines(
   stream: ReadableStream<Uint8Array> | null,
   tag: "stdout" | "stderr",
 ): AsyncGenerator<ComposeEvent> {
-  if (!stream) return;
+  if (!stream) {
+    return;
+  }
   const reader = stream.getReader();
   const dec = new TextDecoder();
   let buf = "";
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       buf += dec.decode(value, { stream: true });
       let nl = buf.indexOf("\n");
       while (nl !== -1) {
@@ -224,7 +242,9 @@ async function* streamLines(
   } finally {
     reader.releaseLock();
   }
-  if (buf !== "") yield { type: "line", stream: tag, line: buf };
+  if (buf !== "") {
+    yield { type: "line", stream: tag, line: buf };
+  }
 }
 
 // BuildKit writes progress to stderr and compose to stdout, so both must stream together.
@@ -292,8 +312,9 @@ export async function composeCapture(
   let code = -1;
   let signal: string | null = null;
   for await (const ev of runCompose(argv, opts, spawner)) {
-    if (ev.type === "line") (ev.stream === "stdout" ? out : err).push(ev.line);
-    else {
+    if (ev.type === "line") {
+      (ev.stream === "stdout" ? out : err).push(ev.line);
+    } else {
       code = ev.code;
       signal = ev.signal;
     }
@@ -313,18 +334,24 @@ export type ComposePsEntry = {
 // Compose v2 prints either a JSON array or NDJSON, depending on the release.
 export function parseComposePs(stdout: string): ComposePsEntry[] {
   const text = stdout.trim();
-  if (text === "") return [];
+  if (text === "") {
+    return [];
+  }
   const rows: unknown[] = [];
   if (text.startsWith("[")) {
     try {
       const arr: unknown = JSON.parse(text);
-      if (Array.isArray(arr)) rows.push(...(arr as unknown[]));
+      if (Array.isArray(arr)) {
+        rows.push(...(arr as unknown[]));
+      }
     } catch {}
   }
   if (rows.length === 0) {
     for (const line of text.split("\n")) {
       const t = line.trim();
-      if (t === "" || !t.startsWith("{")) continue;
+      if (t === "" || !t.startsWith("{")) {
+        continue;
+      }
       try {
         rows.push(JSON.parse(t));
       } catch {}

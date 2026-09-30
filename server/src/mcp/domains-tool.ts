@@ -65,15 +65,21 @@ export const DOMAINS_TOOL = {
 };
 
 function claimDeps(d: ToolDeps): ClaimDeps {
-  if (!d.domains) throw notFound("domains are not available on this server");
+  if (!d.domains) {
+    throw notFound("domains are not available on this server");
+  }
   return d.domains;
 }
 
 function targetOf(d: ToolDeps, actor: Actor, t: DomainsArgs["target"]): DomainTarget {
-  if ("org" in t) return { kind: "org" };
+  if ("org" in t) {
+    return { kind: "org" };
+  }
   if ("project" in t) {
     const project = d.findProject?.(t.project);
-    if (!project) throw notFound(`no such project: ${t.project}`);
+    if (!project) {
+      throw notFound(`no such project: ${t.project}`);
+    }
     return { kind: "project", project };
   }
   return { kind: "preview", preview: resolveFor(d.ctx, actor, t.preview) };
@@ -96,20 +102,29 @@ function describeClaim(v: DomainView): string {
         ? "waiting for DNS"
         : "gave up waiting; check again once DNS is set";
   const lines = [`- ${v.kind === "wildcard" ? `*.${v.name}` : v.name}: ${state}`];
-  if (v.status !== "active" || !v.routingOk)
-    for (const r of v.records) lines.push(`    ${r.type} ${r.name} -> ${r.value}  (${r.purpose})`);
+  if (v.status !== "active" || !v.routingOk) {
+    for (const r of v.records) {
+      lines.push(`    ${r.type} ${r.name} -> ${r.value}  (${r.purpose})`);
+    }
+  }
   return lines.join("\n");
 }
 
 function useDomain(d: ToolDeps, c: ClaimDeps, actor: Actor, t: DomainTarget, use: string | null) {
-  if (t.kind === "org")
+  if (t.kind === "org") {
     throw unprocessable(
       "the server's default domain is a setting: change it in Admin → Domains & traffic",
     );
-  if (t.kind === "preview") return setPreviewDomain(d.ctx, actor, t.preview.id, use);
-  if (!can(actor, "repos.domains"))
+  }
+  if (t.kind === "preview") {
+    return setPreviewDomain(d.ctx, actor, t.preview.id, use);
+  }
+  if (!can(actor, "repos.domains")) {
     throw forbidden('choosing a repository\'s domain needs "repos.domains"');
-  if (use !== null) c.registry.assertAvailable(use, t.project.id);
+  }
+  if (use !== null) {
+    c.registry.assertAvailable(use, t.project.id);
+  }
   d.projects?.repo.update(t.project.id, { domain: use });
   c.audit.record(actor, "project.domain", t.project.id, { old: t.project.domain, new: use });
 }
@@ -121,11 +136,13 @@ function setProduction(
   project: Project,
   ref: string | null,
 ) {
-  if (!can(actor, "repos.domains"))
+  if (!can(actor, "repos.domains")) {
     throw forbidden('choosing a repository\'s production preview needs "repos.domains"');
+  }
   const preview: Preview | null = ref === null ? null : resolveFor(d.ctx, actor, ref);
-  if (preview && preview.projectId !== project.id)
+  if (preview && preview.projectId !== project.id) {
     throw unprocessable(`${nameOf(d.ctx, preview)} is not one of ${project.slug}'s previews`);
+  }
   d.projects?.repo.update(project.id, { productionPreviewId: preview?.id ?? null });
   c.audit.record(actor, "project.production", project.id, {
     old: project.productionPreviewId,
@@ -136,7 +153,9 @@ function setProduction(
 
 function claimed(c: ClaimDeps, t: DomainTarget, name: string): Domain {
   const found = domainsOf(c, t).find((v) => v.name === name);
-  if (!found) throw notFound(`${name} is not claimed here`);
+  if (!found) {
+    throw notFound(`${name} is not claimed here`);
+  }
   return found;
 }
 
@@ -162,11 +181,17 @@ export async function manageDomains(d: ToolDeps, actor: Actor, args: DomainsArgs
     );
   }
   if (args.production !== undefined) {
-    if (t.kind !== "project") throw unprocessable("production is a project's");
+    if (t.kind !== "project") {
+      throw unprocessable("production is a project's");
+    }
     setProduction(d, c, actor, t.project, args.production);
     notes.push(`production is now ${args.production ?? "none"}`);
   }
-  if (args.check) for (const v of domainsOf(c, t)) await checkDomain(c, v, actor);
+  if (args.check) {
+    for (const v of domainsOf(c, t)) {
+      await checkDomain(c, v, actor);
+    }
+  }
   return [...notes, ...(notes.length ? [""] : []), summary(d, c, t)].join("\n");
 }
 
@@ -180,9 +205,11 @@ function summary(d: ToolDeps, c: ClaimDeps, t: DomainTarget): string {
     lines.push(
       `named under: ${next}${now && !now.endsWith(`.${next}`) ? ` (still ${now} until its next rebuild)` : ""}`,
     );
-  } else if (t.kind === "project")
+  } else if (t.kind === "project") {
     lines.push(`named under: ${c.registry.resolve({ project: t.project })}`);
-  else lines.push(`default: ${c.registry.defaultDomain()}`);
+  } else {
+    lines.push(`default: ${c.registry.defaultDomain()}`);
+  }
   lines.push(`available: ${c.registry.availableTo(projectId).join(", ")}`);
   const views = domainsOf(c, t);
   lines.push(views.length ? "claimed:" : "claimed: none", ...views.map(describeClaim));

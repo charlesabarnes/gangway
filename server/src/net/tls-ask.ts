@@ -16,14 +16,22 @@ export function tlsAsk(o: {
   const allowed = (peer: string) => {
     const ip = unmap(peer);
     const family = isIP(ip);
-    if (family === 0) return false;
-    if (ip === "127.0.0.1" || ip === "::1") return true;
+    if (family === 0) {
+      return false;
+    }
+    if (ip === "127.0.0.1" || ip === "::1") {
+      return true;
+    }
     return trusted.check(ip, family === 4 ? "ipv4" : "ipv6");
   };
   return (req, peer) => {
     const url = new URL(req.url);
-    if (url.pathname !== TLS_ASK_PATH) return null;
-    if (!allowed(peer)) return new Response("not found", { status: 404 });
+    if (url.pathname !== TLS_ASK_PATH) {
+      return null;
+    }
+    if (!allowed(peer)) {
+      return new Response("not found", { status: 404 });
+    }
     const host = normalizeHost(url.searchParams.get("domain"));
     return host && o.answers(host)
       ? new Response("ok")

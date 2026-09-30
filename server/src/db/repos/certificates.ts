@@ -45,7 +45,9 @@ export class CertificatesRepo {
 
   isDueForRenewal(domain: string, windowMs: number, now: number = this.#now()): boolean {
     const c = this.get(domain);
-    if (!c || !c.notAfter) return true;
+    if (!c || !c.notAfter) {
+      return true;
+    }
     return c.notAfter.getTime() - now < windowMs;
   }
 }

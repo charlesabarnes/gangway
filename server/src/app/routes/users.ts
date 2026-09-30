@@ -18,10 +18,14 @@ export function userRoutes(api: Hono<AppEnv>, accounts: Accounts, links?: EmailL
     const body = await readJson(c);
     const { email, roleId, password } = CreateUserSchema.parse(body);
     const invite = password === undefined;
-    if (invite && !links?.available) throw conflict(NO_MAIL);
+    if (invite && !links?.available) {
+      throw conflict(NO_MAIL);
+    }
     const actor = c.get("actor");
     const user = await accounts.createUser(actor, { email, roleId, password });
-    if (!invite || !links) return c.json({ user }, 201);
+    if (!invite || !links) {
+      return c.json({ user }, 201);
+    }
     // The account exists either way; a failed send is reported, and the list offers a resend.
     const error = await links.sendFor(actor, user).then(
       () => undefined,
@@ -45,10 +49,14 @@ export function userRoutes(api: Hono<AppEnv>, accounts: Accounts, links?: EmailL
   });
 
   api.post("/users/:id/email-link", requirePermission("users.manage"), async (c) => {
-    if (!links?.available) throw conflict(NO_MAIL);
+    if (!links?.available) {
+      throw conflict(NO_MAIL);
+    }
     const id = c.req.param("id");
     const user = accounts.getUser(id);
-    if (!user) throw notFound(`no such user: ${id}`);
+    if (!user) {
+      throw notFound(`no such user: ${id}`);
+    }
     return c.json({ sent: await links.sendFor(c.get("actor"), user) });
   });
 }

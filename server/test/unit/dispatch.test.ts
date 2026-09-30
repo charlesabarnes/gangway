@@ -327,7 +327,9 @@ describe("PerHostUpstream", () => {
     const { PerHostUpstream } = await import("../../src/net/upstream.ts");
     const made: string[] = [];
     const per = new PerHostUpstream((hostId) => {
-      if (hostId === "gone") return null;
+      if (hostId === "gone") {
+        return null;
+      }
       made.push(hostId);
       return { name: hostId, fetch: async () => new Response(`via ${hostId}`) };
     });
@@ -360,16 +362,18 @@ describe("a private control plane", () => {
 
   test("previews, MCP, webhooks and what strangers need from the app host stay public", async () => {
     const stranger = d("203.0.113.9");
-    for (const host of [`acme-pr-1.${BASE}`, `mcp.${BASE}`, `hooks.${BASE}`])
+    for (const host of [`acme-pr-1.${BASE}`, `mcp.${BASE}`, `hooks.${BASE}`]) {
       expect((await dispatch(at(host), stranger)).status).toBe(200);
+    }
     for (const path of [
       "/v1/auth/gate",
       "/oauth/token",
       "/.well-known/oauth-authorization-server",
       "/_gangway/fonts/plex-sans-400.woff2",
       "/healthz",
-    ])
+    ]) {
       expect((await dispatch(at(BASE, path), stranger)).status).toBe(200);
+    }
     expect((await dispatch(at(BASE, "/v1/previews"), stranger)).status).toBe(404);
   });
 });

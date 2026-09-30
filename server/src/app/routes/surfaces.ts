@@ -59,21 +59,27 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
     const changes: { name: SurfaceName; old: boolean; value: boolean }[] = [];
     for (const name of ["ui", "mcp"] as const) {
       const value = req[name];
-      if (value === undefined) continue;
+      if (value === undefined) {
+        continue;
+      }
       const def = SURFACES[name];
-      if (d.settings.isManagedByConfig(def.key))
+      if (d.settings.isManagedByConfig(def.key)) {
         throw conflict(
           `the ${name} surface is managed by config and cannot be changed at runtime`,
           { surface: name },
         );
+      }
       const old = d.settings.get(def);
-      if (old !== value) changes.push({ name, old, value });
+      if (old !== value) {
+        changes.push({ name, old, value });
+      }
     }
     if (changes.some((ch) => ch.name === "ui" && !ch.value)) {
-      if (req.confirm !== DISABLE_UI_PHRASE)
+      if (req.confirm !== DISABLE_UI_PHRASE) {
         throw unprocessable(`turning the UI off needs "confirm": "${DISABLE_UI_PHRASE}"`, {
           phrase: DISABLE_UI_PHRASE,
         });
+      }
       if (!d.hasActiveAdmin()) {
         throw conflict(
           "refusing to turn the UI off: no unexpired admin-scoped API token exists, so there would be no way back in. Create one under Account -> API tokens first",
@@ -89,7 +95,9 @@ export function surfaceRoutes(api: Hono<AppEnv>, d: SurfacesDeps): void {
         old: { setting: SURFACES[ch.name].key, enabled: ch.old },
         new: { setting: SURFACES[ch.name].key, enabled: ch.value },
       });
-      if (ch.name === "mcp" && !ch.value) d.onMcpDisabled?.();
+      if (ch.name === "mcp" && !ch.value) {
+        d.onMcpDisabled?.();
+      }
     }
     return c.json({ surfaces: view() });
   });

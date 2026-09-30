@@ -137,7 +137,9 @@ describe("client metadata documents: what they must say", () => {
       now: () => t,
       fetch: async () => {
         calls++;
-        if (fail) throw new Error("boom");
+        if (fail) {
+          throw new Error("boom");
+        }
         return ok(
           { client_id: CLAUDE, redirect_uris: ["https://x/cb"] },
           { cacheControl: "max-age=1" },

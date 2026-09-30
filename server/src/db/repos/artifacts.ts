@@ -55,7 +55,9 @@ export class ArtifactThemesRepo {
 
   get(id: string): Theme | undefined {
     const hit = this.#byId.get(id);
-    if (hit !== undefined) return hit ?? undefined;
+    if (hit !== undefined) {
+      return hit ?? undefined;
+    }
     const r = this.#db.get<ThemeRow>("SELECT * FROM artifact_themes WHERE id = $id", { id });
     const theme = r ? toTheme(r) : null;
     this.#byId.set(id, theme);
@@ -94,17 +96,30 @@ export class ArtifactThemesRepo {
       sets.push(`${col} = $${key}`);
       params[key] = v;
     };
-    if (t.name !== undefined) put("name", "name", t.name);
-    if (t.description !== undefined) put("description", "description", t.description);
-    if (t.tokens !== undefined) put("tokens_json", "tokens", JSON.stringify(t.tokens));
-    if (t.fonts !== undefined) put("fonts_json", "fonts", JSON.stringify(t.fonts));
-    if (t.style !== undefined) put("style_json", "style", JSON.stringify(t.style));
-    if (t.logo !== undefined) put("logo_svg", "logo", t.logo);
-    if (sets.length)
+    if (t.name !== undefined) {
+      put("name", "name", t.name);
+    }
+    if (t.description !== undefined) {
+      put("description", "description", t.description);
+    }
+    if (t.tokens !== undefined) {
+      put("tokens_json", "tokens", JSON.stringify(t.tokens));
+    }
+    if (t.fonts !== undefined) {
+      put("fonts_json", "fonts", JSON.stringify(t.fonts));
+    }
+    if (t.style !== undefined) {
+      put("style_json", "style", JSON.stringify(t.style));
+    }
+    if (t.logo !== undefined) {
+      put("logo_svg", "logo", t.logo);
+    }
+    if (sets.length) {
       this.#db.run(
         `UPDATE artifact_themes SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`,
         params,
       );
+    }
     this.#byId.delete(id);
     return this.get(id);
   }
@@ -225,15 +240,24 @@ export class ArtifactTemplatesRepo {
       sets.push(`${col} = $${key}`);
       params[key] = v;
     };
-    if (t.name !== undefined) put("name", "name", t.name);
-    if (t.description !== undefined) put("description", "description", t.description);
-    if (t.themeId !== undefined) put("theme_id", "theme", t.themeId);
-    if (t.files !== undefined) put("files_json", "files", JSON.stringify(t.files));
-    if (sets.length)
+    if (t.name !== undefined) {
+      put("name", "name", t.name);
+    }
+    if (t.description !== undefined) {
+      put("description", "description", t.description);
+    }
+    if (t.themeId !== undefined) {
+      put("theme_id", "theme", t.themeId);
+    }
+    if (t.files !== undefined) {
+      put("files_json", "files", JSON.stringify(t.files));
+    }
+    if (sets.length) {
       this.#db.run(
         `UPDATE artifact_templates SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`,
         params,
       );
+    }
     return this.get(id);
   }
 

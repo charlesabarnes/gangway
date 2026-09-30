@@ -22,7 +22,9 @@ export class SqliteSettingsStore implements SettingsStore {
   }
 
   #load(): Map<string, unknown> {
-    if (this.#rows) return this.#rows;
+    if (this.#rows) {
+      return this.#rows;
+    }
     const rows = new Map<string, unknown>();
     for (const r of this.#db.query<{ key: string; value_json: string }>(
       "SELECT key, value_json FROM settings",

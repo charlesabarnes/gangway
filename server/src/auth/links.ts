@@ -52,10 +52,13 @@ export class EmailLinks {
   // sent in the background, and a failure is only logged.
   requestReset(email: string, meta: RequestMeta): void {
     const { users, limiter, audit, logger } = this.#d;
-    if (!this.available) throw conflict("password resets by email are not set up on this server");
+    if (!this.available) {
+      throw conflict("password resets by email are not set up on this server");
+    }
     const verdict = limiter.check(meta.ip, email);
-    if (!verdict.ok)
+    if (!verdict.ok) {
       throw rateLimited(verdict.retryAfterSec, "a link was sent a moment ago; check your email");
+    }
     limiter.fail(meta.ip, email);
 
     const user = users.getByEmail(email);
@@ -73,7 +76,9 @@ export class EmailLinks {
 
   /** An admin's resend: an invitation while the account has no password, else a reset. */
   async sendFor(actor: Actor, user: User): Promise<LinkPurpose> {
-    if (user.disabled) throw conflict("the account is disabled; enable it first");
+    if (user.disabled) {
+      throw conflict("the account is disabled; enable it first");
+    }
     const purpose: LinkPurpose = user.invited ? "invite" : "reset";
     await this.#send(user, purpose, actor);
     this.#d.audit.record(actor, "user.link.sent", user.id, { new: { purpose } });
@@ -83,7 +88,9 @@ export class EmailLinks {
   inspect(secret: string): { email: string; purpose: LinkPurpose } {
     const link = this.#d.links.get(idOf(secret));
     const user = link && this.#d.users.get(link.userId);
-    if (!link || !user || user.disabled) throw notFound(GONE);
+    if (!link || !user || user.disabled) {
+      throw notFound(GONE);
+    }
     return { email: user.email, purpose: link.purpose };
   }
 
@@ -96,7 +103,9 @@ export class EmailLinks {
     const { user, purpose } = db.transaction(() => {
       const link = links.get(id);
       const user = link && users.get(link.userId);
-      if (!link || !user || user.disabled || !links.consume(id)) throw notFound(GONE);
+      if (!link || !user || user.disabled || !links.consume(id)) {
+        throw notFound(GONE);
+      }
       users.setPassword(user.id, credentials);
       return { user: users.get(user.id)!, purpose: link.purpose };
     });
@@ -137,7 +146,7 @@ function message(
   host: string,
   inviter: string | undefined,
 ): Mail {
-  if (purpose === "invite")
+  if (purpose === "invite") {
     return {
       to,
       subject: `You're invited to gangway at ${host}`,
@@ -150,6 +159,7 @@ function message(
         "The link works once and expires in 7 days. Your email address is your login.",
       ].join("\n"),
     };
+  }
   return {
     to,
     subject: `Reset your gangway password`,

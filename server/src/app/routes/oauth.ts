@@ -50,7 +50,9 @@ class Budget {
     const t = this.#now();
     const h = this.#hits.get(key);
     if (!h || t - h.since > 60_000) {
-      if (this.#hits.size > 10_000) this.#hits.clear();
+      if (this.#hits.size > 10_000) {
+        this.#hits.clear();
+      }
       this.#hits.set(key, { n: 1, since: t });
       return true;
     }
@@ -66,19 +68,25 @@ function registerRoute(
 ): void {
   const registrations = new Budget(10);
   app.post("/oauth/register", async (c) => {
-    if (!on(c.env.surface)) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    if (!on(c.env.surface)) {
+      return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    }
     const fail = (code: string, description: string, status = 400) =>
       c.json({ error: code, error_description: description }, status as 400, NO_STORE);
-    if (!registrations.take(c.env.clientIp))
+    if (!registrations.take(c.env.clientIp)) {
       return c.json(
         { error: "slow_down", error_description: "too many registrations; wait a minute" },
         429,
         { ...NO_STORE, "retry-after": "60" },
       );
-    if (!(c.req.header("content-type") ?? "").toLowerCase().startsWith("application/json"))
+    }
+    if (!(c.req.header("content-type") ?? "").toLowerCase().startsWith("application/json")) {
       return fail("invalid_client_metadata", "send the client metadata as application/json");
+    }
     const text = await c.req.text();
-    if (text.length > 16 * 1024) return fail("invalid_client_metadata", "the request is too large");
+    if (text.length > 16 * 1024) {
+      return fail("invalid_client_metadata", "the request is too large");
+    }
     let body: unknown;
     try {
       body = JSON.parse(text);
@@ -88,8 +96,9 @@ function registerRoute(
     try {
       return c.json(d.oauth.register(body), 201, NO_STORE);
     } catch (err) {
-      if (err instanceof RegistrationError)
+      if (err instanceof RegistrationError) {
         return fail(err.code, err.message, err.code === "temporarily_unavailable" ? 503 : 400);
+      }
       throw err;
     }
   });
@@ -100,14 +109,20 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
   const on = (surface: string) => surface === "app" && d.enabled();
 
   app.get("/.well-known/oauth-authorization-server", (c) => {
-    if (!on(c.env.surface)) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    if (!on(c.env.surface)) {
+      return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    }
     return c.json(d.oauth.metadata(), 200, { "cache-control": "public, max-age=300" });
   });
 
   app.get("/oauth/authorize", async (c) => {
-    if (!on(c.env.surface)) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    if (!on(c.env.surface)) {
+      return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    }
     const out = await d.oauth.authorize(new URLSearchParams(new URL(c.req.url).search));
-    if (out.kind === "page") return errorPage(out.error);
+    if (out.kind === "page") {
+      return errorPage(out.error);
+    }
     const to =
       out.kind === "redirect" ? out.url : `/connect?request=${encodeURIComponent(out.requestId)}`;
     return new Response(null, {
@@ -119,15 +134,18 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
   registerRoute(app, d, on);
 
   app.post("/oauth/token", async (c) => {
-    if (!on(c.env.surface)) return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    if (!on(c.env.surface)) {
+      return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
+    }
     const fail = (code: string, description: string, status = 400) =>
       c.json({ error: code, error_description: description }, status as 400, NO_STORE);
-    if (!budget.take(c.env.clientIp))
+    if (!budget.take(c.env.clientIp)) {
       return c.json(
         { error: "slow_down", error_description: "too many token requests; wait a minute" },
         429,
         { ...NO_STORE, "retry-after": "60" },
       );
+    }
     if (
       !(c.req.header("content-type") ?? "")
         .toLowerCase()
@@ -136,21 +154,28 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
       return fail("invalid_request", "the token endpoint takes application/x-www-form-urlencoded");
     }
     const text = await c.req.text();
-    if (text.length > 16 * 1024) return fail("invalid_request", "the request is too large");
+    if (text.length > 16 * 1024) {
+      return fail("invalid_request", "the request is too large");
+    }
     const form = new URLSearchParams(text);
-    for (const k of new Set(form.keys()))
-      if (form.getAll(k).length > 1)
+    for (const k of new Set(form.keys())) {
+      if (form.getAll(k).length > 1) {
         return fail("invalid_request", `${k} was given more than once`);
-    if (form.has("client_secret") || c.req.header("authorization"))
+      }
+    }
+    if (form.has("client_secret") || c.req.header("authorization")) {
       return fail(
         "invalid_client",
         "gangway serves public clients only; send no client secret",
         401,
       );
+    }
     try {
       return c.json(d.oauth.token(form), 200, NO_STORE);
     } catch (err) {
-      if (err instanceof OAuthError) return fail(err.code, err.message, err.status);
+      if (err instanceof OAuthError) {
+        return fail(err.code, err.message, err.status);
+      }
       throw err;
     }
   });
@@ -158,7 +183,9 @@ export function oauthRootRoutes(app: Hono<AppEnv>, d: OAuthRouteDeps): void {
 
 export function oauthRoutes(api: Hono<AppEnv>, d: OAuthRouteDeps): void {
   const guard = () => {
-    if (!d.enabled()) throw notFound("MCP is switched off");
+    if (!d.enabled()) {
+      throw notFound("MCP is switched off");
+    }
   };
 
   api.get("/oauth/requests/:id", requirePermission("tokens.manage_own"), (c) => {

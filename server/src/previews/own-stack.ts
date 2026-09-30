@@ -20,10 +20,14 @@ export async function withDotenv<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   const names = Object.keys(env ?? {});
-  if (!env || names.length === 0) return fn();
+  if (!env || names.length === 0) {
+    return fn();
+  }
   const file = join(srcDir, ".env");
   const st = await lstat(file).catch(() => null);
-  if (st && !st.isFile()) throw unprocessable(".env in the source is not a regular file");
+  if (st && !st.isFile()) {
+    throw unprocessable(".env in the source is not a regular file");
+  }
   const committed = st ? await Bun.file(file).text() : null;
   const lines = names.map((k) => dotenvLine(k, env[k]!));
   const kept = (committed ?? "").replace(/\s*$/, "");
@@ -32,8 +36,11 @@ export async function withDotenv<T>(
   try {
     return await fn();
   } finally {
-    if (committed === null) await rm(file, { force: true });
-    else await writeFile(file, committed, { mode: st!.mode & 0o777 });
+    if (committed === null) {
+      await rm(file, { force: true });
+    } else {
+      await writeFile(file, committed, { mode: st!.mode & 0o777 });
+    }
   }
 }
 
@@ -71,25 +78,28 @@ export async function ownStack(
   const n = Object.keys(env ?? {}).length;
   const found = await inspectComposeFile(srcDir);
   if (found) {
-    if (n > 0)
+    if (n > 0) {
       ctx.logs.append(
         id,
         "system",
         `compose reads ${n} repository secret${n === 1 ? "" : "s"} as .env; the build does not see it`,
       );
+    }
     return { composeFile: found, ...(n > 0 ? { dotenv: env } : {}) };
   }
 
   const port = await requireDockerfilePort(srcDir, askedPort, plan);
   if (sidecars) {
     await mkdir(join(srcDir, GENERATED_DIR), { recursive: true, mode: DIR_MODE });
-    for (const [name, body] of Object.entries(sidecars.files))
+    for (const [name, body] of Object.entries(sidecars.files)) {
       await writeFile(join(srcDir, GENERATED_DIR, name), body, { mode: FILE_MODE });
+    }
   }
   // No compose file to read a .env: the container gets the secrets as environment, as a runtime does.
   const appEnv = { ...(env ?? {}), ...(plan?.env ?? {}), ...(sidecars?.appEnv ?? {}) };
-  if (n > 0)
+  if (n > 0) {
     ctx.logs.append(id, "system", `passing ${n} secret(s) to the container as environment`);
+  }
   await writeFile(
     join(srcDir, COMPOSE_FILE),
     composeForDockerfile({

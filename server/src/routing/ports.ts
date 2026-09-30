@@ -14,7 +14,9 @@ export class PortExhausted extends AppError {
 
 export function allocatePort(range: PortRange, used: ReadonlySet<number>, host = "host"): number {
   for (let p = range.rangeStart; p <= range.rangeEnd; p++) {
-    if (!used.has(p)) return p;
+    if (!used.has(p)) {
+      return p;
+    }
   }
   throw new PortExhausted(host, range);
 }

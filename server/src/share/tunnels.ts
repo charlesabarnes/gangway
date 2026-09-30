@@ -86,7 +86,9 @@ export class QuickTunnels implements ShareProvider {
     this.#resolves = o.resolves ?? resolvesAtAuthority();
     this.#dnsWaitMs = o.dnsWaitMs ?? 45_000;
     this.#dnsPollMs = o.dnsPollMs ?? 1_000;
-    if (o.spawn) this.#found = true;
+    if (o.spawn) {
+      this.#found = true;
+    }
   }
 
   available(): boolean {
@@ -116,9 +118,13 @@ export class QuickTunnels implements ShareProvider {
 
     void readLines(proc.stderr, (line) => {
       tail.push(line);
-      if (tail.length > TAIL) tail.shift();
+      if (tail.length > TAIL) {
+        tail.shift();
+      }
       host ??= URL_RE.exec(line)?.[1];
-      if (host && READY_RE.test(line)) settle?.();
+      if (host && READY_RE.test(line)) {
+        settle?.();
+      }
     });
     void exited.then(() => settle?.(failure("cloudflared exited before the tunnel was up", tail)));
     const timer = setTimeout(
@@ -143,8 +149,9 @@ export class QuickTunnels implements ShareProvider {
     void exited.then(() => (gone = true));
     // An early lookup is a miss the visitor's resolver keeps for a minute: wait until it resolves.
     const deadline = Date.now() + this.#dnsWaitMs;
-    while (!gone && !signal?.aborted && Date.now() < deadline && !(await this.#resolves(name)))
+    while (!gone && !signal?.aborted && Date.now() < deadline && !(await this.#resolves(name))) {
       await Bun.sleep(this.#dnsPollMs);
+    }
     if (gone || signal?.aborted) {
       proc.kill();
       throw failure("cloudflared exited before its hostname was in DNS", tail);
@@ -165,7 +172,9 @@ async function readLines(stream: ReadableStream<Uint8Array>, onLine: (line: stri
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       buf += dec.decode(value, { stream: true });
       let nl: number;
       while ((nl = buf.indexOf("\n")) >= 0) {
@@ -173,7 +182,9 @@ async function readLines(stream: ReadableStream<Uint8Array>, onLine: (line: stri
         buf = buf.slice(nl + 1);
       }
     }
-    if (buf) onLine(buf);
+    if (buf) {
+      onLine(buf);
+    }
   } catch {
     // The process was killed mid-read; its end is reported through exited.
   }

@@ -122,7 +122,9 @@ async function cloneSha(
   let last: RunResult = { code: 0, stdout: "", stderr: "", timedOut: false };
   for (const args of steps) {
     last = await run(gitPath, args, { env, timeoutMs });
-    if (last.timedOut || last.code !== 0) return last;
+    if (last.timedOut || last.code !== 0) {
+      return last;
+    }
   }
   return last;
 }
@@ -160,8 +162,9 @@ function validateRef(ref: string): string {
     ref.includes("..") ||
     ref.includes("@{") ||
     /[\u0000-\u0020\u007f~^:?*[\\]/.test(ref);
-  if (invalid)
+  if (invalid) {
     throw rejectClone("invalid_ref", "ref is not a valid git ref name", { ref: ref.slice(0, 64) });
+  }
   return ref;
 }
 
@@ -179,7 +182,9 @@ async function buildEnv(
     LC_ALL: "C",
   };
 
-  if (token === undefined || token === "") return env;
+  if (token === undefined || token === "") {
+    return env;
+  }
 
   const helper = path.join(helperDir, "askpass.sh");
   await writeFile(helper, ASKPASS, { mode: 0o700 });

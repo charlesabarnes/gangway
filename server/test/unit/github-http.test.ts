@@ -28,8 +28,9 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
       const m = /\/app-manifests\/([^/]+)\/conversions$/.exec(url);
       if (m && init?.method === "POST") {
         conversions.push(m[1]!);
-        if (o.conversion === 404)
+        if (o.conversion === 404) {
           return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
+        }
         return new Response(
           JSON.stringify({
             id: 777,

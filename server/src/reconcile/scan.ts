@@ -26,7 +26,9 @@ export function scanLabels(raw: Readonly<Record<string, string>>): ScannedLabels
 }
 
 function booleanLabel(v: string | undefined): boolean | undefined {
-  if (v === "true") return true;
+  if (v === "true") {
+    return true;
+  }
   return v === "false" ? false : undefined;
 }
 

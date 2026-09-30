@@ -17,8 +17,9 @@ export async function assertNoEscapingSymlinks(root: string, maxEntries = 200_00
   let seen = 0;
   const walk = async (dir: string): Promise<void> => {
     for (const e of await readdir(dir, { withFileTypes: true })) {
-      if (++seen > maxEntries)
+      if (++seen > maxEntries) {
         throw unprocessable(`the source has more than ${maxEntries} entries`);
+      }
       const p = path.join(dir, e.name);
       if (e.isSymbolicLink()) {
         const target = await realpath(p).catch(() => null);
@@ -50,19 +51,29 @@ export function referencedFiles(doc: unknown): { where: string; path: string }[]
             ...list(obj(inc)["env_file"]),
             ...list(obj(inc)["project_directory"]),
           ];
-    for (const p of paths) if (typeof p === "string") out.push({ where: "include", path: p });
+    for (const p of paths) {
+      if (typeof p === "string") {
+        out.push({ where: "include", path: p });
+      }
+    }
   }
   for (const [name, raw] of Object.entries(obj(d["services"]))) {
     const s = obj(raw);
     for (const ef of list(s["env_file"])) {
       const p = typeof ef === "string" ? ef : obj(ef)["path"];
-      if (typeof p === "string") out.push({ where: `service "${name}": env_file`, path: p });
+      if (typeof p === "string") {
+        out.push({ where: `service "${name}": env_file`, path: p });
+      }
     }
     for (const lf of list(s["label_file"])) {
-      if (typeof lf === "string") out.push({ where: `service "${name}": label_file`, path: lf });
+      if (typeof lf === "string") {
+        out.push({ where: `service "${name}": label_file`, path: lf });
+      }
     }
     const ext = obj(s["extends"])["file"];
-    if (typeof ext === "string") out.push({ where: `service "${name}": extends.file`, path: ext });
+    if (typeof ext === "string") {
+      out.push({ where: `service "${name}": extends.file`, path: ext });
+    }
   }
   return out;
 }
@@ -77,7 +88,9 @@ export async function inspectComposeFile(srcDir: string): Promise<string | null>
       break;
     }
   }
-  if (!found) return null;
+  if (!found) {
+    return null;
+  }
 
   let doc: unknown;
   try {
@@ -88,8 +101,9 @@ export async function inspectComposeFile(srcDir: string): Promise<string | null>
     });
   }
   for (const ref of referencedFiles(doc)) {
-    if (ref.path.includes("$"))
+    if (ref.path.includes("$")) {
       throw unprocessable(`${ref.where}: variables are not allowed in file paths`);
+    }
     if (!containedIn(srcDir, path.resolve(srcDir, ref.path))) {
       throw unprocessable(`${ref.where}: ${ref.path} is outside the uploaded source`);
     }

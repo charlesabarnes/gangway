@@ -8,7 +8,9 @@ export type ConfigRead = { name: string; file: GangwayFile | null };
 export function readConfig(plan: AppPlan, input: PlanInput, dir: string): ConfigRead | null {
   const at = (n: string) => (dir ? `${dir}/${n}` : n);
   const present = GANGWAY_FILES.filter((n) => input.paths.includes(at(n)));
-  if (present.length === 0) return null;
+  if (present.length === 0) {
+    return null;
+  }
   if (present.length > 1) {
     plan.issues.push({
       path: "",
@@ -41,7 +43,9 @@ export function applySettings(plan: AppPlan, file: GangwayFile | null | undefine
 }
 
 function stackOf(file: GangwayFile | null | undefined): AppPlan["stack"] {
-  if (!file) return {};
+  if (!file) {
+    return {};
+  }
   return {
     ...(file.ttl !== undefined ? { ttl: file.ttl } : {}),
     ...(file.visibility !== undefined ? { visibility: file.visibility } : {}),

@@ -31,7 +31,9 @@ export class RolePermissions {
 
   for(roleId: string): ReadonlySet<Permission> {
     // Admin is answered from code so no edit to the table can lock everyone out.
-    if (roleId === ADMIN_ROLE_ID) return EVERYTHING;
+    if (roleId === ADMIN_ROLE_ID) {
+      return EVERYTHING;
+    }
     return this.#matrix.get(roleId) ?? NOTHING;
   }
 
@@ -48,9 +50,12 @@ export class RolePermissions {
     permissions: readonly Permission[],
     actor: Actor | null = null,
   ): { old: Permission[]; new: Permission[] } {
-    if (!this.#repo.get(roleId)) throw notFound(`no such role: ${roleId}`);
-    if (roleId === ADMIN_ROLE_ID)
+    if (!this.#repo.get(roleId)) {
+      throw notFound(`no such role: ${roleId}`);
+    }
+    if (roleId === ADMIN_ROLE_ID) {
       throw conflict("the admin role always holds every permission and cannot be edited");
+    }
     const old = [...this.for(roleId)].sort();
     this.#repo.setPermissions(roleId, permissions);
     this.reload();

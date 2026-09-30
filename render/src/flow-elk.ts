@@ -61,16 +61,23 @@ function ranks(g: FlowGraph): Map<string, number> {
   const into = new Set(edges.map((e) => e.to));
   const rank = new Map<string, number>();
   const queue = g.nodes.filter((n) => !into.has(n.id)).map((n) => n.id);
-  for (const id of queue) rank.set(id, 0);
+  for (const id of queue) {
+    rank.set(id, 0);
+  }
   while (queue.length) {
     const id = queue.shift()!;
-    for (const e of edges)
+    for (const e of edges) {
       if (e.from === id && !rank.has(e.to)) {
         rank.set(e.to, rank.get(id)! + 1);
         queue.push(e.to);
       }
+    }
   }
-  for (const n of g.nodes) if (!rank.has(n.id)) rank.set(n.id, 0);
+  for (const n of g.nodes) {
+    if (!rank.has(n.id)) {
+      rank.set(n.id, 0);
+    }
+  }
   return rank;
 }
 
@@ -83,7 +90,9 @@ export function elkGraph(
   const kids = new Map<string | null, ElkNode[]>();
   const add = (parent: string | null, n: ElkNode) =>
     kids.set(parent, [...(kids.get(parent) ?? []), n]);
-  for (const n of g.nodes) add(n.group, { id: n.id, ...toElkSize(size(n)) });
+  for (const n of g.nodes) {
+    add(n.group, { id: n.id, ...toElkSize(size(n)) });
+  }
   const groups = g.groups.map((x): { parent: string | null; node: ElkNode } => ({
     parent: x.parent,
     node: {
@@ -96,8 +105,12 @@ export function elkGraph(
       },
     },
   }));
-  for (const x of groups) add(x.parent, x.node);
-  for (const x of groups) x.node.children = kids.get(x.node.id) ?? [];
+  for (const x of groups) {
+    add(x.parent, x.node);
+  }
+  for (const x of groups) {
+    x.node.children = kids.get(x.node.id) ?? [];
+  }
   return {
     id: "root",
     layoutOptions: {
@@ -145,7 +158,9 @@ export function rounded(points: Point[]): { start: Point; segments: Segment[] } 
     const a = Math.hypot(q[0] - p[0], q[1] - p[1]);
     const b = Math.hypot(r[0] - q[0], r[1] - q[1]);
     const k = Math.min(CORNER, a / 2, b / 2);
-    if (k < 0.5) continue;
+    if (k < 0.5) {
+      continue;
+    }
     const before: Point = [q[0] - ((q[0] - p[0]) / a) * k, q[1] - ((q[1] - p[1]) / a) * k];
     const after: Point = [q[0] + ((r[0] - q[0]) / b) * k, q[1] + ((r[1] - q[1]) / b) * k];
     line(before);
@@ -161,7 +176,9 @@ export function fromElk(g: FlowGraph, out: ElkNode, size: (n: FlowNode) => Size)
   const placed = new Map<string, ElkNode>();
   const visit = (n: ElkNode) => {
     placed.set(n.id, n);
-    for (const c of n.children ?? []) visit(c);
+    for (const c of n.children ?? []) {
+      visit(c);
+    }
   };
   visit(out);
   const rank = ranks(g);
@@ -176,7 +193,9 @@ export function fromElk(g: FlowGraph, out: ElkNode, size: (n: FlowNode) => Size)
   });
   // A line to a group draws in with the first box inside it.
   const edgeRank = (id: string) => {
-    if (rank.has(id)) return rank.get(id)!;
+    if (rank.has(id)) {
+      return rank.get(id)!;
+    }
     const inside = g.nodes.filter((n) => ancestors(g, n.id).some((a) => a.id === id));
     return inside.length ? Math.min(...inside.map((n) => rank.get(n.id)!)) : 0;
   };

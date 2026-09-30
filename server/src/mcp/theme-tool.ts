@@ -17,7 +17,9 @@ import type { ThemeArgs } from "./setup-tool-specs.ts";
 /** Create, change or read a theme; the answer is the theme as stored, for the next edit. */
 export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {
   const library = d.ctx.artifacts;
-  if (!library || !d.themes) throw notFound("artifact themes are not available on this server");
+  if (!library || !d.themes) {
+    throw notFound("artifact themes are not available on this server");
+  }
   const deps: ThemeDeps = { library, audit: d.ctx.audit, ...d.themes };
   const { id, makeDefault, ...fields } = args;
   const changes = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
@@ -26,7 +28,9 @@ export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {
   let verb: string;
   let theme: Theme;
   if (!existing) {
-    if (!args.name) throw unprocessable(`there is no theme "${id}"; a new theme needs a name`);
+    if (!args.name) {
+      throw unprocessable(`there is no theme "${id}"; a new theme needs a name`);
+    }
     theme = createTheme(deps, actor, {
       ...changes,
       id,
@@ -41,7 +45,9 @@ export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {
     theme = existing;
     verb = "unchanged";
   }
-  if (makeDefault) setDefaultTheme(deps, actor, id);
+  if (makeDefault) {
+    setDefaultTheme(deps, actor, id);
+  }
 
   const isDefault = library.defaultThemeId() === id;
   const lines = [
@@ -61,7 +67,7 @@ export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {
       2,
     ),
   ];
-  if (id === HOUSE_THEME || verb === "created")
+  if (id === HOUSE_THEME || verb === "created") {
     lines.push(
       "",
       "gangway's own values, for any token left out:",
@@ -75,5 +81,6 @@ export function saveTheme(d: ToolDeps, actor: Actor, args: ThemeArgs): string {
         .map(([k, v]) => `${k}: ${v.join(", ")}`)
         .join("; ")}.`,
     );
+  }
   return lines.join("\n");
 }

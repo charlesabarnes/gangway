@@ -85,10 +85,14 @@ describe("drivers", () => {
 
 async function tarball(files: Record<string, string>): Promise<Uint8Array> {
   const p = pack();
-  for (const [name, content] of Object.entries(files)) p.entry({ name }, content);
+  for (const [name, content] of Object.entries(files)) {
+    p.entry({ name }, content);
+  }
   p.finalize();
   const chunks: Buffer[] = [];
-  for await (const c of p) chunks.push(c as Buffer);
+  for await (const c of p) {
+    chunks.push(c as Buffer);
+  }
   return gzipSync(Buffer.concat(chunks));
 }
 
@@ -125,7 +129,9 @@ async function withPostgres(
 
 const lines = (out: string[], code = 0) =>
   async function* (): AsyncGenerator<ComposeEvent> {
-    for (const line of out) yield { type: "line", stream: "stdout", line };
+    for (const line of out) {
+      yield { type: "line", stream: "stdout", line };
+    }
     yield { type: "exit", code, signal: null };
   };
 
@@ -170,8 +176,9 @@ describe("the service", () => {
       const text = argv.at(-1)!;
       for (const line of text.startsWith("select table_schema")
         ? ["schema,name", "public,visits"]
-        : ["n", "7"])
+        : ["n", "7"]) {
         yield { type: "line", stream: "stdout", line };
+      }
       yield { type: "exit", code: 0, signal: null };
     });
     expect(
@@ -213,8 +220,9 @@ describe("the service", () => {
     const big = "x".repeat(64 * 1024);
     const { p, data } = await withPostgres(async function* (_argv, signal) {
       yield { type: "line", stream: "stdout", line: "c" };
-      for (let i = 0; i < 100 && !signal?.aborted; i++)
+      for (let i = 0; i < 100 && !signal?.aborted; i++) {
         yield { type: "line", stream: "stdout", line: big };
+      }
       yield { type: "exit", code: signal?.aborted ? 137 : 0, signal: null };
     });
     const r = await data.query(ACTOR, p.id, "postgres", "select big", false);

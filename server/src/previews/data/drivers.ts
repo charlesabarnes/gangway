@@ -97,8 +97,12 @@ export function tokenize(text: string): string[] {
       inWord = true;
     }
   }
-  if (quote) throw new Error("an unclosed quote");
-  if (inWord) out.push(cur);
+  if (quote) {
+    throw new Error("an unclosed quote");
+  }
+  if (inWord) {
+    out.push(cur);
+  }
   return out;
 }
 
@@ -185,8 +189,12 @@ const REDIS_NEVER = new Set([
 
 function redisArgv(text: string): string[] {
   const argv = tokenize(text);
-  if (argv.length === 0) throw new Error("no command");
-  if (argv.length > 256) throw new Error("too many arguments");
+  if (argv.length === 0) {
+    throw new Error("no command");
+  }
+  if (argv.length > 256) {
+    throw new Error("too many arguments");
+  }
   return argv;
 }
 
@@ -198,8 +206,12 @@ export function redisRefusal(text: string, write: boolean): string | null {
     return e instanceof Error ? e.message : "cannot parse the command";
   }
   const cmd = argv[0]!.toUpperCase();
-  if (REDIS_NEVER.has(cmd)) return `${cmd} is not available here`;
-  if (!write && !REDIS_READ.has(cmd)) return `${cmd} can change data: turn on writes to run it`;
+  if (REDIS_NEVER.has(cmd)) {
+    return `${cmd} is not available here`;
+  }
+  if (!write && !REDIS_READ.has(cmd)) {
+    return `${cmd} can change data: turn on writes to run it`;
+  }
   return null;
 }
 
@@ -223,18 +235,25 @@ export function parseCsv(text: string): { columns: string[]; rows: Cell[][] } {
         if (text[i + 1] === '"') {
           field += '"';
           i++;
-        } else inQuotes = false;
-      } else field += c;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
     } else if (c === '"') {
       inQuotes = true;
       quoted = true;
-    } else if (c === ",") endField();
-    else if (c === "\n") {
+    } else if (c === ",") {
+      endField();
+    } else if (c === "\n") {
       endField();
       records.push(rec);
       rec = [];
       any = false;
-    } else if (c !== "\r") field += c;
+    } else if (c !== "\r") {
+      field += c;
+    }
   }
   if (any || field !== "" || rec.length > 0) {
     endField();
@@ -252,14 +271,18 @@ export function parseBatch(text: string): { columns: string[]; rows: Cell[][] } 
           c === "t" ? "\t" : c === "n" ? "\n" : c === "0" ? "\0" : c,
         );
   const lines = text.split("\n").filter((l, i, a) => !(l === "" && i === a.length - 1));
-  if (lines.length === 0) return { columns: [], rows: [] };
+  if (lines.length === 0) {
+    return { columns: [], rows: [] };
+  }
   const [header, ...rest] = lines;
   return { columns: header!.split("\t"), rows: rest.map((l) => l.split("\t").map(unescape)) };
 }
 
 function parseRedis(text: string): { columns: string[]; rows: Cell[][] } {
   const lines = text.split("\n");
-  if (lines.at(-1) === "") lines.pop();
+  if (lines.at(-1) === "") {
+    lines.pop();
+  }
   return { columns: ["value"], rows: lines.map((l) => [l]) };
 }
 

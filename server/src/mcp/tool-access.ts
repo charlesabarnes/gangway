@@ -28,5 +28,7 @@ export class MissingPermission extends Error {
 }
 
 export function need(actor: Actor, ...ps: readonly [Permission, ...Permission[]]): void {
-  if (!ps.some((p) => can(actor, p))) throw new MissingPermission(ps[0]);
+  if (!ps.some((p) => can(actor, p))) {
+    throw new MissingPermission(ps[0]);
+  }
 }

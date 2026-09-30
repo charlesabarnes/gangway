@@ -63,9 +63,13 @@ export class AcmeProvider implements CertProvider {
 
   // A third of the lifetime, capped at 30 days, so short-lived certs are not reordered hourly.
   isDue(bundle: CertBundle, now = this.#now()): boolean {
-    if (bundle.materials.length === 0) return true;
+    if (bundle.materials.length === 0) {
+      return true;
+    }
     return bundle.materials.some((m) => {
-      if (!m.notAfter) return true;
+      if (!m.notAfter) {
+        return true;
+      }
       const lifetime = m.notBefore ? m.notAfter.getTime() - m.notBefore.getTime() : Infinity;
       return m.notAfter.getTime() - now < Math.min(RENEWAL_WINDOW_MS, lifetime / 3);
     });
@@ -78,8 +82,9 @@ export class AcmeProvider implements CertProvider {
       row.source !== this.#o.directoryUrl ||
       !row.notAfter ||
       row.notAfter.getTime() <= this.#now()
-    )
+    ) {
       return null;
+    }
     let covered: string[];
     try {
       const info = acme.crypto.readCertificateInfo(row.certPem);
@@ -87,7 +92,9 @@ export class AcmeProvider implements CertProvider {
     } catch {
       return null;
     }
-    if (!domains.every((d) => covered.includes(d))) return null;
+    if (!domains.every((d) => covered.includes(d))) {
+      return null;
+    }
     return {
       materials: [
         {
@@ -121,8 +128,9 @@ export class AcmeProvider implements CertProvider {
     const { directoryUrl, email, store, logger } = this.#o;
     const accounts = (store.get(ACCOUNTS_KEY) ?? {}) as Record<string, StoredAccount>;
     const known = accounts[directoryUrl];
-    if (known)
+    if (known) {
       return this.#connect({ directoryUrl, accountKey: known.keyPem, accountUrl: known.url });
+    }
 
     const keyPem = (await acme.crypto.createPrivateEcdsaKey()).toString();
     const client = this.#connect({ directoryUrl, accountKey: keyPem });
@@ -176,10 +184,13 @@ export class AcmeProvider implements CertProvider {
   ): Promise<PendingChallenges> {
     const pending: PendingChallenges = { challenges: [], byName: new Map() };
     for (const authz of authzs) {
-      if (authz.status === "valid") continue; // the CA remembers a recent validation
+      if (authz.status === "valid") {
+        continue;
+      } // the CA remembers a recent validation
       const challenge = authz.challenges.find((c) => c.type === "dns-01");
-      if (!challenge)
+      if (!challenge) {
         throw new Error(`the CA offered no dns-01 challenge for ${authz.identifier.value}`);
+      }
       const name = delegate ?? challengeName(authz.identifier.value);
       const value = await client.getChallengeKeyAuthorization(challenge);
       signal?.throwIfAborted();
@@ -231,7 +242,9 @@ export class AcmeProvider implements CertProvider {
 
     // Re-joined with explicit newlines: a chain glued END-to-BEGIN is a BAD_END_LINE in OpenSSL.
     const [leaf, ...chain] = acme.crypto.splitPemChain(pem).map((c) => `${c.trim()}\n`);
-    if (!leaf) throw new Error("the CA returned an empty certificate chain");
+    if (!leaf) {
+      throw new Error("the CA returned an empty certificate chain");
+    }
     const info = acme.crypto.readCertificateInfo(leaf);
     const chainPem = chain.join("");
 

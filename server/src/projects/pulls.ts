@@ -45,27 +45,34 @@ export class Pulls {
 
   authorize(ref: string, number: number, actor: Actor): Project & { fullName: string } {
     const project = this.#d.projects.find(ref);
-    if (!project) throw notFound(`no such project: ${ref}`);
-    if (!hasRepo(project))
+    if (!project) {
+      throw notFound(`no such project: ${ref}`);
+    }
+    if (!hasRepo(project)) {
       throw new AppError(
         "unprocessable",
         `project "${project.slug}" has no repository, so it has no pull requests`,
       );
+    }
     if (actor.kind === "workflow") {
-      if (actor.repository.toLowerCase() !== project.fullName.toLowerCase())
+      if (actor.repository.toLowerCase() !== project.fullName.toLowerCase()) {
         throw forbidden(`this run belongs to ${actor.repository}, not to ${project.fullName}`);
-      if (project.prTrigger !== "workflow")
+      }
+      if (project.prTrigger !== "workflow") {
         throw conflict(
           `project "${project.slug}" takes pull requests from the GitHub App, not from a workflow; switch it in the project's settings`,
         );
-      if (actor.eventName !== "pull_request")
+      }
+      if (actor.eventName !== "pull_request") {
         throw forbidden(
           `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
         );
-      if (actor.pull !== number)
+      }
+      if (actor.pull !== number) {
         throw forbidden(
           `this run is for ${actor.pull === null ? "no pull request" : `#${actor.pull}`}, not #${number}`,
         );
+      }
     }
     return project;
   }
@@ -77,10 +84,11 @@ export class Pulls {
     actor: Actor,
   ): Promise<PullOutcome> {
     const project = this.authorize(ref, number, actor);
-    if (!project.enabled)
+    if (!project.enabled) {
       throw conflict(
         `project "${project.slug}" is disabled${project.disabledReason ? `: ${project.disabledReason}` : ""}`,
       );
+    }
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
       if (
@@ -96,7 +104,9 @@ export class Pulls {
       const carrySecrets = existing
         ? (this.#d.previews.sealedSecrets?.(existing.id) ?? null)
         : null;
-      if (existing) await this.#d.previews.destroy(existing.id, actor);
+      if (existing) {
+        await this.#d.previews.destroy(existing.id, actor);
+      }
       const registry: RegistryLogin | undefined = req.registry && {
         server: registryOf(req.image),
         ...req.registry,
@@ -133,7 +143,9 @@ export class Pulls {
     this.#queues.set(key, next);
     void next
       .finally(() => {
-        if (this.#queues.get(key) === next) this.#queues.delete(key);
+        if (this.#queues.get(key) === next) {
+          this.#queues.delete(key);
+        }
       })
       .catch(() => {});
     return next;

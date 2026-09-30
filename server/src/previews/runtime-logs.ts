@@ -17,17 +17,22 @@ export async function runtimeLogs(
   p: Preview,
   opts: { tail: number; service?: string | undefined },
 ): Promise<RuntimeLogs> {
-  if (servedByGangway(p))
+  if (servedByGangway(p)) {
     return {
       lines: null,
       why: "gangway serves this preview's files itself; there is no container",
     };
-  if (!HAS_CONTAINERS.has(p.state))
+  }
+  if (!HAS_CONTAINERS.has(p.state)) {
     return { lines: null, why: `the preview is ${p.state}; it has no containers to read` };
-  if (opts.service !== undefined && !SERVICE.test(opts.service))
+  }
+  if (opts.service !== undefined && !SERVICE.test(opts.service)) {
     return { lines: null, why: `${JSON.stringify(opts.service)} is not a service name` };
+  }
   const host = ctx.hosts.get(p.hostId);
-  if (!host) return { lines: null, why: `the preview is on an unknown host (${p.hostId})` };
+  if (!host) {
+    return { lines: null, why: `the preview is on an unknown host (${p.hostId})` };
+  }
 
   const masks = [...addonPasswords(ctx, p), ...secretValues(ctx, p)];
   const empty = await mkdtemp(join(tmpdir(), "gangway-runtime-logs-"));
@@ -43,17 +48,20 @@ export async function runtimeLogs(
       host,
       { cwd: empty },
     );
-    if (r.code !== 0)
+    if (r.code !== 0) {
       return {
         lines: null,
         why: `compose logs exited ${r.code}: ${redactString(r.stderr).trim().slice(-300)}`,
       };
+    }
     const lines = r.stdout
       .split(/\r?\n/)
       .filter((l) => l.trim() !== "")
       .map((l) => {
         let out = l;
-        for (const m of masks) out = out.split(m).join("[redacted]");
+        for (const m of masks) {
+          out = out.split(m).join("[redacted]");
+        }
         return redactString(out);
       });
     return { lines };
@@ -73,6 +81,8 @@ function secretValues(ctx: PreviewContext, p: Preview): string[] {
 }
 
 function addonPasswords(ctx: PreviewContext, p: Preview): string[] {
-  if (p.source.kind !== "tarball" || !p.source.addons?.length || !ctx.addonSecret) return [];
+  if (p.source.kind !== "tarball" || !p.source.addons?.length || !ctx.addonSecret) {
+    return [];
+  }
   return p.source.addons.map((a) => ctx.addonSecret!(p.id, a.id)).filter((s) => s.length >= 8);
 }

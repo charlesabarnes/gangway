@@ -41,7 +41,9 @@ function fakeProcess() {
     say: (line: string) => push(line),
     ended: false,
     end: (code = 1) => {
-      if (proc.ended) return;
+      if (proc.ended) {
+        return;
+      }
       proc.ended = true;
       close();
       exit(code);

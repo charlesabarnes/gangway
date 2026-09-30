@@ -11,11 +11,15 @@ const APP_MARKERS = new Set([
 ]);
 
 function nestedRoot(paths: readonly string[]): string | null {
-  if (paths.some((p) => !p.includes("/") && APP_MARKERS.has(p))) return null;
+  if (paths.some((p) => !p.includes("/") && APP_MARKERS.has(p))) {
+    return null;
+  }
   const dirs = new Set<string>();
   for (const p of paths) {
     const parts = p.split("/");
-    if (parts.length === 2 && APP_MARKERS.has(parts[1]!)) dirs.add(parts[0]!);
+    if (parts.length === 2 && APP_MARKERS.has(parts[1]!)) {
+      dirs.add(parts[0]!);
+    }
   }
   return dirs.size === 1 ? [...dirs][0]! : null;
 }
@@ -32,7 +36,9 @@ export function useExplicitRoot(plan: AppPlan, input: PlanInput, root: string): 
 
 export function useNestedRoot(plan: AppPlan, input: PlanInput): ConfigRead | null {
   const nested = nestedRoot(input.paths);
-  if (!nested) return null;
+  if (!nested) {
+    return null;
+  }
   plan.root = nested;
   plan.reasons.push({
     level: "info",

@@ -11,7 +11,9 @@ const SUFFIX = "-gwm";
 
 /** A page load the mark could go on: a GET for a document, not an asset, a fetch or a socket. */
 export function wantsMark(req: Request): boolean {
-  if (req.method !== "GET" || isWebSocketUpgrade(req)) return false;
+  if (req.method !== "GET" || isWebSocketUpgrade(req)) {
+    return false;
+  }
   const dest = req.headers.get("sec-fetch-dest");
   return dest === null || dest === "document";
 }
@@ -25,13 +27,18 @@ export function forMark(req: Request): Request {
     .map((t) => t.trim())
     .filter((t) => t.endsWith(`${SUFFIX}"`))
     .map((t) => `W/${t.replace(/^W\//, "").slice(0, -SUFFIX.length - 1)}"`);
-  if (tags.length > 0) headers.set("if-none-match", tags.join(", "));
-  else headers.delete("if-none-match");
+  if (tags.length > 0) {
+    headers.set("if-none-match", tags.join(", "));
+  } else {
+    headers.delete("if-none-match");
+  }
   return new Request(req, { headers });
 }
 
 function markedTag(etag: string | null): string | null {
-  if (!etag) return null;
+  if (!etag) {
+    return null;
+  }
   const inner = etag.replace(/^W\//, "");
   return inner.startsWith('"') && inner.endsWith('"') ? `W/${inner.slice(0, -1)}${SUFFIX}"` : null;
 }
@@ -41,27 +48,39 @@ export function stamp(res: Response, req: Request): Response {
   if (res.status === 304) {
     const headers = new Headers(res.headers);
     const tag = markedTag(headers.get("etag"));
-    if (tag) headers.set("etag", tag);
+    if (tag) {
+      headers.set("etag", tag);
+    }
     return new Response(null, { status: 304, statusText: res.statusText, headers });
   }
-  if (res.status !== 200 || !res.body) return res;
+  if (res.status !== 200 || !res.body) {
+    return res;
+  }
   const type = res.headers.get("content-type") ?? "";
-  if (!/^text\/html\b/i.test(type)) return res;
-  if (/\bno-transform\b/i.test(res.headers.get("cache-control") ?? "")) return res;
+  if (!/^text\/html\b/i.test(type)) {
+    return res;
+  }
+  if (/\bno-transform\b/i.test(res.headers.get("cache-control") ?? "")) {
+    return res;
+  }
   const encoding = (res.headers.get("content-encoding") ?? "").trim().toLowerCase();
   let body: ReadableStream<Uint8Array> = res.body;
-  if (encoding === "gzip" || encoding === "x-gzip")
+  if (encoding === "gzip" || encoding === "x-gzip") {
     body = body.pipeThrough(
       new DecompressionStream("gzip") as ReadableWritablePair<Uint8Array, Uint8Array>,
     );
-  else if (encoding !== "" && encoding !== "identity") return res;
+  } else if (encoding !== "" && encoding !== "identity") {
+    return res;
+  }
 
   let added = false;
   const rewritten = new HTMLRewriter()
     .on("body", {
       element(e) {
         e.onEndTag((end) => {
-          if (added) return;
+          if (added) {
+            return;
+          }
           added = true;
           end.before(TAG, { html: true });
         });
@@ -78,10 +97,15 @@ export function stamp(res: Response, req: Request): Response {
     .transform(new Response(body, { headers: { "content-type": type } }));
 
   const headers = new Headers(res.headers);
-  for (const h of ["content-length", "content-encoding", "content-md5"]) headers.delete(h);
+  for (const h of ["content-length", "content-encoding", "content-md5"]) {
+    headers.delete(h);
+  }
   const tag = markedTag(headers.get("etag"));
-  if (tag) headers.set("etag", tag);
-  else headers.delete("etag");
+  if (tag) {
+    headers.set("etag", tag);
+  } else {
+    headers.delete("etag");
+  }
   headers.append("vary", "accept-encoding");
   let out = rewritten.body!;
   if (/\bgzip\b/i.test(req.headers.get("accept-encoding") ?? "")) {

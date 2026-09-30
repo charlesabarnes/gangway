@@ -34,16 +34,19 @@ class Flow extends HTMLElement {
   #controls: HTMLElement | null = null;
 
   connectedCallback() {
-    if (this.dataset["ready"]) return;
+    if (this.dataset["ready"]) {
+      return;
+    }
     this.dataset["ready"] = "1";
     const src = this.textContent ?? "";
     this.textContent = "";
     const title = this.getAttribute("title") ?? "";
-    if (title)
+    if (title) {
       this.insertAdjacentHTML(
         "beforeend",
         `<span data-part="title" class="gw-caps">${esc(title)}</span>`,
       );
+    }
     const plot = document.createElement("div");
     plot.dataset["part"] = "plot";
     this.appendChild(plot);
@@ -52,19 +55,26 @@ class Flow extends HTMLElement {
     note.setAttribute("aria-live", "polite");
     note.hidden = true;
     this.#note = note;
-    if (this.hasAttribute("play")) this.#controls = this.#makeControls();
+    if (this.hasAttribute("play")) {
+      this.#controls = this.#makeControls();
+    }
     this.append(note);
     const g = parseFlow(src, 1, this.getAttribute("direction") ?? undefined);
-    if (g.legend.length) this.append(legend(g));
-    if (this.hasAttribute("caption"))
+    if (g.legend.length) {
+      this.append(legend(g));
+    }
+    if (this.hasAttribute("caption")) {
       this.insertAdjacentHTML(
         "beforeend",
         `<p data-part="caption">${esc(this.getAttribute("caption") ?? "")}</p>`,
       );
+    }
 
     if (g.issues.length) {
       this.#problem(g.issues.map((i) => `line ${i.line}: ${i.message}`).join("; "));
-      if (g.nodes.length === 0) return;
+      if (g.nodes.length === 0) {
+        return;
+      }
     }
     this.#graph = g;
     this.#order = walkOrder(g);
@@ -120,7 +130,9 @@ class Flow extends HTMLElement {
     const d = draw(plot, g, layout, lines, title);
     this.#drawn = d;
     this.#fit(plot, d.svg, layout);
-    if (this.hasAttribute("animate")) this.classList.add("animate");
+    if (this.hasAttribute("animate")) {
+      this.classList.add("animate");
+    }
     this.#wire(d, layout);
     this.#reveal();
   }
@@ -134,17 +146,24 @@ class Flow extends HTMLElement {
     const slide = this.closest("gw-slide") !== null;
     const body = this.parentElement?.classList.contains("gw-part-body") ? this.parentElement : null;
     // Decided once: the wider section would otherwise flip it back and forth.
-    if (body && layout.width > body.clientWidth) this.classList.add("wide");
+    if (body && layout.width > body.clientWidth) {
+      this.classList.add("wide");
+    }
     const size = () => {
       if (this.classList.contains("wide")) {
         const room = document.documentElement.clientWidth - this.getBoundingClientRect().left - 24;
         this.style.width = `${Math.max(body!.clientWidth, Math.min(layout.width, room))}px`;
       }
       const avail = plot.clientWidth;
-      if (avail <= 0) return;
+      if (avail <= 0) {
+        return;
+      }
       let k = Math.min(1, avail / layout.width);
-      if (slide) k = Math.min(k, 430 / layout.height);
-      else k = Math.max(0.72, k);
+      if (slide) {
+        k = Math.min(k, 430 / layout.height);
+      } else {
+        k = Math.max(0.72, k);
+      }
       s.style.width = `${layout.width * k}px`;
     };
     size();
@@ -155,20 +174,28 @@ class Flow extends HTMLElement {
   #reveal() {
     const show = () => {
       this.classList.add("drawn");
-      if (!this.hasAttribute("animate") || reduced()) return;
+      if (!this.hasAttribute("animate") || reduced()) {
+        return;
+      }
       const last = Math.max(0, ...this.#drawn!.edges.map((x) => x.e.rank));
       setTimeout(
         () => {
-          for (const x of this.#drawn!.edges) x.path.removeAttribute("pathLength");
+          for (const x of this.#drawn!.edges) {
+            x.path.removeAttribute("pathLength");
+          }
           this.classList.add("flowing");
         },
         last * 140 + 900,
       );
     };
-    if (reduced() || !("IntersectionObserver" in window)) return show();
+    if (reduced() || !("IntersectionObserver" in window)) {
+      return show();
+    }
     const io = new IntersectionObserver(
       (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
+        if (!entries.some((e) => e.isIntersecting)) {
+          return;
+        }
         io.disconnect();
         show();
       },
@@ -188,7 +215,9 @@ class Flow extends HTMLElement {
       const act = () => this.#activate(n);
       g.addEventListener("click", act);
       g.addEventListener("keydown", (ev) => {
-        if (ev.key !== "Enter" && ev.key !== " ") return;
+        if (ev.key !== "Enter" && ev.key !== " ") {
+          return;
+        }
         ev.preventDefault();
         act();
       });
@@ -197,14 +226,24 @@ class Flow extends HTMLElement {
 
   #highlight(id: string | null) {
     const d = this.#drawn;
-    if (!d || this.#step >= 0) return;
+    if (!d || this.#step >= 0) {
+      return;
+    }
     d.svg.classList.toggle("focus", id !== null);
-    for (const g of d.nodes.values()) g.classList.remove("hot");
-    for (const x of d.edges) x.g.classList.remove("hot");
-    if (id === null) return;
+    for (const g of d.nodes.values()) {
+      g.classList.remove("hot");
+    }
+    for (const x of d.edges) {
+      x.g.classList.remove("hot");
+    }
+    if (id === null) {
+      return;
+    }
     d.nodes.get(id)?.classList.add("hot");
     for (const x of d.edges) {
-      if (x.e.from !== id && x.e.to !== id) continue;
+      if (x.e.from !== id && x.e.to !== id) {
+        continue;
+      }
       x.g.classList.add("hot");
       d.nodes.get(x.e.from)?.classList.add("hot");
       d.nodes.get(x.e.to)?.classList.add("hot");
@@ -213,11 +252,16 @@ class Flow extends HTMLElement {
 
   #activate(n: PlacedNode) {
     if (n.link) {
-      if (n.link.startsWith("#")) location.hash = n.link;
-      else window.open(n.link, "_blank", "noopener");
+      if (n.link.startsWith("#")) {
+        location.hash = n.link;
+      } else {
+        window.open(n.link, "_blank", "noopener");
+      }
       return;
     }
-    if (n.note) this.#showNote(n, this.#note?.dataset["id"] === n.id && !this.#note.hidden);
+    if (n.note) {
+      this.#showNote(n, this.#note?.dataset["id"] === n.id && !this.#note.hidden);
+    }
   }
 
   #showNote(n: FlowNode | undefined, hide = false) {
@@ -244,8 +288,12 @@ class Flow extends HTMLElement {
       '<span class="gw-meta" data-part="count"></span>';
     c.addEventListener("click", (ev) => {
       const act = (ev.target as HTMLElement).closest("button")?.dataset["act"];
-      if (act === "play") this.#toggle();
-      if (act !== "prev" && act !== "next") return;
+      if (act === "play") {
+        this.#toggle();
+      }
+      if (act !== "prev" && act !== "next") {
+        return;
+      }
       this.#stop();
       const to = this.#step + (act === "next" ? 1 : -1);
       this.#go(Math.max(0, Math.min(this.#order.length - 1, to)));
@@ -255,13 +303,20 @@ class Flow extends HTMLElement {
   }
 
   #toggle() {
-    if (this.#timer) return this.#stop();
-    if (this.#step >= this.#order.length - 1) this.#step = -1;
+    if (this.#timer) {
+      return this.#stop();
+    }
+    if (this.#step >= this.#order.length - 1) {
+      this.#step = -1;
+    }
     this.#playButton("❚❚ Pause");
     const tick = () => {
       this.#go(this.#step + 1);
-      if (this.#step < this.#order.length - 1) this.#timer = window.setTimeout(tick, STEP_MS);
-      else this.#stop();
+      if (this.#step < this.#order.length - 1) {
+        this.#timer = window.setTimeout(tick, STEP_MS);
+      } else {
+        this.#stop();
+      }
     };
     tick();
   }
@@ -274,12 +329,16 @@ class Flow extends HTMLElement {
 
   #playButton(label: string) {
     const b = this.#controls?.querySelector<HTMLButtonElement>('[data-act="play"]');
-    if (b) b.textContent = label;
+    if (b) {
+      b.textContent = label;
+    }
   }
 
   #go(step: number) {
     const d = this.#drawn;
-    if (!d) return;
+    if (!d) {
+      return;
+    }
     this.classList.add("drawn");
     this.#step = step;
     const seen = new Set(this.#order.slice(0, step + 1));
@@ -294,18 +353,28 @@ class Flow extends HTMLElement {
     for (const x of d.edges) {
       const on = seen.has(x.e.from) && seen.has(x.e.to);
       x.g.classList.toggle("seen", on);
-      if (x.e.to === current && seen.has(x.e.from) && x.e.from !== current) into ??= x;
+      if (x.e.to === current && seen.has(x.e.from) && x.e.from !== current) {
+        into ??= x;
+      }
     }
-    if (into) this.#travel(into.path);
+    if (into) {
+      this.#travel(into.path);
+    }
     const count = this.#controls?.querySelector('[data-part="count"]');
-    if (count) count.textContent = `${step + 1} / ${this.#order.length}`;
+    if (count) {
+      count.textContent = `${step + 1} / ${this.#order.length}`;
+    }
     this.#showNote(this.#graph!.nodes.find((n) => n.id === current));
   }
 
   /** A dot runs along the edge into the step, so the eye follows the flow. */
   #travel(path: SVGPathElement) {
-    for (const old of this.querySelectorAll(".runner")) old.remove();
-    if (reduced()) return;
+    for (const old of this.querySelectorAll(".runner")) {
+      old.remove();
+    }
+    if (reduced()) {
+      return;
+    }
     const len = path.getTotalLength();
     const dot = svg("circle", { r: 5, class: "runner" }, path.parentElement!);
     // A hidden tab runs no animation frames; the dot must not outlive its step.
@@ -316,8 +385,11 @@ class Flow extends HTMLElement {
       const p = path.getPointAtLength(len * (1 - (1 - k) ** 2));
       dot.setAttribute("cx", String(p.x));
       dot.setAttribute("cy", String(p.y));
-      if (k < 1) requestAnimationFrame(frame);
-      else dot.remove();
+      if (k < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        dot.remove();
+      }
     };
     requestAnimationFrame(frame);
   }
@@ -339,5 +411,7 @@ function legend(g: FlowGraph): HTMLElement {
 }
 
 export function defineFlow(): void {
-  if (!customElements.get("gw-flow")) customElements.define("gw-flow", Flow);
+  if (!customElements.get("gw-flow")) {
+    customElements.define("gw-flow", Flow);
+  }
 }

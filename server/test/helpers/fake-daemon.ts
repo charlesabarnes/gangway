@@ -32,14 +32,18 @@ export async function bootWithFakeDaemon(
             port: Number(web.ports[0].published),
             fetch: async (req) => {
               const slow = new URL(req.url).searchParams.get("slow");
-              if (slow) await Bun.sleep(Number(slow));
-              if (new URL(req.url).pathname === "/xff")
+              if (slow) {
+                await Bun.sleep(Number(slow));
+              }
+              if (new URL(req.url).pathname === "/xff") {
                 return Response.json({ xff: req.headers.get("x-forwarded-for") });
-              if (new URL(req.url).pathname === "/cookie")
+              }
+              if (new URL(req.url).pathname === "/cookie") {
                 return Response.json({
                   cookie: req.headers.get("cookie"),
                   path: new URL(req.url).pathname + new URL(req.url).search,
                 });
+              }
               return Response.json({
                 iAm: "the container",
                 host: req.headers.get("host"),
@@ -82,7 +86,7 @@ export async function bootWithFakeDaemon(
           }),
         );
       }
-      if (argv.includes("ps"))
+      if (argv.includes("ps")) {
         return ok(
           JSON.stringify({
             Service: "web",
@@ -90,6 +94,7 @@ export async function bootWithFakeDaemon(
             ExitCode: 0,
           }),
         );
+      }
       if (argv.includes("stop")) {
         void fixtures.get(project(argv))?.stop(true);
         fixtures.delete(project(argv));
@@ -140,7 +145,9 @@ export async function bootWithFakeDaemon(
   });
   onCleanup(async () => {
     await running.stop();
-    for (const f of fixtures.values()) void f.stop(true);
+    for (const f of fixtures.values()) {
+      void f.stop(true);
+    }
   });
   return Object.assign(running, { daemon: containers });
 }

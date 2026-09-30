@@ -60,14 +60,18 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
   let waiter: { n: number; resolve: (b: Buffer) => void; reject: (e: Error) => void } | null = null;
 
   const pump = () => {
-    if (!waiter) return;
+    if (!waiter) {
+      return;
+    }
     if (failure) {
       const w = waiter;
       waiter = null;
       w.reject(failure);
       return;
     }
-    if (buffered.length < waiter.n) return;
+    if (buffered.length < waiter.n) {
+      return;
+    }
     const w = waiter;
     waiter = null;
     const out = buffered.subarray(0, w.n);
@@ -103,7 +107,9 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
       socket.removeListener("data", onData);
       socket.removeListener("error", onError);
       socket.removeListener("end", onEnd);
-      if (buffered.length > 0) socket.unshift(buffered);
+      if (buffered.length > 0) {
+        socket.unshift(buffered);
+      }
     },
   };
 }
@@ -138,7 +144,9 @@ async function socks5Connect(
     atyp = ATYP_IPV6;
     const parts = target.host.split(":");
     addr = Buffer.alloc(16);
-    for (let i = 0; i < 8; i++) addr.writeUInt16BE(parseInt(parts[i] || "0", 16), i * 2);
+    for (let i = 0; i < 8; i++) {
+      addr.writeUInt16BE(parseInt(parts[i] || "0", 16), i * 2);
+    }
   } else {
     atyp = ATYP_DOMAIN;
     const name = Buffer.from(target.host, "utf8");
@@ -165,7 +173,11 @@ async function socks5Connect(
 
 export async function dialUpstream(target: DialTarget, cfg: DialConfig): Promise<net.Socket> {
   const timeoutMs = cfg.timeoutMs ?? 10_000;
-  if (cfg.dial === "direct") return connectTcp(target, timeoutMs);
-  if (!cfg.proxy) throw new Error('upstream dial is "socks5" but no proxy is configured');
+  if (cfg.dial === "direct") {
+    return connectTcp(target, timeoutMs);
+  }
+  if (!cfg.proxy) {
+    throw new Error('upstream dial is "socks5" but no proxy is configured');
+  }
   return socks5Connect(parseSocksProxy(cfg.proxy), target, timeoutMs);
 }

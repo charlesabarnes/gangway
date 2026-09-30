@@ -20,8 +20,11 @@ export type LayoutOptions = { layout: CanvasLayout; columns: number; gap: number
 /** Frames with x and y stay there; the rest flow from 0,0 in a row, a column or a grid. */
 export function layoutFrames(frames: readonly FrameSpec[], o: LayoutOptions): Map<string, Box> {
   const out = new Map<string, Box>();
-  for (const f of frames)
-    if (f.x !== undefined && f.y !== undefined) out.set(f.id, { x: f.x, y: f.y, w: f.w, h: f.h });
+  for (const f of frames) {
+    if (f.x !== undefined && f.y !== undefined) {
+      out.set(f.id, { x: f.x, y: f.y, w: f.w, h: f.h });
+    }
+  }
   const flow = frames.filter((f) => !out.has(f.id));
   const perRow =
     o.layout === "row" ? flow.length : o.layout === "column" ? 1 : Math.max(1, o.columns);

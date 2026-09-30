@@ -127,10 +127,13 @@ export function setupPreviewContext() {
       if (cmd === "down") {
         fake.downs.push(project);
         fake.downArgvs.push(argv);
-        if (fake.failDownFor.has(project))
+        if (fake.failDownFor.has(project)) {
           return { code: 1, stdout: "", stderr: "daemon said no", signal: null };
+        }
       }
-      if (cmd === "config" && fake.planDelayMs) await Bun.sleep(fake.planDelayMs);
+      if (cmd === "config" && fake.planDelayMs) {
+        await Bun.sleep(fake.planDelayMs);
+      }
       if (cmd === "config") {
         // What the real `config` does that matters here: make build contexts absolute.
         const doc = parseYaml(await Bun.file(argv[argv.indexOf("--file") + 1]!).text()) as {
@@ -138,13 +141,17 @@ export function setupPreviewContext() {
         };
         const projectDir = argv[argv.indexOf("--project-directory") + 1]!;
         for (const s of Object.values(doc.services ?? {})) {
-          if (s.build === undefined) continue;
+          if (s.build === undefined) {
+            continue;
+          }
           const b = typeof s.build === "string" ? { context: s.build } : s.build;
           s.build = { ...b, context: resolvePath(projectDir, b.context ?? ".") };
         }
         return { code: 0, stdout: JSON.stringify(doc), stderr: "", signal: null };
       }
-      if (cmd === undefined && argv.includes("build")) fake.builds++;
+      if (cmd === undefined && argv.includes("build")) {
+        fake.builds++;
+      }
       const stdout =
         cmd === "config"
           ? await Bun.file(argv[argv.indexOf("--file") + 1]!).text()

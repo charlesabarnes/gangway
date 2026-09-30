@@ -20,7 +20,9 @@ export class SourceStore {
   }
 
   dirFor(previewId: string): string {
-    if (!isUlid(previewId)) throw badRequest("invalid preview id");
+    if (!isUlid(previewId)) {
+      throw badRequest("invalid preview id");
+    }
     return path.join(this.#root, previewId);
   }
 
@@ -33,7 +35,9 @@ export class SourceStore {
     const old = `${dest}.old`;
     await mkdir(this.#root, { recursive: true, mode: MODE });
     await rm(old, { recursive: true, force: true });
-    if (await this.has(previewId)) await rename(dest, old);
+    if (await this.has(previewId)) {
+      await rename(dest, old);
+    }
     await rename(dir, dest);
     await rm(old, { recursive: true, force: true });
   }
@@ -74,13 +78,17 @@ export class SourceStore {
           await walk(abs);
           continue;
         }
-        if (!e.isFile()) continue;
+        if (!e.isFile()) {
+          continue;
+        }
         const rel = path.relative(root, abs).split(path.sep).join("/");
         const size = (await lstat(abs)).size;
         const file: SourceFile = { path: rel, size };
         if (size <= MAX_INLINE_BYTES) {
           const text = asText(await readFile(abs));
-          if (text !== null) file.text = text;
+          if (text !== null) {
+            file.text = text;
+          }
         }
         files.push(file);
       }
@@ -109,7 +117,9 @@ export class SourceStore {
           await walk(abs);
           continue;
         }
-        if (!e.isFile()) continue;
+        if (!e.isFile()) {
+          continue;
+        }
         const bytes = await readFile(abs);
         out.push({
           path: path.relative(root, abs).split(path.sep).join("/"),
@@ -124,7 +134,9 @@ export class SourceStore {
 }
 
 export function asText(bytes: Uint8Array): string | null {
-  if (bytes.includes(0)) return null;
+  if (bytes.includes(0)) {
+    return null;
+  }
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {

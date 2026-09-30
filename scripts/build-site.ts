@@ -24,11 +24,15 @@ cpSync(SRC, OUT, { recursive: true });
 
 let tagged = 0;
 for (const name of readdirSync(OUT, { recursive: true, encoding: "utf8" })) {
-  if (!name.endsWith(".html")) continue;
+  if (!name.endsWith(".html")) {
+    continue;
+  }
   const page = path.join(OUT, name);
   const html = readFileSync(page, "utf8").replace(ASSET, (_, attr: string, ref: string) => {
     const file = path.join(path.dirname(page), ref);
-    if (!existsSync(file)) throw new Error(`${name}: ${attr}="${ref}" points at a missing file`);
+    if (!existsSync(file)) {
+      throw new Error(`${name}: ${attr}="${ref}" points at a missing file`);
+    }
     tagged++;
     return `${attr}="${ref}?v=${hashOf(file)}"`;
   });

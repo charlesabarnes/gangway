@@ -31,7 +31,9 @@ function setup(o: { configured?: boolean; fail?: string } = {}) {
     transport: (url) => {
       transports.push(url);
       return async (m) => {
-        if (o.fail) throw new Error(o.fail);
+        if (o.fail) {
+          throw new Error(o.fail);
+        }
         sent.push(m);
       };
     },
@@ -105,10 +107,12 @@ describe("mailer", () => {
 
   test("the settings refuse what is not an SMTP URL or an address", () => {
     const t = setup();
-    for (const bad of ["http://smtp.example.com", "smtp://", "smtp.example.com:587"])
+    for (const bad of ["http://smtp.example.com", "smtp://", "smtp.example.com:587"]) {
       expect(() => t.settings.set(SETTINGS.mailSmtpUrl, bad)).toThrow();
-    for (const bad of ["noreply", "gangway <noreply>", "a@b.c\r\nBcc: x@y.z"])
+    }
+    for (const bad of ["noreply", "gangway <noreply>", "a@b.c\r\nBcc: x@y.z"]) {
       expect(() => t.settings.set(SETTINGS.mailFrom, bad)).toThrow();
+    }
     t.settings.set(SETTINGS.mailFrom, "noreply@example.com");
     t.settings.set(SETTINGS.mailFrom, "");
     t.settings.set(SETTINGS.mailSmtpUrl, "");

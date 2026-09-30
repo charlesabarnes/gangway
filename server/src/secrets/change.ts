@@ -14,14 +14,20 @@ export type SecretChangeDeps = {
 const RUNNING: ReadonlySet<Preview["state"]> = new Set(["building", "starting", "awake", "asleep"]);
 
 function mapFor(secrets: Secrets, target: SecretTarget) {
-  if (target.kind === "org") return secrets.global();
-  if (target.kind === "project") return secrets.project(target.project.id);
+  if (target.kind === "org") {
+    return secrets.global();
+  }
+  if (target.kind === "project") {
+    return secrets.project(target.project.id);
+  }
   return secrets.preview(target.preview.id);
 }
 
 function allow(actor: Actor, target: SecretTarget): void {
   const why = secretRefusal(actor, target);
-  if (why) throw forbidden(why);
+  if (why) {
+    throw forbidden(why);
+  }
 }
 
 /** Names and levels only: no path returns a value. */

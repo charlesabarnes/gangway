@@ -9,7 +9,9 @@ export class SecretBox {
   readonly #key: Buffer;
 
   constructor(key: Buffer) {
-    if (key.length !== 32) throw new Error("a SecretBox key is 32 bytes");
+    if (key.length !== 32) {
+      throw new Error("a SecretBox key is 32 bytes");
+    }
     this.#key = key;
   }
 
@@ -27,8 +29,9 @@ export class SecretBox {
 
   open(sealed: string): string {
     const [v, iv, tag, ct] = sealed.split(".");
-    if (v !== "v1" || !iv || !tag || !ct)
+    if (v !== "v1" || !iv || !tag || !ct) {
       throw new AppError("internal", "sealed secret has an unknown format");
+    }
     try {
       const d = createDecipheriv(ALG, this.#key, Buffer.from(iv, "base64url"));
       d.setAuthTag(Buffer.from(tag, "base64url"));
@@ -43,7 +46,9 @@ export function loadOrCreateSecretsKey(stateDir: string): Buffer {
   const file = join(stateDir, "secrets.key");
   if (existsSync(file)) {
     const key = Buffer.from(readFileSync(file, "utf8").trim(), "hex");
-    if (key.length === 32) return key;
+    if (key.length === 32) {
+      return key;
+    }
     throw new Error(`${file} is not a 32-byte hex key`);
   }
   mkdirSync(stateDir, { recursive: true });

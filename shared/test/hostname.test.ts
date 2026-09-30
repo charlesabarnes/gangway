@@ -48,14 +48,18 @@ describe("checkLabel", () => {
   test.each([...RESERVED_LABELS])("rejects reserved label %s", (label) => {
     const r = checkLabel(label);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("reserved");
+    if (!r.ok) {
+      expect(r.reason).toBe("reserved");
+    }
   });
 
   test("a PR on a repo literally named `api` cannot hijack the control plane", () => {
     expect(checkLabel("api").ok).toBe(false);
     const built = buildLabel({ kind: "pr", repo: "api", number: 7 });
     expect(built.ok).toBe(true);
-    if (built.ok) expect(built.label).toBe("api-pr-7");
+    if (built.ok) {
+      expect(built.label).toBe("api-pr-7");
+    }
   });
 
   test.each<[string, LabelRejection]>([
@@ -71,7 +75,9 @@ describe("checkLabel", () => {
   ])("rejects %j as %s", (label, reason) => {
     const r = checkLabel(label);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe(reason);
+    if (!r.ok) {
+      expect(r.reason).toBe(reason);
+    }
   });
 
   test("63 chars is allowed, 64 is not", () => {
@@ -148,18 +154,24 @@ describe("buildLabel", () => {
   test("rejects rather than silently truncating an over-long label", () => {
     const r = buildLabel({ kind: "pr", repo: "a".repeat(70), number: 1 }, { service: "api" });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("too-long");
+    if (!r.ok) {
+      expect(r.reason).toBe("too-long");
+    }
   });
   test("a generated label that lands on a reserved word is refused", () => {
     const r = buildLabel({ kind: "slug", slug: "www" });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toBe("reserved");
+    if (!r.ok) {
+      expect(r.reason).toBe("reserved");
+    }
   });
   test("every generated label is a legal DNS label", () => {
     for (const n of [1, 42, 999]) {
       for (const repo of ["acme", "My-Project", "a.b.c"]) {
         const r = buildLabel({ kind: "pr", repo, number: n }, { service: "api" });
-        if (r.ok) expect(isValidLabel(r.label)).toBe(true);
+        if (r.ok) {
+          expect(isValidLabel(r.label)).toBe(true);
+        }
       }
     }
   });

@@ -22,7 +22,9 @@ export const wsRelay = {
     const { entry, path, protocol, cookie } = ws.data;
     const url = `ws://${entry.upstreamHost}:${entry.upstreamPort}${path}`;
     const headers: Record<string, string> = { host: entry.hostname };
-    if (cookie) headers["cookie"] = cookie;
+    if (cookie) {
+      headers["cookie"] = cookie;
+    }
 
     const upstream = protocol ? new WebSocket(url, protocol) : new WebSocket(url);
     upstream.binaryType = "arraybuffer";
@@ -31,7 +33,9 @@ export const wsRelay = {
     relays.set(ws, relay);
 
     upstream.onopen = () => {
-      for (const m of relay.pending) upstream.send(m);
+      for (const m of relay.pending) {
+        upstream.send(m);
+      }
       relay.pending.length = 0;
     };
     upstream.onmessage = (ev) => {
@@ -53,7 +57,9 @@ export const wsRelay = {
 
   message(ws: ServerWebSocket<WsData>, msg: string | Buffer) {
     const relay = relays.get(ws);
-    if (!relay) return;
+    if (!relay) {
+      return;
+    }
     const payload =
       typeof msg === "string"
         ? msg
@@ -68,7 +74,9 @@ export const wsRelay = {
   close(ws: ServerWebSocket<WsData>, code: number, reason: string) {
     ws.data.release?.();
     const relay = relays.get(ws);
-    if (!relay) return;
+    if (!relay) {
+      return;
+    }
     // 1005 and 1006 are local-only close codes and may not be sent on the wire.
     const out = code === 1005 || code === 1006 ? 1000 : code;
     try {

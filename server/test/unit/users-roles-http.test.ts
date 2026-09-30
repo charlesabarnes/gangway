@@ -51,8 +51,9 @@ describe("/v1/users", () => {
 
     const listed = await (await t.call("/v1/users", { as: t.ada })).text();
     expect(listed).toContain("bob@example.com");
-    for (const leak of ["scrypt", "password", "salt", "hash"])
+    for (const leak of ["scrypt", "password", "salt", "hash"]) {
       expect(listed.toLowerCase()).not.toContain(leak);
+    }
 
     expect(
       await (

@@ -59,25 +59,33 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
     const before = findProject(projects, c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
-    if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null)
+    if (patch.ttl !== undefined && patch.ttl !== null && parseDuration(patch.ttl) === null) {
       throw unprocessable(`ttl ${JSON.stringify(patch.ttl)} is not a duration like 12h or 7d`);
+    }
     checkTemplate(d, patch.templateId);
-    if (patch.watermark !== undefined && !can(c.get("actor"), "previews.watermark"))
+    if (patch.watermark !== undefined && !can(c.get("actor"), "previews.watermark")) {
       throw forbidden('switching the gangway watermark needs "previews.watermark"');
+    }
     if (patch.domain !== undefined) {
-      if (!can(c.get("actor"), "repos.domains"))
+      if (!can(c.get("actor"), "repos.domains")) {
         throw forbidden('choosing a repository\'s domain needs "repos.domains"');
-      if (patch.domain !== null) d.domains?.assertAvailable(patch.domain, before.id);
+      }
+      if (patch.domain !== null) {
+        d.domains?.assertAvailable(patch.domain, before.id);
+      }
     }
     if (patch.slug !== undefined && patch.slug !== before.slug) {
       const taken = projects.getBySlug(patch.slug);
-      if (taken)
+      if (taken) {
         throw conflict(`slug "${patch.slug}" is taken by project "${taken.name}"`, {
           takenBy: taken.slug,
         });
+      }
     }
     if (repository !== undefined && repository !== before.fullName) {
-      if (repository !== null) checkRepository(projects, repository, before.id);
+      if (repository !== null) {
+        checkRepository(projects, repository, before.id);
+      }
       projects.setRepository(before.id, repository === null ? null : "github", repository);
     }
     const after = projects.update(before.id, {
@@ -88,11 +96,12 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
       old: auditFields(before),
       new: auditFields(after),
     });
-    if (after.domain !== before.domain)
+    if (after.domain !== before.domain) {
       audit.record(c.get("actor"), "project.domain", before.id, {
         old: before.domain,
         new: after.domain,
       });
+    }
     return c.json({ project: after });
   });
 
@@ -112,18 +121,24 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
 function findProject(projects: ProjectsRepo, ref: string): Project {
   const p = projects.find(ref);
-  if (!p) throw notFound(`no such project: ${ref}`);
+  if (!p) {
+    throw notFound(`no such project: ${ref}`);
+  }
   return p;
 }
 
 function projectSecretRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   const deps = () => {
-    if (!d.secrets || !d.previews) throw notFound("secrets are not available on this server");
+    if (!d.secrets || !d.previews) {
+      throw notFound("secrets are not available on this server");
+    }
     return { secrets: d.secrets, previews: d.previews };
   };
   api.get("/projects/:ref/env", requirePermission("repos.secrets"), (c) => {
     const project = findProject(d.projects, c.req.param("ref"));
-    if (!d.secrets) return c.json({ secrets: [] });
+    if (!d.secrets) {
+      return c.json({ secrets: [] });
+    }
     return c.json({ secrets: listSecrets(deps(), c.get("actor"), { kind: "project", project }) });
   });
 
@@ -138,21 +153,24 @@ function projectPullRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.get("/projects/:ref/workflow", requirePermission("previews.read"), (c) => {
     const project = findProject(d.projects, c.req.param("ref"));
     const port = Number(c.req.query("port") ?? 3000);
-    if (!Number.isInteger(port) || port < 1 || port > 65535)
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
       throw unprocessable("port must be 1-65535");
+    }
     c.header("content-type", "text/yaml; charset=utf-8");
     c.header("x-gangway-path", WORKFLOW_PATH_IN_REPO);
     return c.body(workflowFor(project, d.apiOrigin?.() ?? "", port));
   });
 
   api.put("/projects/:ref/pulls/:n", requirePermission("previews.deploy"), async (c) => {
-    if (!d.pulls || !d.wire)
+    if (!d.pulls || !d.wire) {
       throw notFound("pull request previews are not available on this server");
+    }
     const n = pullNumber(c.req.param("n"));
     const req = PullDeploySchema.parse(await readJson(c));
     const out = await d.pulls.deploy(c.req.param("ref"), n, req, c.get("actor"));
-    if (out.action === "unchanged")
+    if (out.action === "unchanged") {
       return c.json({ preview: d.wire(out.preview), unchanged: true });
+    }
     if (c.req.query("wait") === "true") {
       const final = await out.result.done;
       return c.json({ preview: d.wire(final) }, final.state === "awake" ? 201 : 502);
@@ -161,7 +179,9 @@ function projectPullRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   });
 
   api.delete("/projects/:ref/pulls/:n", requirePermission("previews.destroy"), async (c) => {
-    if (!d.pulls) throw notFound("pull request previews are not available on this server");
+    if (!d.pulls) {
+      throw notFound("pull request previews are not available on this server");
+    }
     await d.pulls.close(c.req.param("ref"), pullNumber(c.req.param("n")), c.get("actor"));
     return c.body(null, 204);
   });
@@ -169,7 +189,8 @@ function projectPullRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
 function pullNumber(s: string): number {
   const n = Number(s);
-  if (!Number.isInteger(n) || n < 1)
+  if (!Number.isInteger(n) || n < 1) {
     throw badRequest("a pull request number is a positive integer");
+  }
   return n;
 }

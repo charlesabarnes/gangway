@@ -10,12 +10,17 @@ type Entry = { name: string; content?: string; linkname?: string };
 async function tarball(entries: Entry[], gzip = true): Promise<Uint8Array> {
   const p = pack();
   for (const e of entries) {
-    if (e.linkname !== undefined) p.entry({ name: e.name, type: "symlink", linkname: e.linkname });
-    else p.entry({ name: e.name }, e.content ?? "");
+    if (e.linkname !== undefined) {
+      p.entry({ name: e.name, type: "symlink", linkname: e.linkname });
+    } else {
+      p.entry({ name: e.name }, e.content ?? "");
+    }
   }
   p.finalize();
   const chunks: Buffer[] = [];
-  for await (const c of p) chunks.push(c as Buffer);
+  for await (const c of p) {
+    chunks.push(c as Buffer);
+  }
   const raw = Buffer.concat(chunks);
   return gzip ? gzipSync(raw) : raw;
 }
@@ -302,7 +307,9 @@ describe("repository secrets become .env while compose reads the file", () => {
         return inner.capture(argv, host, o);
       },
       async *stream(argv, host, o) {
-        if (argv.includes("build")) seen.build = await read();
+        if (argv.includes("build")) {
+          seen.build = await read();
+        }
         yield* inner.stream(argv, host, o);
       },
     };

@@ -203,7 +203,9 @@ describe("auth", () => {
     const p = (...scopes: Parameters<typeof permissionsForScopes>[0]) =>
       permissionsForScopes(scopes);
     expect([...p("admin")].sort()).toEqual([...ALL_PERMISSIONS].sort());
-    for (const r of SCOPE_PERMISSIONS.read) expect(p("deploy").has(r)).toBe(true);
+    for (const r of SCOPE_PERMISSIONS.read) {
+      expect(p("deploy").has(r)).toBe(true);
+    }
     expect(p("deploy").has("previews.destroy_own")).toBe(true);
     expect(p("deploy").has("previews.destroy")).toBe(false);
     expect(p("artifacts").has("previews.deploy")).toBe(false);

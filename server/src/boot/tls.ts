@@ -29,8 +29,9 @@ export async function resolveCertificates(
   const { config } = d;
   switch (config.tlsMode) {
     case "file": {
-      if (!config.tlsCertPath || !config.tlsKeyPath)
+      if (!config.tlsCertPath || !config.tlsKeyPath) {
         throw new Error("tlsMode=file needs GANGWAY_TLS_CERT_PATH and GANGWAY_TLS_KEY_PATH");
+      }
       const names = core.domains.certUnits().flatMap((u) => u.names);
       const bundle = await new FileProvider(config.tlsCertPath, config.tlsKeyPath).ensure(names);
       return { bundle, caPath: null, manager: null };

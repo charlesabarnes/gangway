@@ -20,7 +20,9 @@ export async function sweepExpired(
   const report: SweepReport = { expired: expired.length, destroyed: [], skipped: [], failed: [] };
   const actor = systemActor("ttl-sweep");
   for (const p of expired) {
-    if (signal?.aborted) break;
+    if (signal?.aborted) {
+      break;
+    }
     if (ctx.teardowns.has(p.id) || ctx.hosts.get(p.hostId)?.state === "unreachable") {
       report.skipped.push(p.id);
       continue;

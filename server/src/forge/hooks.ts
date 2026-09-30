@@ -40,15 +40,22 @@ export class Hooks {
   handler(): SurfaceHandler {
     return async (req, ctx) => {
       const path = new URL(req.url).pathname;
-      if (path !== `/${this.#d.forge.id}`) return json(404, { title: "not found", status: 404 });
-      if (req.method !== "POST")
+      if (path !== `/${this.#d.forge.id}`) {
+        return json(404, { title: "not found", status: 404 });
+      }
+      if (req.method !== "POST") {
         return new Response(null, { status: 405, headers: { allow: "POST" } });
+      }
 
       const max = this.#d.maxBodyBytes ?? MAX_WEBHOOK_BYTES;
       const declared = Number(req.headers.get("content-length") ?? "0");
-      if (declared > max) return json(413, { title: "payload too large", status: 413 });
+      if (declared > max) {
+        return json(413, { title: "payload too large", status: 413 });
+      }
       const raw = new Uint8Array(await req.arrayBuffer());
-      if (raw.byteLength > max) return json(413, { title: "payload too large", status: 413 });
+      if (raw.byteLength > max) {
+        return json(413, { title: "payload too large", status: 413 });
+      }
 
       const verdict = this.#d.forge.verify(req.headers, raw);
       if (!verdict.ok) {
@@ -60,8 +67,9 @@ export class Hooks {
         return json(401, { title: "unauthorized", status: 401, detail: verdict.reason });
       }
       const { deliveryId } = verdict;
-      if (this.#seen.has(deliveryId))
+      if (this.#seen.has(deliveryId)) {
         return json(202, { accepted: false, deliveryId, reason: "already delivered" });
+      }
       this.#remember(deliveryId);
 
       let payload: unknown;
@@ -106,7 +114,9 @@ export class Hooks {
     this.#seen.add(id);
     if (this.#seen.size > REMEMBERED_DELIVERIES) {
       const oldest = this.#seen.values().next().value;
-      if (oldest !== undefined) this.#seen.delete(oldest);
+      if (oldest !== undefined) {
+        this.#seen.delete(oldest);
+      }
     }
   }
 }

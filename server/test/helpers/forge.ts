@@ -46,7 +46,9 @@ export function fakeForge(o: { commentsFail?: boolean; prs?: Record<number, Pull
     parse: () => ({ type: "ignored", reason: "unused" }),
     async pullRequest(repo, number) {
       const pr = o.prs?.[number];
-      if (!pr) throw new Error(`no such PR ${number}`);
+      if (!pr) {
+        throw new Error(`no such PR ${number}`);
+      }
       return { ...pr, repo };
     },
     async cloneCredential(repo) {
@@ -54,7 +56,9 @@ export function fakeForge(o: { commentsFail?: boolean; prs?: Record<number, Pull
       return `ghs_${repo.installationId}`;
     },
     async upsertComment(_pr, existingId, body) {
-      if (o.commentsFail) throw new Error("GitHub is down");
+      if (o.commentsFail) {
+        throw new Error("GitHub is down");
+      }
       const id = existingId !== null && comments.has(existingId) ? existingId : nextComment++;
       comments.set(id, body);
       return id;

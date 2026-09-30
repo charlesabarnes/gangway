@@ -17,12 +17,13 @@ export function chooseRuntime(
   reasons: Reason[],
 ): RuntimeId {
   if (choice !== "auto") {
-    if (file?.runtime && file.runtime !== choice)
+    if (file?.runtime && file.runtime !== choice) {
       reasons.push({
         level: "info",
         found: `gangway.yml says ${file.runtime}`,
         then: `building as ${runtimeById(choice).name}, as asked`,
       });
+    }
     return choice;
   }
   if (file?.runtime) {

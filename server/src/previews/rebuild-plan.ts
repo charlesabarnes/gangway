@@ -67,7 +67,9 @@ async function recordSource(
   up: PreparedUpload,
   network?: NetworkChoice,
 ): Promise<PreviewSource> {
-  if (up.pristine) await sources.adopt(id, up.pristine);
+  if (up.pristine) {
+    await sources.adopt(id, up.pristine);
+  }
   const next: PreviewSource = {
     kind: "tarball",
     uploadId: source.uploadId,
@@ -77,7 +79,9 @@ async function recordSource(
     // A preview moving onto gangway's file server is marked once its files are published.
     ...(source.serve ? { serve: source.serve } : {}),
   };
-  if (JSON.stringify(next) !== JSON.stringify(source)) ctx.previews.setSource(id, next);
+  if (JSON.stringify(next) !== JSON.stringify(source)) {
+    ctx.previews.setSource(id, next);
+  }
   return next;
 }
 
@@ -100,8 +104,12 @@ export type RebuildPlan = {
 };
 
 function siteFor(ctx: PreviewContext, source: TarballPreviewSource, plan: AppPlan): AppPlan | null {
-  if (source.serve !== "gangway") return servesHere(ctx, plan) ? plan : null;
-  if (servable(plan)) return plan;
+  if (source.serve !== "gangway") {
+    return servesHere(ctx, plan) ? plan : null;
+  }
+  if (servable(plan)) {
+    return plan;
+  }
   throw unprocessable(
     "gangway serves this preview as files, and the new source needs a container to run it; deploy it as a new preview instead",
   );
@@ -111,7 +119,9 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
   const { input, preview, routes, wd } = b;
   const id = preview.id;
   const source = preview.source as TarballPreviewSource;
-  if (routes.length === 0) throw conflict("the preview has no routes to rebuild behind");
+  if (routes.length === 0) {
+    throw conflict("the preview has no routes to rebuild behind");
+  }
   await stageSource(ctx, input, b.sources, wd);
   const choice: RuntimeChoice = input.runtime ?? "auto";
   const shared =

@@ -183,13 +183,17 @@ export class Settings {
 
   effective<T>(d: SettingDef<T>): Effective<T> {
     const version = this.#store.version?.();
-    if (version === undefined) return this.#resolve(d);
+    if (version === undefined) {
+      return this.#resolve(d);
+    }
     if (version !== this.#parsedAt) {
       this.#parsed.clear();
       this.#parsedAt = version;
     }
     const hit = this.#parsed.get(d.key) as Effective<T> | undefined;
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
     const e = this.#resolve(d);
     this.#parsed.set(d.key, e);
     return e;

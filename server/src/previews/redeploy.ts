@@ -58,9 +58,13 @@ const routesOf = (ctx: PreviewContext, previewId: string): PlannedRoute[] =>
 
 /** A domain chosen since the last build takes effect now, before the stack sees its URLs. */
 function moveToChosenDomain(ctx: PreviewContext, preview: Preview): void {
-  if (!ctx.domains) return;
+  if (!ctx.domains) {
+    return;
+  }
   const moves = ctx.table.moveToDomain(preview.id, ctx.domains.domainOf(preview));
-  for (const [from, to] of moves) ctx.logs.append(preview.id, "system", `moving ${from} to ${to}`);
+  for (const [from, to] of moves) {
+    ctx.logs.append(preview.id, "system", `moving ${from} to ${to}`);
+  }
 }
 
 async function checkRebuildable(
@@ -69,8 +73,12 @@ async function checkRebuildable(
 ): Promise<{ host: Host; sources: SourceStore }> {
   const id = input.previewId;
   const current = ctx.previews.get(id);
-  if (!current || current.state === "destroyed") throw notFound(`no such preview: ${id}`);
-  if (!mayRebuild(input.actor, ctx.previews.provenanceOf(id))) throw forbidden(REBUILD_REFUSAL);
+  if (!current || current.state === "destroyed") {
+    throw notFound(`no such preview: ${id}`);
+  }
+  if (!mayRebuild(input.actor, ctx.previews.provenanceOf(id))) {
+    throw forbidden(REBUILD_REFUSAL);
+  }
   checkContainerAllowed(input.actor, "rebuilding this preview", !servedByGangway(current));
   if (current.source.kind !== "tarball" || !ctx.sources || !(await ctx.sources.has(id))) {
     throw conflict(
@@ -78,7 +86,9 @@ async function checkRebuildable(
     );
   }
   const host = ctx.hosts.get(current.hostId);
-  if (!host) throw new AppError("internal", `preview ${id} is on unknown host ${current.hostId}`);
+  if (!host) {
+    throw new AppError("internal", `preview ${id} is on unknown host ${current.hostId}`);
+  }
   return { host, sources: ctx.sources };
 }
 
@@ -97,8 +107,9 @@ function claimRebuild(ctx: PreviewContext, id: string): Claimed {
       state: preview.state,
     });
   }
-  if (ctx.inflight.has(id) || ctx.teardowns.has(id))
+  if (ctx.inflight.has(id) || ctx.teardowns.has(id)) {
     throw conflict("a deploy of this preview is still running");
+  }
   const abort = new AbortController();
   let settle!: (o: RedeployOutcome) => void;
   const done = new Promise<RedeployOutcome>((r) => {
@@ -213,7 +224,9 @@ function outcomeOf(
 }
 
 async function startAddons(ctx: PreviewContext, p: Pipeline, r: RebuildRun): Promise<void> {
-  if (r.addonServices.length === 0) return;
+  if (r.addonServices.length === 0) {
+    return;
+  }
   await p.step(
     "up (add-ons)",
     upArgv(p.base, ["--no-build", "--no-deps", ...r.addonServices]),
@@ -237,13 +250,14 @@ async function rebuildFailed(
   upAttempted: boolean,
 ): Promise<RedeployOutcome> {
   // destroy() aborted the run and owns the preview from here.
-  if (r.signal.aborted)
+  if (r.signal.aborted) {
     return {
       preview: ctx.previews.get(p.id) ?? r.preview,
       buildId: r.buildId,
       outcome: "failed",
       error: "cancelled",
     };
+  }
   const message = failureMessage(ctx, p.id, e, "redeploy pipeline error");
   const state = ctx.previews.get(p.id)?.state;
   if (!upAttempted && state !== "building") {
@@ -265,8 +279,9 @@ async function runSite(
   try {
     const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan);
     r.signal.throwIfAborted();
-    if (moving && was.source.kind === "tarball")
+    if (moving && was.source.kind === "tarball") {
       ctx.previews.setSource(id, { ...was.source, serve: "gangway" });
+    }
     ctx.table.setSite(id, true);
     markServing(ctx, id);
     ctx.logs.append(id, "system", `rebuilt: serving ${files} files from gangway`);
@@ -282,13 +297,14 @@ async function runSite(
     }
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
-    if (r.signal.aborted)
+    if (r.signal.aborted) {
       return {
         preview: ctx.previews.get(id) ?? r.preview,
         buildId: r.buildId,
         outcome: "failed",
         error: "cancelled",
       };
+    }
     const message = failureMessage(ctx, id, e, "site rebuild error");
     ctx.logs.append(
       id,
@@ -303,7 +319,9 @@ async function runSite(
 
 async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome> {
   const p = openPipeline(ctx, r);
-  if (ctx.previews.get(p.id)?.state === "failed") ctx.states.transition(p.id, "building");
+  if (ctx.previews.get(p.id)?.state === "failed") {
+    ctx.states.transition(p.id, "building");
+  }
 
   let upAttempted = false;
   try {
@@ -323,7 +341,9 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
     p.log("rebuilt: awake");
     ctx.states.transition(p.id, "awake");
     await removeReplaced(ctx, r.host, p.base, r.wd.srcDir, before, p.id);
-    if (shared) await dropProjectNetwork(ctx, r.host, p.base.project);
+    if (shared) {
+      await dropProjectNetwork(ctx, r.host, p.base.project);
+    }
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
     return await rebuildFailed(ctx, p, r, e, upAttempted);

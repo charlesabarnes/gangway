@@ -46,7 +46,9 @@ for (const [name, open] of DRIVERS) {
       const db = migrated();
       const seeded = db.query<{ id: string }>("SELECT id FROM permissions").map((r) => r.id);
       expect(seeded.length).toBeGreaterThan(20);
-      for (const id of seeded) expect(isPermission(id)).toBe(true);
+      for (const id of seeded) {
+        expect(isPermission(id)).toBe(true);
+      }
       expect(grants(db, "admin")).toEqual([...seeded].sort());
       db.close();
     });

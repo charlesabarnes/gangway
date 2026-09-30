@@ -107,7 +107,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     audit,
     namedByTrigger: (id) => TRIGGERS.filter((t) => d.triggerDefault(t) === id),
   });
-  if (ctx.artifacts)
+  if (ctx.artifacts) {
     artifactRoutes(api, {
       library: ctx.artifacts,
       themes: repos.artifactThemes,
@@ -118,6 +118,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
       wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
       ctx,
     });
+  }
   domainRoutes(api, { ...claimDeps(d), projects: repos.projects });
   secretRoutes(api, { secrets: d.secrets, previews: ctx.previews });
   previewSecretRoutes(api, {

@@ -68,15 +68,20 @@ export function setupScriptedDeploy(script: Script = {}) {
     async *stream(argv, _host, o): AsyncGenerator<ComposeEvent> {
       record(argv, o.cwd);
       const up = script.up ?? { code: 0, lines: ["Container gw-web-1  Started"] };
-      for (const line of up.lines ?? []) yield { type: "line", stream: "stderr", line };
-      if (up.hang)
+      for (const line of up.lines ?? []) {
+        yield { type: "line", stream: "stderr", line };
+      }
+      if (up.hang) {
         await new Promise<void>((resolve) => o.signal?.addEventListener("abort", () => resolve()));
+      }
       o.signal?.throwIfAborted();
       yield { type: "exit", code: up.code, signal: null };
     },
     async capture(argv, _host, o): Promise<ComposeResult> {
       // The shared preview network is plumbing, not part of a stack's compose sequence.
-      if (argv[1] === "network") return { code: 0, stdout: "[]", stderr: "", signal: null };
+      if (argv[1] === "network") {
+        return { code: 0, stdout: "[]", stderr: "", signal: null };
+      }
       record(argv, o.cwd);
       const ok = (stdout: string): ComposeResult => ({ code: 0, stdout, stderr: "", signal: null });
       switch (cmdOf(argv)) {
@@ -86,13 +91,14 @@ export function setupScriptedDeploy(script: Script = {}) {
             services: JSON.parse(readFileSync(file, "utf8")).services,
             networks: { default: { name: "gw-plan_default" } },
           };
-          if (doc === "invalid")
+          if (doc === "invalid") {
             return {
               code: 15,
               stdout: "",
               stderr: "yaml: line 3: did not find expected key",
               signal: null,
             };
+          }
           return ok(JSON.stringify(doc));
         }
         case "ps":
@@ -104,7 +110,9 @@ export function setupScriptedDeploy(script: Script = {}) {
         case "logs":
           return ok("web-1  | Error: listen EADDRINUSE");
         case "down":
-          if (script.down === "throw") throw new Error("connect ECONNREFUSED");
+          if (script.down === "throw") {
+            throw new Error("connect ECONNREFUSED");
+          }
           return {
             code: script.down?.code ?? 0,
             stdout: "",

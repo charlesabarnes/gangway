@@ -17,27 +17,33 @@ export type LabelRejection = "empty" | "too-long" | "contains-dot" | "malformed"
 export type LabelCheck = { ok: true } | { ok: false; reason: LabelRejection; message: string };
 
 export function checkLabel(label: string): LabelCheck {
-  if (label.length === 0) return { ok: false, reason: "empty", message: "hostname label is empty" };
-  if (label.includes("."))
+  if (label.length === 0) {
+    return { ok: false, reason: "empty", message: "hostname label is empty" };
+  }
+  if (label.includes(".")) {
     return {
       ok: false,
       reason: "contains-dot",
       message: `label "${label}" contains a dot; the wildcard certificate matches only one label`,
     };
-  if (label.length > MAX_LABEL_LENGTH)
+  }
+  if (label.length > MAX_LABEL_LENGTH) {
     return {
       ok: false,
       reason: "too-long",
       message: `label is ${label.length} characters; the DNS limit is ${MAX_LABEL_LENGTH}`,
     };
-  if (!LABEL_RE.test(label))
+  }
+  if (!LABEL_RE.test(label)) {
     return {
       ok: false,
       reason: "malformed",
       message: `label "${label}" must be lowercase alphanumeric with interior hyphens only`,
     };
-  if (RESERVED_LABELS.has(label))
+  }
+  if (RESERVED_LABELS.has(label)) {
     return { ok: false, reason: "reserved", message: `"${label}" is a reserved system subdomain` };
+  }
   return { ok: true };
 }
 
@@ -46,28 +52,46 @@ export function isValidLabel(label: string): boolean {
 }
 
 export function normalizeHost(raw: string | null | undefined): string | null {
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   let h = raw.trim().toLowerCase();
   if (h.startsWith("[")) {
     const end = h.indexOf("]");
-    if (end < 0) return null;
+    if (end < 0) {
+      return null;
+    }
     h = h.slice(0, end + 1);
     return h;
   }
   const colon = h.lastIndexOf(":");
-  if (colon > -1) h = h.slice(0, colon);
-  if (h.endsWith(".")) h = h.slice(0, -1);
-  if (h.length === 0 || h.length > 253) return null;
-  if (!/^[a-z0-9.-]+$/.test(h)) return null;
+  if (colon > -1) {
+    h = h.slice(0, colon);
+  }
+  if (h.endsWith(".")) {
+    h = h.slice(0, -1);
+  }
+  if (h.length === 0 || h.length > 253) {
+    return null;
+  }
+  if (!/^[a-z0-9.-]+$/.test(h)) {
+    return null;
+  }
   return h;
 }
 
 export function labelUnder(host: string, baseDomain: string): string | null {
   const base = baseDomain.toLowerCase().replace(/\.$/, "");
-  if (host === base) return "";
-  if (!host.endsWith("." + base)) return null;
+  if (host === base) {
+    return "";
+  }
+  if (!host.endsWith("." + base)) {
+    return null;
+  }
   const label = host.slice(0, host.length - base.length - 1);
-  if (label.includes(".")) return null;
+  if (label.includes(".")) {
+    return null;
+  }
   return label;
 }
 
@@ -85,17 +109,26 @@ export function classifyHost(
   previewDomains: string | readonly string[],
 ): HostKind {
   const control = labelUnder(host, controlDomain);
-  if (control === "" || (control !== null && RESERVED_LABELS.has(control)))
+  if (control === "" || (control !== null && RESERVED_LABELS.has(control))) {
     return { kind: "surface", label: control };
+  }
   let apex = false;
   for (const domain of typeof previewDomains === "string" ? [previewDomains] : previewDomains) {
     const preview = labelUnder(host, domain);
-    if (preview === null) continue;
-    if (preview !== "" && !RESERVED_LABELS.has(preview)) return { kind: "preview" };
+    if (preview === null) {
+      continue;
+    }
+    if (preview !== "" && !RESERVED_LABELS.has(preview)) {
+      return { kind: "preview" };
+    }
     apex = true;
   }
-  if (control !== null) return { kind: "preview" };
-  if (apex) return { kind: "unknown" };
+  if (control !== null) {
+    return { kind: "preview" };
+  }
+  if (apex) {
+    return { kind: "unknown" };
+  }
   return { kind: "misdirected" };
 }
 
@@ -104,10 +137,13 @@ const bare = (domain: string) => domain.toLowerCase().replace(/\.$/, "");
 export function domainPairProblem(controlDomain: string, previewDomain: string): string | null {
   const control = bare(controlDomain);
   const preview = bare(previewDomain);
-  if (control === preview) return null;
+  if (control === preview) {
+    return null;
+  }
   // `gw.example.com` under preview domain `example.com` is also the name of a preview called `gw`.
-  if (labelUnder(control, preview) !== null)
+  if (labelUnder(control, preview) !== null) {
     return `the control domain ${control} is a name under the preview domain ${preview}; choose domains that are not nested that way`;
+  }
   return null;
 }
 
@@ -119,10 +155,13 @@ export function domainsProblem(
   const domains = [...new Set(previewDomains.map(bare))];
   for (const d of domains) {
     const problem = domainPairProblem(controlDomain, d);
-    if (problem) return problem;
+    if (problem) {
+      return problem;
+    }
     for (const other of domains) {
-      if (other !== d && labelUnder(d, other) !== null)
+      if (other !== d && labelUnder(d, other) !== null) {
         return `the preview domain ${d} is a name under the preview domain ${other}; choose domains that are not nested that way`;
+      }
     }
   }
   return null;
@@ -130,7 +169,9 @@ export function domainsProblem(
 
 /** A name DNS can hold: two labels or more, each a valid LDH label. No wildcard, no trailing dot. */
 export function isDomainName(name: string): boolean {
-  if (name.length === 0 || name.length > 253 || name !== name.toLowerCase()) return false;
+  if (name.length === 0 || name.length > 253 || name !== name.toLowerCase()) {
+    return false;
+  }
   const labels = name.split(".");
   return (
     labels.length >= 2 && labels.every((l) => LABEL_RE.test(l)) && !/^\d+$/.test(labels.at(-1)!)
@@ -169,7 +210,9 @@ export function buildLabel(
 
   // Too long is rejected, never truncated: truncation would collide across PRs.
   const check = checkLabel(label);
-  if (!check.ok) return { ok: false, reason: check.reason, message: check.message };
+  if (!check.ok) {
+    return { ok: false, reason: check.reason, message: check.message };
+  }
   return { ok: true, label };
 }
 

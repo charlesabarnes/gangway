@@ -38,8 +38,9 @@ async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<str
   );
   // Without the caller's cli-plugins linked in, a per-user compose plugin disappears for this command.
   const plugins = join(process.env["DOCKER_CONFIG"] ?? join(homedir(), ".docker"), "cli-plugins");
-  if (await lstat(plugins).catch(() => null))
+  if (await lstat(plugins).catch(() => null)) {
     await symlink(plugins, join(cfg, "cli-plugins")).catch(() => {});
+  }
   return cfg;
 }
 
@@ -69,8 +70,9 @@ async function pushedSource(
   const dockerConfig = source.registry
     ? await writeDockerConfig(wd.dir, source.registry)
     : undefined;
-  if (env && Object.keys(env).length > 0)
+  if (env && Object.keys(env).length > 0) {
     ctx.logs.append(id, "system", `passing ${Object.keys(env).length} secret(s) to the container`);
+  }
   return {
     source: {
       kind: "pr",

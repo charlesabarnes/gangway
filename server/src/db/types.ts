@@ -25,8 +25,12 @@ export function compareVersion(v: string, min: readonly [number, number, number]
   const parts = v.split(".").map((n) => Number.parseInt(n, 10));
   for (let i = 0; i < 3; i++) {
     const a = parts[i] ?? 0;
-    if (a > (min[i] ?? 0)) return true;
-    if (a < (min[i] ?? 0)) return false;
+    if (a > (min[i] ?? 0)) {
+      return true;
+    }
+    if (a < (min[i] ?? 0)) {
+      return false;
+    }
   }
   return true;
 }

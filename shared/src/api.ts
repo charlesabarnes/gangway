@@ -78,7 +78,9 @@ export const addonQuery = z
   .max(200)
   .transform((s, ctx) => {
     const out: z.input<typeof addonArray> = [];
-    if (s === "none" || s === "") return out;
+    if (s === "none" || s === "") {
+      return out;
+    }
     for (const part of s.split(",")) {
       const [id, version] = part.trim().split("@") as [string, string | undefined];
       if (!isAddonId(id) || (version !== undefined && !/^\d+(\.\d+)*$/.test(version))) {

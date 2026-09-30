@@ -35,7 +35,9 @@ async function setup(o: { propagates?: boolean; failAt?: string; days?: number }
   };
   const step = (name: string) => {
     log.push(name);
-    if (o.failAt === name) throw new Error(`${name} failed`);
+    if (o.failAt === name) {
+      throw new Error(`${name} failed`);
+    }
   };
   const connect = (c: { accountUrl?: string }) => {
     connects.push({ accountUrl: c.accountUrl });

@@ -48,7 +48,9 @@ class DockerodeClient implements DockerClient {
 
   async listContainers(opts: ListOptions = {}): Promise<ContainerSummary[]> {
     const query: Record<string, unknown> = { all: opts.all ?? false };
-    if (opts.filters) query["filters"] = JSON.stringify(opts.filters);
+    if (opts.filters) {
+      query["filters"] = JSON.stringify(opts.filters);
+    }
     const raw = await this.#docker.listContainers(query);
     return raw.map(toSummary);
   }
@@ -62,7 +64,9 @@ class DockerodeClient implements DockerClient {
       await this.#docker.getContainer(id).stop({ t: timeoutSeconds });
     } catch (e) {
       // 304 means already stopped.
-      if ((e as { statusCode?: number }).statusCode === 304) return;
+      if ((e as { statusCode?: number }).statusCode === 304) {
+        return;
+      }
       throw e;
     }
   }
@@ -120,7 +124,9 @@ class DockerodeClient implements DockerClient {
   }
 
   close(): void {
-    for (const s of this.#open) s.destroy?.();
+    for (const s of this.#open) {
+      s.destroy?.();
+    }
     this.#open.clear();
   }
 }
@@ -145,7 +151,9 @@ export class DockerClients {
 
   for(host: Pick<Host, "id" | "dockerHost">): DockerClient {
     const existing = this.#clients.get(host.id);
-    if (existing && existing.dockerHost === host.dockerHost) return existing.client;
+    if (existing && existing.dockerHost === host.dockerHost) {
+      return existing.client;
+    }
     existing?.client.close();
     const client = createDockerClient(host, this.#opts);
     this.#clients.set(host.id, { dockerHost: host.dockerHost, client });
@@ -158,7 +166,9 @@ export class DockerClients {
   }
 
   closeAll(): void {
-    for (const { client } of this.#clients.values()) client.close();
+    for (const { client } of this.#clients.values()) {
+      client.close();
+    }
     this.#clients.clear();
   }
 }

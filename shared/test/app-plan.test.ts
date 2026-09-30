@@ -339,8 +339,18 @@ test("planFilePaths keeps the files the plan reads, at the root and one level do
 
 test("gangway.yml's JSON Schema is valid JSON with every key", () => {
   const schema = gangwayJsonSchema() as { properties: Record<string, unknown> };
-  for (const k of ["runtime", "start", "build", "static", "env", "release", "healthcheck", "root"])
+  for (const k of [
+    "runtime",
+    "start",
+    "build",
+    "static",
+    "env",
+    "release",
+    "healthcheck",
+    "root",
+  ]) {
     expect(schema.properties[k]).toBeDefined();
+  }
   expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
 });
 

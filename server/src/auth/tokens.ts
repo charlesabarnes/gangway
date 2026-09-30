@@ -47,16 +47,20 @@ export class Tokens {
   }
 
   readonly verify: TokenVerifier = (presented) => {
-    if (!SHAPE.test(presented)) return null;
+    if (!SHAPE.test(presented)) {
+      return null;
+    }
     const now = this.#now();
     const found = this.#repo.findActiveByHash(hashOf(presented), now);
-    if (!found) return null;
+    if (!found) {
+      return null;
+    }
     this.#repo.touch(found.token.id, now - TOUCH_EVERY_MS, now);
 
     const { token, owner } = found;
     const bundle = credentialPermissions(token.scopes, token.secretTargets);
     const targets = token.secretTargets ? { secretTargets: token.secretTargets } : {};
-    if (!owner)
+    if (!owner) {
       return {
         kind: "token",
         tokenId: token.id,
@@ -65,6 +69,7 @@ export class Tokens {
         permissions: bundle,
         ...targets,
       };
+    }
     const role = this.#roles.for(owner.roleId);
     const permissions = new Set<Permission>([...bundle].filter((p) => role.has(p)));
     return {
@@ -93,16 +98,18 @@ export class Tokens {
         : actor.kind === "token" && actor.tokenId === ENV_ADMIN_TOKEN_ID
           ? null
           : undefined;
-    if (owner === undefined)
+    if (owner === undefined) {
       throw forbidden(
         "an API token cannot create API tokens; log in, or use the server's admin token",
       );
+    }
 
     const scopes = [...new Set(input.scopes)];
     for (const scope of scopes) {
       const missing = SCOPE_PERMISSIONS[scope].filter((p) => !can(actor, p));
-      if (missing.length > 0)
+      if (missing.length > 0) {
         throw unprocessable(`your role does not cover the "${scope}" scope`, { scope, missing });
+      }
     }
 
     const secretTargets = grantedTargets(actor, scopes, input.secretTargets);
@@ -110,10 +117,11 @@ export class Tokens {
     let expiresAt: number | null = null;
     if (input.expiresIn !== undefined) {
       const ms = parseDuration(input.expiresIn);
-      if (ms === null || ms <= 0)
+      if (ms === null || ms <= 0) {
         throw unprocessable(
           `expiresIn ${JSON.stringify(input.expiresIn)} is not a duration like 12h or 90d`,
         );
+      }
       expiresAt = this.#now() + ms;
     }
 
@@ -136,8 +144,9 @@ export class Tokens {
 
   list(actor: Actor, o: { all?: boolean } = {}): ApiToken[] {
     if (o.all) {
-      if (!can(actor, "tokens.manage_all"))
+      if (!can(actor, "tokens.manage_all")) {
         throw forbidden('requires the "tokens.manage_all" permission');
+      }
       return this.#repo.listAll();
     }
     return actor.kind === "user"
@@ -150,8 +159,9 @@ export class Tokens {
   revoke(actor: Actor, id: string): ApiToken {
     const token = this.#repo.get(id);
     const mine = token !== undefined && actor.kind === "user" && token.userId === actor.userId;
-    if (!token || !(mine || can(actor, "tokens.manage_all")))
+    if (!token || !(mine || can(actor, "tokens.manage_all"))) {
       throw notFound(`no such token: ${id}`);
+    }
     if (this.#repo.revoke(id, this.#now())) {
       this.#audit.record(actor, "token.revoked", id, {
         old: { name: token.name, scopes: token.scopes, userId: token.userId },

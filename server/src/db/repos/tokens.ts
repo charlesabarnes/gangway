@@ -74,7 +74,9 @@ export class TokensRepo {
           AND (t.user_id IS NULL OR u.disabled = 0)`,
       { hash: tokenHash, now },
     );
-    if (!r) return undefined;
+    if (!r) {
+      return undefined;
+    }
     const owner: UserRow | null =
       r.u_id === null
         ? null

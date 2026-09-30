@@ -23,9 +23,12 @@ export function controlAllowRisk(
   allow: readonly string[],
   trusted: readonly string[],
 ): string | null {
-  if (allow.length === 0) return null;
-  if (trusted.length === 0)
+  if (allow.length === 0) {
+    return null;
+  }
+  if (trusted.length === 0) {
     return "GANGWAY_CONTROL_ALLOW is set but GANGWAY_TRUSTED_PROXIES is empty; behind a reverse proxy every client looks like the proxy, and the proxy's address decides for all of them";
+  }
   const list = parseTrustedProxies(allow, "control allow entry");
   const proxy = trusted.find((t) => {
     const ip = t.split("/")[0] ?? "";
@@ -38,10 +41,14 @@ export function controlAllowRisk(
 }
 
 export function controlGate(allow: readonly string[]): ControlGate | null {
-  if (allow.length === 0) return null;
+  if (allow.length === 0) {
+    return null;
+  }
   const list = parseTrustedProxies(allow, "control allow entry");
   return (req, clientIp) => {
-    if (isPublicControlPath(new URL(req.url).pathname)) return true;
+    if (isPublicControlPath(new URL(req.url).pathname)) {
+      return true;
+    }
     const ip = unmap(clientIp);
     const family = isIP(ip);
     return family !== 0 && list.check(ip, family === 4 ? "ipv4" : "ipv6");

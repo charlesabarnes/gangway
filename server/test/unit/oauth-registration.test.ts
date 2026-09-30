@@ -188,8 +188,9 @@ describe("over HTTP, as a client without a metadata document drives it", () => {
     });
     expect((await post("{}", "text/plain")).status).toBe(400);
     let last = 0;
-    for (let i = 0; i < 12; i++)
+    for (let i = 0; i < 12; i++) {
       last = (await post('{"redirect_uris":["http://localhost/cb"]}')).status;
+    }
     expect(last).toBe(429);
   });
 });

@@ -12,10 +12,14 @@ function commentLines(file: string, text: string): number {
   const lines = new Set<number>();
   const record = (range: ts.CommentRange) => {
     const comment = text.slice(range.pos, range.end);
-    if (/^\/\/\s*(eslint-|@ts-|prettier-)/.test(comment)) return;
+    if (/^\/\/\s*(eslint-|@ts-|prettier-)/.test(comment)) {
+      return;
+    }
     const first = source.getLineAndCharacterOfPosition(range.pos).line;
     const last = source.getLineAndCharacterOfPosition(range.end).line;
-    for (let line = first; line <= last; line++) lines.add(line);
+    for (let line = first; line <= last; line++) {
+      lines.add(line);
+    }
   };
   const visit = (node: ts.Node) => {
     ts.getLeadingCommentRanges(text, node.getFullStart())?.forEach(record);
@@ -39,10 +43,16 @@ for (const file of files) {
   const n = commentLines(file, text);
   total += lines;
   comments += n;
-  if (n > ALLOWED_PER_FILE && n / lines > MAX_FILE_SHARE) offenders.push(`${file}: ${n}/${lines}`);
+  if (n > ALLOWED_PER_FILE && n / lines > MAX_FILE_SHARE) {
+    offenders.push(`${file}: ${n}/${lines}`);
+  }
 }
 
 const share = comments / total;
 console.log(`${comments} comment lines in ${total} (${(share * 100).toFixed(1)}%)`);
-for (const o of offenders) console.log(`too many comments: ${o}`);
-if (offenders.length > 0 || share > MAX_TOTAL_SHARE) process.exit(1);
+for (const o of offenders) {
+  console.log(`too many comments: ${o}`);
+}
+if (offenders.length > 0 || share > MAX_TOTAL_SHARE) {
+  process.exit(1);
+}

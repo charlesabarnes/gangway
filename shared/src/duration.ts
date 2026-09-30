@@ -8,7 +8,9 @@ const UNIT_MS: Record<string, number> = {
 
 export function parseDuration(input: string): number | null {
   const m = /^(\d{1,6})([smhdw])$/.exec(input.trim());
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   const ms = Number(m[1]) * UNIT_MS[m[2]!]!;
   return ms > 0 ? ms : null;
 }

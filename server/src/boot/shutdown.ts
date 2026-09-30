@@ -43,7 +43,9 @@ export function createStop(d: ShutdownDeps): (graceMs: number) => Promise<void> 
       webSockets: listener.pending().webSockets,
       pipelines: ctx.inflight.size,
     };
-    for (const { abort } of ctx.inflight.values()) abort.abort();
+    for (const { abort } of ctx.inflight.values()) {
+      abort.abort();
+    }
     await Promise.allSettled([...ctx.inflight.values()].map((i) => i.done));
     listener.stop(true);
 

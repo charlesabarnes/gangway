@@ -34,7 +34,9 @@ function steps(plan: AppPlan, files: Record<string, string>): string {
     ["install", plan.install],
     ["build", plan.build],
   ] as const) {
-    if (!cmd) continue;
+    if (!cmd) {
+      continue;
+    }
     files[`${name}.sh`] = script(name, cmd, plan.env, false);
     out += run(name);
   }
@@ -54,7 +56,9 @@ type Build = {
 };
 
 function startWith(b: Build, fallbackCmd: string, note: string): { cmd: string; note: string } {
-  if (!b.plan.start) return { cmd: fallbackCmd, note };
+  if (!b.plan.start) {
+    return { cmd: fallbackCmd, note };
+  }
   b.files["start.sh"] = script("start", b.plan.start, null, true);
   return { cmd: START, note: describe(b.plan.start) };
 }
@@ -87,7 +91,9 @@ function renderArtifact(b: Build): Rendered {
   const markdown = meta.format === "markdown";
   b.files["nginx.conf"] = nginxConf(b.listen, "spa", { gzip: true });
   b.files["kit-config.json"] = kitConfig();
-  if (markdown) b.files["index.html"] = artifactIndex(meta, version);
+  if (markdown) {
+    b.files["index.html"] = artifactIndex(meta, version);
+  }
   const html = `/usr/share/nginx/html`;
   return {
     dockerfile:
@@ -102,7 +108,9 @@ function renderArtifact(b: Build): Rendered {
 }
 
 function renderStatic(b: Build): Rendered {
-  if (b.plan.artifact) return renderArtifact(b);
+  if (b.plan.artifact) {
+    return renderArtifact(b);
+  }
   const serve = b.plan.serve;
   b.files["nginx.conf"] = nginxConf(b.listen, serve.kind === "static" ? serve.fallback : "spa");
   return {
@@ -148,7 +156,9 @@ const renderWithStart =
 
 function renderBun(b: Build): Rendered {
   const { plan, files } = b;
-  if (plan.entry && !plan.start) files["entry.ts"] = workerWrapper(plan.entry, "bun");
+  if (plan.entry && !plan.start) {
+    files["entry.ts"] = workerWrapper(plan.entry, "bun");
+  }
   const s = startWith(b, `CMD ["bun", "run", ".gangway/entry.ts"]\n`, `bun ${plan.entry}`);
   return {
     dockerfile: `${header(b.id)}FROM ${b.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${b.env}\n${s.cmd}`,
@@ -160,7 +170,9 @@ function renderBun(b: Build): Rendered {
 function renderDeno(b: Build): Rendered {
   const { plan, files } = b;
   const wrapped = plan.entry !== null && !plan.start;
-  if (wrapped) files["entry.ts"] = workerWrapper(plan.entry!, "deno");
+  if (wrapped) {
+    files["entry.ts"] = workerWrapper(plan.entry!, "deno");
+  }
   const s = startWith(b, `CMD ["deno", "run", "-A", ".gangway/entry.ts"]\n`, `deno ${plan.entry}`);
   return {
     dockerfile: `${header(b.id)}FROM ${b.image}\nWORKDIR /app\nCOPY . .\n${steps(plan, files)}${wrapped ? `RUN deno cache .gangway/entry.ts\n` : ""}${b.env}\n${s.cmd}`,
@@ -171,7 +183,9 @@ function renderDeno(b: Build): Rendered {
 
 function renderWorkerd(b: Build): Rendered {
   const { plan, files } = b;
-  if (!plan.entry) throw new AppError("internal", "a workerd plan without an entry");
+  if (!plan.entry) {
+    throw new AppError("internal", "a workerd plan without an entry");
+  }
   files["bundle.cjs"] = workerdBundler(plan.entry, b.bindings, b.listen);
   return {
     dockerfile:
@@ -199,8 +213,9 @@ export function renderRuntime(
   bindings: readonly string[] = [],
   port?: number,
 ): Rendered {
-  if (plan.kind !== "runtime" || !plan.runtime || !plan.image)
+  if (plan.kind !== "runtime" || !plan.runtime || !plan.image) {
     throw new AppError("internal", "renderRuntime needs a runtime plan");
+  }
   const id = plan.runtime;
   const listen = port ?? plan.port ?? runtimeById(id).port;
   const b: Build = {
@@ -212,7 +227,8 @@ export function renderRuntime(
     bindings,
     files: {},
   };
-  if (plan.serve.kind === "static" && plan.serve.output !== false)
+  if (plan.serve.kind === "static" && plan.serve.output !== false) {
     return renderStaticBuild(b, plan.serve.fallback, plan.serve.output);
+  }
   return RENDERERS[id](b);
 }

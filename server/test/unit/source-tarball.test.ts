@@ -19,10 +19,14 @@ type Entry = { header: PackHeader; body?: string };
 
 async function tarBytes(entries: Entry[]): Promise<Uint8Array> {
   const p = pack();
-  for (const e of entries) p.entry(e.header, e.body ?? "");
+  for (const e of entries) {
+    p.entry(e.header, e.body ?? "");
+  }
   p.finalize();
   const chunks: Uint8Array[] = [];
-  for await (const c of p) chunks.push(c as Uint8Array);
+  for await (const c of p) {
+    chunks.push(c as Uint8Array);
+  }
   return Buffer.concat(chunks);
 }
 

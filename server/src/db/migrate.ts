@@ -14,9 +14,13 @@ export function checksum(sql: string): string {
 export function loadMigrations(dir: string): Migration[] {
   const out: Migration[] = [];
   for (const file of readdirSync(dir)) {
-    if (!file.endsWith(".sql")) continue;
+    if (!file.endsWith(".sql")) {
+      continue;
+    }
     const m = FILE_RE.exec(file);
-    if (!m) throw new Error(`migration filename "${file}" must match NNNN_lower_snake.sql`);
+    if (!m) {
+      throw new Error(`migration filename "${file}" must match NNNN_lower_snake.sql`);
+    }
     const sql = readFileSync(join(dir, file), "utf8");
     if (/PRAGMA\s+journal_mode/i.test(sql)) {
       throw new Error(
@@ -81,7 +85,9 @@ export function migrate(
 
   const pending = migrations.filter((m) => !byVersion.has(m.version));
   const appliedNow: number[] = [];
-  if (pending.length > 0 && applied.length > 0) beforeApply?.(pending);
+  if (pending.length > 0 && applied.length > 0) {
+    beforeApply?.(pending);
+  }
 
   for (const m of pending) {
     // SQLite requires foreign_keys OFF around the table-rebuild pattern.

@@ -261,16 +261,17 @@ export class PreviewsRepo {
   }
 
   setPasswordLogin(id: string, login: PasswordLogin): void {
-    if (login === "only")
+    if (login === "only") {
       this.#db.run("UPDATE previews SET signed_in_only = 1, updated_at = $now WHERE id = $id", {
         id,
         now: this.#now(),
       });
-    else
+    } else {
       this.#db.run(
         "UPDATE previews SET signed_in_only = 0, password_login = $login, updated_at = $now WHERE id = $id",
         { id, login, now: this.#now() },
       );
+    }
   }
 
   getByProject(project: string): Preview | undefined {
@@ -313,8 +314,12 @@ export class PreviewsRepo {
       where.push("id < $before");
       params["before"] = f.before;
     }
-    if (!f.includeDestroyed && !f.state) where.push("state != 'destroyed'");
-    if (f.limit !== undefined) params["limit"] = f.limit;
+    if (!f.includeDestroyed && !f.state) {
+      where.push("state != 'destroyed'");
+    }
+    if (f.limit !== undefined) {
+      params["limit"] = f.limit;
+    }
 
     const sql = `SELECT * FROM previews${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC${f.limit !== undefined ? " LIMIT $limit" : ""}`;
     return this.#db
@@ -330,7 +335,9 @@ export class PreviewsRepo {
         { c: cutoff },
       )
       .map((r) => r.id);
-    for (const id of ids) this.#db.run("DELETE FROM previews WHERE id = $id", { id });
+    for (const id of ids) {
+      this.#db.run("DELETE FROM previews WHERE id = $id", { id });
+    }
     return ids;
   }
 
@@ -357,7 +364,9 @@ export class PreviewsRepo {
   }
 
   touchMany(seen: ReadonlyMap<string, number>): number {
-    if (seen.size === 0) return 0;
+    if (seen.size === 0) {
+      return 0;
+    }
     return this.#db.transaction(() => {
       let n = 0;
       for (const [id, at] of seen) {
@@ -417,16 +426,18 @@ export class PreviewsRepo {
     id: string,
     refs: { commentId?: number | null; deploymentId?: number | null },
   ): void {
-    if (refs.commentId !== undefined)
+    if (refs.commentId !== undefined) {
       this.#db.run("UPDATE previews SET forge_comment_id = $v WHERE id = $id", {
         id,
         v: refs.commentId,
       });
-    if (refs.deploymentId !== undefined)
+    }
+    if (refs.deploymentId !== undefined) {
       this.#db.run("UPDATE previews SET forge_deployment_id = $v WHERE id = $id", {
         id,
         v: refs.deploymentId,
       });
+    }
   }
 
   delete(id: string): boolean {

@@ -20,7 +20,9 @@ export class Bootstrap {
   }
 
   check(presented: string): boolean {
-    if (!this.pending) return false;
+    if (!this.pending) {
+      return false;
+    }
     return timingSafeEqual(sha256(presented), sha256(this.#secret!));
   }
 }

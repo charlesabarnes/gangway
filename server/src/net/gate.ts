@@ -44,8 +44,9 @@ export function safePath(raw: string | null | undefined): string {
     raw.startsWith("//") ||
     raw.startsWith("/\\") ||
     raw.startsWith(GATE_PREFIX)
-  )
+  ) {
     return "/";
+  }
   return /[\x00-\x1f]/.test(raw) ? "/" : raw;
 }
 
@@ -60,7 +61,9 @@ function isNavigation(req: Request): boolean {
 
 function foreignOrigin(req: Request, hostname: string): boolean {
   const origin = req.headers.get("origin");
-  if (origin === null || origin === "null") return false;
+  if (origin === null || origin === "null") {
+    return false;
+  }
   let host = "";
   try {
     host = new URL(origin).hostname;
@@ -74,7 +77,9 @@ export class PreviewGate {
   readonly #fps = new Map<string, string>();
 
   constructor(o: GateOptions) {
-    if (o.key.length < 32) throw new Error("the gate key must be at least 32 bytes");
+    if (o.key.length < 32) {
+      throw new Error("the gate key must be at least 32 bytes");
+    }
     this.#o = {
       now: Date.now,
       ticketTtlMs: 60_000,
@@ -107,14 +112,20 @@ export class PreviewGate {
   }
 
   #secretFor(entry: RouteEntry): Secret | null {
-    if (entry.passwordLogin === "only") return null;
+    if (entry.passwordLogin === "only") {
+      return null;
+    }
     const pw: EntryPassword = entry.password ?? { mode: "inherit" };
     const raw = pw.mode === "own" ? pw : pw.mode === "inherit" ? this.#o.sharedPassword() : null;
-    if (!raw) return null;
+    if (!raw) {
+      return null;
+    }
     let fp = this.#fps.get(raw.hash);
     if (!fp) {
       fp = sha256(raw.hash, "base64url").slice(0, 16);
-      if (this.#fps.size > 10_000) this.#fps.clear();
+      if (this.#fps.size > 10_000) {
+        this.#fps.clear();
+      }
       this.#fps.set(raw.hash, fp);
     }
     return { hash: raw.hash, salt: raw.salt, fp };
@@ -135,7 +146,9 @@ export class PreviewGate {
       new URL(req.url).pathname === PASSWORD_PATH
     ) {
       const secret = this.#secretFor(entry);
-      if (!secret) return plain(404, "not found");
+      if (!secret) {
+        return plain(404, "not found");
+      }
       return this.#submit(entry, req, clientIp, secret);
     }
     return this.check(entry, req);
@@ -147,18 +160,24 @@ export class PreviewGate {
     clientIp: string,
     secret: Secret,
   ): Promise<Response> {
-    if (foreignOrigin(req, entry.hostname))
+    if (foreignOrigin(req, entry.hostname)) {
       return plain(403, "This form must be sent from the preview's own page.");
-    if (!this.#o.passwords)
+    }
+    if (!this.#o.passwords) {
       return plain(503, "Password-protected previews are not available on this server.");
+    }
     const form = await readForm(req);
-    if (!form) return plain(413, "That request is too large to be the password form.");
+    if (!form) {
+      return plain(413, "That request is too large to be the password form.");
+    }
     const to = safePath(form.get("to"));
     const given = form.get("password") ?? "";
 
     const source = sourceKey(clientIp || "unknown");
     const throttled = this.#throttled(entry, clientIp, source, to);
-    if (throttled) return throttled;
+    if (throttled) {
+      return throttled;
+    }
     let ok: boolean;
     try {
       ok = given !== "" && given.length <= 1024 && (await this.#o.passwords.verify(given, secret));
@@ -183,7 +202,9 @@ export class PreviewGate {
 
   #throttled(entry: RouteEntry, clientIp: string, source: string, to: string): Response | null {
     const verdict = this.#o.limiter?.check(source, entry.previewId) ?? { ok: true };
-    if (verdict.ok) return null;
+    if (verdict.ok) {
+      return null;
+    }
     this.#o.onPasswordFailure?.(entry, clientIp, "throttled");
     return passwordPage(
       entry.hostname,
@@ -198,7 +219,9 @@ export class PreviewGate {
   readonly check = (entry: RouteEntry, req: Request): Response | null => {
     const secret = this.#secretFor(entry);
     const priv = isPrivate(entry);
-    if (!priv && secret === null && !req.url.includes("/__gangway")) return null;
+    if (!priv && secret === null && !req.url.includes("/__gangway")) {
+      return null;
+    }
     const url = new URL(req.url);
 
     const gate =
@@ -206,28 +229,34 @@ export class PreviewGate {
     const loginSkips = secret !== null && this.#loginSkips(entry);
     const visit: Visit = { entry, req, url, secret, priv, gate, loginSkips };
 
-    if (url.pathname.startsWith(GATE_PREFIX) || url.pathname === GATE_PREFIX.slice(0, -1))
+    if (url.pathname.startsWith(GATE_PREFIX) || url.pathname === GATE_PREFIX.slice(0, -1)) {
       return this.#gatePath(visit);
+    }
 
     // Only a top-level navigation can follow a cross-origin redirect to the login page and come back.
     const navigation = isNavigation(req);
     const back = safePath(`${url.pathname}${url.search}`);
 
-    if (!priv || gate.valid) return this.#passwordStep(visit, navigation, back);
+    if (!priv || gate.valid) {
+      return this.#passwordStep(visit, navigation, back);
+    }
 
-    if (!navigation)
+    if (!navigation) {
       return plain(401, "This preview is private. Open it in a browser tab and log in first.");
+    }
     return redirect(this.#appGate(entry, back));
   };
 
   #gatePath({ entry, req, url, secret, priv, loginSkips }: Visit): Response {
     if (url.pathname === PASSWORD_PATH && req.method === "GET" && secret !== null) {
-      if (this.#tokens.hasPasswordCookie(req, entry, secret.fp))
+      if (this.#tokens.hasPasswordCookie(req, entry, secret.fp)) {
         return redirect(safePath(url.searchParams.get("to")));
+      }
       return passwordPage(entry.hostname, safePath(url.searchParams.get("to")), null, 401);
     }
-    if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET")
+    if ((!priv && !loginSkips) || url.pathname !== AUTH_PATH || req.method !== "GET") {
       return plain(404, "not found");
+    }
     const ticket = this.#tokens.redeem(url.searchParams.get("ticket") ?? "", entry);
     if (!ticket) {
       return plain(
@@ -251,14 +280,21 @@ export class PreviewGate {
     navigation: boolean,
     back: string,
   ): Response | null {
-    if (secret === null || this.#tokens.hasPasswordCookie(req, entry, secret.fp)) return null;
-    if (loginSkips && gate.skip) return null;
-    if (!navigation)
+    if (secret === null || this.#tokens.hasPasswordCookie(req, entry, secret.fp)) {
+      return null;
+    }
+    if (loginSkips && gate.skip) {
+      return null;
+    }
+    if (!navigation) {
       return plain(
         401,
         "This preview is password-protected. Open it in a browser tab and enter the password first.",
       );
-    if (loginSkips && !gate.valid) return redirect(this.#appGate(entry, back));
+    }
+    if (loginSkips && !gate.valid) {
+      return redirect(this.#appGate(entry, back));
+    }
     return passwordPage(entry.hostname, back, null, 401);
   }
 
@@ -275,7 +311,9 @@ function isPrivate(entry: RouteEntry): boolean {
 }
 
 export function stripGangwayCookies(header: string | null | undefined): string | null {
-  if (!header) return null;
+  if (!header) {
+    return null;
+  }
   const kept = header
     .split(";")
     .map((p) => p.trim())
@@ -291,7 +329,9 @@ export function loadOrCreateGateKey(store: {
   const stored = store.get(KEY);
   if (typeof stored === "string") {
     const key = Buffer.from(stored, "base64");
-    if (key.length >= 32) return key;
+    if (key.length >= 32) {
+      return key;
+    }
   }
   const key = randomBytes(32);
   store.set(KEY, key.toString("base64"));

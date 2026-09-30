@@ -90,7 +90,9 @@ export class RouteTable {
       return undefined;
     }
     const cached = this.#aliases.get(hostname);
-    if (cached && Object.getPrototypeOf(cached) === primary) return cached;
+    if (cached && Object.getPrototypeOf(cached) === primary) {
+      return cached;
+    }
     const own = (value: unknown) => ({ value, writable: true, enumerable: true });
     const entry = Object.create(primary, {
       hostname: { value: hostname, enumerable: true },
@@ -119,7 +121,9 @@ export class RouteTable {
 
   forPreview(previewId: string): RouteEntry[] {
     const names = this.#byPreview.get(previewId);
-    if (!names) return [];
+    if (!names) {
+      return [];
+    }
     return [...names]
       .map((n) => this.#byHostname.get(n))
       .filter((e): e is RouteEntry => e !== undefined);
@@ -128,7 +132,9 @@ export class RouteTable {
   hydrate(seeds: RouteSeed[]): void {
     this.#byHostname.clear();
     this.#byPreview.clear();
-    for (const s of seeds) this.#index(toEntry(s));
+    for (const s of seeds) {
+      this.#index(toEntry(s));
+    }
   }
 
   #index(e: RouteEntry): void {
@@ -170,16 +176,23 @@ export class RouteTable {
     const moves = new Map<string, string>();
     for (const e of this.forPreview(previewId)) {
       const to = `${e.hostname.split(".")[0]}.${domain}`;
-      if (to === e.hostname) continue;
+      if (to === e.hostname) {
+        continue;
+      }
       const taken = this.#byHostname.get(to);
-      if (taken && taken.previewId !== previewId)
+      if (taken && taken.previewId !== previewId) {
         throw new Error(`${to} is already another preview's hostname`);
+      }
       moves.set(e.hostname, to);
     }
-    if (moves.size === 0) return moves;
+    if (moves.size === 0) {
+      return moves;
+    }
     this.#repo.rename(moves);
     const entries = this.forPreview(previewId);
-    for (const e of entries) this.#byHostname.delete(e.hostname);
+    for (const e of entries) {
+      this.#byHostname.delete(e.hostname);
+    }
     this.#byPreview.delete(previewId);
     for (const e of entries) {
       const to = moves.get(e.hostname);
@@ -190,34 +203,48 @@ export class RouteTable {
 
   updateUpstreamPort(hostname: string, port: number): void {
     const e = this.#byHostname.get(hostname);
-    if (!e) return;
+    if (!e) {
+      return;
+    }
     this.#repo.updateUpstream(hostname, { host: e.upstreamHost, port });
     e.upstreamPort = port;
   }
 
   setState(previewId: string, state: PreviewState): void {
-    for (const e of this.forPreview(previewId)) e.state = state;
+    for (const e of this.forPreview(previewId)) {
+      e.state = state;
+    }
   }
 
   setSite(previewId: string, site: boolean): void {
-    for (const e of this.forPreview(previewId)) e.site = site;
+    for (const e of this.forPreview(previewId)) {
+      e.site = site;
+    }
   }
 
   setVisibility(previewId: string, visibility: Visibility): void {
-    for (const e of this.forPreview(previewId)) e.visibility = visibility;
+    for (const e of this.forPreview(previewId)) {
+      e.visibility = visibility;
+    }
   }
 
   setPassword(previewId: string, password: EntryPassword): void {
-    for (const e of this.forPreview(previewId)) e.password = password;
+    for (const e of this.forPreview(previewId)) {
+      e.password = password;
+    }
   }
 
   setPasswordLogin(previewId: string, login: PasswordLogin): void {
-    for (const e of this.forPreview(previewId)) e.passwordLogin = login;
+    for (const e of this.forPreview(previewId)) {
+      e.passwordLogin = login;
+    }
   }
 
   touch(hostname: string, at: number): void {
     const found = this.lookup(hostname);
-    if (!found) return;
+    if (!found) {
+      return;
+    }
     const e = this.canonical(found);
     e.lastSeenAt = at;
     this.#seen.add(e.previewId);
@@ -227,8 +254,12 @@ export class RouteTable {
     const out = new Map<string, number>();
     for (const id of this.#seen) {
       let at = 0;
-      for (const e of this.forPreview(id)) at = Math.max(at, e.lastSeenAt);
-      if (at > 0) out.set(id, at);
+      for (const e of this.forPreview(id)) {
+        at = Math.max(at, e.lastSeenAt);
+      }
+      if (at > 0) {
+        out.set(id, at);
+      }
     }
     this.#seen.clear();
     return out;
@@ -236,26 +267,36 @@ export class RouteTable {
 
   removePreview(previewId: string): number {
     const names = this.#byPreview.get(previewId);
-    if (!names) return 0;
+    if (!names) {
+      return 0;
+    }
     this.#repo.deleteForPreview(previewId);
-    for (const n of names) this.#byHostname.delete(n);
+    for (const n of names) {
+      this.#byHostname.delete(n);
+    }
     this.#byPreview.delete(previewId);
     return names.size;
   }
 
   evict(hostname: string): void {
     const e = this.#byHostname.get(hostname);
-    if (!e) return;
+    if (!e) {
+      return;
+    }
     this.#byHostname.delete(hostname);
     const set = this.#byPreview.get(e.previewId);
     set?.delete(hostname);
-    if (set && set.size === 0) this.#byPreview.delete(e.previewId);
+    if (set && set.size === 0) {
+      this.#byPreview.delete(e.previewId);
+    }
   }
 
   usedPorts(upstreamHost: string): Set<number> {
     const out = new Set<number>();
     for (const e of this.#byHostname.values()) {
-      if (e.upstreamHost === upstreamHost) out.add(e.upstreamPort);
+      if (e.upstreamHost === upstreamHost) {
+        out.add(e.upstreamPort);
+      }
     }
     return out;
   }

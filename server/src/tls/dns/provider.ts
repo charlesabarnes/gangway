@@ -26,7 +26,9 @@ export function nodeDnsQueries(): DnsQueries {
       const r = new Resolver({ timeout: QUERY_TIMEOUT_MS, tries: 2 });
       // IPv4 first: a v6 route that blackholes is more common than v6-only egress.
       const v4 = await r.resolve4(host).catch(() => [] as string[]);
-      if (v4.length > 0) return v4;
+      if (v4.length > 0) {
+        return v4;
+      }
       return await r.resolve6(host).catch(() => [] as string[]);
     },
     async resolveTxtFrom(serverIp, name) {
@@ -46,7 +48,9 @@ export function zoneCandidates(name: string): string[] {
   const out: string[] = [];
   for (let i = 0; i + 2 <= labels.length; i++) {
     const first = labels[i];
-    if (first === undefined || first.startsWith("_")) continue;
+    if (first === undefined || first.startsWith("_")) {
+      continue;
+    }
     out.push(labels.slice(i).join("."));
   }
   return out;
@@ -55,7 +59,9 @@ export function zoneCandidates(name: string): string[] {
 async function findZone(name: string, dns: DnsQueries): Promise<string> {
   for (const candidate of zoneCandidates(name)) {
     const ns = await dns.resolveNs(candidate).catch(() => [] as string[]);
-    if (ns.length > 0) return candidate;
+    if (ns.length > 0) {
+      return candidate;
+    }
   }
   throw new AppError("unavailable", `no delegated DNS zone found for ${name}`, { name });
 }
@@ -114,7 +120,9 @@ export async function waitForTxtPropagation(
         }),
       );
       const ready = perServer.filter(Boolean).length;
-      if (ready === addresses.length) return true;
+      if (ready === addresses.length) {
+        return true;
+      }
       log.debug("TXT not yet visible everywhere", { name, ready, of: addresses.length });
       return null;
     },

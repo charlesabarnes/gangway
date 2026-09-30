@@ -29,8 +29,14 @@ export function parseVersion(v: string): [number, number, number] | null {
 export function isNewer(latest: string, current: string): boolean {
   const a = parseVersion(latest);
   const b = parseVersion(current);
-  if (!a || !b) return false;
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i]! > b[i]!;
+  if (!a || !b) {
+    return false;
+  }
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) {
+      return a[i]! > b[i]!;
+    }
+  }
   return false;
 }
 
@@ -69,7 +75,9 @@ export class UpdateCheck {
 
   /** Never throws: a failed check keeps the last good result. */
   async check(signal?: AbortSignal): Promise<void> {
-    if (!this.#o.enabled()) return;
+    if (!this.#o.enabled()) {
+      return;
+    }
     const timeout = AbortSignal.timeout(this.#o.timeoutMs ?? 10_000);
     try {
       const res = await this.#fetch(LATEST_RELEASE_URL, {
@@ -90,7 +98,9 @@ export class UpdateCheck {
         checkedAt: (this.#o.now ?? Date.now)(),
       };
     } catch (err) {
-      if (signal?.aborted) return;
+      if (signal?.aborted) {
+        return;
+      }
       this.#o.logger.warn("update check failed", { err: errorMessage(err) });
     }
   }

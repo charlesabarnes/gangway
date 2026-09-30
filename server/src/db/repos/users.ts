@@ -90,10 +90,12 @@ export class UsersRepo {
   }
 
   update(id: string, patch: { roleId?: string; disabled?: boolean }): User | undefined {
-    if (patch.roleId !== undefined)
+    if (patch.roleId !== undefined) {
       this.#db.run("UPDATE users SET role_id = $r WHERE id = $id", { id, r: patch.roleId });
-    if (patch.disabled !== undefined)
+    }
+    if (patch.disabled !== undefined) {
       this.#db.run("UPDATE users SET disabled = $d WHERE id = $id", { id, d: num(patch.disabled) });
+    }
     return this.get(id);
   }
 

@@ -17,7 +17,9 @@ function stripHopByHop(h: Headers): void {
       .get("connection")
       ?.split(",")
       .map((s) => s.trim().toLowerCase()) ?? [];
-  for (const k of [...HOP_BY_HOP, ...named]) h.delete(k);
+  for (const k of [...HOP_BY_HOP, ...named]) {
+    h.delete(k);
+  }
 }
 
 const FORWARDED = [
@@ -39,11 +41,16 @@ export type ForwardContext = {
 export function buildUpstreamHeaders(req: Request, ctx: ForwardContext): Headers {
   const h = new Headers(req.headers);
   stripHopByHop(h);
-  for (const k of FORWARDED) h.delete(k);
+  for (const k of FORWARDED) {
+    h.delete(k);
+  }
 
   const cookie = stripGangwayCookies(h.get("cookie"));
-  if (cookie === null) h.delete("cookie");
-  else h.set("cookie", cookie);
+  if (cookie === null) {
+    h.delete("cookie");
+  } else {
+    h.set("cookie", cookie);
+  }
 
   h.set("host", ctx.clientHost);
   h.set("x-forwarded-for", ctx.clientIp);
@@ -56,7 +63,9 @@ export function buildUpstreamHeaders(req: Request, ctx: ForwardContext): Headers
 export function buildResponseHeaders(src: Headers, opts: { unlisted: boolean }): Headers {
   const out = new Headers(src);
   stripHopByHop(out);
-  if (opts.unlisted) out.set("x-robots-tag", "noindex, nofollow");
+  if (opts.unlisted) {
+    out.set("x-robots-tag", "noindex, nofollow");
+  }
   return out;
 }
 

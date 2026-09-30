@@ -80,7 +80,9 @@ describe("stamping a page", () => {
       page("<body></body>", {}, 404),
       page("<body></body>", { "content-range": "bytes 0-5/10" }, 206),
     ];
-    for (const res of cases) expect(stamp(res, nav())).toBe(res);
+    for (const res of cases) {
+      expect(stamp(res, nav())).toBe(res);
+    }
   });
 
   test("a 304 keeps the marked validator, so the cached marked page stays valid", () => {

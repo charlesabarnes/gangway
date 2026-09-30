@@ -40,7 +40,9 @@ describe("version comparison", () => {
   test("reads X.Y.Z with or without a v, and nothing else", () => {
     expect(parseVersion("0.1.0")).toEqual([0, 1, 0]);
     expect(parseVersion("v10.20.30")).toEqual([10, 20, 30]);
-    for (const v of ["edge", "dev", "1.2", "1.2.3-rc.1", ""]) expect(parseVersion(v)).toBeNull();
+    for (const v of ["edge", "dev", "1.2", "1.2.3-rc.1", ""]) {
+      expect(parseVersion(v)).toBeNull();
+    }
   });
 
   test.each([

@@ -152,7 +152,9 @@ x-gangway:
       'volume "host": driver_opts',
       'volume "shared": a custom name',
     ];
-    for (const needle of needles) expect(v).toContain(needle);
+    for (const needle of needles) {
+      expect(v).toContain(needle);
+    }
     expect(m.violations).toHaveLength(needles.length);
   });
 });
@@ -313,7 +315,7 @@ describe("buildStack", () => {
   test("the routed service carries a label set the reconciler can rebuild the route from", () => {
     const parsed = parseLabels(doc.services.web.labels);
     expect(parsed.ok).toBe(true);
-    if (parsed.ok)
+    if (parsed.ok) {
       expect(parsed.labels).toMatchObject({
         hostname: "acme.preview.example.com",
         port: 31000,
@@ -321,6 +323,7 @@ describe("buildStack", () => {
         project: "gw-acme",
         visibility: "unlisted",
       });
+    }
   });
 
   test("a compose file cannot forge gangway.* labels; its other labels are kept", () => {
@@ -380,8 +383,9 @@ test("parseDuration", () => {
   expect(parseDuration("90s")).toBe(90_000);
   expect(parseDuration("7d")).toBe(604_800_000);
   expect(parseDuration("2w")).toBe(1_209_600_000);
-  for (const bad of ["", "7", "d", "0d", "1.5h", "7 d", "-1d", "1y"])
+  for (const bad of ["", "7", "d", "0d", "1.5h", "7 d", "-1d", "1y"]) {
     expect(parseDuration(bad)).toBeNull();
+  }
 });
 
 describe("policy: builds and secrets read nothing from outside the upload", () => {

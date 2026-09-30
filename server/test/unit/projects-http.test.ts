@@ -118,7 +118,9 @@ function make() {
   const handle = surfaceHandler(hono, "api");
   const call = (path: string, o: { method?: string; json?: unknown; as?: string } = {}) => {
     const headers = new Headers({ host: HOST, authorization: `Bearer ${o.as ?? ADMIN}` });
-    if (o.json !== undefined) headers.set("content-type", "application/json");
+    if (o.json !== undefined) {
+      headers.set("content-type", "application/json");
+    }
     return Promise.resolve(
       handle(
         new Request(`https://${HOST}${path}`, {

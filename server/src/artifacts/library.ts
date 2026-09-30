@@ -87,8 +87,12 @@ export class ArtifactLibrary {
 
   #memo(t: Theme, key: string, make: (t: Theme) => string | null): string | null {
     let m = this.#compiled.get(t);
-    if (!m) this.#compiled.set(t, (m = new Map<string, string | null>()));
-    if (!m.has(key)) m.set(key, make(t));
+    if (!m) {
+      this.#compiled.set(t, (m = new Map<string, string | null>()));
+    }
+    if (!m.has(key)) {
+      m.set(key, make(t));
+    }
     return m.get(key)!;
   }
 
@@ -117,16 +121,20 @@ export class ArtifactLibrary {
 
   /** A template's files with the title and the rest filled in. Throws TemplateError. */
   render(input: TemplateInput): Record<string, string> {
-    if (templateById(input.template)) return renderTemplate(input);
+    if (templateById(input.template)) {
+      return renderTemplate(input);
+    }
     const t = this.custom(input.template);
-    if (!t)
+    if (!t) {
       throw new TemplateError(
         `no template "${input.template}"; one of ${this.templates()
           .map((x) => x.id)
           .join(", ")}`,
       );
-    if (input.options && Object.keys(input.options).length > 0)
+    }
+    if (input.options && Object.keys(input.options).length > 0) {
       throw new TemplateError(`${t.id} takes no options; change its files instead`);
+    }
     const fill = (s: string) =>
       s
         .replaceAll("{{title}}", input.title ?? t.name)

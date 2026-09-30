@@ -43,7 +43,9 @@ describe("laying out a chart with subgraphs", () => {
     };
     for (const n of l.nodes.filter((n) => n.group)) {
       inside(n.group!, n.x - n.w / 2, n.y - n.h / 2, n.w, n.h);
-      if (n.group === "prod") inside("vps", n.x - n.w / 2, n.y - n.h / 2, n.w, n.h);
+      if (n.group === "prod") {
+        inside("vps", n.x - n.w / 2, n.y - n.h / 2, n.w, n.h);
+      }
     }
     const prod = box.get("prod")!;
     inside("vps", prod.x, prod.y, prod.w, prod.h);
@@ -60,7 +62,9 @@ describe("laying out a chart with subgraphs", () => {
       const ends = [e.start, e.segments.at(-1)!.to];
       for (const [id, [x, y]] of [e.from, e.to].map((id, i) => [id, ends[i]!] as const)) {
         const n = at.get(id);
-        if (!n) continue; // a line to a group ends on the group's edge
+        if (!n) {
+          continue;
+        } // a line to a group ends on the group's edge
         expect(Math.abs(x - n.x)).toBeLessThanOrEqual(n.w / 2 + 1);
         expect(Math.abs(y - n.y)).toBeLessThanOrEqual(n.h / 2 + 1);
       }
@@ -68,7 +72,9 @@ describe("laying out a chart with subgraphs", () => {
       let from = e.start;
       for (const s of e.segments) {
         const straight = s.c1 === from;
-        if (straight) expect(from[0] === s.to[0] || from[1] === s.to[1]).toBe(true);
+        if (straight) {
+          expect(from[0] === s.to[0] || from[1] === s.to[1]).toBe(true);
+        }
         from = s.to;
       }
     }

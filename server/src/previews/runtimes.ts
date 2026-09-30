@@ -36,11 +36,17 @@ async function listPaths(dir: string): Promise<string[]> {
   const walk = async (abs: string, rel: string): Promise<void> => {
     const entries = await readdir(abs, { withFileTypes: true }).catch(() => []);
     for (const e of entries) {
-      if (out.length >= MAX_WALK) return;
+      if (out.length >= MAX_WALK) {
+        return;
+      }
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) await walk(path.join(abs, e.name), r);
-      } else if (e.isFile()) out.push(r);
+        if (!SKIP_DIRS.has(e.name)) {
+          await walk(path.join(abs, e.name), r);
+        }
+      } else if (e.isFile()) {
+        out.push(r);
+      }
     }
   };
   await walk(dir, "");
@@ -61,7 +67,9 @@ export async function planFromDisk(
   for (const p of planFilePaths(paths)) {
     const abs = path.join(srcDir, p);
     const st = await lstat(abs).catch(() => null);
-    if (!st?.isFile() || st.size > MAX_PLAN_FILE_BYTES) continue;
+    if (!st?.isFile() || st.size > MAX_PLAN_FILE_BYTES) {
+      continue;
+    }
     files[p] = await readFile(abs, "utf8");
   }
   return planApp({ paths, files, runtime: choice, ...opts });
@@ -69,7 +77,9 @@ export async function planFromDisk(
 
 export function assertRunnable(plan: AppPlan): void {
   const err = planError(plan);
-  if (err) throw unprocessable(err, { reasons: plan.reasons, issues: plan.issues });
+  if (err) {
+    throw unprocessable(err, { reasons: plan.reasons, issues: plan.issues });
+  }
 }
 
 const ALWAYS_BOUND = ["PUBLIC_URL", "GANGWAY_PREVIEW_ID"];
@@ -82,19 +92,23 @@ export async function writeRuntime(
   port?: number,
   sidecars?: RenderedAddons,
 ): Promise<{ composeFile: string; note: string }> {
-  if (containedIn(srcDir, composePath))
+  if (containedIn(srcDir, composePath)) {
     throw new AppError("internal", "the runtime compose file must be outside the build context");
+  }
   const env = { ...plan.env, ...(secrets ?? {}), ...(sidecars?.appEnv ?? {}) };
   const bindings = [...new Set([...ALWAYS_BOUND, ...Object.keys(env)])].sort();
   const rendered = renderRuntime(plan, bindings, port);
   const context = plan.root ? path.join(srcDir, plan.root) : srcDir;
-  if (!containedIn(srcDir, context)) throw unprocessable("root: leaves the upload");
+  if (!containedIn(srcDir, context)) {
+    throw unprocessable("root: leaves the upload");
+  }
   const dir = path.join(context, GENERATED_DIR);
   const st = await lstat(dir).catch(() => null);
-  if (st && !st.isDirectory())
+  if (st && !st.isDirectory()) {
     throw unprocessable(
       `${plan.root ? `${plan.root}/` : ""}${GENERATED_DIR} in the upload is not a directory; gangway writes its build files there`,
     );
+  }
   await mkdir(dir, { recursive: true, mode: DIR_MODE });
   await writeFile(path.join(dir, "Dockerfile"), rendered.dockerfile, { mode: FILE_MODE });
   await writeFile(
@@ -102,8 +116,9 @@ export async function writeRuntime(
     ".git\n**/node_modules\n.gangway/out\n",
     { mode: FILE_MODE },
   );
-  for (const [name, body] of Object.entries({ ...rendered.files, ...(sidecars?.files ?? {}) }))
+  for (const [name, body] of Object.entries({ ...rendered.files, ...(sidecars?.files ?? {}) })) {
     await writeFile(path.join(dir, name), body, { mode: FILE_MODE });
+  }
   await copyAssets(dir, rendered.assets ?? {});
   const listen = port ?? plan.port ?? runtimeById(plan.runtime!).port;
   await writeFile(

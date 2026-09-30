@@ -12,7 +12,7 @@ import { ghRepo, pull, fakeForge, fakePreviews } from "../helpers/forge.ts";
 function make(o: Parameters<typeof fakeForge>[0] & { project?: false } = {}) {
   const { db } = tempDb();
   const repos = new ProjectsRepo(db);
-  if (o.project !== false)
+  if (o.project !== false) {
     repos.create({
       id: "PRJ",
       name: "web-app",
@@ -22,6 +22,7 @@ function make(o: Parameters<typeof fakeForge>[0] & { project?: false } = {}) {
       installationId: "4242",
       prTrigger: "webhook",
     });
+  }
   const f = fakeForge(o);
   const p = fakePreviews();
   const service = new PrPreviews({
@@ -60,7 +61,9 @@ describe("a pull request opens", () => {
     const t = make();
     const out = await t.service.handle(updated());
     expect(out).toMatchObject({ action: "deployed", name: "web-app-pr-123" });
-    if (out.action !== "deployed") throw new Error();
+    if (out.action !== "deployed") {
+      throw new Error();
+    }
 
     expect(t.deploys[0]).toMatchObject({
       name: "web-app-pr-123",
@@ -102,7 +105,9 @@ describe("a pull request opens", () => {
   test("a failed build is reported with its error and marks the deployment failed", async () => {
     const t = make();
     const out = await t.service.handle(updated());
-    if (out.action !== "deployed") throw new Error();
+    if (out.action !== "deployed") {
+      throw new Error();
+    }
     t.settle("P1", "failed", "compose up exited 1");
     await out.settled;
     expect(t.comments.get(1)).toContain("❌ Preview failed");
@@ -147,7 +152,9 @@ describe("the head moves", () => {
   test("the same head is a no-op; a new head redeploys, keeping the one comment", async () => {
     const t = make();
     const first = await t.service.handle(updated());
-    if (first.action !== "deployed") throw new Error();
+    if (first.action !== "deployed") {
+      throw new Error();
+    }
     expect(await t.service.handle(updated(pull(), "synchronize"))).toMatchObject({
       action: "ignored",
       reason: expect.stringContaining("already building"),
@@ -173,7 +180,9 @@ describe("the head moves", () => {
   test("a failed preview is retried on the next push of the same sha", async () => {
     const t = make();
     const first = await t.service.handle(updated());
-    if (first.action !== "deployed") throw new Error();
+    if (first.action !== "deployed") {
+      throw new Error();
+    }
     t.settle("P1", "failed", "boom");
     await first.settled;
     expect(await t.service.handle(updated(pull(), "reopened"))).toMatchObject({
@@ -187,7 +196,9 @@ describe("closing", () => {
   test("destroys the preview, retires the deployment, and says so in the same comment", async () => {
     const t = make();
     const out = await t.service.handle(updated());
-    if (out.action !== "deployed") throw new Error();
+    if (out.action !== "deployed") {
+      throw new Error();
+    }
     t.settle("P1", "awake");
     await out.settled;
     expect(await t.service.handle(closed())).toEqual({ action: "destroyed", previewId: "P1" });
@@ -269,7 +280,9 @@ describe("forks and drafts", () => {
       secretsFor: (_repo, clearance) => ({ LEVEL: clearance }),
     });
     const first = await svc.handle(updated());
-    if (first.action !== "deployed") throw new Error();
+    if (first.action !== "deployed") {
+      throw new Error();
+    }
     t.settle("P1", "awake");
     await first.settled;
     const raised = await svc.handle({
@@ -350,7 +363,9 @@ describe("/preview commands", () => {
     });
     expect(t.comments.get(1)).toContain("No preview exists");
     const out = await t.service.handle(updated());
-    if (out.action !== "deployed") throw new Error();
+    if (out.action !== "deployed") {
+      throw new Error();
+    }
     t.settle("P1", "awake");
     await out.settled;
     expect(await t.service.handle(command("status", "member"))).toEqual({
@@ -365,7 +380,9 @@ describe("/preview commands", () => {
   test("redeploy rebuilds the same head; destroy tears down", async () => {
     const t = make({ prs: { 123: pull() } });
     const out = await t.service.handle(updated());
-    if (out.action !== "deployed") throw new Error();
+    if (out.action !== "deployed") {
+      throw new Error();
+    }
     t.settle("P1", "awake");
     await out.settled;
     expect(await t.service.handle(command("redeploy"))).toMatchObject({

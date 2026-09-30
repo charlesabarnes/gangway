@@ -3,7 +3,9 @@ export class SingleFlight<T> {
 
   run(key: string, fn: () => Promise<T>): Promise<T> {
     const existing = this.#inflight.get(key);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     const p = (async () => fn())().finally(() => this.#inflight.delete(key));
     this.#inflight.set(key, p);
     return p;
@@ -48,8 +50,12 @@ export async function retry<T>(
       return await fn(i);
     } catch (err) {
       lastErr = err;
-      if (o.shouldRetry && !o.shouldRetry(err)) throw err;
-      if (i === attempts - 1) break;
+      if (o.shouldRetry && !o.shouldRetry(err)) {
+        throw err;
+      }
+      if (i === attempts - 1) {
+        break;
+      }
       const delay = backoffDelay(i, o);
       o.onRetry?.(i, delay, err);
       await sleep(delay);
@@ -64,9 +70,13 @@ export async function drain(
 ): Promise<boolean> {
   const deadline = Date.now() + o.timeoutMs;
   for (;;) {
-    if (idle()) return true;
+    if (idle()) {
+      return true;
+    }
     const left = deadline - Date.now();
-    if (left <= 0) return false;
+    if (left <= 0) {
+      return false;
+    }
     await sleep(Math.min(o.intervalMs ?? 50, left));
   }
 }
@@ -80,8 +90,12 @@ export async function waitFor<T>(
   for (;;) {
     o.signal?.throwIfAborted();
     const v = await fn();
-    if (v !== null && v !== undefined) return v;
-    if (Date.now() + interval >= deadline) return null;
+    if (v !== null && v !== undefined) {
+      return v;
+    }
+    if (Date.now() + interval >= deadline) {
+      return null;
+    }
     await sleep(interval);
   }
 }

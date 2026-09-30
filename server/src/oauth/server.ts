@@ -118,7 +118,9 @@ export class OAuthServer {
 
   /** RFC 7591: issues a public client. Throws RegistrationError for a request it refuses. */
   register(body: unknown): RegistrationResponse {
-    if (!this.#d.registry) throw notFound("client registration is off");
+    if (!this.#d.registry) {
+      throw notFound("client registration is off");
+    }
     return this.#d.registry.register(body);
   }
 
@@ -134,13 +136,21 @@ export class OAuthServer {
 
   #sweep(): void {
     const now = this.#now();
-    for (const [k, p] of this.#pending) if (p.expiresAt <= now) this.#pending.delete(k);
+    for (const [k, p] of this.#pending) {
+      if (p.expiresAt <= now) {
+        this.#pending.delete(k);
+      }
+    }
     this.#tokens.sweep(now);
   }
 
   #redirect(base: string, params: Record<string, string | null>): string {
     const u = new URL(base);
-    for (const [k, v] of Object.entries(params)) if (v !== null) u.searchParams.set(k, v);
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== null) {
+        u.searchParams.set(k, v);
+      }
+    }
     u.searchParams.set("iss", this.#d.issuer());
     return u.href;
   }
@@ -150,8 +160,12 @@ export class OAuthServer {
     const one = singleParams(q);
     const clientId = one("client_id");
     const redirectUri = one("redirect_uri");
-    if (!clientId) return { kind: "page", error: "The request names no client (client_id)." };
-    if (!redirectUri) return { kind: "page", error: "The request names no redirect_uri." };
+    if (!clientId) {
+      return { kind: "page", error: "The request names no client (client_id)." };
+    }
+    if (!redirectUri) {
+      return { kind: "page", error: "The request names no redirect_uri." };
+    }
 
     let client;
     try {
@@ -162,8 +176,9 @@ export class OAuthServer {
         error: `The client could not be identified: ${err instanceof ClientMetadataError ? err.message : "its metadata could not be read"}.`,
       };
     }
-    if (!redirectAllowed(redirectUri, client.redirectUris))
+    if (!redirectAllowed(redirectUri, client.redirectUris)) {
       return { kind: "page", error: `${client.clientName} did not register that redirect_uri.` };
+    }
 
     const state = one("state") ?? null;
     const fail = (error: OAuthErrorCode, description: string): AuthorizeOutcome => ({
@@ -172,10 +187,13 @@ export class OAuthServer {
     });
 
     const request = checkAuthorizeRequest(one, this.#d.resource());
-    if ("error" in request) return fail(request.error, request.description);
+    if ("error" in request) {
+      return fail(request.error, request.description);
+    }
 
-    if (this.#pending.size >= MAX_PENDING)
+    if (this.#pending.size >= MAX_PENDING) {
       return fail("server_error", "too many authorizations in progress; try again shortly");
+    }
     const id = randomBytes(24).toString("base64url");
     this.#pending.set(id, {
       id,
@@ -193,7 +211,9 @@ export class OAuthServer {
   }
 
   #person(actor: Actor): Extract<Actor, { kind: "user" }> {
-    if (actor.kind !== "user") throw forbidden("only a person, logged in, can connect an agent");
+    if (actor.kind !== "user") {
+      throw forbidden("only a person, logged in, can connect an agent");
+    }
     return actor;
   }
 
@@ -204,10 +224,11 @@ export class OAuthServer {
   #pendingFor(id: string): Pending {
     this.#sweep();
     const p = this.#pending.get(id);
-    if (!p)
+    if (!p) {
       throw notFound(
         "this authorization request has expired or was already answered; start again from the app that sent you",
       );
+    }
     return p;
   }
 
@@ -265,12 +286,15 @@ export class OAuthServer {
     const chosen = [...new Set(answer.scopes ?? p.scopes)];
     const grantable = this.#grantable(actor, p.scopes);
     const refused = chosen.filter((s) => !(grantable as string[]).includes(s));
-    if (chosen.length === 0) throw unprocessable("choose at least one scope, or deny");
-    if (refused.length > 0)
+    if (chosen.length === 0) {
+      throw unprocessable("choose at least one scope, or deny");
+    }
+    if (refused.length > 0) {
       throw unprocessable(
         `cannot grant ${refused.join(", ")}: not offered, or your role does not cover it`,
         { refused },
       );
+    }
     const secretTargets = grantedTargets(actor, chosen as OAuthScope[], answer.secretTargets);
     this.#pending.delete(id);
 
@@ -297,10 +321,14 @@ export class OAuthServer {
   }
 
   readonly verify: TokenVerifier = (presented) => {
-    if (!ACCESS_SHAPE.test(presented)) return null;
+    if (!ACCESS_SHAPE.test(presented)) {
+      return null;
+    }
     const now = this.#now();
     const rec = this.#d.grants.findByAccess(sha256(presented, "hex"), now);
-    if (!rec || !sameResource(rec.resource, this.#d.resource())) return null;
+    if (!rec || !sameResource(rec.resource, this.#d.resource())) {
+      return null;
+    }
     this.#d.grants.touch(rec.grant.id, now - TOUCH_EVERY_MS, now);
     const role = this.#d.roles.for(rec.owner.roleId);
     const { scopes, secretTargets } = rec.grant;
@@ -320,8 +348,9 @@ export class OAuthServer {
 
   list(actor: Actor, o: { all?: boolean } = {}): OAuthGrant[] {
     if (o.all) {
-      if (!can(actor, "tokens.manage_all"))
+      if (!can(actor, "tokens.manage_all")) {
         throw forbidden('requires the "tokens.manage_all" permission');
+      }
       return this.#d.grants.listAll();
     }
     return actor.kind === "user" ? this.#d.grants.listForUser(actor.userId) : [];
@@ -330,12 +359,14 @@ export class OAuthServer {
   revoke(actor: Actor, id: string): OAuthGrant {
     const g = this.#d.grants.get(id);
     const mine = g !== undefined && actor.kind === "user" && g.userId === actor.userId;
-    if (!g || !(mine || can(actor, "tokens.manage_all")))
+    if (!g || !(mine || can(actor, "tokens.manage_all"))) {
       throw notFound(`no such connection: ${id}`);
-    if (this.#d.grants.revoke(id))
+    }
+    if (this.#d.grants.revoke(id)) {
       this.#d.audit.record(actor, "oauth.grant.revoked", id, {
         old: { client: g.clientId, scopes: g.scopes, userId: g.userId },
       });
+    }
     return this.#d.grants.get(id)!;
   }
 

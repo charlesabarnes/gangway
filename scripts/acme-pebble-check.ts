@@ -20,7 +20,9 @@ const seen: string[] = [];
 const names: string[] = [];
 const post = async (path: string, body: unknown) => {
   const res = await fetch(`${CHALLTESTSRV}${path}`, { method: "POST", body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`challtestsrv ${path}: ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`challtestsrv ${path}: ${res.status}`);
+  }
 };
 const dns: DnsProvider = {
   async createTxt(name, value) {
@@ -49,7 +51,9 @@ const presented = (port: number, servername: string) =>
 
 const check = (label: string, ok: boolean, detail = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `  (${detail})` : ""}`);
-  if (!ok) process.exitCode = 1;
+  if (!ok) {
+    process.exitCode = 1;
+  }
 };
 
 const freePort = (): number => {
@@ -177,8 +181,9 @@ try {
     seen.length === orders,
     `${seen.length - orders} new TXT records`,
   );
-  if (process.exitCode)
+  if (process.exitCode) {
     console.error(lines.filter((l) => l.includes("acme") || l.includes("tls")).join("\n"));
+  }
   await running.stop();
 } catch (e) {
   console.error(e);

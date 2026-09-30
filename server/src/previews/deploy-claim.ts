@@ -40,7 +40,9 @@ export type Claim = {
 
 function slugFor(c: Claim): string {
   const stem = slugify(c.input.name ?? c.input.title ?? defaultName(c.input.source, c.runtime));
-  if (stem === "") throw unprocessable("name has no usable characters");
+  if (stem === "") {
+    throw unprocessable("name has no usable characters");
+  }
   return c.visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
 }
 

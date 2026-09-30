@@ -7,5 +7,7 @@ export function onCleanup(fn: () => void | Promise<void>) {
 }
 
 export async function runCleanups() {
-  for (const fn of pending.splice(0).reverse()) await fn();
+  for (const fn of pending.splice(0).reverse()) {
+    await fn();
+  }
 }

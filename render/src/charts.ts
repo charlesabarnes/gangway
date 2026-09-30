@@ -14,20 +14,23 @@ export type ChartConfig = {
 };
 
 export function fmt(v: unknown, format: string): string {
-  if (typeof v !== "number" || !Number.isFinite(v)) return typeof v === "string" ? v : "";
+  if (typeof v !== "number" || !Number.isFinite(v)) {
+    return typeof v === "string" ? v : "";
+  }
   const nf = (o: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-US", o).format(v);
   const big = Math.abs(v) >= 100_000;
   switch (format) {
     case "percent":
       return nf({ style: "percent", maximumFractionDigits: 1 });
     case "currency":
-      if (big)
+      if (big) {
         return nf({
           style: "currency",
           currency: "USD",
           notation: "compact",
           maximumFractionDigits: 1,
         });
+      }
       return nf({
         style: "currency",
         currency: "USD",
@@ -44,7 +47,9 @@ export function fmt(v: unknown, format: string): string {
 
 function cell(c: string): string | number {
   const n = Number(c.replace(/[%$]/g, ""));
-  if (c === "" || !Number.isFinite(n) || !/^-?\$?[\d.]+%?$/.test(c)) return c;
+  if (c === "" || !Number.isFinite(n) || !/^-?\$?[\d.]+%?$/.test(c)) {
+    return c;
+  }
   return c.endsWith("%") ? n / 100 : n;
 }
 
@@ -67,7 +72,9 @@ function svg<K extends keyof SVGElementTagNameMap>(
   parent?: Element,
 ) {
   const e = document.createElementNS(NS, name);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  for (const [k, v] of Object.entries(attrs)) {
+    e.setAttribute(k, String(v));
+  }
   parent?.appendChild(e);
   return e;
 }
@@ -81,8 +88,9 @@ export function ticks(max: number, min = 0, count = 5): number[] {
     let v = Math.floor(min / step) * step;
     v <= Math.ceil(max / step) * step + step / 2;
     v += step
-  )
+  ) {
     out.push(Math.round(v * 1e6) / 1e6);
+  }
   return out;
 }
 
@@ -160,10 +168,11 @@ function frame(
 function xLabels(f: Frame, rows: Row[], x: string, px: (i: number) => number, height: number) {
   const every = Math.ceil(rows.length / Math.max(1, Math.floor((f.width - f.left) / 70)));
   rows.forEach((r, i) => {
-    if (i % every === 0)
+    if (i % every === 0) {
       svg("text", { x: px(i), y: height - 8, "text-anchor": "middle" }, f.g).textContent = label(
         String(r[x]),
       );
+    }
   });
 }
 
@@ -226,12 +235,13 @@ function lines(
     const pts = rows.map((r, i) => [px(i), f.y(num(r[k]))] as const);
     const d = pts.map(([a, b], i) => `${i ? "L" : "M"}${a},${b}`).join("");
     const [lx, ly] = pts.at(-1) ?? [0, 0];
-    if (filled)
+    if (filled) {
       svg(
         "path",
         { class: "area", d: `${d}L${lx},${f.y(0)}L${pts[0]?.[0] ?? 0},${f.y(0)}Z`, fill: color(s) },
         f.el,
       );
+    }
     svg("path", { class: "line", d, stroke: color(s) }, f.el);
     if (ys.length === 1) {
       svg("circle", { class: "dot", cx: lx, cy: ly, r: 4, fill: color(0) }, f.el);
@@ -309,10 +319,11 @@ export function drawChart(host: HTMLElement, rows: Row[], cfg: ChartConfig): voi
     .filter(Boolean);
   const first = rows[0] ?? {};
   const missing = [cfg.x, ...ys].filter((k) => !(k in first));
-  if (!rows.length || missing.length)
+  if (!rows.length || missing.length) {
     throw new Error(
       `no column ${missing.join(", ")} in the data (it has ${Object.keys(first).join(", ")})`,
     );
+  }
   host.textContent = "";
   if (ys.length > 1 && cfg.type !== "donut") {
     const legend = document.createElement("ul");
@@ -332,7 +343,9 @@ export function drawChart(host: HTMLElement, rows: Row[], cfg: ChartConfig): voi
     donut: () => donut(rows, ys[0]!, cfg),
   };
   const draw = make[cfg.type];
-  if (!draw) throw new Error(`type="${cfg.type}": one of bar, line, area, donut`);
+  if (!draw) {
+    throw new Error(`type="${cfg.type}": one of bar, line, area, donut`);
+  }
   host.appendChild(draw());
 }
 
