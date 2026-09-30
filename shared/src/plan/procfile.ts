@@ -1,3 +1,4 @@
+import { must } from "../must.ts";
 import type { GangwayFile } from "../gangway-file.ts";
 import { cmdText } from "./command-text.ts";
 import type { AppPlan, ReadFile } from "./types.ts";
@@ -9,7 +10,7 @@ function parseProcfile(text: string): Procfile {
   for (const line of text.split(/\r?\n/)) {
     const m = /^([A-Za-z0-9_-]+):\s*(.+?)\s*$/.exec(line);
     if (m && !line.trimStart().startsWith("#")) {
-      out[m[1]!] = m[2]!;
+      out[must(m[1], "a process name")] = must(m[2], "a command");
     }
   }
   return out;

@@ -321,7 +321,7 @@ export function compileTheme(t: Theme, logoUrl?: string): string {
     (f.titles ? TITLES[f.titles] : "") +
     (f.titleWeight ? TITLE_WEIGHT[f.titleWeight] : "") +
     (f.titleCase ? TITLE_CASE[f.titleCase] : "") +
-    styleDecls(t.style ?? {}) +
+    styleDecls(t.style) +
     (t.logo && logoUrl ? `--logo:url("${logoUrl}");--logo-w:120px;--logo-gap:14px;` : "");
   const lines = [`/* theme: ${t.name.replace(/\*\//g, "")} */`, `:root{${root}}`];
   const dark = decls(t.tokens.dark);

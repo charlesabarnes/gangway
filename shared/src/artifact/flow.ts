@@ -1,4 +1,6 @@
 /** Mermaid flowcharts (the subset people write), parsed here so the linter and the kit agree. */
+import { must } from "../must.ts";
+import { edgeAt, nodeAt, unquote, type NodeMatch } from "./flow-syntax.ts";
 
 export const FLOW_DIRECTIONS = ["TB", "TD", "BT", "LR", "RL"] as const;
 export type FlowDirection = "TB" | "BT" | "LR" | "RL";
@@ -52,104 +54,6 @@ export type FlowGraph = {
 
 export const MAX_FLOW_NODES = 80;
 
-const ID = /^[\p{L}\p{N}_]+/u;
-const SHAPES: [open: string, close: string, shape: FlowShape][] = [
-  ["([", "])", "stadium"],
-  ["[(", ")]", "cylinder"],
-  ["((", "))", "circle"],
-  ["{{", "}}", "diamond"],
-  ["[/", "/]", "box"],
-  ["[\\", "\\]", "box"],
-  ["[", "]", "box"],
-  ["(", ")", "round"],
-  ["{", "}", "diamond"],
-  [">", "]", "box"],
-];
-
-type EdgeMatch = {
-  len: number;
-  id: string | null;
-  label: string;
-  style: FlowEdgeStyle;
-  arrow: FlowEdge["arrow"];
-};
-
-// Longest forms first: "-- text -->" before "--", "-.->" before "-.-".
-const EDGES: [RegExp, FlowEdgeStyle, FlowEdge["arrow"]][] = [
-  [/^<-{2,}>/, "solid", "both"],
-  [/^<={2,}>/, "thick", "both"],
-  [/^<-\.+->/, "dotted", "both"],
-  [/^--\s+(.+?)\s+-{2,}(?:>|[xo](?=\s))/, "solid", "end"],
-  [/^-\.\s+(.+?)\s+\.+->/, "dotted", "end"],
-  [/^==\s+(.+?)\s+={2,}>/, "thick", "end"],
-  [/^-{2,}(?:>|[xo](?=\s))/, "solid", "end"],
-  [/^-\.+->/, "dotted", "end"],
-  [/^={2,}>/, "thick", "end"],
-  [/^-{3,}/, "solid", "none"],
-  [/^-\.+-/, "dotted", "none"],
-  [/^={3,}/, "thick", "none"],
-];
-
-function edgeAt(text: string): EdgeMatch | null {
-  const named = /^([\p{L}\p{N}_]+)@(?=[-=<.])/u.exec(text);
-  const s = named ? text.slice(named[0].length) : text;
-  for (const [re, style, arrow] of EDGES) {
-    const m = re.exec(s);
-    if (!m) {
-      continue;
-    }
-    let len = m[0].length + (named?.[0].length ?? 0);
-    let label = m[1] ?? "";
-    const pipe = /^\s*\|([^|]*)\|/.exec(text.slice(len));
-    if (pipe) {
-      label = pipe[1]!;
-      len += pipe[0].length;
-    }
-    return { len, id: named?.[1] ?? null, label: unquote(label.trim()), style, arrow };
-  }
-  return null;
-}
-
-const unquote = (s: string) => s.replace(/^"(.*)"$/s, "$1").replace(/<br\s*\/?>/gi, "\n");
-
-type NodeMatch = {
-  len: number;
-  id: string;
-  label: string | null;
-  shape: FlowShape;
-  tone: string | null;
-};
-
-function nodeAt(s: string): NodeMatch | null {
-  const id = ID.exec(s)?.[0];
-  if (!id) {
-    return null;
-  }
-  let len = id.length;
-  let label: string | null = null;
-  let shape: FlowShape = "box";
-  for (const [open, close, sh] of SHAPES) {
-    if (!s.startsWith(open, len)) {
-      continue;
-    }
-    const body = s.slice(len + open.length);
-    const quoted = /^"([^"]*)"/.exec(body);
-    const end = quoted ? body.indexOf(close, quoted[0].length) : body.indexOf(close);
-    if (end === -1) {
-      return null;
-    }
-    label = unquote(body.slice(0, end).trim());
-    shape = sh;
-    len += open.length + end + close.length;
-    break;
-  }
-  const tone = /^:::([\w-]+)/.exec(s.slice(len));
-  if (tone) {
-    len += tone[0].length;
-  }
-  return { len, id, label, shape, tone: tone?.[1] ?? null };
-}
-
 type Builder = FlowGraph & {
   byId: Map<string, FlowNode>;
   /** Ids that were only ever referenced, never given a label: they may name a group. */
@@ -160,7 +64,7 @@ type Builder = FlowGraph & {
   classes: { id: string; tone: string; line: number }[];
 };
 
-function touch(g: Builder, m: NodeMatch, line: number): void {
+function touch(g: Builder, m: NodeMatch, line: number): FlowNode {
   let n = g.byId.get(m.id);
   if (!n) {
     n = {
@@ -190,6 +94,7 @@ function touch(g: Builder, m: NodeMatch, line: number): void {
   if (m.tone) {
     setTone(g, n, m.tone, line);
   }
+  return n;
 }
 
 function toneOf(g: Builder, tone: string, line: number): FlowTone | null {
@@ -279,7 +184,7 @@ function subgraph(g: Builder, rest: string, line: number): void {
   const titled = /^([\p{L}\p{N}_]+)\s*\[(.*)\]$/su.exec(head);
   const bareId = /^[\p{L}\p{N}_]+$/u.test(head);
   const id = titled?.[1] ?? (bareId ? head : `subgraph${g.groups.length + 1}`);
-  const label = titled ? unquote(titled[2]!.trim()) : unquote(head);
+  const label = titled ? unquote(must(titled[2], "a subgraph title").trim()) : unquote(head);
   const group: FlowGroup = { id, label, parent: g.open.at(-1)?.id ?? null, tone: null, line };
   // A second subgraph by the same name is reported once; its `end` still closes it.
   if (g.groups.some((x) => x.id === id)) {
@@ -288,7 +193,7 @@ function subgraph(g: Builder, rest: string, line: number): void {
     g.groups.push(group);
   }
   if (toned) {
-    setTone(g, group, toned[1]!, line);
+    setTone(g, group, must(toned[1], "a tone"), line);
   }
   g.open.push(group);
 }
@@ -325,14 +230,18 @@ function statement(g: Builder, s: string, line: number): void {
   const dir = /^direction\s+(\w+)$/i.exec(s);
   // Inside a subgraph the chart's own direction holds: groups are laid out with the whole chart.
   if (dir) {
-    return g.open.length ? undefined : direction(g, dir[1]!, line);
+    if (!g.open.length) {
+      direction(g, must(dir[1], "a direction"), line);
+    }
+    return;
   }
   const sub = /^subgraph\b\s*(.*)$/.exec(s);
   if (sub) {
     if (!sub[1]) {
       return void g.issues.push({ line, message: "a subgraph needs a name" });
     }
-    return subgraph(g, sub[1], line);
+    subgraph(g, sub[1], line);
+    return;
   }
   if (s === "end") {
     if (!g.open.pop()) {
@@ -346,20 +255,24 @@ function statement(g: Builder, s: string, line: number): void {
   }
   const key = /^legend\b([^:]*):(.+)$/.exec(s);
   if (key) {
-    return legend(g, key[1]!, key[2]!, line);
+    legend(g, must(key[1], "legend words"), must(key[2], "legend text"), line);
+    return;
   }
   const cls = /^class\s+([\p{L}\p{N}_,\s]+?)\s+([\w-]+)$/u.exec(s);
   if (cls) {
-    for (const id of cls[1]!.split(",").map((x) => x.trim())) {
-      g.classes.push({ id, tone: cls[2]!, line });
+    const tone = must(cls[2], "a class name");
+    for (const id of must(cls[1], "class ids")
+      .split(",")
+      .map((x) => x.trim())) {
+      g.classes.push({ id, tone, line });
     }
     return;
   }
   const click = /^click\s+([\p{L}\p{N}_]+)\s+(?:href\s+)?"([^"]*)"(?:\s+"([^"]*)")?/u.exec(s);
   if (click) {
-    touch(g, { len: 0, id: click[1]!, label: null, shape: "box", tone: null }, line);
-    const n = g.byId.get(click[1]!)!;
-    n.link = click[2]!;
+    const id = must(click[1], "a click target");
+    const n = touch(g, { len: 0, id, label: null, shape: "box", tone: null }, line);
+    n.link = must(click[2], "a click link");
     if (click[3]) {
       n.note = click[3];
     }
@@ -367,8 +280,9 @@ function statement(g: Builder, s: string, line: number): void {
   }
   const note = /^note\s+([\p{L}\p{N}_]+)\s*:\s*(.+)$/u.exec(s);
   if (note) {
-    touch(g, { len: 0, id: note[1]!, label: null, shape: "box", tone: null }, line);
-    g.byId.get(note[1]!)!.note = unquote(note[2]!.trim());
+    const id = must(note[1], "a note target");
+    const n = touch(g, { len: 0, id, label: null, shape: "box", tone: null }, line);
+    n.note = unquote(must(note[2], "a note").trim());
     return;
   }
   chain(g, s, line);
@@ -386,7 +300,12 @@ function settle(g: Builder): void {
     }
   }
   g.nodes = g.nodes.filter((n) => !(groups.has(n.id) && g.bare.has(n.id)));
-  const edges = new Map(g.edges.filter((e) => e.id).map((e) => [e.id!, e]));
+  const edges = new Map<string, FlowEdge>();
+  for (const e of g.edges) {
+    if (e.id) {
+      edges.set(e.id, e);
+    }
+  }
   for (const c of g.classes) {
     const target = groups.get(c.id) ?? edges.get(c.id);
     if (target) {

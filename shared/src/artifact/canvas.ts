@@ -17,6 +17,16 @@ export type FrameSpec = {
 };
 export type LayoutOptions = { layout: CanvasLayout; columns: number; gap: number };
 
+function rowLength(o: LayoutOptions, count: number): number {
+  if (o.layout === "row") {
+    return count;
+  }
+  if (o.layout === "column") {
+    return 1;
+  }
+  return Math.max(1, o.columns);
+}
+
 /** Frames with x and y stay there; the rest flow from 0,0 in a row, a column or a grid. */
 export function layoutFrames(frames: readonly FrameSpec[], o: LayoutOptions): Map<string, Box> {
   const out = new Map<string, Box>();
@@ -26,8 +36,7 @@ export function layoutFrames(frames: readonly FrameSpec[], o: LayoutOptions): Ma
     }
   }
   const flow = frames.filter((f) => !out.has(f.id));
-  const perRow =
-    o.layout === "row" ? flow.length : o.layout === "column" ? 1 : Math.max(1, o.columns);
+  const perRow = rowLength(o, flow.length);
   let y = 0;
   for (let i = 0; i < flow.length; i += perRow) {
     const row = flow.slice(i, i + perRow);
@@ -75,13 +84,20 @@ const OUT: Record<Side, Point> = {
   bottom: { x: 0, y: 1 },
 };
 
+/** The side facing the other box, then the side facing back; `ahead` is right or down. */
+function facing(across: boolean, ahead: boolean): [Side, Side] {
+  if (across) {
+    return ahead ? ["right", "left"] : ["left", "right"];
+  }
+  return ahead ? ["bottom", "top"] : ["top", "bottom"];
+}
+
 /** An arrow leaves the side facing its target and enters the side facing its source. */
 export function connector(a: Box, b: Box): { d: string; mid: Point; end: Point; toward: Side } {
   const dx = b.x + b.w / 2 - (a.x + a.w / 2);
   const dy = b.y + b.h / 2 - (a.y + a.h / 2);
   const across = Math.abs(dx) * Math.max(a.h, b.h) >= Math.abs(dy) * Math.max(a.w, b.w);
-  const from: Side = across ? (dx >= 0 ? "right" : "left") : dy >= 0 ? "bottom" : "top";
-  const to: Side = across ? (dx >= 0 ? "left" : "right") : dy >= 0 ? "top" : "bottom";
+  const [from, to] = facing(across, across ? dx >= 0 : dy >= 0);
   const p = anchor(a, from);
   const q = anchor(b, to);
   const pull = Math.max(40, Math.hypot(q.x - p.x, q.y - p.y) / 3);

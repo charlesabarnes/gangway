@@ -39,7 +39,7 @@ export function override<T>(v: T | false | undefined, fallback: T | null): T | n
   if (v === false) {
     return null;
   }
-  return v === undefined ? fallback : v;
+  return v ?? fallback;
 }
 
 export function ignored(ctx: RuleContext, keys: (keyof GangwayFile)[], why: string): void {

@@ -8,7 +8,8 @@ export type ConfigRead = { name: string; file: GangwayFile | null };
 export function readConfig(plan: AppPlan, input: PlanInput, dir: string): ConfigRead | null {
   const at = (n: string) => (dir ? `${dir}/${n}` : n);
   const present = GANGWAY_FILES.filter((n) => input.paths.includes(at(n)));
-  if (present.length === 0) {
+  const [first] = present;
+  if (!first) {
     return null;
   }
   if (present.length > 1) {
@@ -16,9 +17,9 @@ export function readConfig(plan: AppPlan, input: PlanInput, dir: string): Config
       path: "",
       message: "both gangway.yml and gangway.yaml are present; keep one",
     });
-    return { name: at(present[0]!), file: null };
+    return { name: at(first), file: null };
   }
-  const name = at(present[0]!);
+  const name = at(first);
   const text = input.files[name];
   if (text === undefined) {
     plan.issues.push({

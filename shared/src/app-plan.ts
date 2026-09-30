@@ -1,3 +1,4 @@
+import { must } from "./must.ts";
 import { GANGWAY_FILES } from "./gangway-file.ts";
 import { runtimeById } from "./runtimes.ts";
 import { resolveAddons, suggestAddons } from "./plan/addons.ts";
@@ -56,7 +57,7 @@ export function planFilePaths(paths: readonly string[]): string[] {
   const names = new Set<string>(PLAN_FILES);
   return paths.filter((p) => {
     const parts = p.split("/");
-    return parts.length <= 2 && names.has(parts[parts.length - 1]!);
+    return parts.length <= 2 && names.has(must(parts.at(-1), "a file name"));
   });
 }
 
@@ -99,8 +100,8 @@ export function planApp(input: PlanInput): AppPlan {
     if (!useExplicitRoot(plan, input, explicitRoot)) {
       return plan;
     }
-  } else if (!cfg) {
-    cfg = useNestedRoot(plan, input);
+  } else {
+    cfg ??= useNestedRoot(plan, input);
   }
   const scope = scopeToRoot(input, plan.root);
   const file = cfg?.file ?? null;
@@ -110,7 +111,7 @@ export function planApp(input: PlanInput): AppPlan {
   }
   warnNestedContainerFiles(plan, scope.have);
 
-  const runtime = chooseRuntime(input, choice, file, scope, plan.reasons);
+  const runtime = chooseRuntime(input, { choice, file }, scope, plan.reasons);
   const rt = runtimeById(runtime);
   plan.runtime = runtime;
   if (!pickVersion(plan, rt, file)) {

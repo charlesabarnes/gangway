@@ -1,3 +1,5 @@
+import { must } from "./must.ts";
+
 // Reserved even when a surface is off, so re-enabling it cannot collide with a live preview.
 export const RESERVED_LABELS: ReadonlySet<string> = new Set([
   "app",
@@ -174,7 +176,9 @@ export function isDomainName(name: string): boolean {
   }
   const labels = name.split(".");
   return (
-    labels.length >= 2 && labels.every((l) => LABEL_RE.test(l)) && !/^\d+$/.test(labels.at(-1)!)
+    labels.length >= 2 &&
+    labels.every((l) => LABEL_RE.test(l)) &&
+    !/^\d+$/.test(must(labels.at(-1), "a top-level label"))
   );
 }
 
@@ -206,7 +210,8 @@ export function buildLabel(
     source.kind === "pr" ? `${slugify(source.repo)}-pr-${source.number}` : slugify(source.slug);
 
   const dropService = opts.isPrimary === true || opts.isSingleService === true || !opts.service;
-  const label = dropService ? stem : `${stem}-${slugify(opts.service!)}`;
+  const service = dropService ? undefined : opts.service;
+  const label = service ? `${stem}-${slugify(service)}` : stem;
 
   // Too long is rejected, never truncated: truncation would collide across PRs.
   const check = checkLabel(label);

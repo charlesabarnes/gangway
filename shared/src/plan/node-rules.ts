@@ -70,7 +70,8 @@ export function planNodeOrBun(ctx: RuleContext, runtime: "node" | "bun"): void {
   const start = scripts["start"];
   const isDev = start !== undefined && DEV_SERVER.test(start);
   if (start !== undefined && !(isDev && plan.build)) {
-    return runStartScript(ctx, pm, start, isDev);
+    runStartScript(ctx, pm, start, isDev);
+    return;
   }
   if (runEntry(ctx, runtime, pkg)) {
     return;

@@ -1,3 +1,4 @@
+import { must } from "../must.ts";
 import type { GangwayFile } from "../gangway-file.ts";
 import { ADDONS, addonById, isSql, type AddonChoice } from "../addons.ts";
 import type { AddonRequest, AppPlan, PlanInput, ReadFile } from "./types.ts";
@@ -137,7 +138,7 @@ function pipDependencies(text: ReadFile): Set<string> {
     .split("\n")) {
     const m = /^\s*"?([A-Za-z0-9_.-]+)/.exec(line);
     if (m) {
-      pip.add(m[1]!.toLowerCase());
+      pip.add(must(m[1], "a package name").toLowerCase());
     }
   }
   return pip;

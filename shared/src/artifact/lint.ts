@@ -1,3 +1,4 @@
+import { must } from "../must.ts";
 import {
   csvHeader,
   frontMatter,
@@ -65,8 +66,7 @@ const inList = (list: readonly string[], v: string | undefined) =>
 function checkValue(
   c: Ctx,
   line: number,
-  what: string,
-  v: string | undefined,
+  [what, v]: [attr: string, value: string | undefined],
   list: readonly string[],
 ) {
   if (!inList(list, v)) {
@@ -91,8 +91,8 @@ function checkStat(c: Ctx, line: number, a: Attrs) {
   if (a["value"] === undefined) {
     c.issues.push({ line, message: "::stat needs value=" });
   }
-  checkValue(c, line, "format", a["format"], FORMATS);
-  checkValue(c, line, "good", a["good"], ["up", "down"]);
+  checkValue(c, line, ["format", a["format"]], FORMATS);
+  checkValue(c, line, ["good", a["good"]], ["up", "down"]);
   percentValue(c, line, a);
 }
 
@@ -107,9 +107,9 @@ function checkChart(c: Ctx, b: Extract<Block, { type: "chart" }>) {
       message: `a chart needs a type first: \`\`\`chart ${oneOf(CHART_TYPES)} …`,
     });
   } else {
-    checkValue(c, b.line, "chart type", a["type"], CHART_TYPES);
+    checkValue(c, b.line, ["chart type", a["type"]], CHART_TYPES);
   }
-  checkValue(c, b.line, "format", a["format"], FORMATS);
+  checkValue(c, b.line, ["format", a["format"]], FORMATS);
   if (!a["x"] || !a["y"]) {
     c.issues.push({
       line: b.line,
@@ -149,7 +149,7 @@ function checkFlow(c: Ctx, b: Extract<Block, { type: "flow" }>) {
     c.issues.push({ line: b.line, message: "this ```flow fence is never closed" });
   }
   const dir = b.attrs["direction"];
-  checkValue(c, b.line, "direction", dir?.toUpperCase(), FLOW_DIRECTIONS);
+  checkValue(c, b.line, ["direction", dir?.toUpperCase()], FLOW_DIRECTIONS);
   c.issues.push(...parseFlow(b.src.join("\n"), b.line + 1).issues);
 }
 
@@ -163,7 +163,7 @@ function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
   if (!b.closed) {
     c.issues.push({ line: b.line, message: `:::${b.name} is never closed with :::` });
   }
-  checkValue(c, b.line, "tone", b.attrs["tone"], TONES);
+  checkValue(c, b.line, ["tone", b.attrs["tone"]], TONES);
   const lines = b.raw
     .map((text, i) => ({ text, line: b.line + 1 + i }))
     .filter((l) => l.text.trim() !== "");
@@ -185,7 +185,9 @@ function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
   }
 }
 
-function checkSteps(c: Ctx, line: number, whole: string, text: string, a: Attrs) {
+type Directive = { line: number; whole: string; text: string; a: Attrs };
+
+function checkSteps(c: Ctx, { line, whole, text, a }: Directive) {
   const n = text.split(",").filter((t) => t.trim()).length;
   const at = Number(a["at"] ?? 1);
   if (n < 2) {
@@ -195,7 +197,7 @@ function checkSteps(c: Ctx, line: number, whole: string, text: string, a: Attrs)
   }
 }
 
-function checkImage(c: Ctx, line: number, whole: string, a: Attrs) {
+function checkImage(c: Ctx, { line, whole, a }: Directive) {
   if (a["ratio"] && !/^\d+:\d+$/.test(a["ratio"])) {
     c.issues.push({ line, message: `${whole}: ratio= is width:height, e.g. 16:9` });
   }
@@ -218,14 +220,15 @@ function checkText(c: Ctx, line: number, text: string) {
       continue;
     }
     const a = parseAttrs(raw);
+    const d = { line, whole, text, a };
     if (name === "flag") {
-      checkValue(c, line, "tone", a["tone"], TONES);
+      checkValue(c, line, ["tone", a["tone"]], TONES);
     }
     if (name === "steps") {
-      checkSteps(c, line, whole, text, a);
+      checkSteps(c, d);
     }
     if (name === "image") {
-      checkImage(c, line, whole, a);
+      checkImage(c, d);
     }
   }
 }
@@ -298,16 +301,16 @@ function checkFrontMatter(c: Ctx, meta: Record<string, string>): ArtifactKind | 
       message: `a ${k} has no ${unknown.join(", ")}; it takes ${FRONT_MATTER_KEYS[k].join(", ")}`,
     });
   }
-  checkValue(c, 1, "accent", meta["accent"], ARTIFACT_ACCENTS);
-  checkValue(c, 1, "mode", meta["mode"], ARTIFACT_MODES);
+  checkValue(c, 1, ["accent", meta["accent"]], ARTIFACT_ACCENTS);
+  checkValue(c, 1, ["mode", meta["mode"]], ARTIFACT_MODES);
   if (k === "document") {
-    checkValue(c, 1, "layout", meta["layout"], DOC_LAYOUTS);
+    checkValue(c, 1, ["layout", meta["layout"]], DOC_LAYOUTS);
   }
   if (k === "deck") {
-    checkValue(c, 1, "look", meta["look"], DECK_LOOKS);
+    checkValue(c, 1, ["look", meta["look"]], DECK_LOOKS);
   }
   if (k === "canvas") {
-    checkValue(c, 1, "layout", meta["layout"], CANVAS_LAYOUTS);
+    checkValue(c, 1, ["layout", meta["layout"]], CANVAS_LAYOUTS);
     for (const key of ["columns", "gap"]) {
       if (meta[key] !== undefined && !/^\d{1,4}$/.test(meta[key])) {
         c.issues.push({ line: 1, message: `${key}: a whole number, not "${meta[key]}"` });
@@ -321,7 +324,7 @@ function checkFrontMatter(c: Ctx, meta: Record<string, string>): ArtifactKind | 
 
 function checkSlides(c: Ctx, body: string, offset: number) {
   for (const p of pieces(body, offset)) {
-    checkValue(c, p.line, "layout", p.head?.["layout"], SLIDE_LAYOUTS);
+    checkValue(c, p.line, ["layout", p.head?.["layout"]], SLIDE_LAYOUTS);
     walk(c, scan(p.lines, p.first));
   }
 }
@@ -347,12 +350,12 @@ function checkFrames(c: Ctx, body: string, offset: number) {
     if (p.head && (p.head["x"] === undefined) !== (p.head["y"] === undefined)) {
       c.issues.push({ line: p.line, message: "give x and y together, or neither" });
     }
-    checkValue(c, p.line, "frame", p.head?.["frame"], FRAME_STYLES);
+    checkValue(c, p.line, ["frame", p.head?.["frame"]], FRAME_STYLES);
     const rest: string[] = [];
     p.lines.forEach((l, i) => {
       const m = ARROW_LINE.exec(l.trim());
       if (m) {
-        arrows.push({ line: p.first + i, message: m[1]! });
+        arrows.push({ line: p.first + i, message: must(m[1], "an arrow's text") });
       } else {
         rest.push(l);
       }
@@ -399,7 +402,7 @@ export function lintMarkdown(src: string, opts: LintOptions = {}): LintResult {
     ? {
         kind,
         title: meta["title"] ?? "",
-        description: meta["subtitle"] || null,
+        description: meta["subtitle"] === "" ? null : (meta["subtitle"] ?? null),
         mode: modeOf(meta),
         theme: themeOf(meta),
         accent: (meta["accent"] as ArtifactAccent | undefined) ?? "flag",

@@ -1,3 +1,5 @@
+import { must } from "./must.ts";
+
 const UNIT_MS: Record<string, number> = {
   s: 1_000,
   m: 60_000,
@@ -11,6 +13,6 @@ export function parseDuration(input: string): number | null {
   if (!m) {
     return null;
   }
-  const ms = Number(m[1]) * UNIT_MS[m[2]!]!;
+  const ms = Number(m[1]) * must(UNIT_MS[must(m[2], "a unit")], "a unit's length");
   return ms > 0 ? ms : null;
 }

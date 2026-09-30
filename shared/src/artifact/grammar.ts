@@ -1,3 +1,5 @@
+import { must } from "../must.ts";
+
 export type Attrs = Record<string, string>;
 
 export function parseAttrs(text = ""): Attrs {
@@ -36,7 +38,9 @@ export function frontMatter(src: string): FrontMatter {
   for (const line of (m[1] ?? "").split(/\r?\n/)) {
     const kv = /^([\w-]+):\s*(.*?)\s*$/.exec(line);
     if (kv) {
-      meta[kv[1]!] = (kv[2] ?? "").replace(/\s+#.*$/, "").replace(/^(["'])(.*)\1$/, "$2");
+      meta[must(kv[1], "a key")] = (kv[2] ?? "")
+        .replace(/\s+#.*$/, "")
+        .replace(/^(["'])(.*)\1$/, "$2");
     }
   }
   return { meta, body: src.slice(m[0].length), offset: m[0].split("\n").length - 1 };
@@ -61,20 +65,23 @@ export type Block =
 const OPEN = /^(:{3,})\s*([\w-]+)\s*(.*)$/;
 const FENCE_END = /^```\s*$/;
 
-function fenced(lines: string[], i: number): { end: number; inner: string[]; closed: boolean } {
-  const inner: string[] = [];
-  let j = i + 1;
-  for (; j < lines.length && !FENCE_END.test(lines[j]!); j++) {
-    inner.push(lines[j]!);
-  }
-  return { end: j, inner, closed: j < lines.length };
+/** The lines after line `i` up to the one matching `end`, and that line's index. */
+function fenced(
+  lines: string[],
+  i: number,
+  end = FENCE_END,
+): { end: number; inner: string[]; closed: boolean } {
+  const rest = lines.slice(i + 1);
+  const n = rest.findIndex((l) => end.test(l));
+  const inner = n === -1 ? rest : rest.slice(0, n);
+  return { end: i + 1 + inner.length, inner, closed: n !== -1 };
 }
 
 /** Splits markdown into blocks gangway knows and plain text, with 1-based line numbers. */
 export function scan(lines: string[], first = 1): Block[] {
   const out: Block[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
+    const line = must(lines[i], "a line");
     const at = first + i;
     const chart = /^```chart\b(.*)$/.exec(line);
     if (chart) {
@@ -114,23 +121,19 @@ export function scan(lines: string[], first = 1): Block[] {
     }
     const open = OPEN.exec(line);
     if (open) {
-      const close = new RegExp(`^:{${open[1]!.length}}\\s*$`);
-      const raw: string[] = [];
-      let j = i + 1;
-      for (; j < lines.length && !close.test(lines[j]!); j++) {
-        raw.push(lines[j]!);
-      }
+      const close = new RegExp(`^:{${must(open[1], "a colon fence").length}}\\s*$`);
+      const f = fenced(lines, i, close);
       const [name = "", rest = ""] = [open[2], open[3]];
       out.push({
         type: "container",
         name,
         attrs: parseAttrs(rest),
         line: at,
-        closed: j < lines.length,
-        body: scan(raw, at + 1),
-        raw,
+        closed: f.closed,
+        body: scan(f.inner, at + 1),
+        raw: f.inner,
       });
-      i = j;
+      i = f.end;
       continue;
     }
     const stat = /^::stat\{(.*)\}\s*$/.exec(line);
@@ -153,9 +156,9 @@ export function pieces(body: string, offset: number): Piece[] {
   let start = 0;
   let inFence = false;
   const push = (end: number) => {
-    let k = 0;
-    while (k < cur.length && cur[k]!.trim() === "") {
-      k++;
+    let k = cur.findIndex((l) => l.trim() !== "");
+    if (k === -1) {
+      k = cur.length;
     }
     const head = /^\{(.*)\}\s*$/.exec(cur[k] ?? "");
     const lead = head ? k + 1 : k;

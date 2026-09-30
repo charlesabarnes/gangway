@@ -16,12 +16,12 @@ import {
   type TemplateOption,
 } from "../src/artifact/index.ts";
 
-const extremes = (o: TemplateOption): (number | string | boolean)[] =>
-  o.kind === "number"
-    ? [o.min, o.max]
-    : o.kind === "boolean"
-      ? [true, false]
-      : o.choices.map((c) => c.value);
+function extremes(o: TemplateOption): (number | string | boolean)[] {
+  if (o.kind === "number") {
+    return [o.min, o.max];
+  }
+  return o.kind === "boolean" ? [true, false] : o.choices.map((c) => c.value);
+}
 const lint = (files: Record<string, string>) =>
   lintMarkdown(files["artifact.md"]!, { has: (p) => p in files }).issues.map(
     (i) => `${i.line}: ${i.message}`,
@@ -277,7 +277,13 @@ describe("canvases", () => {
 });
 
 describe("canvas layout", () => {
-  const f = (id: string, w = 100, h = 50, x?: number, y?: number) => ({ id, w, h, x, y });
+  const f = (id: string, w = 100, h = 50, at?: { x: number; y: number }) => ({
+    id,
+    w,
+    h,
+    x: at?.x,
+    y: at?.y,
+  });
 
   test("a grid fills rows of `columns`, each as tall as its tallest frame", () => {
     const b = layoutFrames([f("a"), f("b", 100, 80), f("c")], {
@@ -293,7 +299,7 @@ describe("canvas layout", () => {
   });
 
   test("placed frames stay put; the rest flow from the top left", () => {
-    const b = layoutFrames([f("a", 100, 50, 300, 20), f("b"), f("c")], {
+    const b = layoutFrames([f("a", 100, 50, { x: 300, y: 20 }), f("b"), f("c")], {
       layout: "row",
       columns: 1,
       gap: 10,

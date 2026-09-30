@@ -15,19 +15,31 @@ import type { ReadFile } from "./types.ts";
 
 export function applyRuntimeRules(ctx: RuleContext, runtime: RuntimeId): void {
   switch (runtime) {
-    case "static":
-      return planStatic(ctx);
-    case "php":
-      return planPhp(ctx);
-    case "python":
-      return planPython(ctx);
-    case "workerd":
-      return planWorkerd(ctx);
-    case "deno":
-      return planDeno(ctx);
+    case "static": {
+      planStatic(ctx);
+      return;
+    }
+    case "php": {
+      planPhp(ctx);
+      return;
+    }
+    case "python": {
+      planPython(ctx);
+      return;
+    }
+    case "workerd": {
+      planWorkerd(ctx);
+      return;
+    }
+    case "deno": {
+      planDeno(ctx);
+      return;
+    }
     case "node":
-    case "bun":
-      return planNodeOrBun(ctx, runtime);
+    case "bun": {
+      planNodeOrBun(ctx, runtime);
+      return;
+    }
   }
 }
 

@@ -1,3 +1,4 @@
+import { must } from "../must.ts";
 import { parseFlow } from "./flow.ts";
 import { csvHeader, parseAttrs } from "./grammar.ts";
 import type { ArtifactInfo, LintIssue } from "./lint.ts";
@@ -11,7 +12,6 @@ import {
   SLIDE_LAYOUTS,
   TONES,
   type ArtifactAccent,
-  type ArtifactKind,
   ARTIFACT_KINDS,
   ARTIFACT_MODES,
   type ArtifactMode,
@@ -28,7 +28,7 @@ function tags(html: string): Tag[] {
   )) {
     const at = m.index;
     out.push({
-      name: m[1]!,
+      name: must(m[1], "a tag name"),
       attrs: parseAttrs(m[2] ?? ""),
       line: html.slice(0, at).split("\n").length,
       at,
@@ -132,12 +132,15 @@ const modeOf = (m: string | undefined): ArtifactMode =>
   (ARTIFACT_MODES as readonly string[]).includes(m ?? "") ? (m as ArtifactMode) : "system";
 
 function infoOf(html: string, root: { name: string; attrs: Record<string, string> }): ArtifactInfo {
-  const kind = Object.entries(ROOT_TAG).find(([, v]) => v === root.name)![0] as ArtifactKind;
+  const kind = must(
+    ARTIFACT_KINDS.find((k) => ROOT_TAG[k] === root.name),
+    `a kind for <${root.name}>`,
+  );
   const accent = /data-accent="([\w-]+)"/.exec(html)?.[1] ?? root.attrs["accent"] ?? "flag";
   return {
     kind,
     title: root.attrs["title"] ?? /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? "",
-    description: root.attrs["subtitle"] || null,
+    description: root.attrs["subtitle"] === "" ? null : (root.attrs["subtitle"] ?? null),
     mode: modeOf(root.attrs["mode"] ?? root.attrs["theme"]),
     theme: null,
     css: null,
