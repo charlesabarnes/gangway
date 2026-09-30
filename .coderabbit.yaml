@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://docs.coderabbit.ai/schema.json
+# CodeRabbit reviews every PR. It is advisory: CI and CodeQL are the required checks.
+language: en-US
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: false
+  auto_review:
+    enabled: true
+    drafts: false
+    # Without this CodeRabbit skipped PRs into master as "not the default branch".
+    base_branches:
+      - "master"
+  # Generated, vendored or lock files: nothing to review.
+  path_filters:
+    - "!bun.lock"
+    - "!**/package-lock.json"
+    - "!**/dist/**"
+    - "!plugin/gangway/skills/generate-artifact/catalog.md"
+    - "!site/css/tokens/**"
+    - "!site/js/brand-icons.js"
+    - "!.github/assets/**"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Prettier and ESLint already enforce formatting and style; don't comment on either.
+        Look for logic bugs, missing tests, duplicated logic that should reuse an existing
+        helper, and a module taking on a second job.
+    - path: "server/src/**"
+      instructions: |
+        gangway holds the Docker socket, which is root on its host. Flag anything that lets a
+        preview, a deploy or user input reach the host: bind mounts, privileged options, host
+        networking, the socket, or a gap in the Compose policy. Authorization is per-feature
+        permissions from the database; flag any check hard-coded to a role name.
+    - path: "server/migrations/**"
+      instructions: |
+        Applied migrations are checksummed. A change to an existing migration file breaks every
+        install that already ran it; only new files may be added.
+chat:
+  auto_reply: true
