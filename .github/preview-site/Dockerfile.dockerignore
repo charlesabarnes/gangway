@@ -1,0 +1,10 @@
+# Only what the site and docs build from; the rest of the repository is gangway itself.
+*
+!.github/preview-site/nginx.conf
+!.github/assets/screenshots
+!scripts/build-site.ts
+!site
+!guide
+guide/node_modules
+guide/dist
+guide/.astro
