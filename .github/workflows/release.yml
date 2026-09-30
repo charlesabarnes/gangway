@@ -110,12 +110,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+          no-cache: true
+      # Upgrade steps first, then the PRs by label, then the Unraid template changes.
+      - run: bun scripts/release-notes.ts > notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
       # install.sh reads /releases/latest/download/compose.yaml, so the two travel together.
-      - run: gh release create "$GITHUB_REF_NAME" compose.yaml install.sh --generate-notes --verify-tag
+      - run: gh release create "$GITHUB_REF_NAME" compose.yaml install.sh --notes-file notes.md --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}

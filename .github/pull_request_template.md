@@ -1,6 +1,7 @@
 ## What changed
 
-<!-- What this PR does and why. Link the issue if there is one. -->
+<!-- What this PR does and why. Link the issue if there is one. Label it: security, enhancement,
+     bug, unraid, documentation, dependencies or chore; the release notes are sorted by it. -->
 
 ## How it was verified
 
@@ -8,6 +9,14 @@
 
 - [ ] `bun run typecheck && bun run test` pass
 - [ ] Checked on a real Docker host (say what, or why it wasn't needed)
+
+## Upgrade steps
+
+<!-- Anything someone already running gangway must do by hand after this: a template path, a
+     setting, a command. Label the PR upgrade-steps and this section goes at the top of the release
+     notes. Write "None" otherwise. -->
+
+None
 
 ## Security impact
 
