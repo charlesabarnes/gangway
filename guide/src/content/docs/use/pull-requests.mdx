@@ -3,11 +3,25 @@ title: Pull-request previews
 description: Give every pull request in a GitHub repository its own preview URL.
 ---
 
+import Shot from "../../../components/Shot.astro";
+
 1. **Create the GitHub App.** Under **Admin → GitHub**, create one in a click through GitHub's
    manifest flow, so no secret is copied by hand. Install it on your repositories.
+
+   <Shot
+     name="github-app"
+     alt="Admin → GitHub, not connected: a Create the GitHub App button and the webhook URL."
+   />
+
 2. **Connect a repository.** Under **Repositories**, connect one. By default gangway gives you a
    workflow file to commit: it builds on GitHub Actions and hands gangway the image,
    authenticated by the run's OIDC token. The alternative is to have gangway build from webhooks.
+
+   <Shot
+     name="repo-connect"
+     alt="Repositories, connecting one: the repository as owner/name, a name, and Cancel and Connect buttons."
+   />
+
 3. **Open a pull request.** The preview's URL arrives in a sticky comment and a GitHub
    Deployment, and the preview is torn down when the pull request closes.
 

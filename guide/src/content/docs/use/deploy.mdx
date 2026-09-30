@@ -15,9 +15,25 @@ throwaway databases to run beside it.
   alt="The New preview page: runtime starters, a drop zone for a folder, files or a .zip, and Postgres, MySQL and Redis add-ons."
 />
 
+Once it is up, the preview's page keeps its files. Edit one, add one or drop in a new set, then
+**Save & rebuild** updates the preview at the same URL. The old version serves until the new one is
+built.
+
+<Shot
+  name="source"
+  alt="A preview's Source panel: the file list, the Dockerfile open in the editor, a Rebuild as choice and a Save & rebuild button."
+/>
+
 ## From a terminal
 
-Send a tarball to the REST API with a token from **Account**:
+Make a token under **Account → API tokens**. `deploy` is the scope CI needs:
+
+<Shot
+  name="tokens"
+  alt="API tokens on the Account page: a name, an expiry, the scopes from read to admin, and a token in the list with its scopes and a Revoke button."
+/>
+
+Send a tarball to the REST API with it:
 
 ```sh
 tar -czf - . | curl --fail -X POST \
@@ -56,7 +72,13 @@ decides:
 An `artifact.md` with no `index.html` renders as a document, deck, dashboard or prototype.
 
 A server listens on `$PORT`. If gangway cannot tell how to run something, it refuses the deploy
-and says which file would settle it.
+and says which file would settle it. **New preview** shows this plan as soon as files are dropped,
+before anything is built:
+
+<Shot
+  name="plan"
+  alt="The plan for a dropped Node.js app, one line per decision and the file that made it, with a Build it as choice and Deploy and Clear buttons."
+/>
 
 ## gangway.yml
 
@@ -80,10 +102,8 @@ idle: 30m # or never
 visibility: unlisted # public, unlisted or private
 ```
 
-For a static site, `static: dist` (or `static: true`) and `docroot` name what to serve.
-
-In a Compose stack, the same stack-wide settings go under `x-gangway:` (`ttl`, `idle`,
-`visibility`, `release`, and `seed`, a command run in the app's container to load sample data).
+Every key, its default and the Compose equivalent, `x-gangway:`, are in the
+[gangway.yml reference](/docs/reference/gangway-yml/).
 
 ## Databases
 
@@ -105,4 +125,18 @@ data browser.
 - **Visibility.** Public, unlisted (an unguessable hostname), private (people signed in to gangway),
   and optionally a password.
 
-The server's defaults for all of these are in **Admin → Server**.
+A preview's page shows its URLs, its state and visibility, and when it expires:
+
+<Shot
+  name="preview"
+  alt="A preview's page: its title, awake and public, a Destroy button, its URL, and particulars such as source, policy, expiry and host."
+/>
+
+What a preview gets when nothing more specific is said comes from a **preview policy** in
+**Admin → Previews**. There is one policy each for pull requests, API and CI deploys, and the deploy
+screen, and a repository can pick its own:
+
+<Shot
+  name="policies"
+  alt="Preview policies in Admin: the default policy for pull requests, API and CI, and the deploy screen, and the Default policy's visibility, TTL, sleep-after, secrets and host."
+/>

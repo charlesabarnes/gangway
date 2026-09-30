@@ -65,7 +65,12 @@ export default defineConfig({
         },
         {
           label: "Reference",
-          items: ["reference/security", "reference/limits", "reference/troubleshooting"],
+          items: [
+            "reference/gangway-yml",
+            "reference/security",
+            "reference/limits",
+            "reference/troubleshooting",
+          ],
         },
       ],
     }),

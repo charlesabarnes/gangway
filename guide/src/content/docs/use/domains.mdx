@@ -3,6 +3,8 @@ title: Domains
 description: Name previews under more domains, claim your own, and serve a production hostname.
 ---
 
+import Shot from "../../../components/Shot.astro";
+
 Previews are named `<label>.<domain>`. By default the domain is `GANGWAY_BASE_DOMAIN`;
 `GANGWAY_PREVIEW_DOMAIN` moves them to their own domain, and `GANGWAY_PREVIEW_DOMAINS` lists more.
 
@@ -13,6 +15,11 @@ Anyone with the permission can claim a domain they own:
 - in **Admin → Domains & traffic**, for every repository;
 - on a repository's **Domains** tab, for its previews, or a hostname for its production preview;
 - on a preview, for a hostname such as `www.example.com`.
+
+<Shot
+  name="claim-domain"
+  alt="Domains in Admin → Domains & traffic: the domain previews are named under, and a field to claim a domain you own."
+/>
 
 A claim asks for two DNS records at the domain's provider:
 
