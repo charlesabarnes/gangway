@@ -1504,6 +1504,11 @@
   font: 400 13px var(--font-mono);
   color: var(--ink);
 }
+.needs-note a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .command {
   display: flex;
   align-items: flex-start;

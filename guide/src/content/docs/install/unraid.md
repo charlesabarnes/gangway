@@ -14,11 +14,9 @@ gangway holds the Docker socket, which is root on its host, and runs other peopl
 keeps all of that inside a VM, away from your array and your other containers, so it is the one
 to start with.
 
-Until they are in Community Applications, add one by hand: **Docker → Add Container**, and paste
-the template's raw URL into **Template**:
-
-- `https://raw.githubusercontent.com/charlesabarnes/unraid-templates/main/templates/gangway-inabox.xml`
-- `https://raw.githubusercontent.com/charlesabarnes/unraid-templates/main/templates/gangway.xml`
+Both are in Community Applications: open **Apps**, search for **gangway**, and install the one you
+want. The templates live in
+[charlesabarnes/unraid-templates](https://github.com/charlesabarnes/unraid-templates).
 
 ## gangway-inabox
 
@@ -86,6 +84,6 @@ up the same template for you.
 
 ## Help
 
-Questions and setup help: the Unraid forum support thread. Bugs:
+Questions, setup help and bugs:
 [GitHub issues](https://github.com/charlesabarnes/gangway/issues). Common snags are in
 [Troubleshooting](/docs/reference/troubleshooting/).
