@@ -30,7 +30,7 @@ export async function withDotenv<T>(
   }
   const committed = st ? { text: await Bun.file(file).text(), mode: st.mode & 0o777 } : null;
   const lines = Object.entries(env).map(([k, v]) => dotenvLine(k, v));
-  const kept = (committed?.text ?? "").replace(/\s*$/, "");
+  const kept = (committed?.text ?? "").trimEnd();
   const body = `${kept}${kept === "" ? "" : "\n"}# --- gangway: repository secrets ---\n${lines.join("\n")}\n`;
   await writeFile(file, body, { mode: 0o600 });
   try {

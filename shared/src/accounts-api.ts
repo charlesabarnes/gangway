@@ -1,4 +1,3 @@
-/** Request bodies for accounts: sign-in and setup, users, tokens, roles and server settings. */
 import { z } from "zod";
 import { ALL_PERMISSIONS, SCOPES, isPermission, type Permission } from "./permissions.ts";
 
