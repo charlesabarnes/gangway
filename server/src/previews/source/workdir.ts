@@ -75,6 +75,6 @@ export class Workdirs {
 
   async realRoot(): Promise<string> {
     await mkdir(this.#root, { recursive: true, mode: WORKDIR_MODE });
-    return await realpath(this.#root);
+    return realpath(this.#root);
   }
 }

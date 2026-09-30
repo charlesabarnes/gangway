@@ -149,8 +149,7 @@ export class Secrets {
     projects: ProjectsRepo,
     store: SettingsStore,
     box: SecretBox,
-    audit?: AuditSink,
-    previews?: PreviewStore,
+    { audit, previews }: { audit?: AuditSink; previews?: PreviewStore } = {},
   ) {
     this.#projects = projects;
     this.#store = store;
@@ -166,7 +165,9 @@ export class Secrets {
           const v = this.#store.get(GLOBAL_KEY);
           return typeof v === "string" && v !== "" ? v : null;
         },
-        write: (s) => this.#store.set(GLOBAL_KEY, s ?? ""),
+        write: (s) => {
+          this.#store.set(GLOBAL_KEY, s ?? "");
+        },
       },
       this.#box,
       { sink: this.#audit, action: "secrets.changed", target: null },
@@ -177,7 +178,9 @@ export class Secrets {
     return new SecretMap(
       {
         read: () => this.#projects.envCiphertext(projectId),
-        write: (s) => this.#projects.setEnvCiphertext(projectId, s),
+        write: (s) => {
+          this.#projects.setEnvCiphertext(projectId, s);
+        },
       },
       this.#box,
       { sink: this.#audit, action: "project.env.changed", target: projectId },
@@ -193,7 +196,9 @@ export class Secrets {
     return new SecretMap(
       {
         read: () => previews.envCiphertext(previewId),
-        write: (s) => previews.setEnvCiphertext(previewId, s),
+        write: (s) => {
+          previews.setEnvCiphertext(previewId, s);
+        },
       },
       this.#box,
       { sink: this.#audit, action: "preview.env.changed", target: previewId },

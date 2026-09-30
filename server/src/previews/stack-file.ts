@@ -9,7 +9,7 @@ import { redactString } from "../logger.ts";
 import { buildStack, parseComposeModel, type ComposeModel } from "./compose-model.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
-import { withDotenv } from "./own-stack.ts";
+import { withDotenv, type OwnStack } from "./own-stack.ts";
 import type { Workdir } from "./source/workdir.ts";
 
 export const PLAN_PROJECT = "gw-plan";
@@ -21,8 +21,7 @@ export async function readModel(
   ctx: PreviewContext,
   host: Host,
   wd: Workdir,
-  composeFile: string,
-  dotenv?: Record<string, string>,
+  { composeFile, dotenv }: OwnStack,
 ): Promise<Planned> {
   const argv = composeArgv({
     project: PLAN_PROJECT,
@@ -124,7 +123,7 @@ export function sharedNetworkFor(
   model: ComposeModel,
   source: PreviewSource,
 ): string | null {
-  const choice = "network" in source && source.network ? source.network : "auto";
+  const choice = ("network" in source ? source.network : undefined) ?? "auto";
   const single = model.services.length === 1 && model.networks.every((n) => n === "default");
   if (choice === "isolated") {
     return null;

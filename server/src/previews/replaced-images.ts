@@ -6,11 +6,12 @@ import { composeArgv } from "../docker/compose.ts";
 import type { PreviewContext } from "./context.ts";
 import type { ComposeBase } from "./pipeline.ts";
 
+/** A compose project's images, and where to ask about them. */
+export type ImageScope = { host: Host; base: ComposeBase; cwd: string };
+
 export async function imageIds(
   ctx: PreviewContext,
-  host: Host,
-  base: ComposeBase,
-  cwd: string,
+  { host, base, cwd }: ImageScope,
 ): Promise<Set<string>> {
   try {
     const res = await ctx.compose.capture(
@@ -33,16 +34,15 @@ export async function imageIds(
 
 export async function removeReplaced(
   ctx: PreviewContext,
-  host: Host,
-  base: ComposeBase,
-  cwd: string,
+  scope: ImageScope,
   before: Set<string>,
   previewId: string,
 ): Promise<void> {
   if (before.size === 0) {
     return;
   }
-  const after = await imageIds(ctx, host, base, cwd);
+  const { host } = scope;
+  const after = await imageIds(ctx, scope);
   const docker = ctx.docker ?? "docker";
   const empty = await mkdtemp(join(tmpdir(), "gangway-rmi-"));
   try {

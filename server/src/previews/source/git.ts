@@ -54,7 +54,7 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
     const env = await buildEnv(helperDir, options.token);
 
     const clone = SHA_RE.test(ref)
-      ? await cloneSha(gitPath, url.href, ref, options.destDir, env, timeoutMs)
+      ? await cloneSha({ gitPath, env, timeoutMs }, url.href, ref, options.destDir)
       : await run(
           gitPath,
           [
@@ -106,12 +106,10 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
 const SHA_RE = /^[0-9a-f]{40}$/i;
 
 async function cloneSha(
-  gitPath: string,
+  { gitPath, env, timeoutMs }: { gitPath: string; env: Record<string, string>; timeoutMs: number },
   href: string,
   sha: string,
   destDir: string,
-  env: Record<string, string>,
-  timeoutMs: number,
 ): Promise<RunResult> {
   const steps: string[][] = [
     ["init", "--quiet", "--", destDir],
@@ -230,7 +228,11 @@ async function run(
 function settle(p: Promise<string>): Promise<string> {
   return Promise.race([
     p.catch(() => ""),
-    new Promise<string>((resolve) => setTimeout(() => resolve(""), 2_000)),
+    new Promise<string>((resolve) =>
+      setTimeout(() => {
+        resolve("");
+      }, 2_000),
+    ),
   ]);
 }
 

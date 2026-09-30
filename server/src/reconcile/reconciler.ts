@@ -34,16 +34,18 @@ export class Reconciler {
     const hosts = ctx.hosts.list();
     const hostsById = new Map(hosts.map((h) => [h.id, h]));
 
-    const scanned = await Promise.all(hosts.map((h) => scanHost(this.#d, h)));
+    const scanned = await Promise.all(
+      hosts.map(async (host) => ({ host, ...(await scanHost(this.#d, host)) })),
+    );
     const reachable = new Map(scanned.map((s) => [s.scan.hostId, s.scan.reachable]));
     const summaries = new Map<string, Found>();
     const containers: ScannedContainer[] = [];
-    scanned.forEach((s, i) => {
-      for (const summary of s.summaries) {
-        summaries.set(summary.id, { summary, host: hosts[i]! });
-        containers.push(toScanned(summary, hosts[i]!));
+    for (const { host, summaries: found } of scanned) {
+      for (const summary of found) {
+        summaries.set(summary.id, { summary, host });
+        containers.push(toScanned(summary, host));
       }
-    });
+    }
 
     // Read after the scan: a concurrent deploy then shows as a route the in-flight guard covers.
     const actions = diff({
@@ -129,8 +131,9 @@ export class Reconciler {
         return this.#adopt(a, summaries.get(a.containerId), hosts.get(a.hostId));
       case "StopOrphan":
         return this.#stopOrphan(a, summaries.get(a.containerId));
+      case "LeaveAlone":
+        return null;
     }
-    return null;
   }
 
   #markAsleep(a: Of<"MarkAsleep">): string | null {

@@ -96,7 +96,7 @@ export class CloudflareDnsProvider implements DnsProvider {
 
   async waitForPropagation(name: string, expectedValues: string[]): Promise<boolean> {
     const zone = await this.#zoneFor(name);
-    return await waitForTxtPropagation(name, expectedValues, {
+    return waitForTxtPropagation(name, expectedValues, {
       dns: this.#dns,
       zone: zone.name,
       log: this.#log,
@@ -111,7 +111,7 @@ export class CloudflareDnsProvider implements DnsProvider {
       return cached;
     }
     // Singleflight because a wildcard order calls createTxt twice for the same name at once.
-    return await this.#zoneFlight.run(name, async () => {
+    return this.#zoneFlight.run(name, async () => {
       const again = this.#zones.get(name);
       if (again) {
         return again;
@@ -155,7 +155,7 @@ export class CloudflareDnsProvider implements DnsProvider {
     body?: unknown,
     o: { tolerateMissing?: boolean } = {},
   ): Promise<T | null> {
-    return await retry<T | null>(
+    return retry<T | null>(
       async () => {
         const res = await this.#fetch(`${this.#base}${path}`, {
           method,
@@ -197,14 +197,15 @@ export class CloudflareDnsProvider implements DnsProvider {
         ...this.#retry,
         shouldRetry: (err) =>
           !(err instanceof AppError) || err.code === "rate_limited" || err.code === "bad_gateway",
-        onRetry: (attempt, delayMs, err) =>
+        onRetry: (attempt, delayMs, err) => {
           this.#log.warn("retrying Cloudflare request", {
             method,
             path,
             attempt,
             delayMs,
             reason: errorMessage(err),
-          }),
+          });
+        },
       },
     );
   }

@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Host, HostState } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToHost, type HostRow } from "./mappers.ts";
@@ -15,11 +16,11 @@ export class HostsRepo {
   }
 
   list(): Host[] {
-    return this.#db.query<HostRow>("SELECT * FROM hosts ORDER BY id").map(rowToHost);
+    return (this.#db.query("SELECT * FROM hosts ORDER BY id") as HostRow[]).map(rowToHost);
   }
 
   get(id: string): Host | undefined {
-    const r = this.#db.get<HostRow>("SELECT * FROM hosts WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM hosts WHERE id = $id", { id }) as HostRow | undefined;
     return r ? rowToHost(r) : undefined;
   }
 
@@ -58,7 +59,7 @@ export class HostsRepo {
         created_at: this.#now(),
       },
     );
-    return this.get(h.id)!;
+    return must(this.get(h.id), "the host just saved");
   }
 
   setState(id: string, state: HostState, lastError: string | null = null): void {

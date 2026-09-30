@@ -21,6 +21,9 @@ const MAX_QUERY_CHARS = 64 * 1024;
 
 export type AddonView = AddonChoice & { name: string; service: string; env: readonly string[] };
 
+/** One statement to run against an add-on, and what it is for in the audit log. */
+type Statement = { addon: AddonId; text: string; write: boolean; kind: string };
+
 export class DataBrowser {
   readonly #ctx: PreviewContext;
   readonly #busy = new Set<string>();
@@ -42,7 +45,12 @@ export class DataBrowser {
     if (addon === "redis") {
       throw unprocessable("Redis has keys, not tables: use /keys");
     }
-    const r = await this.#run(actor, previewId, addon, tablesQuery(addon), false, "tables");
+    const r = await this.#run(actor, previewId, {
+      addon,
+      text: tablesQuery(addon),
+      write: false,
+      kind: "tables",
+    });
     return r.rows.map((row) => ({ schema: row[0] ?? "", name: row[1] ?? "" }));
   }
 
@@ -50,9 +58,7 @@ export class DataBrowser {
     actor: Actor,
     previewId: string,
     addon: AddonId,
-    table: Table,
-    limit: number,
-    offset: number,
+    { table, limit, offset }: { table: Table; limit: number; offset: number },
   ): Promise<TimedResult> {
     if (addon === "redis") {
       throw unprocessable("Redis has keys, not tables: use /keys");
@@ -61,14 +67,12 @@ export class DataBrowser {
     if (!known.some((t) => t.schema === table.schema && t.name === table.name)) {
       throw notFound(`no table ${table.schema}.${table.name}`);
     }
-    return this.#run(
-      actor,
-      previewId,
+    return this.#run(actor, previewId, {
       addon,
-      rowsQuery(addon, table, Math.min(Math.max(limit, 1), 200), Math.max(offset, 0)),
-      false,
-      "rows",
-    );
+      text: rowsQuery(addon, table, Math.min(Math.max(limit, 1), 200), Math.max(offset, 0)),
+      write: false,
+      kind: "rows",
+    });
   }
 
   async keys(
@@ -80,14 +84,12 @@ export class DataBrowser {
     if (!/^\d{1,20}$/.test(cursor)) {
       throw unprocessable("cursor is a number");
     }
-    const r = await this.#run(
-      actor,
-      previewId,
-      "redis",
-      `SCAN ${cursor} MATCH ${JSON.stringify(match || "*")} COUNT 200`,
-      false,
-      "keys",
-    );
+    const r = await this.#run(actor, previewId, {
+      addon: "redis",
+      text: `SCAN ${cursor} MATCH ${JSON.stringify(match || "*")} COUNT 200`,
+      write: false,
+      kind: "keys",
+    });
     const [next, ...keys] = r.rows.map((row) => row[0] ?? "");
     return { cursor: next ?? "0", keys };
   }
@@ -99,10 +101,23 @@ export class DataBrowser {
   ): Promise<{ type: string; ttl: string; value: TimedResult }> {
     const k = JSON.stringify(name);
     const type =
-      (await this.#run(actor, previewId, "redis", `TYPE ${k}`, false, "key")).rows[0]?.[0] ??
-      "none";
+      (
+        await this.#run(actor, previewId, {
+          addon: "redis",
+          text: `TYPE ${k}`,
+          write: false,
+          kind: "key",
+        })
+      ).rows[0]?.[0] ?? "none";
     const ttl =
-      (await this.#run(actor, previewId, "redis", `TTL ${k}`, false, "key")).rows[0]?.[0] ?? "-2";
+      (
+        await this.#run(actor, previewId, {
+          addon: "redis",
+          text: `TTL ${k}`,
+          write: false,
+          kind: "key",
+        })
+      ).rows[0]?.[0] ?? "-2";
     const read: Record<string, string> = {
       string: `GET ${k}`,
       hash: `HGETALL ${k}`,
@@ -112,7 +127,12 @@ export class DataBrowser {
       stream: `XRANGE ${k} - + COUNT 50`,
     };
     const value = read[type]
-      ? await this.#run(actor, previewId, "redis", read[type], false, "key")
+      ? await this.#run(actor, previewId, {
+          addon: "redis",
+          text: read[type],
+          write: false,
+          kind: "key",
+        })
       : { columns: ["value"], rows: [], truncated: false, message: null, ms: 0 };
     return { type, ttl, value };
   }
@@ -121,8 +141,7 @@ export class DataBrowser {
     actor: Actor,
     previewId: string,
     addon: AddonId,
-    text: string,
-    write: boolean,
+    { text, write }: { text: string; write: boolean },
   ): Promise<TimedResult> {
     if (text.trim() === "") {
       throw unprocessable("nothing to run");
@@ -136,7 +155,7 @@ export class DataBrowser {
         throw unprocessable(why);
       }
     }
-    return this.#run(actor, previewId, addon, text, write, "query");
+    return this.#run(actor, previewId, { addon, text, write, kind: "query" });
   }
 
   #preview(previewId: string): Preview {
@@ -180,10 +199,7 @@ export class DataBrowser {
   async #run(
     actor: Actor,
     previewId: string,
-    addon: AddonId,
-    text: string,
-    write: boolean,
-    kind: string,
+    { addon, text, write, kind }: Statement,
   ): Promise<TimedResult> {
     const ctx = this.#ctx;
     const { preview, host } = this.#target(previewId, addon);
@@ -191,7 +207,9 @@ export class DataBrowser {
     const started = Date.now();
     const cwd = await mkdtemp(join(tmpdir(), "gangway-data-"));
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), WALL_CLOCK_MS);
+    const timer = setTimeout(() => {
+      abort.abort();
+    }, WALL_CLOCK_MS);
     const x: Exec = { ctx, preview, host, addon, cwd, abort, outcome: "ok" };
     let result: TimedResult | null = null;
     try {

@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Host } from "@gangway/shared/domain";
 import { buildLabel, fqdn } from "@gangway/shared/hostname";
 import { unprocessable } from "../errors.ts";
@@ -89,7 +90,7 @@ export function planRoutes(i: PlanInput): PlannedRoute[] {
       previewId: i.previewId,
       service: e.service,
       containerPort: e.containerPort,
-      upstream: { host: i.host.upstream.address, port: ports[idx]! },
+      upstream: { host: i.host.upstream.address, port: must(ports[idx], "an allocated port") },
       primary: e.primary || i.exposed.length === 1,
     };
   });

@@ -36,8 +36,12 @@ export async function assertNoEscapingSymlinks(root: string, maxEntries = 200_00
   await walk(root);
 }
 
-const list = (v: unknown): unknown[] =>
-  Array.isArray(v) ? v : v === undefined || v === null ? [] : [v];
+function list(v: unknown): unknown[] {
+  if (Array.isArray(v)) {
+    return v;
+  }
+  return v === undefined || v === null ? [] : [v];
+}
 
 export function referencedFiles(doc: unknown): { where: string; path: string }[] {
   const out: { where: string; path: string }[] = [];

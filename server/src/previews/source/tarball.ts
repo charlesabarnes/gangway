@@ -2,7 +2,7 @@ import { chmod, lstat, mkdir, open, realpath, symlink, link } from "node:fs/prom
 import path from "node:path";
 import { Readable } from "node:stream";
 import { createGunzip } from "node:zlib";
-import { extract, type Extract, type ExtractEvents } from "tar-stream";
+import { extract, type Extract, type ExtractEvents, type Header } from "tar-stream";
 import { AppError, errorMessage } from "../../errors.ts";
 import {
   DIR_MODE,
@@ -16,7 +16,13 @@ import {
   type ResolvedLimits,
 } from "./types.ts";
 
-type TarEntry = ExtractEvents["entry"][1];
+// tar-stream's types promise more than its parser gives: an unknown typeflag is a null type,
+// and an entry with no link target has a null linkname.
+type TarHeader = Omit<Header, "type" | "linkname"> & {
+  type: Header["type"] | null;
+  linkname: string | null;
+};
+type TarEntry = Omit<ExtractEvents["entry"][1], "header"> & { header: TarHeader };
 
 export type TarballSource = Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>;
 
@@ -115,7 +121,7 @@ function entrySegments(ctx: Context, name: string): string[] {
 }
 
 async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
-  const name = entry.header.name ?? "";
+  const name = entry.header.name;
   const segments = entrySegments(ctx, name);
   const type = entry.header.type ?? "file";
 
@@ -147,6 +153,9 @@ async function handleEntry(ctx: Context, entry: TarEntry): Promise<void> {
       await writeLinkEntry(ctx, entry, target, type);
       ctx.result.links++;
       return;
+    case "block-device":
+    case "character-device":
+    case "fifo":
     default:
       throw rejectTarball("unsupported_entry_type", `unsupported entry type '${type}'`, name);
   }

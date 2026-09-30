@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import { chmod, copyFile, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -84,13 +85,17 @@ export function assertRunnable(plan: AppPlan): void {
 
 const ALWAYS_BOUND = ["PUBLIC_URL", "GANGWAY_PREVIEW_ID"];
 
+type RuntimeExtras = {
+  secrets?: Record<string, string> | undefined;
+  port?: number | undefined;
+  sidecars?: RenderedAddons | undefined;
+};
+
 export async function writeRuntime(
   srcDir: string,
   plan: AppPlan,
-  secrets: Record<string, string> | undefined,
   composePath: string,
-  port?: number,
-  sidecars?: RenderedAddons,
+  { secrets, port, sidecars }: RuntimeExtras = {},
 ): Promise<{ composeFile: string; note: string }> {
   if (containedIn(srcDir, composePath)) {
     throw new AppError("internal", "the runtime compose file must be outside the build context");
@@ -120,7 +125,7 @@ export async function writeRuntime(
     await writeFile(path.join(dir, name), body, { mode: FILE_MODE });
   }
   await copyAssets(dir, rendered.assets ?? {});
-  const listen = port ?? plan.port ?? runtimeById(plan.runtime!).port;
+  const listen = port ?? plan.port ?? runtimeById(must(plan.runtime, "a planned runtime")).port;
   await writeFile(
     composePath,
     composeForRuntime({
@@ -146,11 +151,9 @@ async function copyAssets(dir: string, assets: Record<string, string>): Promise<
 }
 
 export function stackX(plan: AppPlan): Record<string, string> {
-  const release =
-    plan.release === null
-      ? undefined
-      : typeof plan.release === "string"
-        ? plan.release
-        : plan.release.map(shq).join(" ");
-  return { ...plan.stack, ...(release !== undefined ? { release } : {}) };
+  if (plan.release === null) {
+    return { ...plan.stack };
+  }
+  const release = typeof plan.release === "string" ? plan.release : plan.release.map(shq).join(" ");
+  return { ...plan.stack, release };
 }

@@ -21,15 +21,15 @@ class BunDb implements Db {
   }
 
   exec(sql: string) {
-    this.#db.exec(sql);
+    this.#db.run(sql);
   }
-  query<T>(sql: string, params?: Params): T[] {
-    return (params ? this.#db.query(sql).all(params) : this.#db.query(sql).all()) as T[];
+  query(sql: string, params?: Params): unknown[] {
+    return params ? this.#db.query(sql).all(params) : this.#db.query(sql).all();
   }
-  get<T>(sql: string, params?: Params): T | undefined {
+  get(sql: string, params?: Params): unknown {
     // bun:sqlite returns null for no row; node:sqlite returns undefined.
     const r = params ? this.#db.query(sql).get(params) : this.#db.query(sql).get();
-    return (r ?? undefined) as T | undefined;
+    return r ?? undefined;
   }
   run(sql: string, params?: Params) {
     const r = params ? this.#db.query(sql).run(params) : this.#db.query(sql).run();
@@ -38,8 +38,8 @@ class BunDb implements Db {
   transaction<T>(fn: () => T): T {
     return this.#db.transaction(fn)();
   }
-  pragma<T>(statement: string): T | undefined {
-    return (this.#db.query(statement).get() ?? undefined) as T | undefined;
+  pragma(statement: string): unknown {
+    return this.#db.query(statement).get() ?? undefined;
   }
   close() {
     this.#db.close();

@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type {
   Clearance,
   ForgeId,
@@ -89,11 +90,12 @@ export class ProjectsRepo {
         now,
       },
     );
-    return this.get(p.id)!;
+    return must(this.get(p.id), "the project just saved");
   }
 
   get(id: string): Project | undefined {
-    const r = this.#db.get<ProjectRow>("SELECT * FROM projects WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM projects WHERE id = $id", { id }) as
+      ProjectRow | undefined;
     return r ? rowToProject(r) : undefined;
   }
 
@@ -103,22 +105,23 @@ export class ProjectsRepo {
 
   getByFullName(forge: ForgeId, fullName: string): RepoProject | undefined {
     // NOCASE because GitHub repository names are case-insensitive.
-    const r = this.#db.get<ProjectRow>(
+    const r = this.#db.get(
       "SELECT * FROM projects WHERE forge = $forge AND full_name = $fullName COLLATE NOCASE",
       { forge, fullName },
-    );
+    ) as ProjectRow | undefined;
     return r ? (rowToProject(r) as RepoProject) : undefined;
   }
 
   getBySlug(slug: string): Project | undefined {
-    const r = this.#db.get<ProjectRow>("SELECT * FROM projects WHERE slug = $slug", { slug });
+    const r = this.#db.get("SELECT * FROM projects WHERE slug = $slug", { slug }) as
+      ProjectRow | undefined;
     return r ? rowToProject(r) : undefined;
   }
 
   list(): Project[] {
-    return this.#db
-      .query<ProjectRow>("SELECT * FROM projects ORDER BY name COLLATE NOCASE")
-      .map(rowToProject);
+    return (
+      this.#db.query("SELECT * FROM projects ORDER BY name COLLATE NOCASE") as ProjectRow[]
+    ).map(rowToProject);
   }
 
   update(id: string, patch: ProjectPatch): Project | undefined {
@@ -151,9 +154,9 @@ export class ProjectsRepo {
 
   envCiphertext(id: string): string | null {
     return (
-      this.#db.get<{ env_ciphertext: string | null }>(
-        "SELECT env_ciphertext FROM projects WHERE id = $id",
-        { id },
+      (
+        this.#db.get("SELECT env_ciphertext FROM projects WHERE id = $id", { id }) as
+          { env_ciphertext: string | null } | undefined
       )?.env_ciphertext ?? null
     );
   }

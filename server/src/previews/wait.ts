@@ -79,8 +79,9 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
       return;
     }
     if (Date.now() >= deadline) {
+      const health = r.health;
       throw new StepFailed(
-        `${pending.map((p) => `${p.service}:${p.containerPort}${r.health?.[p.service] ?? ""}`).join(", ")} never answered${r.health && pending.some((p) => r.health![p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`,
+        `${pending.map((p) => `${p.service}:${p.containerPort}${health?.[p.service] ?? ""}`).join(", ")} never answered${health && pending.some((p) => health[p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`,
       );
     }
     await sleep(ctx.timings.pollIntervalMs);

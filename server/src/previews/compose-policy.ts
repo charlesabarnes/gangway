@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import { isAbsolute, resolve } from "node:path";
 import { obj, type Json } from "../util/json.ts";
 import { containedIn } from "./source/types.ts";
@@ -96,7 +97,7 @@ function imageViolations(at: string, s: Json): string[] {
 
 function linkViolations(at: string, s: Json, services: ReadonlySet<string>): string[] {
   return arr(s["links"])
-    .map((l) => String(l).split(":")[0]!)
+    .map((l) => must(String(l).split(":")[0], "a link's service name"))
     .filter((name) => !services.has(name))
     .map((name) => `${at}: links to ${name}, which is not a service of this preview`);
 }

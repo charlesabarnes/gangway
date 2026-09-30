@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Preview } from "@gangway/shared/domain";
 import { parseDuration } from "@gangway/shared/duration";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
@@ -42,5 +43,5 @@ export function extendPreview(
     old: old.toISOString(),
     new: next?.toISOString() ?? null,
   });
-  return ctx.previews.get(previewId)!;
+  return must(ctx.previews.get(previewId), "the preview just extended");
 }

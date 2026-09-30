@@ -23,7 +23,9 @@ export const httpProbe: RouteProbe = async (route, host, healthPath) => {
       socket.destroy();
       resolve(ok);
     };
-    const timer = setTimeout(() => finish(false), 3_000);
+    const timer = setTimeout(() => {
+      finish(false);
+    }, 3_000);
     let head = "";
     socket.on("data", (chunk: Buffer) => {
       head += chunk.toString("latin1");
@@ -81,7 +83,9 @@ export const httpStatus: StatusProbe = async (route, host, path) => {
       socket.destroy();
       resolve(s);
     };
-    const timer = setTimeout(() => finish(null), 5_000);
+    const timer = setTimeout(() => {
+      finish(null);
+    }, 5_000);
     let head = "";
     socket.on("data", (chunk: Buffer) => {
       head += chunk.toString("latin1");

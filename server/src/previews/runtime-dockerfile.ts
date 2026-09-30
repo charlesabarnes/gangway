@@ -43,7 +43,12 @@ function steps(plan: AppPlan, files: Record<string, string>): string {
   return out;
 }
 
-const describe = (c: Command | null) => (c === null ? "" : typeof c === "string" ? c : c.join(" "));
+function describe(c: Command | null): string {
+  if (c === null) {
+    return "";
+  }
+  return typeof c === "string" ? c : c.join(" ");
+}
 
 type Build = {
   plan: AppPlan;
@@ -85,8 +90,7 @@ const STATIC_NOTES: Record<Fallback, string> = {
   listing: "no index.html: directories are listed",
 };
 
-function renderArtifact(b: Build): Rendered {
-  const meta = b.plan.artifact!;
+function renderArtifact(b: Build, meta: NonNullable<AppPlan["artifact"]>): Rendered {
   const { version, files } = renderAssets();
   const markdown = meta.format === "markdown";
   b.files["nginx.conf"] = nginxConf(b.listen, "spa", { gzip: true });
@@ -109,7 +113,7 @@ function renderArtifact(b: Build): Rendered {
 
 function renderStatic(b: Build): Rendered {
   if (b.plan.artifact) {
-    return renderArtifact(b);
+    return renderArtifact(b, b.plan.artifact);
   }
   const serve = b.plan.serve;
   b.files["nginx.conf"] = nginxConf(b.listen, serve.kind === "static" ? serve.fallback : "spa");
@@ -169,9 +173,10 @@ function renderBun(b: Build): Rendered {
 
 function renderDeno(b: Build): Rendered {
   const { plan, files } = b;
-  const wrapped = plan.entry !== null && !plan.start;
+  const entry = plan.start ? null : plan.entry;
+  const wrapped = entry !== null;
   if (wrapped) {
-    files["entry.ts"] = workerWrapper(plan.entry!, "deno");
+    files["entry.ts"] = workerWrapper(entry, "deno");
   }
   const s = startWith(b, `CMD ["deno", "run", "-A", ".gangway/entry.ts"]\n`, `deno ${plan.entry}`);
   return {

@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import { actorId, mayRebuild } from "../auth/actor.ts";
@@ -101,7 +102,10 @@ type Claimed = {
 
 // No await from these checks until the inflight claim, so two saves can't both get past.
 function claimRebuild(ctx: PreviewContext, id: string): Claimed {
-  const preview = ctx.previews.get(id)!;
+  const preview = ctx.previews.get(id);
+  if (!preview) {
+    throw notFound(`no such preview: ${id}`);
+  }
   if (!["awake", "asleep", "failed"].includes(preview.state)) {
     throw conflict(`the preview is ${preview.state}; wait for it to settle`, {
       state: preview.state,
@@ -185,20 +189,23 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   };
   void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
     .then(
-      (o) => settle(o),
-      (e: unknown) =>
+      (o) => {
+        settle(o);
+      },
+      (e: unknown) => {
         settle({
           preview: ctx.previews.get(id) ?? preview,
           buildId,
           outcome: "failed",
           error: String(e),
-        }),
+        });
+      },
     )
     .finally(() => {
       ctx.inflight.delete(id);
     });
 
-  return { preview: ctx.previews.get(id)!, buildId, done, plan: plan.app };
+  return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
 }
 
 type RebuildRun = RunPlan & { buildId: string; addonServices: string[] };
@@ -246,8 +253,7 @@ async function rebuildFailed(
   ctx: PreviewContext,
   p: Pipeline,
   r: RebuildRun,
-  e: unknown,
-  upAttempted: boolean,
+  { e, upAttempted }: { e: unknown; upAttempted: boolean },
 ): Promise<RedeployOutcome> {
   // destroy() aborted the run and owns the preview from here.
   if (r.signal.aborted) {
@@ -277,7 +283,7 @@ async function runSite(
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
   try {
-    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan);
+    const { files } = await must(ctx.sites, "the site store").publish(id, r.wd.srcDir, plan);
     r.signal.throwIfAborted();
     if (moving && was.source.kind === "tarball") {
       ctx.previews.setSource(id, { ...was.source, serve: "gangway" });
@@ -326,7 +332,8 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
   let upAttempted = false;
   try {
     const shared = await writeStack(ctx, p.stackPath, r);
-    const before = await imageIds(ctx, r.host, p.base, r.wd.srcDir);
+    const images = { host: r.host, base: p.base, cwd: r.wd.srcDir };
+    const before = await imageIds(ctx, images);
     await buildImages(ctx, p, r, r.buildId);
     await startAddons(ctx, p, r);
     await runJob(p, "release", releaseFor(r.model, r.routes));
@@ -340,13 +347,13 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
     await waitAnswering(ctx, target);
     p.log("rebuilt: awake");
     ctx.states.transition(p.id, "awake");
-    await removeReplaced(ctx, r.host, p.base, r.wd.srcDir, before, p.id);
+    await removeReplaced(ctx, images, before, p.id);
     if (shared) {
       await dropProjectNetwork(ctx, r.host, p.base.project);
     }
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
-    return await rebuildFailed(ctx, p, r, e, upAttempted);
+    return await rebuildFailed(ctx, p, r, { e, upAttempted });
   } finally {
     await r.wd.cleanup();
   }

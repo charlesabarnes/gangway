@@ -138,7 +138,7 @@ export function nginxConf(
   fallback: "spa" | "404" | "listing",
   opts: { gzip?: boolean } = {},
 ): string {
-  const tail = fallback === "404" ? "=404" : fallback === "spa" ? "/index.html" : "=404";
+  const tail = fallback === "spa" ? "/index.html" : "=404";
   const gzip = opts.gzip
     ? "gzip on;\n  gzip_types text/css application/javascript application/json text/csv image/svg+xml;\n  "
     : "";

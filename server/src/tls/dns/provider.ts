@@ -20,7 +20,7 @@ const QUERY_TIMEOUT_MS = 5_000;
 export function nodeDnsQueries(): DnsQueries {
   return {
     async resolveNs(zone) {
-      return await new Resolver({ timeout: QUERY_TIMEOUT_MS, tries: 2 }).resolveNs(zone);
+      return new Resolver({ timeout: QUERY_TIMEOUT_MS, tries: 2 }).resolveNs(zone);
     },
     async resolveAddresses(host) {
       const r = new Resolver({ timeout: QUERY_TIMEOUT_MS, tries: 2 });
@@ -29,7 +29,7 @@ export function nodeDnsQueries(): DnsQueries {
       if (v4.length > 0) {
         return v4;
       }
-      return await r.resolve6(host).catch(() => [] as string[]);
+      return r.resolve6(host).catch(() => [] as string[]);
     },
     async resolveTxtFrom(serverIp, name) {
       const r = new Resolver({ timeout: QUERY_TIMEOUT_MS, tries: 2 });

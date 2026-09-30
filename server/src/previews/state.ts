@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Preview, PreviewState } from "@gangway/shared/domain";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
 import { AppError, notFound } from "../errors.ts";
@@ -46,6 +47,6 @@ export class PreviewStates {
       { state: to, from: current.state, ...(error ? { error } : {}) },
       id,
     );
-    return this.#previews.get(id)!;
+    return must(this.#previews.get(id), "the preview just moved");
   }
 }

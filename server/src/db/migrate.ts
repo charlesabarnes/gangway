@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { must } from "@gangway/shared/must";
 import type { Db } from "./types.ts";
 
 export type Migration = { version: number; name: string; sql: string; checksum: string };
@@ -27,15 +28,21 @@ export function loadMigrations(dir: string): Migration[] {
         `migration ${file} sets journal_mode; that belongs in the open sequence, not a migration`,
       );
     }
-    out.push({ version: Number.parseInt(m[1]!, 10), name: m[2]!, sql, checksum: checksum(sql) });
+    const [, version, name] = m;
+    out.push({
+      version: Number.parseInt(must(version, "a migration version"), 10),
+      name: must(name, "a migration name"),
+      sql,
+      checksum: checksum(sql),
+    });
   }
   // Numeric, not lexical: 0010 must follow 0009.
   out.sort((a, b) => a.version - b.version);
 
-  for (let i = 0; i < out.length; i++) {
-    const prev = out[i - 1];
-    if (prev && prev.version === out[i]!.version) {
-      throw new Error(`duplicate migration version ${out[i]!.version}`);
+  for (let i = 1; i < out.length; i++) {
+    const cur = must(out[i], "a migration");
+    if (out[i - 1]?.version === cur.version) {
+      throw new Error(`duplicate migration version ${cur.version}`);
     }
   }
   return out;
@@ -61,9 +68,9 @@ export function migrate(
 ): MigrateResult {
   ensureTable(db);
   const migrations = loadMigrations(dir);
-  const applied = db.query<AppliedRow>(
+  const applied = db.query(
     "SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version",
-  );
+  ) as AppliedRow[];
   const byVersion = new Map(applied.map((r) => [r.version, r]));
 
   for (const row of applied) {
@@ -99,7 +106,7 @@ export function migrate(
           "INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES ($version, $name, $checksum, $applied_at)",
           { version: m.version, name: m.name, checksum: m.checksum, applied_at: now() },
         );
-        const violations = db.query<Record<string, unknown>>("PRAGMA foreign_key_check");
+        const violations = db.query("PRAGMA foreign_key_check") as Record<string, unknown>[];
         if (violations.length > 0) {
           throw new Error(
             `migration ${m.version} left ${violations.length} foreign key violation(s)`,

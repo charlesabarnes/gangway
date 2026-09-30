@@ -47,13 +47,14 @@ export class AuditRepo {
     entries: AuditEntry[];
     nextBefore: number | null;
   } {
-    const rows = this.#db.query<AuditRow>(
+    const rows = this.#db.query(
       `SELECT * FROM audit
         WHERE seq < $before AND ($action IS NULL OR action = $action)
         ORDER BY seq DESC LIMIT $limit`,
       { before: q.before ?? Number.MAX_SAFE_INTEGER, action: q.action ?? null, limit: q.limit + 1 },
-    );
+    ) as AuditRow[];
     const entries = rows.slice(0, q.limit).map(rowToAuditEntry);
-    return { entries, nextBefore: rows.length > q.limit ? entries[entries.length - 1]!.seq : null };
+    const last = entries.at(-1);
+    return { entries, nextBefore: rows.length > q.limit && last ? last.seq : null };
   }
 }

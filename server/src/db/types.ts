@@ -2,11 +2,11 @@ export type Params = Record<string, string | number | bigint | boolean | null | 
 
 export interface Db {
   exec(sql: string): void;
-  query<T = unknown>(sql: string, params?: Params): T[];
-  get<T = unknown>(sql: string, params?: Params): T | undefined;
+  query(sql: string, params?: Params): unknown[];
+  get(sql: string, params?: Params): unknown;
   run(sql: string, params?: Params): { changes: number; lastInsertRowid: number };
   transaction<T>(fn: () => T): T;
-  pragma<T = unknown>(statement: string): T | undefined;
+  pragma(statement: string): unknown;
   close(): void;
   readonly driver: "bun" | "node";
   readonly sqliteVersion: string;
@@ -41,7 +41,7 @@ export function applyPragmas(
   o: OpenOptions,
 ): { journalMode: string } {
   const want = o.journalMode ?? "WAL";
-  const res = db.pragma<{ journal_mode: string }>(`PRAGMA journal_mode = ${want}`);
+  const res = db.pragma(`PRAGMA journal_mode = ${want}`) as { journal_mode: string } | undefined;
   const got = String(res?.journal_mode ?? "").toLowerCase();
 
   db.exec(`PRAGMA synchronous = NORMAL`);
@@ -51,7 +51,7 @@ export function applyPragmas(
   // 16 MiB of page cache (the default is 2); no mmap, which misbehaves on some network and FUSE filesystems.
   db.exec(`PRAGMA cache_size = -16384`);
 
-  const fk = db.pragma<{ foreign_keys: number }>(`PRAGMA foreign_keys`);
+  const fk = db.pragma(`PRAGMA foreign_keys`) as { foreign_keys: number } | undefined;
   if (Number(fk?.foreign_keys) !== 1) {
     throw new Error(
       "PRAGMA foreign_keys did not take effect; refusing to run without referential integrity",

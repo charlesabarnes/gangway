@@ -1,5 +1,5 @@
 import type { AppPlan } from "@gangway/shared/app-plan";
-import type { Host, NetworkChoice, Preview, PreviewSource } from "@gangway/shared/domain";
+import type { Host, Preview, PreviewSource } from "@gangway/shared/domain";
 import { actorId } from "../auth/actor.ts";
 import { conflict, unprocessable } from "../errors.ts";
 import { addonServices } from "./addons.ts";
@@ -61,14 +61,14 @@ function assertSameExposure(routes: PlannedRoute[], model: ComposeModel): void {
 
 async function recordSource(
   ctx: PreviewContext,
-  sources: SourceStore,
-  id: string,
+  b: Rebuild,
   source: TarballPreviewSource,
   up: PreparedUpload,
-  network?: NetworkChoice,
 ): Promise<PreviewSource> {
+  const id = b.preview.id;
+  const network = b.input.network;
   if (up.pristine) {
-    await sources.adopt(id, up.pristine);
+    await b.sources.adopt(id, up.pristine);
   }
   const next: PreviewSource = {
     kind: "tarball",
@@ -131,17 +131,19 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
   const own = ctx.secrets?.previewValues(id) ?? {};
   const env = Object.keys(own).length > 0 ? { ...shared, ...own } : shared;
   ctx.logs.mask(id, Object.values(env ?? {}));
-  const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
-  const up = await prepareUpload(ctx, id, wd, choice, env, port, {
-    previous: source.runtime ?? "own",
-    addons: input.addons,
-    previousAddons: source.addons,
-  });
+  const port = routes.length === 1 ? routes[0]?.containerPort : undefined;
+  const up = await prepareUpload(
+    ctx,
+    { logId: id, wd, choice, env, port },
+    {
+      previous: source.runtime ?? "own",
+      addons: input.addons,
+      previousAddons: source.addons,
+    },
+  );
   const site = siteFor(ctx, source, up.plan);
-  const planned = site
-    ? siteModel(site, port)
-    : await readModel(ctx, b.host, wd, up.composeFile, up.dotenv);
+  const planned = site ? siteModel(site, port) : await readModel(ctx, b.host, wd, up);
   assertSameExposure(routes, planned.model);
-  const next = await recordSource(ctx, b.sources, id, source, up, input.network);
+  const next = await recordSource(ctx, b, source, up);
   return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan, site };
 }

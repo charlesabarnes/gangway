@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { AddonId } from "@gangway/shared/addons";
 import { ADDON_USER } from "../addons.ts";
 
@@ -72,14 +73,14 @@ export function tokenize(text: string): string[] {
     inWord = false,
     quote: '"' | "'" | null = null;
   for (let i = 0; i < text.length; i++) {
-    const c = text[i]!;
+    const c = text.charAt(i);
     if (quote) {
       if (c === quote) {
         quote = null;
         continue;
       }
       if (c === "\\" && quote === '"' && i + 1 < text.length) {
-        cur += text[++i]!;
+        cur += text.charAt(++i);
         continue;
       }
       cur += c;
@@ -205,7 +206,7 @@ export function redisRefusal(text: string, write: boolean): string | null {
   } catch (e) {
     return e instanceof Error ? e.message : "cannot parse the command";
   }
-  const cmd = argv[0]!.toUpperCase();
+  const cmd = must(argv[0], "a redis command").toUpperCase();
   if (REDIS_NEVER.has(cmd)) {
     return `${cmd} is not available here`;
   }
@@ -228,7 +229,7 @@ export function parseCsv(text: string): { columns: string[]; rows: Cell[][] } {
     quoted = false;
   };
   for (let i = 0; i < text.length; i++) {
-    const c = text[i]!;
+    const c = text.charAt(i);
     any = true;
     if (inQuotes) {
       if (c === '"') {
@@ -263,19 +264,21 @@ export function parseCsv(text: string): { columns: string[]; rows: Cell[][] } {
   return { columns: (header ?? []).map((h) => h ?? ""), rows };
 }
 
+const BATCH_ESCAPES = new Map([
+  ["t", "\t"],
+  ["n", "\n"],
+  ["0", "\0"],
+]);
+
 export function parseBatch(text: string): { columns: string[]; rows: Cell[][] } {
   const unescape = (s: string): Cell =>
-    s === "NULL"
-      ? null
-      : s.replace(/\\(.)/g, (_, c: string) =>
-          c === "t" ? "\t" : c === "n" ? "\n" : c === "0" ? "\0" : c,
-        );
+    s === "NULL" ? null : s.replace(/\\(.)/g, (_, c: string) => BATCH_ESCAPES.get(c) ?? c);
   const lines = text.split("\n").filter((l, i, a) => !(l === "" && i === a.length - 1));
-  if (lines.length === 0) {
+  const [header, ...rest] = lines;
+  if (header === undefined) {
     return { columns: [], rows: [] };
   }
-  const [header, ...rest] = lines;
-  return { columns: header!.split("\t"), rows: rest.map((l) => l.split("\t").map(unescape)) };
+  return { columns: header.split("\t"), rows: rest.map((l) => l.split("\t").map(unescape)) };
 }
 
 function parseRedis(text: string): { columns: string[]; rows: Cell[][] } {
@@ -287,9 +290,13 @@ function parseRedis(text: string): { columns: string[]; rows: Cell[][] } {
 }
 
 export function parse(addon: AddonId, text: string): { columns: string[]; rows: Cell[][] } {
-  return addon === "postgres"
-    ? parseCsv(text)
-    : addon === "mysql"
-      ? parseBatch(text)
-      : parseRedis(text);
+  switch (addon) {
+    case "postgres":
+      return parseCsv(text);
+    case "mysql":
+      return parseBatch(text);
+    case "redis":
+    default:
+      return parseRedis(text);
+  }
 }

@@ -103,6 +103,7 @@ export function healthState(inspect: InspectJson): HealthState {
       return "healthy";
     case "unhealthy":
       return "unhealthy";
+    case undefined:
     default:
       return "unknown";
   }

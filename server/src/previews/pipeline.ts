@@ -36,7 +36,9 @@ export function openPipeline(ctx: PreviewContext, r: RunPlan): Pipeline {
       docker: ctx.docker,
     },
     step: stepper(ctx, { previewId: id, host: r.host, cwd: r.wd.srcDir, signal: r.signal }),
-    log: (line) => ctx.logs.append(id, "system", line),
+    log: (line) => {
+      ctx.logs.append(id, "system", line);
+    },
   };
 }
 

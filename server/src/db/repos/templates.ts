@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Clearance, Template, Visibility } from "@gangway/shared/domain";
 import type { Db, Params } from "../types.ts";
 import { rowToTemplate, type TemplateRow } from "./mappers.ts";
@@ -62,11 +63,12 @@ export class TemplatesRepo {
         now,
       },
     );
-    return this.get(t.id)!;
+    return must(this.get(t.id), "the template just saved");
   }
 
   get(id: string): Template | undefined {
-    const r = this.#db.get<TemplateRow>("SELECT * FROM templates WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM templates WHERE id = $id", { id }) as
+      TemplateRow | undefined;
     return r ? rowToTemplate(r) : undefined;
   }
 
@@ -79,9 +81,9 @@ export class TemplatesRepo {
   }
 
   list(): Template[] {
-    return this.#db
-      .query<TemplateRow>("SELECT * FROM templates ORDER BY builtin DESC, name")
-      .map(rowToTemplate);
+    return (
+      this.#db.query("SELECT * FROM templates ORDER BY builtin DESC, name") as TemplateRow[]
+    ).map(rowToTemplate);
   }
 
   update(id: string, patch: TemplatePatch): Template | undefined {
@@ -113,9 +115,11 @@ export class TemplatesRepo {
 
   repoCount(id: string): number {
     return (
-      this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", {
-        id,
-      })?.n ?? 0
+      (
+        this.#db.get("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", {
+          id,
+        }) as { n: number } | undefined
+      )?.n ?? 0
     );
   }
 }

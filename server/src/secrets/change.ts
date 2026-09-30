@@ -55,11 +55,13 @@ export function changeSecrets(
 export function appliesTo(d: SecretChangeDeps, target: SecretTarget): string {
   if (target.kind === "preview") {
     const kind = target.preview.source.kind;
-    return kind === "tarball"
-      ? `stored on ${target.name}; it takes effect on its next rebuild (deploy with preview: "${target.name}")`
-      : kind === "pr"
-        ? `stored on ${target.name}; it takes effect on the pull request's next push, and is kept across pushes`
-        : `stored on ${target.name}; it takes effect when it is deployed again`;
+    if (kind === "tarball") {
+      return `stored on ${target.name}; it takes effect on its next rebuild (deploy with preview: "${target.name}")`;
+    }
+    if (kind === "pr") {
+      return `stored on ${target.name}; it takes effect on the pull request's next push, and is kept across pushes`;
+    }
+    return `stored on ${target.name}; it takes effect when it is deployed again`;
   }
   const running = d.previews
     .list({})

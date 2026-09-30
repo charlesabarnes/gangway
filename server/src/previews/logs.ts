@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import {
   appendFileSync,
   closeSync,
@@ -157,8 +158,10 @@ export class PreviewLogs {
     if (!existsSync(path)) {
       return [];
     }
-    const done = (g: readonly LogLine[]) =>
-      g.length > last || (g.length > 0 && g[0]!.n <= afterLine);
+    const done = (g: readonly LogLine[]) => {
+      const [first] = g;
+      return g.length > last || (first !== undefined && first.n <= afterLine);
+    };
     return readBack(path, done).filter((l) => l.n > afterLine);
   }
 
@@ -191,7 +194,7 @@ export class PreviewLogs {
     let backlog = this.read(previewId, cursor, keep);
     if (backlog.length > keep) {
       backlog = backlog.slice(-keep);
-      const first = backlog[0]!;
+      const first = must(backlog[0], "a backlog line");
       const skipped = first.n - 1 - cursor;
       emit({
         n: first.n - 1,

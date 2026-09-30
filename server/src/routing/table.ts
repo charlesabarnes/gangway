@@ -286,7 +286,7 @@ export class RouteTable {
     this.#byHostname.delete(hostname);
     const set = this.#byPreview.get(e.previewId);
     set?.delete(hostname);
-    if (set && set.size === 0) {
+    if (set?.size === 0) {
       this.#byPreview.delete(e.previewId);
     }
   }

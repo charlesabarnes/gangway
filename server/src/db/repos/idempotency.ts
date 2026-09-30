@@ -27,10 +27,10 @@ export class IdempotencyRepo {
   }
 
   get(key: string, ownerId: string): IdempotencyRecord | undefined {
-    const r = this.#db.get<Row>(
+    const r = this.#db.get(
       "SELECT key, token_id, preview_id, request_hash, created_at FROM idempotency_keys WHERE key = $key AND token_id = $t",
       { key, t: ownerId },
-    );
+    ) as Row | undefined;
     return r
       ? {
           key: r.key,

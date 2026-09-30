@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Logger } from "../logger.ts";
 import { errorMessage } from "../errors.ts";
 import type { AcmeProvider } from "./acme.ts";
@@ -31,7 +32,7 @@ export type CertUnitStatus = {
 
 const BACKOFF_MS = 3_600_000;
 const MAX_BACKOFF_MS = 24 * 3_600_000;
-const keyOf = (u: CertUnit) => u.names[0]!;
+const keyOf = (u: CertUnit) => must(u.names[0], "a certificate unit name");
 
 /** One certificate per unit, by SNI; a failing unit backs off alone, an hour up to a day. */
 export class CertManager {
@@ -96,7 +97,7 @@ export class CertManager {
         }
         continue;
       }
-      const current = this.#held.get(keyOf(unit))!;
+      const current = must(this.#held.get(keyOf(unit)), "a held certificate");
       if (current.real && !this.#due(current)) {
         continue;
       }
@@ -137,8 +138,8 @@ export class CertManager {
   async #order(unit: CertUnit, signal?: AbortSignal): Promise<boolean> {
     const key = keyOf(unit);
     try {
-      const bundle = await this.#o.acme!.ensure(unit.names, signal, { delegate: unit.delegate });
-      const material = bundle.materials[0]!;
+      const bundle = await this.#acme().ensure(unit.names, signal, { delegate: unit.delegate });
+      const material = must(bundle.materials[0], "an issued certificate");
       this.#held.set(key, { material, real: true });
       this.#failures.delete(key);
       return true;
@@ -158,6 +159,10 @@ export class CertManager {
     }
   }
 
+  #acme(): AcmeProvider {
+    return must(this.#o.acme, "an ACME provider in acme mode");
+  }
+
   #backingOff(key: string): boolean {
     const f = this.#failures.get(key);
     if (!f) {
@@ -170,7 +175,7 @@ export class CertManager {
   #due(held: Held): boolean {
     const m = held.material;
     if (this.#o.mode === "acme") {
-      return this.#o.acme!.isDue({ materials: [m] }, this.#now());
+      return this.#acme().isDue({ materials: [m] }, this.#now());
     }
     return !m.notAfter || m.notAfter.getTime() - this.#now() < RENEWAL_WINDOW_MS;
   }

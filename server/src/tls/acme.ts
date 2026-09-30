@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import acme from "acme-client";
 import type { CertificatesRepo } from "../db/repos/certificates.ts";
 import type { Logger } from "../logger.ts";
@@ -76,10 +77,13 @@ export class AcmeProvider implements CertProvider {
   }
 
   load(domains: string[]): CertBundle | null {
-    const row = this.#o.certs.get(domains[0]!);
+    const [primary] = domains;
+    if (primary === undefined) {
+      return null;
+    }
+    const row = this.#o.certs.get(primary);
     if (
-      !row ||
-      row.source !== this.#o.directoryUrl ||
+      row?.source !== this.#o.directoryUrl ||
       !row.notAfter ||
       row.notAfter.getTime() <= this.#now()
     ) {
@@ -98,7 +102,7 @@ export class AcmeProvider implements CertProvider {
     return {
       materials: [
         {
-          serverName: domains[0]!,
+          serverName: primary,
           names: domains,
           key: row.keyPem,
           cert: row.certPem + (row.chainPem ?? ""),
@@ -159,17 +163,19 @@ export class AcmeProvider implements CertProvider {
 
     const created: TxtRecord[] = [];
     try {
-      const pending = await this.#publishChallenges(client, authzs, created, signal, o.delegate);
+      const pending = await this.#publishChallenges(client, authzs, {
+        created,
+        signal,
+        delegate: o.delegate,
+      });
       await this.#validate(client, pending, signal);
       return await this.#finalize(client, order, domains, began);
     } finally {
       // Always removed, or the next attempt's propagation check matches stale values.
       for (const r of created) {
-        await dns
-          .removeTxt(r.recordId, r.name)
-          .catch((e) =>
-            logger.warn("could not remove an acme TXT record", { name: r.name, err: e }),
-          );
+        await dns.removeTxt(r.recordId, r.name).catch((e) => {
+          logger.warn("could not remove an acme TXT record", { name: r.name, err: e });
+        });
       }
     }
   }
@@ -178,9 +184,11 @@ export class AcmeProvider implements CertProvider {
   async #publishChallenges(
     client: AcmeApi,
     authzs: acme.Authorization[],
-    created: TxtRecord[],
-    signal: AbortSignal | undefined,
-    delegate: string | undefined,
+    {
+      created,
+      signal,
+      delegate,
+    }: { created: TxtRecord[]; signal: AbortSignal | undefined; delegate: string | undefined },
   ): Promise<PendingChallenges> {
     const pending: PendingChallenges = { challenges: [], byName: new Map() };
     for (const authz of authzs) {
@@ -234,8 +242,9 @@ export class AcmeProvider implements CertProvider {
     began: number,
   ): Promise<CertBundle> {
     const { certs, logger, directoryUrl } = this.#o;
+    const primary = must(domains[0], "a domain to certify");
     const [key, csr] = await acme.crypto.createCsr(
-      { commonName: domains[0]!, altNames: domains },
+      { commonName: primary, altNames: domains },
       await acme.crypto.createPrivateEcdsaKey(),
     );
     const pem = await client.getCertificate(await client.finalizeOrder(order, csr));
@@ -250,7 +259,7 @@ export class AcmeProvider implements CertProvider {
 
     // Stored before it goes live: a certificate only in memory is reissued on every restart.
     certs.put({
-      domain: domains[0]!,
+      domain: primary,
       certPem: leaf,
       keyPem: key.toString(),
       chainPem: chainPem || null,
@@ -268,7 +277,7 @@ export class AcmeProvider implements CertProvider {
     return {
       materials: [
         {
-          serverName: domains[0]!,
+          serverName: primary,
           names: domains,
           key: key.toString(),
           cert: leaf + chainPem,

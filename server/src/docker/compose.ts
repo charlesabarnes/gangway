@@ -208,7 +208,9 @@ const bunSpawner: Spawner = (argv, opts) => {
     stdout: proc.stdout,
     stderr: proc.stderr,
     exited: proc.exited,
-    kill: () => proc.kill(),
+    kill: () => {
+      proc.kill();
+    },
     get signalCode() {
       return proc.signalCode;
     },
@@ -249,26 +251,25 @@ async function* streamLines(
 
 // BuildKit writes progress to stderr and compose to stdout, so both must stream together.
 async function* merge<T>(sources: AsyncIterator<T>[]): AsyncGenerator<T> {
-  type Settled = { index: number; result: IteratorResult<T> };
+  type Settled = { index: number; it: AsyncIterator<T>; result: IteratorResult<T> };
   const pending = new Map<number, Promise<Settled>>();
-  sources.forEach((it, index) => {
+  const advance = (index: number, it: AsyncIterator<T>) => {
     pending.set(
       index,
-      it.next().then((result) => ({ index, result })),
+      it.next().then((result) => ({ index, it, result })),
     );
+  };
+  sources.forEach((it, index) => {
+    advance(index, it);
   });
   while (pending.size > 0) {
-    const { index, result } = await Promise.race(pending.values());
+    const { index, it, result } = await Promise.race(pending.values());
     if (result.done) {
       pending.delete(index);
       continue;
     }
     yield result.value;
-    const it = sources[index]!;
-    pending.set(
-      index,
-      it.next().then((r) => ({ index, result: r })),
-    );
+    advance(index, it);
   }
 }
 
@@ -286,7 +287,9 @@ export async function* runCompose(
   };
   const proc = spawner(argv, { ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }), env });
 
-  const abort = () => proc.kill();
+  const abort = () => {
+    proc.kill();
+  };
   opts.signal?.addEventListener("abort", abort, { once: true });
   try {
     yield* merge([

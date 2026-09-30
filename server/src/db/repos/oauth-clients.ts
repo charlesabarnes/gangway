@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Db } from "../types.ts";
 
 export type RegisteredClient = {
@@ -25,10 +26,10 @@ export class OAuthClientsRepo {
   }
 
   get(id: string): RegisteredClient | undefined {
-    const r = this.#db.get<Row>(
+    const r = this.#db.get(
       "SELECT id, client_name, redirect_uris, created_at FROM oauth_clients WHERE id = $id",
       { id },
-    );
+    ) as Row | undefined;
     return r
       ? {
           id: r.id,
@@ -45,7 +46,10 @@ export class OAuthClientsRepo {
   }
 
   count(): number {
-    return this.#db.get<{ n: number }>("SELECT count(*) AS n FROM oauth_clients")!.n;
+    return must(
+      this.#db.get("SELECT count(*) AS n FROM oauth_clients") as { n: number } | undefined,
+      "a count row",
+    ).n;
   }
 
   /** Drops registrations made before `before` that never started an authorization. */

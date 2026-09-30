@@ -13,11 +13,12 @@ const VISIBILITIES: readonly Visibility[] = ["public", "unlisted", "private"];
 export function scanLabels(raw: Readonly<Record<string, string>>): ScannedLabels {
   const int = (v: string | undefined) =>
     v !== undefined && /^\d{1,5}$/.test(v) ? Number(v) : undefined;
+  const text = (v: string | undefined) => (v === "" ? undefined : v);
   const vis = raw[LABEL.visibility];
   return {
-    previewId: raw[LABEL.previewId] || undefined,
-    hostname: raw[LABEL.hostname] || undefined,
-    service: raw[LABEL.service] || undefined,
+    previewId: text(raw[LABEL.previewId]),
+    hostname: text(raw[LABEL.hostname]),
+    service: text(raw[LABEL.service]),
     containerPort: int(raw[LABEL.containerPort]),
     visibility: VISIBILITIES.includes(vis as Visibility) ? (vis as Visibility) : undefined,
     primary: booleanLabel(raw[LABEL.primary]),

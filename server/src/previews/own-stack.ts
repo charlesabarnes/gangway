@@ -28,9 +28,9 @@ export async function withDotenv<T>(
   if (st && !st.isFile()) {
     throw unprocessable(".env in the source is not a regular file");
   }
-  const committed = st ? await Bun.file(file).text() : null;
-  const lines = names.map((k) => dotenvLine(k, env[k]!));
-  const kept = (committed ?? "").replace(/\s*$/, "");
+  const committed = st ? { text: await Bun.file(file).text(), mode: st.mode & 0o777 } : null;
+  const lines = Object.entries(env).map(([k, v]) => dotenvLine(k, v));
+  const kept = (committed?.text ?? "").replace(/\s*$/, "");
   const body = `${kept}${kept === "" ? "" : "\n"}# --- gangway: repository secrets ---\n${lines.join("\n")}\n`;
   await writeFile(file, body, { mode: 0o600 });
   try {
@@ -39,7 +39,7 @@ export async function withDotenv<T>(
     if (committed === null) {
       await rm(file, { force: true });
     } else {
-      await writeFile(file, committed, { mode: st!.mode & 0o777 });
+      await writeFile(file, committed.text, { mode: committed.mode });
     }
   }
 }
@@ -66,12 +66,17 @@ async function requireDockerfilePort(
   return port;
 }
 
+/** The upload or checkout to run as its own stack, and what was asked of it. */
+export type StackInput = {
+  logId: string;
+  srcDir: string;
+  env: Record<string, string> | undefined;
+  port: number | undefined;
+};
+
 export async function ownStack(
   ctx: PreviewContext,
-  id: string,
-  srcDir: string,
-  env: Record<string, string> | undefined,
-  askedPort: number | undefined,
+  { logId: id, srcDir, env, port: askedPort }: StackInput,
   plan: AppPlan | null,
   sidecars?: RenderedAddons,
 ): Promise<OwnStack> {

@@ -81,8 +81,9 @@ function secretValues(ctx: PreviewContext, p: Preview): string[] {
 }
 
 function addonPasswords(ctx: PreviewContext, p: Preview): string[] {
-  if (p.source.kind !== "tarball" || !p.source.addons?.length || !ctx.addonSecret) {
+  const secret = ctx.addonSecret;
+  if (p.source.kind !== "tarball" || !p.source.addons?.length || !secret) {
     return [];
   }
-  return p.source.addons.map((a) => ctx.addonSecret!(p.id, a.id)).filter((s) => s.length >= 8);
+  return p.source.addons.map((a) => secret(p.id, a.id)).filter((s) => s.length >= 8);
 }

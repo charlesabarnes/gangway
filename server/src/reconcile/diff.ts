@@ -308,6 +308,8 @@ function missingContainerAction(p: Pass, route: Route, preview: Preview): Action
     case "destroying":
     case "destroyed":
       return leave(p.now, "preview-inactive", where);
+    case "starting":
+    case "awake":
     default:
       p.settled.add(preview.id);
       return { kind: "MarkAsleep", at: p.now, previewId: preview.id };

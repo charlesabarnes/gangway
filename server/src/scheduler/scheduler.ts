@@ -38,8 +38,12 @@ type Entry = {
 
 const realTimer = (fn: () => void, ms: number): TimerHandle => {
   const t = setTimeout(fn, ms);
-  t.unref?.();
-  return { cancel: () => clearTimeout(t) };
+  t.unref();
+  return {
+    cancel: () => {
+      clearTimeout(t);
+    },
+  };
 };
 
 export function jittered(intervalMs: number, jitter: number, random: () => number): number {
@@ -159,7 +163,9 @@ export class Scheduler {
       e.timer = null;
       this.#run(e)
         .catch(() => {})
-        .finally(() => this.#arm(e, false));
+        .finally(() => {
+          this.#arm(e, false);
+        });
     }, delay);
   }
 

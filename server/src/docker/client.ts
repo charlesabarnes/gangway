@@ -56,7 +56,7 @@ class DockerodeClient implements DockerClient {
   }
 
   async inspectContainer(id: string): Promise<InspectJson> {
-    return await this.#docker.getContainer(id).inspect();
+    return this.#docker.getContainer(id).inspect();
   }
 
   async stopContainer(id: string, timeoutSeconds = 10): Promise<void> {
@@ -96,10 +96,10 @@ class DockerodeClient implements DockerClient {
   }
 
   async *#events(opts: EventOptions): AsyncGenerator<DockerEvent> {
-    const stream = (await this.#docker.getEvents({
+    const stream: NodeReadableLike = await this.#docker.getEvents({
       ...(opts.since === undefined ? {} : { since: Math.floor(opts.since.getTime() / 1000) }),
       ...(opts.filters === undefined ? {} : { filters: JSON.stringify(opts.filters) }),
-    })) as unknown as NodeReadableLike;
+    });
     yield* this.#consume(stream, opts.signal, parseEventStream);
   }
 
@@ -151,7 +151,7 @@ export class DockerClients {
 
   for(host: Pick<Host, "id" | "dockerHost">): DockerClient {
     const existing = this.#clients.get(host.id);
-    if (existing && existing.dockerHost === host.dockerHost) {
+    if (existing?.dockerHost === host.dockerHost) {
       return existing.client;
     }
     existing?.client.close();

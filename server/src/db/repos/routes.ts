@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Route } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { num, rowToRoute, type RouteRow } from "./mappers.ts";
@@ -21,21 +22,22 @@ export class RoutesRepo {
   }
 
   all(): Route[] {
-    return this.#db.query<RouteRow>("SELECT * FROM routes").map(rowToRoute);
+    return (this.#db.query("SELECT * FROM routes") as RouteRow[]).map(rowToRoute);
   }
 
   get(hostname: string): Route | undefined {
-    const r = this.#db.get<RouteRow>("SELECT * FROM routes WHERE hostname = $h", { h: hostname });
+    const r = this.#db.get("SELECT * FROM routes WHERE hostname = $h", { h: hostname }) as
+      RouteRow | undefined;
     return r ? rowToRoute(r) : undefined;
   }
 
   forPreview(previewId: string): Route[] {
-    return this.#db
-      .query<RouteRow>(
+    return (
+      this.#db.query(
         "SELECT * FROM routes WHERE preview_id = $p ORDER BY is_primary DESC, service",
         { p: previewId },
-      )
-      .map(rowToRoute);
+      ) as RouteRow[]
+    ).map(rowToRoute);
   }
 
   create(r: CreateRoute): Route {
@@ -55,7 +57,7 @@ export class RoutesRepo {
         now: this.#now(),
       },
     );
-    return this.get(r.hostname)!;
+    return must(this.get(r.hostname), "the route just saved");
   }
 
   updateUpstream(hostname: string, upstream: { host: string; port: number }): void {
@@ -83,10 +85,9 @@ export class RoutesRepo {
   }
 
   usedPorts(upstreamHost: string): Set<number> {
-    const rows = this.#db.query<{ upstream_port: number }>(
-      "SELECT upstream_port FROM routes WHERE upstream_host = $h",
-      { h: upstreamHost },
-    );
+    const rows = this.#db.query("SELECT upstream_port FROM routes WHERE upstream_host = $h", {
+      h: upstreamHost,
+    }) as { upstream_port: number }[];
     return new Set(rows.map((r) => r.upstream_port));
   }
 }

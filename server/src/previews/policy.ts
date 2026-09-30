@@ -25,12 +25,12 @@ export type PolicyDeps = {
   logger?: Logger | undefined;
 };
 
-export const triggerOf = (source: DeploySource, actor: Actor): Trigger =>
-  source.kind === "pr" || source.kind === "pushed"
-    ? "pr"
-    : actor.kind === "user"
-      ? "manual"
-      : "api";
+export function triggerOf(source: DeploySource, actor: Actor): Trigger {
+  if (source.kind === "pr" || source.kind === "pushed") {
+    return "pr";
+  }
+  return actor.kind === "user" ? "manual" : "api";
+}
 
 export class PolicyResolver implements Policy {
   readonly #d: PolicyDeps;

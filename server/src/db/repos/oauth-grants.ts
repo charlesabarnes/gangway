@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { OAuthGrant, User } from "@gangway/shared/domain";
 import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
@@ -125,35 +126,35 @@ export class OAuthGrantsRepo {
         now: this.#now(),
       },
     );
-    return this.get(g.id)!;
+    return must(this.get(g.id), "the grant just saved");
   }
 
   get(id: string): OAuthGrant | undefined {
-    const r = this.#db.get<GrantRow>(`SELECT ${COLUMNS} FROM oauth_grants WHERE id = $id`, { id });
+    const r = this.#db.get(`SELECT ${COLUMNS} FROM oauth_grants WHERE id = $id`, { id }) as
+      GrantRow | undefined;
     return r ? toGrant(r) : undefined;
   }
 
   findByAccess(hash: string, now: number = this.#now()): GrantRecord | undefined {
-    const r = this.#db.get<Joined>(
+    const r = this.#db.get(
       `${JOIN} WHERE g.access_hash = $hash AND g.revoked_at IS NULL AND g.access_expires_at > $now AND u.disabled = 0`,
       { hash, now },
-    );
+    ) as Joined | undefined;
     return r ? toRecord(r) : undefined;
   }
 
   findByRefresh(hash: string): GrantRecord | undefined {
-    const r = this.#db.get<Joined>(
-      `${JOIN} WHERE g.refresh_hash = $hash AND g.revoked_at IS NULL`,
-      { hash },
-    );
+    const r = this.#db.get(`${JOIN} WHERE g.refresh_hash = $hash AND g.revoked_at IS NULL`, {
+      hash,
+    }) as Joined | undefined;
     return r ? toRecord(r) : undefined;
   }
 
   findByPreviousRefresh(hash: string): { grant: OAuthGrant; rotatedAt: number | null } | undefined {
-    const r = this.#db.get<GrantRow & { rotated_at: number | null }>(
+    const r = this.#db.get(
       `SELECT ${COLUMNS}, rotated_at FROM oauth_grants WHERE prev_refresh_hash = $hash`,
       { hash },
-    );
+    ) as (GrantRow & { rotated_at: number | null }) | undefined;
     return r ? { grant: toGrant(r), rotatedAt: r.rotated_at } : undefined;
   }
 
@@ -194,20 +195,20 @@ export class OAuthGrantsRepo {
   }
 
   listForUser(userId: string): OAuthGrant[] {
-    return this.#db
-      .query<GrantRow>(
+    return (
+      this.#db.query(
         `SELECT ${COLUMNS} FROM oauth_grants WHERE user_id = $u AND revoked_at IS NULL ORDER BY created_at DESC, id`,
         { u: userId },
-      )
-      .map(toGrant);
+      ) as GrantRow[]
+    ).map(toGrant);
   }
 
   listAll(): OAuthGrant[] {
-    return this.#db
-      .query<GrantRow>(
+    return (
+      this.#db.query(
         `SELECT ${COLUMNS} FROM oauth_grants WHERE revoked_at IS NULL ORDER BY created_at DESC, id`,
-      )
-      .map(toGrant);
+      ) as GrantRow[]
+    ).map(toGrant);
   }
 
   revoke(id: string, now: number = this.#now()): boolean {

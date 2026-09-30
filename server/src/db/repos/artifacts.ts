@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Theme, ThemeFonts, ThemeStyle, ThemeTokens } from "@gangway/shared/artifact/theme";
 import type { ArtifactKind } from "@gangway/shared/artifact/vocab";
 import type { Db, Params } from "../types.ts";
@@ -44,13 +45,13 @@ export class ArtifactThemesRepo {
   }
 
   list(): Theme[] {
-    return this.#db
-      .query<ThemeRow>("SELECT * FROM artifact_themes ORDER BY name COLLATE NOCASE")
-      .map(toTheme);
+    return (
+      this.#db.query("SELECT * FROM artifact_themes ORDER BY name COLLATE NOCASE") as ThemeRow[]
+    ).map(toTheme);
   }
 
   ids(): string[] {
-    return this.#db.query<{ id: string }>("SELECT id FROM artifact_themes").map((r) => r.id);
+    return (this.#db.query("SELECT id FROM artifact_themes") as { id: string }[]).map((r) => r.id);
   }
 
   get(id: string): Theme | undefined {
@@ -58,7 +59,8 @@ export class ArtifactThemesRepo {
     if (hit !== undefined) {
       return hit ?? undefined;
     }
-    const r = this.#db.get<ThemeRow>("SELECT * FROM artifact_themes WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM artifact_themes WHERE id = $id", { id }) as
+      ThemeRow | undefined;
     const theme = r ? toTheme(r) : null;
     this.#byId.set(id, theme);
     return theme ?? undefined;
@@ -86,7 +88,7 @@ export class ArtifactThemesRepo {
         now,
       },
     );
-    return this.get(id)!;
+    return must(this.get(id), "the theme just saved");
   }
 
   update(id: string, t: ThemeWrite): Theme | undefined {
@@ -179,12 +181,12 @@ export class ArtifactTemplatesRepo {
 
   list(kind?: ArtifactKind): StoredTemplate[] {
     const where = kind ? "WHERE kind = $kind" : "";
-    return this.#db
-      .query<TemplateRow>(
+    return (
+      this.#db.query(
         `SELECT * FROM artifact_templates ${where} ORDER BY name COLLATE NOCASE`,
         kind ? { kind } : {},
-      )
-      .map(toTemplate);
+      ) as TemplateRow[]
+    ).map(toTemplate);
   }
 
   /** The list without each template's files, which only a deploy or an edit needs. */
@@ -192,22 +194,23 @@ export class ArtifactTemplatesRepo {
     kind?: ArtifactKind,
   ): Pick<StoredTemplate, "id" | "kind" | "name" | "description" | "themeId">[] {
     const where = kind ? "WHERE kind = $kind" : "";
-    return this.#db
-      .query<Omit<TemplateRow, "files_json" | "updated_at">>(
+    return (
+      this.#db.query(
         `SELECT id, kind, name, description, theme_id FROM artifact_templates ${where} ORDER BY name COLLATE NOCASE`,
         kind ? { kind } : {},
-      )
-      .map((r) => ({
-        id: r.id,
-        kind: r.kind as ArtifactKind,
-        name: r.name,
-        description: r.description,
-        themeId: r.theme_id,
-      }));
+      ) as Omit<TemplateRow, "files_json" | "updated_at">[]
+    ).map((r) => ({
+      id: r.id,
+      kind: r.kind as ArtifactKind,
+      name: r.name,
+      description: r.description,
+      themeId: r.theme_id,
+    }));
   }
 
   get(id: string): StoredTemplate | undefined {
-    const r = this.#db.get<TemplateRow>("SELECT * FROM artifact_templates WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM artifact_templates WHERE id = $id", { id }) as
+      TemplateRow | undefined;
     return r ? toTemplate(r) : undefined;
   }
 
@@ -230,7 +233,7 @@ export class ArtifactTemplatesRepo {
         now,
       },
     );
-    return this.get(t.id)!;
+    return must(this.get(t.id), "the template just saved");
   }
 
   update(id: string, t: TemplateWrite): StoredTemplate | undefined {

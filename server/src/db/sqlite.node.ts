@@ -26,19 +26,19 @@ class NodeDb implements Db {
   #prep(sql: string) {
     const s = this.#db.prepare(sql);
     // Accept the bare parameter names bun:sqlite uses.
-    s.setAllowBareNamedParameters?.(true);
+    s.setAllowBareNamedParameters(true);
     return s;
   }
 
   exec(sql: string) {
     this.#db.exec(sql);
   }
-  query<T>(sql: string, params?: Params): T[] {
-    return (params ? this.#prep(sql).all(params as SqlParams) : this.#prep(sql).all()) as T[];
+  query(sql: string, params?: Params): unknown[] {
+    return params ? this.#prep(sql).all(params as SqlParams) : this.#prep(sql).all();
   }
-  get<T>(sql: string, params?: Params): T | undefined {
+  get(sql: string, params?: Params): unknown {
     const r = params ? this.#prep(sql).get(params as SqlParams) : this.#prep(sql).get();
-    return (r ?? undefined) as T | undefined;
+    return r ?? undefined;
   }
   run(sql: string, params?: Params) {
     const r = params ? this.#prep(sql).run(params as SqlParams) : this.#prep(sql).run();
@@ -59,8 +59,8 @@ class NodeDb implements Db {
       throw e;
     }
   }
-  pragma<T>(statement: string): T | undefined {
-    return (this.#prep(statement).get() ?? undefined) as T | undefined;
+  pragma(statement: string): unknown {
+    return this.#prep(statement).get() ?? undefined;
   }
   close() {
     this.#db.close();

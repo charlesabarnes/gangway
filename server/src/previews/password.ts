@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import { randomInt } from "node:crypto";
 import type { PasswordChoice } from "@gangway/shared/api";
 import type { PasswordLogin, Preview, PreviewAccess } from "@gangway/shared/domain";
@@ -144,7 +145,7 @@ export async function setPreviewPassword(
       login: input.login ?? before.passwordLogin,
     },
   });
-  return ctx.previews.get(before.id)!;
+  return must(ctx.previews.get(before.id), "the preview just updated");
 }
 
 function describe(mode: StoredPreviewPassword["mode"]): string {

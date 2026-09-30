@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Clearance, Host, Preview, Visibility } from "@gangway/shared/domain";
 import { actorId, can } from "../auth/actor.ts";
@@ -137,13 +138,13 @@ type Prepared = {
   site: AppPlan | null;
 };
 
+/** Where a deploy lands: its id, host, working directory and the policy that applies. */
+type Placement = { id: string; host: Host; wd: Workdir; policy: ResolvedPolicy };
+
 async function prepare(
   ctx: PreviewContext,
   input: DeployInput,
-  id: string,
-  host: Host,
-  wd: Workdir,
-  policy: ResolvedPolicy,
+  { id, host, wd, policy }: Placement,
 ): Promise<Prepared> {
   const { template, project: owner } = policy;
   const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
@@ -162,15 +163,15 @@ async function prepare(
     input.source.kind === "image" && Object.keys(own).length > 0
       ? { ...input.source, env: { ...input.source.env, ...own } }
       : input.source;
-  const material = await writeSource(ctx, id, source, env, wd);
-  const site = servesHere(ctx, material.plan) ? material.plan! : null;
+  const material = await writeSource(ctx, source, { id, env, wd });
+  const site = material.plan && servesHere(ctx, material.plan) ? material.plan : null;
   checkContainerAllowed(input.actor, "this source", site === null);
   if (site && material.source.kind === "tarball") {
     material.source = { ...material.source, serve: "gangway" };
   }
   const planned = site
     ? siteModel(site, input.source.kind === "tarball" ? input.source.port : undefined)
-    : await readModel(ctx, host, wd, material.composeFile, material.dotenv);
+    : await readModel(ctx, host, wd, material);
   const { model } = planned;
   const exposed = selectExposed(model);
   const visibility = visibilityFor(ctx, input, policy, model);
@@ -207,9 +208,9 @@ async function keepUpload(ctx: PreviewContext, id: string, pristine: string | nu
   if (!pristine || !ctx.sources) {
     return;
   }
-  await ctx.sources
-    .adopt(id, pristine)
-    .catch((e) => ctx.logger.warn("could not keep the uploaded source", { previewId: id, err: e }));
+  await ctx.sources.adopt(id, pristine).catch((e) => {
+    ctx.logger.warn("could not keep the uploaded source", { previewId: id, err: e });
+  });
 }
 
 function announce(ctx: PreviewContext, input: DeployInput, host: Host, p: Prepared): PreviewUrl[] {
@@ -256,7 +257,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 
   let p: Prepared;
   try {
-    p = await prepare(ctx, input, id, host, wd, policy);
+    p = await prepare(ctx, input, { id, host, wd, policy });
   } catch (e) {
     await wd.cleanup();
     ctx.logs.remove(id);
@@ -290,7 +291,7 @@ type DeployRun = RunPlan & { dockerConfig?: string | undefined };
 async function publishSite(ctx: PreviewContext, r: DeployRun, plan: AppPlan): Promise<Preview> {
   const id = r.preview.id;
   try {
-    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan);
+    const { files } = await must(ctx.sites, "the site store").publish(id, r.wd.srcDir, plan);
     r.signal.throwIfAborted();
     ctx.logs.append(id, "system", `serving ${files} files from gangway: no container to start`);
     ctx.logs.append(id, "system", "awake");

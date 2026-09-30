@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import { cp, rm } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import type { AddonChoice } from "@gangway/shared/addons";
@@ -78,7 +79,7 @@ function renderSidecars(
   return sidecars;
 }
 
-type Upload = {
+export type Upload = {
   logId: string;
   wd: Workdir;
   choice: RuntimeChoice;
@@ -95,15 +96,13 @@ async function writePlannedRuntime(
   const { composeFile, note } = await writeRuntime(
     wd.srcDir,
     plan,
-    env,
     join(wd.dir, "runtime.compose.yaml"),
-    port,
-    sidecars,
+    { secrets: env, port, sidecars },
   );
   ctx.logs.append(
     logId,
     "system",
-    `${choice === "auto" ? "detected " : ""}runtime ${plan.runtime!}: ${note}`,
+    `${choice === "auto" ? "detected " : ""}runtime ${must(plan.runtime, "a planned runtime")}: ${note}`,
   );
   const secrets = Object.keys(env ?? {}).length;
   if (secrets > 0) {
@@ -139,13 +138,10 @@ function checkArtifact(ctx: PreviewContext, plan: AppPlan): void {
 
 export async function prepareUpload(
   ctx: PreviewContext,
-  logId: string,
-  wd: Workdir,
-  choice: RuntimeChoice,
-  env: Record<string, string> | undefined,
-  port: number | undefined,
+  upload: Upload,
   opts: PlanOptions = {},
 ): Promise<PreparedUpload> {
+  const { logId, wd, choice, env, port } = upload;
   await assertNoEscapingSymlinks(wd.srcDir);
   const pristine = await keepPristine(ctx, wd);
   const plan = await planFromDisk(wd.srcDir, choice, opts);
@@ -164,17 +160,12 @@ export async function prepareUpload(
       ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
     }
     return {
-      ...(await ownStack(ctx, logId, wd.srcDir, env, port, plan, sidecars)),
+      ...(await ownStack(ctx, { logId, srcDir: wd.srcDir, env, port }, plan, sidecars)),
       runtime: null,
       pristine,
       plan,
     };
   }
-  const composeFile = await writePlannedRuntime(
-    ctx,
-    { logId, wd, choice, env, port },
-    plan,
-    sidecars,
-  );
-  return { composeFile, runtime: plan.runtime!, pristine, plan };
+  const composeFile = await writePlannedRuntime(ctx, upload, plan, sidecars);
+  return { composeFile, runtime: must(plan.runtime, "a planned runtime"), pristine, plan };
 }

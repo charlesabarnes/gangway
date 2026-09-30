@@ -65,7 +65,13 @@ export class EventBus {
       deliver(e);
     };
 
-    const unsubscribe = this.subscribe((e) => (replaying ? buffered.push(e) : emit(e)));
+    const unsubscribe = this.subscribe((e) => {
+      if (replaying) {
+        buffered.push(e);
+      } else {
+        emit(e);
+      }
+    });
 
     for (let pages = 0; ; pages++) {
       if (pages === MAX_PAGES) {

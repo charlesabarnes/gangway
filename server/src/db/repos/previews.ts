@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { PreviewIcon } from "@gangway/shared/preview-icon";
 import type {
   Clearance,
@@ -11,7 +12,7 @@ import type {
   WatermarkChoice,
 } from "@gangway/shared/domain";
 import type { Provenance } from "../../auth/actor.ts";
-import type { Db } from "../types.ts";
+import type { Db, Params } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 
 export type CreatePreview = {
@@ -117,11 +118,12 @@ export class PreviewsRepo {
         now,
       },
     );
-    return this.get(p.id)!;
+    return must(this.get(p.id), "the preview just saved");
   }
 
   get(id: string): Preview | undefined {
-    const r = this.#db.get<PreviewRow>("SELECT * FROM previews WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM previews WHERE id = $id", { id }) as
+      PreviewRow | undefined;
     return r ? rowToPreview(r) : undefined;
   }
 
@@ -130,26 +132,31 @@ export class PreviewsRepo {
   }
 
   provenanceOf(id: string): Provenance {
-    const r = this.#db.get<{ owner: string | null; credential: string | null }>(
-      "SELECT owner, credential FROM previews WHERE id = $id",
-      { id },
-    );
+    const r = this.#db.get("SELECT owner, credential FROM previews WHERE id = $id", { id }) as
+      { owner: string | null; credential: string | null } | undefined;
     return { owner: r?.owner ?? null, credential: r?.credential ?? null };
   }
 
   provenances(): Map<string, Provenance> {
-    const rows = this.#db.query<{ id: string; owner: string | null; credential: string | null }>(
-      "SELECT id, owner, credential FROM previews",
-    );
+    const rows = this.#db.query("SELECT id, owner, credential FROM previews") as {
+      id: string;
+      owner: string | null;
+      credential: string | null;
+    }[];
     return new Map(rows.map((r) => [r.id, { owner: r.owner, credential: r.credential }]));
   }
 
   passwordOf(id: string): StoredPreviewPassword {
-    const r = this.#db.get<{
-      password_mode: string | null;
-      password_hash: string | null;
-      password_salt: string | null;
-    }>("SELECT password_mode, password_hash, password_salt FROM previews WHERE id = $id", { id });
+    const r = this.#db.get(
+      "SELECT password_mode, password_hash, password_salt FROM previews WHERE id = $id",
+      { id },
+    ) as
+      | {
+          password_mode: string | null;
+          password_hash: string | null;
+          password_salt: string | null;
+        }
+      | undefined;
     const mode = (r?.password_mode ?? "inherit") as PasswordMode;
     const secret =
       r?.password_hash && r.password_salt ? { hash: r.password_hash, salt: r.password_salt } : null;
@@ -171,9 +178,9 @@ export class PreviewsRepo {
 
   envCiphertext(id: string): string | null {
     return (
-      this.#db.get<{ env_ciphertext: string | null }>(
-        "SELECT env_ciphertext FROM previews WHERE id = $id",
-        { id },
+      (
+        this.#db.get("SELECT env_ciphertext FROM previews WHERE id = $id", { id }) as
+          { env_ciphertext: string | null } | undefined
       )?.env_ciphertext ?? null
     );
   }
@@ -212,11 +219,11 @@ export class PreviewsRepo {
 
   /** The preview's own choice, then its repository's; null when both follow the setting. */
   watermarkOf(id: string): boolean | null {
-    const r = this.#db.get<{ own: string | null; project: string | null }>(
+    const r = this.#db.get(
       `SELECT p.watermark AS own, pr.watermark AS project FROM previews p
        LEFT JOIN projects pr ON pr.id = p.project_id WHERE p.id = $id`,
       { id },
-    );
+    ) as { own: string | null; project: string | null } | undefined;
     const w = r?.own ?? r?.project ?? null;
     return w === null ? null : w === "on";
   }
@@ -244,13 +251,12 @@ export class PreviewsRepo {
 
   /** Whether a preview that is not destroyed, or a project, has chosen this domain. */
   domainChosen(domain: string): boolean {
-    return (
-      this.#db.get<{ n: number }>(
-        `SELECT (SELECT COUNT(*) FROM previews WHERE domain = $d AND state != 'destroyed')
-              + (SELECT COUNT(*) FROM projects WHERE domain = $d) AS n`,
-        { d: domain },
-      )!.n > 0
-    );
+    const row = this.#db.get(
+      `SELECT (SELECT COUNT(*) FROM previews WHERE domain = $d AND state != 'destroyed')
+            + (SELECT COUNT(*) FROM projects WHERE domain = $d) AS n`,
+      { d: domain },
+    ) as { n: number } | undefined;
+    return must(row, "a count row").n > 0;
   }
 
   setIcon(id: string, icon: PreviewIcon | null): void {
@@ -275,7 +281,8 @@ export class PreviewsRepo {
   }
 
   getByProject(project: string): Preview | undefined {
-    const r = this.#db.get<PreviewRow>("SELECT * FROM previews WHERE project = $p", { p: project });
+    const r = this.#db.get("SELECT * FROM previews WHERE project = $p", { p: project }) as
+      PreviewRow | undefined;
     return r ? rowToPreview(r) : undefined;
   }
 
@@ -322,19 +329,16 @@ export class PreviewsRepo {
     }
 
     const sql = `SELECT * FROM previews${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC${f.limit !== undefined ? " LIMIT $limit" : ""}`;
-    return this.#db
-      .query<PreviewRow>(sql, Object.keys(params).length ? params : undefined)
-      .map(rowToPreview);
+    return this.#previews(sql, Object.keys(params).length ? params : undefined);
   }
 
   /** Deletes previews destroyed before `cutoff`, with their events and builds; their ids. */
   purgeDestroyedBefore(cutoff: number): string[] {
-    const ids = this.#db
-      .query<{ id: string }>(
-        "SELECT id FROM previews WHERE state = 'destroyed' AND destroyed_at < $c",
-        { c: cutoff },
-      )
-      .map((r) => r.id);
+    const ids = (
+      this.#db.query("SELECT id FROM previews WHERE state = 'destroyed' AND destroyed_at < $c", {
+        c: cutoff,
+      }) as { id: string }[]
+    ).map((r) => r.id);
     for (const id of ids) {
       this.#db.run("DELETE FROM previews WHERE id = $id", { id });
     }
@@ -380,45 +384,45 @@ export class PreviewsRepo {
   }
 
   expired(now: number = this.#now()): Preview[] {
-    return this.#db
-      .query<PreviewRow>(
-        `SELECT * FROM previews
+    return this.#previews(
+      `SELECT * FROM previews
        WHERE ttl_expires_at IS NOT NULL AND ttl_expires_at <= $now
          AND state NOT IN ('destroyed', 'destroying')
        ORDER BY ttl_expires_at`,
-        { now },
-      )
-      .map(rowToPreview);
+      { now },
+    );
   }
 
   idleSince(cutoff: number): Preview[] {
-    return this.#db
-      .query<PreviewRow>(
-        `SELECT * FROM previews
+    return this.#previews(
+      `SELECT * FROM previews
        WHERE state = 'awake' AND kind = 'preview'
          AND COALESCE(last_seen_at, created_at) <= $cutoff`,
-        { cutoff },
-      )
-      .map(rowToPreview);
+      { cutoff },
+    );
+  }
+
+  #previews(sql: string, params?: Params): Preview[] {
+    return (this.#db.query(sql, params) as PreviewRow[]).map(rowToPreview);
   }
 
   // By source, not name: an unlisted preview's name changes across deploys.
   findPullRequest(repo: string, number: number): Preview | undefined {
-    const r = this.#db.get<PreviewRow>(
+    const r = this.#db.get(
       `SELECT * FROM previews
         WHERE source_kind = 'pr' AND json_extract(source_json, '$.repo') = $repo AND json_extract(source_json, '$.number') = $number
           AND state != 'destroyed'
         ORDER BY id DESC LIMIT 1`,
       { repo, number },
-    );
+    ) as PreviewRow | undefined;
     return r ? rowToPreview(r) : undefined;
   }
 
   forgeRefs(id: string): { commentId: number | null; deploymentId: number | null } {
-    const r = this.#db.get<{ forge_comment_id: number | null; forge_deployment_id: number | null }>(
+    const r = this.#db.get(
       "SELECT forge_comment_id, forge_deployment_id FROM previews WHERE id = $id",
       { id },
-    );
+    ) as { forge_comment_id: number | null; forge_deployment_id: number | null } | undefined;
     return { commentId: r?.forge_comment_id ?? null, deploymentId: r?.forge_deployment_id ?? null };
   }
 

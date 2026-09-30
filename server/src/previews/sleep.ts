@@ -24,7 +24,7 @@ export async function sleepPreview(
   why: string,
 ): Promise<Preview> {
   const preview = ctx.previews.get(previewId);
-  if (!preview || preview.state !== "awake") {
+  if (preview?.state !== "awake") {
     throw new AppError("conflict", `preview ${previewId} is not awake`);
   }
   if (servedByGangway(preview)) {

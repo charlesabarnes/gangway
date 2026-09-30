@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { DockerEvent, LogLine, LogStream } from "./client-types.ts";
 
 const DEMUX_HEADER = 8;
@@ -17,10 +18,10 @@ export async function* demultiplex(
   for await (const chunk of chunks) {
     append(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
     for (;;) {
-      if (buf.length < DEMUX_HEADER) {
+      const [type] = buf;
+      if (type === undefined || buf.length < DEMUX_HEADER) {
         break;
       }
-      const type = buf[0]!;
       const framed =
         (type === 0 || type === 1 || type === 2) && buf[1] === 0 && buf[2] === 0 && buf[3] === 0;
       if (!framed) {
@@ -62,8 +63,11 @@ export async function* toLogLines(
     if (!m) {
       return { stream, line: raw };
     }
-    const at = new Date(m[1]!);
-    return Number.isNaN(at.getTime()) ? { stream, line: raw } : { stream, line: m[2]!, at };
+    const [, stamp, line] = m;
+    const at = new Date(must(stamp, "a log timestamp"));
+    return Number.isNaN(at.getTime())
+      ? { stream, line: raw }
+      : { stream, line: must(line, "a log line"), at };
   };
 
   for await (const frame of frames) {

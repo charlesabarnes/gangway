@@ -44,8 +44,7 @@ export function servable(plan: AppPlan | undefined): plan is AppPlan & {
   serve: { kind: "static"; fallback: SiteFallback };
 } {
   return (
-    plan !== undefined &&
-    plan.kind === "runtime" &&
+    plan?.kind === "runtime" &&
     plan.runtime === "static" &&
     plan.serve.kind === "static" &&
     plan.serve.output === false &&

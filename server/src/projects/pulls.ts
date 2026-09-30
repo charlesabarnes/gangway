@@ -92,8 +92,7 @@ export class Pulls {
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
       if (
-        existing &&
-        existing.source.kind === "pr" &&
+        existing?.source.kind === "pr" &&
         existing.source.sha === req.sha &&
         existing.source.image === req.image &&
         LIVE.has(existing.state)

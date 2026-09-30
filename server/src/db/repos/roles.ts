@@ -11,13 +11,13 @@ export class RolesRepo {
   }
 
   list(): Role[] {
-    return this.#db
-      .query<RoleRow>("SELECT * FROM roles ORDER BY builtin DESC, name")
-      .map(rowToRole);
+    return (this.#db.query("SELECT * FROM roles ORDER BY builtin DESC, name") as RoleRow[]).map(
+      rowToRole,
+    );
   }
 
   get(id: string): Role | undefined {
-    const r = this.#db.get<RoleRow>("SELECT * FROM roles WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM roles WHERE id = $id", { id }) as RoleRow | undefined;
     return r ? rowToRole(r) : undefined;
   }
 
@@ -26,9 +26,9 @@ export class RolesRepo {
     for (const role of this.list()) {
       out.set(role.id, []);
     }
-    for (const r of this.#db.query<{ role_id: string; permission_id: string }>(
+    for (const r of this.#db.query(
       "SELECT role_id, permission_id FROM role_permissions ORDER BY role_id, permission_id",
-    )) {
+    ) as { role_id: string; permission_id: string }[]) {
       if (isPermission(r.permission_id)) {
         out.get(r.role_id)?.push(r.permission_id);
       }
@@ -55,7 +55,7 @@ export class RolesRepo {
     const added: string[] = [];
     this.#db.transaction(() => {
       const known = new Set(
-        this.#db.query<{ id: string }>("SELECT id FROM permissions").map((r) => r.id),
+        (this.#db.query("SELECT id FROM permissions") as { id: string }[]).map((r) => r.id),
       );
       for (const p of catalogue) {
         if (!known.has(p.id)) {

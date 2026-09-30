@@ -19,11 +19,10 @@ export function isBusy(ctx: PreviewContext, previewId: string): boolean {
 export function coveredHostnames(actions: readonly Action[]): Set<string> {
   const covered = new Set<string>();
   for (const a of actions) {
-    if (
-      a.kind === "UpdateUpstream" ||
-      (a.kind === "LeaveAlone" && a.reason === "in-sync" && a.hostname)
-    ) {
-      covered.add(a.hostname!);
+    if (a.kind === "UpdateUpstream") {
+      covered.add(a.hostname);
+    } else if (a.kind === "LeaveAlone" && a.reason === "in-sync" && a.hostname) {
+      covered.add(a.hostname);
     }
   }
   return covered;

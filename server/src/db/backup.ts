@@ -17,14 +17,20 @@ export function backupBeforeMigrating(
   const dir = join(dirname(dbPath), "backups");
   mkdirSync(dir, { recursive: true });
   const name = basename(dbPath).replace(/\.db$/, "");
-  const first = String(pending[0]!.version).padStart(4, "0");
+  const [next] = pending;
+  if (!next) {
+    throw new Error("no pending migration to back up for");
+  }
+  const first = String(next.version).padStart(4, "0");
   const file = join(dir, `${name}-pre-${first}-${now()}.db`);
   db.run("VACUUM INTO $file", { file });
 
   const ours = readdirSync(dir)
-    .map((f) => ({ f, m: BACKUP_RE.exec(f) }))
-    .filter((x) => x.m?.[1] === name)
-    .sort((a, b) => Number(b.m![3]) - Number(a.m![3]));
+    .flatMap((f) => {
+      const m = BACKUP_RE.exec(f);
+      return m?.[1] === name ? [{ f, at: Number(m[3]) }] : [];
+    })
+    .sort((a, b) => b.at - a.at);
   for (const { f } of ours.slice(KEEP_BACKUPS)) {
     rmSync(join(dir, f));
   }

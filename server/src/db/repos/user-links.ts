@@ -26,10 +26,10 @@ export class UserLinksRepo {
   }
 
   get(id: string): UserLink | undefined {
-    const r = this.#db.get<Row>(
+    const r = this.#db.get(
       "SELECT user_id, purpose, expires_at FROM user_links WHERE id = $id AND expires_at > $now",
       { id, now: this.#now() },
-    );
+    ) as Row | undefined;
     return r ? { userId: r.user_id, purpose: r.purpose, expiresAt: r.expires_at } : undefined;
   }
 
