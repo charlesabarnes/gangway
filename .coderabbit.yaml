@@ -4,9 +4,25 @@ language: en-US
 reviews:
   profile: chill
   request_changes_workflow: false
-  high_level_summary: true
+  # Review comments only: no summary written into the PR description, and a bare walkthrough.
+  high_level_summary: false
+  review_status: false
+  changed_files_summary: false
+  estimate_code_review_effort: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
   poem: false
   sequence_diagrams: false
+  pre_merge_checks:
+    description:
+      mode: "off"
+    docstrings:
+      mode: "off"
+  finishing_touches:
+    docstrings:
+      enabled: false
   auto_review:
     enabled: true
     drafts: false
