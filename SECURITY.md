@@ -10,6 +10,12 @@ Report it privately, not in a public issue:
 You will get a reply within a few days. Please give us a reasonable time to ship a fix before you
 disclose it.
 
+## How fixes are disclosed
+
+Every security fix ships with a published GitHub security advisory that says what was affected,
+which versions, and how to upgrade, with a CVE where one applies. The release notes link to it.
+There are no silent security fixes.
+
 ## Supported versions
 
 Only the latest release gets security fixes.
