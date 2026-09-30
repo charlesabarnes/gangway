@@ -418,7 +418,7 @@ function startDemo(demo) {
     try {
       if (still) return await PLAY[from](mine);
       // A newer play() bumps run; its waits then throw STOP, and this loop ends.
-      while (mine === run) {
+      for (let current = true; current; current = mine === run) {
         await PLAY[chapter](mine);
         chapter = CHAPTERS[(CHAPTERS.indexOf(chapter) + 1) % CHAPTERS.length];
       }

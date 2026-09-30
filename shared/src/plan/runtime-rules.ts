@@ -177,8 +177,8 @@ function planWorkerd(ctx: RuleContext): void {
   }
 }
 
-// `main = "…"` with only spaces before it on its line; the blank lines above it change nothing.
-const TOML_MAIN = /^[^\S\n\r\u2028\u2029]*main\s*=\s*["']([^"'\n]+)["']/m;
+// `main = "…"` with only TOML's spaces and tabs before it on its line.
+const TOML_MAIN = /^[ \t]*main\s*=\s*["']([^"'\n]+)["']/m;
 
 function wranglerMain(have: Set<string>, text: ReadFile): string | null {
   for (const name of ["wrangler.toml", "wrangler.json", "wrangler.jsonc"]) {

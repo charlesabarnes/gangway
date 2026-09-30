@@ -26,7 +26,9 @@ export type SecretUploadIssued = { id: string; url: string; expiresAt: number };
 export function parseDotenv(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
-  for (let i = 0; i < lines.length; i++) {
+  // A while, not a for: a quoted value moves i on to the line it closes on.
+  let i = -1;
+  while (++i < lines.length) {
     const line = must(lines[i], "a line").trim();
     if (line === "" || line.startsWith("#")) {
       continue;

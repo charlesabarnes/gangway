@@ -1,4 +1,4 @@
-import { lstat, mkdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { unprocessable } from "../errors.ts";
@@ -25,9 +25,9 @@ export async function withDotenv<T>(
     return fn();
   }
   const file = join(srcDir, ".env");
-  const st = await lstat(file).catch(() => null);
-  const read = st && (await readRegularFile(file));
-  if (st && !read?.data) {
+  const present = (await readdir(srcDir)).includes(".env");
+  const read = present ? await readRegularFile(file) : null;
+  if (present && !read?.data) {
     throw unprocessable(".env in the source is not a regular file");
   }
   const committed = read?.data ? { text: read.data.toString("utf8"), mode: read.mode } : null;
@@ -40,10 +40,8 @@ export async function withDotenv<T>(
   try {
     return await fn();
   } finally {
-    if (committed === null) {
-      await rm(file, { force: true });
-    } else {
-      await rm(file, { force: true });
+    await rm(file, { force: true });
+    if (committed !== null) {
       await writeFile(file, committed.text, { mode: committed.mode, flag: "wx" });
     }
   }

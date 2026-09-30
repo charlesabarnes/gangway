@@ -11,7 +11,8 @@ const MAX = 8 * 1024 * 1024;
 const CACHE_BYTES = 64 * 1024 * 1024;
 
 // Bundler output names (main-NI5PORVS.js, chunk-D-pZzVZ32.js), not apple-touch-icon.png.
-export const HASHED = /-(?=[^.]*[A-Z0-9])[\w-]{8,16}\.(?:js|css|woff2?|png|svg|jpg|webp|ico|map)$/;
+export const HASHED =
+  /-(?=[\w-]{0,15}[A-Z0-9])[\w-]{8,16}\.(?:js|css|woff2?|png|svg|jpg|webp|ico|map)$/;
 
 export const siblingSidecar = (abs: string, enc: Encoding) =>
   `${abs}.${enc === "br" ? "br" : "gz"}`;

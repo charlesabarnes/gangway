@@ -210,11 +210,10 @@ export function cleanSvg(svg: string): string | null {
   let out = s;
   for (let prev = ""; out !== prev;) {
     prev = out;
-    out = out
-      .replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "")
-      .replace(/<\/?(script|foreignObject|iframe|object|embed|style)\b[^>]*>/gi, "")
-      .replace(/[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-      .replace(/\s(href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>"']+)/gi, "");
+    out = out.replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "");
+    out = out.replace(/<\/?(script|foreignObject|iframe|object|embed|style)\b[^>]*>/gi, "");
+    out = out.replace(/[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    out = out.replace(/\s(href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>"']+)/gi, "");
   }
   return out;
 }
