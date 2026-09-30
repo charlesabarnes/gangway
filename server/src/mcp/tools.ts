@@ -1,12 +1,13 @@
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { guideText, type ArtifactKind } from "@gangway/shared/artifact/index";
+import { must } from "@gangway/shared/must";
 import { BUILTIN_LIBRARY } from "../artifacts/library.ts";
 import type { Permission } from "@gangway/shared/permissions";
 import { can, mayDestroy, mayReadLogs, mayRebuild, type Actor } from "../auth/actor.ts";
 import { AppError, unprocessable } from "../errors.ts";
 import { destroy } from "../previews/destroy.ts";
-import { runtimeLogs } from "../previews/runtime-logs.ts";
+import { runtimeLogs, type RuntimeLogs } from "../previews/runtime-logs.ts";
 import { DeployTool } from "./deploy-tool.ts";
 import { describePreview, localNote, logTail, refusalDetail } from "./describe.ts";
 import { connectProject } from "./project-tool.ts";
@@ -128,7 +129,7 @@ export class Tools {
       return null;
     }
     if (!base.some((p) => can(actor, p))) {
-      return base[0]!;
+      return must(base[0], "a tool's permission");
     }
     const ref = tool === "deploy" ? (args as { preview?: unknown } | null)?.preview : undefined;
     if (typeof ref !== "string" || can(actor, REDEPLOY_PERMISSION)) {
@@ -175,7 +176,10 @@ export class Tools {
     need(scope.actor, ...TOOL_PERMISSIONS.catalog);
     const lib = this.#d.ctx.artifacts ?? BUILTIN_LIBRARY;
     const all = lib.templates(kind);
-    const id = template ?? all[0]!.id;
+    const id = template ?? all[0]?.id;
+    if (id === undefined) {
+      throw unprocessable(`no ${kind} templates on this server`);
+    }
     if (!all.some((t) => t.id === id)) {
       throw unprocessable(`no ${kind} template "${id}"; one of ${all.map((x) => x.id).join(", ")}`);
     }
@@ -267,12 +271,7 @@ export class Tools {
     }
     if (source !== "pipeline") {
       const rt = await runtimeLogs(ctx, p, { tail: n, service: opts.service });
-      const body =
-        rt.lines === null
-          ? `(${rt.why})`
-          : rt.lines.length === 0
-            ? "(nothing printed yet)"
-            : rt.lines.join("\n");
+      const body = runtimeText(rt);
       parts.push(
         `runtime (what the containers print${opts.service ? `, ${opts.service} only` : ""}):\n${body}`,
       );
@@ -293,4 +292,11 @@ export class Tools {
     await destroy(ctx, p.id, scope.actor);
     return `destroyed ${nameOf(ctx, p)}`;
   }
+}
+
+function runtimeText(rt: RuntimeLogs): string {
+  if (rt.lines === null) {
+    return `(${rt.why})`;
+  }
+  return rt.lines.length === 0 ? "(nothing printed yet)" : rt.lines.join("\n");
 }

@@ -3,7 +3,14 @@ import { sourceKey, type LoginLimiter } from "../auth/limiter.ts";
 import type { Passwords } from "../auth/password.ts";
 import type { EntryPassword, RouteEntry } from "../routing/table.ts";
 import { sha256 } from "../util/hash.ts";
-import { PASSWORD_PATH, passwordPage, plain, readForm, redirect } from "./gate-pages.ts";
+import {
+  PASSWORD_PATH,
+  passwordPage,
+  plain,
+  readForm,
+  redirect,
+  retryAfter,
+} from "./gate-pages.ts";
 import { GateTokens, type GateCookie } from "./gate-tokens.ts";
 
 export { GATE_COOKIE, PASSWORD_COOKIE } from "./gate-tokens.ts";
@@ -100,7 +107,7 @@ export class PreviewGate {
   }
 
   #loginSkips(entry: RouteEntry): boolean {
-    const login = entry.passwordLogin ?? "inherit";
+    const login = entry.passwordLogin;
     return login === "on" || (login === "inherit" && this.#o.loginDefault());
   }
 
@@ -111,12 +118,22 @@ export class PreviewGate {
     };
   }
 
+  #passwordOf(pw: EntryPassword) {
+    switch (pw.mode) {
+      case "own":
+        return pw;
+      case "inherit":
+        return this.#o.sharedPassword();
+      case "none":
+        return null;
+    }
+  }
+
   #secretFor(entry: RouteEntry): Secret | null {
     if (entry.passwordLogin === "only") {
       return null;
     }
-    const pw: EntryPassword = entry.password ?? { mode: "inherit" };
-    const raw = pw.mode === "own" ? pw : pw.mode === "inherit" ? this.#o.sharedPassword() : null;
+    const raw = this.#passwordOf(entry.password);
     if (!raw) {
       return null;
     }
@@ -182,7 +199,10 @@ export class PreviewGate {
     try {
       ok = given !== "" && given.length <= 1024 && (await this.#o.passwords.verify(given, secret));
     } catch {
-      return passwordPage(entry.hostname, to, "The server is busy. Try again in a moment.", 503, 2);
+      return retryAfter(
+        passwordPage(entry.hostname, to, "The server is busy. Try again in a moment.", 503),
+        2,
+      );
     }
     if (!ok) {
       this.#o.limiter?.fail(source, entry.previewId);
@@ -206,11 +226,13 @@ export class PreviewGate {
       return null;
     }
     this.#o.onPasswordFailure?.(entry, clientIp, "throttled");
-    return passwordPage(
-      entry.hostname,
-      to,
-      `Too many attempts. Try again in ${Math.ceil(verdict.retryAfterSec / 60)} minute(s).`,
-      429,
+    return retryAfter(
+      passwordPage(
+        entry.hostname,
+        to,
+        `Too many attempts. Try again in ${Math.ceil(verdict.retryAfterSec / 60)} minute(s).`,
+        429,
+      ),
       verdict.retryAfterSec,
     );
   }

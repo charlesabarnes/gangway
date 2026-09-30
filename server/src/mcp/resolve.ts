@@ -49,8 +49,9 @@ export function resolvePreview(
 
   const all = ctx.previews.list({}).filter(live);
   const exact = all.filter((p) => nameOf(ctx, p) === host);
-  if (exact.length === 1) {
-    return exact[0]!;
+  const [first] = exact;
+  if (first && exact.length === 1) {
+    return first;
   }
   const stem =
     exact.length === 0
@@ -58,8 +59,9 @@ export function resolvePreview(
           new RegExp(`^${host.replace(/[^a-z0-9-]/g, "")}-[a-z0-9]{10}$`).test(nameOf(ctx, p)),
         )
       : exact;
-  if (stem.length === 1) {
-    return stem[0]!;
+  const [only] = stem;
+  if (only && stem.length === 1) {
+    return only;
   }
   if (stem.length > 1) {
     throw unprocessable(

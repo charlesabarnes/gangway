@@ -75,12 +75,13 @@ function surfaceFor(label: string): Surface {
   return (label === "www" ? "app" : label) as Surface;
 }
 
+/** One request's routing context: the deps, the normalized host and the client. */
+type Visit = { d: DispatchDeps; host: string; clientIp: string };
+
 function toSurface(
   req: Request,
-  d: DispatchDeps,
-  host: string,
+  { d, host, clientIp }: Visit,
   label: string,
-  clientIp: string,
 ): Response | Promise<Response> {
   const surface = label === "" ? "app" : surfaceFor(label);
   if (!d.surfaceEnabled(surface)) {
@@ -128,8 +129,7 @@ async function notAwake(
 
 async function serveFiles(
   req: Request,
-  d: DispatchDeps,
-  host: string,
+  { d, host }: Visit,
   entry: RouteEntry,
   site: NonNullable<DispatchDeps["site"]>,
 ): Promise<Response> {
@@ -147,10 +147,8 @@ async function serveFiles(
 
 async function proxy(
   req: Request,
-  d: DispatchDeps,
-  host: string,
+  { d, host, clientIp }: Visit,
   entry: RouteEntry,
-  clientIp: string,
 ): Promise<Response> {
   if (!tryAcquire(entry, d.limits)) {
     return busyPage(host);
@@ -183,6 +181,7 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
   }
 
   const clientIp = d.clientIpFor(req);
+  const visit: Visit = { d, host, clientIp };
 
   // Reserved labels route to surfaces regardless of which are on, or re-enabling one could collide with a live preview.
   const kind = hostKind(host, d);
@@ -194,7 +193,7 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
     return (await d.font?.(req)) ?? unknownPage(host);
   }
   if (kind.kind === "surface") {
-    return toSurface(req, d, host, kind.label, clientIp);
+    return toSurface(req, visit, kind.label);
   }
 
   const entry = d.table.lookup(host);
@@ -225,21 +224,16 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
 
   if (d.watermark && wantsMark(req) && d.watermark.on(entry)) {
     const marked = forMark(req);
-    const res = await answer(marked, d, host, entry, clientIp);
+    const res = await answer(marked, visit, entry);
     return stamp(res, req);
   }
-  return answer(req, d, host, entry, clientIp);
+  return answer(req, visit, entry);
 }
 
-function answer(
-  req: Request,
-  d: DispatchDeps,
-  host: string,
-  entry: RouteEntry,
-  clientIp: string,
-): Promise<Response> {
-  if (entry.site && d.site) {
-    return serveFiles(req, d, host, entry, d.site);
+function answer(req: Request, visit: Visit, entry: RouteEntry): Promise<Response> {
+  const { site } = visit.d;
+  if (entry.site && site) {
+    return serveFiles(req, visit, entry, site);
   }
-  return proxy(req, d, host, entry, clientIp);
+  return proxy(req, visit, entry);
 }

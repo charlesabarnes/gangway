@@ -1,6 +1,7 @@
 import { lookup as dnsLookup, type LookupAddress } from "node:dns";
 import { request } from "node:https";
 import { BlockList, isIP } from "node:net";
+import { must } from "@gangway/shared/must";
 import { SingleFlight } from "../util/async.ts";
 
 export type ClientMetadata = {
@@ -59,7 +60,7 @@ export function isPublicAddress(address: string): boolean {
   }
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
   if (mapped) {
-    return !PRIVATE.check(mapped[1]!, "ipv4");
+    return !PRIVATE.check(must(mapped[1], "a mapped IPv4 address"), "ipv4");
   }
   return !PRIVATE.check(address, family === 6 ? "ipv6" : "ipv4");
 }
@@ -107,12 +108,14 @@ const safeLookup: typeof dnsLookup = ((
 ) => {
   dnsLookup(hostname, { all: true }, (err, addresses) => {
     if (err) {
-      return callback(err, "", 0);
+      callback(err, "", 0);
+      return;
     }
     const list = addresses;
+    const [first] = list;
     const bad = list.find((a) => !isPublicAddress(a.address));
-    if (list.length === 0 || bad) {
-      return callback(
+    if (!first || bad) {
+      callback(
         Object.assign(
           new Error(
             `refusing to fetch client metadata from a non-public address (${bad?.address ?? "none"})`,
@@ -122,15 +125,17 @@ const safeLookup: typeof dnsLookup = ((
         "",
         0,
       );
+      return;
     }
     const wantsAll =
       typeof options === "object" &&
       options !== null &&
       (options as { all?: boolean }).all === true;
     if (wantsAll) {
-      return callback(null, list);
+      callback(null, list);
+      return;
     }
-    callback(null, list[0]!.address, list[0]!.family);
+    callback(null, first.address, first.family);
   });
 }) as typeof dnsLookup;
 
@@ -158,14 +163,14 @@ export const fetchDocument: DocumentFetcher = (url) =>
           }
           chunks.push(c);
         });
-        res.on("end", () =>
+        res.on("end", () => {
           resolve({
             status: res.statusCode ?? 0,
             contentType: String(res.headers["content-type"] ?? ""),
             cacheControl: String(res.headers["cache-control"] ?? ""),
             body: Buffer.concat(chunks).toString("utf8"),
-          }),
-        );
+          });
+        });
         res.on("error", reject);
       },
     );
@@ -268,8 +273,9 @@ export class ClientMetadataStore {
             );
       }
       const doc = parseDocument(clientId, fetched);
-      if (this.#cache.size >= MAX_CACHE) {
-        this.#cache.delete(this.#cache.keys().next().value!);
+      const oldest = this.#cache.keys().next();
+      if (this.#cache.size >= MAX_CACHE && !oldest.done) {
+        this.#cache.delete(oldest.value);
       }
       this.#cache.set(clientId, { doc, until: this.#now() + ttlOf(fetched.cacheControl) });
       return doc;

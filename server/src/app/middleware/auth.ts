@@ -35,7 +35,7 @@ export async function resolveActor(c: Context<AppEnv>, d: AuthDeps): Promise<Act
   if (header !== undefined) {
     // A presented-but-wrong bearer never falls back to the cookie.
     const presented = BEARER.exec(header)?.[1];
-    return presented ? await d.verifyToken(presented) : null;
+    return presented ? d.verifyToken(presented) : null;
   }
   if (!d.resolveSession || c.env.surface !== "app") {
     return null;

@@ -121,7 +121,7 @@ export class Uploads {
     let bytes = 0;
     const fh = await open(path, "wx", 0o600);
     try {
-      for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
+      for await (const chunk of body) {
         bytes += chunk.byteLength;
         if (bytes > this.#maxBytes) {
           throw new AppError("payload_too_large", `at most ${this.#maxBytes} bytes`);
@@ -150,7 +150,7 @@ export class Uploads {
   take(id: string, actor: Actor): Taken {
     this.#sweep();
     const slot = ID.test(id) ? this.#slots.get(id) : undefined;
-    if (!slot || slot.owner !== actorId(actor)) {
+    if (slot?.owner !== actorId(actor)) {
       throw notFound(
         'no such upload for this credential, or it expired; ask for a new one with upload: "new"',
       );

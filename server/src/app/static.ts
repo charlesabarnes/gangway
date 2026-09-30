@@ -57,15 +57,16 @@ async function respond(
   cacheControl: string,
 ): Promise<Response> {
   const type = Bun.file(abs).type;
+  const etag = `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
   const headers: Record<string, string> = {
     "content-type": type,
     "cache-control": cacheControl,
-    etag: `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`,
+    etag,
     "last-modified": new Date(st.mtimeMs).toUTCString(),
     vary: "accept-encoding",
     "x-content-type-options": "nosniff",
   };
-  if (notModified(req, headers["etag"]!, st.mtimeMs)) {
+  if (notModified(req, etag, st.mtimeMs)) {
     return new Response(null, { status: 304, headers });
   }
   const { body, encoding } = await encodedFile(

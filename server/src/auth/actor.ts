@@ -103,14 +103,18 @@ export function workflowActor(c: {
 
 export const can = (actor: Actor, needed: Permission): boolean => actor.permissions.has(needed);
 
-export const actorId = (a: Actor): string =>
-  a.kind === "user"
-    ? `user:${a.userId}`
-    : a.kind === "forge"
-      ? `${a.forge}:${a.login}`
-      : a.kind === "workflow"
-        ? `actions:${a.repository}#${a.runId}`
-        : a.tokenId;
+export function actorId(a: Actor): string {
+  switch (a.kind) {
+    case "user":
+      return `user:${a.userId}`;
+    case "forge":
+      return `${a.forge}:${a.login}`;
+    case "workflow":
+      return `actions:${a.repository}#${a.runId}`;
+    case "token":
+      return a.tokenId;
+  }
+}
 
 export function principalOf(a: Actor): string | null {
   if (a.kind === "user") {

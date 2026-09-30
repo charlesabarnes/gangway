@@ -28,13 +28,16 @@ export async function recordDeployment(
 export async function finishDeployment(
   d: DeploymentDeps,
   pr: PullRequest,
-  deploymentId: number,
-  previewId: string,
-  o: { awake: boolean; urls: PreviewUrl[] },
+  {
+    deploymentId,
+    previewId,
+    awake,
+    urls,
+  }: { deploymentId: number; previewId: string; awake: boolean; urls: PreviewUrl[] },
 ): Promise<void> {
   try {
-    const primary = o.urls.find((u) => u.primary)?.url;
-    await d.forge.setDeploymentStatus(pr.repo, deploymentId, o.awake ? "success" : "failure", {
+    const primary = urls.find((u) => u.primary)?.url;
+    await d.forge.setDeploymentStatus(pr.repo, deploymentId, awake ? "success" : "failure", {
       ...(primary ? { environmentUrl: primary } : {}),
       ...logUrl(d, previewId),
     });

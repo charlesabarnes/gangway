@@ -18,11 +18,11 @@ export type AuthorizeRequest = { challenge: string; scopes: OAuthScope[] };
 
 export function singleParams(q: URLSearchParams): ParamReader {
   return (k) => {
-    const all = q.getAll(k);
-    if (all.length === 1) {
-      return all[0]!;
+    const [first, ...rest] = q.getAll(k);
+    if (first === undefined) {
+      return null;
     }
-    return all.length === 0 ? null : undefined;
+    return rest.length === 0 ? first : undefined;
   };
 }
 

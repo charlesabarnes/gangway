@@ -107,12 +107,12 @@ function gateTarget(gate: GateDeps | undefined, host: string) {
   return { gate, entry, kind };
 }
 
+type PreviewTarget = { gate: GateDeps; entry: GateEntry; to: string };
+
 function toPreview(
   c: Context<AppEnv>,
-  gate: GateDeps,
-  entry: GateEntry,
+  { gate, entry, to }: PreviewTarget,
   path: string,
-  to: string,
   ticket: string | null,
 ) {
   const target = new URL(path, gate.originFor(entry.hostname));
@@ -131,16 +131,17 @@ function gateRoute(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     const { gate, entry, kind } = gateTarget(d.gate, (c.req.query("host") ?? "").toLowerCase());
     const to = gate.safePath(c.req.query("to"));
     c.header("cache-control", "no-store");
+    const dest = { gate, entry, to };
 
     const actor = await resolveActor(c, d.auth).catch(() => null);
     const skipPassword =
-      kind.passwordSkippable && actor !== null && actor.permissions.has("previews.skip_password");
+      kind.passwordSkippable && actor?.permissions.has("previews.skip_password") === true;
     if (!kind.private) {
       if (!skipPassword) {
-        return toPreview(c, gate, entry, "/__gangway/password", to, null);
+        return toPreview(c, dest, "/__gangway/password", null);
       }
       const ticket = gate.issueTicket(entry, { skipPassword });
-      return toPreview(c, gate, entry, "/__gangway/auth", to, ticket);
+      return toPreview(c, dest, "/__gangway/auth", ticket);
     }
     if (!actor) {
       const back = `/v1/auth/gate?host=${encodeURIComponent(entry.hostname)}&to=${encodeURIComponent(to)}`;
@@ -151,7 +152,7 @@ function gateRoute(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     }
 
     const ticket = gate.issueTicket(entry, { skipPassword });
-    return toPreview(c, gate, entry, "/__gangway/auth", to, ticket);
+    return toPreview(c, dest, "/__gangway/auth", ticket);
   });
 }
 

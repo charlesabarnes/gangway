@@ -25,7 +25,8 @@ export type GitHubAppOptions = {
   now?: (() => number) | undefined;
 };
 
-export type GitHubResponse<T> = { status: number; body: T; headers: Headers };
+// T is what GitHub is expected to send, unchecked; body is undefined when it sent no JSON.
+export type GitHubResponse<T> = { status: number; body: T | undefined; headers: Headers };
 
 type CachedToken = { token: string; expiresAt: number };
 
@@ -132,12 +133,12 @@ export class GitHubApp {
     }
     const res = await this.#fetch(url, init);
     const text = await res.text();
-    let body: T = undefined as T;
+    let body: T | undefined;
     if (text !== "") {
       try {
         body = JSON.parse(text) as T;
       } catch {
-        body = text as unknown as T;
+        body = undefined;
       }
     }
     if (res.status >= 500) {

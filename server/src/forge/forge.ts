@@ -1,4 +1,5 @@
 import { type ForgeId, CLEARANCES, type Clearance } from "@gangway/shared/domain";
+import { must } from "@gangway/shared/must";
 
 export type { ForgeId };
 
@@ -87,7 +88,7 @@ export function parsePreviewCommand(body: string): ParsedCommand | null {
   if (!m) {
     return null;
   }
-  const verb = m[1]!.toLowerCase();
+  const verb = must(m[1], "a /preview verb").toLowerCase();
   const arg = m[2]?.toLowerCase();
   if (verb === "secrets") {
     return arg !== undefined && (CLEARANCES as readonly string[]).includes(arg)

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { must } from "@gangway/shared/must";
 import type { OAuthClientsRepo } from "../db/repos/oauth-clients.ts";
 import {
   ClientMetadataError,
@@ -107,7 +108,8 @@ export function parseRegistration(body: unknown): { clientName: string; redirect
   subsetOf(d["response_types"], ["code"], "response_types");
   const name = typeof d["client_name"] === "string" ? cleanClientName(d["client_name"]) : "";
   return {
-    clientName: name || new URL(redirectUris[0]!).hostname || "An MCP client",
+    clientName:
+      name || new URL(must(redirectUris[0], "a redirect URI")).hostname || "An MCP client",
     redirectUris,
   };
 }

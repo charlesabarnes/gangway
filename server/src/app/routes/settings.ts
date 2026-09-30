@@ -5,7 +5,7 @@ import type { AuditSink } from "../../audit/audit.ts";
 import { conflict, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
-import { SETTINGS, SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
+import { SETTINGS, SETTINGS_BY_KEY, type SettingDef, type Settings } from "../../settings.ts";
 import type { DomainRegistry } from "../../domains/registry.ts";
 import type { Mailer } from "../../mail/mailer.ts";
 import type { AppEnv } from "../env.ts";
@@ -15,9 +15,15 @@ export function settingsRoutes(
   api: Hono<AppEnv>,
   settings: Settings,
   audit: AuditSink,
-  templates?: Pick<TemplatesRepo, "get">,
-  hashPassword?: (plain: string) => Promise<{ hash: string; salt: string }>,
-  domains?: DomainRegistry,
+  {
+    templates,
+    hashPassword,
+    domains,
+  }: {
+    templates?: Pick<TemplatesRepo, "get">;
+    hashPassword?: (plain: string) => Promise<{ hash: string; salt: string }>;
+    domains?: DomainRegistry;
+  } = {},
 ): void {
   api.get("/settings", requirePermission("settings.read"), (c) =>
     c.json({ settings: settings.view() }),
@@ -41,7 +47,7 @@ export function settingsRoutes(
       );
     }
     for (const w of writes) {
-      settings.set(SETTINGS_BY_KEY.get(w.key)!, w.value);
+      settings.set(w.def, w.value);
     }
     if (domainWrite) {
       domains?.refresh();
@@ -54,6 +60,15 @@ export function settingsRoutes(
     return c.json({ settings: settings.view() });
   });
 
+  previewPasswordRoute(api, settings, audit, hashPassword);
+}
+
+function previewPasswordRoute(
+  api: Hono<AppEnv>,
+  settings: Settings,
+  audit: AuditSink,
+  hashPassword: ((plain: string) => Promise<{ hash: string; salt: string }>) | undefined,
+): void {
   api.put("/settings/preview-password", requirePermission("settings.write"), async (c) => {
     const body = await readJson(c);
     const { mode, value, login } = DefaultPasswordSchema.parse(body);
@@ -129,7 +144,13 @@ const DOMAIN_KEYS: ReadonlySet<string> = new Set([
   SETTINGS.previewDomain.key,
 ]);
 
-type SettingWrite = { key: string; value: unknown; secret: boolean; old: unknown };
+type SettingWrite = {
+  key: string;
+  def: SettingDef<unknown>;
+  value: unknown;
+  secret: boolean;
+  old: unknown;
+};
 
 function validateWrite(
   settings: Settings,
@@ -158,7 +179,7 @@ function validateWrite(
   if (key.startsWith("templates.default.") && templates && !templates.get(parsed.data as string)) {
     throw unprocessable(`"${key}": no such template: ${String(parsed.data)}`, { key });
   }
-  return { key, value: parsed.data, secret: def.secret, old: settings.effective(def).value };
+  return { key, def, value: parsed.data, secret: def.secret, old: settings.effective(def).value };
 }
 
 function shown(w: SettingWrite, v: unknown): unknown {

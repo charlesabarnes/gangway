@@ -50,14 +50,11 @@ export function addonRoutes(api: Hono<AppEnv>, data: DataBrowser): void {
   api.get("/previews/:id/addons/:addon/rows", requirePermission("previews.data"), async (c) => {
     const q = RowsQuery.parse(c.req.query());
     return c.json(
-      await data.rows(
-        c.get("actor"),
-        c.req.param("id"),
-        addonParam(c.req.param("addon")),
-        { schema: q.schema, name: q.table },
-        q.limit,
-        q.offset,
-      ),
+      await data.rows(c.get("actor"), c.req.param("id"), addonParam(c.req.param("addon")), {
+        table: { schema: q.schema, name: q.table },
+        limit: q.limit,
+        offset: q.offset,
+      }),
     );
   });
 
@@ -77,13 +74,10 @@ export function addonRoutes(api: Hono<AppEnv>, data: DataBrowser): void {
   api.post("/previews/:id/addons/:addon/query", requirePermission("previews.data"), async (c) => {
     const body = QueryBody.parse(await readJson(c));
     return c.json(
-      await data.query(
-        c.get("actor"),
-        c.req.param("id"),
-        addonParam(c.req.param("addon")),
-        body.text,
-        body.write,
-      ),
+      await data.query(c.get("actor"), c.req.param("id"), addonParam(c.req.param("addon")), {
+        text: body.text,
+        write: body.write,
+      }),
     );
   });
 }

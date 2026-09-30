@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { User } from "@gangway/shared/domain";
+import { must } from "@gangway/shared/must";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
@@ -180,10 +181,13 @@ export class Accounts {
       if (credentials) {
         users.setPassword(id, credentials);
       }
-      const after = users.update(id, {
-        ...(patch.roleId === undefined ? {} : { roleId: patch.roleId }),
-        ...(patch.disabled === undefined ? {} : { disabled: patch.disabled }),
-      })!;
+      const after = must(
+        users.update(id, {
+          ...(patch.roleId === undefined ? {} : { roleId: patch.roleId }),
+          ...(patch.disabled === undefined ? {} : { disabled: patch.disabled }),
+        }),
+        "the user just read in this transaction",
+      );
       return { before, after };
     });
 

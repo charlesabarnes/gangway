@@ -1,4 +1,5 @@
 import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from "node:crypto";
+import { must } from "@gangway/shared/must";
 import { rateLimited } from "../errors.ts";
 
 export type PasswordOptions = {
@@ -17,11 +18,15 @@ const LIMITS = { ln: [10, 20], r: [1, 16], p: [1, 4] } as const;
 function derive(password: string, salt: Buffer, { ln, r, p }: Params): Promise<Buffer> {
   // Node's default maxmem of 32 MiB is exactly what N=2^15,r=8 needs, so the default throws.
   const opts: ScryptOptions = { N: 2 ** ln, r, p, maxmem: 128 * 2 ** ln * r * 2 };
-  return new Promise((resolve, reject) =>
-    scrypt(password.normalize("NFKC"), salt, KEY_LEN, opts, (e, key) =>
-      e ? reject(e) : resolve(key),
-    ),
-  );
+  return new Promise((resolve, reject) => {
+    scrypt(password.normalize("NFKC"), salt, KEY_LEN, opts, (e, key) => {
+      if (e) {
+        reject(e);
+      } else {
+        resolve(key);
+      }
+    });
+  });
 }
 
 function parse(stored: string): (Params & { key: Buffer }) | null {
@@ -34,7 +39,7 @@ function parse(stored: string): (Params & { key: Buffer }) | null {
   if (!within(ln, LIMITS.ln) || !within(r, LIMITS.r) || !within(p, LIMITS.p)) {
     return null;
   }
-  const key = Buffer.from(m[4]!, "base64");
+  const key = Buffer.from(must(m[4], "a scrypt key"), "base64");
   return key.length === KEY_LEN ? { ln, r, p, key } : null;
 }
 
@@ -98,11 +103,11 @@ export class Passwords {
 
   needsRehash(storedHash: string): boolean {
     const parsed = parse(storedHash);
+    if (!parsed) {
+      return true;
+    }
     return (
-      !parsed ||
-      parsed.ln !== this.#params.ln ||
-      parsed.r !== this.#params.r ||
-      parsed.p !== this.#params.p
+      parsed.ln !== this.#params.ln || parsed.r !== this.#params.r || parsed.p !== this.#params.p
     );
   }
 }

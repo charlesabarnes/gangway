@@ -367,7 +367,11 @@ export class OAuthServer {
         old: { client: g.clientId, scopes: g.scopes, userId: g.userId },
       });
     }
-    return this.#d.grants.get(id)!;
+    const after = this.#d.grants.get(id);
+    if (!after) {
+      throw notFound(`no such connection: ${id}`);
+    }
+    return after;
   }
 
   revokeAllFor(userId: string): void {

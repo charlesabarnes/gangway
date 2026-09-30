@@ -1,9 +1,17 @@
 import type { Actor } from "../auth/actor.ts";
-import { notFound } from "../errors.ts";
+import { notFound, unprocessable } from "../errors.ts";
 import { createProject } from "../projects/create.ts";
 import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../projects/workflow.ts";
 import type { ToolDeps } from "./tool-deps.ts";
 import type { ProjectArgs } from "./setup-tool-specs.ts";
+
+function repoName(repository: string): string {
+  const [, name] = repository.split("/");
+  if (!name) {
+    throw unprocessable("repository: owner/name");
+  }
+  return name;
+}
 
 /** Find or make the repository's workflow project and hand back the file that previews its PRs. */
 export function connectProject(d: ToolDeps, actor: Actor, args: ProjectArgs): string {
@@ -15,7 +23,7 @@ export function connectProject(d: ToolDeps, actor: Actor, args: ProjectArgs): st
   const project =
     existing ??
     createProject({ projects: p.repo, audit: d.ctx.audit, templates: p.templates }, actor, {
-      name: args.name ?? args.repository.split("/")[1]!,
+      name: args.name ?? repoName(args.repository),
       repository: args.repository,
       prTrigger: "workflow",
       ...(args.slug ? { slug: args.slug } : {}),

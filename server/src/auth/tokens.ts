@@ -92,12 +92,7 @@ export class Tokens {
       secretTargets?: SecretTargets | undefined;
     },
   ): { token: ApiToken; secret: string } {
-    const owner =
-      actor.kind === "user"
-        ? actor.userId
-        : actor.kind === "token" && actor.tokenId === ENV_ADMIN_TOKEN_ID
-          ? null
-          : undefined;
+    const owner = tokenOwner(actor);
     if (owner === undefined) {
       throw forbidden(
         "an API token cannot create API tokens; log in, or use the server's admin token",
@@ -149,11 +144,10 @@ export class Tokens {
       }
       return this.#repo.listAll();
     }
-    return actor.kind === "user"
-      ? this.#repo.listForUser(actor.userId)
-      : can(actor, "tokens.manage_all")
-        ? this.#repo.listAll()
-        : [];
+    if (actor.kind === "user") {
+      return this.#repo.listForUser(actor.userId);
+    }
+    return can(actor, "tokens.manage_all") ? this.#repo.listAll() : [];
   }
 
   revoke(actor: Actor, id: string): ApiToken {
@@ -167,6 +161,18 @@ export class Tokens {
         old: { name: token.name, scopes: token.scopes, userId: token.userId },
       });
     }
-    return this.#repo.get(id)!;
+    const after = this.#repo.get(id);
+    if (!after) {
+      throw notFound(`no such token: ${id}`);
+    }
+    return after;
   }
+}
+
+/** Who a new token belongs to: the user, null for the server's admin token, undefined for neither. */
+function tokenOwner(actor: Actor): string | null | undefined {
+  if (actor.kind === "user") {
+    return actor.userId;
+  }
+  return actor.kind === "token" && actor.tokenId === ENV_ADMIN_TOKEN_ID ? null : undefined;
 }

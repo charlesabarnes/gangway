@@ -113,15 +113,15 @@ async function kitPage(f: Found, version: string): Promise<Page | null> {
     return hit;
   }
   const text = await Bun.file(f.abs).text();
-  let stale = false;
+  let stale = 0;
   const out = text.replace(KIT_LINK, (m, link: string) => {
     const now = `${link}?v=${version}`;
     if (now !== m) {
-      stale = true;
+      stale++;
     }
     return now;
   });
-  if (!stale) {
+  if (stale === 0) {
     return null;
   }
   const html = new TextEncoder().encode(out);
@@ -130,20 +130,20 @@ async function kitPage(f: Found, version: string): Promise<Page | null> {
     html,
     gzip: compressible("text/html", html.byteLength) ? await compress(html, "gzip", true) : null,
   };
-  if (pages.size >= MAX_PAGES) {
-    pages.delete(pages.keys().next().value!);
+  const oldest = pages.keys().next();
+  if (pages.size >= MAX_PAGES && !oldest.done) {
+    pages.delete(oldest.value);
   }
   pages.set(f.abs, page);
   return page;
 }
 
+type KitPageServe = { page: Page; f: Found; version: string; status: number };
+
 async function sendKitPage(
   req: Request,
-  page: Page,
-  f: Found,
-  version: string,
+  { page, f, version, status }: KitPageServe,
   o: SiteServeOptions,
-  status: number,
 ): Promise<Response> {
   // The version is in the validator, and If-Modified-Since is not consulted, so an upgrade is never a 304.
   const etag = `W/"${f.size.toString(16)}-${Math.floor(f.mtime).toString(16)}-${version}"`;
@@ -174,16 +174,22 @@ async function sendKitPage(
 async function sendSiteFile(
   req: Request,
   f: Found,
-  o: SiteServeOptions,
-  site: ServedSite,
+  { o, site }: { o: SiteServeOptions; site: ServedSite },
   status = 200,
 ): Promise<Response> {
   const version = site.kit && /\.html?$/i.test(f.abs) ? kitVersion(o.kitDir) : null;
   const page = version ? await kitPage(f, version) : null;
   if (page && version) {
-    return sendKitPage(req, page, f, version, o, status);
+    return sendKitPage(req, { page, f, version, status }, o);
   }
   return send(req, f, o, { status, site });
+}
+
+function cacheControl(immutable: boolean, kit: boolean): string {
+  if (immutable) {
+    return "public, max-age=31536000, immutable";
+  }
+  return kit ? "public, max-age=86400" : "no-cache";
 }
 
 async function send(
@@ -198,11 +204,7 @@ async function send(
   const headers: Record<string, string> = {
     "content-type": type,
     "x-content-type-options": "nosniff",
-    "cache-control": immutable
-      ? "public, max-age=31536000, immutable"
-      : r.kit
-        ? "public, max-age=86400"
-        : "no-cache",
+    "cache-control": cacheControl(immutable, r.kit === true),
     etag,
     "last-modified": new Date(f.mtime).toUTCString(),
     vary: "accept-encoding",
@@ -233,7 +235,12 @@ async function send(
       headers,
     });
   }
-  const sidecar = r.kit ? siblingSidecar : r.site ? siteSidecar(r.site) : undefined;
+  let sidecar;
+  if (r.kit) {
+    sidecar = siblingSidecar;
+  } else if (r.site) {
+    sidecar = siteSidecar(r.site);
+  }
   const { body, encoding } = await encodedFile(
     req,
     f.abs,
@@ -311,10 +318,11 @@ async function lookup(root: string, url: URL, parts: string[]): Promise<Lookup> 
       }
     }
   }
-  if (parts.length === 0 || slash) {
+  const last = parts.at(-1);
+  if (last === undefined || slash) {
     return null;
   }
-  const f = await fileAt(root, [...parts.slice(0, -1), `${parts[parts.length - 1]!}.html`]);
+  const f = await fileAt(root, [...parts.slice(0, -1), `${last}.html`]);
   return f ? { found: f } : null;
 }
 
@@ -324,7 +332,7 @@ async function fallback(req: Request, site: ServedSite, o: SiteServeOptions): Pr
   if (!f) {
     return plain(404, "not found");
   }
-  return spa ? sendSiteFile(req, f, o, site) : sendSiteFile(req, f, o, site, 404);
+  return spa ? sendSiteFile(req, f, { o, site }) : sendSiteFile(req, f, { o, site }, 404);
 }
 
 /** Answers from a site's files the way the static runtime's nginx did. */
@@ -349,5 +357,5 @@ export async function serveSite(
   if (hit && "redirect" in hit) {
     return new Response(null, { status: 301, headers: { location: hit.redirect } });
   }
-  return hit ? sendSiteFile(req, hit.found, o, site) : fallback(req, site, o);
+  return hit ? sendSiteFile(req, hit.found, { o, site }) : fallback(req, site, o);
 }

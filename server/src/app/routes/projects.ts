@@ -91,7 +91,10 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     const after = projects.update(before.id, {
       ...patch,
       ...(patch.enabled === true ? { disabledReason: null } : {}),
-    })!;
+    });
+    if (!after) {
+      throw notFound(`no such project: ${before.slug}`);
+    }
     audit.record(c.get("actor"), "project.updated", before.id, {
       old: auditFields(before),
       new: auditFields(after),

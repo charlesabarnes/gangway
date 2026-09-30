@@ -224,7 +224,10 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
     if (!t) {
       throw notFound(`no such template: ${id}`);
     }
-    const files = t.builtin ? library.render({ template: id }) : library.custom(id)!.files;
+    const files = t.builtin ? library.render({ template: id }) : library.custom(id)?.files;
+    if (!files) {
+      throw notFound(`no such template: ${id}`);
+    }
     return c.json({ template: t, files });
   });
 
@@ -243,7 +246,10 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
       201,
     );
   });
+}
 
+function templateEditRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
+  const { library } = d;
   api.put("/artifact-templates/:id{.+}", requirePermission("artifacts.manage"), async (c) => {
     manage();
     const id = c.req.param("id");
@@ -256,7 +262,10 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
     }
     const patch = TemplatePatchSchema.parse(await readJson(c));
     checkTemplate(d, before.kind, patch.files ?? before.files, patch.themeId ?? before.themeId);
-    const t = d.templates.update(id, patch)!;
+    const t = d.templates.update(id, patch);
+    if (!t) {
+      throw notFound(`no such template: ${id}`);
+    }
     d.audit.record(c.get("actor"), "artifact_template.updated", id, {
       old: before.name,
       new: t.name,
@@ -282,8 +291,10 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   });
 }
 
-const titleOf = (files: Record<string, string>) =>
-  frontMatter(files[ARTIFACT_FILE] ?? "").meta["title"] || undefined;
+function titleOf(files: Record<string, string>): string | undefined {
+  const title = frontMatter(files[ARTIFACT_FILE] ?? "").meta["title"];
+  return title === "" ? undefined : title;
+}
 
 /** Deploys an artifact from a template, as the MCP deploy tool's artifact argument does. */
 function deployRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
@@ -343,5 +354,6 @@ export function artifactRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   listRoute(api, d);
   themeRoutes(api, d);
   templateRoutes(api, d);
+  templateEditRoutes(api, d);
   deployRoute(api, d);
 }

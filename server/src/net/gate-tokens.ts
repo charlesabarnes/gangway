@@ -107,9 +107,15 @@ export class GateTokens {
       if (fields.length !== 3 && fields.length !== 4) {
         continue;
       }
-      const sig = fields.pop()!;
+      const sig = fields.pop();
       const [previewId, exp, skip] = fields;
-      if (!previewId || !exp || previewId !== entry.previewId || !(Number(exp) > this.#o.now())) {
+      if (
+        !sig ||
+        !previewId ||
+        !exp ||
+        previewId !== entry.previewId ||
+        !(Number(exp) > this.#o.now())
+      ) {
         continue;
       }
       if (!this.#verify("cookie", fields.join("."), sig)) {

@@ -29,6 +29,8 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
     const queue: SseMessage[] = [];
     let wake: (() => void) | null = null;
     let open = true;
+    // Read through a call: close() flips it from callbacks the checker cannot see.
+    const isOpen = () => open;
 
     const close = () => {
       open = false;
@@ -36,7 +38,8 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
     };
     const unsubscribe = source((m) => {
       if (queue.length >= maxQueue) {
-        return close();
+        close();
+        return;
       }
       queue.push(m);
       wake?.();
@@ -50,23 +53,25 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
     try {
       // Some proxies hold response headers until the first body byte, delaying onopen until the first heartbeat.
       await stream.write(": connected\n\n");
-      while (open) {
+      while (isOpen()) {
         const batch = queue.splice(0);
         for (const m of batch) {
           await stream.writeSSE(m);
         }
-        if (!open || queue.length > 0) {
+        if (!isOpen() || queue.length > 0) {
           continue;
         }
         const timedOut = await new Promise<boolean>((resolve) => {
-          const t = setTimeout(() => resolve(true), heartbeatMs);
+          const t = setTimeout(() => {
+            resolve(true);
+          }, heartbeatMs);
           wake = () => {
             clearTimeout(t);
             resolve(false);
           };
         });
         wake = null;
-        if (timedOut && open) {
+        if (timedOut && isOpen()) {
           await stream.write(": keepalive\n\n");
         }
       }

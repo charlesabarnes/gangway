@@ -107,7 +107,10 @@ function projectDomainRoutes(api: Hono<AppEnv>, d: DomainRouteDeps): void {
         throw unprocessable(`preview ${previewId} is not one of ${project.slug}'s previews`);
       }
     }
-    const after = d.projects.update(project.id, { productionPreviewId: previewId })!;
+    const after = d.projects.update(project.id, { productionPreviewId: previewId });
+    if (!after) {
+      throw notFound(`no such project: ${project.slug}`);
+    }
     d.audit.record(c.get("actor"), "project.production", project.id, {
       old: project.productionPreviewId,
       new: previewId,

@@ -73,7 +73,7 @@ export class EncodedCache {
     const id = `${enc}:${abs}`;
     const key = `${size}:${mtime}`;
     const hit = this.#entries.get(id);
-    if (hit && hit.key === key) {
+    if (hit?.key === key) {
       this.#entries.delete(id);
       this.#entries.set(id, hit);
       return hit.body;

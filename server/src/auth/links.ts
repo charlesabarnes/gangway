@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { User } from "@gangway/shared/domain";
+import { must } from "@gangway/shared/must";
 import type { AuditSink } from "../audit/audit.ts";
 import type { LinkPurpose, UserLinksRepo } from "../db/repos/user-links.ts";
 import type { UsersRepo } from "../db/repos/users.ts";
@@ -69,9 +70,9 @@ export class EmailLinks {
     // Someone invited who lost the email gets the invitation again, not a reset.
     const purpose: LinkPurpose = user.invited ? "invite" : "reset";
     audit.record(null, "auth.reset.requested", user.id, { new: { ip: meta.ip, sent: purpose } });
-    this.#send(user, purpose, null).catch((e: unknown) =>
-      logger.warn("could not email a password link", { userId: user.id, err: errorMessage(e) }),
-    );
+    this.#send(user, purpose, null).catch((e: unknown) => {
+      logger.warn("could not email a password link", { userId: user.id, err: errorMessage(e) });
+    });
   }
 
   /** An admin's resend: an invitation while the account has no password, else a reset. */
@@ -107,7 +108,7 @@ export class EmailLinks {
         throw notFound(GONE);
       }
       users.setPassword(user.id, credentials);
-      return { user: users.get(user.id)!, purpose: link.purpose };
+      return { user: must(users.get(user.id), "the user just updated"), purpose: link.purpose };
     });
 
     sessions.revokeAllFor(user.id);
@@ -134,7 +135,9 @@ export class EmailLinks {
     const origin = this.#d.appOrigin();
     const url = `${origin}/set-password#${secret}`;
     const inviter = by?.kind === "user" ? this.#d.users.get(by.userId)?.email : undefined;
-    await this.#d.mailer.send(message(purpose, user.email, url, new URL(origin).host, inviter));
+    await this.#d.mailer.send(
+      message(purpose, user.email, { url, host: new URL(origin).host, inviter }),
+    );
   }
 }
 
@@ -142,9 +145,7 @@ export class EmailLinks {
 function message(
   purpose: LinkPurpose,
   to: string,
-  url: string,
-  host: string,
-  inviter: string | undefined,
+  { url, host, inviter }: { url: string; host: string; inviter: string | undefined },
 ): Mail {
   if (purpose === "invite") {
     return {

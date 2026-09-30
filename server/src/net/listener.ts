@@ -35,7 +35,7 @@ function socketEntry(req: Request, deps: DispatchDeps): RouteEntry | null {
     return null;
   }
   const entry = deps.table.lookup(host);
-  if (!entry || entry.state !== "awake") {
+  if (entry?.state !== "awake") {
     return null;
   }
   return deps.visibilityGate?.(entry, req) ? null : entry;

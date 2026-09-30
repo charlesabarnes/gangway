@@ -51,7 +51,10 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
     const body = await readJson(c);
     const patch = TemplatePatchSchema.parse(body);
     check(patch, d.hosts);
-    const after = d.templates.update(id, patch)!;
+    const after = d.templates.update(id, patch);
+    if (!after) {
+      throw notFound(`no such template: ${id}`);
+    }
     d.audit.record(c.get("actor"), "template.updated", id, { old: pick(before), new: pick(after) });
     return c.json({ template: after });
   });

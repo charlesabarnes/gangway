@@ -71,7 +71,9 @@ export class McpSurface {
       {
         responseMode: "sse",
         keepAliveMs: 15_000,
-        onerror: (err) => d.logger.warn("mcp request rejected", { err: err.message }),
+        onerror: (err) => {
+          d.logger.warn("mcp request rejected", { err: err.message });
+        },
       },
     );
 
@@ -145,24 +147,27 @@ export class McpSurface {
     this.#live.clear();
   }
 
-  #oauthOn(): boolean {
-    return this.#d.oauth?.available() === true;
+  #oauthOn() {
+    const oauth = this.#d.oauth;
+    return oauth?.available() === true ? oauth : undefined;
   }
 
   #prm(c: Context<AppEnv>): Response {
-    if (!this.#oauthOn()) {
+    const oauth = this.#oauthOn();
+    if (!oauth) {
       return problemResponse(c, notFound(`no such resource: ${c.req.path}`));
     }
-    return c.json(this.#d.oauth!.resourceMetadata(), 200, {
+    return c.json(oauth.resourceMetadata(), 200, {
       "cache-control": "public, max-age=300",
     });
   }
 
   #challenge(extra = ""): string {
-    if (!this.#oauthOn()) {
+    const oauth = this.#oauthOn();
+    if (!oauth) {
       return 'Bearer realm="gangway"';
     }
-    return `Bearer resource_metadata="${this.#d.oauth!.resource()}/.well-known/oauth-protected-resource", scope="read deploy"${extra}`;
+    return `Bearer resource_metadata="${oauth.resource()}/.well-known/oauth-protected-resource", scope="read deploy"${extra}`;
   }
 
   async #stepUp(req: Request, actor: Actor): Promise<Scope | null> {
@@ -175,7 +180,10 @@ export class McpSurface {
     } catch {
       return null;
     }
-    const msg = body as { method?: unknown; params?: { name?: unknown; arguments?: unknown } };
+    const msg = body as {
+      method?: unknown;
+      params?: { name?: unknown; arguments?: unknown };
+    } | null;
     if (msg?.method !== "tools/call" || typeof msg.params?.name !== "string") {
       return null;
     }

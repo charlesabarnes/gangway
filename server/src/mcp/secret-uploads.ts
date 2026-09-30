@@ -1,6 +1,7 @@
 // A one-use URL an agent PUTs a dotenv file to, so secret values reach gangway without passing
 // through the agent's conversation. Held in memory only, never on disk, and gone once used.
 import { randomBytes } from "node:crypto";
+import { must } from "@gangway/shared/must";
 import { actorId, type Actor } from "../auth/actor.ts";
 import { AppError, conflict, notFound, unprocessable } from "../errors.ts";
 import { ENV_NAME_RE } from "../secrets/secrets.ts";
@@ -10,6 +11,7 @@ export const MAX_SECRET_UPLOAD_BYTES = 64 * 1024;
 const MAX_PER_OWNER = 5;
 const MAX_PENDING = 50;
 const ID = /^[A-Za-z0-9_-]{43}$/;
+const ESCAPES: Record<string, string> = { n: "\n", r: "\r", t: "\t" };
 
 type Slot = {
   owner: string;
@@ -24,7 +26,7 @@ export function parseDotenv(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!.trim();
+    const line = must(lines[i], "a line").trim();
     if (line === "" || line.startsWith("#")) {
       continue;
     }
@@ -32,11 +34,11 @@ export function parseDotenv(text: string): Record<string, string> {
     if (!m) {
       throw unprocessable(`line ${i + 1} is not NAME=value`);
     }
-    const name = m[1]!;
+    const name = must(m[1], "a variable name");
     if (!ENV_NAME_RE.test(name)) {
       throw unprocessable(`line ${i + 1}: "${name}" is not a valid environment variable name`);
     }
-    let value = m[2]!;
+    let value = must(m[2], "a value");
     const q = value[0];
     if (q === '"' || q === "'") {
       // A quoted value may run over several lines, up to its closing quote.
@@ -48,12 +50,7 @@ export function parseDotenv(text: string): Record<string, string> {
         throw unprocessable(`line ${i + 1}: the ${q} quote is not closed`);
       }
       body = body.replace(/\s*$/, "").slice(0, -1);
-      value =
-        q === '"'
-          ? body.replace(/\\(["\\nrt$])/g, (_, c: string) =>
-              c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c,
-            )
-          : body;
+      value = q === '"' ? body.replace(/\\(["\\nrt$])/g, (_, c: string) => ESCAPES[c] ?? c) : body;
     } else {
       value = value.replace(/\s+#.*$/, "").trim();
     }
@@ -126,7 +123,7 @@ export class SecretUploads {
     }
     const chunks: Uint8Array[] = [];
     let bytes = 0;
-    for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
+    for await (const chunk of body) {
       bytes += chunk.byteLength;
       if (bytes > MAX_SECRET_UPLOAD_BYTES) {
         throw new AppError("payload_too_large", `at most ${MAX_SECRET_UPLOAD_BYTES} bytes`);
@@ -145,7 +142,7 @@ export class SecretUploads {
   take(id: string, actor: Actor): Record<string, string> {
     this.#sweep();
     const slot = ID.test(id) ? this.#slots.get(id) : undefined;
-    if (!slot || slot.owner !== actorId(actor)) {
+    if (slot?.owner !== actorId(actor)) {
       throw notFound("no such secret upload for this credential, or it expired; ask for a new one");
     }
     if (slot.values === null) {

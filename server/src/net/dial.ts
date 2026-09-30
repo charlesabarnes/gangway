@@ -1,5 +1,6 @@
 import net from "node:net";
 import type { UpstreamDial } from "@gangway/shared/domain";
+import { must } from "@gangway/shared/must";
 
 export type DialTarget = { host: string; port: number };
 
@@ -41,9 +42,9 @@ function connectTcp(target: DialTarget, timeoutMs: number): Promise<net.Socket> 
       socket.destroy();
       reject(e);
     };
-    socket.setTimeout(timeoutMs, () =>
-      onError(new Error(`connect timeout to ${target.host}:${target.port}`)),
-    );
+    socket.setTimeout(timeoutMs, () => {
+      onError(new Error(`connect timeout to ${target.host}:${target.port}`));
+    });
     socket.once("error", onError);
     socket.once("connect", () => {
       socket.setTimeout(0);
@@ -88,9 +89,15 @@ function handshakeReader(socket: net.Socket, timeoutMs: number) {
     buffered = Buffer.concat([buffered, d]);
     pump();
   };
-  const onError = (e: Error) => fail(e);
-  const onEnd = () => fail(new Error("SOCKS proxy closed the connection"));
-  const timer = setTimeout(() => fail(new Error("SOCKS handshake timeout")), timeoutMs);
+  const onError = (e: Error) => {
+    fail(e);
+  };
+  const onEnd = () => {
+    fail(new Error("SOCKS proxy closed the connection"));
+  };
+  const timer = setTimeout(() => {
+    fail(new Error("SOCKS handshake timeout"));
+  }, timeoutMs);
   socket.on("data", onData);
   socket.on("error", onError);
   socket.on("end", onEnd);
@@ -145,7 +152,8 @@ async function socks5Connect(
     const parts = target.host.split(":");
     addr = Buffer.alloc(16);
     for (let i = 0; i < 8; i++) {
-      addr.writeUInt16BE(parseInt(parts[i] || "0", 16), i * 2);
+      const part = parts[i];
+      addr.writeUInt16BE(parseInt(part === undefined || part === "" ? "0" : part, 16), i * 2);
     }
   } else {
     atyp = ATYP_DOMAIN;
@@ -157,18 +165,30 @@ async function socks5Connect(
   socket.write(Buffer.concat([Buffer.from([SOCKS_VERSION, CMD_CONNECT, 0x00, atyp]), addr, port]));
 
   const reply = await reader.read(4);
-  if (reply[1] !== 0x00) {
+  const code = must(reply[1], "a SOCKS reply code");
+  if (code !== 0x00) {
     socket.destroy();
     throw new Error(
-      `SOCKS CONNECT to ${target.host}:${target.port} failed: ${SOCKS_ERRORS[reply[1]!] ?? `code ${reply[1]}`}`,
+      `SOCKS CONNECT to ${target.host}:${target.port} failed: ${SOCKS_ERRORS[code] ?? `code ${code}`}`,
     );
   }
-  const boundAtyp = reply[3];
-  const len =
-    boundAtyp === ATYP_IPV4 ? 4 : boundAtyp === ATYP_IPV6 ? 16 : (await reader.read(1))[0]!;
+  const len = await boundAddressLength(reader, reply[3]);
   await reader.read(len + 2);
   reader.release();
   return socket;
+}
+
+async function boundAddressLength(
+  reader: { read(n: number): Promise<Buffer> },
+  atyp: number | undefined,
+): Promise<number> {
+  if (atyp === ATYP_IPV4) {
+    return 4;
+  }
+  if (atyp === ATYP_IPV6) {
+    return 16;
+  }
+  return must((await reader.read(1))[0], "a SOCKS address length");
 }
 
 export async function dialUpstream(target: DialTarget, cfg: DialConfig): Promise<net.Socket> {

@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
+import { must } from "@gangway/shared/must";
 import { encodedFile, notModified, siblingSidecar } from "../net/encode.ts";
 import { renderAssets, renderDist } from "../previews/artifact-render.ts";
 
@@ -70,28 +71,31 @@ export async function serveKitFrame(req: Request, dist = renderDist()): Promise<
   if (!m) {
     return null;
   }
-  const abs = path.join(dist, m[1]!);
+  const name = must(m[1], "kit asset name");
+  const type = must(TYPES[name.slice(name.lastIndexOf(".") + 1)], "kit asset type");
+  const etag = `"${version}-${name}"`;
+  const abs = path.join(dist, name);
   const st = await stat(abs).catch(() => null);
   if (!st?.isFile()) {
     return null;
   }
   const headers: Record<string, string> = {
-    "content-type": TYPES[m[1]!.split(".").pop()!]!,
+    "content-type": type,
     // A versioned URL names these exact bytes; any other is revalidated.
     "cache-control": url.searchParams.get("v") === version ? IMMUTABLE : "no-cache",
-    etag: `"${version}-${m[1]!}"`,
+    etag,
     vary: "accept-encoding",
     // The sandboxed frame has no origin of its own, so the kit must be readable from anywhere.
     "access-control-allow-origin": "*",
     "x-content-type-options": "nosniff",
   };
-  if (notModified(req, headers["etag"]!)) {
+  if (notModified(req, etag)) {
     return new Response(null, { status: 304, headers });
   }
   const { body, encoding } = await encodedFile(
     req,
     abs,
-    { size: st.size, mtime: st.mtimeMs, type: headers["content-type"]! },
+    { size: st.size, mtime: st.mtimeMs, type },
     { sidecar: siblingSidecar },
   );
   if (encoding) {

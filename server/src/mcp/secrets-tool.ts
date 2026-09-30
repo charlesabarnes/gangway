@@ -49,8 +49,16 @@ export function secretTarget(
   };
 }
 
-const where = (t: SecretTarget) =>
-  t.kind === "org" ? "the org" : t.kind === "project" ? `project "${t.project.slug}"` : t.name;
+function where(t: SecretTarget): string {
+  switch (t.kind) {
+    case "org":
+      return "the org";
+    case "project":
+      return `project "${t.project.slug}"`;
+    case "preview":
+      return t.name;
+  }
+}
 
 export function uploadCommand(d: ToolDeps, actor: Actor): string {
   const u = secretUploads(d).issue(actor);

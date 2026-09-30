@@ -30,8 +30,12 @@ function agentFor(o: UpstreamOptions): http.Agent {
     cb: (e: Error | null, s?: net.Socket) => void,
   ) => {
     dialUpstream({ host: opts.host, port: opts.port }, o.dial)
-      .then((s) => cb(null, s))
-      .catch((e) => cb(e as Error));
+      .then((s) => {
+        cb(null, s);
+      })
+      .catch((e) => {
+        cb(e as Error);
+      });
   };
   return agent;
 }
@@ -68,37 +72,7 @@ export class NodeHttpUpstream implements Upstream {
           agent: this.#agent,
         },
         (cres) => {
-          const out = new Headers();
-          for (const [k, v] of Object.entries(cres.headers)) {
-            if (v === undefined) {
-              continue;
-            }
-            out.set(k, Array.isArray(v) ? v.join(", ") : String(v));
-          }
-          const body = new ReadableStream<Uint8Array>({
-            start(c) {
-              cres.on("data", (d: Buffer) => c.enqueue(new Uint8Array(d)));
-              cres.on("end", () => {
-                try {
-                  c.close();
-                } catch {}
-              });
-              cres.on("error", (e) => {
-                try {
-                  c.error(e);
-                } catch {}
-              });
-            },
-            cancel() {
-              cres.destroy();
-            },
-          });
-          resolve(
-            new Response(cres.statusCode === 204 || cres.statusCode === 304 ? null : body, {
-              status: cres.statusCode ?? 502,
-              headers: buildResponseHeaders(out, { unlisted: entry.visibility === "unlisted" }),
-            }),
-          );
+          resolve(toResponse(cres, entry));
         },
       );
 
@@ -106,29 +80,15 @@ export class NodeHttpUpstream implements Upstream {
         timedOut = true;
         creq.destroy(new Error("UPSTREAM_TIMEOUT"));
       });
-      creq.on("error", (e) => reject(timedOut ? new UpstreamTimeout() : e));
+      creq.on("error", (e) => {
+        reject(timedOut ? new UpstreamTimeout() : e);
+      });
       req.signal.addEventListener("abort", () => creq.destroy(new Error("CLIENT_ABORTED")), {
         once: true,
       });
 
       if (req.body) {
-        void (async () => {
-          const reader = capBody(req.body!, this.#o.limits.maxBodyBytes, entry).getReader();
-          try {
-            for (;;) {
-              const { done, value } = await reader.read();
-              if (done) {
-                break;
-              }
-              if (!creq.write(value)) {
-                await new Promise((r) => creq.once("drain", r));
-              }
-            }
-            creq.end();
-          } catch (e) {
-            creq.destroy(e as Error);
-          }
-        })();
+        void sendBody(creq, capBody(req.body, this.#o.limits.maxBodyBytes, entry));
       } else {
         creq.end();
       }
@@ -136,8 +96,69 @@ export class NodeHttpUpstream implements Upstream {
   }
 }
 
+function toResponse(cres: http.IncomingMessage, entry: RouteEntry): Response {
+  const out = new Headers();
+  for (const [k, v] of Object.entries(cres.headers)) {
+    if (v === undefined) {
+      continue;
+    }
+    out.set(k, Array.isArray(v) ? v.join(", ") : String(v));
+  }
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      cres.on("data", (d: Buffer) => {
+        c.enqueue(new Uint8Array(d));
+      });
+      cres.on("end", () => {
+        try {
+          c.close();
+        } catch {}
+      });
+      cres.on("error", (e) => {
+        try {
+          c.error(e);
+        } catch {}
+      });
+    },
+    cancel() {
+      cres.destroy();
+    },
+  });
+  return new Response(cres.statusCode === 204 || cres.statusCode === 304 ? null : body, {
+    status: cres.statusCode ?? 502,
+    headers: buildResponseHeaders(out, { unlisted: entry.visibility === "unlisted" }),
+  });
+}
+
+async function sendBody(creq: http.ClientRequest, body: ReadableStream<Uint8Array>): Promise<void> {
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (!creq.write(value)) {
+        await new Promise((r) => creq.once("drain", r));
+      }
+    }
+    creq.end();
+  } catch (e) {
+    creq.destroy(e as Error);
+  }
+}
+
+// Thrown values are unknown: anything, null included, may reach these checks.
+function errorFields(e: unknown): { message: string; name: unknown } {
+  if (typeof e !== "object" || e === null) {
+    return { message: "", name: undefined };
+  }
+  const { message, name } = e as { message?: unknown; name?: unknown };
+  return { message: typeof message === "string" ? message : "", name };
+}
+
 export function isBodyTooLarge(e: unknown): boolean {
-  return e instanceof BodyTooLarge || String((e as Error)?.message ?? "").includes("BodyTooLarge");
+  return e instanceof BodyTooLarge || errorFields(e).message.includes("BodyTooLarge");
 }
 
 class UpstreamTimeout extends Error {
@@ -151,12 +172,8 @@ export function isTimeout(e: unknown): boolean {
   if (e instanceof UpstreamTimeout) {
     return true;
   }
-  const m = String((e as Error)?.message ?? "");
-  return (
-    m.includes("UPSTREAM_TIMEOUT") ||
-    m.includes("timed out") ||
-    (e as Error)?.name === "TimeoutError"
-  );
+  const { message: m, name } = errorFields(e);
+  return m.includes("UPSTREAM_TIMEOUT") || m.includes("timed out") || name === "TimeoutError";
 }
 
 export class PerHostUpstream implements Upstream {

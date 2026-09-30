@@ -1,10 +1,6 @@
 import { addonQuery } from "@gangway/shared/api";
-import { servedByGangway, type Preview } from "@gangway/shared/domain";
-import { DEFAULT_ICON_COLOR, type PreviewIcon } from "@gangway/shared/preview-icon";
-import type { AppPlan } from "@gangway/shared/app-plan";
+import type { Preview } from "@gangway/shared/domain";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
-import { TemplateError } from "@gangway/shared/artifact/index";
-import { BUILTIN_LIBRARY, type ArtifactLibrary } from "../artifacts/library.ts";
 import { unprocessable } from "../errors.ts";
 import { urlsFor } from "../previews/deploy-names.ts";
 import type { DeploySource } from "../previews/deploy-types.ts";
@@ -13,10 +9,19 @@ import type { RedeployInput } from "../previews/redeploy-input.ts";
 import { setPreviewWatermark } from "../previews/watermark.ts";
 import { setPreviewDomain } from "../previews/domain.ts";
 import { redeploy } from "../previews/redeploy.ts";
-import { serveSite } from "../net/site.ts";
-import { renderDist } from "../previews/artifact-render.ts";
-import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
-import { describePlan, describePreview, localNote, logTail } from "./describe.ts";
+import {
+  checkRebuildArgs,
+  deployInput,
+  iconOf,
+  missingLabels,
+  rebuildAsked,
+  secretsAsked,
+  sourcesGiven,
+  templateFiles,
+  type Addons,
+} from "./deploy-args.ts";
+import { deployReport } from "./deploy-report.ts";
+import { describePreview, localNote, logTail } from "./describe.ts";
 import { packFiles } from "./pack.ts";
 import { nameOf, resolveFor } from "./resolve.ts";
 import { secretTarget, secretUploads } from "./secrets-tool.ts";
@@ -33,9 +38,7 @@ import type { CallScope, ToolDeps } from "./tool-deps.ts";
 import type { Taken, Uploads } from "./uploads.ts";
 
 const FAIL_TAIL = 20;
-const MANIFEST_SHOWN = 40;
 
-type Addons = ReturnType<typeof addonQuery.parse>;
 type Sourced = { source: DeploySource; taken?: Taken };
 
 async function waitFor<T>(
@@ -52,10 +55,14 @@ async function waitFor<T>(
     return await Promise.race([
       done,
       new Promise<null>((r) => {
-        timer = setTimeout(() => r(null), seconds * 1000);
+        timer = setTimeout(() => {
+          r(null);
+        }, seconds * 1000);
       }),
       new Promise<null>((r) => {
-        onAbort = () => r(null);
+        onAbort = () => {
+          r(null);
+        };
         signal.addEventListener("abort", onAbort, { once: true });
       }),
     ]);
@@ -66,104 +73,6 @@ async function waitFor<T>(
     }
   }
 }
-
-function checkRebuildArgs(args: DeployArgs): void {
-  if (args.artifact !== undefined && (args.files !== undefined || args.upload !== undefined)) {
-    throw unprocessable("preview + artifact rebuilds from the template; add files in a later call");
-  }
-  if (args.image !== undefined || args.git !== undefined) {
-    throw unprocessable(
-      "preview rebuilds from files or an upload; an image or a repository is a new deploy",
-    );
-  }
-  if (args.ttl !== undefined) {
-    throw unprocessable("a rebuild keeps the preview's expiry; change it with the extend tool");
-  }
-  if (args.upload !== undefined && (args.files !== undefined || args.remove !== undefined)) {
-    throw unprocessable(
-      "upload replaces the whole source; files and remove edit it -- give one or the other",
-    );
-  }
-}
-
-function templateFiles(
-  lib: ArtifactLibrary | undefined,
-  input: NonNullable<DeployArgs["artifact"]>,
-): Record<string, string> {
-  try {
-    return (lib ?? BUILTIN_LIBRARY).render(input);
-  } catch (e) {
-    if (e instanceof TemplateError) {
-      throw unprocessable(`artifact: ${e.message}`);
-    }
-    throw e;
-  }
-}
-
-function sourcesGiven(args: DeployArgs): number {
-  return [
-    args.artifact !== undefined,
-    args.files !== undefined,
-    args.upload !== undefined,
-    args.image !== undefined,
-    args.git !== undefined,
-  ].filter(Boolean).length;
-}
-
-function iconOf(args: DeployArgs): PreviewIcon | undefined {
-  if (args.icon === undefined) {
-    if (args.iconColor !== undefined) {
-      throw unprocessable("iconColor goes with icon");
-    }
-    return undefined;
-  }
-  return { name: args.icon, color: args.iconColor ?? DEFAULT_ICON_COLOR };
-}
-
-const rebuildAsked = (args: DeployArgs, addons: Addons | undefined) =>
-  [args.artifact, args.files, args.upload, args.remove, addons, args.network].some(
-    (v) => v !== undefined,
-  );
-
-/** Nudges an agent that left out what the user finds a preview by. */
-function missingLabels(args: DeployArgs): string {
-  const missing = [
-    (args.title ?? args.artifact?.title) ? null : "title",
-    args.icon ? null : "icon",
-  ].filter(Boolean);
-  if (missing.length === 0) {
-    return "";
-  }
-  return `\nno ${missing.join(" or ")}: gangway lists it by its address until you set one. Deploy with preview: "<name>" and ${missing.join(" and ")} (no rebuild).`;
-}
-
-function deployInput(
-  scope: CallScope,
-  args: DeployArgs,
-  source: DeploySource,
-  secrets: Record<string, string> | undefined,
-) {
-  const icon = iconOf(args);
-  return {
-    actor: scope.actor,
-    source,
-    name: args.name,
-    title: args.title ?? args.artifact?.title?.slice(0, 100),
-    ...(icon ? { icon } : {}),
-    visibility: args.visibility,
-    ttl: args.ttl,
-    template: args.template,
-    projectId: args.project,
-    ...(args.password ? { password: { mode: args.password } } : {}),
-    ...(args.passwordLogin ? { passwordLogin: args.passwordLogin } : {}),
-    ...(args.watermark ? { watermark: args.watermark } : {}),
-    ...(args.domain ? { domain: args.domain } : {}),
-    ...(secrets ? { secrets } : {}),
-  };
-}
-
-const secretsAsked = (args: DeployArgs) =>
-  args.secrets !== undefined || args.secretsUpload !== undefined || args.unsetSecrets !== undefined;
 
 export class DeployTool {
   readonly #d: ToolDeps;
@@ -219,7 +128,7 @@ export class DeployTool {
     if (done.state === "failed") {
       return `failed: ${done.error ?? "the deploy failed"}${again}\n\nlast log lines:\n${logTail(ctx, done.id, FAIL_TAIL)}`;
     }
-    return `ready: ${primary}${again}\n${describePreview(ctx, done)}${localNote(ctx, done)}${await this.#report(done, res.plan, args.check)}${missingLabels(args)}`;
+    return `ready: ${primary}${again}\n${describePreview(ctx, done)}${localNote(ctx, done)}${await deployReport(ctx, done, res.plan, args.check)}${missingLabels(args)}`;
   }
 
   async #source(scope: CallScope, args: DeployArgs, addons: Addons | undefined): Promise<Sourced> {
@@ -233,10 +142,11 @@ export class DeployTool {
       const { archive, digest } = taken;
       return { source: { kind: "tarball", archive, digest, runtime: "auto", ...extra }, taken };
     }
-    if (args.files || args.artifact) {
-      const { archive, digest } = await packFiles(
-        args.files ?? templateFiles(this.#d.ctx.artifacts, args.artifact!),
-      );
+    const files =
+      args.files ??
+      (args.artifact ? templateFiles(this.#d.ctx.artifacts, args.artifact) : undefined);
+    if (files) {
+      const { archive, digest } = await packFiles(files);
       return { source: { kind: "tarball", archive, digest, runtime: "auto", ...extra } };
     }
     if (addons !== undefined) {
@@ -249,7 +159,10 @@ export class DeployTool {
       const net = args.network === undefined ? {} : { network: args.network };
       return { source: { kind: "image", image: args.image, port: args.port, ...net } };
     }
-    const git = { kind: "git" as const, repo: args.git!.repo, ref: args.git!.ref };
+    if (!args.git) {
+      throw unprocessable("give exactly one of artifact, files, upload, image or git");
+    }
+    const git = { kind: "git" as const, repo: args.git.repo, ref: args.git.ref };
     return { source: { ...git, ...(args.port === undefined ? {} : { port: args.port }) } };
   }
 
@@ -264,7 +177,10 @@ export class DeployTool {
       need(scope.actor, REDEPLOY_OWN_PERMISSION);
     }
     checkRebuildArgs(args);
-    const target = resolveFor(ctx, scope.actor, args.preview!);
+    if (args.preview === undefined) {
+      throw unprocessable("a rebuild needs preview: the preview to rebuild");
+    }
+    const target = resolveFor(ctx, scope.actor, args.preview);
     if (!mayRebuild(scope.actor, ctx.previews.provenanceOf(target.id))) {
       throw new MissingPermission(
         REDEPLOY_PERMISSION,
@@ -277,7 +193,7 @@ export class DeployTool {
       return `secrets stored on ${nameOf(ctx, target)}: ${secretsChanged}. A ${target.source.kind} preview is not rebuilt in place; they take effect when it is deployed again.`;
     }
     if (labelled && !secretsChanged && !rebuildAsked(args, addons)) {
-      return `relabelled (no rebuild): ${describePreview(ctx, ctx.previews.get(target.id)!)}`;
+      return `relabelled (no rebuild): ${describePreview(ctx, ctx.previews.get(target.id) ?? target)}`;
     }
     const { change, taken } = this.#change(scope.actor, args, addons, secretsChanged !== null);
     const res = await redeploy(ctx, {
@@ -295,7 +211,7 @@ export class DeployTool {
     if (outcome.outcome === "failed") {
       return `rebuild failed: ${outcome.error ?? "the build failed"}\n${outcome.preview.state === "awake" ? "The previous version is still serving." : describePreview(ctx, outcome.preview)}\n\nlast log lines:\n${logTail(ctx, target.id, FAIL_TAIL)}`;
     }
-    return `ready: ${url} (rebuilt)\n${describePreview(ctx, outcome.preview)}${await this.#report(outcome.preview, res.plan, args.check)}`;
+    return `ready: ${url} (rebuilt)\n${describePreview(ctx, outcome.preview)}${await deployReport(ctx, outcome.preview, res.plan, args.check)}`;
   }
 
   /** Sets a title, icon, watermark or domain given with preview; a domain moves on its next rebuild. */
@@ -384,82 +300,6 @@ export class DeployTool {
       throw unprocessable("nothing to change: give files, remove, upload or addons");
     }
     return { change: { kind: "edit", files } };
-  }
-
-  async #report(
-    p: Preview,
-    plan: AppPlan | undefined,
-    check: readonly string[] | undefined,
-  ): Promise<string> {
-    const out: string[] = [];
-    if (plan) {
-      out.push(describePlan(plan, servedByGangway(p)));
-    }
-    const manifest = await this.#manifest(p);
-    if (manifest) {
-      out.push(manifest);
-    }
-    if (check && check.length > 0) {
-      const checked = await this.#check(p, check);
-      if (checked) {
-        out.push(checked);
-      }
-    }
-    return out.length === 0 ? "" : `\n${out.join("\n")}`;
-  }
-
-  async #manifest(p: Preview): Promise<string | null> {
-    const { ctx } = this.#d;
-    if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) {
-      return null;
-    }
-    const m = await ctx.sources.manifest(p.id);
-    if (m.files.length > MANIFEST_SHOWN) {
-      return `files as deployed: ${m.files.length}${m.truncated ? "+" : ""} (too many to list; the preview page shows them)`;
-    }
-    return `files as deployed (sha256, first 12 hex; compare with shasum -a 256):\n${m.files.map((f) => `  ${f.sha256.slice(0, 12)}  ${String(f.bytes).padStart(8)}  ${f.path}`).join("\n")}`;
-  }
-
-  async #check(p: Preview, check: readonly string[]): Promise<string | null> {
-    const { ctx } = this.#d;
-    const route =
-      ctx.table.forPreview(p.id).find((e) => e.primary) ?? ctx.table.forPreview(p.id)[0];
-    const host = ctx.hosts.get(p.hostId);
-    if (!route || !host) {
-      return null;
-    }
-    if (route.site) {
-      return this.#checkSite(p, route.hostname, check);
-    }
-    const probe = ctx.statusProbe ?? httpStatus;
-    const target = {
-      hostname: route.hostname,
-      upstream: { host: route.upstreamHost, port: route.upstreamPort },
-    };
-    const got = await Promise.all(
-      check.map(async (path) => `${path} ${(await probe(target, host, path)) ?? "no answer"}`),
-    );
-    return `checked: ${got.join(" · ")}`;
-  }
-
-  // The same answer a visitor gets past the password gate, without a trip through the network.
-  async #checkSite(p: Preview, hostname: string, check: readonly string[]): Promise<string | null> {
-    const site = await this.#d.ctx.sites?.open(p.id);
-    if (!site) {
-      return "checked: the preview's files are missing";
-    }
-    const got = await Promise.all(
-      check.map(async (path) => {
-        if (!CHECK_PATH.test(path)) {
-          return `${path} no answer`;
-        }
-        const req = new Request(`https://${hostname}${path}`, { method: "GET" });
-        const res = await serveSite(req, site, { unlisted: false, kitDir: renderDist() });
-        await res.body?.cancel();
-        return `${path} ${res.status}`;
-      }),
-    );
-    return `checked: ${got.join(" · ")}`;
   }
 
   #uploads(): Uploads {

@@ -2,11 +2,6 @@ import type { Context, Hono } from "hono";
 import type { Preview } from "@gangway/shared/domain";
 import {
   DeployRequestSchema,
-  PreviewExtendSchema,
-  PreviewPasswordChangeSchema,
-  PreviewIconChangeSchema,
-  PreviewWatermarkChangeSchema,
-  PreviewTitleChangeSchema,
   PREVIEW_PASSWORD_HEADER,
   PREVIEW_PASSWORD_MAX,
   PreviewListQuerySchema,
@@ -16,6 +11,7 @@ import {
   TARBALL_CONTENT_TYPES,
   TarballDeployQuerySchema,
 } from "@gangway/shared/api";
+import { must } from "@gangway/shared/must";
 import { DEFAULT_ICON_COLOR } from "@gangway/shared/preview-icon";
 import { badRequest, forbidden, notFound, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
@@ -26,20 +22,10 @@ import type { IdempotentDeploys } from "../../previews/idempotent.ts";
 import { destroy } from "../../previews/destroy.ts";
 import type { RedeployInput } from "../../previews/redeploy-input.ts";
 import { redeploy } from "../../previews/redeploy.ts";
-import { previewAccess, setPreviewPassword } from "../../previews/password.ts";
-import { setPreviewWatermark } from "../../previews/watermark.ts";
-import { setPreviewDomain } from "../../previews/domain.ts";
-import { extendPreview } from "../../previews/extend.ts";
+import { previewAccess } from "../../previews/password.ts";
+import { previewChangeRoutes } from "./preview-changes.ts";
 import { shareRoutes } from "./share.ts";
-import { PreviewDomainChangeSchema } from "@gangway/shared/domains-api";
-import {
-  mayDestroy,
-  mayReadLogs,
-  mayRebuild,
-  maySee,
-  seeFilter,
-  type Actor,
-} from "../../auth/actor.ts";
+import { mayDestroy, mayReadLogs, maySee, seeFilter, type Actor } from "../../auth/actor.ts";
 import { planFromDisk } from "../../previews/runtimes.ts";
 import { isUlid } from "../../util/ulid.ts";
 import type { AppEnv } from "../env.ts";
@@ -52,7 +38,9 @@ const isTarball = (contentType: string) =>
 type TarballQuery = ReturnType<typeof TarballDeployQuerySchema.parse>;
 
 const contentTypeOf = (c: Context<AppEnv>) =>
-  (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+  must((c.req.header("content-type") ?? "").split(";")[0], "a media type")
+    .trim()
+    .toLowerCase();
 
 function previewHelpers(ctx: PreviewContext) {
   return {
@@ -72,7 +60,7 @@ function previewHelpers(ctx: PreviewContext) {
     },
   };
 }
-type Previews = ReturnType<typeof previewHelpers>;
+export type Previews = ReturnType<typeof previewHelpers>;
 
 function chosenPassword(chosen: string | undefined, passwordMode: TarballQuery["password"]) {
   if (chosen !== undefined && passwordMode !== undefined) {
@@ -183,9 +171,8 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       ...(q.limit ? { limit: q.limit } : {}),
     });
     // `next` only for a paged request, so the unpaged list keeps its shape.
-    const page = q.limit
-      ? { next: seen.length === q.limit ? seen[seen.length - 1]!.id : null }
-      : {};
+    const last = seen.at(-1);
+    const page = q.limit ? { next: last && seen.length === q.limit ? last.id : null } : {};
     return c.json({ seq, previews: seen.map(wire), ...page });
   });
 
@@ -219,7 +206,7 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
 
   api.get("/previews/:id/builds", requirePermission("previews.read"), (c) => {
     const p = find(c.req.param("id"));
-    return c.json({ builds: ctx.builds.forPreview(p.id) ?? [] });
+    return c.json({ builds: ctx.builds.forPreview(p.id) });
   });
 
   api.get("/previews/:id/source", requirePermission("previews.read"), async (c) => {
@@ -245,13 +232,17 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   });
 }
 
+type RebuildOptions = {
+  runtime: RedeployInput["runtime"];
+  addons?: RedeployInput["addons"] | undefined;
+  network?: RedeployInput["network"] | undefined;
+};
+
 function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
   const rebuild = async (
     c: Context<AppEnv, "/previews/:id">,
     change: RedeployInput["change"],
-    runtime: RedeployInput["runtime"],
-    addons?: RedeployInput["addons"],
-    network?: RedeployInput["network"],
+    { runtime, addons, network }: RebuildOptions,
   ) => {
     const p = find(c.req.param("id"));
     const res = await redeploy(ctx, {
@@ -283,7 +274,7 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     async (c) => {
       const body = await readJson(c);
       const { files, runtime, addons, network } = SourceEditSchema.parse(body);
-      return rebuild(c, { kind: "edit", files }, runtime, addons, network);
+      return rebuild(c, { kind: "edit", files }, { runtime, addons, network });
     },
   );
 
@@ -302,7 +293,7 @@ function sourceRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       if (!archive) {
         throw badRequest("the request has no body; send the tar or tar.gz as the body");
       }
-      return rebuild(c, { kind: "replace", archive }, runtime, addons, network);
+      return rebuild(c, { kind: "replace", archive }, { runtime, addons, network });
     },
   );
 }
@@ -313,84 +304,6 @@ function findFor(ctx: PreviewContext, actor: Actor, p: Preview): Preview {
     throw notFound(`no such preview: ${p.id}`);
   }
   return p;
-}
-
-function changeable(ctx: PreviewContext, c: Context<AppEnv>, p: Preview, what: string): void {
-  if (!mayRebuild(c.get("actor"), ctx.previews.provenanceOf(p.id))) {
-    throw forbidden(
-      `this preview was deployed by someone else: "previews.update_own" covers only your own, and changing any preview's ${what} needs "previews.update"`,
-    );
-  }
-}
-
-function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
-  api.put(
-    "/previews/:id/title",
-    requirePermission("previews.update_own", "previews.update"),
-    async (c) => {
-      const p = find(c.req.param("id"));
-      changeable(ctx, c, p, "title");
-      const { title } = PreviewTitleChangeSchema.parse(await readJson(c));
-      ctx.previews.setTitle(p.id, title);
-      ctx.audit.record(c.get("actor"), "preview.title", p.id, { old: p.title, new: title });
-      return c.json({ preview: wire(ctx.previews.get(p.id)!) });
-    },
-  );
-  api.put(
-    "/previews/:id/watermark",
-    requirePermission("previews.update_own", "previews.update"),
-    async (c) => {
-      const p = find(c.req.param("id"));
-      changeable(ctx, c, p, "watermark");
-      const { watermark } = PreviewWatermarkChangeSchema.parse(await readJson(c));
-      setPreviewWatermark(ctx, c.get("actor"), p.id, watermark);
-      return c.json({ preview: wire(ctx.previews.get(p.id)!) });
-    },
-  );
-  api.put("/previews/:id/domain", requirePermission("previews.domain"), async (c) => {
-    const p = find(c.req.param("id"));
-    changeable(ctx, c, p, "domain");
-    const { domain } = PreviewDomainChangeSchema.parse(await readJson(c));
-    setPreviewDomain(ctx, c.get("actor"), p.id, domain);
-    return c.json({ preview: wire(ctx.previews.get(p.id)!) });
-  });
-  api.put("/previews/:id/ttl", requirePermission("previews.extend"), async (c) => {
-    const p = find(c.req.param("id"));
-    changeable(ctx, c, p, "expiry");
-    const { extend } = PreviewExtendSchema.parse(await readJson(c));
-    return c.json({ preview: wire(extendPreview(ctx, c.get("actor"), p.id, extend)) });
-  });
-  api.put(
-    "/previews/:id/icon",
-    requirePermission("previews.update_own", "previews.update"),
-    async (c) => {
-      const p = find(c.req.param("id"));
-      changeable(ctx, c, p, "icon");
-      const { icon } = PreviewIconChangeSchema.parse(await readJson(c));
-      ctx.previews.setIcon(p.id, icon);
-      ctx.audit.record(c.get("actor"), "preview.icon", p.id, { old: p.icon, new: icon });
-      return c.json({ preview: wire(ctx.previews.get(p.id)!) });
-    },
-  );
-}
-
-function passwordRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
-  api.put(
-    "/previews/:id/password",
-    requirePermission("previews.update_own", "previews.update"),
-    async (c) => {
-      const p = find(c.req.param("id"));
-      const actor = c.get("actor");
-      changeable(ctx, c, p, "password");
-      const body = await readJson(c);
-      const { password, login } = PreviewPasswordChangeSchema.parse(body);
-      return c.json({
-        preview: wire(
-          await setPreviewPassword(ctx, { actor, previewId: p.id, choice: password, login }),
-        ),
-      });
-    },
-  );
 }
 
 function logRoutes(api: Hono<AppEnv>, { ctx, find }: Previews, o: SseOptions): void {
@@ -408,7 +321,7 @@ function logRoutes(api: Hono<AppEnv>, { ctx, find }: Previews, o: SseOptions): v
         ctx.logs.follow(
           p.id,
           after,
-          (l) =>
+          (l) => {
             push({
               id: String(l.n),
               event: "log",
@@ -417,7 +330,8 @@ function logRoutes(api: Hono<AppEnv>, { ctx, find }: Previews, o: SseOptions): v
                 stream: l.stream,
                 line: l.line,
               }),
-            }),
+            });
+          },
           { tail, maxReplay },
         ),
       o,
@@ -435,8 +349,7 @@ export function previewRoutes(
   deployRoutes(api, previews, deploys);
   readRoutes(api, previews);
   sourceRoutes(api, previews);
-  passwordRoutes(api, previews);
-  titleRoutes(api, previews);
+  previewChangeRoutes(api, previews);
   shareRoutes(api, ctx, (id, actor) => findFor(ctx, actor, previews.find(id)));
   logRoutes(api, previews, o);
 }

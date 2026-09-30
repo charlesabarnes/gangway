@@ -107,7 +107,10 @@ export class PrPreviews {
     if (!existing) {
       return { action: "ignored", reason: `#${pr.number} has no preview` };
     }
-    return this.#destroy(repo, pr, existing, forgeActor(pr.repo.forge, pr.author), "closed");
+    return this.#destroy(repo, pr, existing, {
+      actor: forgeActor(pr.repo.forge, pr.author),
+      why: "closed",
+    });
   }
 
   async #onCommand(ev: CommandEvent): Promise<Outcome> {
@@ -130,7 +133,8 @@ export class PrPreviews {
         return this.#onDestroy(ev, repo, actor);
       case "secrets":
         return this.#deployOnRequest(ev, repo, actor, { force: true, clearance: ev.level });
-      default:
+      case "deploy":
+      case "redeploy":
         return this.#deployOnRequest(ev, repo, actor, { force: ev.command === "redeploy" });
     }
   }
@@ -160,7 +164,7 @@ export class PrPreviews {
       return { action: "ignored", reason: `#${ev.number} has no preview to destroy` };
     }
     const pr = await this.#d.forge.pullRequest(ev.repo, ev.number);
-    return this.#destroy(repo, pr, existing, actor, "destroyed on request");
+    return this.#destroy(repo, pr, existing, { actor, why: "destroyed on request" });
   }
 
   async #deployOnRequest(
@@ -286,7 +290,12 @@ export class PrPreviews {
       commentBody(final, urls, awake ? "ready" : "failed", this.#d.logUrlFor?.(final.id)),
     );
     if (refs.deploymentId !== null) {
-      await finishDeployment(this.#d, pr, refs.deploymentId, id, { awake, urls });
+      await finishDeployment(this.#d, pr, {
+        deploymentId: refs.deploymentId,
+        previewId: id,
+        awake,
+        urls,
+      });
     }
   }
 
@@ -294,8 +303,7 @@ export class PrPreviews {
     repo: RepoProject,
     pr: PullRequest,
     existing: Preview,
-    actor: Actor,
-    why: string,
+    { actor, why }: { actor: Actor; why: string },
   ): Promise<Outcome> {
     const refs = this.#d.previews.forgeRefs(existing.id);
     await this.#d.previews.destroy(existing.id, actor);

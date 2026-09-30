@@ -1,5 +1,6 @@
 import LOGO from "../../../web/public/logo.svg" with { type: "text" };
 import LOGO_LIGHT from "../../../web/public/logo-light.svg" with { type: "text" };
+import { must } from "@gangway/shared/must";
 import { isWebSocketUpgrade } from "./headers.ts";
 
 // One script tag on every HTML page a preview answers; the script draws the mark (ADR-0032).
@@ -107,7 +108,7 @@ export function stamp(res: Response, req: Request): Response {
     headers.delete("etag");
   }
   headers.append("vary", "accept-encoding");
-  let out = rewritten.body!;
+  let out = must(rewritten.body, "the rewritten page's body");
   if (/\bgzip\b/i.test(req.headers.get("accept-encoding") ?? "")) {
     out = out.pipeThrough(new CompressionStream("gzip"));
     headers.set("content-encoding", "gzip");
