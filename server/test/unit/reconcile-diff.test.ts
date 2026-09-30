@@ -21,7 +21,7 @@ import {
 
 describe("the case table", () => {
   for (const [name, input, assert] of CASES) {
-    test(name, () => assert(diff(input)));
+    test(name, () => assert(diff(input))); // NOSONAR each case's assert function holds its expects
   }
 });
 
