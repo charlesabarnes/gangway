@@ -50,11 +50,6 @@ header.header {
   --sl-color-black: var(--gw-header-bg);
   --sl-color-text-accent: oklch(0.84 0.15 88);
 }
-.site-title {
-  color: var(--gw-header-fg);
-  font: 600 1.2rem var(--sl-font-mono);
-  letter-spacing: -0.04em;
-}
 
 .sl-markdown-content h1,
 h1#_top {

@@ -10,7 +10,7 @@ export default defineConfig({
     starlight({
       title: "gangway",
       description: "Self-hosted preview URLs for pull requests, agents and people.",
-      logo: { src: "./src/assets/mark.svg", alt: "" },
+      components: { SiteTitle: "./src/components/SiteTitle.astro" },
       favicon: "/favicon.svg",
       social: [
         { icon: "github", label: "GitHub", href: "https://github.com/charlesabarnes/gangway" },

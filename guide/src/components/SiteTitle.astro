@@ -1,0 +1,50 @@
+---
+// The same lockup as gangway.sh's header (site/index.html): the mark inline, so it takes the
+// header's colours and sizes like the site's, instead of Starlight's logo image.
+const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute;
+---
+
+<a href={siteTitleHref} class="site-title lockup" translate="no">
+  <svg viewBox="0 0 32 32" aria-hidden="true">
+    <rect class="mark-flag" x="10.5" y="6" width="11" height="6"></rect>
+    <rect class="mark-red" x="4" y="14" width="11" height="6"></rect>
+    <rect class="mark-ink" x="17" y="14" width="11" height="6"></rect>
+    <path
+      class="mark-ribs"
+      d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+    ></path>
+    <polygon class="mark-ink" points="2,22 30,22 26,28 6,28"></polygon>
+  </svg>
+  {siteTitle}
+</a>
+
+<style>
+  .lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--gw-header-fg);
+    font: 600 19px var(--sl-font-mono);
+    letter-spacing: -0.04em;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  svg {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+  .mark-flag {
+    fill: oklch(0.84 0.15 88);
+  }
+  .mark-red {
+    fill: oklch(0.55 0.19 28);
+  }
+  .mark-ink {
+    fill: currentColor;
+  }
+  .mark-ribs {
+    stroke: var(--gw-header-bg);
+    stroke-width: 0.8;
+  }
+</style>
