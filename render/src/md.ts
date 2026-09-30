@@ -236,7 +236,7 @@ const listRow = (inner: string) => {
 
 const listLinks = (html: string) =>
   html.replace(
-    /<ul>((?:\s*<li><a [^>]*>[\s\S]*?<\/a>\s*<\/li>)+\s*)<\/ul>/g,
+    /<ul>((?:\s*<li><a [^>]*>[^<]*(?:<(?!\/a>)[^<]*)*<\/a>\s*<\/li>)+\s*)<\/ul>/g,
     (_, items: string) => {
       const rows = items.replace(
         /(<a [^>]*>)([\s\S]*?)(<\/a>)/g,

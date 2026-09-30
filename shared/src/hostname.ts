@@ -196,7 +196,7 @@ export function slugify(input: string): string {
   return input
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-|-$/g, ""); // the line above leaves at most one dash at each end
 }
 
 export type LabelSource =

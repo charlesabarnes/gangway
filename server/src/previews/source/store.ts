@@ -1,7 +1,8 @@
-import { cp, lstat, mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { badRequest } from "../../errors.ts";
 import { isUlid } from "../../util/ulid.ts";
+import { readRegularFile } from "../../util/fs.ts";
 import { sha256 } from "../../util/hash.ts";
 
 const MODE = 0o700;
@@ -82,13 +83,14 @@ export class SourceStore {
           continue;
         }
         const rel = path.relative(root, abs).split(path.sep).join("/");
-        const size = (await lstat(abs)).size;
-        const file: SourceFile = { path: rel, size };
-        if (size <= MAX_INLINE_BYTES) {
-          const text = asText(await readFile(abs));
-          if (text !== null) {
-            file.text = text;
-          }
+        const read = await readRegularFile(abs, MAX_INLINE_BYTES);
+        if (!read) {
+          continue;
+        }
+        const file: SourceFile = { path: rel, size: read.size };
+        const text = read.data && asText(read.data);
+        if (text !== null) {
+          file.text = text;
         }
         files.push(file);
       }
@@ -120,7 +122,10 @@ export class SourceStore {
         if (!e.isFile()) {
           continue;
         }
-        const bytes = await readFile(abs);
+        const bytes = (await readRegularFile(abs))?.data;
+        if (!bytes) {
+          continue;
+        }
         out.push({
           path: path.relative(root, abs).split(path.sep).join("/"),
           bytes: bytes.length,

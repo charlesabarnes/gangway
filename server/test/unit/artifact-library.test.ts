@@ -94,6 +94,14 @@ describe("themes", () => {
     expect(svg).toContain('<use href="#r"/>');
     expect(cleanSvg("<p>not svg</p>")).toBeNull();
   });
+
+  test("a logo can't rebuild a script or handler from the pieces left by a removal", () => {
+    const svg = cleanSvg(
+      "<svg><g/onload=x()/><scr<script></script>ipt>alert(1)</script><a href=https://evil><use href=#r/></a></svg>",
+    )!;
+    expect(svg).not.toMatch(/<script|onload|evil/i);
+    expect(svg).toContain("<use href=#r/>");
+  });
 });
 
 describe("front matter", () => {

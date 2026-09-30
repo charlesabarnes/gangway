@@ -24,7 +24,7 @@ type Tag = { name: string; attrs: Record<string, string>; line: number; at: numb
 function tags(html: string): Tag[] {
   const out: Tag[] = [];
   for (const m of html.matchAll(
-    /<(gw-[\w-]+)((?:\s+[^\s>=]+(?:=(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*\/?>/g,
+    /<(gw-[\w-]+)((?:\s+[^\s>="']+(?:=(?:"[^"]*"|'[^']*'|[^\s>"']+))?)*)\s*\/?>/g,
   )) {
     const at = m.index;
     out.push({

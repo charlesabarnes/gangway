@@ -1,5 +1,5 @@
 import { must } from "@gangway/shared/must";
-import { chmod, copyFile, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   planApp,
@@ -13,6 +13,7 @@ import {
 import type { AddonChoice } from "@gangway/shared/addons";
 import { runtimeById, type Detected } from "@gangway/shared/runtimes";
 import { AppError, unprocessable } from "../errors.ts";
+import { readRegularFile } from "../util/fs.ts";
 import type { RenderedAddons } from "./addons.ts";
 import { composeForRuntime } from "./compose-generate.ts";
 import { renderRuntime } from "./runtime-dockerfile.ts";
@@ -66,12 +67,10 @@ export async function planFromDisk(
   const paths = await listPaths(srcDir);
   const files: Record<string, string> = {};
   for (const p of planFilePaths(paths)) {
-    const abs = path.join(srcDir, p);
-    const st = await lstat(abs).catch(() => null);
-    if (!st?.isFile() || st.size > MAX_PLAN_FILE_BYTES) {
-      continue;
+    const f = await readRegularFile(path.join(srcDir, p), MAX_PLAN_FILE_BYTES);
+    if (f?.data) {
+      files[p] = f.data.toString("utf8");
     }
-    files[p] = await readFile(abs, "utf8");
   }
   return planApp({ paths, files, runtime: choice, ...opts });
 }

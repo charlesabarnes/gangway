@@ -206,11 +206,17 @@ export function cleanSvg(svg: string): string | null {
   if (!/^<svg[\s>]/i.test(s) || !/<\/svg>\s*$/i.test(s)) {
     return null;
   }
-  return s
-    .replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "")
-    .replace(/<(script|foreignObject|iframe|object|embed)\b[^>]*\/?>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/\s(href|xlink:href)\s*=\s*("\s*(?!#)[^"]*"|'\s*(?!#)[^']*')/gi, "");
+  // Until nothing changes, so a removal can't splice a new tag or handler together from its halves.
+  let out = s;
+  for (let prev = ""; out !== prev;) {
+    prev = out;
+    out = out
+      .replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "")
+      .replace(/<\/?(script|foreignObject|iframe|object|embed|style)\b[^>]*>/gi, "")
+      .replace(/[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/\s(href|xlink:href)\s*=\s*("\s*(?!#)[^"]*"|'\s*(?!#)[^']*'|(?!#)[^\s>"']+)/gi, "");
+  }
+  return out;
 }
 
 const decls = (m: Partial<Record<ThemeToken, string>>) =>

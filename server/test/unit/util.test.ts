@@ -3,6 +3,10 @@ import { SingleFlight, backoffDelay, retry, waitFor } from "../../src/util/async
 import { ULID_RE, isUlid, ulid } from "../../src/util/ulid.ts";
 import { Logger, redact, redactString } from "../../src/logger.ts";
 import { AppError, notFound } from "../../src/errors.ts";
+import { readRegularFile } from "../../src/util/fs.ts";
+import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("ulid", () => {
   test("shape", () => expect(ULID_RE.test(ulid())).toBe(true));
@@ -221,5 +225,22 @@ describe("drain", () => {
     const began = Date.now();
     expect(await drain(() => false, { timeoutMs: 40, intervalMs: 5 })).toBe(false);
     expect(Date.now() - began).toBeLessThan(500);
+  });
+});
+
+describe("readRegularFile", () => {
+  test("reads a file, skips its bytes past the limit, and refuses links and directories", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gw-fs-"));
+    writeFileSync(join(dir, "a"), "hello", { mode: 0o640 });
+    symlinkSync(join(dir, "a"), join(dir, "link"));
+    expect(await readRegularFile(join(dir, "a"))).toEqual({
+      size: 5,
+      mode: 0o640,
+      data: Buffer.from("hello"),
+    });
+    expect((await readRegularFile(join(dir, "a"), 4))?.data).toBeNull();
+    expect(await readRegularFile(join(dir, "link"))).toBeNull();
+    expect(await readRegularFile(dir)).toBeNull();
+    expect(await readRegularFile(join(dir, "missing"))).toBeNull();
   });
 });

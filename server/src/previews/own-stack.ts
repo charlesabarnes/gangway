@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { unprocessable } from "../errors.ts";
 import { dotenvLine } from "../secrets/secrets.ts";
+import { readRegularFile } from "../util/fs.ts";
 import type { RenderedAddons } from "./addons.ts";
 import { composeForDockerfile } from "./compose-generate.ts";
 import type { PreviewContext } from "./context.ts";
@@ -25,21 +26,25 @@ export async function withDotenv<T>(
   }
   const file = join(srcDir, ".env");
   const st = await lstat(file).catch(() => null);
-  if (st && !st.isFile()) {
+  const read = st && (await readRegularFile(file));
+  if (st && !read?.data) {
     throw unprocessable(".env in the source is not a regular file");
   }
-  const committed = st ? { text: await Bun.file(file).text(), mode: st.mode & 0o777 } : null;
+  const committed = read?.data ? { text: read.data.toString("utf8"), mode: read.mode } : null;
   const lines = Object.entries(env).map(([k, v]) => dotenvLine(k, v));
   const kept = (committed?.text ?? "").trimEnd();
   const body = `${kept}${kept === "" ? "" : "\n"}# --- gangway: repository secrets ---\n${lines.join("\n")}\n`;
-  await writeFile(file, body, { mode: 0o600 });
+  // Removed first and created exclusively, so a link swapped in meanwhile is never written through.
+  await rm(file, { force: true });
+  await writeFile(file, body, { mode: 0o600, flag: "wx" });
   try {
     return await fn();
   } finally {
     if (committed === null) {
       await rm(file, { force: true });
     } else {
-      await writeFile(file, committed.text, { mode: committed.mode });
+      await rm(file, { force: true });
+      await writeFile(file, committed.text, { mode: committed.mode, flag: "wx" });
     }
   }
 }

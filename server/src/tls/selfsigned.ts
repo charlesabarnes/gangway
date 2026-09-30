@@ -1,8 +1,9 @@
 import { must } from "@gangway/shared/must";
 import "reflect-metadata"; // @peculiar/x509 pulls in tsyringe, which throws on load without it
 import * as x509 from "@peculiar/x509";
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readIfExists } from "../util/fs.ts";
 import type { CertMaterial } from "./types.ts";
 
 x509.cryptoProvider.set(globalThis.crypto);
@@ -100,11 +101,10 @@ export async function loadOrCreateCa(stateDir: string): Promise<{ ca: DevCa; caP
   const dir = join(stateDir, "dev-ca");
   const certPath = join(dir, "ca.pem");
   const keyPath = join(dir, "ca-key.pem");
-  if (existsSync(certPath) && existsSync(keyPath)) {
-    return {
-      ca: { certPem: readFileSync(certPath, "utf8"), keyPem: readFileSync(keyPath, "utf8") },
-      caPath: certPath,
-    };
+  const certPem = readIfExists(() => readFileSync(certPath, "utf8"));
+  const keyPem = readIfExists(() => readFileSync(keyPath, "utf8"));
+  if (certPem !== null && keyPem !== null) {
+    return { ca: { certPem, keyPem }, caPath: certPath };
   }
   mkdirSync(dir, { recursive: true });
   const ca = await createCa();

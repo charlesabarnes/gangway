@@ -57,7 +57,7 @@ describe("the tools", () => {
       preview: "same",
       artifact: { template: "deck/pitch", title: "Renamed" },
     });
-    expect(again).toStartWith(first.split("\n")[0]!.replace("ready: ", "ready: ").trim());
+    expect(again).toStartWith(first.split("\n")[0]!.trim());
     expect(again).toContain("(rebuilt)");
   });
 
