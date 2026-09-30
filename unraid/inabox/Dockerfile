@@ -1,6 +1,6 @@
 # gangway in a box for Unraid: builds and watches the gangway VM (see box.sh).
 # Built from the repository root: docker build -f unraid/inabox/Dockerfile .
-FROM alpine:3.22
+FROM alpine:3.24
 RUN apk add --no-cache busybox-extras curl jq libvirt-client qemu-img xorriso
 COPY vm/cloud-init.yaml /usr/share/gangway/cloud-init.yaml
 COPY web/public/apple-touch-icon.png /usr/share/gangway/gangway.png
