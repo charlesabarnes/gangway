@@ -17,8 +17,8 @@ to start with.
 Until they are in Community Applications, add one by hand: **Docker → Add Container**, and paste
 the template's raw URL into **Template**:
 
-- `https://raw.githubusercontent.com/charlesabarnes/gangway/master/unraid/gangway-inabox.xml`
-- `https://raw.githubusercontent.com/charlesabarnes/gangway/master/unraid/gangway.xml`
+- `https://raw.githubusercontent.com/charlesabarnes/unraid-templates/main/templates/gangway-inabox.xml`
+- `https://raw.githubusercontent.com/charlesabarnes/unraid-templates/main/templates/gangway.xml`
 
 ## gangway-inabox
 
