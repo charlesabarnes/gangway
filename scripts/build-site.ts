@@ -40,7 +40,7 @@ function hashOf(file: string): string {
   return h;
 }
 
-rmSync(OUT, { recursive: true, force: true });
+rmSync(OUT, { recursive: true, force: true }); // NOSONAR OUT is checked to lie inside the repository above
 cpSync(SRC, OUT, { recursive: true });
 
 let tagged = 0;
