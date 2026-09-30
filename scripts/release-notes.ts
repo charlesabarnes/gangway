@@ -37,8 +37,17 @@ interface Commit {
   commit: { message: string; committer: { date: string } };
 }
 
+function withoutComments(text: string): string {
+  let previous;
+  do {
+    previous = text;
+    text = text.replace(/<!--[\s\S]*?-->/g, "");
+  } while (text !== previous);
+  return text.replace(/<!--|-->/g, "");
+}
+
 export function section(body: string, heading: string): string {
-  const lines = body.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
+  const lines = withoutComments(body).split(/\r?\n/);
   const start = lines.findIndex((l) => l.trim().toLowerCase() === `## ${heading.toLowerCase()}`);
   if (start < 0) return "";
   const end = lines.findIndex((l, i) => i > start && /^## /.test(l));
