@@ -1,7 +1,8 @@
 # gangway previews of gangway.sh and its docs, on demo.gangway.sh. Adapted from the workflow
 # gangway generates for a project: it builds .github/preview-site/Dockerfile (the site and docs as
 # pages.yml builds them, behind nginx) rather than the repository's own Dockerfile, which is
-# gangway itself, and runs only for pull requests that touch what Pages publishes.
+# gangway itself, and builds only for pull requests that touch what Pages publishes. That check is a
+# job, not a `paths:` filter, so closing any pull request still tears its preview down.
 #
 # On every push to such a pull request this builds the image on GitHub's runners, pushes it to
 # GitHub's registry, and asks gangway to run it; when the pull request closes, it asks gangway to
@@ -15,13 +16,6 @@ name: gangway preview
 on:
   pull_request:
     types: [opened, reopened, synchronize, closed]
-    paths:
-      - "site/**"
-      - "guide/**"
-      - ".github/assets/screenshots/**"
-      - "scripts/build-site.ts"
-      - ".github/preview-site/**"
-      - ".github/workflows/gangway-preview.yml"
 
 concurrency:
   group: gangway-preview-${{ github.event.pull_request.number }}
@@ -36,8 +30,32 @@ env:
   PORT: "8080"
 
 jobs:
-  build:
+  # Does this pull request change what Pages publishes?
+  changes:
     if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      site: ${{ steps.files.outputs.site }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')
+          site=false
+          if grep -qE '^(site/|guide/|\.github/assets/screenshots/|\.github/preview-site/|scripts/build-site\.ts$|\.github/workflows/gangway-preview\.yml$)' <<< "$files"; then
+            site=true
+          fi
+          echo "site=$site" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
