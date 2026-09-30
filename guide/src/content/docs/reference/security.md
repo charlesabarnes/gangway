@@ -38,6 +38,10 @@ It judges the client address, so behind a proxy `GANGWAY_TRUSTED_PROXIES` must b
 list must not include the proxy itself. Signing in to connect an agent, and "signed in" previews,
 then work only from those networks.
 
+One API call is let through from anywhere: a pull-request workflow deploying or tearing down its
+own preview, which proves itself with the OIDC token GitHub signs for that run and may do nothing
+else. gangway's own tokens still need a listed network.
+
 ## Previews on their own domain
 
 Previews share a site with the dashboard unless you set `GANGWAY_PREVIEW_DOMAIN`. The session

@@ -18,6 +18,18 @@ export function isPublicControlPath(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname) || pathname.startsWith(FONT_PATH);
 }
 
+// A pull-request workflow runs on GitHub's runners, from anywhere, and proves itself with the OIDC
+// JWT GitHub signs for that run; auth then holds it to this one route. gangway's own tokens and
+// sessions are not JWTs, so they still need an allowed address.
+const PULL_PREVIEW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
+const JWT_BEARER = /^Bearer\s+[\w-]+\.[\w-]+\.[\w-]+$/i;
+
+export function isWorkflowPreviewCall(req: Request): boolean {
+  if (req.method !== "PUT" && req.method !== "DELETE") return false;
+  if (!PULL_PREVIEW_PATH.test(new URL(req.url).pathname)) return false;
+  return JWT_BEARER.test(req.headers.get("authorization") ?? "");
+}
+
 // Behind a proxy, a client gangway cannot see past looks like the proxy itself.
 export function controlAllowRisk(
   allow: readonly string[],
@@ -41,7 +53,7 @@ export function controlGate(allow: readonly string[]): ControlGate | null {
   if (allow.length === 0) return null;
   const list = parseTrustedProxies(allow, "control allow entry");
   return (req, clientIp) => {
-    if (isPublicControlPath(new URL(req.url).pathname)) return true;
+    if (isPublicControlPath(new URL(req.url).pathname) || isWorkflowPreviewCall(req)) return true;
     const ip = unmap(clientIp);
     const family = isIP(ip);
     return family !== 0 && list.check(ip, family === 4 ? "ipv4" : "ipv6");
