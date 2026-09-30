@@ -24,23 +24,35 @@ export function parsePortKey(key: string): { port: number; protocol: PortProtoco
   const slash = key.indexOf("/");
   const portPart = slash === -1 ? key : key.slice(0, slash);
   const protoPart = slash === -1 ? "tcp" : key.slice(slash + 1);
-  if (!/^\d{1,5}$/.test(portPart)) return null;
+  if (!/^\d{1,5}$/.test(portPart)) {
+    return null;
+  }
   const port = Number(portPart);
-  if (port < 1 || port > 65535) return null;
-  if (!PROTOCOLS.includes(protoPart as PortProtocol)) return null;
+  if (port < 1 || port > 65535) {
+    return null;
+  }
+  if (!PROTOCOLS.includes(protoPart as PortProtocol)) {
+    return null;
+  }
   return { port, protocol: protoPart as PortProtocol };
 }
 
 export function publishedPorts(inspect: InspectJson): PublishedPort[] {
   const ports = inspect.NetworkSettings?.Ports;
-  if (!ports) return [];
+  if (!ports) {
+    return [];
+  }
   const out: PublishedPort[] = [];
   for (const [key, bindings] of Object.entries(ports)) {
     const parsed = parsePortKey(key);
-    if (!parsed || !bindings) continue;
+    if (!parsed || !bindings) {
+      continue;
+    }
     for (const b of bindings) {
       const hostPort = Number(b.HostPort ?? "");
-      if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > 65535) continue;
+      if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > 65535) {
+        continue;
+      }
       out.push({
         containerPort: parsed.port,
         protocol: parsed.protocol,
@@ -64,10 +76,14 @@ export function findPublishedPort(
   const candidates = publishedPorts(inspect).filter(
     (p) => p.containerPort === containerPort && p.protocol === protocol,
   );
-  if (candidates.length === 0) return undefined;
+  if (candidates.length === 0) {
+    return undefined;
+  }
   if (opts.bind !== undefined && opts.bind !== "") {
     const exact = candidates.find((p) => p.hostIp === opts.bind);
-    if (exact) return exact;
+    if (exact) {
+      return exact;
+    }
   }
   return candidates.find((p) => isIpv4(p.hostIp)) ?? candidates[0];
 }
@@ -77,7 +93,9 @@ export type HealthState = "none" | "starting" | "healthy" | "unhealthy" | "unkno
 
 export function healthState(inspect: InspectJson): HealthState {
   const health = inspect.State?.Health;
-  if (health === undefined || health === null) return "none";
+  if (health === undefined || health === null) {
+    return "none";
+  }
   switch (health.Status) {
     case "starting":
       return "starting";
@@ -85,6 +103,7 @@ export function healthState(inspect: InspectJson): HealthState {
       return "healthy";
     case "unhealthy":
       return "unhealthy";
+    case undefined:
     default:
       return "unknown";
   }
@@ -95,7 +114,9 @@ export function isRunning(inspect: InspectJson): boolean {
 }
 
 export function isReady(inspect: InspectJson): boolean {
-  if (!isRunning(inspect)) return false;
+  if (!isRunning(inspect)) {
+    return false;
+  }
   const h = healthState(inspect);
   return h === "healthy" || h === "none" || h === "unknown";
 }
@@ -118,7 +139,9 @@ export function portDrift(
   opts: { bind?: string } = {},
 ): PortDrift | null {
   const found = findPublishedPort(inspect, route.containerPort, opts);
-  if (!found) return { kind: "no-binding", expected: route.upstream.port };
+  if (!found) {
+    return { kind: "no-binding", expected: route.upstream.port };
+  }
   if (found.hostPort !== route.upstream.port) {
     return { kind: "moved", expected: route.upstream.port, actual: found.hostPort };
   }

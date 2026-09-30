@@ -58,13 +58,19 @@ export class ManifestStates {
   consume(state: string): boolean {
     this.#sweep();
     const exp = this.#issued.get(state);
-    if (exp === undefined) return false;
+    if (exp === undefined) {
+      return false;
+    }
     this.#issued.delete(state);
     return exp > this.#now();
   }
 
   #sweep(): void {
     const now = this.#now();
-    for (const [s, exp] of this.#issued) if (exp <= now) this.#issued.delete(s);
+    for (const [s, exp] of this.#issued) {
+      if (exp <= now) {
+        this.#issued.delete(s);
+      }
+    }
   }
 }

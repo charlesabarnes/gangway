@@ -15,7 +15,9 @@ function rates(l: Partial<RateLimits> = {}) {
 describe("request rates", () => {
   test("a minute's worth goes through at once, then one a second", () => {
     const { r, clock } = rates();
-    for (let i = 0; i < 60; i++) expect(r.take("203.0.113.1", "p1")).toBeNull();
+    for (let i = 0; i < 60; i++) {
+      expect(r.take("203.0.113.1", "p1")).toBeNull();
+    }
     expect(r.take("203.0.113.1", "p1")).toBe(1);
     clock.now += 1_000;
     expect(r.take("203.0.113.1", "p1")).toBeNull();

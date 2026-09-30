@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { User } from "@gangway/shared/domain";
+import { must } from "@gangway/shared/must";
 import type { AuditSink } from "../audit/audit.ts";
 import type { LinkPurpose, UserLinksRepo } from "../db/repos/user-links.ts";
 import type { UsersRepo } from "../db/repos/users.ts";
@@ -52,10 +53,13 @@ export class EmailLinks {
   // sent in the background, and a failure is only logged.
   requestReset(email: string, meta: RequestMeta): void {
     const { users, limiter, audit, logger } = this.#d;
-    if (!this.available) throw conflict("password resets by email are not set up on this server");
+    if (!this.available) {
+      throw conflict("password resets by email are not set up on this server");
+    }
     const verdict = limiter.check(meta.ip, email);
-    if (!verdict.ok)
+    if (!verdict.ok) {
       throw rateLimited(verdict.retryAfterSec, "a link was sent a moment ago; check your email");
+    }
     limiter.fail(meta.ip, email);
 
     const user = users.getByEmail(email);
@@ -66,14 +70,16 @@ export class EmailLinks {
     // Someone invited who lost the email gets the invitation again, not a reset.
     const purpose: LinkPurpose = user.invited ? "invite" : "reset";
     audit.record(null, "auth.reset.requested", user.id, { new: { ip: meta.ip, sent: purpose } });
-    this.#send(user, purpose, null).catch((e: unknown) =>
-      logger.warn("could not email a password link", { userId: user.id, err: errorMessage(e) }),
-    );
+    this.#send(user, purpose, null).catch((e: unknown) => {
+      logger.warn("could not email a password link", { userId: user.id, err: errorMessage(e) });
+    });
   }
 
   /** An admin's resend: an invitation while the account has no password, else a reset. */
   async sendFor(actor: Actor, user: User): Promise<LinkPurpose> {
-    if (user.disabled) throw conflict("the account is disabled; enable it first");
+    if (user.disabled) {
+      throw conflict("the account is disabled; enable it first");
+    }
     const purpose: LinkPurpose = user.invited ? "invite" : "reset";
     await this.#send(user, purpose, actor);
     this.#d.audit.record(actor, "user.link.sent", user.id, { new: { purpose } });
@@ -83,7 +89,9 @@ export class EmailLinks {
   inspect(secret: string): { email: string; purpose: LinkPurpose } {
     const link = this.#d.links.get(idOf(secret));
     const user = link && this.#d.users.get(link.userId);
-    if (!link || !user || user.disabled) throw notFound(GONE);
+    if (!link || !user || user.disabled) {
+      throw notFound(GONE);
+    }
     return { email: user.email, purpose: link.purpose };
   }
 
@@ -96,9 +104,11 @@ export class EmailLinks {
     const { user, purpose } = db.transaction(() => {
       const link = links.get(id);
       const user = link && users.get(link.userId);
-      if (!link || !user || user.disabled || !links.consume(id)) throw notFound(GONE);
+      if (!link || !user || user.disabled || !links.consume(id)) {
+        throw notFound(GONE);
+      }
       users.setPassword(user.id, credentials);
-      return { user: users.get(user.id)!, purpose: link.purpose };
+      return { user: must(users.get(user.id), "the user just updated"), purpose: link.purpose };
     });
 
     sessions.revokeAllFor(user.id);
@@ -125,7 +135,9 @@ export class EmailLinks {
     const origin = this.#d.appOrigin();
     const url = `${origin}/set-password#${secret}`;
     const inviter = by?.kind === "user" ? this.#d.users.get(by.userId)?.email : undefined;
-    await this.#d.mailer.send(message(purpose, user.email, url, new URL(origin).host, inviter));
+    await this.#d.mailer.send(
+      message(purpose, user.email, { url, host: new URL(origin).host, inviter }),
+    );
   }
 }
 
@@ -133,11 +145,9 @@ export class EmailLinks {
 function message(
   purpose: LinkPurpose,
   to: string,
-  url: string,
-  host: string,
-  inviter: string | undefined,
+  { url, host, inviter }: { url: string; host: string; inviter: string | undefined },
 ): Mail {
-  if (purpose === "invite")
+  if (purpose === "invite") {
     return {
       to,
       subject: `You're invited to gangway at ${host}`,
@@ -150,6 +160,7 @@ function message(
         "The link works once and expires in 7 days. Your email address is your login.",
       ].join("\n"),
     };
+  }
   return {
     to,
     subject: `Reset your gangway password`,

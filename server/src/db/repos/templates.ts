@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Clearance, Template, Visibility } from "@gangway/shared/domain";
 import type { Db, Params } from "../types.ts";
 import { rowToTemplate, type TemplateRow } from "./mappers.ts";
@@ -62,35 +63,42 @@ export class TemplatesRepo {
         now,
       },
     );
-    return this.get(t.id)!;
+    return must(this.get(t.id), "the template just saved");
   }
 
   get(id: string): Template | undefined {
-    const r = this.#db.get<TemplateRow>("SELECT * FROM templates WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM templates WHERE id = $id", { id }) as
+      TemplateRow | undefined;
     return r ? rowToTemplate(r) : undefined;
   }
 
   default(): Template {
     const t = this.get(DEFAULT_TEMPLATE_ID);
-    if (!t) throw new Error("the default template is missing; migration 0007 did not run");
+    if (!t) {
+      throw new Error("the default template is missing; migration 0007 did not run");
+    }
     return t;
   }
 
   list(): Template[] {
-    return this.#db
-      .query<TemplateRow>("SELECT * FROM templates ORDER BY builtin DESC, name")
-      .map(rowToTemplate);
+    return (
+      this.#db.query("SELECT * FROM templates ORDER BY builtin DESC, name") as TemplateRow[]
+    ).map(rowToTemplate);
   }
 
   update(id: string, patch: TemplatePatch): Template | undefined {
     const sets: string[] = [];
     const params: Params = { id, now: this.#now() };
     for (const [k, v] of Object.entries(patch) as [keyof TemplatePatch, unknown][]) {
-      if (v === undefined) continue;
+      if (v === undefined) {
+        continue;
+      }
       sets.push(`${COLUMNS[k]} = $${k}`);
       params[k] = v as string | null;
     }
-    if (sets.length === 0) return this.get(id);
+    if (sets.length === 0) {
+      return this.get(id);
+    }
     this.#db.run(
       `UPDATE templates SET ${sets.join(", ")}, updated_at = $now WHERE id = $id`,
       params,
@@ -99,15 +107,19 @@ export class TemplatesRepo {
   }
 
   delete(id: string): boolean {
-    if (id === DEFAULT_TEMPLATE_ID) return false;
+    if (id === DEFAULT_TEMPLATE_ID) {
+      return false;
+    }
     return this.#db.run("DELETE FROM templates WHERE id = $id AND builtin = 0", { id }).changes > 0;
   }
 
   repoCount(id: string): number {
     return (
-      this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", {
-        id,
-      })?.n ?? 0
+      (
+        this.#db.get("SELECT COUNT(*) AS n FROM projects WHERE template_id = $id", {
+          id,
+        }) as { n: number } | undefined
+      )?.n ?? 0
     );
   }
 }

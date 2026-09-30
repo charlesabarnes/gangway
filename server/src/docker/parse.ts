@@ -4,10 +4,18 @@ import type { ContainerSummary } from "./client-types.ts";
 
 export function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
   const s = dockerHost.trim();
-  if (s === "") throw badRequest("dockerHost is empty");
-  if (s.startsWith("/") || s.startsWith("./")) return { socketPath: s };
-  if (s.startsWith("unix://")) return { socketPath: s.slice("unix://".length) };
-  if (s.startsWith("npipe://")) return { socketPath: s.slice("npipe://".length) };
+  if (s === "") {
+    throw badRequest("dockerHost is empty");
+  }
+  if (s.startsWith("/") || s.startsWith("./")) {
+    return { socketPath: s };
+  }
+  if (s.startsWith("unix://")) {
+    return { socketPath: s.slice("unix://".length) };
+  }
+  if (s.startsWith("npipe://")) {
+    return { socketPath: s.slice("npipe://".length) };
+  }
 
   let url: URL;
   try {
@@ -18,7 +26,9 @@ export function parseDockerHost(dockerHost: string): Dockerode.DockerOptions {
 
   const scheme = url.protocol.replace(/:$/, "");
   const host = url.hostname;
-  if (host === "") throw badRequest(`dockerHost has no host: ${JSON.stringify(dockerHost)}`);
+  if (host === "") {
+    throw badRequest(`dockerHost has no host: ${JSON.stringify(dockerHost)}`);
+  }
 
   if (scheme === "ssh") {
     return {

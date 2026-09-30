@@ -21,14 +21,17 @@ async function fakeAcme(o: { stored?: string[][]; failFor?: Set<string> } = {}) 
   const ca = await createCa("Fake ACME CA");
   const orders: { names: string[]; delegate: string | undefined }[] = [];
   const stored = new Map<string, CertBundle>();
-  for (const names of o.stored ?? [])
+  for (const names of o.stored ?? []) {
     stored.set(names[0]!, { materials: [await issueLeaf(ca, names, 90)] });
+  }
   const acme = {
     load: (names: string[]) => stored.get(names[0]!) ?? null,
     isDue: () => false,
     async ensure(names: string[], _signal?: AbortSignal, x: { delegate?: string } = {}) {
       orders.push({ names, delegate: x.delegate });
-      if (o.failFor?.has(names[0]!)) throw new Error(`no ${names[0]}`);
+      if (o.failFor?.has(names[0]!)) {
+        throw new Error(`no ${names[0]}`);
+      }
       const bundle = { materials: [await issueLeaf(ca, names, 90)] };
       stored.set(names[0]!, bundle);
       return bundle;

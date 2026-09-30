@@ -33,8 +33,11 @@ describe("build conventions and scripts", () => {
     expect(r.files["start.sh"]).toContain(`exec 'node' 's p a c e.js' 'it'\\''s'`);
     // The start script's environment is the container's: no exports that would shadow a secret.
     expect(r.files["start.sh"]).not.toContain("export");
-    for (const [name, body] of Object.entries(r.files))
-      if (name.endsWith(".sh")) expect(parses(body)).toBe(true);
+    for (const [name, body] of Object.entries(r.files)) {
+      if (name.endsWith(".sh")) {
+        expect(parses(body)).toBe(true);
+      }
+    }
   });
 
   test("a compound start command runs as written, with no exec dropping the rest", async () => {
@@ -102,12 +105,9 @@ describe("build conventions and scripts", () => {
     const out = tempDir();
     const plan = await planned(dir);
     expect(plan.root).toBe("site");
-    const { composeFile } = await writeRuntime(
-      dir,
-      plan,
-      { MODE: "secret-wins" },
-      join(out, "c.yaml"),
-    );
+    const { composeFile } = await writeRuntime(dir, plan, join(out, "c.yaml"), {
+      secrets: { MODE: "secret-wins" },
+    });
     expect(existsSync(join(dir, "site/.gangway/Dockerfile"))).toBe(true);
     expect(existsSync(join(dir, ".gangway"))).toBe(false);
     const doc = JSON.parse(readFileSync(join(dir, composeFile), "utf8"));

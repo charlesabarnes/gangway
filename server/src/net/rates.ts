@@ -56,31 +56,42 @@ export class RequestRates {
     this.#sockets.set(key, open + 1);
     let released = false;
     return () => {
-      if (released) return;
+      if (released) {
+        return;
+      }
       released = true;
       const left = (this.#sockets.get(key) ?? 1) - 1;
-      if (left <= 0) this.#sockets.delete(key);
-      else this.#sockets.set(key, left);
+      if (left <= 0) {
+        this.#sockets.delete(key);
+      } else {
+        this.#sockets.set(key, left);
+      }
     };
   }
 
   #refuse(): void {
     this.#refused++;
     const now = this.#now();
-    if (!this.#report || now - this.#reportedAt < 60_000) return;
+    if (!this.#report || now - this.#reportedAt < 60_000) {
+      return;
+    }
     this.#report(this.#refused);
     this.#refused = 0;
     this.#reportedAt = now;
   }
 
   #check(buckets: Bounded<Bucket>, key: string, perMinute: number): number {
-    if (perMinute <= 0) return 0;
+    if (perMinute <= 0) {
+      return 0;
+    }
     const b = this.#fill(buckets, key, perMinute);
     return b.tokens >= 1 ? 0 : ((1 - b.tokens) * 60_000) / perMinute;
   }
 
   #spend(buckets: Bounded<Bucket>, key: string, perMinute: number): void {
-    if (perMinute <= 0) return;
+    if (perMinute <= 0) {
+      return;
+    }
     const b = this.#fill(buckets, key, perMinute);
     buckets.set(key, { tokens: b.tokens - 1, at: b.at });
   }
@@ -88,7 +99,9 @@ export class RequestRates {
   #fill(buckets: Bounded<Bucket>, key: string, perMinute: number): Bucket {
     const now = this.#now();
     const b = buckets.get(key);
-    if (!b) return { tokens: perMinute, at: now };
+    if (!b) {
+      return { tokens: perMinute, at: now };
+    }
     const tokens = Math.min(perMinute, b.tokens + ((now - b.at) * perMinute) / 60_000);
     return { tokens, at: now };
   }

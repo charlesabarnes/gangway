@@ -1,3 +1,5 @@
+import { must } from "./must.ts";
+
 export const ADDON_IDS = ["postgres", "mysql", "redis"] as const;
 export type AddonId = (typeof ADDON_IDS)[number];
 export const isAddonId = (s: string): s is AddonId => (ADDON_IDS as readonly string[]).includes(s);
@@ -83,5 +85,9 @@ export const ADDONS: readonly Addon[] = [
   },
 ];
 
-export const addonById = (id: AddonId): Addon => ADDONS.find((a) => a.id === id)!;
+export const addonById = (id: AddonId): Addon =>
+  must(
+    ADDONS.find((a) => a.id === id),
+    `addon ${id}`,
+  );
 export const isSql = (id: AddonId): boolean => id === "postgres" || id === "mysql";

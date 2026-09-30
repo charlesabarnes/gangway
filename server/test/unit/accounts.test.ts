@@ -69,10 +69,11 @@ describe("login", () => {
   test("5 failures lock the account: 429 without scrypt, even for the right password", async () => {
     const s = setup();
     await s.admin();
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 5; i++) {
       await expect(
         s.accounts.login("ada@example.com", "wrong wrong wrong", META),
       ).rejects.toMatchObject({ status: 401 });
+    }
 
     let ran = 0;
     const { verify } = s.passwords;
@@ -95,10 +96,12 @@ describe("login", () => {
   test("a spray of blocked attempts writes one audit row, not one per attempt", async () => {
     const s = setup();
     await s.admin();
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 5; i++) {
       await s.accounts.login("ada@example.com", "wrong wrong wrong", META).catch(() => {});
-    for (let i = 0; i < 50; i++)
+    }
+    for (let i = 0; i < 50; i++) {
       await s.accounts.login("ada@example.com", "wrong wrong wrong", META).catch(() => {});
+    }
     expect(s.actions().filter((a) => a === "auth.login.blocked")).toHaveLength(1);
     expect(s.actions().filter((a) => a === "auth.login.failed")).toHaveLength(5);
   });
@@ -132,8 +135,11 @@ describe("first-run setup", () => {
       [1, 2, 3].map((i) => s.accounts.setupFirstAdmin(`admin${i}@example.com`, PASSWORD, META)),
     );
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    for (const r of results)
-      if (r.status === "rejected") expect(r.reason).toMatchObject({ status: 404 });
+    for (const r of results) {
+      if (r.status === "rejected") {
+        expect(r.reason).toMatchObject({ status: 404 });
+      }
+    }
     expect(s.users.count()).toBe(1);
     expect(s.users.list()[0]!.roleId).toBe("admin");
     expect(s.actions()).toEqual(["auth.setup"]);
@@ -316,10 +322,11 @@ describe("changing your own password", () => {
     const actor = s.sessions.resolve(
       (await s.accounts.login("ada@example.com", PASSWORD, META)).secret,
     )!.actor;
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 5; i++) {
       await s.accounts
         .changeOwnPassword(actor, `guess number ${i} here`, "a brand new password", META)
         .catch(() => {});
+    }
     await expect(
       s.accounts.changeOwnPassword(actor, PASSWORD, "a brand new password", META),
     ).rejects.toMatchObject({ status: 429 });
@@ -355,8 +362,9 @@ describe("session lifetime", () => {
       "x".repeat(10_000),
       "has spaces in it and is forty-three chars!!",
       "../../etc/passwd",
-    ])
+    ]) {
       expect(s.sessions.resolve(junk)).toBeNull();
+    }
     expect(reads).toBe(0);
   });
 
@@ -388,7 +396,9 @@ describe("session lifetime", () => {
     const { touch } = s.sessionsRepo;
     s.sessionsRepo.touch = function (...a) {
       const wrote = touch.apply(this, a);
-      if (wrote) writes++;
+      if (wrote) {
+        writes++;
+      }
       return wrote;
     };
     for (let i = 0; i < 100; i++) {

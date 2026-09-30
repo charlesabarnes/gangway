@@ -46,7 +46,9 @@ export function urlsFor(
     }))
     .sort((a, b) => Number(b.primary) - Number(a.primary) || a.service.localeCompare(b.service));
   const service = own.find((u) => u.primary)?.service;
-  if (service === undefined) return own;
+  if (service === undefined) {
+    return own;
+  }
   const custom = (ctx.domains?.aliasesOf(previewId, { routable: true }) ?? []).map((host) => ({
     service,
     url: `${publicOriginFor(host, ctx.origin)}/`,

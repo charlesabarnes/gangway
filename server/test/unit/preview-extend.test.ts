@@ -33,9 +33,9 @@ describe("PUT /v1/previews/:id/ttl", () => {
     expect(lapsed).toBeGreaterThanOrEqual(now + DAY);
     expect(lapsed).toBeLessThan(now + DAY + 60_000);
 
-    const audit = t.db.query<{ new_json: string }>(
+    const audit = t.db.query(
       "SELECT new_json FROM audit WHERE action = 'preview.extend' ORDER BY seq",
-    );
+    ) as { new_json: string }[];
     expect(audit.map((a) => JSON.parse(a.new_json))).toEqual([
       new Date(now + 8 * DAY).toISOString(),
       new Date(lapsed).toISOString(),

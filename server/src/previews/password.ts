@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import { randomInt } from "node:crypto";
 import type { PasswordChoice } from "@gangway/shared/api";
 import type { PasswordLogin, Preview, PreviewAccess } from "@gangway/shared/domain";
@@ -12,7 +13,9 @@ export function previewAccess(
   deps: PreviewPasswordDeps | undefined,
   p: Pick<Preview, "password" | "passwordLogin" | "visibility">,
 ): PreviewAccess {
-  if (p.passwordLogin === "only") return "signed-in";
+  if (p.passwordLogin === "only") {
+    return "signed-in";
+  }
   const password =
     p.password === "set" ||
     p.password === "generated" ||
@@ -21,8 +24,12 @@ export function previewAccess(
     password &&
     (p.passwordLogin === "on" ||
       (p.passwordLogin === "inherit" && deps?.loginDefault?.() === true));
-  if (p.visibility === "private") return password && !skips ? "signed-in+password" : "signed-in";
-  if (!password) return "open";
+  if (p.visibility === "private") {
+    return password && !skips ? "signed-in+password" : "signed-in";
+  }
+  if (!password) {
+    return "open";
+  }
   return skips ? "either" : "password";
 }
 
@@ -32,7 +39,9 @@ export function generatePassword(): string {
   const groups: string[] = [];
   for (let g = 0; g < 4; g++) {
     let s = "";
-    for (let i = 0; i < 4; i++) s += ALPHABET[randomInt(ALPHABET.length)];
+    for (let i = 0; i < 4; i++) {
+      s += ALPHABET[randomInt(ALPHABET.length)];
+    }
     groups.push(s);
   }
   return groups.join("-");
@@ -45,11 +54,17 @@ export async function resolvePassword(
   choice: PasswordChoice | undefined,
 ): Promise<ResolvedPassword> {
   const mode = choice?.mode ?? "inherit";
-  if (mode === "none") return { stored: { mode: "none", secret: null } };
+  if (mode === "none") {
+    return { stored: { mode: "none", secret: null } };
+  }
   const wantsGenerated =
     mode === "generate" || (mode === "inherit" && deps?.defaultMode() === "generated");
-  if (mode === "inherit" && !wantsGenerated) return { stored: { mode: "inherit", secret: null } };
-  if (!deps) throw unprocessable("password-protected previews are not available on this server");
+  if (mode === "inherit" && !wantsGenerated) {
+    return { stored: { mode: "inherit", secret: null } };
+  }
+  if (!deps) {
+    throw unprocessable("password-protected previews are not available on this server");
+  }
   if (wantsGenerated) {
     const generated = generatePassword();
     return {
@@ -63,8 +78,12 @@ export async function resolvePassword(
 }
 
 export function entryPassword(p: StoredPreviewPassword): EntryPassword {
-  if (p.mode === "none") return { mode: "none" };
-  if ((p.mode === "set" || p.mode === "generated") && p.secret) return { mode: "own", ...p.secret };
+  if (p.mode === "none") {
+    return { mode: "none" };
+  }
+  if ((p.mode === "set" || p.mode === "generated") && p.secret) {
+    return { mode: "own", ...p.secret };
+  }
   return { mode: "inherit" };
 }
 
@@ -90,19 +109,23 @@ export async function setPreviewPassword(
   },
 ): Promise<Preview> {
   const before = ctx.previews.get(input.previewId);
-  if (!before || before.state === "destroyed" || before.state === "destroying")
+  if (!before || before.state === "destroyed" || before.state === "destroying") {
     throw notFound(`no such preview: ${input.previewId}`);
-  if (input.login === "only" && ctx.privateAvailable?.() === false)
+  }
+  if (input.login === "only" && ctx.privateAvailable?.() === false) {
     throw unprocessable(
       "a preview only signed-in people can open needs the web UI, which is switched off (surfaces.ui)",
     );
+  }
   const resolved = input.choice ? await resolvePassword(ctx.passwords, input.choice) : undefined;
   const by = actorId(input.actor);
   if (resolved) {
     ctx.previews.setPassword(before.id, resolved.stored);
     ctx.table.setPassword(before.id, entryPassword(resolved.stored));
     ctx.logs.append(before.id, "system", `password ${describe(resolved.stored.mode)} by ${by}`);
-    if (resolved.generated) logGenerated(ctx, before.id, resolved.generated);
+    if (resolved.generated) {
+      logGenerated(ctx, before.id, resolved.generated);
+    }
   }
   if (input.login) {
     ctx.previews.setPasswordLogin(before.id, input.login);
@@ -122,7 +145,7 @@ export async function setPreviewPassword(
       login: input.login ?? before.passwordLogin,
     },
   });
-  return ctx.previews.get(before.id)!;
+  return must(ctx.previews.get(before.id), "the preview just updated");
 }
 
 function describe(mode: StoredPreviewPassword["mode"]): string {

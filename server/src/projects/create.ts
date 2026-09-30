@@ -18,14 +18,16 @@ export type CreateProjectDeps = {
 };
 
 export function checkTemplate(d: CreateProjectDeps, id: string | null | undefined): void {
-  if (id !== undefined && id !== null && !d.templates?.get(id))
+  if (id !== undefined && id !== null && !d.templates?.get(id)) {
     throw unprocessable(`no such template: ${id}`, { templateId: id });
+  }
 }
 
 export function checkRepository(projects: ProjectsRepo, full: string, self?: string): void {
   const taken = projects.getByFullName("github", full);
-  if (taken && taken.id !== self)
+  if (taken && taken.id !== self) {
     throw conflict(`${full} is already project "${taken.slug}"`, { takenBy: taken.slug });
+  }
 }
 
 export function createProject(
@@ -35,9 +37,15 @@ export function createProject(
 ): Project {
   const { projects } = d;
   const slug = req.slug ?? slugify(req.name).slice(0, MAX_SLUG).replace(/-+$/, "");
-  if (!slug) throw unprocessable("the name has no usable characters for a slug; give one");
-  if (projects.getBySlug(slug)) throw conflict(`slug "${slug}" is taken`, { slug });
-  if (req.repository) checkRepository(projects, req.repository);
+  if (!slug) {
+    throw unprocessable("the name has no usable characters for a slug; give one");
+  }
+  if (projects.getBySlug(slug)) {
+    throw conflict(`slug "${slug}" is taken`, { slug });
+  }
+  if (req.repository) {
+    checkRepository(projects, req.repository);
+  }
   checkTemplate(d, req.templateId);
   const project = projects.create({
     id: ulid(),

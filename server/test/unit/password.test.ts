@@ -105,12 +105,13 @@ describe("Passwords", () => {
     const refused = results.filter((r) => r.status === "rejected");
     expect(ok).toHaveLength(3);
     expect(refused).toHaveLength(2);
-    for (const r of refused)
+    for (const r of refused) {
       expect(r.reason).toMatchObject({
         code: "rate_limited",
         status: 429,
         headers: { "retry-after": "2" },
       });
+    }
     expect((await p.hash("after the storm passes")).hash).toStartWith("scrypt$");
   });
 });

@@ -107,8 +107,9 @@ describe("a private preview, with no gate cookie", () => {
 
   test("the gate answers every unauthenticated request before the container sees it", () => {
     const t = make();
-    for (const path of ["/", "/admin", "/.env", "/api/secret"])
+    for (const path of ["/", "/admin", "/.env", "/api/secret"]) {
       expect(t.get(entry(), path)).not.toBeNull();
+    }
   });
 });
 

@@ -57,11 +57,15 @@ export class Sessions {
   }
 
   resolve(secret: string): { actor: Actor; user: User; session: Session } | null {
-    if (!SECRET_RE.test(secret)) return null;
+    if (!SECRET_RE.test(secret)) {
+      return null;
+    }
     const now = this.#now();
     const id = idFor(secret);
     const found = this.#repo.findActive(id, now);
-    if (!found) return null;
+    if (!found) {
+      return null;
+    }
     this.#repo.touch(
       id,
       {

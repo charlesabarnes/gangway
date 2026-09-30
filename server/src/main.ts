@@ -16,7 +16,9 @@ console.log(`
 let stopping = false;
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
-    if (stopping) process.exit(1);
+    if (stopping) {
+      process.exit(1);
+    }
     stopping = true;
     setTimeout(() => process.exit(1), config.shutdownGraceMs + 5_000).unref();
     void running.stop().then(

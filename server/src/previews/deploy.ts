@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Clearance, Host, Preview, Visibility } from "@gangway/shared/domain";
 import { actorId, can } from "../auth/actor.ts";
@@ -69,7 +70,9 @@ function envFor(
   const shared =
     input.env ?? (secretLevel === "none" ? {} : ctx.secretsFor?.(owner?.id ?? null, secretLevel));
   const own = previewSecrets(ctx, input);
-  if (Object.keys(own).length === 0) return shared;
+  if (Object.keys(own).length === 0) {
+    return shared;
+  }
   return { ...shared, ...own };
 }
 
@@ -81,10 +84,15 @@ function previewSecrets(ctx: PreviewContext, input: DeployInput): Record<string,
 
 /** Stores the preview's own secrets on its row, once the row exists. */
 function keepSecrets(ctx: PreviewContext, input: DeployInput, id: string): void {
-  if (!ctx.secrets) return;
-  if (input.carrySecrets) ctx.previews.setEnvCiphertext(id, input.carrySecrets);
-  if (input.secrets && Object.keys(input.secrets).length > 0)
+  if (!ctx.secrets) {
+    return;
+  }
+  if (input.carrySecrets) {
+    ctx.previews.setEnvCiphertext(id, input.carrySecrets);
+  }
+  if (input.secrets && Object.keys(input.secrets).length > 0) {
     ctx.secrets.preview(id).update(input.actor, { set: input.secrets });
+  }
 }
 
 function visibilityFor(
@@ -113,8 +121,9 @@ function ttlFor(
 ): number | null {
   const ttlText = input.ttl !== undefined ? input.ttl : (owner?.ttl ?? model.x.ttl ?? template.ttl);
   const ttlMs = ttlText === null ? null : parseDuration(ttlText);
-  if (ttlText !== null && ttlMs === null)
+  if (ttlText !== null && ttlMs === null) {
     throw unprocessable(`ttl ${JSON.stringify(ttlText)} is not a duration like 12h or 7d`);
+  }
   return ttlMs;
 }
 
@@ -129,13 +138,13 @@ type Prepared = {
   site: AppPlan | null;
 };
 
+/** Where a deploy lands: its id, host, working directory and the policy that applies. */
+type Placement = { id: string; host: Host; wd: Workdir; policy: ResolvedPolicy };
+
 async function prepare(
   ctx: PreviewContext,
   input: DeployInput,
-  id: string,
-  host: Host,
-  wd: Workdir,
-  policy: ResolvedPolicy,
+  { id, host, wd, policy }: Placement,
 ): Promise<Prepared> {
   const { template, project: owner } = policy;
   const secretLevel: Clearance = input.secretLevel ?? owner?.prClearance ?? template.clearance;
@@ -143,8 +152,9 @@ async function prepare(
     input.secrets &&
     Object.keys(input.secrets).length > 0 &&
     !can(input.actor, "previews.secrets")
-  )
+  ) {
     throw forbidden('setting secrets on a preview needs "previews.secrets" (the secrets scope)');
+  }
   const env = envFor(ctx, input, owner, secretLevel);
   ctx.logs.mask(id, Object.values(env ?? {}));
   // An image runs as given, with no org or project secrets; its own are added to its env.
@@ -153,14 +163,15 @@ async function prepare(
     input.source.kind === "image" && Object.keys(own).length > 0
       ? { ...input.source, env: { ...input.source.env, ...own } }
       : input.source;
-  const material = await writeSource(ctx, id, source, env, wd);
-  const site = servesHere(ctx, material.plan) ? material.plan! : null;
+  const material = await writeSource(ctx, source, { id, env, wd });
+  const site = material.plan && servesHere(ctx, material.plan) ? material.plan : null;
   checkContainerAllowed(input.actor, "this source", site === null);
-  if (site && material.source.kind === "tarball")
+  if (site && material.source.kind === "tarball") {
     material.source = { ...material.source, serve: "gangway" };
+  }
   const planned = site
     ? siteModel(site, input.source.kind === "tarball" ? input.source.port : undefined)
-    : await readModel(ctx, host, wd, material.composeFile, material.dotenv);
+    : await readModel(ctx, host, wd, material);
   const { model } = planned;
   const exposed = selectExposed(model);
   const visibility = visibilityFor(ctx, input, policy, model);
@@ -194,10 +205,12 @@ async function prepare(
 }
 
 async function keepUpload(ctx: PreviewContext, id: string, pristine: string | null | undefined) {
-  if (!pristine || !ctx.sources) return;
-  await ctx.sources
-    .adopt(id, pristine)
-    .catch((e) => ctx.logger.warn("could not keep the uploaded source", { previewId: id, err: e }));
+  if (!pristine || !ctx.sources) {
+    return;
+  }
+  await ctx.sources.adopt(id, pristine).catch((e) => {
+    ctx.logger.warn("could not keep the uploaded source", { previewId: id, err: e });
+  });
 }
 
 function announce(ctx: PreviewContext, input: DeployInput, host: Host, p: Prepared): PreviewUrl[] {
@@ -210,7 +223,9 @@ function announce(ctx: PreviewContext, input: DeployInput, host: Host, p: Prepar
     id,
   );
   ctx.logs.append(id, "system", `deploying ${preview.project} to host ${host.id}`);
-  if (p.generatedPassword) logGenerated(ctx, id, p.generatedPassword);
+  if (p.generatedPassword) {
+    logGenerated(ctx, id, p.generatedPassword);
+  }
   ctx.audit.record(input.actor, "preview.deploy", id, {
     new: {
       project: preview.project,
@@ -225,8 +240,9 @@ function announce(ctx: PreviewContext, input: DeployInput, host: Host, p: Prepar
 }
 
 export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<DeployResult> {
-  if (input.source.kind !== "tarball")
+  if (input.source.kind !== "tarball") {
     checkContainerAllowed(input.actor, `deploying from ${input.source.kind}`, true);
+  }
   checkWatermarkAllowed(input.actor, input.watermark);
   const id = ulid(ctx.now());
   const policy = ctx.policy.resolve({
@@ -241,7 +257,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 
   let p: Prepared;
   try {
-    p = await prepare(ctx, input, id, host, wd, policy);
+    p = await prepare(ctx, input, { id, host, wd, policy });
   } catch (e) {
     await wd.cleanup();
     ctx.logs.remove(id);
@@ -275,14 +291,16 @@ type DeployRun = RunPlan & { dockerConfig?: string | undefined };
 async function publishSite(ctx: PreviewContext, r: DeployRun, plan: AppPlan): Promise<Preview> {
   const id = r.preview.id;
   try {
-    const { files } = await ctx.sites!.publish(id, r.wd.srcDir, plan);
+    const { files } = await must(ctx.sites, "the site store").publish(id, r.wd.srcDir, plan);
     r.signal.throwIfAborted();
     ctx.logs.append(id, "system", `serving ${files} files from gangway: no container to start`);
     ctx.logs.append(id, "system", "awake");
     return markServing(ctx, id);
   } catch (e) {
     // destroy() aborted the run and owns the preview from here.
-    if (r.signal.aborted) return ctx.previews.get(id) ?? r.preview;
+    if (r.signal.aborted) {
+      return ctx.previews.get(id) ?? r.preview;
+    }
     return await failStack(ctx, r, failureMessage(ctx, id, e, "site publish error"), false);
   } finally {
     await r.wd.cleanup();
@@ -310,7 +328,9 @@ async function run(ctx: PreviewContext, r: DeployRun): Promise<Preview> {
     return ctx.states.transition(p.id, "awake");
   } catch (e) {
     // destroy() aborted the run and owns the preview from here.
-    if (r.signal.aborted) return ctx.previews.get(p.id) ?? r.preview;
+    if (r.signal.aborted) {
+      return ctx.previews.get(p.id) ?? r.preview;
+    }
 
     const message = failureMessage(ctx, p.id, e, "deploy pipeline error");
     return await failStack(ctx, r, message, upAttempted);

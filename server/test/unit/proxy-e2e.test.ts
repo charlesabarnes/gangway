@@ -13,8 +13,8 @@ import type { DispatchDeps } from "../../src/net/dispatch.ts";
 const BASE = "preview.test.invalid";
 const PREVIEW = `fixture-web.${BASE}`;
 
-let upstream: AnyServer;
-let listener: RunningListener;
+let upstream: AnyServer | undefined;
+let listener: RunningListener | undefined;
 let store: CertStore;
 let entry: RouteEntry;
 let caPem: string;
@@ -32,7 +32,7 @@ function raw(opts: {
       const s = tls.connect(
         {
           host: "127.0.0.1",
-          port: listener.port,
+          port: listener!.port,
           servername: opts.host,
           rejectUnauthorized: false,
         },
@@ -42,12 +42,16 @@ function raw(opts: {
             connection: "close",
             ...(opts.headers ?? {}),
           };
-          if (opts.body !== undefined) h["content-length"] = String(Buffer.byteLength(opts.body));
+          if (opts.body !== undefined) {
+            h["content-length"] = String(Buffer.byteLength(opts.body));
+          }
           const head = Object.entries(h)
             .map(([k, v]) => `${k}: ${v}`)
             .join("\r\n");
           s.write(`${opts.method ?? "GET"} ${opts.path} HTTP/1.1\r\n${head}\r\n\r\n`);
-          if (opts.body !== undefined) s.write(opts.body);
+          if (opts.body !== undefined) {
+            s.write(opts.body);
+          }
         },
       );
       const chunks: Buffer[] = [];
@@ -60,7 +64,9 @@ function raw(opts: {
         const headers: Record<string, string> = {};
         for (const line of head.slice(1)) {
           const i = line.indexOf(":");
-          if (i > 0) headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+          if (i > 0) {
+            headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+          }
         }
         let body = buf.subarray(sep + 4);
         if (headers["transfer-encoding"] === "chunked") {
@@ -68,9 +74,13 @@ function raw(opts: {
           let p = 0;
           for (;;) {
             const e = body.indexOf("\r\n", p);
-            if (e < 0) break;
+            if (e < 0) {
+              break;
+            }
             const n = parseInt(body.subarray(p, e).toString("latin1"), 16);
-            if (!n) break;
+            if (!n) {
+              break;
+            }
             out.push(body.subarray(e + 2, e + 2 + n));
             p = e + 2 + n + 2;
           }
@@ -286,7 +296,7 @@ describe("TLS", () => {
   test("SNI presents the wildcard certificate", async () => {
     const serial = await new Promise<string>((res, rej) => {
       const s = tls.connect(
-        { host: "127.0.0.1", port: listener.port, servername: PREVIEW, rejectUnauthorized: false },
+        { host: "127.0.0.1", port: listener!.port, servername: PREVIEW, rejectUnauthorized: false },
         () => {
           const c = s.getPeerCertificate();
           res(c.serialNumber);
@@ -301,7 +311,7 @@ describe("TLS", () => {
   test("the leaf chains to the dev CA, so a client trusting the CA verifies it", async () => {
     const ok = await new Promise<boolean>((res) => {
       const s = tls.connect(
-        { host: "127.0.0.1", port: listener.port, servername: PREVIEW, ca: [caPem] },
+        { host: "127.0.0.1", port: listener!.port, servername: PREVIEW, ca: [caPem] },
         () => {
           res(s.authorized);
           s.destroy();
@@ -318,7 +328,7 @@ describe("TLS", () => {
         const s = tls.connect(
           {
             host: "127.0.0.1",
-            port: listener.port,
+            port: listener!.port,
             servername: PREVIEW,
             rejectUnauthorized: false,
           },
@@ -332,7 +342,7 @@ describe("TLS", () => {
     const before = await serialOf();
     const ca = await createCa();
     await store.swap({ materials: [await issueLeaf(ca, [`*.${BASE}`, BASE])] });
-    listener.swapCerts();
+    listener!.swapCerts();
 
     let after = before;
     for (let i = 0; i < 20 && after === before; i++) {
@@ -346,7 +356,7 @@ describe("TLS", () => {
 
 describe("streaming and limits", () => {
   test.concurrent("SSE is not buffered", async () => {
-    const res = await fetch(`https://127.0.0.1:${listener.port}/sse`, {
+    const res = await fetch(`https://127.0.0.1:${listener!.port}/sse`, {
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },
     } as RequestInit);
@@ -355,7 +365,9 @@ describe("streaming and limits", () => {
     let ticks = 0;
     while (Date.now() - t0 < 1_000) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       ticks += (new TextDecoder().decode(value).match(/data: /g) ?? []).length;
     }
     void reader.cancel();
@@ -363,7 +375,7 @@ describe("streaming and limits", () => {
   });
 
   test.concurrent("a stream quiet for longer than the idle timeout stays open", async () => {
-    const res = await fetch(`https://127.0.0.1:${listener.port}/quiet`, {
+    const res = await fetch(`https://127.0.0.1:${listener!.port}/quiet`, {
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },
     } as RequestInit);
@@ -409,7 +421,7 @@ describe("streaming and limits", () => {
 
 describe("WebSocket relay", () => {
   test("echoes text and binary, negotiates a subprotocol, propagates close", async () => {
-    const ws = new WebSocket(`wss://127.0.0.1:${listener.port}/ws`, {
+    const ws = new WebSocket(`wss://127.0.0.1:${listener!.port}/ws`, {
       protocols: ["gangway-v1"],
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },
@@ -427,8 +439,12 @@ describe("WebSocket relay", () => {
     let n = 0;
     const text = await new Promise<boolean>((res) => {
       ws.onmessage = (e) => {
-        if (e.data !== `m${n}`) return res(false);
-        if (++n >= 200) return res(true);
+        if (e.data !== `m${n}`) {
+          return res(false);
+        }
+        if (++n >= 200) {
+          return res(true);
+        }
         ws.send(`m${n}`);
       };
       ws.send("m0");

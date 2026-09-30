@@ -1,5 +1,5 @@
 import type { AppPlan } from "@gangway/shared/app-plan";
-import type { Host, NetworkChoice, Preview, PreviewSource } from "@gangway/shared/domain";
+import type { Host, Preview, PreviewSource } from "@gangway/shared/domain";
 import { actorId } from "../auth/actor.ts";
 import { conflict, unprocessable } from "../errors.ts";
 import { addonServices } from "./addons.ts";
@@ -61,13 +61,15 @@ function assertSameExposure(routes: PlannedRoute[], model: ComposeModel): void {
 
 async function recordSource(
   ctx: PreviewContext,
-  sources: SourceStore,
-  id: string,
+  b: Rebuild,
   source: TarballPreviewSource,
   up: PreparedUpload,
-  network?: NetworkChoice,
 ): Promise<PreviewSource> {
-  if (up.pristine) await sources.adopt(id, up.pristine);
+  const id = b.preview.id;
+  const network = b.input.network;
+  if (up.pristine) {
+    await b.sources.adopt(id, up.pristine);
+  }
   const next: PreviewSource = {
     kind: "tarball",
     uploadId: source.uploadId,
@@ -77,7 +79,9 @@ async function recordSource(
     // A preview moving onto gangway's file server is marked once its files are published.
     ...(source.serve ? { serve: source.serve } : {}),
   };
-  if (JSON.stringify(next) !== JSON.stringify(source)) ctx.previews.setSource(id, next);
+  if (JSON.stringify(next) !== JSON.stringify(source)) {
+    ctx.previews.setSource(id, next);
+  }
   return next;
 }
 
@@ -100,8 +104,12 @@ export type RebuildPlan = {
 };
 
 function siteFor(ctx: PreviewContext, source: TarballPreviewSource, plan: AppPlan): AppPlan | null {
-  if (source.serve !== "gangway") return servesHere(ctx, plan) ? plan : null;
-  if (servable(plan)) return plan;
+  if (source.serve !== "gangway") {
+    return servesHere(ctx, plan) ? plan : null;
+  }
+  if (servable(plan)) {
+    return plan;
+  }
   throw unprocessable(
     "gangway serves this preview as files, and the new source needs a container to run it; deploy it as a new preview instead",
   );
@@ -111,7 +119,9 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
   const { input, preview, routes, wd } = b;
   const id = preview.id;
   const source = preview.source as TarballPreviewSource;
-  if (routes.length === 0) throw conflict("the preview has no routes to rebuild behind");
+  if (routes.length === 0) {
+    throw conflict("the preview has no routes to rebuild behind");
+  }
   await stageSource(ctx, input, b.sources, wd);
   const choice: RuntimeChoice = input.runtime ?? "auto";
   const shared =
@@ -121,17 +131,19 @@ export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<Rebu
   const own = ctx.secrets?.previewValues(id) ?? {};
   const env = Object.keys(own).length > 0 ? { ...shared, ...own } : shared;
   ctx.logs.mask(id, Object.values(env ?? {}));
-  const port = routes.length === 1 ? routes[0]!.containerPort : undefined;
-  const up = await prepareUpload(ctx, id, wd, choice, env, port, {
-    previous: source.runtime ?? "own",
-    addons: input.addons,
-    previousAddons: source.addons,
-  });
+  const port = routes.length === 1 ? routes[0]?.containerPort : undefined;
+  const up = await prepareUpload(
+    ctx,
+    { logId: id, wd, choice, env, port },
+    {
+      previous: source.runtime ?? "own",
+      addons: input.addons,
+      previousAddons: source.addons,
+    },
+  );
   const site = siteFor(ctx, source, up.plan);
-  const planned = site
-    ? siteModel(site, port)
-    : await readModel(ctx, b.host, wd, up.composeFile, up.dotenv);
+  const planned = site ? siteModel(site, port) : await readModel(ctx, b.host, wd, up);
   assertSameExposure(routes, planned.model);
-  const next = await recordSource(ctx, b.sources, id, source, up, input.network);
+  const next = await recordSource(ctx, b, source, up);
   return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan, site };
 }

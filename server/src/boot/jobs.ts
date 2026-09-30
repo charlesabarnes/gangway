@@ -65,7 +65,9 @@ export function startScheduler(d: JobDeps): Scheduler {
   // stop() waits for running jobs, so nothing touches the database after it closes.
   const scheduler = new Scheduler({ logger: d.logger.child({ mod: "scheduler" }) });
   registerPreviewJobs(scheduler, d);
-  if (d.renewal) registerCertRenewal(scheduler, d.renewal, d.domains);
+  if (d.renewal) {
+    registerCertRenewal(scheduler, d.renewal, d.domains);
+  }
   registerPurges(scheduler, d);
   scheduler.register({
     name: "update-check",
@@ -123,11 +125,13 @@ function registerPreviewJobs(scheduler: Scheduler, d: JobDeps): void {
 }
 
 function registerCertRenewal(scheduler: Scheduler, r: CertRenewal, domains: Core["domains"]): void {
-  r.certStore.onSwap(() => r.listener.swapCerts());
+  r.certStore.onSwap(() => {
+    r.listener.swapCerts();
+  });
   // A domain that changes mid-run is caught by running again, not left for the next hour.
-  let changed = false;
+  let changes = 0;
   domains.onChange(() => {
-    changed = true;
+    changes++;
     scheduler.trigger("cert-renew").catch(() => {});
   });
   // Hourly because Let's Encrypt allows 5 failed validations per hour.
@@ -136,11 +140,14 @@ function registerCertRenewal(scheduler: Scheduler, r: CertRenewal, domains: Core
     intervalMs: 3_600_000,
     initialDelayMs: 0,
     run: async (signal) => {
+      let seen: number;
       do {
-        changed = false;
+        seen = changes;
         const next = await r.manager.refresh(signal);
-        if (next) await r.certStore.swap(next);
-      } while (changed && !signal.aborted);
+        if (next) {
+          await r.certStore.swap(next);
+        }
+      } while (changes !== seen && !signal.aborted);
     },
   });
 }
@@ -165,7 +172,9 @@ function registerPurges(scheduler: Scheduler, d: JobDeps): void {
     initialDelayMs: 300_000,
     run: () => {
       const pruned = prune(d);
-      if (Object.values(pruned).some((n) => n > 0)) d.logger.info("pruned old records", pruned);
+      if (Object.values(pruned).some((n) => n > 0)) {
+        d.logger.info("pruned old records", pruned);
+      }
     },
   });
   scheduler.register({

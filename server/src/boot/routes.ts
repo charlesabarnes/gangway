@@ -59,7 +59,6 @@ export type ApiRouteDeps = Pick<
 
 export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   const { ctx, repos, audit, settings, identity } = d;
-  const { oauth } = identity;
   const apiOrigin = () => d.origin("api");
   hostRoutes(api, repos.hosts);
   eventRoutes(
@@ -75,21 +74,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   tokenRoutes(api, identity.tokens);
   userRoutes(api, identity.accounts, identity.links);
   roleRoutes(api, identity.roles);
-  const hash = (plain: string) => d.previewPasswords.hash(plain);
-  settingsRoutes(api, settings, audit, repos.templates, hash, d.domains);
-  mailSettingsRoutes(api, audit, identity.mailer);
-  updateRoutes(api, d.updates);
-  oauthRoutes(api, { oauth, enabled: d.mcpOn });
-  surfaceRoutes(api, {
-    settings,
-    audit,
-    apiOrigin,
-    hasActiveAdmin: () => repos.tokens.hasActiveAdmin(Date.now()),
-    mcpOrigin: () => d.origin("mcp"),
-    onMcpDisabled: () => d.mcp.dropAll(),
-    previewDomains: () => d.domains.availableTo(null),
-    share: () => shareCapability(ctx, d.domains.control()),
-  });
+  serverSettingRoutes(api, d);
   projectRoutes(api, {
     projects: repos.projects,
     audit,
@@ -107,7 +92,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     audit,
     namedByTrigger: (id) => TRIGGERS.filter((t) => d.triggerDefault(t) === id),
   });
-  if (ctx.artifacts)
+  if (ctx.artifacts) {
     artifactRoutes(api, {
       library: ctx.artifacts,
       themes: repos.artifactThemes,
@@ -118,6 +103,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
       wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
       ctx,
     });
+  }
   domainRoutes(api, { ...claimDeps(d), projects: repos.projects });
   secretRoutes(api, { secrets: d.secrets, previews: ctx.previews });
   previewSecretRoutes(api, {
@@ -133,6 +119,31 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     audit,
     baseDomain: d.baseDomain,
     originFor: d.origin,
+  });
+}
+
+function serverSettingRoutes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
+  const { ctx, repos, audit, settings, identity } = d;
+  const hash = (plain: string) => d.previewPasswords.hash(plain);
+  settingsRoutes(api, settings, audit, {
+    templates: repos.templates,
+    hashPassword: hash,
+    domains: d.domains,
+  });
+  mailSettingsRoutes(api, audit, identity.mailer);
+  updateRoutes(api, d.updates);
+  oauthRoutes(api, { oauth: identity.oauth, enabled: d.mcpOn });
+  surfaceRoutes(api, {
+    settings,
+    audit,
+    apiOrigin: () => d.origin("api"),
+    hasActiveAdmin: () => repos.tokens.hasActiveAdmin(Date.now()),
+    mcpOrigin: () => d.origin("mcp"),
+    onMcpDisabled: () => {
+      d.mcp.dropAll();
+    },
+    previewDomains: () => d.domains.availableTo(null),
+    share: () => shareCapability(ctx, d.domains.control()),
   });
 }
 

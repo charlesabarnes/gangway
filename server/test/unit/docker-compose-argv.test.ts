@@ -188,7 +188,9 @@ describe("composeEnv", () => {
 
   test("ambient COMPOSE_* variables are neutralised, since we pass the explicit flags", () => {
     const env = composeEnv({ dockerHost: "ssh://root@docker-host" }, ambient);
-    for (const k of NEUTRALISED_ENV) expect(env[k]).toBe("");
+    for (const k of NEUTRALISED_ENV) {
+      expect(env[k]).toBe("");
+    }
   });
 
   test("only what the docker CLI needs is inherited, since compose interpolates from it", () => {
@@ -207,7 +209,9 @@ describe("composeEnv", () => {
     expect(JSON.stringify(env)).not.toMatch(/gw_secret|cf_secret|aws/);
     expect(Object.keys(env).filter((k) => k.startsWith("GANGWAY_"))).toEqual([]);
     expect(Object.hasOwn(env, "UNSET")).toBe(false);
-    for (const v of Object.values(env)) expect(typeof v).toBe("string");
+    for (const v of Object.values(env)) {
+      expect(typeof v).toBe("string");
+    }
   });
 
   test("extra variables reach compose interpolation but cannot redirect the daemon", () => {
@@ -233,7 +237,9 @@ const enc = new TextEncoder();
 function streamFrom(gen: () => AsyncGenerator<string>): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
-      for await (const chunk of gen()) controller.enqueue(enc.encode(chunk));
+      for await (const chunk of gen()) {
+        controller.enqueue(enc.encode(chunk));
+      }
       controller.close();
     },
   });
@@ -309,9 +315,13 @@ describe("runCompose", () => {
       { dockerHost: "ssh://root@docker-host" },
       spawner,
     )) {
-      if (ev.type !== "line") continue;
+      if (ev.type !== "line") {
+        continue;
+      }
       seen.push(ev.line);
-      if (seen.length === 1) release();
+      if (seen.length === 1) {
+        release();
+      }
     }
     expect(seen).toEqual(["#1 [internal] load build definition", "#2 exporting layers"]);
   });
@@ -344,9 +354,13 @@ describe("runCompose", () => {
       { dockerHost: "ssh://root@docker-host" },
       spawner,
     )) {
-      if (ev.type !== "line") continue;
+      if (ev.type !== "line") {
+        continue;
+      }
       order.push(`${ev.stream}:${ev.line}`);
-      if (order.length === 1) step1();
+      if (order.length === 1) {
+        step1();
+      }
     }
     expect(order).toEqual(["stdout:out-1", "stderr:err-1", "stdout:out-2"]);
   });
@@ -361,7 +375,9 @@ describe("runCompose", () => {
     });
     const lines: string[] = [];
     for await (const ev of runCompose(psArgv(base), { dockerHost: "x" }, spawner)) {
-      if (ev.type === "line") lines.push(ev.line);
+      if (ev.type === "line") {
+        lines.push(ev.line);
+      }
     }
     expect(lines).toEqual(["hello", "world", "no-newline"]);
   });
@@ -374,7 +390,9 @@ describe("runCompose", () => {
       code: 1,
     });
     const events: ComposeEvent[] = [];
-    for await (const ev of runCompose(upArgv(base), { dockerHost: "x" }, spawner)) events.push(ev);
+    for await (const ev of runCompose(upArgv(base), { dockerHost: "x" }, spawner)) {
+      events.push(ev);
+    }
     expect(events.at(-1)).toEqual({ type: "exit", code: 1, signal: null });
   });
 

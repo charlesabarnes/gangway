@@ -12,7 +12,9 @@ export const IDEMPOTENCY_TTL_MS = 24 * 3_600_000;
 const KEY_RE = /^[\x21-\x7e]{1,255}$/;
 
 function canonical(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+  if (Array.isArray(v)) {
+    return `[${v.map(canonical).join(",")}]`;
+  }
   if (v && typeof v === "object") {
     return `{${Object.entries(v)
       .filter(([, x]) => x !== undefined)
@@ -46,9 +48,12 @@ export class IdempotentDeploys {
   }
 
   async deploy(input: DeployInput, key: string | undefined): Promise<IdempotentResult> {
-    if (key === undefined) return { ...(await deploy(this.#ctx, input)), replayed: false };
-    if (!KEY_RE.test(key))
+    if (key === undefined) {
+      return { ...(await deploy(this.#ctx, input)), replayed: false };
+    }
+    if (!KEY_RE.test(key)) {
       throw badRequest("Idempotency-Key must be 1-255 printable ASCII characters");
+    }
 
     const ctx = this.#ctx;
     const ownerId = actorId(input.actor);
@@ -63,7 +68,9 @@ export class IdempotentDeploys {
     if (seen && seen.createdAt > ctx.now() - IDEMPOTENCY_TTL_MS) {
       const preview = seen.previewId ? ctx.previews.get(seen.previewId) : undefined;
       if (preview && preview.state !== "destroyed" && preview.state !== "destroying") {
-        if (seen.requestHash !== hash) throw mismatch();
+        if (seen.requestHash !== hash) {
+          throw mismatch();
+        }
         const done = ctx.inflight.get(preview.id)?.done ?? Promise.resolve(preview);
         return { preview, urls: urlsFor(ctx, preview.id), done, replayed: true };
       }
@@ -76,7 +83,9 @@ export class IdempotentDeploys {
       this.#keys.put({ key, ownerId, previewId: res.preview.id, requestHash: hash });
       return res;
     });
-    if (joined && this.#keys.get(key, ownerId)?.requestHash !== hash) throw mismatch();
+    if (joined && this.#keys.get(key, ownerId)?.requestHash !== hash) {
+      throw mismatch();
+    }
     return { ...result, replayed: joined };
   }
 

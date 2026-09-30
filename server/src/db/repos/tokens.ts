@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { ApiToken, User } from "@gangway/shared/domain";
 import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
@@ -40,13 +41,13 @@ export class TokensRepo {
         now: this.#now(),
       },
     );
-    return this.get(t.id)!;
+    return must(this.get(t.id), "the token just saved");
   }
 
   get(id: string): ApiToken | undefined {
-    const r = this.#db.get<TokenRow>(`SELECT ${TOKEN_COLUMNS} FROM api_tokens WHERE id = $id`, {
+    const r = this.#db.get(`SELECT ${TOKEN_COLUMNS} FROM api_tokens WHERE id = $id`, {
       id,
-    });
+    }) as TokenRow | undefined;
     return r ? rowToToken(r) : undefined;
   }
 
@@ -54,16 +55,7 @@ export class TokensRepo {
     tokenHash: string,
     now: number = this.#now(),
   ): { token: ApiToken; owner: User | null } | undefined {
-    const r = this.#db.get<
-      TokenRow & {
-        u_id: string | null;
-        u_email: string | null;
-        u_role_id: string | null;
-        u_disabled: number | null;
-        u_invited: number | null;
-        u_created_at: number | null;
-      }
-    >(
+    const r = this.#db.get(
       `SELECT ${TOKEN_COLUMNS.split(", ")
         .map((c) => `t.${c}`)
         .join(", ")},
@@ -73,18 +65,29 @@ export class TokensRepo {
           AND (t.expires_at IS NULL OR t.expires_at > $now)
           AND (t.user_id IS NULL OR u.disabled = 0)`,
       { hash: tokenHash, now },
-    );
-    if (!r) return undefined;
+    ) as
+      | (TokenRow & {
+          u_id: string | null;
+          u_email: string | null;
+          u_role_id: string | null;
+          u_disabled: number | null;
+          u_invited: number | null;
+          u_created_at: number | null;
+        })
+      | undefined;
+    if (!r) {
+      return undefined;
+    }
     const owner: UserRow | null =
       r.u_id === null
         ? null
         : {
             id: r.u_id,
-            email: r.u_email!,
-            role_id: r.u_role_id!,
-            disabled: r.u_disabled!,
-            invited: r.u_invited!,
-            created_at: r.u_created_at!,
+            email: must(r.u_email, "the token owner's email"),
+            role_id: must(r.u_role_id, "the token owner's role"),
+            disabled: must(r.u_disabled, "the token owner's disabled flag"),
+            invited: must(r.u_invited, "the token owner's invited flag"),
+            created_at: must(r.u_created_at, "the token owner's creation time"),
           };
     return { token: rowToToken(r), owner: owner ? rowToUser(owner) : null };
   }
@@ -99,18 +102,20 @@ export class TokensRepo {
   }
 
   listForUser(userId: string): ApiToken[] {
-    return this.#db
-      .query<TokenRow>(
+    return (
+      this.#db.query(
         `SELECT ${TOKEN_COLUMNS} FROM api_tokens WHERE user_id = $u ORDER BY created_at DESC, id`,
         { u: userId },
-      )
-      .map(rowToToken);
+      ) as TokenRow[]
+    ).map(rowToToken);
   }
 
   listAll(): ApiToken[] {
-    return this.#db
-      .query<TokenRow>(`SELECT ${TOKEN_COLUMNS} FROM api_tokens ORDER BY created_at DESC, id`)
-      .map(rowToToken);
+    return (
+      this.#db.query(
+        `SELECT ${TOKEN_COLUMNS} FROM api_tokens ORDER BY created_at DESC, id`,
+      ) as TokenRow[]
+    ).map(rowToToken);
   }
 
   revoke(id: string, now: number = this.#now()): boolean {
@@ -123,15 +128,14 @@ export class TokensRepo {
   }
 
   hasActiveAdmin(now: number = this.#now()): boolean {
-    return (
-      this.#db.get<{ n: number }>(
-        `SELECT COUNT(*) AS n
-         FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id, json_each(t.scopes) s
-        WHERE s.value = 'admin' AND t.revoked_at IS NULL
-          AND (t.expires_at IS NULL OR t.expires_at > $now)
-          AND (t.user_id IS NULL OR (u.disabled = 0 AND u.role_id = 'admin'))`,
-        { now },
-      )!.n > 0
-    );
+    const row = this.#db.get(
+      `SELECT COUNT(*) AS n
+       FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id, json_each(t.scopes) s
+      WHERE s.value = 'admin' AND t.revoked_at IS NULL
+        AND (t.expires_at IS NULL OR t.expires_at > $now)
+        AND (t.user_id IS NULL OR (u.disabled = 0 AND u.role_id = 'admin'))`,
+      { now },
+    ) as { n: number } | undefined;
+    return must(row, "a count row").n > 0;
   }
 }

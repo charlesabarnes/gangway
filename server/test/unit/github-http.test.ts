@@ -28,8 +28,9 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
       const m = /\/app-manifests\/([^/]+)\/conversions$/.exec(url);
       if (m && init?.method === "POST") {
         conversions.push(m[1]!);
-        if (o.conversion === 404)
+        if (o.conversion === 404) {
           return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
+        }
         return new Response(
           JSON.stringify({
             id: 777,
@@ -55,7 +56,7 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
         repos,
         new MemorySettingsStore(),
         new SecretBox(randomBytes(32)),
-        s.audit,
+        { audit: s.audit },
       );
       const previews = { list: () => [] };
       projectRoutes(api, { projects: repos, audit: s.audit, secrets, previews });

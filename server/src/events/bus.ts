@@ -58,12 +58,20 @@ export class EventBus {
     const buffered: GangwayEvent[] = [];
     const wanted = (e: GangwayEvent) => previewId === undefined || e.previewId === previewId;
     const emit = (e: GangwayEvent) => {
-      if (e.seq <= cursor || !wanted(e)) return;
+      if (e.seq <= cursor || !wanted(e)) {
+        return;
+      }
       cursor = e.seq;
       deliver(e);
     };
 
-    const unsubscribe = this.subscribe((e) => (replaying ? buffered.push(e) : emit(e)));
+    const unsubscribe = this.subscribe((e) => {
+      if (replaying) {
+        buffered.push(e);
+      } else {
+        emit(e);
+      }
+    });
 
     for (let pages = 0; ; pages++) {
       if (pages === MAX_PAGES) {
@@ -78,11 +86,17 @@ export class EventBus {
         break;
       }
       const page = this.#repo.since(cursor, PAGE, previewId);
-      for (const e of page) emit(e);
-      if (page.length < PAGE) break;
+      for (const e of page) {
+        emit(e);
+      }
+      if (page.length < PAGE) {
+        break;
+      }
     }
     replaying = false;
-    for (const e of buffered) emit(e);
+    for (const e of buffered) {
+      emit(e);
+    }
 
     return unsubscribe;
   }

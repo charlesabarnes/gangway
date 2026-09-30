@@ -25,7 +25,8 @@ export type GitHubAppOptions = {
   now?: (() => number) | undefined;
 };
 
-export type GitHubResponse<T> = { status: number; body: T; headers: Headers };
+// T is what GitHub is expected to send, unchecked; body is undefined when it sent no JSON.
+export type GitHubResponse<T> = { status: number; body: T | undefined; headers: Headers };
 
 type CachedToken = { token: string; expiresAt: number };
 
@@ -64,11 +65,12 @@ export class GitHubApp {
 
   jwt(): string {
     const { appId, privateKey } = this.#credentials();
-    if (appId === "" || privateKey === "")
+    if (appId === "" || privateKey === "") {
       throw new AppError(
         "unprocessable",
         "the GitHub App is not configured (github.appId, github.privateKey)",
       );
+    }
     const iat = Math.floor(this.#now() / 1000) - JWT_SKEW_S;
     const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
     const claims = b64url(JSON.stringify({ iat, exp: iat + JWT_LIFETIME_S, iss: appId }));
@@ -78,10 +80,14 @@ export class GitHubApp {
 
   async installationToken(installationId: string): Promise<string> {
     const cached = this.#tokens.get(installationId);
-    if (cached && cached.expiresAt - TOKEN_MARGIN_MS > this.#now()) return cached.token;
+    if (cached && cached.expiresAt - TOKEN_MARGIN_MS > this.#now()) {
+      return cached.token;
+    }
     const fresh = await this.#minting.run(installationId, async () => {
       const again = this.#tokens.get(installationId);
-      if (again && again.expiresAt - TOKEN_MARGIN_MS > this.#now()) return again;
+      if (again && again.expiresAt - TOKEN_MARGIN_MS > this.#now()) {
+        return again;
+      }
       const r = await this.request<{ token?: string; expires_at?: string }>(
         "POST",
         `/app/installations/${encodeURIComponent(installationId)}/access_tokens`,
@@ -127,12 +133,12 @@ export class GitHubApp {
     }
     const res = await this.#fetch(url, init);
     const text = await res.text();
-    let body: T = undefined as T;
+    let body: T | undefined;
     if (text !== "") {
       try {
         body = JSON.parse(text) as T;
       } catch {
-        body = text as unknown as T;
+        body = undefined;
       }
     }
     if (res.status >= 500) {
@@ -189,19 +195,21 @@ export class GitHubApp {
       "/app/installations?per_page=100",
       { auth: `Bearer ${this.jwt()}` },
     );
-    if (installs.status !== 200 || !Array.isArray(installs.body))
+    if (installs.status !== 200 || !Array.isArray(installs.body)) {
       throw new AppError(
         "bad_gateway",
         `GitHub did not list the App's installations (${installs.status})`,
       );
+    }
     const out: { fullName: string; installationId: string; private: boolean }[] = [];
     for (const inst of installs.body) {
       const id = String(inst.id);
       const r = await this.asInstallation<{
         repositories?: { full_name: string; private: boolean }[];
       }>(id, "GET", "/installation/repositories?per_page=100");
-      for (const repo of r.body?.repositories ?? [])
+      for (const repo of r.body?.repositories ?? []) {
         out.push({ fullName: repo.full_name, installationId: id, private: repo.private });
+      }
     }
     return out.sort((x, y) => x.fullName.localeCompare(y.fullName));
   }
@@ -218,7 +226,9 @@ export class GitHubApp {
       path,
       body === undefined ? { auth: `token ${token}` } : { auth: `token ${token}`, body },
     );
-    if (r.status === 401) this.forget(installationId);
+    if (r.status === 401) {
+      this.forget(installationId);
+    }
     return r;
   }
 }

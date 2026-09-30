@@ -24,7 +24,9 @@ describe("tokens", () => {
   test("secret targets chosen at consent ride on the grant, across a refresh", async () => {
     const s = await setupOAuth();
     const out = await s.oauth.authorize(s.authorizeQuery({ scope: "read deploy secrets" }));
-    if (out.kind !== "consent") throw new Error(JSON.stringify(out));
+    if (out.kind !== "consent") {
+      throw new Error(JSON.stringify(out));
+    }
     const targets = { previews: "own" as const, projects: ["P1"], org: false };
     const { redirect } = s.oauth.decide(s.ada, out.requestId, {
       approve: true,

@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Session, User } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToSession, type SessionRow } from "./mappers.ts";
@@ -27,28 +28,30 @@ export class SessionsRepo {
        VALUES ($id, $user, $now, $exp, $now, $ip, $ua)`,
       { id: s.id, user: s.userId, now, exp: s.expiresAt, ip: s.ip, ua: s.userAgent },
     );
-    return rowToSession(
-      this.#db.get<SessionRow>("SELECT * FROM sessions WHERE id = $id", { id: s.id })!,
-    );
+    const row = this.#db.get("SELECT * FROM sessions WHERE id = $id", { id: s.id }) as
+      SessionRow | undefined;
+    return rowToSession(must(row, "the session just created"));
   }
 
   findActive(id: string, now: number = this.#now()): { session: Session; user: User } | undefined {
-    const r = this.#db.get<
-      SessionRow & {
-        u_id: string;
-        u_email: string;
-        u_role_id: string;
-        u_disabled: number;
-        u_invited: number;
-        u_created_at: number;
-      }
-    >(
+    const r = this.#db.get(
       `SELECT s.*, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
          FROM sessions s JOIN users u ON u.id = s.user_id
         WHERE s.id = $id AND s.expires_at > $now AND u.disabled = 0`,
       { id, now },
-    );
-    if (!r) return undefined;
+    ) as
+      | (SessionRow & {
+          u_id: string;
+          u_email: string;
+          u_role_id: string;
+          u_disabled: number;
+          u_invited: number;
+          u_created_at: number;
+        })
+      | undefined;
+    if (!r) {
+      return undefined;
+    }
     const user: UserRow = {
       id: r.u_id,
       email: r.u_email,

@@ -17,7 +17,9 @@ try {
   for (const m of readFileSync(report, "utf8").matchAll(/<testcase [^>]*>/g)) {
     const file = /file="([^"]+)"/.exec(m[0])?.[1];
     const time = Number(/time="([^"]+)"/.exec(m[0])?.[1] ?? 0);
-    if (file) files[file] = (files[file] ?? 0) + time * 1000;
+    if (file) {
+      files[file] = (files[file] ?? 0) + time * 1000;
+    }
   }
   const sorted = Object.entries(files)
     .sort(([a], [b]) => a.localeCompare(b))

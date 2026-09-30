@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import type { Domain, DomainKind, Preview, Project } from "@gangway/shared/domain";
+import type { Domain, DomainKind, DomainStatus, Preview, Project } from "@gangway/shared/domain";
 import { domainsProblem, isWithin, labelUnder } from "@gangway/shared/hostname";
+import { must } from "@gangway/shared/must";
 import type { AuditSink } from "../audit/audit.ts";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import type { DomainsRepo } from "../db/repos/domains.ts";
@@ -66,7 +67,9 @@ export function viewOf(d: Domain, control: string): DomainView {
 }
 
 export function targetOf(d: Domain): DomainTarget["kind"] {
-  if (d.previewId) return "preview";
+  if (d.previewId) {
+    return "preview";
+  }
   return d.projectId ? "project" : "org";
 }
 
@@ -77,24 +80,29 @@ export function assertMayManage(
   kind: DomainTarget["kind"],
   previewId?: string | null,
 ): void {
-  if (kind === "org" && !can(actor, "domains.manage"))
+  if (kind === "org" && !can(actor, "domains.manage")) {
     throw forbidden('the server\'s own domains need "domains.manage"');
-  if (kind === "project" && !can(actor, "repos.domains"))
+  }
+  if (kind === "project" && !can(actor, "repos.domains")) {
     throw forbidden('a repository\'s domains need "repos.domains"');
+  }
   if (kind === "preview") {
-    if (!can(actor, "previews.domain"))
+    if (!can(actor, "previews.domain")) {
       throw forbidden('a preview\'s hostnames need "previews.domain"');
-    if (previewId && !mayRebuild(actor, deps.previews.provenanceOf(previewId)))
+    }
+    if (previewId && !mayRebuild(actor, deps.previews.provenanceOf(previewId))) {
       throw forbidden(
         'this preview was deployed by someone else: changing its hostnames needs "previews.update"',
       );
+    }
   }
 }
 
 function claimProblem(deps: ClaimDeps, name: string, kind: DomainKind): string | null {
   const control = deps.registry.control();
-  if (isWithin(name, control))
+  if (isWithin(name, control)) {
     return `${name} is under gangway's own domain ${control}; name previews with a label instead`;
+  }
   const rows = deps.domains.all();
   const wildcards = [
     ...new Set([
@@ -103,10 +111,16 @@ function claimProblem(deps: ClaimDeps, name: string, kind: DomainKind): string |
     ]),
   ];
   const under = wildcards.find((w) => isWithin(name, w));
-  if (under) return `${name} is under the preview domain ${under}, where gangway already names it`;
-  if (kind === "exact") return null;
+  if (under) {
+    return `${name} is under the preview domain ${under}, where gangway already names it`;
+  }
+  if (kind === "exact") {
+    return null;
+  }
   const nested = domainsProblem(control, [...wildcards, name]);
-  if (nested) return nested;
+  if (nested) {
+    return nested;
+  }
   const clash = rows.find((r) => r.kind === "exact" && labelUnder(r.name, name) !== null);
   return clash ? `${clash.name} is already claimed as a hostname of its own` : null;
 }
@@ -119,16 +133,22 @@ export function claimDomain(
 ): DomainView {
   const previewId = target.kind === "preview" ? target.preview.id : null;
   assertMayManage(deps, actor, target.kind, previewId);
-  if (target.kind === "preview" && req.kind === "wildcard")
+  if (target.kind === "preview" && req.kind === "wildcard") {
     throw unprocessable(
       "a preview claims hostnames; wildcard domains belong to a project or the org",
     );
-  if (target.kind === "org" && req.kind === "exact")
+  }
+  if (target.kind === "org" && req.kind === "exact") {
     throw unprocessable("a hostname answers for one site: claim it on a project or a preview");
+  }
   const taken = deps.domains.byName(req.name);
-  if (taken) throw conflict(`${req.name} is already claimed`, { domain: req.name });
+  if (taken) {
+    throw conflict(`${req.name} is already claimed`, { domain: req.name });
+  }
   const problem = claimProblem(deps, req.name, req.kind);
-  if (problem) throw unprocessable(problem, { domain: req.name });
+  if (problem) {
+    throw unprocessable(problem, { domain: req.name });
+  }
 
   const d = deps.domains.create({
     id: ulid(deps.now()),
@@ -151,12 +171,14 @@ export function removeDomain(deps: ClaimDeps, actor: Actor, d: Domain): void {
   assertMayManage(deps, actor, targetOf(d), d.previewId);
   if (d.kind === "wildcard") {
     const live = [...deps.hostnames()].find((h) => labelUnder(h, d.name));
-    if (live)
+    if (live) {
       throw conflict(`${live} is still named under ${d.name}; move or destroy it first`, {
         hostname: live,
       });
-    if (d.projectId === null && deps.previews.domainChosen(d.name))
+    }
+    if (d.projectId === null && deps.previews.domainChosen(d.name)) {
       throw conflict(`a project or preview still chooses ${d.name}; choose another first`);
+    }
     deps.previews.forgetDomain(d.name);
   }
   deps.domains.delete(d.id);
@@ -176,7 +198,9 @@ export async function checkDomain(
   actor: Actor | null = null,
 ): Promise<DomainView> {
   // Someone asking again gives a claim that ran out of patience another week.
-  if (claim.status === "failed" && actor) deps.domains.retry(claim.id, deps.now());
+  if (claim.status === "failed" && actor) {
+    deps.domains.retry(claim.id, deps.now());
+  }
   const d = actor ? (deps.domains.get(claim.id) ?? claim) : claim;
   const control = deps.registry.control();
   const want = challengeTarget(d, control);
@@ -189,22 +213,40 @@ export async function checkDomain(
   const owned = cnames.includes(want);
   const routingOk = there.some((a) => here.includes(a));
   const expired = deps.now() - d.createdAt.getTime() > CLAIM_PATIENCE_MS;
-  const status = owned || d.status === "active" ? "active" : expired ? "failed" : "pending";
-  const lastError = !owned
-    ? `_acme-challenge.${d.name} is not yet a CNAME to ${want}`
-    : !routingOk
-      ? `${d.kind === "wildcard" ? `*.${d.name}` : d.name} does not resolve to ${control} yet`
-      : null;
+  const status = statusAfterCheck(owned || d.status === "active", expired);
+  const lastError = checkError(d, { control, want }, { owned, routingOk });
   deps.domains.recordCheck(d.id, { status, routingOk, lastError });
-  const after = deps.domains.get(d.id)!;
+  const after = must(deps.domains.get(d.id), "the domain just checked");
   if (after.status !== d.status || after.routingOk !== d.routingOk) {
     deps.registry.refresh();
     const payload = { domain: d.name, status: after.status, routingOk: after.routingOk };
     deps.bus?.publish(`domain.${after.status}`, payload, d.previewId);
   }
-  if (after.status === "active" && d.status !== "active")
+  if (after.status === "active" && d.status !== "active") {
     deps.audit.record(actor, "domain.verified", d.id, { new: { name: d.name } });
+  }
   return viewOf(after, control);
+}
+
+function statusAfterCheck(active: boolean, expired: boolean): DomainStatus {
+  if (active) {
+    return "active";
+  }
+  return expired ? "failed" : "pending";
+}
+
+function checkError(
+  d: Domain,
+  at: { control: string; want: string },
+  found: { owned: boolean; routingOk: boolean },
+): string | null {
+  if (!found.owned) {
+    return `_acme-challenge.${d.name} is not yet a CNAME to ${at.want}`;
+  }
+  if (!found.routingOk) {
+    return `${d.kind === "wildcard" ? `*.${d.name}` : d.name} does not resolve to ${at.control} yet`;
+  }
+  return null;
 }
 
 const RECHECK_ACTIVE_MS = 3_600_000;
@@ -220,7 +262,9 @@ export async function checkDue(deps: ClaimDeps, signal?: AbortSignal): Promise<n
         (d.status === "active" && now - (d.checkedAt?.getTime() ?? 0) > RECHECK_ACTIVE_MS),
     );
   for (const d of due) {
-    if (signal?.aborted) break;
+    if (signal?.aborted) {
+      break;
+    }
     await checkDomain(deps, d);
   }
   return due.length;
@@ -228,11 +272,16 @@ export async function checkDue(deps: ClaimDeps, signal?: AbortSignal): Promise<n
 
 export function domainsOf(deps: Pick<ClaimDeps, "domains" | "registry">, target: DomainTarget) {
   const control = deps.registry.control();
-  const rows =
-    target.kind === "org"
-      ? deps.domains.all().filter((d) => d.projectId === null && d.previewId === null)
-      : target.kind === "project"
-        ? deps.domains.forProject(target.project.id)
-        : deps.domains.forPreview(target.preview.id);
-  return rows.map((d) => viewOf(d, control));
+  return rowsFor(deps.domains, target).map((d) => viewOf(d, control));
+}
+
+function rowsFor(domains: DomainsRepo, target: DomainTarget): Domain[] {
+  switch (target.kind) {
+    case "org":
+      return domains.all().filter((d) => d.projectId === null && d.previewId === null);
+    case "project":
+      return domains.forProject(target.project.id);
+    case "preview":
+      return domains.forPreview(target.preview.id);
+  }
 }

@@ -34,16 +34,18 @@ export class Reconciler {
     const hosts = ctx.hosts.list();
     const hostsById = new Map(hosts.map((h) => [h.id, h]));
 
-    const scanned = await Promise.all(hosts.map((h) => scanHost(this.#d, h)));
+    const scanned = await Promise.all(
+      hosts.map(async (host) => ({ host, ...(await scanHost(this.#d, host)) })),
+    );
     const reachable = new Map(scanned.map((s) => [s.scan.hostId, s.scan.reachable]));
     const summaries = new Map<string, Found>();
     const containers: ScannedContainer[] = [];
-    scanned.forEach((s, i) => {
-      for (const summary of s.summaries) {
-        summaries.set(summary.id, { summary, host: hosts[i]! });
-        containers.push(toScanned(summary, hosts[i]!));
+    for (const { host, summaries: found } of scanned) {
+      for (const summary of found) {
+        summaries.set(summary.id, { summary, host });
+        containers.push(toScanned(summary, host));
       }
-    });
+    }
 
     // Read after the scan: a concurrent deploy then shows as a route the in-flight guard covers.
     const actions = diff({
@@ -83,16 +85,19 @@ export class Reconciler {
     for (const a of actions) {
       try {
         const change = await this.#apply(a, summaries, hosts);
-        if (change) changes.push(change);
+        if (change) {
+          changes.push(change);
+        }
       } catch (e) {
         logger.error("reconcile action failed", { action: a.kind, err: e });
       }
-      if (a.kind === "LeaveAlone" && a.warn)
+      if (a.kind === "LeaveAlone" && a.warn) {
         logger.warn("reconcile anomaly", {
           reason: a.reason,
           hostname: a.hostname,
           containerId: a.containerId,
         });
+      }
     }
     return changes;
   }
@@ -106,11 +111,15 @@ export class Reconciler {
     summaries: Map<string, Found>,
     hosts: Map<string, Host>,
   ): Promise<string | null> {
-    if (!isMutating(a)) return null;
+    if (!isMutating(a)) {
+      return null;
+    }
 
     switch (a.kind) {
       case "UpdateUpstream": {
-        if (this.#busy(a.previewId)) return null;
+        if (this.#busy(a.previewId)) {
+          return null;
+        }
         this.#d.ctx.table.updateUpstreamPort(a.hostname, a.to.port);
         return `${a.hostname}: upstream port ${a.from.port} -> ${a.to.port} (container was recreated by hand)`;
       }
@@ -122,15 +131,20 @@ export class Reconciler {
         return this.#adopt(a, summaries.get(a.containerId), hosts.get(a.hostId));
       case "StopOrphan":
         return this.#stopOrphan(a, summaries.get(a.containerId));
+      case "LeaveAlone":
+        return null;
     }
-    return null;
   }
 
   #markAsleep(a: Of<"MarkAsleep">): string | null {
     const { ctx } = this.#d;
     const p = ctx.previews.get(a.previewId);
-    if (!p || this.#busy(p.id)) return null;
-    if (p.state !== "awake") return null;
+    if (!p || this.#busy(p.id)) {
+      return null;
+    }
+    if (p.state !== "awake") {
+      return null;
+    }
     ctx.states.transition(p.id, "asleep");
     return `${p.project}: no running container; marked asleep`;
   }
@@ -138,21 +152,30 @@ export class Reconciler {
   async #markFailed(a: Of<"MarkFailed">, hosts: Map<string, Host>): Promise<string | null> {
     const { ctx } = this.#d;
     const p = ctx.previews.get(a.previewId);
-    if (!p || this.#busy(p.id) || p.state !== "building") return null;
+    if (!p || this.#busy(p.id) || p.state !== "building") {
+      return null;
+    }
     ctx.states.transition(p.id, "failed", a.error);
     ctx.logs.append(p.id, "system", `FAILED: ${a.error}`);
     const host = hosts.get(p.hostId);
-    if (host) await releaseStack(ctx, p, host);
+    if (host) {
+      await releaseStack(ctx, p, host);
+    }
     return `${p.project}: ${a.error}`;
   }
 
   async #stopOrphan(a: Of<"StopOrphan">, found: Found | undefined): Promise<string | null> {
-    if (!found) return null;
+    if (!found) {
+      return null;
+    }
     // The scan may be stale: a deploy may have claimed this hostname since.
     const previewId = found.summary.labels[LABEL.previewId];
-    if (previewId && this.#busy(previewId)) return null;
-    if (a.hostname && this.#d.routes.get(a.hostname)?.previewId === previewId && previewId)
+    if (previewId && this.#busy(previewId)) {
       return null;
+    }
+    if (a.hostname && this.#d.routes.get(a.hostname)?.previewId === previewId && previewId) {
+      return null;
+    }
     return this.#stop(found.host, found.summary, a.reason);
   }
 
@@ -171,7 +194,9 @@ export class Reconciler {
     host: Host | undefined,
   ): Promise<string | null> {
     const { ctx, logger } = this.#d;
-    if (!found || !host || this.#busy(a.previewId)) return null;
+    if (!found || !host || this.#busy(a.previewId)) {
+      return null;
+    }
     const raw = found.summary.labels;
 
     let preview = ctx.previews.get(a.previewId);
@@ -180,7 +205,9 @@ export class Reconciler {
     }
     if (!preview) {
       preview = this.#adoptPreview(a, found.summary, host);
-      if (!preview) return this.#stop(host, found.summary, "unadoptable");
+      if (!preview) {
+        return this.#stop(host, found.summary, "unadoptable");
+      }
     }
 
     if (!isInRange(a.upstream.port, host.ports)) {
@@ -213,7 +240,9 @@ export class Reconciler {
     const { ctx } = this.#d;
     const raw = summary.labels;
     const project = raw[LABEL.project] ?? raw["com.docker.compose.project"];
-    if (!isUlid(a.previewId) || !project || ctx.previews.getByProject(project)) return undefined;
+    if (!isUlid(a.previewId) || !project || ctx.previews.getByProject(project)) {
+      return undefined;
+    }
     const ttlText = ctx.policy.default().ttl;
     const ttl = ttlText === null ? null : parseDuration(ttlText);
     const preview = ctx.previews.create({

@@ -36,7 +36,9 @@ export function planArtifact(ctx: RuleContext): boolean {
     record(ctx, "index.html", lintHtml(html), "html");
     return true;
   }
-  if (!have.has(ARTIFACT_FILE) || have.has("index.html")) return false;
+  if (!have.has(ARTIFACT_FILE) || have.has("index.html")) {
+    return false;
+  }
   plan.serve = { kind: "static", output: false, fallback: "spa" };
   const body = text(ARTIFACT_FILE);
   if (body === undefined) {

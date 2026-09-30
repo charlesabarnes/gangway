@@ -40,7 +40,9 @@ export function createForge(
       ...actions,
       urls: (id) => urlsFor(ctx, id),
       forgeRefs: (id) => ctx.previews.forgeRefs(id),
-      setForgeRefs: (id, refs) => ctx.previews.setForgeRefs(id, refs),
+      setForgeRefs: (id, refs) => {
+        ctx.previews.setForgeRefs(id, refs);
+      },
     },
     logUrlFor: (id) =>
       settings.get(SETTINGS.surfacesUi) ? `${core.origin("app")}/previews/${id}` : undefined,

@@ -217,8 +217,9 @@ describe("the mcp surface", () => {
       }
     }
     expect(INSTRUCTIONS.length).toBeLessThan(1400);
-    for (const text of [skill, artifactPrompt(undefined), INSTRUCTIONS])
+    for (const text of [skill, artifactPrompt(undefined), INSTRUCTIONS]) {
       expect(text.replace(/`/g, "")).toContain("artifact.md");
+    }
   });
 
   test("the plugin's setup skill names the tool and the file the server hands out", () => {
@@ -280,10 +281,14 @@ describe("the mcp surface", () => {
     const drained = (async () => {
       for (;;) {
         const { done } = await body.read();
-        if (done) return;
+        if (done) {
+          return;
+        }
       }
     })();
-    for (let i = 0; i < 200 && s.ctx.previews.list({}).length === 0; i++) await Bun.sleep(5);
+    for (let i = 0; i < 200 && s.ctx.previews.list({}).length === 0; i++) {
+      await Bun.sleep(5);
+    }
     const p = resolvePreview(s.ctx, "slow");
     s.mcp.dropAll();
     expect(s.mcp.open).toBe(0);

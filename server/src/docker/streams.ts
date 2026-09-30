@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { DockerEvent, LogLine, LogStream } from "./client-types.ts";
 
 const DEMUX_HEADER = 8;
@@ -17,8 +18,10 @@ export async function* demultiplex(
   for await (const chunk of chunks) {
     append(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
     for (;;) {
-      if (buf.length < DEMUX_HEADER) break;
-      const type = buf[0]!;
+      const [type] = buf;
+      if (type === undefined || buf.length < DEMUX_HEADER) {
+        break;
+      }
       const framed =
         (type === 0 || type === 1 || type === 2) && buf[1] === 0 && buf[2] === 0 && buf[3] === 0;
       if (!framed) {
@@ -28,7 +31,9 @@ export async function* demultiplex(
       }
       const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
       const size = view.getUint32(4, false);
-      if (buf.length < DEMUX_HEADER + size) break;
+      if (buf.length < DEMUX_HEADER + size) {
+        break;
+      }
       yield {
         stream: type === 2 ? "stderr" : "stdout",
         bytes: buf.slice(DEMUX_HEADER, DEMUX_HEADER + size),
@@ -36,7 +41,9 @@ export async function* demultiplex(
       buf = buf.slice(DEMUX_HEADER + size);
     }
   }
-  if (buf.length > 0) yield { stream: "stdout", bytes: buf };
+  if (buf.length > 0) {
+    yield { stream: "stdout", bytes: buf };
+  }
 }
 
 const TS_RE = /^(\d{4}-\d{2}-\d{2}T\S+)\s(.*)$/s;
@@ -49,22 +56,33 @@ export async function* toLogLines(
   const partial: Record<LogStream, string> = { stdout: "", stderr: "" };
 
   const emit = (stream: LogStream, raw: string): LogLine => {
-    if (!timestamps) return { stream, line: raw };
+    if (!timestamps) {
+      return { stream, line: raw };
+    }
     const m = TS_RE.exec(raw);
-    if (!m) return { stream, line: raw };
-    const at = new Date(m[1]!);
-    return Number.isNaN(at.getTime()) ? { stream, line: raw } : { stream, line: m[2]!, at };
+    if (!m) {
+      return { stream, line: raw };
+    }
+    const [, stamp, line] = m;
+    const at = new Date(must(stamp, "a log timestamp"));
+    return Number.isNaN(at.getTime())
+      ? { stream, line: raw }
+      : { stream, line: must(line, "a log line"), at };
   };
 
   for await (const frame of frames) {
     const text = partial[frame.stream] + dec.decode(frame.bytes, { stream: true });
     const parts = text.split("\n");
     partial[frame.stream] = parts.pop() ?? "";
-    for (const p of parts) yield emit(frame.stream, p.replace(/\r$/, ""));
+    for (const p of parts) {
+      yield emit(frame.stream, p.replace(/\r$/, ""));
+    }
   }
   for (const stream of ["stdout", "stderr"] as const) {
     const rest = partial[stream];
-    if (rest !== "") yield emit(stream, rest);
+    if (rest !== "") {
+      yield emit(stream, rest);
+    }
   }
 }
 
@@ -80,16 +98,22 @@ export async function* parseEventStream(
       const line = buf.slice(0, nl).trim();
       buf = buf.slice(nl + 1);
       const ev = parseEventLine(line);
-      if (ev) yield ev;
+      if (ev) {
+        yield ev;
+      }
       nl = buf.indexOf("\n");
     }
   }
   const last = parseEventLine(buf.trim());
-  if (last) yield last;
+  if (last) {
+    yield last;
+  }
 }
 
 function parseEventLine(line: string): DockerEvent | null {
-  if (line === "") return null;
+  if (line === "") {
+    return null;
+  }
   let raw: Record<string, unknown>;
   try {
     raw = JSON.parse(line) as Record<string, unknown>;

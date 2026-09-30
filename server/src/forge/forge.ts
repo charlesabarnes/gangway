@@ -1,4 +1,5 @@
 import { type ForgeId, CLEARANCES, type Clearance } from "@gangway/shared/domain";
+import { must } from "@gangway/shared/must";
 
 export type { ForgeId };
 
@@ -84,14 +85,19 @@ export type Forge = {
 export function parsePreviewCommand(body: string): ParsedCommand | null {
   const first = body.split(/\r?\n/, 1)[0]?.trim() ?? "";
   const m = /^\/preview\s+([a-z]+)(?:\s+([a-z]+))?\s*$/i.exec(first);
-  if (!m) return null;
-  const verb = m[1]!.toLowerCase();
+  if (!m) {
+    return null;
+  }
+  const verb = must(m[1], "a /preview verb").toLowerCase();
   const arg = m[2]?.toLowerCase();
-  if (verb === "secrets")
+  if (verb === "secrets") {
     return arg !== undefined && (CLEARANCES as readonly string[]).includes(arg)
       ? { command: "secrets", level: arg as Clearance }
       : null;
-  if (arg !== undefined) return null;
+  }
+  if (arg !== undefined) {
+    return null;
+  }
   return (PREVIEW_COMMANDS as readonly string[]).includes(verb)
     ? { command: verb as Exclude<PreviewCommand, "secrets"> }
     : null;

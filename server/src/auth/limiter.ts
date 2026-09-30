@@ -1,3 +1,5 @@
+import { must } from "@gangway/shared/must";
+
 export type LimiterOptions = {
   ipMax?: number;
   ipWindowMs?: number;
@@ -17,8 +19,10 @@ const MIN = 60_000;
 
 // IPv6 is keyed by /64, since keying the full address hands an attacker 2^64 fresh counters.
 export function sourceKey(ip: string): string {
-  if (!ip.includes(":")) return ip;
-  const [head = "", tail = ""] = ip.toLowerCase().split("%")[0]!.split("::");
+  if (!ip.includes(":")) {
+    return ip;
+  }
+  const [head = "", tail = ""] = must(ip.toLowerCase().split("%")[0], "an address").split("::");
   const h = head === "" ? [] : head.split(":");
   const t = tail === "" ? [] : tail.split(":");
   const groups = ip.includes("::")
@@ -43,7 +47,12 @@ export class Bounded<V> {
   set(k: string, v: V): void {
     this.#map.delete(k);
     this.#map.set(k, v);
-    if (this.#map.size > this.#max) this.#map.delete(this.#map.keys().next().value!);
+    if (this.#map.size > this.#max) {
+      const oldest = this.#map.keys().next();
+      if (!oldest.done) {
+        this.#map.delete(oldest.value);
+      }
+    }
   }
   delete(k: string): void {
     this.#map.delete(k);
@@ -84,12 +93,15 @@ export class LoginLimiter {
     const sec = (until: number) => Math.max(1, Math.ceil((until - now) / 1000));
 
     const e = this.#emails.get(email);
-    if (e && e.lockedUntil > now)
+    if (e && e.lockedUntil > now) {
       return { ok: false, retryAfterSec: sec(e.lockedUntil), reason: "email" };
+    }
 
     const recent = this.#recent(ip, now);
-    if (recent.length >= this.#o.ipMax)
-      return { ok: false, retryAfterSec: sec(recent[0]! + this.#o.ipWindowMs), reason: "ip" };
+    if (recent.length >= this.#o.ipMax) {
+      const oldest = recent[0] ?? now;
+      return { ok: false, retryAfterSec: sec(oldest + this.#o.ipWindowMs), reason: "ip" };
+    }
     return { ok: true };
   }
 

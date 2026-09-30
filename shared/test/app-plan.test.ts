@@ -17,6 +17,14 @@ const plan = (
 const pkg = (o: Record<string, unknown>) => JSON.stringify(o);
 const start = (p: AppPlan) => (p.start === null ? null : cmdText(p.start));
 
+/** Enough for detection to read each marker file. */
+function starterText(path: string): string {
+  if (path === "wrangler.toml") {
+    return 'main = "src/index.ts"';
+  }
+  return path.endsWith(".json") ? "{}" : "";
+}
+
 describe("runtime detection", () => {
   test.each([
     [["compose.yaml", "package.json"], "own"],
@@ -31,12 +39,7 @@ describe("runtime detection", () => {
   ])("%j -> %s", (paths, want) => {
     const p = planApp({
       paths,
-      files: Object.fromEntries(
-        paths.map((x) => [
-          x,
-          x === "wrangler.toml" ? 'main = "src/index.ts"' : x.endsWith(".json") ? "{}" : "",
-        ]),
-      ),
+      files: Object.fromEntries(paths.map((x) => [x, starterText(x)])),
     });
     expect(p.kind === "own" ? "own" : p.runtime).toBe(want as never);
     expect(want).toBe(detectRuntime(paths) as never);
@@ -339,8 +342,18 @@ test("planFilePaths keeps the files the plan reads, at the root and one level do
 
 test("gangway.yml's JSON Schema is valid JSON with every key", () => {
   const schema = gangwayJsonSchema() as { properties: Record<string, unknown> };
-  for (const k of ["runtime", "start", "build", "static", "env", "release", "healthcheck", "root"])
+  for (const k of [
+    "runtime",
+    "start",
+    "build",
+    "static",
+    "env",
+    "release",
+    "healthcheck",
+    "root",
+  ]) {
     expect(schema.properties[k]).toBeDefined();
+  }
   expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
 });
 

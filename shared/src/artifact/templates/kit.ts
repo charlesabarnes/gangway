@@ -106,17 +106,18 @@ export function rng(seed: number): () => number {
   };
 }
 
-export function series(
-  seed: number,
-  n: number,
-  base: number,
-  spread: number,
-  growth = 0,
-): number[] {
+function roundingStep(base: number): number {
+  if (base >= 100) {
+    return 1;
+  }
+  return base >= 1 ? 0.1 : 0.0001;
+}
+
+export function series(seed: number, n: number, base: number, spread: number): number[] {
   const r = rng(seed);
-  const step = base >= 100 ? 1 : base >= 1 ? 0.1 : 0.0001;
-  return Array.from({ length: n }, (_, i) => {
-    const v = Math.max(0, base + (r() - 0.5) * spread + i * growth);
+  const step = roundingStep(base);
+  return Array.from({ length: n }, () => {
+    const v = Math.max(0, base + (r() - 0.5) * spread);
     return Math.round(Math.round(v / step) * step * 10_000) / 10_000;
   });
 }

@@ -29,36 +29,51 @@ export function sse(c: Context<AppEnv>, source: SseSource, o: SseOptions = {}): 
     const queue: SseMessage[] = [];
     let wake: (() => void) | null = null;
     let open = true;
+    // Read through a call: close() flips it from callbacks the checker cannot see.
+    const isOpen = () => open;
 
     const close = () => {
       open = false;
       wake?.();
     };
     const unsubscribe = source((m) => {
-      if (queue.length >= maxQueue) return close();
+      if (queue.length >= maxQueue) {
+        close();
+        return;
+      }
       queue.push(m);
       wake?.();
     });
     stream.onAbort(close);
     o.signal?.addEventListener("abort", close, { once: true });
-    if (o.signal?.aborted) close();
+    if (o.signal?.aborted) {
+      close();
+    }
 
     try {
       // Some proxies hold response headers until the first body byte, delaying onopen until the first heartbeat.
       await stream.write(": connected\n\n");
-      while (open) {
+      while (isOpen()) {
         const batch = queue.splice(0);
-        for (const m of batch) await stream.writeSSE(m);
-        if (!open || queue.length > 0) continue;
+        for (const m of batch) {
+          await stream.writeSSE(m);
+        }
+        if (!isOpen() || queue.length > 0) {
+          continue;
+        }
         const timedOut = await new Promise<boolean>((resolve) => {
-          const t = setTimeout(() => resolve(true), heartbeatMs);
+          const t = setTimeout(() => {
+            resolve(true);
+          }, heartbeatMs);
           wake = () => {
             clearTimeout(t);
             resolve(false);
           };
         });
         wake = null;
-        if (timedOut && open) await stream.write(": keepalive\n\n");
+        if (timedOut && isOpen()) {
+          await stream.write(": keepalive\n\n");
+        }
       }
     } finally {
       o.signal?.removeEventListener("abort", close);

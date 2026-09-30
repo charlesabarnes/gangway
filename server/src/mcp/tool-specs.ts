@@ -12,12 +12,20 @@ const MAX_CHECKS = 20;
 type Json = { [k: string]: unknown };
 
 function simplify(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(simplify);
-  if (!node || typeof node !== "object") return node;
+  if (Array.isArray(node)) {
+    return node.map(simplify);
+  }
+  if (!node || typeof node !== "object") {
+    return node;
+  }
   const out: Json = {};
   for (const [k, v] of Object.entries(node)) {
-    if (k === "$schema" || k === "propertyNames") continue;
-    if (k === "type" && Array.isArray(v)) continue;
+    if (k === "$schema" || k === "propertyNames") {
+      continue;
+    }
+    if (k === "type" && Array.isArray(v)) {
+      continue;
+    }
     out[k] = simplify(v);
   }
   return out;
@@ -38,7 +46,9 @@ export function plain<S extends z.ZodType>(schema: S): S {
 
 // Some clients send a nested object as its JSON text.
 export function jsonObject(v: unknown): unknown {
-  if (typeof v !== "string") return v;
+  if (typeof v !== "string") {
+    return v;
+  }
   try {
     return JSON.parse(v) as unknown;
   } catch {

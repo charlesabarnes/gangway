@@ -14,14 +14,20 @@ export type SecretChangeDeps = {
 const RUNNING: ReadonlySet<Preview["state"]> = new Set(["building", "starting", "awake", "asleep"]);
 
 function mapFor(secrets: Secrets, target: SecretTarget) {
-  if (target.kind === "org") return secrets.global();
-  if (target.kind === "project") return secrets.project(target.project.id);
+  if (target.kind === "org") {
+    return secrets.global();
+  }
+  if (target.kind === "project") {
+    return secrets.project(target.project.id);
+  }
   return secrets.preview(target.preview.id);
 }
 
 function allow(actor: Actor, target: SecretTarget): void {
   const why = secretRefusal(actor, target);
-  if (why) throw forbidden(why);
+  if (why) {
+    throw forbidden(why);
+  }
 }
 
 /** Names and levels only: no path returns a value. */
@@ -49,11 +55,13 @@ export function changeSecrets(
 export function appliesTo(d: SecretChangeDeps, target: SecretTarget): string {
   if (target.kind === "preview") {
     const kind = target.preview.source.kind;
-    return kind === "tarball"
-      ? `stored on ${target.name}; it takes effect on its next rebuild (deploy with preview: "${target.name}")`
-      : kind === "pr"
-        ? `stored on ${target.name}; it takes effect on the pull request's next push, and is kept across pushes`
-        : `stored on ${target.name}; it takes effect when it is deployed again`;
+    if (kind === "tarball") {
+      return `stored on ${target.name}; it takes effect on its next rebuild (deploy with preview: "${target.name}")`;
+    }
+    if (kind === "pr") {
+      return `stored on ${target.name}; it takes effect on the pull request's next push, and is kept across pushes`;
+    }
+    return `stored on ${target.name}; it takes effect when it is deployed again`;
   }
   const running = d.previews
     .list({})

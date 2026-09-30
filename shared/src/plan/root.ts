@@ -1,3 +1,4 @@
+import { must } from "../must.ts";
 import { GANGWAY_FILES } from "../gangway-file.ts";
 import { DETECTION } from "../runtimes.ts";
 import { readConfig, type ConfigRead } from "./config.ts";
@@ -11,13 +12,17 @@ const APP_MARKERS = new Set([
 ]);
 
 function nestedRoot(paths: readonly string[]): string | null {
-  if (paths.some((p) => !p.includes("/") && APP_MARKERS.has(p))) return null;
+  if (paths.some((p) => !p.includes("/") && APP_MARKERS.has(p))) {
+    return null;
+  }
   const dirs = new Set<string>();
   for (const p of paths) {
-    const parts = p.split("/");
-    if (parts.length === 2 && APP_MARKERS.has(parts[1]!)) dirs.add(parts[0]!);
+    const [dir, file, ...deeper] = p.split("/");
+    if (dir !== undefined && file !== undefined && !deeper.length && APP_MARKERS.has(file)) {
+      dirs.add(dir);
+    }
   }
-  return dirs.size === 1 ? [...dirs][0]! : null;
+  return dirs.size === 1 ? must([...dirs][0], "the one app directory") : null;
 }
 
 export function useExplicitRoot(plan: AppPlan, input: PlanInput, root: string): boolean {
@@ -32,7 +37,9 @@ export function useExplicitRoot(plan: AppPlan, input: PlanInput, root: string): 
 
 export function useNestedRoot(plan: AppPlan, input: PlanInput): ConfigRead | null {
   const nested = nestedRoot(input.paths);
-  if (!nested) return null;
+  if (!nested) {
+    return null;
+  }
   plan.root = nested;
   plan.reasons.push({
     level: "info",
@@ -53,7 +60,11 @@ export function scopeToRoot(input: PlanInput, root: string): Scope {
 }
 
 export function warnNestedContainerFiles(plan: AppPlan, have: Set<string>): void {
-  if (plan.root && (have.has("Dockerfile") || DETECTION[0]!.markers.some((m) => have.has(m)))) {
+  if (
+    plan.root &&
+    (have.has("Dockerfile") ||
+      DETECTION.some((r) => r.runtime === "own" && r.markers.some((m) => have.has(m))))
+  ) {
     plan.reasons.push({
       level: "warn",
       found: `${plan.root}/ has a Dockerfile or compose file`,

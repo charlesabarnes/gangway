@@ -43,7 +43,9 @@ function make() {
     return (path: string, init: RequestInit & { json?: unknown } = {}) => {
       const headers = new Headers(init.headers);
       headers.set("host", host);
-      if (init.json !== undefined) headers.set("content-type", "application/json");
+      if (init.json !== undefined) {
+        headers.set("content-type", "application/json");
+      }
       return Promise.resolve(
         h(
           new Request(`https://${host}${path}`, {
@@ -188,11 +190,12 @@ describe("login over HTTP", () => {
 
   test("lockout reaches the client as 429 with Retry-After", async () => {
     const t = await loggedIn();
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 5; i++) {
       await t.app("/v1/auth/login", {
         method: "POST",
         json: { email: "ada@example.com", password: "wrong wrong wrong" },
       });
+    }
     const res = await t.app("/v1/auth/login", {
       method: "POST",
       json: { email: "ada@example.com", password: PASSWORD },

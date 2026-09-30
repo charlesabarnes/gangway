@@ -59,12 +59,14 @@ export const talk: ArtifactTemplate = {
     const takeaways = block(
       "grid",
       { columns: 3 },
-      [
-        ["A hostname", "Each preview is its own origin, so apps run as they do in production."],
-        ["A lookup", "Routing is one read from a table in memory, never the database."],
-        ["A stream", "The proxy passes bodies through as they come; it never waits."],
-      ]
-        .map(([t, d]) => block("card", { title: t! }, d!))
+      (
+        [
+          ["A hostname", "Each preview is its own origin, so apps run as they do in production."],
+          ["A lookup", "Routing is one read from a table in memory, never the database."],
+          ["A stream", "The proxy passes bodies through as they come; it never waits."],
+        ] as const
+      )
+        .map(([title, d]) => block("card", { title }, d))
         .join("\n"),
       4,
     );

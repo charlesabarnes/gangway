@@ -1,3 +1,4 @@
+import { must } from "../../../must.ts";
 import {
   block,
   chart,
@@ -55,12 +56,11 @@ export const report: ArtifactTemplate = {
     const weeks = ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"];
     const install = series(3, 8, 4.6, 0.4).map((v, i) => (i < 4 ? v : Math.round(v * 18) / 100));
     const tests = series(5, 8, 5.9, 0.4).map((v, i) => (i < 5 ? v : Math.round(v * 50) / 100));
-    const rows = weeks.map((week, i) => ({
-      week,
-      install: install[i]!,
-      tests: tests[i]!,
-      total: Math.round((install[i]! + tests[i]!) * 10) / 10,
-    }));
+    const rows = weeks.map((week, i) => {
+      const a = must(install[i], "an install time");
+      const b = must(tests[i], "a test time");
+      return { week, install: a, tests: b, total: Math.round((a + b) * 10) / 10 };
+    });
     const type = str(s, "chart");
     const stacked = type === "bar";
     const plot = chart(type, {

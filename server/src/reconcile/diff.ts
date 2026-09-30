@@ -116,9 +116,12 @@ type CompleteLabels = {
 
 // Missing visibility resolves to private: wrongly private is safer than wrongly public.
 const completeLabels = (l: ScannedLabels): CompleteLabels | null => {
-  if (!l.previewId || !l.hostname || !l.service) return null;
-  if (l.containerPort === undefined || !Number.isInteger(l.containerPort) || l.containerPort <= 0)
+  if (!l.previewId || !l.hostname || !l.service) {
     return null;
+  }
+  if (l.containerPort === undefined || !Number.isInteger(l.containerPort) || l.containerPort <= 0) {
+    return null;
+  }
   return {
     previewId: l.previewId,
     hostname: l.hostname,
@@ -162,17 +165,23 @@ export const diff = (input: DiffInput): Action[] => {
   const actions: Action[] = [];
   for (const route of routes) {
     const action = routeAction(pass, route);
-    if (action) actions.push(action);
+    if (action) {
+      actions.push(action);
+    }
   }
   for (const c of containers) {
     const action = containerAction(pass, c);
-    if (action) actions.push(action);
+    if (action) {
+      actions.push(action);
+    }
   }
   return actions;
 };
 
 function byString(a: string, b: string): number {
-  if (a < b) return -1;
+  if (a < b) {
+    return -1;
+  }
   return a > b ? 1 : 0;
 }
 
@@ -180,10 +189,15 @@ function byHostname(containers: readonly ScannedContainer[]): Map<string, Scanne
   const out = new Map<string, ScannedContainer[]>();
   for (const c of containers) {
     const h = c.labels.hostname;
-    if (h === undefined) continue;
+    if (h === undefined) {
+      continue;
+    }
     const bucket = out.get(h);
-    if (bucket) bucket.push(c);
-    else out.set(h, [c]);
+    if (bucket) {
+      bucket.push(c);
+    } else {
+      out.set(h, [c]);
+    }
   }
   return out;
 }
@@ -205,8 +219,12 @@ function leave(
 
 function routeAction(p: Pass, route: Route): Action | null {
   const preview = p.previewsById.get(route.previewId);
-  if (!preview) return leave(p.now, "unknown-preview", { hostname: route.hostname });
-  if (servedByGangway(preview)) return servedAction(p, route, preview);
+  if (!preview) {
+    return leave(p.now, "unknown-preview", { hostname: route.hostname });
+  }
+  if (servedByGangway(preview)) {
+    return servedAction(p, route, preview);
+  }
   if (!p.reachable(preview.hostId)) {
     // An unreachable host is not an empty host: decide nothing from missing containers.
     return leave(p.now, "host-unreachable", { hostname: route.hostname });
@@ -221,17 +239,24 @@ function routeAction(p: Pass, route: Route): Action | null {
     return upstreamAction(p.now, route, candidate);
   }
 
-  if (p.settled.has(preview.id)) return null;
+  if (p.settled.has(preview.id)) {
+    return null;
+  }
   return missingContainerAction(p, route, preview);
 }
 
 // No container to find: a container still labelled with this hostname is stopped as a conflict.
 function servedAction(p: Pass, route: Route, preview: Preview): Action | null {
   const where = { hostname: route.hostname };
-  if (preview.state !== "building" && preview.state !== "starting")
+  if (preview.state !== "building" && preview.state !== "starting") {
     return leave(p.now, "served-by-gangway", where);
-  if (p.liveBuilds.has(preview.id)) return leave(p.now, "build-in-flight", where);
-  if (p.settled.has(preview.id)) return null;
+  }
+  if (p.liveBuilds.has(preview.id)) {
+    return leave(p.now, "build-in-flight", where);
+  }
+  if (p.settled.has(preview.id)) {
+    return null;
+  }
   p.settled.add(preview.id);
   return {
     kind: "MarkFailed",
@@ -243,12 +268,15 @@ function servedAction(p: Pass, route: Route, preview: Preview): Action | null {
 
 function upstreamAction(now: number, route: Route, candidate: ScannedContainer): Action {
   const where = { hostname: route.hostname, containerId: candidate.id };
-  if (candidate.publishedPort === null) return leave(now, "container-port-unknown", where);
+  if (candidate.publishedPort === null) {
+    return leave(now, "container-port-unknown", where);
+  }
   if (
     candidate.publishedPort === route.upstream.port &&
     candidate.upstreamHost === route.upstream.host
-  )
+  ) {
     return leave(now, "in-sync", where);
+  }
   return {
     kind: "UpdateUpstream",
     at: now,
@@ -264,7 +292,9 @@ function missingContainerAction(p: Pass, route: Route, preview: Preview): Action
   const where = { hostname: route.hostname };
   switch (preview.state) {
     case "building":
-      if (p.liveBuilds.has(preview.id)) return leave(p.now, "build-in-flight", where);
+      if (p.liveBuilds.has(preview.id)) {
+        return leave(p.now, "build-in-flight", where);
+      }
       p.settled.add(preview.id);
       return {
         kind: "MarkFailed",
@@ -278,6 +308,8 @@ function missingContainerAction(p: Pass, route: Route, preview: Preview): Action
     case "destroying":
     case "destroyed":
       return leave(p.now, "preview-inactive", where);
+    case "starting":
+    case "awake":
     default:
       p.settled.add(preview.id);
       return { kind: "MarkAsleep", at: p.now, previewId: preview.id };
@@ -287,17 +319,29 @@ function missingContainerAction(p: Pass, route: Route, preview: Preview): Action
 function containerAction(p: Pass, c: ScannedContainer): Action | null {
   const labelHostname = c.labels.hostname ?? null;
   const where = { hostname: labelHostname, containerId: c.id };
-  if (!p.reachable(c.hostId)) return leave(p.now, "host-unreachable", where);
-  if (p.matched.has(c.id)) return null;
-  if ((c.labels.version ?? GANGWAY_LABEL_VERSION) > GANGWAY_LABEL_VERSION)
+  if (!p.reachable(c.hostId)) {
+    return leave(p.now, "host-unreachable", where);
+  }
+  if (p.matched.has(c.id)) {
+    return null;
+  }
+  if ((c.labels.version ?? GANGWAY_LABEL_VERSION) > GANGWAY_LABEL_VERSION) {
     return leave(p.now, "newer-gangway", where);
-  if (c.state !== "running") return leave(p.now, "container-exited", where);
+  }
+  if (c.state !== "running") {
+    return leave(p.now, "container-exited", where);
+  }
 
   const labels = completeLabels(c.labels);
-  if (!labels) return stopOrphan(p.now, c, labelHostname, "incomplete-labels");
-  if (p.routesByHostname.has(labels.hostname) || p.claimed.has(labels.hostname))
+  if (!labels) {
+    return stopOrphan(p.now, c, labelHostname, "incomplete-labels");
+  }
+  if (p.routesByHostname.has(labels.hostname) || p.claimed.has(labels.hostname)) {
     return stopOrphan(p.now, c, labels.hostname, "hostname-conflict");
-  if (c.publishedPort === null) return stopOrphan(p.now, c, labels.hostname, "unroutable");
+  }
+  if (c.publishedPort === null) {
+    return stopOrphan(p.now, c, labels.hostname, "unroutable");
+  }
 
   p.claimed.add(labels.hostname);
   return {

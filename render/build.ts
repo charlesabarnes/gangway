@@ -16,10 +16,12 @@ const FONTS: Record<string, string> = {
 };
 // The faces a theme may pick (shared/src/artifact/fonts.ts), Inter and Kalam among them.
 for (const f of kitFaces()) {
-  for (const w of f.weights)
+  for (const w of f.weights) {
     FONTS[`${f.file}-${w}`] = `${f.pkg}/files/${f.pkg}-latin-${w}-normal.woff2`;
-  for (const w of f.italic ?? [])
+  }
+  for (const w of f.italic ?? []) {
     FONTS[`${f.file}-${w}-italic`] = `${f.pkg}/files/${f.pkg}-latin-${w}-italic.woff2`;
+  }
 }
 
 await rm(OUT, { recursive: true, force: true });
@@ -35,7 +37,9 @@ const built = await Bun.build({
   define: { "process.env.NODE_ENV": '"production"' },
 });
 if (!built.success) {
-  for (const log of built.logs) console.error(log);
+  for (const log of built.logs) {
+    console.error(log);
+  }
   process.exit(1);
 }
 const elk = await Bun.build({
@@ -48,7 +52,9 @@ const elk = await Bun.build({
   sourcemap: "none",
 });
 if (!elk.success) {
-  for (const log of elk.logs) console.error(log);
+  for (const log of elk.logs) {
+    console.error(log);
+  }
   process.exit(1);
 }
 await Bun.write(
@@ -65,8 +71,9 @@ for (const [name, rel] of Object.entries(FONTS)) {
   const src = Bun.resolveSync(`@fontsource/${rel}`, HERE);
   await Bun.write(path.join(OUT, "fonts", `${name}.woff2`), Bun.file(src));
 }
-for (const name of ["logo.svg", "logo-light.svg"])
+for (const name of ["logo.svg", "logo-light.svg"]) {
   await Bun.write(path.join(OUT, name), Bun.file(path.join(HERE, "../web/public", name)));
+}
 await Bun.write(
   path.join(OUT, "favicon.svg"),
   Bun.file(path.join(HERE, "../web/public/favicon-preview.svg")),
@@ -74,8 +81,9 @@ await Bun.write(
 const js = await Bun.file(path.join(OUT, "kit.js")).arrayBuffer();
 const hasher = new Bun.CryptoHasher("sha256");
 hasher.update(js);
-for (const f of ["kit.css", "legacy.css", "elk.js"])
+for (const f of ["kit.css", "legacy.css", "elk.js"]) {
   hasher.update(await Bun.file(path.join(OUT, f)).arrayBuffer());
+}
 const version = hasher.digest("hex").slice(0, 12);
 await Bun.write(path.join(OUT, "manifest.json"), `${JSON.stringify({ version }, null, 2)}\n`);
 const elkSize = Bun.file(path.join(OUT, "elk.js")).size;

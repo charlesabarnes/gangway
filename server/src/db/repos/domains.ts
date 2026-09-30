@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Domain, DomainKind, DomainStatus } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToDomain, type DomainRow } from "./mappers.ts";
@@ -43,43 +44,46 @@ export class DomainsRepo {
         now,
       },
     );
-    return this.get(d.id)!;
+    return must(this.get(d.id), "the domain just saved");
   }
 
   get(id: string): Domain | undefined {
-    const r = this.#db.get<DomainRow>("SELECT * FROM domains WHERE id = $id", { id });
+    const r = this.#db.get("SELECT * FROM domains WHERE id = $id", { id }) as DomainRow | undefined;
     return r ? rowToDomain(r) : undefined;
   }
 
   byName(name: string): Domain | undefined {
-    const r = this.#db.get<DomainRow>("SELECT * FROM domains WHERE name = $name", { name });
+    const r = this.#db.get("SELECT * FROM domains WHERE name = $name", { name }) as
+      DomainRow | undefined;
     return r ? rowToDomain(r) : undefined;
   }
 
   all(): Domain[] {
-    return this.#db.query<DomainRow>("SELECT * FROM domains ORDER BY name").map(rowToDomain);
+    return (this.#db.query("SELECT * FROM domains ORDER BY name") as DomainRow[]).map(rowToDomain);
   }
 
   forProject(projectId: string): Domain[] {
-    return this.#db
-      .query<DomainRow>("SELECT * FROM domains WHERE project_id = $p ORDER BY name", {
+    return (
+      this.#db.query("SELECT * FROM domains WHERE project_id = $p ORDER BY name", {
         p: projectId,
-      })
-      .map(rowToDomain);
+      }) as DomainRow[]
+    ).map(rowToDomain);
   }
 
   forPreview(previewId: string): Domain[] {
-    return this.#db
-      .query<DomainRow>("SELECT * FROM domains WHERE preview_id = $p ORDER BY name", {
+    return (
+      this.#db.query("SELECT * FROM domains WHERE preview_id = $p ORDER BY name", {
         p: previewId,
-      })
-      .map(rowToDomain);
+      }) as DomainRow[]
+    ).map(rowToDomain);
   }
 
   pending(): Domain[] {
-    return this.#db
-      .query<DomainRow>("SELECT * FROM domains WHERE status = 'pending' ORDER BY created_at")
-      .map(rowToDomain);
+    return (
+      this.#db.query(
+        "SELECT * FROM domains WHERE status = 'pending' ORDER BY created_at",
+      ) as DomainRow[]
+    ).map(rowToDomain);
   }
 
   /** A check's outcome. Becoming active stamps verified_at once. */

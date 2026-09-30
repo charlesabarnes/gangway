@@ -20,14 +20,20 @@ export class BodyTooLarge extends Error {
 }
 
 export function tryAcquire(entry: RouteEntry, limits: Limits): boolean {
-  if (entry.inflight >= limits.maxInflight) return false;
-  if (entry.bytesInFlight >= limits.maxBytesInFlight) return false;
+  if (entry.inflight >= limits.maxInflight) {
+    return false;
+  }
+  if (entry.bytesInFlight >= limits.maxBytesInFlight) {
+    return false;
+  }
   entry.inflight++;
   return true;
 }
 
 export function release(entry: RouteEntry): void {
-  if (entry.inflight > 0) entry.inflight--;
+  if (entry.inflight > 0) {
+    entry.inflight--;
+  }
 }
 
 export function capBody(
@@ -40,7 +46,9 @@ export function capBody(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, ctrl) {
         seen += chunk.byteLength;
-        if (entry) entry.bytesInFlight += chunk.byteLength;
+        if (entry) {
+          entry.bytesInFlight += chunk.byteLength;
+        }
         if (seen > max) {
           ctrl.error(new BodyTooLarge(max));
           return;
@@ -48,7 +56,9 @@ export function capBody(
         ctrl.enqueue(chunk);
       },
       flush() {
-        if (entry) entry.bytesInFlight = Math.max(0, entry.bytesInFlight - seen);
+        if (entry) {
+          entry.bytesInFlight = Math.max(0, entry.bytesInFlight - seen);
+        }
       },
     }),
   );

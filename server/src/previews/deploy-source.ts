@@ -25,6 +25,8 @@ export type Materialized = {
 };
 
 type Env = Record<string, string> | undefined;
+/** Where a source is written: the preview it is for, its secrets and its working directory. */
+export type SourceTarget = { id: string; env: Env; wd: Workdir };
 type SourceOf<K extends DeploySource["kind"]> = Extract<DeploySource, { kind: K }>;
 
 async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<string> {
@@ -38,8 +40,9 @@ async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<str
   );
   // Without the caller's cli-plugins linked in, a per-user compose plugin disappears for this command.
   const plugins = join(process.env["DOCKER_CONFIG"] ?? join(homedir(), ".docker"), "cli-plugins");
-  if (await lstat(plugins).catch(() => null))
+  if (await lstat(plugins).catch(() => null)) {
     await symlink(plugins, join(cfg, "cli-plugins")).catch(() => {});
+  }
   return cfg;
 }
 
@@ -56,10 +59,8 @@ async function imageSource(source: SourceOf<"image">, wd: Workdir): Promise<Mate
 
 async function pushedSource(
   ctx: PreviewContext,
-  id: string,
   source: SourceOf<"pushed">,
-  env: Env,
-  wd: Workdir,
+  { id, env, wd }: SourceTarget,
 ): Promise<Materialized> {
   await writeFile(
     join(wd.srcDir, COMPOSE_FILE),
@@ -69,8 +70,9 @@ async function pushedSource(
   const dockerConfig = source.registry
     ? await writeDockerConfig(wd.dir, source.registry)
     : undefined;
-  if (env && Object.keys(env).length > 0)
+  if (env && Object.keys(env).length > 0) {
     ctx.logs.append(id, "system", `passing ${Object.keys(env).length} secret(s) to the container`);
+  }
   return {
     source: {
       kind: "pr",
@@ -129,31 +131,30 @@ async function clonePr(
 
 async function clonedSource(
   ctx: PreviewContext,
-  id: string,
   source: SourceOf<"git" | "pr">,
-  env: Env,
-  wd: Workdir,
+  { id, env, wd }: SourceTarget,
 ): Promise<Materialized> {
   const recorded =
     source.kind === "git"
       ? await cloneGit(ctx, id, source, wd)
       : await clonePr(ctx, id, source, wd);
   await assertNoEscapingSymlinks(wd.srcDir);
-  return { source: recorded, ...(await ownStack(ctx, id, wd.srcDir, env, source.port, null)) };
+  const stack = await ownStack(ctx, { logId: id, srcDir: wd.srcDir, env, port: source.port }, null);
+  return { source: recorded, ...stack };
 }
 
 async function tarballSource(
   ctx: PreviewContext,
-  id: string,
   source: SourceOf<"tarball">,
-  env: Env,
-  wd: Workdir,
+  { id, env, wd }: SourceTarget,
 ): Promise<Materialized> {
   const r = await extractTarball(source.archive, wd.srcDir);
   ctx.logs.append(id, "system", `unpacked ${r.files} files, ${r.totalBytes} bytes`);
-  const up = await prepareUpload(ctx, id, wd, source.runtime ?? "own", env, source.port, {
-    addons: source.addons,
-  });
+  const up = await prepareUpload(
+    ctx,
+    { logId: id, wd, choice: source.runtime ?? "own", env, port: source.port },
+    { addons: source.addons },
+  );
   return {
     source: {
       kind: "tarball",
@@ -172,20 +173,18 @@ async function tarballSource(
 
 export async function writeSource(
   ctx: PreviewContext,
-  id: string,
   source: DeploySource,
-  env: Env,
-  wd: Workdir,
+  target: SourceTarget,
 ): Promise<Materialized> {
   switch (source.kind) {
     case "image":
-      return imageSource(source, wd);
+      return imageSource(source, target.wd);
     case "pushed":
-      return pushedSource(ctx, id, source, env, wd);
+      return pushedSource(ctx, source, target);
     case "tarball":
-      return tarballSource(ctx, id, source, env, wd);
+      return tarballSource(ctx, source, target);
     case "git":
     case "pr":
-      return clonedSource(ctx, id, source, env, wd);
+      return clonedSource(ctx, source, target);
   }
 }

@@ -98,18 +98,29 @@ export type PreviewRow = {
   icon_color?: string | null;
 };
 
+function rowIcon(name: string, color: string | null | undefined): PreviewIcon {
+  return {
+    name: name as PreviewIcon["name"],
+    color: (color ?? DEFAULT_ICON_COLOR) as PreviewIcon["color"],
+  };
+}
+
+// The kind has its own column; the rest of the source is JSON.
+function rowSource(kind: string, json: string): PreviewSource {
+  const source = { kind, ...(JSON.parse(json) as object) };
+  return source as PreviewSource;
+}
+
 export function rowToPreview(r: PreviewRow): Preview {
   return {
     id: r.id,
     project: r.project,
     title: r.title ?? null,
-    icon: r.icon
-      ? ({ name: r.icon, color: r.icon_color ?? DEFAULT_ICON_COLOR } as PreviewIcon)
-      : null,
+    icon: r.icon ? rowIcon(r.icon, r.icon_color) : null,
     hostId: r.host_id,
     kind: r.kind as Preview["kind"],
     state: r.state as Preview["state"],
-    source: { kind: r.source_kind, ...JSON.parse(r.source_json) } as PreviewSource,
+    source: rowSource(r.source_kind, r.source_json),
     visibility: r.visibility as Preview["visibility"],
     ttlExpiresAt: toDate(r.ttl_expires_at),
     idleAfterMs: r.idle_after_ms ?? null,

@@ -257,7 +257,9 @@ export function targetPermissions(
   scopes: readonly Scope[],
   targets: SecretTargets | null | undefined,
 ): Permission[] {
-  if (!targets || !scopes.includes("secrets")) return [];
+  if (!targets || !scopes.includes("secrets")) {
+    return [];
+  }
   const wide = targets.org || targets.projects === "all" || targets.projects.length > 0;
   return wide ? ["repos.secrets"] : [];
 }

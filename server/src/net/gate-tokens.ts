@@ -20,11 +20,15 @@ const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
 
 function cookieValues(req: Request, name: string): string[] {
   const header = req.headers.get("cookie");
-  if (!header) return [];
+  if (!header) {
+    return [];
+  }
   const values: string[] = [];
   for (const part of header.split(";")) {
     const eq = part.indexOf("=");
-    if (eq < 0 || part.slice(0, eq).trim() !== name) continue;
+    if (eq < 0 || part.slice(0, eq).trim() !== name) {
+      continue;
+    }
     values.push(part.slice(eq + 1).trim());
   }
   return values;
@@ -65,8 +69,9 @@ export class GateTokens {
 
   redeem(ticket: string, entry: RouteEntry): TicketBody | null {
     const [payload, sig, extra] = ticket.split(".");
-    if (!payload || !sig || extra !== undefined || !this.#verify("ticket", payload, sig))
+    if (!payload || !sig || extra !== undefined || !this.#verify("ticket", payload, sig)) {
       return null;
+    }
     let body: TicketBody;
     try {
       body = JSON.parse(Buffer.from(payload, "base64url").toString()) as TicketBody;
@@ -74,9 +79,17 @@ export class GateTokens {
       return null;
     }
     const now = this.#o.now();
-    if (body.exp <= now || body.h !== entry.hostname || body.p !== entry.previewId) return null;
-    if (this.#used.has(body.n)) return null;
-    for (const [n, exp] of this.#used) if (exp <= now) this.#used.delete(n);
+    if (body.exp <= now || body.h !== entry.hostname || body.p !== entry.previewId) {
+      return null;
+    }
+    if (this.#used.has(body.n)) {
+      return null;
+    }
+    for (const [n, exp] of this.#used) {
+      if (exp <= now) {
+        this.#used.delete(n);
+      }
+    }
     this.#used.set(body.n, body.exp);
     return body;
   }
@@ -91,14 +104,27 @@ export class GateTokens {
     const out = { valid: false, skip: false };
     for (const value of cookieValues(req, GATE_COOKIE)) {
       const fields = value.split(".");
-      if (fields.length !== 3 && fields.length !== 4) continue;
-      const sig = fields.pop()!;
-      const [previewId, exp, skip] = fields;
-      if (!previewId || !exp || previewId !== entry.previewId || !(Number(exp) > this.#o.now()))
+      if (fields.length !== 3 && fields.length !== 4) {
         continue;
-      if (!this.#verify("cookie", fields.join("."), sig)) continue;
+      }
+      const sig = fields.pop();
+      const [previewId, exp, skip] = fields;
+      if (
+        !sig ||
+        !previewId ||
+        !exp ||
+        previewId !== entry.previewId ||
+        !(Number(exp) > this.#o.now())
+      ) {
+        continue;
+      }
+      if (!this.#verify("cookie", fields.join("."), sig)) {
+        continue;
+      }
       out.valid = true;
-      if (skip === "1") out.skip = true;
+      if (skip === "1") {
+        out.skip = true;
+      }
     }
     return out;
   }
@@ -112,14 +138,17 @@ export class GateTokens {
   hasPasswordCookie(req: Request, entry: RouteEntry, fp: string): boolean {
     for (const value of cookieValues(req, PASSWORD_COOKIE)) {
       const [previewId, exp, cfp, sig, extra] = value.split(".");
-      if (!previewId || !exp || !cfp || !sig || extra !== undefined) continue;
+      if (!previewId || !exp || !cfp || !sig || extra !== undefined) {
+        continue;
+      }
       if (
         previewId === entry.previewId &&
         cfp === fp &&
         Number(exp) > this.#o.now() &&
         this.#verify("password", `${previewId}.${exp}.${cfp}`, sig)
-      )
+      ) {
         return true;
+      }
     }
     return false;
   }

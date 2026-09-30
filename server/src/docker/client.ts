@@ -48,13 +48,15 @@ class DockerodeClient implements DockerClient {
 
   async listContainers(opts: ListOptions = {}): Promise<ContainerSummary[]> {
     const query: Record<string, unknown> = { all: opts.all ?? false };
-    if (opts.filters) query["filters"] = JSON.stringify(opts.filters);
+    if (opts.filters) {
+      query["filters"] = JSON.stringify(opts.filters);
+    }
     const raw = await this.#docker.listContainers(query);
     return raw.map(toSummary);
   }
 
   async inspectContainer(id: string): Promise<InspectJson> {
-    return await this.#docker.getContainer(id).inspect();
+    return this.#docker.getContainer(id).inspect();
   }
 
   async stopContainer(id: string, timeoutSeconds = 10): Promise<void> {
@@ -62,7 +64,9 @@ class DockerodeClient implements DockerClient {
       await this.#docker.getContainer(id).stop({ t: timeoutSeconds });
     } catch (e) {
       // 304 means already stopped.
-      if ((e as { statusCode?: number }).statusCode === 304) return;
+      if ((e as { statusCode?: number }).statusCode === 304) {
+        return;
+      }
       throw e;
     }
   }
@@ -92,10 +96,10 @@ class DockerodeClient implements DockerClient {
   }
 
   async *#events(opts: EventOptions): AsyncGenerator<DockerEvent> {
-    const stream = (await this.#docker.getEvents({
+    const stream: NodeReadableLike = await this.#docker.getEvents({
       ...(opts.since === undefined ? {} : { since: Math.floor(opts.since.getTime() / 1000) }),
       ...(opts.filters === undefined ? {} : { filters: JSON.stringify(opts.filters) }),
-    })) as unknown as NodeReadableLike;
+    });
     yield* this.#consume(stream, opts.signal, parseEventStream);
   }
 
@@ -120,7 +124,9 @@ class DockerodeClient implements DockerClient {
   }
 
   close(): void {
-    for (const s of this.#open) s.destroy?.();
+    for (const s of this.#open) {
+      s.destroy?.();
+    }
     this.#open.clear();
   }
 }
@@ -145,7 +151,9 @@ export class DockerClients {
 
   for(host: Pick<Host, "id" | "dockerHost">): DockerClient {
     const existing = this.#clients.get(host.id);
-    if (existing && existing.dockerHost === host.dockerHost) return existing.client;
+    if (existing?.dockerHost === host.dockerHost) {
+      return existing.client;
+    }
     existing?.client.close();
     const client = createDockerClient(host, this.#opts);
     this.#clients.set(host.id, { dockerHost: host.dockerHost, client });
@@ -158,7 +166,9 @@ export class DockerClients {
   }
 
   closeAll(): void {
-    for (const { client } of this.#clients.values()) client.close();
+    for (const { client } of this.#clients.values()) {
+      client.close();
+    }
     this.#clients.clear();
   }
 }

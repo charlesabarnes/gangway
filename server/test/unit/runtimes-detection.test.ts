@@ -73,8 +73,12 @@ describe("generated build files", () => {
       const dir = await folder(rt.starter);
       const plan = await planRuntime(dir, rt.id, ["API_KEY", "PUBLIC_URL"]);
       for (const [name, code] of Object.entries(plan.files)) {
-        if (name.endsWith(".cjs")) expect(() => new Function("require", code)).not.toThrow();
-        if (name.endsWith(".ts")) expect(() => ts.transformSync(code)).not.toThrow();
+        if (name.endsWith(".cjs")) {
+          expect(() => new Function("require", code)).not.toThrow();
+        }
+        if (name.endsWith(".ts")) {
+          expect(() => ts.transformSync(code)).not.toThrow();
+        }
       }
     }
   });
@@ -144,8 +148,8 @@ describe("generated build files", () => {
     const { composeFile } = await writeRuntime(
       dir,
       await planned(dir, "bun"),
-      { API_KEY: "s3cret" },
       join(out, "c.yaml"),
+      { secrets: { API_KEY: "s3cret" } },
     );
     expect(existsSync(join(dir, ".gangway/Dockerfile"))).toBe(true);
     expect(existsSync(join(dir, ".gangway/entry.ts"))).toBe(true);
@@ -158,7 +162,7 @@ describe("generated build files", () => {
     expect(readFileSync(join(dir, composeFile), "utf8")).toContain("s3cret");
     expect(composeFile.startsWith("..")).toBe(true);
     await expect(
-      writeRuntime(dir, await planned(dir, "bun"), {}, join(dir, "inside.yaml")),
+      writeRuntime(dir, await planned(dir, "bun"), join(dir, "inside.yaml")),
     ).rejects.toMatchObject({ code: "internal" });
   });
 

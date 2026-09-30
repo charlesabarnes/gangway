@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import { ancestors, type FlowGraph, type FlowNode } from "@gangway/shared/artifact/flow";
 import type {
   FlowLayout,
@@ -21,7 +22,8 @@ type ElkNode = {
   layoutOptions?: Record<string, string>;
   children?: ElkNode[];
   edges?: ElkEdge[];
-  labels?: { text: string; width: number; height: number; x?: number; y?: number }[];
+  // What ELK hands back is not checked, so its sizes are read as possibly missing.
+  labels?: { text: string; width?: number; height?: number; x?: number; y?: number }[];
 };
 type ElkPoint = { x: number; y: number };
 type ElkEdge = {
@@ -60,17 +62,24 @@ function ranks(g: FlowGraph): Map<string, number> {
   const edges = g.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
   const into = new Set(edges.map((e) => e.to));
   const rank = new Map<string, number>();
-  const queue = g.nodes.filter((n) => !into.has(n.id)).map((n) => n.id);
-  for (const id of queue) rank.set(id, 0);
-  while (queue.length) {
-    const id = queue.shift()!;
-    for (const e of edges)
-      if (e.from === id && !rank.has(e.to)) {
-        rank.set(e.to, rank.get(id)! + 1);
-        queue.push(e.to);
-      }
+  const queue = g.nodes.filter((n) => !into.has(n.id)).map((n): [string, number] => [n.id, 0]);
+  for (const [id] of queue) {
+    rank.set(id, 0);
   }
-  for (const n of g.nodes) if (!rank.has(n.id)) rank.set(n.id, 0);
+  // The queue grows as it is walked: breadth first.
+  for (const [id, r] of queue) {
+    for (const e of edges) {
+      if (e.from === id && !rank.has(e.to)) {
+        rank.set(e.to, r + 1);
+        queue.push([e.to, r + 1]);
+      }
+    }
+  }
+  for (const n of g.nodes) {
+    if (!rank.has(n.id)) {
+      rank.set(n.id, 0);
+    }
+  }
   return rank;
 }
 
@@ -83,7 +92,9 @@ export function elkGraph(
   const kids = new Map<string | null, ElkNode[]>();
   const add = (parent: string | null, n: ElkNode) =>
     kids.set(parent, [...(kids.get(parent) ?? []), n]);
-  for (const n of g.nodes) add(n.group, { id: n.id, ...toElkSize(size(n)) });
+  for (const n of g.nodes) {
+    add(n.group, { id: n.id, ...toElkSize(size(n)) });
+  }
   const groups = g.groups.map((x): { parent: string | null; node: ElkNode } => ({
     parent: x.parent,
     node: {
@@ -96,8 +107,12 @@ export function elkGraph(
       },
     },
   }));
-  for (const x of groups) add(x.parent, x.node);
-  for (const x of groups) x.node.children = kids.get(x.node.id) ?? [];
+  for (const x of groups) {
+    add(x.parent, x.node);
+  }
+  for (const x of groups) {
+    x.node.children = kids.get(x.node.id) ?? [];
+  }
   return {
     id: "root",
     layoutOptions: {
@@ -133,26 +148,32 @@ const toElkSize = (s: Size) => ({ width: s.w, height: s.h });
 
 /** A polyline as gangway's segments, its corners rounded a little. */
 export function rounded(points: Point[]): { start: Point; segments: Segment[] } {
-  const start = points[0]!;
+  const start = must(points[0], "a line's first point");
   const segments: Segment[] = [];
   let at = start;
   const line = (to: Point) => {
     segments.push({ c1: at, c2: to, to });
     at = to;
   };
-  for (let i = 1; i < points.length - 1; i++) {
-    const [p, q, r] = [points[i - 1]!, points[i]!, points[i + 1]!];
+  for (const [i, q] of points.entries()) {
+    const p = points[i - 1];
+    const r = points[i + 1];
+    if (!p || !r) {
+      continue;
+    }
     const a = Math.hypot(q[0] - p[0], q[1] - p[1]);
     const b = Math.hypot(r[0] - q[0], r[1] - q[1]);
     const k = Math.min(CORNER, a / 2, b / 2);
-    if (k < 0.5) continue;
+    if (k < 0.5) {
+      continue;
+    }
     const before: Point = [q[0] - ((q[0] - p[0]) / a) * k, q[1] - ((q[1] - p[1]) / a) * k];
     const after: Point = [q[0] + ((r[0] - q[0]) / b) * k, q[1] + ((r[1] - q[1]) / b) * k];
     line(before);
     segments.push({ c1: q, c2: q, to: after });
     at = after;
   }
-  line(points.at(-1)!);
+  line(points.at(-1) ?? start);
   return { start, segments };
 }
 
@@ -161,24 +182,41 @@ export function fromElk(g: FlowGraph, out: ElkNode, size: (n: FlowNode) => Size)
   const placed = new Map<string, ElkNode>();
   const visit = (n: ElkNode) => {
     placed.set(n.id, n);
-    for (const c of n.children ?? []) visit(c);
+    for (const c of n.children ?? []) {
+      visit(c);
+    }
   };
   visit(out);
   const rank = ranks(g);
+  const at = (id: string) => {
+    const p = must(placed.get(id), `ELK's box for ${id}`);
+    return { x: p.x ?? 0, y: p.y ?? 0, w: p.width ?? 0, h: p.height ?? 0 };
+  };
   const nodes: PlacedNode[] = g.nodes.map((n) => {
-    const p = placed.get(n.id)!;
+    const p = at(n.id);
     const s = size(n);
-    return { ...n, x: p.x! + s.w / 2, y: p.y! + s.h / 2, w: s.w, h: s.h, rank: rank.get(n.id)! };
+    return {
+      ...n,
+      x: p.x + s.w / 2,
+      y: p.y + s.h / 2,
+      w: s.w,
+      h: s.h,
+      rank: rank.get(n.id) ?? 0,
+    };
   });
-  const groups: PlacedGroup[] = g.groups.map((x) => {
-    const p = placed.get(x.id)!;
-    return { ...x, x: p.x!, y: p.y!, w: p.width!, h: p.height!, depth: ancestors(g, x.id).length };
-  });
+  const groups: PlacedGroup[] = g.groups.map((x) => ({
+    ...x,
+    ...at(x.id),
+    depth: ancestors(g, x.id).length,
+  }));
   // A line to a group draws in with the first box inside it.
   const edgeRank = (id: string) => {
-    if (rank.has(id)) return rank.get(id)!;
+    const own = rank.get(id);
+    if (own !== undefined) {
+      return own;
+    }
     const inside = g.nodes.filter((n) => ancestors(g, n.id).some((a) => a.id === id));
-    return inside.length ? Math.min(...inside.map((n) => rank.get(n.id)!)) : 0;
+    return inside.length ? Math.min(...inside.map((n) => rank.get(n.id) ?? 0)) : 0;
   };
   const byId = new Map((out.edges ?? []).map((e) => [e.id, e]));
   const edges: PlacedEdge[] = g.edges.map((e, i) => {
@@ -191,16 +229,16 @@ export function fromElk(g: FlowGraph, out: ElkNode, size: (n: FlowNode) => Size)
           [0, 0],
         ];
     const l = r?.labels?.[0];
-    const mid = pts[Math.floor(pts.length / 2)]!;
+    const mid = must(pts[Math.floor(pts.length / 2)], "a line's middle point");
     return {
       ...e,
       ...rounded(pts),
-      labelAt: l ? [l.x! + (l.width ?? 0) / 2, l.y! + (l.height ?? 0) / 2] : mid,
+      labelAt: l ? [(l.x ?? 0) + (l.width ?? 0) / 2, (l.y ?? 0) + (l.height ?? 0) / 2] : mid,
       rank: Math.min(edgeRank(e.from), edgeRank(e.to)),
       back: false,
     };
   });
-  return { nodes, edges, groups, width: out.width!, height: out.height! };
+  return { nodes, edges, groups, width: out.width ?? 0, height: out.height ?? 0 };
 }
 
 export async function layoutElk(

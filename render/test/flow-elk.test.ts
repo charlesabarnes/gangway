@@ -34,7 +34,8 @@ describe("laying out a chart with subgraphs", () => {
     const g = parseFlow(CHART);
     const l = await layoutElk(g, size, width, new ELK());
     const box = new Map(l.groups.map((x) => [x.id, x]));
-    const inside = (id: string, x: number, y: number, w: number, h: number) => {
+    type Rect = { x: number; y: number; w: number; h: number };
+    const inside = (id: string, { x, y, w, h }: Rect) => {
       const b = box.get(id)!;
       expect(x).toBeGreaterThanOrEqual(b.x);
       expect(y).toBeGreaterThanOrEqual(b.y + 20);
@@ -42,11 +43,14 @@ describe("laying out a chart with subgraphs", () => {
       expect(y + h).toBeLessThanOrEqual(b.y + b.h);
     };
     for (const n of l.nodes.filter((n) => n.group)) {
-      inside(n.group!, n.x - n.w / 2, n.y - n.h / 2, n.w, n.h);
-      if (n.group === "prod") inside("vps", n.x - n.w / 2, n.y - n.h / 2, n.w, n.h);
+      const at = { x: n.x - n.w / 2, y: n.y - n.h / 2, w: n.w, h: n.h };
+      inside(n.group!, at);
+      if (n.group === "prod") {
+        inside("vps", at);
+      }
     }
     const prod = box.get("prod")!;
-    inside("vps", prod.x, prod.y, prod.w, prod.h);
+    inside("vps", prod);
     expect(box.get("vps")!.depth).toBe(0);
     expect(prod.depth).toBe(1);
     expect(l.width).toBeGreaterThan(0);
@@ -60,7 +64,9 @@ describe("laying out a chart with subgraphs", () => {
       const ends = [e.start, e.segments.at(-1)!.to];
       for (const [id, [x, y]] of [e.from, e.to].map((id, i) => [id, ends[i]!] as const)) {
         const n = at.get(id);
-        if (!n) continue; // a line to a group ends on the group's edge
+        if (!n) {
+          continue;
+        } // a line to a group ends on the group's edge
         expect(Math.abs(x - n.x)).toBeLessThanOrEqual(n.w / 2 + 1);
         expect(Math.abs(y - n.y)).toBeLessThanOrEqual(n.h / 2 + 1);
       }
@@ -68,7 +74,9 @@ describe("laying out a chart with subgraphs", () => {
       let from = e.start;
       for (const s of e.segments) {
         const straight = s.c1 === from;
-        if (straight) expect(from[0] === s.to[0] || from[1] === s.to[1]).toBe(true);
+        if (straight) {
+          expect(from[0] === s.to[0] || from[1] === s.to[1]).toBe(true);
+        }
         from = s.to;
       }
     }

@@ -150,8 +150,12 @@ const SETTING_ENV_MAP = {
 } as const;
 
 function coerceEnv(raw: string): unknown {
-  if (raw === "true") return true;
-  if (raw === "false") return false;
+  if (raw === "true") {
+    return true;
+  }
+  if (raw === "false") {
+    return false;
+  }
   return raw;
 }
 
@@ -162,16 +166,22 @@ export function loadConfig(
   const fromEnv: Record<string, unknown> = {};
   for (const [envVar, field] of Object.entries(ENV_MAP)) {
     const v = env[envVar];
-    if (v !== undefined && v !== "") fromEnv[field] = v;
+    if (v !== undefined && v !== "") {
+      fromEnv[field] = v;
+    }
   }
-  if (env["GANGWAY_LISTEN_HTTP_PORT"] === "") fromEnv["listenHttpPort"] = null;
+  if (env["GANGWAY_LISTEN_HTTP_PORT"] === "") {
+    fromEnv["listenHttpPort"] = null;
+  }
 
   const overrides: Record<string, unknown> = {
-    ...((fileConfig["overrides"] as Record<string, unknown>) ?? {}),
+    ...((fileConfig["overrides"] as Record<string, unknown> | undefined) ?? {}),
   };
   for (const [envVar, key] of Object.entries(SETTING_ENV_MAP)) {
     const v = env[envVar];
-    if (v !== undefined && v !== "") overrides[key] = coerceEnv(v);
+    if (v !== undefined && v !== "") {
+      overrides[key] = coerceEnv(v);
+    }
   }
 
   return ConfigSchema.parse({ ...fileConfig, ...fromEnv, overrides });

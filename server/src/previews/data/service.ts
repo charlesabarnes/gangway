@@ -21,6 +21,9 @@ const MAX_QUERY_CHARS = 64 * 1024;
 
 export type AddonView = AddonChoice & { name: string; service: string; env: readonly string[] };
 
+/** One statement to run against an add-on, and what it is for in the audit log. */
+type Statement = { addon: AddonId; text: string; write: boolean; kind: string };
+
 export class DataBrowser {
   readonly #ctx: PreviewContext;
   readonly #busy = new Set<string>();
@@ -39,8 +42,15 @@ export class DataBrowser {
   }
 
   async tables(actor: Actor, previewId: string, addon: AddonId): Promise<Table[]> {
-    if (addon === "redis") throw unprocessable("Redis has keys, not tables: use /keys");
-    const r = await this.#run(actor, previewId, addon, tablesQuery(addon), false, "tables");
+    if (addon === "redis") {
+      throw unprocessable("Redis has keys, not tables: use /keys");
+    }
+    const r = await this.#run(actor, previewId, {
+      addon,
+      text: tablesQuery(addon),
+      write: false,
+      kind: "tables",
+    });
     return r.rows.map((row) => ({ schema: row[0] ?? "", name: row[1] ?? "" }));
   }
 
@@ -48,22 +58,21 @@ export class DataBrowser {
     actor: Actor,
     previewId: string,
     addon: AddonId,
-    table: Table,
-    limit: number,
-    offset: number,
+    { table, limit, offset }: { table: Table; limit: number; offset: number },
   ): Promise<TimedResult> {
-    if (addon === "redis") throw unprocessable("Redis has keys, not tables: use /keys");
+    if (addon === "redis") {
+      throw unprocessable("Redis has keys, not tables: use /keys");
+    }
     const known = await this.tables(actor, previewId, addon);
-    if (!known.some((t) => t.schema === table.schema && t.name === table.name))
+    if (!known.some((t) => t.schema === table.schema && t.name === table.name)) {
       throw notFound(`no table ${table.schema}.${table.name}`);
-    return this.#run(
-      actor,
-      previewId,
+    }
+    return this.#run(actor, previewId, {
       addon,
-      rowsQuery(addon, table, Math.min(Math.max(limit, 1), 200), Math.max(offset, 0)),
-      false,
-      "rows",
-    );
+      text: rowsQuery(addon, table, Math.min(Math.max(limit, 1), 200), Math.max(offset, 0)),
+      write: false,
+      kind: "rows",
+    });
   }
 
   async keys(
@@ -72,15 +81,15 @@ export class DataBrowser {
     cursor: string,
     match: string,
   ): Promise<{ cursor: string; keys: string[] }> {
-    if (!/^\d{1,20}$/.test(cursor)) throw unprocessable("cursor is a number");
-    const r = await this.#run(
-      actor,
-      previewId,
-      "redis",
-      `SCAN ${cursor} MATCH ${JSON.stringify(match || "*")} COUNT 200`,
-      false,
-      "keys",
-    );
+    if (!/^\d{1,20}$/.test(cursor)) {
+      throw unprocessable("cursor is a number");
+    }
+    const r = await this.#run(actor, previewId, {
+      addon: "redis",
+      text: `SCAN ${cursor} MATCH ${JSON.stringify(match || "*")} COUNT 200`,
+      write: false,
+      kind: "keys",
+    });
     const [next, ...keys] = r.rows.map((row) => row[0] ?? "");
     return { cursor: next ?? "0", keys };
   }
@@ -92,10 +101,23 @@ export class DataBrowser {
   ): Promise<{ type: string; ttl: string; value: TimedResult }> {
     const k = JSON.stringify(name);
     const type =
-      (await this.#run(actor, previewId, "redis", `TYPE ${k}`, false, "key")).rows[0]?.[0] ??
-      "none";
+      (
+        await this.#run(actor, previewId, {
+          addon: "redis",
+          text: `TYPE ${k}`,
+          write: false,
+          kind: "key",
+        })
+      ).rows[0]?.[0] ?? "none";
     const ttl =
-      (await this.#run(actor, previewId, "redis", `TTL ${k}`, false, "key")).rows[0]?.[0] ?? "-2";
+      (
+        await this.#run(actor, previewId, {
+          addon: "redis",
+          text: `TTL ${k}`,
+          write: false,
+          kind: "key",
+        })
+      ).rows[0]?.[0] ?? "-2";
     const read: Record<string, string> = {
       string: `GET ${k}`,
       hash: `HGETALL ${k}`,
@@ -105,7 +127,12 @@ export class DataBrowser {
       stream: `XRANGE ${k} - + COUNT 50`,
     };
     const value = read[type]
-      ? await this.#run(actor, previewId, "redis", read[type], false, "key")
+      ? await this.#run(actor, previewId, {
+          addon: "redis",
+          text: read[type],
+          write: false,
+          kind: "key",
+        })
       : { columns: ["value"], rows: [], truncated: false, message: null, ms: 0 };
     return { type, ttl, value };
   }
@@ -114,56 +141,65 @@ export class DataBrowser {
     actor: Actor,
     previewId: string,
     addon: AddonId,
-    text: string,
-    write: boolean,
+    { text, write }: { text: string; write: boolean },
   ): Promise<TimedResult> {
-    if (text.trim() === "") throw unprocessable("nothing to run");
-    if (text.length > MAX_QUERY_CHARS)
+    if (text.trim() === "") {
+      throw unprocessable("nothing to run");
+    }
+    if (text.length > MAX_QUERY_CHARS) {
       throw unprocessable(`a query is at most ${MAX_QUERY_CHARS} characters`);
+    }
     if (addon === "redis") {
       const why = redisRefusal(text, write);
-      if (why) throw unprocessable(why);
+      if (why) {
+        throw unprocessable(why);
+      }
     }
-    return this.#run(actor, previewId, addon, text, write, "query");
+    return this.#run(actor, previewId, { addon, text, write, kind: "query" });
   }
 
   #preview(previewId: string): Preview {
     const p = this.#ctx.previews.get(previewId);
-    if (!p || p.state === "destroyed") throw notFound(`no such preview: ${previewId}`);
+    if (!p || p.state === "destroyed") {
+      throw notFound(`no such preview: ${previewId}`);
+    }
     return p;
   }
 
   #target(previewId: string, addon: AddonId): { preview: Preview; host: Host } {
     const p = this.#preview(previewId);
-    if (!this.list(previewId).some((a) => a.id === addon))
+    if (!this.list(previewId).some((a) => a.id === addon)) {
       throw notFound(`this preview has no ${addon} add-on`);
-    if (p.state !== "awake")
+    }
+    if (p.state !== "awake") {
       throw conflict(`the preview is ${p.state}; open it to wake it first`, { state: p.state });
+    }
     const host = this.#ctx.hosts.get(p.hostId);
-    if (!host)
+    if (!host) {
       throw new AppError("internal", `preview ${previewId} is on unknown host ${p.hostId}`);
+    }
     return { preview: p, host };
   }
 
   #claim(previewId: string): void {
-    if (this.#busy.has(previewId)) throw conflict("a query on this preview is still running");
-    if (this.#busy.size >= MAX_GLOBAL)
+    if (this.#busy.has(previewId)) {
+      throw conflict("a query on this preview is still running");
+    }
+    if (this.#busy.size >= MAX_GLOBAL) {
       throw new AppError(
         "unavailable",
         "too many queries are running; try again in a moment",
         undefined,
         { "retry-after": "2" },
       );
+    }
     this.#busy.add(previewId);
   }
 
   async #run(
     actor: Actor,
     previewId: string,
-    addon: AddonId,
-    text: string,
-    write: boolean,
-    kind: string,
+    { addon, text, write, kind }: Statement,
   ): Promise<TimedResult> {
     const ctx = this.#ctx;
     const { preview, host } = this.#target(previewId, addon);
@@ -171,7 +207,9 @@ export class DataBrowser {
     const started = Date.now();
     const cwd = await mkdtemp(join(tmpdir(), "gangway-data-"));
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), WALL_CLOCK_MS);
+    const timer = setTimeout(() => {
+      abort.abort();
+    }, WALL_CLOCK_MS);
     const x: Exec = { ctx, preview, host, addon, cwd, abort, outcome: "ok" };
     let result: TimedResult | null = null;
     try {
@@ -180,7 +218,9 @@ export class DataBrowser {
       result = toResult(x, output, Date.now() - started);
       return result;
     } catch (e) {
-      if (x.outcome === "ok") x.outcome = "error";
+      if (x.outcome === "ok") {
+        x.outcome = "error";
+      }
       throw e;
     } finally {
       clearTimeout(timer);

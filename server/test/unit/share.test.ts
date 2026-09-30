@@ -41,7 +41,9 @@ function fakeProcess() {
     say: (line: string) => push(line),
     ended: false,
     end: (code = 1) => {
-      if (proc.ended) return;
+      if (proc.ended) {
+        return;
+      }
       proc.ended = true;
       close();
       exit(code);
@@ -352,9 +354,11 @@ describe("sharing a preview", () => {
       share: true,
     });
     const audited = () =>
-      t.db
-        .query<{ action: string }>("SELECT action FROM audit WHERE action LIKE 'preview.%share'")
-        .map((r) => r.action);
+      (
+        t.db.query("SELECT action FROM audit WHERE action LIKE 'preview.%share'") as {
+          action: string;
+        }[]
+      ).map((r) => r.action);
     expect(audited()).toEqual(["preview.share"]);
 
     expect(stopShare(t.ctx, ACTOR, p.id)?.url).toBe("https://t1.trycloudflare.com");

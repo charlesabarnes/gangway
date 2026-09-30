@@ -1,3 +1,5 @@
+import { must } from "../must.ts";
+
 export type Attrs = Record<string, string>;
 
 export function parseAttrs(text = ""): Attrs {
@@ -5,9 +7,13 @@ export function parseAttrs(text = ""): Attrs {
   const re = /([#.])?([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
   for (let m = re.exec(text); m; m = re.exec(text)) {
     const [, sigil, key = "", dq, sq, bare] = m;
-    if (sigil === "#") out["id"] = key;
-    else if (sigil === ".") out["class"] = [out["class"], key].filter(Boolean).join(" ");
-    else out[key] = dq ?? sq ?? bare ?? "";
+    if (sigil === "#") {
+      out["id"] = key;
+    } else if (sigil === ".") {
+      out["class"] = [out["class"], key].filter(Boolean).join(" ");
+    } else {
+      out[key] = dq ?? sq ?? bare ?? "";
+    }
   }
   return out;
 }
@@ -15,8 +21,9 @@ export function parseAttrs(text = ""): Attrs {
 /** A chart fence: the first bare word is the type, e.g. ```chart bar x=month y=total */
 export function chartAttrs(rest: string): Attrs {
   const [first = "", ...more] = rest.trim().split(/\s+/);
-  if (first && !first.includes("=") && !first.startsWith("#") && !first.startsWith("."))
+  if (first && !first.includes("=") && !first.startsWith("#") && !first.startsWith(".")) {
     return { type: first, ...parseAttrs(more.join(" ")) };
+  }
   return parseAttrs(rest);
 }
 
@@ -24,11 +31,17 @@ export type FrontMatter = { meta: Record<string, string>; body: string; offset: 
 
 export function frontMatter(src: string): FrontMatter {
   const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
-  if (!m) return { meta: {}, body: src, offset: 0 };
+  if (!m) {
+    return { meta: {}, body: src, offset: 0 };
+  }
   const meta: Record<string, string> = {};
   for (const line of (m[1] ?? "").split(/\r?\n/)) {
     const kv = /^([\w-]+):\s*(.*?)\s*$/.exec(line);
-    if (kv) meta[kv[1]!] = (kv[2] ?? "").replace(/\s+#.*$/, "").replace(/^(["'])(.*)\1$/, "$2");
+    if (kv) {
+      meta[must(kv[1], "a key")] = (kv[2] ?? "")
+        .replace(/\s+#.*$/, "")
+        .replace(/^(["'])(.*)\1$/, "$2");
+    }
   }
   return { meta, body: src.slice(m[0].length), offset: m[0].split("\n").length - 1 };
 }
@@ -52,18 +65,23 @@ export type Block =
 const OPEN = /^(:{3,})\s*([\w-]+)\s*(.*)$/;
 const FENCE_END = /^```\s*$/;
 
-function fenced(lines: string[], i: number): { end: number; inner: string[]; closed: boolean } {
-  const inner: string[] = [];
-  let j = i + 1;
-  for (; j < lines.length && !FENCE_END.test(lines[j]!); j++) inner.push(lines[j]!);
-  return { end: j, inner, closed: j < lines.length };
+/** The lines after line `i` up to the one matching `end`, and that line's index. */
+function fenced(
+  lines: string[],
+  i: number,
+  end = FENCE_END,
+): { end: number; inner: string[]; closed: boolean } {
+  const rest = lines.slice(i + 1);
+  const n = rest.findIndex((l) => end.test(l));
+  const inner = n === -1 ? rest : rest.slice(0, n);
+  return { end: i + 1 + inner.length, inner, closed: n !== -1 };
 }
 
 /** Splits markdown into blocks gangway knows and plain text, with 1-based line numbers. */
 export function scan(lines: string[], first = 1): Block[] {
   const out: Block[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
+    const line = must(lines[i], "a line");
     const at = first + i;
     const chart = /^```chart\b(.*)$/.exec(line);
     if (chart) {
@@ -103,21 +121,19 @@ export function scan(lines: string[], first = 1): Block[] {
     }
     const open = OPEN.exec(line);
     if (open) {
-      const close = new RegExp(`^:{${open[1]!.length}}\\s*$`);
-      const raw: string[] = [];
-      let j = i + 1;
-      for (; j < lines.length && !close.test(lines[j]!); j++) raw.push(lines[j]!);
+      const close = new RegExp(`^:{${must(open[1], "a colon fence").length}}\\s*$`);
+      const f = fenced(lines, i, close);
       const [name = "", rest = ""] = [open[2], open[3]];
       out.push({
         type: "container",
         name,
         attrs: parseAttrs(rest),
         line: at,
-        closed: j < lines.length,
-        body: scan(raw, at + 1),
-        raw,
+        closed: f.closed,
+        body: scan(f.inner, at + 1),
+        raw: f.inner,
       });
-      i = j;
+      i = f.end;
       continue;
     }
     const stat = /^::stat\{(.*)\}\s*$/.exec(line);
@@ -140,8 +156,10 @@ export function pieces(body: string, offset: number): Piece[] {
   let start = 0;
   let inFence = false;
   const push = (end: number) => {
-    let k = 0;
-    while (k < cur.length && cur[k]!.trim() === "") k++;
+    let k = cur.findIndex((l) => l.trim() !== "");
+    if (k === -1) {
+      k = cur.length;
+    }
     const head = /^\{(.*)\}\s*$/.exec(cur[k] ?? "");
     const lead = head ? k + 1 : k;
     out.push({
@@ -154,9 +172,14 @@ export function pieces(body: string, offset: number): Piece[] {
     start = end + 1;
   };
   lines.forEach((l, i) => {
-    if (l.startsWith("```")) inFence = !inFence;
-    if (!inFence && /^---\s*$/.test(l)) push(i);
-    else cur.push(l);
+    if (l.startsWith("```")) {
+      inFence = !inFence;
+    }
+    if (!inFence && /^---\s*$/.test(l)) {
+      push(i);
+    } else {
+      cur.push(l);
+    }
   });
   push(lines.length);
   return out.filter((p) => p.lines.some((l) => l.trim() !== "") || p.head);
@@ -175,7 +198,9 @@ export function setFrontMatter(
   set: Record<string, string | null | undefined>,
 ): string {
   const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
-  if (!m) return src;
+  if (!m) {
+    return src;
+  }
   const todo = new Map(Object.entries(set).filter(([, v]) => v !== undefined));
   const lines: string[] = [];
   for (const line of (m[1] ?? "").split(/\r?\n/)) {
@@ -186,8 +211,14 @@ export function setFrontMatter(
     }
     const v = todo.get(key);
     todo.delete(key);
-    if (v !== null) lines.push(`${key}: ${v}`);
+    if (v !== null) {
+      lines.push(`${key}: ${v}`);
+    }
   }
-  for (const [k, v] of todo) if (v !== null) lines.push(`${k}: ${v}`);
+  for (const [k, v] of todo) {
+    if (v !== null) {
+      lines.push(`${k}: ${v}`);
+    }
+  }
   return `---\n${lines.join("\n")}\n---\n${src.slice(m[0].length)}`;
 }

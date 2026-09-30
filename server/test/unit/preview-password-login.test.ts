@@ -156,7 +156,7 @@ describe("who can open it, as the UI is told", () => {
     [{}, "private", "set", "on", "signed-in"],
   ] as const)(
     "defaults %j, %s, password %s, login %s: %s",
-    (defaults, visibility, password, passwordLogin, expected) => {
+    (...[defaults, visibility, password, passwordLogin, expected]) => {
       expect(previewAccess(deps(defaults), { visibility, password, passwordLogin })).toBe(expected);
     },
   );

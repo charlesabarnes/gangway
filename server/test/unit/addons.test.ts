@@ -14,10 +14,14 @@ import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
 async function tarball(files: Record<string, string>): Promise<Uint8Array> {
   const p = pack();
-  for (const [name, content] of Object.entries(files)) p.entry({ name }, content);
+  for (const [name, content] of Object.entries(files)) {
+    p.entry({ name }, content);
+  }
   p.finalize();
   const chunks: Buffer[] = [];
-  for await (const c of p) chunks.push(c as Buffer);
+  for await (const c of p) {
+    chunks.push(c as Buffer);
+  }
   return gzipSync(Buffer.concat(chunks));
 }
 
@@ -39,6 +43,16 @@ type Svc = {
 const services = (stack: Record<string, unknown>) => stack["services"] as Record<string, Svc>;
 const pkg = (deps: Record<string, string>) =>
   JSON.stringify({ scripts: { start: "node s.js" }, dependencies: deps });
+function stepOf(argv: string[]): string | null {
+  if (argv.includes("up")) {
+    const args = argv.slice(argv.indexOf("up") + 1).filter((x) => !x.startsWith("-"));
+    return `up ${args.join(" ")}`.trim();
+  }
+  if (argv.includes("run")) {
+    return "run";
+  }
+  return argv.includes("build") ? "build" : null;
+}
 
 describe("the plan", () => {
   const plan = (
@@ -273,21 +287,7 @@ describe("deploying with add-ons", () => {
         change: { kind: "edit", files: { "index.ts": "v2" } },
       })
     ).done;
-    const steps = s.fake.all
-      .slice(from)
-      .map((a) =>
-        a.includes("up")
-          ? `up ${a
-              .slice(a.indexOf("up") + 1)
-              .filter((x) => !x.startsWith("-"))
-              .join(" ")}`.trim()
-          : a.includes("run")
-            ? "run"
-            : a.includes("build")
-              ? "build"
-              : null,
-      )
-      .filter(Boolean);
+    const steps = s.fake.all.slice(from).map(stepOf).filter(Boolean);
     expect(steps).toEqual(["build", "up postgres", "run", "up"]);
   });
 

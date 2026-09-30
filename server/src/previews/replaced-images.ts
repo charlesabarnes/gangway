@@ -6,11 +6,12 @@ import { composeArgv } from "../docker/compose.ts";
 import type { PreviewContext } from "./context.ts";
 import type { ComposeBase } from "./pipeline.ts";
 
+/** A compose project's images, and where to ask about them. */
+export type ImageScope = { host: Host; base: ComposeBase; cwd: string };
+
 export async function imageIds(
   ctx: PreviewContext,
-  host: Host,
-  base: ComposeBase,
-  cwd: string,
+  { host, base, cwd }: ImageScope,
 ): Promise<Set<string>> {
   try {
     const res = await ctx.compose.capture(
@@ -33,32 +34,38 @@ export async function imageIds(
 
 export async function removeReplaced(
   ctx: PreviewContext,
-  host: Host,
-  base: ComposeBase,
-  cwd: string,
+  scope: ImageScope,
   before: Set<string>,
   previewId: string,
 ): Promise<void> {
-  if (before.size === 0) return;
-  const after = await imageIds(ctx, host, base, cwd);
+  if (before.size === 0) {
+    return;
+  }
+  const { host } = scope;
+  const after = await imageIds(ctx, scope);
   const docker = ctx.docker ?? "docker";
   const empty = await mkdtemp(join(tmpdir(), "gangway-rmi-"));
   try {
     for (const img of before) {
-      if (after.has(img)) continue;
+      if (after.has(img)) {
+        continue;
+      }
       const res = await ctx.compose.capture(
         [docker, "image", "inspect", "--format", "{{len .RepoTags}} {{len .RepoDigests}}", img],
         host,
         { cwd: empty },
       );
-      if (res.code !== 0 || res.stdout.trim() !== "0 0") continue;
+      if (res.code !== 0 || res.stdout.trim() !== "0 0") {
+        continue;
+      }
       const removed = await ctx.compose.capture([docker, "image", "rm", img], host, { cwd: empty });
-      if (removed.code === 0)
+      if (removed.code === 0) {
         ctx.logs.append(
           previewId,
           "system",
           `removed the replaced image ${img.replace(/^sha256:/, "").slice(0, 12)}`,
         );
+      }
     }
   } catch (e) {
     ctx.logger.warn("could not remove a replaced image", { previewId, err: e });

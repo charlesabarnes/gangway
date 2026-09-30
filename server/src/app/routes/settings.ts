@@ -5,7 +5,7 @@ import type { AuditSink } from "../../audit/audit.ts";
 import { conflict, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
-import { SETTINGS, SETTINGS_BY_KEY, type Settings } from "../../settings.ts";
+import { SETTINGS, SETTINGS_BY_KEY, type SettingDef, type Settings } from "../../settings.ts";
 import type { DomainRegistry } from "../../domains/registry.ts";
 import type { Mailer } from "../../mail/mailer.ts";
 import type { AppEnv } from "../env.ts";
@@ -15,9 +15,15 @@ export function settingsRoutes(
   api: Hono<AppEnv>,
   settings: Settings,
   audit: AuditSink,
-  templates?: Pick<TemplatesRepo, "get">,
-  hashPassword?: (plain: string) => Promise<{ hash: string; salt: string }>,
-  domains?: DomainRegistry,
+  {
+    templates,
+    hashPassword,
+    domains,
+  }: {
+    templates?: Pick<TemplatesRepo, "get">;
+    hashPassword?: (plain: string) => Promise<{ hash: string; salt: string }>;
+    domains?: DomainRegistry;
+  } = {},
 ): void {
   api.get("/settings", requirePermission("settings.read"), (c) =>
     c.json({ settings: settings.view() }),
@@ -34,13 +40,18 @@ export function settingsRoutes(
     const next = (key: string, now: string) =>
       (writes.find((w) => w.key === key)?.value as string | undefined) ?? now;
     const domainWrite = writes.some((w) => DOMAIN_KEYS.has(w.key));
-    if (domains && domainWrite)
+    if (domains && domainWrite) {
       domains.assertSettingsFit(
         next(SETTINGS.baseDomain.key, settings.get(SETTINGS.baseDomain)),
         next(SETTINGS.previewDomain.key, settings.get(SETTINGS.previewDomain)),
       );
-    for (const w of writes) settings.set(SETTINGS_BY_KEY.get(w.key)!, w.value);
-    if (domainWrite) domains?.refresh();
+    }
+    for (const w of writes) {
+      settings.set(w.def, w.value);
+    }
+    if (domainWrite) {
+      domains?.refresh();
+    }
 
     audit.record(actor, "settings.changed", null, {
       old: Object.fromEntries(writes.map((w) => [w.key, shown(w, w.old)])),
@@ -49,6 +60,15 @@ export function settingsRoutes(
     return c.json({ settings: settings.view() });
   });
 
+  previewPasswordRoute(api, settings, audit, hashPassword);
+}
+
+function previewPasswordRoute(
+  api: Hono<AppEnv>,
+  settings: Settings,
+  audit: AuditSink,
+  hashPassword: ((plain: string) => Promise<{ hash: string; salt: string }>) | undefined,
+): void {
   api.put("/settings/preview-password", requirePermission("settings.write"), async (c) => {
     const body = await readJson(c);
     const { mode, value, login } = DefaultPasswordSchema.parse(body);
@@ -57,27 +77,33 @@ export function settingsRoutes(
       SETTINGS.previewPasswordShared,
       ...(login === undefined ? [] : [SETTINGS.previewPasswordLogin]),
     ]) {
-      if (settings.isManagedByConfig(d.key))
+      if (settings.isManagedByConfig(d.key)) {
         throw conflict(`"${d.key}" is managed by config and cannot be changed at runtime`, {
           key: d.key,
         });
+      }
     }
     const had = settings.effective(SETTINGS.previewPasswordShared).value;
     const old = settings.effective(SETTINGS.previewPasswordMode).value;
     const oldLogin = settings.effective(SETTINGS.previewPasswordLogin).value;
-    if (mode === "shared" && value === undefined && had === null)
+    if (mode === "shared" && value === undefined && had === null) {
       throw unprocessable("a shared password needs a value the first time", {
         key: SETTINGS.previewPasswordShared.key,
       });
-    if (value !== undefined && mode !== "shared")
+    }
+    if (value !== undefined && mode !== "shared") {
       throw unprocessable('a value only goes with mode "shared"');
+    }
     if (value !== undefined) {
-      if (!hashPassword)
+      if (!hashPassword) {
         throw unprocessable("password-protected previews are not available on this server");
+      }
       settings.set(SETTINGS.previewPasswordShared, await hashPassword(value));
     }
     settings.set(SETTINGS.previewPasswordMode, mode);
-    if (login !== undefined) settings.set(SETTINGS.previewPasswordLogin, login);
+    if (login !== undefined) {
+      settings.set(SETTINGS.previewPasswordLogin, login);
+    }
     const hadShown = had === null ? "[unset]" : "[set]";
     audit.record(c.get("actor"), "settings.changed", null, {
       old: {
@@ -118,7 +144,13 @@ const DOMAIN_KEYS: ReadonlySet<string> = new Set([
   SETTINGS.previewDomain.key,
 ]);
 
-type SettingWrite = { key: string; value: unknown; secret: boolean; old: unknown };
+type SettingWrite = {
+  key: string;
+  def: SettingDef<unknown>;
+  value: unknown;
+  secret: boolean;
+  old: unknown;
+};
 
 function validateWrite(
   settings: Settings,
@@ -127,23 +159,32 @@ function validateWrite(
   raw: unknown,
 ): SettingWrite {
   const def = SETTINGS_BY_KEY.get(key);
-  if (!def) throw unprocessable(`"${key}" is not a setting`, { key });
+  if (!def) {
+    throw unprocessable(`"${key}" is not a setting`, { key });
+  }
   // The lockout guard lives on /v1/surfaces; this route must not bypass it.
-  if (key.startsWith("surfaces."))
+  if (key.startsWith("surfaces.")) {
     throw conflict(`"${key}" is changed through PUT /v1/surfaces`, { key });
-  if (key.startsWith("previews.password."))
+  }
+  if (key.startsWith("previews.password.")) {
     throw conflict(`"${key}" is changed through PUT /v1/settings/preview-password`, { key });
-  if (settings.isManagedByConfig(key))
+  }
+  if (settings.isManagedByConfig(key)) {
     throw conflict(`"${key}" is managed by config and cannot be changed at runtime`, { key });
+  }
   const parsed = def.schema.safeParse(raw);
-  if (!parsed.success)
+  if (!parsed.success) {
     throw unprocessable(`"${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`, { key });
-  if (key.startsWith("templates.default.") && templates && !templates.get(parsed.data as string))
+  }
+  if (key.startsWith("templates.default.") && templates && !templates.get(parsed.data as string)) {
     throw unprocessable(`"${key}": no such template: ${String(parsed.data)}`, { key });
-  return { key, value: parsed.data, secret: def.secret, old: settings.effective(def).value };
+  }
+  return { key, def, value: parsed.data, secret: def.secret, old: settings.effective(def).value };
 }
 
 function shown(w: SettingWrite, v: unknown): unknown {
-  if (!w.secret) return v;
+  if (!w.secret) {
+    return v;
+  }
   return v === "" ? "[unset]" : "[set]";
 }

@@ -104,7 +104,7 @@ export function setupPreviewContext() {
     },
     async capture(argv): Promise<ComposeResult> {
       fake.all.push(argv);
-      const cmd = argv.find((a) => ["config", "ps", "down", "logs", "stop", "start"].includes(a))!;
+      const cmd = argv.find((a) => ["config", "ps", "down", "logs", "stop", "start"].includes(a));
       const project = argv[argv.indexOf("--project-name") + 1] ?? "";
       if (cmd === "stop") {
         fake.stops.push(argv);
@@ -127,10 +127,13 @@ export function setupPreviewContext() {
       if (cmd === "down") {
         fake.downs.push(project);
         fake.downArgvs.push(argv);
-        if (fake.failDownFor.has(project))
+        if (fake.failDownFor.has(project)) {
           return { code: 1, stdout: "", stderr: "daemon said no", signal: null };
+        }
       }
-      if (cmd === "config" && fake.planDelayMs) await Bun.sleep(fake.planDelayMs);
+      if (cmd === "config" && fake.planDelayMs) {
+        await Bun.sleep(fake.planDelayMs);
+      }
       if (cmd === "config") {
         // What the real `config` does that matters here: make build contexts absolute.
         const doc = parseYaml(await Bun.file(argv[argv.indexOf("--file") + 1]!).text()) as {
@@ -138,21 +141,25 @@ export function setupPreviewContext() {
         };
         const projectDir = argv[argv.indexOf("--project-directory") + 1]!;
         for (const s of Object.values(doc.services ?? {})) {
-          if (s.build === undefined) continue;
+          if (s.build === undefined) {
+            continue;
+          }
           const b = typeof s.build === "string" ? { context: s.build } : s.build;
           s.build = { ...b, context: resolvePath(projectDir, b.context ?? ".") };
         }
         return { code: 0, stdout: JSON.stringify(doc), stderr: "", signal: null };
       }
-      if (cmd === undefined && argv.includes("build")) fake.builds++;
-      const stdout =
-        cmd === "config"
-          ? await Bun.file(argv[argv.indexOf("--file") + 1]!).text()
-          : cmd === "ps"
-            ? JSON.stringify({ Service: "web", State: fake.psState })
-            : cmd === "logs"
-              ? fake.runtimeLog
-              : "";
+      if (cmd === undefined && argv.includes("build")) {
+        fake.builds++;
+      }
+      let stdout = "";
+      if (cmd === "config") {
+        stdout = await Bun.file(argv[argv.indexOf("--file") + 1]!).text();
+      } else if (cmd === "ps") {
+        stdout = JSON.stringify({ Service: "web", State: fake.psState });
+      } else if (cmd === "logs") {
+        stdout = fake.runtimeLog;
+      }
       return { code: 0, stdout, stderr: "", signal: null };
     },
   };

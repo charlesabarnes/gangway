@@ -197,7 +197,11 @@ describe("deploy: planning failures leave nothing behind and are the caller's 4x
 
   test("the port pool is finite, and says so", async () => {
     const s = setupScriptedDeploy();
-    for (const name of ["a1", "a2", "a3"]) await (await deploy(s.ctx, s.input({ name }))).done;
+    for (const name of ["a1", "a2", "a3"]) {
+      await (
+        await deploy(s.ctx, s.input({ name }))
+      ).done;
+    }
     expect(s.table.usedPorts("127.0.0.1")).toEqual(new Set([31000, 31001, 31002]));
     await expect(deploy(s.ctx, s.input({ name: "a4" }))).rejects.toMatchObject({ status: 503 });
   });

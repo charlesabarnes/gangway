@@ -31,9 +31,13 @@ export type RunningListener = {
 
 function socketEntry(req: Request, deps: DispatchDeps): RouteEntry | null {
   const host = normalizeHost(req.headers.get("host"));
-  if (!host || hostKind(host, deps).kind !== "preview") return null;
+  if (!host || hostKind(host, deps).kind !== "preview") {
+    return null;
+  }
   const entry = deps.table.lookup(host);
-  if (!entry || entry.state !== "awake") return null;
+  if (entry?.state !== "awake") {
+    return null;
+  }
   return deps.visibilityGate?.(entry, req) ? null : entry;
 }
 
@@ -44,12 +48,18 @@ function upgradeToPreview(
   deps: DispatchDeps,
 ): boolean | Response {
   const entry = socketEntry(req, deps);
-  if (!entry) return false;
+  if (!entry) {
+    return false;
+  }
   const clientIp = deps.clientIpFor(req);
   const wait = deps.rates?.take(clientIp, entry.previewId);
-  if (wait) return tooManyPage(entry.hostname, wait);
+  if (wait) {
+    return tooManyPage(entry.hostname, wait);
+  }
   const release = deps.rates ? deps.rates.openSocket(clientIp) : undefined;
-  if (release === null) return tooManyPage(entry.hostname, 60);
+  if (release === null) {
+    return tooManyPage(entry.hostname, 60);
+  }
   const url = new URL(req.url);
   const protocol = req.headers.get("sec-websocket-protocol")?.split(",")[0]?.trim();
   const data: WsData = {
@@ -62,7 +72,9 @@ function upgradeToPreview(
   const upgraded = protocol
     ? server.upgrade(req, { data, headers: { "Sec-WebSocket-Protocol": protocol } })
     : server.upgrade(req, { data });
-  if (!upgraded) release?.();
+  if (!upgraded) {
+    release?.();
+  }
   return upgraded;
 }
 
@@ -81,8 +93,12 @@ export function startListener(o: ListenerOptions): RunningListener {
       peers.set(req, server.requestIP(req)?.address ?? "");
       if (isWebSocketUpgrade(req)) {
         const upgraded = upgradeToPreview(req, server, o.deps);
-        if (upgraded instanceof Response) return upgraded;
-        if (upgraded) return undefined;
+        if (upgraded instanceof Response) {
+          return upgraded;
+        }
+        if (upgraded) {
+          return undefined;
+        }
       }
 
       // SSE and slow uploads must outlive the idle timeout.

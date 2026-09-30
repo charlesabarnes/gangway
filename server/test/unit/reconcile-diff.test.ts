@@ -6,6 +6,7 @@ import {
   type Action,
   type DiffInput,
   type ScannedContainer,
+  type ScannedLabels,
 } from "../../src/reconcile/diff.ts";
 import { CASES } from "../helpers/reconcile-cases.ts";
 import {
@@ -19,7 +20,9 @@ import {
 } from "../helpers/reconcile-diff.ts";
 
 describe("the case table", () => {
-  for (const [name, input, assert] of CASES) test(name, () => assert(diff(input)));
+  for (const [name, input, assert] of CASES) {
+    test(name, () => assert(diff(input)));
+  }
 });
 
 describe("an unreachable host is not an empty host", () => {
@@ -104,14 +107,15 @@ const shuffle = <T>(xs: readonly T[], rand: () => number): T[] => {
 };
 
 // Seeded, so a failing property test can be replayed.
-const mulberry32 =
-  (seed: number): (() => number) =>
-  () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+const mulberry32 = (seed: number): (() => number) => {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+};
 
 describe("scale", () => {
   test("100 routes and 100 containers all reconcile to no-ops", () => {
@@ -214,25 +218,28 @@ const randomState = (seed: number, n: number): DiffInput => {
       dbRoutes.push(mkRoute(hostname, `p${id}`, port));
       previews.push(mkPreview(`p${id}`, pick(STATES)));
       const r2 = rand();
-      if (r2 < 0.5)
+      if (r2 < 0.5) {
         containers.push(
           mkContainer(`c${id}`, fullLabels(`p${id}`, hostname), { publishedPort: port }),
         );
-      else if (r2 < 0.7)
+      } else if (r2 < 0.7) {
         containers.push(
           mkContainer(`c${id}`, fullLabels(`p${id}`, hostname), { publishedPort: port + 500 }),
         );
-      else if (r2 < 0.85)
+      } else if (r2 < 0.85) {
         containers.push(mkContainer(`c${id}`, fullLabels(`p${id}`, hostname), { state: "exited" }));
+      }
     } else if (roll < 0.8) {
       // an unclaimed container: adopt or stop
       const r2 = rand();
-      const labels =
-        r2 < 0.6
-          ? fullLabels(`p${id}`, hostname, { visibility: pick(VISIBILITIES) })
-          : r2 < 0.8
-            ? { previewId: `p${id}` }
-            : fullLabels(`p${id}`, hostname, { version: 5 });
+      let labels: ScannedLabels;
+      if (r2 < 0.6) {
+        labels = fullLabels(`p${id}`, hostname, { visibility: pick(VISIBILITIES) });
+      } else if (r2 < 0.8) {
+        labels = { previewId: `p${id}` };
+      } else {
+        labels = fullLabels(`p${id}`, hostname, { version: 5 });
+      }
       containers.push(mkContainer(`c${id}`, labels, { publishedPort: r2 < 0.55 ? port : null }));
     } else if (roll < 0.9) {
       // a route with nothing behind it

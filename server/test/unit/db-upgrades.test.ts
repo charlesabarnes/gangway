@@ -13,12 +13,12 @@ const REPOS_AT_0006 =
   "INSERT INTO repos (id, forge, full_name, slug, pr_clearance, fork_clearance, visibility, env_ciphertext, created_at, updated_at) VALUES ('r1', 'github', 'acme/a', 'a', 'standard', 'none', 'public', 'sealed', 1, 1), ('r2', 'github', 'acme/b', 'b', 'high', 'low', NULL, NULL, 1, 1)";
 
 const grants = (db: Db, role: string) =>
-  db
-    .query<{ permission_id: string }>(
+  (
+    db.query(
       "SELECT permission_id FROM role_permissions WHERE role_id = $r ORDER BY permission_id",
       { r: role },
-    )
-    .map((r) => r.permission_id);
+    ) as { permission_id: string }[]
+  ).map((r) => r.permission_id);
 
 for (const [name, open] of DRIVERS) {
   const migrated = () => {
@@ -31,7 +31,7 @@ for (const [name, open] of DRIVERS) {
     test("seeds three builtin roles, with member and viewer at the code's defaults", () => {
       const db = migrated();
       expect(
-        db.query<{ id: string; builtin: number }>("SELECT id, builtin FROM roles ORDER BY id"),
+        db.query("SELECT id, builtin FROM roles ORDER BY id") as { id: string; builtin: number }[],
       ).toEqual([
         { id: "admin", builtin: 1 },
         { id: "member", builtin: 1 },
@@ -44,9 +44,11 @@ for (const [name, open] of DRIVERS) {
 
     test("every seeded permission still exists in code, so no id was renamed", () => {
       const db = migrated();
-      const seeded = db.query<{ id: string }>("SELECT id FROM permissions").map((r) => r.id);
+      const seeded = (db.query("SELECT id FROM permissions") as { id: string }[]).map((r) => r.id);
       expect(seeded.length).toBeGreaterThan(20);
-      for (const id of seeded) expect(isPermission(id)).toBe(true);
+      for (const id of seeded) {
+        expect(isPermission(id)).toBe(true);
+      }
       expect(grants(db, "admin")).toEqual([...seeded].sort());
       db.close();
     });
@@ -91,9 +93,8 @@ for (const [name, open] of DRIVERS) {
         3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
       ]);
       expect(
-        db.get<Record<string, unknown>>(
-          "SELECT id, email, role_id, disabled, created_at FROM users",
-        ),
+        db.get("SELECT id, email, role_id, disabled, created_at FROM users") as
+          Record<string, unknown> | undefined,
       ).toEqual({
         id: "u1",
         email: "ada@example.com",
@@ -102,7 +103,11 @@ for (const [name, open] of DRIVERS) {
         created_at: 42,
       });
       expect(db.query("PRAGMA foreign_key_check")).toEqual([]);
-      expect(Number(db.pragma<any>("PRAGMA foreign_keys")!.foreign_keys)).toBe(1);
+      expect(
+        Number(
+          (db.pragma("PRAGMA foreign_keys") as { foreign_keys: number } | undefined)!.foreign_keys,
+        ),
+      ).toBe(1);
       // The children followed the table rename: deleting the user still cascades to both.
       db.run("DELETE FROM users WHERE id = 'u1'");
       expect(db.query("SELECT id FROM sessions")).toEqual([]);
@@ -115,9 +120,9 @@ for (const [name, open] of DRIVERS) {
     test("a fresh database has the built-in template at the old defaults", () => {
       const db = migrated();
       expect(
-        db.get<Record<string, unknown>>(
+        db.get(
           "SELECT id, builtin, visibility, ttl, idle_after, clearance, host_id FROM templates",
-        ),
+        ) as Record<string, unknown> | undefined,
       ).toEqual({
         id: "default",
         builtin: 1,
@@ -146,18 +151,18 @@ for (const [name, open] of DRIVERS) {
       const db = at.reopen();
       expect(migrate(db, migrationsUpTo(7)).applied).toEqual([7]);
       expect(
-        db.get<Record<string, unknown>>(
+        db.get(
           "SELECT visibility, ttl, idle_after, clearance FROM templates WHERE id = 'default'",
-        ),
+        ) as Record<string, unknown> | undefined,
       ).toEqual({ visibility: "private", ttl: "3d", idle_after: "30m", clearance: "low" });
       expect(
-        db.query<{ key: string }>("SELECT key FROM settings ORDER BY key").map((r) => r.key),
+        (db.query("SELECT key FROM settings ORDER BY key") as { key: string }[]).map((r) => r.key),
       ).toEqual(["baseDomain"]);
       // r1 was at the old column default and now follows its template; r2 chose "high" and keeps it.
       expect(
-        db.query<Record<string, unknown>>(
+        db.query(
           "SELECT id, template_id, pr_clearance, fork_clearance, visibility, env_ciphertext FROM repos ORDER BY id",
-        ),
+        ) as Record<string, unknown>[],
       ).toEqual([
         {
           id: "r1",
@@ -192,8 +197,8 @@ for (const [name, open] of DRIVERS) {
       expect(() => db.run("UPDATE repos SET template_id = 'ghost' WHERE id = 'r2'")).toThrow();
       db.run("DELETE FROM templates WHERE id = 'staging'");
       expect(
-        db.get<{ template_id: string | null }>("SELECT template_id FROM repos WHERE id = 'r1'")!
-          .template_id,
+        (db.get("SELECT template_id FROM repos WHERE id = 'r1'") as
+          { template_id: string | null } | undefined)!.template_id,
       ).toBeNull();
       db.close();
     });
@@ -215,9 +220,9 @@ for (const [name, open] of DRIVERS) {
         8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
       ]);
       expect(
-        db.get<Record<string, unknown>>(
+        db.get(
           "SELECT id, name, slug, forge, full_name, installation_id, pr_trigger, template_id, visibility, pr_clearance, env_ciphertext FROM projects",
-        ),
+        ) as Record<string, unknown> | undefined,
       ).toEqual({
         id: "r1",
         name: "store-admin",
@@ -232,7 +237,7 @@ for (const [name, open] of DRIVERS) {
         env_ciphertext: "sealed",
       });
       expect(
-        db.query<Record<string, unknown>>("SELECT id, project_id FROM previews ORDER BY id"),
+        db.query("SELECT id, project_id FROM previews ORDER BY id") as Record<string, unknown>[],
       ).toEqual([
         { id: "p1", project_id: "r1" },
         { id: "p2", project_id: null },
@@ -270,14 +275,15 @@ for (const [name, open] of DRIVERS) {
       expect(migrate(db, MIGRATIONS).applied).toEqual([
         10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
       ]);
-      const holders = db
-        .query<{ role_id: string }>(
+      const holders = (
+        db.query(
           "SELECT role_id FROM role_permissions WHERE permission_id = 'previews.update_own' ORDER BY role_id",
-        )
-        .map((r) => r.role_id);
+        ) as { role_id: string }[]
+      ).map((r) => r.role_id);
       expect(holders).toEqual(["admin", "ci", "member"]);
       expect(
-        db.get<{ owner: string | null }>("SELECT owner FROM previews WHERE id = 'p1'")!.owner,
+        (db.get("SELECT owner FROM previews WHERE id = 'p1'") as
+          { owner: string | null } | undefined)!.owner,
       ).toBeNull();
       expect(db.query("PRAGMA foreign_key_check")).toEqual([]);
       db.close();
@@ -303,9 +309,11 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]);
-      const rows = db.query<{ id: string; watermark: string | null; source_json: string }>(
-        "SELECT id, watermark, source_json FROM previews ORDER BY id",
-      );
+      const rows = db.query("SELECT id, watermark, source_json FROM previews ORDER BY id") as {
+        id: string;
+        watermark: string | null;
+        source_json: string;
+      }[];
       expect(rows).toEqual([
         { id: "p1", watermark: "off", source_json: '{"uploadId":"p1"}' },
         { id: "p2", watermark: null, source_json: '{"uploadId":"p2"}' },

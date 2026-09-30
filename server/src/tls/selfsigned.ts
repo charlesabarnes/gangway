@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import "reflect-metadata"; // @peculiar/x509 pulls in tsyringe, which throws on load without it
 import * as x509 from "@peculiar/x509";
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -46,17 +47,19 @@ export async function createCa(commonName = "gangway development CA"): Promise<D
 }
 
 export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<CertMaterial> {
+  const primary = must(sans[0], "a name to certify");
   const caCert = new x509.X509Certificate(ca.certPem);
   const caKey = await importKey(ca.keyPem);
   const keys = await crypto.subtle.generateKey(ALG, true, ["sign", "verify"]);
   // Random: leaves issued in the same millisecond must not share one, or Firefox refuses them.
   const serialBytes = crypto.getRandomValues(new Uint8Array(16));
-  serialBytes[0] = serialBytes[0]! & 0x7f;
+  const [first = 0] = serialBytes;
+  serialBytes[0] = first & 0x7f;
   const serialNumber = Buffer.from(serialBytes).toString("hex");
 
   const cert = await x509.X509CertificateGenerator.create({
     serialNumber,
-    subject: `CN=${sans[0]}`,
+    subject: `CN=${primary}`,
     issuer: caCert.subject,
     notBefore: new Date(Date.now() - 60_000),
     notAfter: new Date(Date.now() + days * 86_400_000),
@@ -80,7 +83,7 @@ export async function issueLeaf(ca: DevCa, sans: string[], days = 397): Promise<
   const chain = [cert.toString("pem"), ca.certPem].map((p) => p.trimEnd() + "\n").join("");
 
   return {
-    serverName: sans[0]!,
+    serverName: primary,
     names: sans,
     // The leaf must carry the CA after it, or clients get UNABLE_TO_VERIFY_LEAF_SIGNATURE.
     cert: chain,

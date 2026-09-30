@@ -56,12 +56,12 @@ export class BuildsRepo {
   }
 
   forPreview(previewId: string): Build[] {
-    return this.#db
-      .query<Row>(
+    return (
+      this.#db.query(
         "SELECT id, preview_id, service, state, started_at, finished_at, exit_code FROM builds WHERE preview_id = $p ORDER BY started_at, id",
         { p: previewId },
-      )
-      .map(toBuild);
+      ) as Row[]
+    ).map(toBuild);
   }
 
   cancelRunning(): number {

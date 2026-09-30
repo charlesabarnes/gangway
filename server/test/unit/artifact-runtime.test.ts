@@ -83,7 +83,7 @@ describe("an artifact.md upload", () => {
 
   test("writeRuntime copies the kit into .gangway/ readable by nginx", async () => {
     const dir = await folder(DECK);
-    await writeRuntime(dir, await planned(dir), {}, join(tempDir(), "c.yaml"));
+    await writeRuntime(dir, await planned(dir), join(tempDir(), "c.yaml"));
     const js = join(dir, ".gangway/render/kit.js");
     expect(existsSync(js)).toBe(true);
     expect(statSync(js).mode & 0o777).toBe(0o644);
@@ -139,9 +139,10 @@ describe("pages gangway serves for a preview", () => {
     );
     expect(res?.headers.get("access-control-allow-origin")).toBe("*");
     expect(res?.headers.get("content-type")).toBe("font/woff2");
-    for (const bad of ["../manifest.json", "kit.js", "nope.woff2"])
+    for (const bad of ["../manifest.json", "kit.js", "nope.woff2"]) {
       expect(
         await serveKitFont(new Request(`https://preview.test/_gangway/fonts/${bad}`)),
       ).toBeNull();
+    }
   });
 });

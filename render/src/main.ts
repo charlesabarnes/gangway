@@ -11,18 +11,25 @@ const base = new URL(".", import.meta.url).pathname;
 
 /** A stylesheet beside the kit, once: the page's theme, or the retired kinds' styles. */
 function sheet(name: string): void {
-  if (document.querySelector(`link[href^="${base}${name}"]`)) return;
+  if (document.querySelector(`link[href^="${base}${name}"]`)) {
+    return;
+  }
   const link = document.createElement("link");
   link.rel = "stylesheet";
   link.href = `${base}${name}`;
   const kit = document.querySelector(`link[href*="kit.css"]`);
-  if (kit) kit.after(link);
-  else document.head.append(link);
+  if (kit) {
+    kit.after(link);
+  } else {
+    document.head.append(link);
+  }
 }
 
 async function markdown(): Promise<string | null> {
   const inline = document.querySelector('script[type="text/markdown"]')?.textContent;
-  if (inline) return inline;
+  if (inline) {
+    return inline;
+  }
   const res = await fetch("/artifact.md", { cache: "no-cache" });
   return res.ok ? res.text() : null;
 }
@@ -44,14 +51,18 @@ async function boot(): Promise<void> {
       }
     }
   }
-  if (document.querySelector(LEGACY)) sheet("legacy.css");
+  if (document.querySelector(LEGACY)) {
+    sheet("legacy.css");
+  }
   chrome();
   // Drawn, in its fonts; a timer, as browsers hold rAF back in a frame not yet shown.
   await new Promise((r) => setTimeout(r, 0));
-  await document.fonts?.ready;
+  await document.fonts.ready;
   document.dispatchEvent(new Event("gw-drawn"));
 }
 
-if (document.readyState === "loading")
+if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => void boot());
-else void boot();
+} else {
+  void boot();
+}

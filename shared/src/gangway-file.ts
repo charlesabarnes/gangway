@@ -105,13 +105,14 @@ export function parseGangwayFile(text: string): ParsedGangwayFile {
     };
   }
   const doc = parseDocument(text, { uniqueKeys: true, prettyErrors: false });
-  if (doc.errors.length > 0)
+  if (doc.errors.length > 0) {
     return {
       ok: false,
       issues: doc.errors
         .slice(0, 5)
         .map((e) => ({ path: "", message: e.message.split("\n")[0] ?? "invalid YAML" })),
     };
+  }
   let raw: unknown;
   try {
     raw = doc.toJS({ maxAliasCount: 20 }) ?? {};
@@ -121,15 +122,18 @@ export function parseGangwayFile(text: string): ParsedGangwayFile {
       issues: [{ path: "", message: e instanceof Error ? e.message : "invalid YAML" }],
     };
   }
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return {
       ok: false,
       issues: [
         { path: "", message: "gangway.yml must be a mapping of keys, like `start: npm run serve`" },
       ],
     };
+  }
   const r = GangwayFileSchema.safeParse(raw);
-  if (r.success) return { ok: true, file: r.data };
+  if (r.success) {
+    return { ok: true, file: r.data };
+  }
   return {
     ok: false,
     issues: r.error.issues

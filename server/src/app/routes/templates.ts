@@ -24,7 +24,9 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
 
   api.get("/templates/:id", requirePermission("previews.read"), (c) => {
     const t = d.templates.get(c.req.param("id"));
-    if (!t) throw notFound(`no such template: ${c.req.param("id")}`);
+    if (!t) {
+      throw notFound(`no such template: ${c.req.param("id")}`);
+    }
     return c.json({ template: t });
   });
 
@@ -32,8 +34,9 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
     const body = await readJson(c);
     const req = TemplateCreateSchema.parse(body);
     check(req, d.hosts);
-    if (d.templates.get(req.id))
+    if (d.templates.get(req.id)) {
       throw conflict(`template "${req.id}" already exists`, { id: req.id });
+    }
     const t = d.templates.create(req);
     d.audit.record(c.get("actor"), "template.created", t.id, { old: null, new: pick(t) });
     return c.json({ template: t }, 201);
@@ -42,11 +45,16 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
   api.patch("/templates/:id", requirePermission("templates.manage"), async (c) => {
     const id = c.req.param("id");
     const before = d.templates.get(id);
-    if (!before) throw notFound(`no such template: ${id}`);
+    if (!before) {
+      throw notFound(`no such template: ${id}`);
+    }
     const body = await readJson(c);
     const patch = TemplatePatchSchema.parse(body);
     check(patch, d.hosts);
-    const after = d.templates.update(id, patch)!;
+    const after = d.templates.update(id, patch);
+    if (!after) {
+      throw notFound(`no such template: ${id}`);
+    }
     d.audit.record(c.get("actor"), "template.updated", id, { old: pick(before), new: pick(after) });
     return c.json({ template: after });
   });
@@ -54,14 +62,19 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
   api.delete("/templates/:id", requirePermission("templates.manage"), (c) => {
     const id = c.req.param("id");
     const before = d.templates.get(id);
-    if (!before) throw notFound(`no such template: ${id}`);
-    if (before.builtin) throw conflict(`"${id}" is built in and cannot be deleted`, { id });
+    if (!before) {
+      throw notFound(`no such template: ${id}`);
+    }
+    if (before.builtin) {
+      throw conflict(`"${id}" is built in and cannot be deleted`, { id });
+    }
     const triggers = d.namedByTrigger(id);
-    if (triggers.length > 0)
+    if (triggers.length > 0) {
       throw conflict(
         `"${id}" is the default template for ${triggers.join(", ")}; point those elsewhere first`,
         { id, triggers },
       );
+    }
     const repos = d.templates.repoCount(id);
     d.templates.delete(id);
     d.audit.record(c.get("actor"), "template.deleted", id, {
@@ -80,14 +93,17 @@ function check(
   },
   hosts: Pick<HostsRepo, "get">,
 ): void {
-  if (v.ttl !== undefined && v.ttl !== null && parseDuration(v.ttl) === null)
+  if (v.ttl !== undefined && v.ttl !== null && parseDuration(v.ttl) === null) {
     throw unprocessable(`ttl ${JSON.stringify(v.ttl)} is not a duration like 12h or 7d`);
-  if (v.idleAfter !== undefined && v.idleAfter !== "never" && parseDuration(v.idleAfter) === null)
+  }
+  if (v.idleAfter !== undefined && v.idleAfter !== "never" && parseDuration(v.idleAfter) === null) {
     throw unprocessable(
       `idleAfter ${JSON.stringify(v.idleAfter)} is not a duration like 30m, or never`,
     );
-  if (v.hostId !== undefined && v.hostId !== null && !hosts.get(v.hostId))
+  }
+  if (v.hostId !== undefined && v.hostId !== null && !hosts.get(v.hostId)) {
     throw unprocessable(`host "${v.hostId}" does not exist`, { hostId: v.hostId });
+  }
 }
 
 const pick = (t: Template) => ({

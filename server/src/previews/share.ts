@@ -33,12 +33,14 @@ export function shareStatus(ctx: ShareCtx, previewId: string): ShareStatus {
 }
 
 function checkMayShare(ctx: ShareCtx, actor: Actor, previewId: string): void {
-  if (!can(actor, "previews.share"))
+  if (!can(actor, "previews.share")) {
     throw forbidden('sharing a preview publicly needs "previews.share"');
-  if (!mayRebuild(actor, ctx.previews.provenanceOf(previewId)))
+  }
+  if (!mayRebuild(actor, ctx.previews.provenanceOf(previewId))) {
     throw forbidden(
       'this preview was deployed by someone else: sharing it needs "previews.update" as well as "previews.share"',
     );
+  }
 }
 
 export async function startShare(
@@ -49,18 +51,22 @@ export async function startShare(
 ): Promise<Share> {
   checkMayShare(ctx, actor, previewId);
   const shares = ctx.shares;
-  if (!shares?.available())
+  if (!shares?.available()) {
     throw new AppError(
       "unavailable",
       shares
         ? "sharing is off on this server, or cloudflared is not installed"
         : "this server cannot share previews",
     );
+  }
   const ttlMs = ttl === undefined ? undefined : parseDuration(ttl);
-  if (ttlMs === null) throw unprocessable(`"${ttl}" is not a duration like 30m, 2h or 1d`);
+  if (ttlMs === null) {
+    throw unprocessable(`"${ttl}" is not a duration like 30m, 2h or 1d`);
+  }
   const preview = ctx.previews.get(previewId);
-  if (!preview || preview.state === "destroyed" || ctx.table.forPreview(previewId).length === 0)
+  if (!preview || preview.state === "destroyed" || ctx.table.forPreview(previewId).length === 0) {
     throw conflict("this preview has no URL to share yet");
+  }
 
   const had = shares.get(previewId);
   let share: Share;
@@ -74,16 +80,19 @@ export async function startShare(
     shares.stop(previewId, "destroyed");
     throw conflict("this preview was destroyed while its link was being made");
   }
-  if (!had)
+  if (!had) {
     ctx.audit.record(actor, "preview.share", previewId, {
       new: { url: share.url, expiresAt: new Date(share.expiresAt).toISOString() },
     });
+  }
   return share;
 }
 
 export function stopShare(ctx: ShareCtx, actor: Actor, previewId: string): Share | null {
   checkMayShare(ctx, actor, previewId);
   const ended = ctx.shares?.stop(previewId) ?? null;
-  if (ended) ctx.audit.record(actor, "preview.unshare", previewId, { old: { url: ended.url } });
+  if (ended) {
+    ctx.audit.record(actor, "preview.unshare", previewId, { old: { url: ended.url } });
+  }
   return ended;
 }

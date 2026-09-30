@@ -37,8 +37,12 @@ function make(o: { secret?: string; slow?: boolean; fail?: boolean } = {}) {
   const service = {
     async handle(event: ForgeEvent): Promise<Outcome> {
       handled.push(event);
-      if (o.slow) await gate;
-      if (o.fail) throw new Error("kaboom");
+      if (o.slow) {
+        await gate;
+      }
+      if (o.fail) {
+        throw new Error("kaboom");
+      }
       return { action: "ignored", reason: "fake" };
     },
   } as unknown as PrPreviews;

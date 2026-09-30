@@ -8,8 +8,11 @@ const IMPORT = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 function* sources(dir: string): Generator<string> {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
-    if (e.isDirectory()) yield* sources(p);
-    else if (e.name.endsWith(".ts")) yield p;
+    if (e.isDirectory()) {
+      yield* sources(p);
+    } else if (e.name.endsWith(".ts")) {
+      yield p;
+    }
   }
 }
 

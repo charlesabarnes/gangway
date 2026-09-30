@@ -114,7 +114,9 @@ function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
 
   api.get("/artifact-themes/:id/theme.css", requirePermission(...READ), (c) => {
     const t = library.theme(c.req.param("id"));
-    if (!t) throw notFound(`no such theme: ${c.req.param("id")}`);
+    if (!t) {
+      throw notFound(`no such theme: ${c.req.param("id")}`);
+    }
     c.header("content-type", "text/css; charset=utf-8");
     return c.body(compileTheme(t, inlineLogo(t)));
   });
@@ -122,7 +124,9 @@ function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   api.get("/artifact-themes/:id/logo.svg", requirePermission(...READ), (c) => {
     const logo = library.theme(c.req.param("id"))?.logo;
     const svg = logo ? cleanSvg(logo) : null;
-    if (!svg) throw notFound("this theme has no logo");
+    if (!svg) {
+      throw notFound("this theme has no logo");
+    }
     c.header("content-type", "image/svg+xml");
     c.header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
     return c.body(svg);
@@ -147,11 +151,16 @@ function themeRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
 
   api.delete("/artifact-themes/:id", requirePermission("artifacts.manage"), (c) => {
     const id = c.req.param("id");
-    if (id === HOUSE_THEME) throw conflict("gangway's own theme cannot be deleted");
+    if (id === HOUSE_THEME) {
+      throw conflict("gangway's own theme cannot be deleted");
+    }
     const before = d.themes.get(id);
-    if (!before) throw notFound(`no such theme: ${id}`);
-    if (library.defaultThemeId() === id)
+    if (!before) {
+      throw notFound(`no such theme: ${id}`);
+    }
+    if (library.defaultThemeId() === id) {
       throw conflict(`"${id}" is the default theme; choose another default first`);
+    }
     d.themes.delete(id);
     d.audit.record(c.get("actor"), "artifact_theme.deleted", id, { old: before.name, new: null });
     return c.body(null, 204);
@@ -165,27 +174,35 @@ function checkTemplate(
   themeId: string | null | undefined,
 ): void {
   const { bytes } = checkFiles(files);
-  if (bytes > TEMPLATE_BYTES)
+  if (bytes > TEMPLATE_BYTES) {
     throw unprocessable(`a template holds at most ${TEMPLATE_BYTES / 1024} KiB`);
+  }
   const md = files[ARTIFACT_FILE];
-  if (md === undefined) throw unprocessable(`a template needs ${ARTIFACT_FILE}`);
-  if (themeId && !d.library.theme(themeId)) throw unprocessable(`no theme called "${themeId}"`);
+  if (md === undefined) {
+    throw unprocessable(`a template needs ${ARTIFACT_FILE}`);
+  }
+  if (themeId && !d.library.theme(themeId)) {
+    throw unprocessable(`no theme called "${themeId}"`);
+  }
   const r = lintMarkdown(md, { has: (p) => p in files, themes: d.library.themeIds() });
-  if (r.issues.length > 0)
+  if (r.issues.length > 0) {
     throw unprocessable(
       `${ARTIFACT_FILE}: ${r.issues.map((i) => `line ${i.line}: ${i.message}`).join("; ")}`,
       { issues: r.issues },
     );
-  if (r.info && r.info.kind !== kind)
+  }
+  if (r.info && r.info.kind !== kind) {
     throw unprocessable(`the id says ${kind} but ${ARTIFACT_FILE} says kind: ${r.info.kind}`);
+  }
 }
 
 function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   const { library } = d;
   api.get("/artifact-templates", requirePermission(...READ), (c) => {
     const kind = c.req.query("kind");
-    if (kind !== undefined && !(ARTIFACT_KINDS as readonly string[]).includes(kind))
+    if (kind !== undefined && !(ARTIFACT_KINDS as readonly string[]).includes(kind)) {
       throw unprocessable(`kind: one of ${ARTIFACT_KINDS.join(", ")}`);
+    }
     return c.json({ templates: library.templates(kind as ArtifactKind | undefined) });
   });
 
@@ -194,7 +211,9 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
     try {
       return c.json({ files: library.render(input) });
     } catch (e) {
-      if (e instanceof TemplateError) throw unprocessable(e.message);
+      if (e instanceof TemplateError) {
+        throw unprocessable(e.message);
+      }
       throw e;
     }
   });
@@ -202,16 +221,22 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   api.get("/artifact-templates/:id{.+}", requirePermission(...READ), (c) => {
     const id = c.req.param("id");
     const t = library.templates().find((x) => x.id === id);
-    if (!t) throw notFound(`no such template: ${id}`);
-    const files = t.builtin ? library.render({ template: id }) : library.custom(id)!.files;
+    if (!t) {
+      throw notFound(`no such template: ${id}`);
+    }
+    const files = t.builtin ? library.render({ template: id }) : library.custom(id)?.files;
+    if (!files) {
+      throw notFound(`no such template: ${id}`);
+    }
     return c.json({ template: t, files });
   });
 
   api.post("/artifact-templates", requirePermission("artifacts.manage"), async (c) => {
     manage();
     const req = TemplateCreateSchema.parse(await readJson(c));
-    if (library.isBuiltin(req.id) || library.custom(req.id))
+    if (library.isBuiltin(req.id) || library.custom(req.id)) {
       throw conflict(`template "${req.id}" already exists`, { id: req.id });
+    }
     const kind = req.id.split("/")[0] as ArtifactKind;
     checkTemplate(d, kind, req.files, req.themeId);
     const t = d.templates.create({ ...req, kind }, actorId(c.get("actor")));
@@ -221,17 +246,26 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
       201,
     );
   });
+}
 
+function templateEditRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
+  const { library } = d;
   api.put("/artifact-templates/:id{.+}", requirePermission("artifacts.manage"), async (c) => {
     manage();
     const id = c.req.param("id");
-    if (library.isBuiltin(id))
+    if (library.isBuiltin(id)) {
       throw conflict("a built-in template cannot be changed; duplicate it");
+    }
     const before = library.custom(id);
-    if (!before) throw notFound(`no such template: ${id}`);
+    if (!before) {
+      throw notFound(`no such template: ${id}`);
+    }
     const patch = TemplatePatchSchema.parse(await readJson(c));
     checkTemplate(d, before.kind, patch.files ?? before.files, patch.themeId ?? before.themeId);
-    const t = d.templates.update(id, patch)!;
+    const t = d.templates.update(id, patch);
+    if (!t) {
+      throw notFound(`no such template: ${id}`);
+    }
     d.audit.record(c.get("actor"), "artifact_template.updated", id, {
       old: before.name,
       new: t.name,
@@ -241,9 +275,13 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
 
   api.delete("/artifact-templates/:id{.+}", requirePermission("artifacts.manage"), (c) => {
     const id = c.req.param("id");
-    if (library.isBuiltin(id)) throw conflict("a built-in template cannot be deleted");
+    if (library.isBuiltin(id)) {
+      throw conflict("a built-in template cannot be deleted");
+    }
     const before = library.custom(id);
-    if (!before) throw notFound(`no such template: ${id}`);
+    if (!before) {
+      throw notFound(`no such template: ${id}`);
+    }
     d.templates.delete(id);
     d.audit.record(c.get("actor"), "artifact_template.deleted", id, {
       old: before.name,
@@ -253,8 +291,10 @@ function templateRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   });
 }
 
-const titleOf = (files: Record<string, string>) =>
-  frontMatter(files[ARTIFACT_FILE] ?? "").meta["title"] || undefined;
+function titleOf(files: Record<string, string>): string | undefined {
+  const title = frontMatter(files[ARTIFACT_FILE] ?? "").meta["title"];
+  return title === "" ? undefined : title;
+}
 
 /** Deploys an artifact from a template, as the MCP deploy tool's artifact argument does. */
 function deployRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
@@ -268,7 +308,9 @@ function deployRoute(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
       try {
         files = d.library.render(input);
       } catch (e) {
-        if (e instanceof TemplateError) throw unprocessable(e.message);
+        if (e instanceof TemplateError) {
+          throw unprocessable(e.message);
+        }
         throw e;
       }
       const { archive, digest } = await packFiles(files);
@@ -312,5 +354,6 @@ export function artifactRoutes(api: Hono<AppEnv>, d: ArtifactRouteDeps): void {
   listRoute(api, d);
   themeRoutes(api, d);
   templateRoutes(api, d);
+  templateEditRoutes(api, d);
   deployRoute(api, d);
 }

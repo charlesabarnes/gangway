@@ -152,7 +152,9 @@ describe("retry / backoff", () => {
     let n = 0;
     const v = await retry(
       async () => {
-        if (++n < 3) throw new Error("nope");
+        if (++n < 3) {
+          throw new Error("nope");
+        }
         return n;
       },
       { baseMs: 1, random: () => 0 },

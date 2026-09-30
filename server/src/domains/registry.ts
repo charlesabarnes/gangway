@@ -32,11 +32,15 @@ export class DomainRegistry {
 
   constructor(d: RegistryDeps) {
     this.#d = d;
-    for (const name of d.pinned)
-      if (!isDomainName(name))
+    for (const name of d.pinned) {
+      if (!isDomainName(name)) {
         throw new Error(`GANGWAY_PREVIEW_DOMAINS: "${name}" is not a domain name`);
+      }
+    }
     const problem = domainsProblem(this.control(), [this.defaultDomain(), ...d.pinned]);
-    if (problem) throw new Error(problem);
+    if (problem) {
+      throw new Error(problem);
+    }
   }
 
   control(): string {
@@ -71,11 +75,12 @@ export class DomainRegistry {
 
   assertAvailable(name: string, projectId: string | null): void {
     const options = this.availableTo(projectId);
-    if (!options.includes(name))
+    if (!options.includes(name)) {
       throw unprocessable(
         `"${name}" is not a domain previews here can use; choose one of ${options.join(", ")}`,
         { domain: name, options },
       );
+    }
   }
 
   /** Its own choice, then its project's, then the default; a lost claim falls through. */
@@ -85,8 +90,11 @@ export class DomainRegistry {
   }): string {
     const projectId = choice.project?.id ?? null;
     const options = this.availableTo(projectId);
-    for (const c of [choice.preview, choice.project?.domain])
-      if (c && options.includes(c)) return c;
+    for (const c of [choice.preview, choice.project?.domain]) {
+      if (c && options.includes(c)) {
+        return c;
+      }
+    }
     return this.defaultDomain();
   }
 
@@ -103,8 +111,11 @@ export class DomainRegistry {
   aliasesOf(previewId: string, o: { routable?: boolean } = {}): string[] {
     const s = this.#snapshot();
     const out: string[] = [];
-    for (const [host, id] of s.aliases)
-      if (id === previewId && (!o.routable || s.routable.has(host))) out.push(host);
+    for (const [host, id] of s.aliases) {
+      if (id === previewId && (!o.routable || s.routable.has(host))) {
+        out.push(host);
+      }
+    }
     return out.sort();
   }
 
@@ -113,7 +124,9 @@ export class DomainRegistry {
   }
 
   releasePreview(previewId: string): void {
-    if (this.#d.domains.releasePreview(previewId)) this.refresh();
+    if (this.#d.domains.releasePreview(previewId)) {
+      this.refresh();
+    }
   }
 
   /** The certificates to hold; the control domain's first, for clients with no SNI. */
@@ -121,9 +134,15 @@ export class DomainRegistry {
     const control = this.control();
     const wildcard = (d: string) => [`*.${d}`, d];
     const units: CertUnit[] = [{ names: wildcard(control) }];
-    for (const d of this.pinned()) if (d !== control) units.push({ names: wildcard(d) });
+    for (const d of this.pinned()) {
+      if (d !== control) {
+        units.push({ names: wildcard(d) });
+      }
+    }
     for (const r of this.#snapshot().rows) {
-      if (r.status !== "active") continue;
+      if (r.status !== "active") {
+        continue;
+      }
       const names = r.kind === "wildcard" ? wildcard(r.name) : [r.name];
       units.push({ names, delegate: challengeTarget(r, control) });
     }
@@ -132,14 +151,16 @@ export class DomainRegistry {
 
   /** Refuses a control or default domain that is malformed or nests with another domain. */
   assertSettingsFit(control: string, defaultDomain: string): void {
-    for (const name of [control, defaultDomain])
+    for (const name of [control, defaultDomain]) {
       if (
         name !== "" &&
         !isDomainName(name) &&
         name !== "localhost" &&
         !name.endsWith(".localhost")
-      )
+      ) {
         throw unprocessable(`"${name}" is not a domain name`);
+      }
+    }
     const claimed = this.#snapshot()
       .rows.filter((r) => r.kind === "wildcard")
       .map((r) => r.name);
@@ -148,13 +169,17 @@ export class DomainRegistry {
       ...this.#d.pinned,
       ...claimed,
     ]);
-    if (problem) throw unprocessable(problem);
+    if (problem) {
+      throw unprocessable(problem);
+    }
   }
 
   /** Call after any write to domains, a project's production preview, or the domain settings. */
   refresh(): void {
     this.#snap = null;
-    for (const fn of this.#listeners) fn();
+    for (const fn of this.#listeners) {
+      fn();
+    }
   }
 
   onChange(fn: () => void): () => void {
@@ -163,24 +188,35 @@ export class DomainRegistry {
   }
 
   #snapshot(): Snapshot {
-    if (this.#snap) return this.#snap;
+    if (this.#snap) {
+      return this.#snap;
+    }
     const rows = this.#d.domains.all();
     const org: string[] = [];
     const byProject = new Map<string, string[]>();
     const aliases = new Map<string, string>();
     const routable = new Set<string>();
     for (const r of rows) {
-      if (r.status !== "active") continue;
+      if (r.status !== "active") {
+        continue;
+      }
       if (r.kind === "wildcard") {
-        if (r.projectId === null) org.push(r.name);
-        else byProject.set(r.projectId, [...(byProject.get(r.projectId) ?? []), r.name]);
+        if (r.projectId === null) {
+          org.push(r.name);
+        } else {
+          byProject.set(r.projectId, [...(byProject.get(r.projectId) ?? []), r.name]);
+        }
         continue;
       }
       const target =
         r.previewId ??
         (r.projectId ? this.#d.projects.get(r.projectId)?.productionPreviewId : null);
-      if (target) aliases.set(r.name, target);
-      if (r.routingOk) routable.add(r.name);
+      if (target) {
+        aliases.set(r.name, target);
+      }
+      if (r.routingOk) {
+        routable.add(r.name);
+      }
     }
     this.#snap = { rows, org, byProject, aliases, routable };
     return this.#snap;

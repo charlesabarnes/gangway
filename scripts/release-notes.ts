@@ -7,7 +7,9 @@ const TEMPLATES_REPO = "charlesabarnes/unraid-templates";
 const TEMPLATES = ["templates/gangway.xml", "templates/gangway-inabox.xml"];
 const TAG = process.env.TAG ?? process.env.GITHUB_REF_NAME;
 const TOKEN = process.env.GH_TOKEN;
-if (!TAG || !TOKEN) throw new Error("TAG and GH_TOKEN are required");
+if (!TAG || !TOKEN) {
+  throw new Error("TAG and GH_TOKEN are required");
+}
 
 async function github<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`https://api.github.com/${path}`, {
@@ -15,7 +17,9 @@ async function github<T>(path: string, body?: unknown): Promise<T> {
     headers: { authorization: `Bearer ${TOKEN}`, accept: "application/vnd.github+json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`${path}: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`${path}: ${res.status} ${await res.text()}`);
+  }
   return (await res.json()) as T;
 }
 
@@ -42,9 +46,13 @@ function withoutHints(lines: string[]): string[] {
   let hint = false;
   return lines.filter((line) => {
     const t = line.trim();
-    if (!hint && t.startsWith("<!--")) hint = true;
+    if (!hint && t.startsWith("<!--")) {
+      hint = true;
+    }
     const keep = !hint;
-    if (hint && t.endsWith("-->")) hint = false;
+    if (hint && t.endsWith("-->")) {
+      hint = false;
+    }
     return keep;
   });
 }
@@ -52,7 +60,9 @@ function withoutHints(lines: string[]): string[] {
 export function section(body: string, heading: string): string {
   const lines = withoutHints(body.split(/\r?\n/));
   const start = lines.findIndex((l) => l.trim().toLowerCase() === `## ${heading.toLowerCase()}`);
-  if (start < 0) return "";
+  if (start < 0) {
+    return "";
+  }
   const end = lines.findIndex((l, i) => i > start && /^## /.test(l));
   const text = lines
     .slice(start + 1, end < 0 ? undefined : end)
@@ -97,7 +107,9 @@ async function main(): Promise<string> {
     .map((c) => `- ${c.commit.message.split("\n")[0]} ([${c.sha.slice(0, 7)}](${c.html_url}))`);
 
   const parts: string[] = [];
-  if (steps.length) parts.push(`## Upgrade steps\n\n${steps.join("\n\n")}`);
+  if (steps.length) {
+    parts.push(`## Upgrade steps\n\n${steps.join("\n\n")}`);
+  }
   parts.push(generated.body.trim());
   if (templates.length) {
     parts.push(
@@ -107,4 +119,6 @@ async function main(): Promise<string> {
   return parts.join("\n\n") + "\n";
 }
 
-if (import.meta.main) process.stdout.write(await main());
+if (import.meta.main) {
+  process.stdout.write(await main());
+}

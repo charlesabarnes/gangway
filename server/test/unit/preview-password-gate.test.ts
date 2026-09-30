@@ -97,7 +97,9 @@ describe("the password gate", () => {
   test("guessing is throttled", async () => {
     const t = makeGate({ limiter: new LoginLimiter({ ipMax: 3 }) });
     const e = entry(await own());
-    for (let i = 0; i < 3; i++) expect((await t.post(e, `guess ${i}`)).status).toBe(401);
+    for (let i = 0; i < 3; i++) {
+      expect((await t.post(e, `guess ${i}`)).status).toBe(401);
+    }
     const res = await t.post(e, "correct horse");
     expect(res.status).toBe(429);
     expect(res.headers.get("retry-after")).not.toBeNull();

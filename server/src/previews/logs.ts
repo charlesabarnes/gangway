@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import {
   appendFileSync,
   closeSync,
@@ -82,7 +83,9 @@ export class PreviewLogs {
   }
 
   #path(previewId: string): string {
-    if (!isUlid(previewId)) throw new Error(`not a preview id: ${JSON.stringify(previewId)}`);
+    if (!isUlid(previewId)) {
+      throw new Error(`not a preview id: ${JSON.stringify(previewId)}`);
+    }
     return join(this.#dir, `${previewId}.jsonl`);
   }
 
@@ -91,7 +94,9 @@ export class PreviewLogs {
     let n = this.#next.get(previewId) ?? (readBack(path, (g) => g.length > 0).at(-1)?.n ?? 0) + 1;
     const out: LogLine[] = [];
     for (const raw of text.split(/\r?\n|\r/)) {
-      if (raw === "") continue;
+      if (raw === "") {
+        continue;
+      }
       const clipped = raw.length > MAX_LINE ? `${raw.slice(0, MAX_LINE)} [truncated]` : raw;
       out.push({
         n: n++,
@@ -100,13 +105,17 @@ export class PreviewLogs {
         line: redactString(this.#masked(previewId, clipped)),
       });
     }
-    if (out.length === 0) return;
+    if (out.length === 0) {
+      return;
+    }
     this.#next.set(previewId, n);
     appendFileSync(path, out.map((l) => JSON.stringify(l)).join("\n") + "\n");
-    if (statSync(path).size > MAX_FILE) this.#trim(path);
+    if (statSync(path).size > MAX_FILE) {
+      this.#trim(path);
+    }
     const ls = this.#listeners.get(previewId);
-    if (ls)
-      for (const line of out)
+    if (ls) {
+      for (const line of out) {
         for (const l of ls) {
           try {
             l(line);
@@ -114,19 +123,26 @@ export class PreviewLogs {
             // one bad listener must not stop the others
           }
         }
+      }
+    }
   }
 
   mask(previewId: string, values: readonly string[]): void {
     const keep = values.filter((v) => v.length >= 8);
-    if (keep.length > 0)
+    if (keep.length > 0) {
       this.#masks.set(previewId, [...new Set([...(this.#masks.get(previewId) ?? []), ...keep])]);
+    }
   }
 
   #masked(previewId: string, line: string): string {
     const masks = this.#masks.get(previewId);
-    if (!masks) return line;
+    if (!masks) {
+      return line;
+    }
     let out = line;
-    for (const m of masks) out = out.split(m).join("[redacted]");
+    for (const m of masks) {
+      out = out.split(m).join("[redacted]");
+    }
     return out;
   }
 
@@ -139,9 +155,13 @@ export class PreviewLogs {
 
   read(previewId: string, afterLine = 0, last = Infinity): LogLine[] {
     const path = this.#path(previewId);
-    if (!existsSync(path)) return [];
-    const done = (g: readonly LogLine[]) =>
-      g.length > last || (g.length > 0 && g[0]!.n <= afterLine);
+    if (!existsSync(path)) {
+      return [];
+    }
+    const done = (g: readonly LogLine[]) => {
+      const [first] = g;
+      return g.length > last || (first !== undefined && first.n <= afterLine);
+    };
     return readBack(path, done).filter((l) => l.n > afterLine);
   }
 
@@ -165,14 +185,16 @@ export class PreviewLogs {
       }
     };
     let set = this.#listeners.get(previewId);
-    if (!set) this.#listeners.set(previewId, (set = new Set()));
+    if (!set) {
+      this.#listeners.set(previewId, (set = new Set()));
+    }
     set.add(emit);
 
     const keep = Math.max(1, Math.min(o.tail ?? Infinity, o.maxReplay ?? Infinity));
     let backlog = this.read(previewId, cursor, keep);
     if (backlog.length > keep) {
       backlog = backlog.slice(-keep);
-      const first = backlog[0]!;
+      const first = must(backlog[0], "a backlog line");
       const skipped = first.n - 1 - cursor;
       emit({
         n: first.n - 1,
@@ -181,10 +203,14 @@ export class PreviewLogs {
         line: `... ${skipped} earlier line${skipped === 1 ? "" : "s"} not shown`,
       });
     }
-    for (const l of backlog) emit(l);
+    for (const l of backlog) {
+      emit(l);
+    }
     return () => {
       set.delete(emit);
-      if (set.size === 0) this.#listeners.delete(previewId);
+      if (set.size === 0) {
+        this.#listeners.delete(previewId);
+      }
     };
   }
 

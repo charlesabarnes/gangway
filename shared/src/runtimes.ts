@@ -1,3 +1,5 @@
+import { must } from "./must.ts";
+
 export const RUNTIME_IDS = ["static", "node", "bun", "deno", "workerd", "python", "php"] as const;
 export type RuntimeId = (typeof RUNTIME_IDS)[number];
 export type Runtime = {
@@ -220,7 +222,11 @@ echo "Hello from PHP " . PHP_VERSION . "! You asked for " . $_SERVER['REQUEST_UR
   },
 ];
 
-export const runtimeById = (id: RuntimeId): Runtime => RUNTIMES.find((r) => r.id === id)!;
+export const runtimeById = (id: RuntimeId): Runtime =>
+  must(
+    RUNTIMES.find((r) => r.id === id),
+    `runtime ${id}`,
+  );
 
 export type Detected = RuntimeId | "own";
 
@@ -248,6 +254,10 @@ export const DETECTION: readonly { runtime: Detected; markers: readonly string[]
 
 export function detectRuntime(paths: Iterable<string>): Detected {
   const have = new Set(paths);
-  for (const rule of DETECTION) if (rule.markers.some((m) => have.has(m))) return rule.runtime;
+  for (const rule of DETECTION) {
+    if (rule.markers.some((m) => have.has(m))) {
+      return rule.runtime;
+    }
+  }
   return "static";
 }

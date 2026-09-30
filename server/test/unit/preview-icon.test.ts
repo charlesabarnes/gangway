@@ -28,9 +28,9 @@ describe("preview icons", () => {
     expect(t.previews.get(p.id)!.icon).toBeNull();
     expect((await t.putIcon(p.id, { icon: { name: "not-an-icon" } })).status).toBe(422);
     expect((await t.putIcon(p.id, { icon: { name: "star", color: "pink" } })).status).toBe(422);
-    const audit = t.db.query<{ n: number }>(
-      "SELECT count(*) AS n FROM audit WHERE action = 'preview.icon'",
-    );
+    const audit = t.db.query("SELECT count(*) AS n FROM audit WHERE action = 'preview.icon'") as {
+      n: number;
+    }[];
     expect(audit[0]!.n).toBe(2);
   });
 });

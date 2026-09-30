@@ -26,10 +26,13 @@ export class Workdirs {
   }
 
   pathFor(id: string): string {
-    if (!SAFE_ID.test(id)) throw badRequest("invalid workdir id", { id: id.slice(0, 64) });
-    const dir = path.join(this.#root, id);
-    if (!containedIn(this.#root, dir))
+    if (!SAFE_ID.test(id)) {
       throw badRequest("invalid workdir id", { id: id.slice(0, 64) });
+    }
+    const dir = path.join(this.#root, id);
+    if (!containedIn(this.#root, dir)) {
+      throw badRequest("invalid workdir id", { id: id.slice(0, 64) });
+    }
     return dir;
   }
 
@@ -61,7 +64,9 @@ export class Workdirs {
     const entries = await readdir(this.#root, { withFileTypes: true }).catch(() => []);
     const removed: string[] = [];
     for (const entry of entries) {
-      if (!SAFE_ID.test(entry.name)) continue;
+      if (!SAFE_ID.test(entry.name)) {
+        continue;
+      }
       await this.remove(entry.name);
       removed.push(entry.name);
     }
@@ -70,6 +75,6 @@ export class Workdirs {
 
   async realRoot(): Promise<string> {
     await mkdir(this.#root, { recursive: true, mode: WORKDIR_MODE });
-    return await realpath(this.#root);
+    return realpath(this.#root);
   }
 }

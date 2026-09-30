@@ -8,7 +8,9 @@ import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
 const addonParam = (s: string): AddonId => {
-  if (!(ADDON_IDS as readonly string[]).includes(s)) throw notFound(`no such add-on: ${s}`);
+  if (!(ADDON_IDS as readonly string[]).includes(s)) {
+    throw notFound(`no such add-on: ${s}`);
+  }
   return s as AddonId;
 };
 
@@ -48,14 +50,11 @@ export function addonRoutes(api: Hono<AppEnv>, data: DataBrowser): void {
   api.get("/previews/:id/addons/:addon/rows", requirePermission("previews.data"), async (c) => {
     const q = RowsQuery.parse(c.req.query());
     return c.json(
-      await data.rows(
-        c.get("actor"),
-        c.req.param("id"),
-        addonParam(c.req.param("addon")),
-        { schema: q.schema, name: q.table },
-        q.limit,
-        q.offset,
-      ),
+      await data.rows(c.get("actor"), c.req.param("id"), addonParam(c.req.param("addon")), {
+        table: { schema: q.schema, name: q.table },
+        limit: q.limit,
+        offset: q.offset,
+      }),
     );
   });
 
@@ -66,21 +65,19 @@ export function addonRoutes(api: Hono<AppEnv>, data: DataBrowser): void {
 
   api.get("/previews/:id/addons/redis/key", requirePermission("previews.data"), async (c) => {
     const name = c.req.query("name");
-    if (name === undefined || name === "" || name.length > 1024)
+    if (name === undefined || name === "" || name.length > 1024) {
       throw badRequest("?name= is the key");
+    }
     return c.json(await data.key(c.get("actor"), c.req.param("id"), name));
   });
 
   api.post("/previews/:id/addons/:addon/query", requirePermission("previews.data"), async (c) => {
     const body = QueryBody.parse(await readJson(c));
     return c.json(
-      await data.query(
-        c.get("actor"),
-        c.req.param("id"),
-        addonParam(c.req.param("addon")),
-        body.text,
-        body.write,
-      ),
+      await data.query(c.get("actor"), c.req.param("id"), addonParam(c.req.param("addon")), {
+        text: body.text,
+        write: body.write,
+      }),
     );
   });
 }

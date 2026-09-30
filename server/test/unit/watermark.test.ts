@@ -80,7 +80,9 @@ describe("stamping a page", () => {
       page("<body></body>", {}, 404),
       page("<body></body>", { "content-range": "bytes 0-5/10" }, 206),
     ];
-    for (const res of cases) expect(stamp(res, nav())).toBe(res);
+    for (const res of cases) {
+      expect(stamp(res, nav())).toBe(res);
+    }
   });
 
   test("a 304 keeps the marked validator, so the cached marked page stays valid", () => {
@@ -196,9 +198,9 @@ describe("PUT /v1/previews/:id/watermark", () => {
     expect(((await res.json()) as { preview: { watermark: string } }).preview.watermark).toBe(
       "off",
     );
-    const audit = t.db.query<{ new_json: string }>(
-      "SELECT new_json FROM audit WHERE action = 'preview.watermark'",
-    );
+    const audit = t.db.query("SELECT new_json FROM audit WHERE action = 'preview.watermark'") as {
+      new_json: string;
+    }[];
     expect(audit.map((a) => JSON.parse(a.new_json))).toEqual(["off"]);
   });
 

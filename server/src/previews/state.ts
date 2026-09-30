@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Preview, PreviewState } from "@gangway/shared/domain";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
 import { AppError, notFound } from "../errors.ts";
@@ -30,7 +31,9 @@ export class PreviewStates {
 
   transition(id: string, to: PreviewState, error: string | null = null): Preview {
     const current = this.#previews.get(id);
-    if (!current) throw notFound(`no such preview: ${id}`);
+    if (!current) {
+      throw notFound(`no such preview: ${id}`);
+    }
     if (!canTransition(current.state, to)) {
       throw new AppError("conflict", `preview is ${current.state}; cannot become ${to}`, {
         state: current.state,
@@ -44,6 +47,6 @@ export class PreviewStates {
       { state: to, from: current.state, ...(error ? { error } : {}) },
       id,
     );
-    return this.#previews.get(id)!;
+    return must(this.#previews.get(id), "the preview just moved");
   }
 }

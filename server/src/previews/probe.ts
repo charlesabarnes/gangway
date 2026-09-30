@@ -23,7 +23,9 @@ export const httpProbe: RouteProbe = async (route, host, healthPath) => {
       socket.destroy();
       resolve(ok);
     };
-    const timer = setTimeout(() => finish(false), 3_000);
+    const timer = setTimeout(() => {
+      finish(false);
+    }, 3_000);
     let head = "";
     socket.on("data", (chunk: Buffer) => {
       head += chunk.toString("latin1");
@@ -63,7 +65,9 @@ export type StatusProbe = (
 ) => Promise<number | null>;
 
 export const httpStatus: StatusProbe = async (route, host, path) => {
-  if (!CHECK_PATH.test(path)) return null;
+  if (!CHECK_PATH.test(path)) {
+    return null;
+  }
   let socket;
   try {
     socket = await dialUpstream(route.upstream, {
@@ -79,7 +83,9 @@ export const httpStatus: StatusProbe = async (route, host, path) => {
       socket.destroy();
       resolve(s);
     };
-    const timer = setTimeout(() => finish(null), 5_000);
+    const timer = setTimeout(() => {
+      finish(null);
+    }, 5_000);
     let head = "";
     socket.on("data", (chunk: Buffer) => {
       head += chunk.toString("latin1");

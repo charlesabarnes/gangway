@@ -9,7 +9,7 @@ import { redactString } from "../logger.ts";
 import { buildStack, parseComposeModel, type ComposeModel } from "./compose-model.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
-import { withDotenv } from "./own-stack.ts";
+import { withDotenv, type OwnStack } from "./own-stack.ts";
 import type { Workdir } from "./source/workdir.ts";
 
 export const PLAN_PROJECT = "gw-plan";
@@ -21,8 +21,7 @@ export async function readModel(
   ctx: PreviewContext,
   host: Host,
   wd: Workdir,
-  composeFile: string,
-  dotenv?: Record<string, string>,
+  { composeFile, dotenv }: OwnStack,
 ): Promise<Planned> {
   const argv = composeArgv({
     project: PLAN_PROJECT,
@@ -34,10 +33,11 @@ export async function readModel(
   const r = await withDotenv(wd.srcDir, dotenv, () =>
     ctx.compose.capture(argv, host, { cwd: wd.srcDir }),
   );
-  if (r.code !== 0)
+  if (r.code !== 0) {
     throw unprocessable("the compose file is not valid", {
       compose: redactString(r.stderr).slice(-2_000),
     });
+  }
   let resolved: unknown;
   try {
     resolved = parseYaml(r.stdout);
@@ -69,7 +69,9 @@ export async function writeStack(
 ): Promise<string | null> {
   const source = ctx.previews.get(s.preview.id)?.source ?? s.preview.source;
   const network = sharedNetworkFor(ctx.instance, s.model, source);
-  if (network) await ensureNetwork(ctx, s.host, network);
+  if (network) {
+    await ensureNetwork(ctx, s.host, network);
+  }
   await writeFile(
     stackPath,
     buildStack({
@@ -108,8 +110,9 @@ export async function dropProjectNetwork(
   const docker = ctx.docker ?? "docker";
   const cwd = await mkdtemp(join(tmpdir(), "gangway-net-"));
   try {
-    for (const name of [`${project}_default`, `gw-${ctx.instance}-shared`])
+    for (const name of [`${project}_default`, `gw-${ctx.instance}-shared`]) {
       await ctx.compose.capture([docker, "network", "rm", name], host, { cwd });
+    }
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -120,13 +123,16 @@ export function sharedNetworkFor(
   model: ComposeModel,
   source: PreviewSource,
 ): string | null {
-  const choice = "network" in source && source.network ? source.network : "auto";
+  const choice = ("network" in source ? source.network : undefined) ?? "auto";
   const single = model.services.length === 1 && model.networks.every((n) => n === "default");
-  if (choice === "isolated") return null;
-  if (choice === "shared" && !single)
+  if (choice === "isolated") {
+    return null;
+  }
+  if (choice === "shared" && !single) {
     throw unprocessable(
       "network: shared is for a single service; a preview with add-ons or several services keeps its own network",
     );
+  }
   return single ? `gw-${instance}-previews` : null;
 }
 
@@ -135,7 +141,9 @@ async function ensureNetwork(ctx: PreviewContext, host: Host, name: string): Pro
   const cwd = await mkdtemp(join(tmpdir(), "gangway-net-"));
   try {
     const found = await ctx.compose.capture([docker, "network", "inspect", name], host, { cwd });
-    if (found.code === 0) return;
+    if (found.code === 0) {
+      return;
+    }
     const create = (...opts: string[]) =>
       ctx.compose.capture(
         [docker, "network", "create", "--label", `gangway.instance=${ctx.instance}`, ...opts, name],
@@ -155,8 +163,9 @@ async function ensureNetwork(ctx: PreviewContext, host: Host, name: string): Pro
       );
       made = await create();
     }
-    if (made.code !== 0 && !/already exists/.test(made.stderr))
+    if (made.code !== 0 && !/already exists/.test(made.stderr)) {
       throw new AppError("internal", `could not create the ${name} network: ${made.stderr.trim()}`);
+    }
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

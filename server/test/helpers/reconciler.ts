@@ -53,7 +53,9 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
     for: () => ({
       hostId: "local",
       info: async () => {
-        if (daemon.down) throw new Error("connect ECONNREFUSED 127.0.0.1:23750");
+        if (daemon.down) {
+          throw new Error("connect ECONNREFUSED 127.0.0.1:23750");
+        }
         return daemon.info;
       },
       listContainers: async (opts: ListOptions = {}) => {
@@ -69,20 +71,21 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
   const compose: ComposeRunner = {
     async *stream(_argv, _h, opt): AsyncGenerator<ComposeEvent> {
       daemon.composed.push("up");
-      if (o.hangUp)
+      if (o.hangUp) {
         await new Promise<void>((r) => opt.signal?.addEventListener("abort", () => r()));
+      }
       opt.signal?.throwIfAborted();
       yield { type: "exit", code: 0, signal: null };
     },
     async capture(argv): Promise<ComposeResult> {
       const cmd = argv.find((a) => ["config", "ps", "down", "logs"].includes(a))!;
       daemon.composed.push(cmd);
-      const stdout =
-        cmd === "config"
-          ? await Bun.file(argv[argv.indexOf("--file") + 1]!).text()
-          : cmd === "ps"
-            ? JSON.stringify({ Service: "web", State: "running" })
-            : "";
+      let stdout = "";
+      if (cmd === "config") {
+        stdout = await Bun.file(argv[argv.indexOf("--file") + 1]!).text();
+      } else if (cmd === "ps") {
+        stdout = JSON.stringify({ Service: "web", State: "running" });
+      }
       return { code: 0, stdout, stderr: "", signal: null };
     },
   };

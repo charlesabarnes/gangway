@@ -29,7 +29,9 @@ export const appHostOf = (previewHost: string) =>
 // A host with no parent domain keeps the fallback fonts.
 export function fontFaces(previewHost: string): string {
   const app = appHostOf(previewHost);
-  if (!app.includes(".")) return "";
+  if (!app.includes(".")) {
+    return "";
+  }
   return FACES.map(
     ([family, file, weight, style]) =>
       `@font-face{font-family:'${family}';font-weight:${weight};font-style:${style};font-display:swap;src:url(//${app}${FONT_PATH}${file}.woff2) format('woff2')}`,
@@ -77,7 +79,9 @@ export function themeChoice(req: Request): "light" | "dark" | null {
 /** Scriptless pages get the choice in their CSS; a WeakSet marks them, so no preview can pose as one. */
 export async function themed(res: Response, req: Request): Promise<Response> {
   const t = themeChoice(req);
-  if (!OWN.has(res) || !t) return res;
+  if (!OWN.has(res) || !t) {
+    return res;
+  }
   const [dark, light] = t === "dark" ? ["all", "not all"] : ["not all", "all"];
   const html = (await res.text())
     .replaceAll("@media not (prefers-color-scheme:dark)", `@media ${light}`)

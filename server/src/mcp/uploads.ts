@@ -46,8 +46,9 @@ export class Uploads {
     this.#now = o.now ?? Date.now;
     this.#maxBytes = o.maxBytes ?? MAX_UPLOAD_BYTES;
     mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
-    for (const f of readdirSync(this.#dir))
+    for (const f of readdirSync(this.#dir)) {
       rmSync(join(this.#dir, f), { force: true, recursive: true });
+    }
   }
 
   #path(id: string): string {
@@ -70,16 +71,18 @@ export class Uploads {
     const mine = [...this.#slots.values()].filter(
       (s) => s.owner === owner && s.state !== "taken",
     ).length;
-    if (mine >= MAX_PER_OWNER)
+    if (mine >= MAX_PER_OWNER) {
       throw new AppError(
         "rate_limited",
         `${MAX_PER_OWNER} uploads are already waiting for this credential; use or let them expire (${UPLOAD_TTL_MS / 60_000} min)`,
       );
-    if (this.#slots.size >= MAX_PENDING)
+    }
+    if (this.#slots.size >= MAX_PENDING) {
       throw new AppError(
         "rate_limited",
         "too many uploads are waiting on this server; try again in a few minutes",
       );
+    }
     const id = randomBytes(32).toString("base64url");
     const slot: Slot = {
       id,
@@ -100,23 +103,29 @@ export class Uploads {
   ): Promise<{ bytes: number; sha256: string }> {
     this.#sweep();
     const slot = ID.test(id) ? this.#slots.get(id) : undefined;
-    if (!slot || slot.expiresAt <= this.#now())
+    if (!slot || slot.expiresAt <= this.#now()) {
       throw notFound('no such upload, or it expired; ask deploy for a new one with upload: "new"');
-    if (slot.state !== "waiting")
+    }
+    if (slot.state !== "waiting") {
       throw conflict("this upload URL was already used; ask deploy for a new one");
-    if (!body) throw unprocessable("send the tar.gz as the request body");
-    if (declaredLength !== undefined && declaredLength > this.#maxBytes)
+    }
+    if (!body) {
+      throw unprocessable("send the tar.gz as the request body");
+    }
+    if (declaredLength !== undefined && declaredLength > this.#maxBytes) {
       throw new AppError("payload_too_large", `at most ${this.#maxBytes} bytes`);
+    }
     slot.state = "receiving";
     const path = this.#path(id);
     const hash = createHash("sha256");
     let bytes = 0;
     const fh = await open(path, "wx", 0o600);
     try {
-      for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
+      for await (const chunk of body) {
         bytes += chunk.byteLength;
-        if (bytes > this.#maxBytes)
+        if (bytes > this.#maxBytes) {
           throw new AppError("payload_too_large", `at most ${this.#maxBytes} bytes`);
+        }
         hash.update(chunk);
         await fh.write(chunk);
       }
@@ -141,16 +150,19 @@ export class Uploads {
   take(id: string, actor: Actor): Taken {
     this.#sweep();
     const slot = ID.test(id) ? this.#slots.get(id) : undefined;
-    if (!slot || slot.owner !== actorId(actor))
+    if (slot?.owner !== actorId(actor)) {
       throw notFound(
         'no such upload for this credential, or it expired; ask for a new one with upload: "new"',
       );
-    if (slot.state === "waiting" || slot.state === "receiving")
+    }
+    if (slot.state === "waiting" || slot.state === "receiving") {
       throw conflict(
         `nothing has been sent to this upload yet; PUT the tar.gz to ${this.#url(id)} first`,
       );
-    if (slot.state === "taken")
+    }
+    if (slot.state === "taken") {
       throw conflict("this upload was already deployed; ask for a new one");
+    }
     slot.state = "taken";
     const path = this.#path(id);
     return {

@@ -9,9 +9,12 @@ export function checkDomainChoice(
   domain: string | null | undefined,
   projectId: string | null,
 ): void {
-  if (domain === undefined || domain === null) return;
-  if (!can(actor, "previews.domain"))
+  if (domain === undefined || domain === null) {
+    return;
+  }
+  if (!can(actor, "previews.domain")) {
     throw forbidden('choosing a preview\'s domain needs "previews.domain"');
+  }
   ctx.domains?.assertAvailable(domain, projectId);
 }
 
@@ -23,11 +26,16 @@ export function setPreviewDomain(
   domain: string | null,
 ): void {
   const preview = ctx.previews.get(previewId);
-  if (!preview) return;
-  if (domain === null && !can(actor, "previews.domain"))
+  if (!preview) {
+    return;
+  }
+  if (domain === null && !can(actor, "previews.domain")) {
     throw forbidden('choosing a preview\'s domain needs "previews.domain"');
+  }
   checkDomainChoice(ctx, actor, domain, preview.projectId);
-  if (preview.domain === domain) return;
+  if (preview.domain === domain) {
+    return;
+  }
   ctx.previews.setDomain(previewId, domain);
   ctx.audit.record(actor, "preview.domain", previewId, { old: preview.domain, new: domain });
 }

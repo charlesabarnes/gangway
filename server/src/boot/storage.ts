@@ -169,14 +169,17 @@ async function pruneStored(
 ): Promise<void> {
   for (const id of await sources.ids()) {
     const p = all.get(id);
-    if (!p || p.state === "destroyed") await sources.remove(id);
+    if (!p || p.state === "destroyed") {
+      await sources.remove(id);
+    }
   }
 }
 
 function cancelOrphanedBuilds(builds: BuildsRepo, logger: Logger): void {
   const orphanedBuilds = builds.cancelRunning();
-  if (orphanedBuilds > 0)
+  if (orphanedBuilds > 0) {
     logger.info("marked builds interrupted by the last shutdown as cancelled", {
       builds: orphanedBuilds,
     });
+  }
 }

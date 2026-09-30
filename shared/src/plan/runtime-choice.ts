@@ -1,3 +1,4 @@
+import { must } from "../must.ts";
 import type { GangwayFile } from "../gangway-file.ts";
 import {
   DETECTION,
@@ -9,20 +10,22 @@ import {
 import type { Scope } from "./root.ts";
 import type { AppPlan, PlanChoice, PlanInput, Reason } from "./types.ts";
 
+type Asked = { choice: Exclude<PlanChoice, "own">; file: GangwayFile | null };
+
 export function chooseRuntime(
   input: PlanInput,
-  choice: Exclude<PlanChoice, "own">,
-  file: GangwayFile | null,
+  { choice, file }: Asked,
   scope: Scope,
   reasons: Reason[],
 ): RuntimeId {
   if (choice !== "auto") {
-    if (file?.runtime && file.runtime !== choice)
+    if (file?.runtime && file.runtime !== choice) {
       reasons.push({
         level: "info",
         found: `gangway.yml says ${file.runtime}`,
         then: `building as ${runtimeById(choice).name}, as asked`,
       });
+    }
     return choice;
   }
   if (file?.runtime) {
@@ -59,9 +62,10 @@ function detectFromMarkers(scope: Scope, reasons: Reason[]): RuntimeId {
 }
 
 export function pickVersion(plan: AppPlan, rt: Runtime, file: GangwayFile | null): boolean {
+  const versions = Object.keys(rt.versions);
   plan.version =
-    Object.keys(rt.versions).find((v) => rt.versions[v] === rt.image) ??
-    Object.keys(rt.versions)[0]!;
+    versions.find((v) => rt.versions[v] === rt.image) ??
+    must(versions[0], `a version of ${rt.name}`);
   if (file?.version !== undefined) {
     if (rt.versions[file.version] === undefined) {
       plan.issues.push({
@@ -72,6 +76,6 @@ export function pickVersion(plan: AppPlan, rt: Runtime, file: GangwayFile | null
     }
     plan.version = file.version;
   }
-  plan.image = rt.versions[plan.version]!;
+  plan.image = must(rt.versions[plan.version], `the ${rt.name} ${plan.version} image`);
   return true;
 }

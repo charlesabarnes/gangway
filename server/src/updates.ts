@@ -16,7 +16,7 @@ export type UpdateStatus = {
 
 type Release = { latest: string; url: string; checkedAt: number };
 
-const ReleaseSchema = z.object({ tag_name: z.string().min(1), html_url: z.string().url() });
+const ReleaseSchema = z.object({ tag_name: z.string().min(1), html_url: z.url() });
 
 const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)$/;
 
@@ -29,9 +29,18 @@ export function parseVersion(v: string): [number, number, number] | null {
 export function isNewer(latest: string, current: string): boolean {
   const a = parseVersion(latest);
   const b = parseVersion(current);
-  if (!a || !b) return false;
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i]! > b[i]!;
-  return false;
+  if (!a || !b) {
+    return false;
+  }
+  const [aMajor, aMinor, aPatch] = a;
+  const [bMajor, bMinor, bPatch] = b;
+  if (aMajor !== bMajor) {
+    return aMajor > bMajor;
+  }
+  if (aMinor !== bMinor) {
+    return aMinor > bMinor;
+  }
+  return aPatch > bPatch;
 }
 
 export type UpdateCheckOptions = {
@@ -69,7 +78,9 @@ export class UpdateCheck {
 
   /** Never throws: a failed check keeps the last good result. */
   async check(signal?: AbortSignal): Promise<void> {
-    if (!this.#o.enabled()) return;
+    if (!this.#o.enabled()) {
+      return;
+    }
     const timeout = AbortSignal.timeout(this.#o.timeoutMs ?? 10_000);
     try {
       const res = await this.#fetch(LATEST_RELEASE_URL, {
@@ -90,7 +101,9 @@ export class UpdateCheck {
         checkedAt: (this.#o.now ?? Date.now)(),
       };
     } catch (err) {
-      if (signal?.aborted) return;
+      if (signal?.aborted) {
+        return;
+      }
       this.#o.logger.warn("update check failed", { err: errorMessage(err) });
     }
   }

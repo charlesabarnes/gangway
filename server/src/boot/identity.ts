@@ -80,7 +80,9 @@ export function resolveAdminToken(
   configured: string | undefined,
   announce: (text: string) => void,
 ): string {
-  if (configured) return configured;
+  if (configured) {
+    return configured;
+  }
   const adminToken = `gw_${randomBytes(24).toString("base64url")}`;
   announce(
     `\n  No GANGWAY_ADMIN_TOKEN is set. Generated one for THIS RUN ONLY:\n\n    ${adminToken}\n`,

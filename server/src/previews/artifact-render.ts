@@ -14,7 +14,9 @@ const cache = new Map<string, RenderAssets>();
 function walk(dir: string, rel = ""): string[] {
   return readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap((e) => {
     const r = rel ? `${rel}/${e.name}` : e.name;
-    if (e.isDirectory()) return walk(dir, r);
+    if (e.isDirectory()) {
+      return walk(dir, r);
+    }
     return e.isFile() && !/\.(br|gz)$/.test(e.name) ? [r] : [];
   });
 }
@@ -23,7 +25,9 @@ export const renderDist = () => process.env["GANGWAY_RENDER_DIST"] ?? DEFAULT_DI
 
 export function renderAssets(dir = renderDist()): RenderAssets {
   const hit = cache.get(dir);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
   let version: string;
   try {
     version = (

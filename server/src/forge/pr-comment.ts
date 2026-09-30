@@ -23,23 +23,31 @@ export function commentBody(
     status: `Preview is **${p.state}**`,
   }[phase];
   lines.push(`### ${title}${sha ? ` for \`${sha}\`` : ""}`);
-  if (p.secretLevel)
+  if (p.secretLevel) {
     lines.push(
       "",
       `_Secrets: **${p.secretLevel}**${p.secretLevel === "none" ? " (no .env)" : ""} · \`/preview secrets low|standard|high|none\` to change._`,
     );
-  if (primary && state !== "failed") lines.push("", `**${primary.url}**`);
-  if (urls.length > 1) lines.push("", ...urls.map((u) => `- \`${u.service}\`: ${u.url}`));
-  if (p.state === "failed" && p.error) lines.push("", "```", p.error.slice(0, 2000), "```");
+  }
+  if (primary && state !== "failed") {
+    lines.push("", `**${primary.url}**`);
+  }
+  if (urls.length > 1) {
+    lines.push("", ...urls.map((u) => `- \`${u.service}\`: ${u.url}`));
+  }
+  if (p.state === "failed" && p.error) {
+    lines.push("", "```", p.error.slice(0, 2000), "```");
+  }
   lines.push(
     "",
     `${log ? `[Build log](${log}) · ` : ""}\`/preview redeploy\` · \`/preview destroy\` · \`/preview status\``,
   );
-  if (p.ttlExpiresAt)
+  if (p.ttlExpiresAt) {
     lines.push(
       "",
       `_Expires ${p.ttlExpiresAt.toISOString().slice(0, 16).replace("T", " ")} UTC unless visited._`,
     );
+  }
   return lines.join("\n");
 }
 

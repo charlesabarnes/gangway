@@ -169,8 +169,13 @@ export const THEME_FONT_CHOICES = {
 /** Every face the kit serves beyond Plex, once each. */
 export function kitFaces(): NonNullable<KitFont["face"]>[] {
   const seen = new Map<string, NonNullable<KitFont["face"]>>();
-  for (const slot of Object.values(THEME_FONT_CHOICES))
-    for (const f of Object.values(slot) as KitFont[]) if (f.face) seen.set(f.face.file, f.face);
+  for (const slot of Object.values(THEME_FONT_CHOICES)) {
+    for (const f of Object.values(slot) as KitFont[]) {
+      if (f.face) {
+        seen.set(f.face.file, f.face);
+      }
+    }
+  }
   return [...seen.values()];
 }
 
@@ -180,8 +185,12 @@ export function kitFaceCss(base = "fonts/"): string {
   for (const f of kitFaces()) {
     const rule = (w: number, italic: boolean) =>
       `@font-face{font-family:"${f.family}";font-weight:${w};${italic ? "font-style:italic;" : ""}font-display:swap;src:url(${base}${f.file}-${w}${italic ? "-italic" : ""}.woff2) format("woff2")}`;
-    for (const w of f.weights) rules.push(rule(w, false));
-    for (const w of f.italic ?? []) rules.push(rule(w, true));
+    for (const w of f.weights) {
+      rules.push(rule(w, false));
+    }
+    for (const w of f.italic ?? []) {
+      rules.push(rule(w, true));
+    }
   }
   return `${rules.join("\n")}\n`;
 }

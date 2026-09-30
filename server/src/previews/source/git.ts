@@ -54,7 +54,7 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
     const env = await buildEnv(helperDir, options.token);
 
     const clone = SHA_RE.test(ref)
-      ? await cloneSha(gitPath, url.href, ref, options.destDir, env, timeoutMs)
+      ? await cloneSha({ gitPath, env, timeoutMs }, url.href, ref, options.destDir)
       : await run(
           gitPath,
           [
@@ -106,12 +106,10 @@ export async function cloneRepo(options: CloneOptions): Promise<CloneResult> {
 const SHA_RE = /^[0-9a-f]{40}$/i;
 
 async function cloneSha(
-  gitPath: string,
+  { gitPath, env, timeoutMs }: { gitPath: string; env: Record<string, string>; timeoutMs: number },
   href: string,
   sha: string,
   destDir: string,
-  env: Record<string, string>,
-  timeoutMs: number,
 ): Promise<RunResult> {
   const steps: string[][] = [
     ["init", "--quiet", "--", destDir],
@@ -122,7 +120,9 @@ async function cloneSha(
   let last: RunResult = { code: 0, stdout: "", stderr: "", timedOut: false };
   for (const args of steps) {
     last = await run(gitPath, args, { env, timeoutMs });
-    if (last.timedOut || last.code !== 0) return last;
+    if (last.timedOut || last.code !== 0) {
+      return last;
+    }
   }
   return last;
 }
@@ -160,8 +160,9 @@ function validateRef(ref: string): string {
     ref.includes("..") ||
     ref.includes("@{") ||
     /[\u0000-\u0020\u007f~^:?*[\\]/.test(ref);
-  if (invalid)
+  if (invalid) {
     throw rejectClone("invalid_ref", "ref is not a valid git ref name", { ref: ref.slice(0, 64) });
+  }
   return ref;
 }
 
@@ -179,7 +180,9 @@ async function buildEnv(
     LC_ALL: "C",
   };
 
-  if (token === undefined || token === "") return env;
+  if (token === undefined || token === "") {
+    return env;
+  }
 
   const helper = path.join(helperDir, "askpass.sh");
   await writeFile(helper, ASKPASS, { mode: 0o700 });
@@ -225,7 +228,11 @@ async function run(
 function settle(p: Promise<string>): Promise<string> {
   return Promise.race([
     p.catch(() => ""),
-    new Promise<string>((resolve) => setTimeout(() => resolve(""), 2_000)),
+    new Promise<string>((resolve) =>
+      setTimeout(() => {
+        resolve("");
+      }, 2_000),
+    ),
   ]);
 }
 

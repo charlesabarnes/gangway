@@ -36,7 +36,9 @@ export function openPipeline(ctx: PreviewContext, r: RunPlan): Pipeline {
       docker: ctx.docker,
     },
     step: stepper(ctx, { previewId: id, host: r.host, cwd: r.wd.srcDir, signal: r.signal }),
-    log: (line) => ctx.logs.append(id, "system", line),
+    log: (line) => {
+      ctx.logs.append(id, "system", line);
+    },
   };
 }
 
@@ -47,7 +49,9 @@ export async function buildImages(
   buildId?: string,
 ): Promise<void> {
   const toBuild = r.model.services.filter((s) => s.hasBuild).map((s) => s.name);
-  if (toBuild.length === 0) return;
+  if (toBuild.length === 0) {
+    return;
+  }
   const id = buildId ?? ulid(ctx.now());
   ctx.builds.start({ id, previewId: p.id, services: toBuild });
   try {
@@ -66,7 +70,9 @@ export async function buildImages(
 const JOB_LOG = { release: "release", seed: "seeding" } as const;
 
 export async function runJob(p: Pipeline, kind: "release" | "seed", job: Job | null) {
-  if (!job) return;
+  if (!job) {
+    return;
+  }
   p.log(`${JOB_LOG[kind]}: ${job.command} (in ${job.service})`);
   await p.step(
     `run (${kind})`,
@@ -84,7 +90,9 @@ export async function startStack(p: Pipeline, dockerConfig?: string): Promise<vo
       dockerConfig ? { DOCKER_CONFIG: dockerConfig } : undefined,
     );
   } finally {
-    if (dockerConfig) await rm(dockerConfig, { recursive: true, force: true });
+    if (dockerConfig) {
+      await rm(dockerConfig, { recursive: true, force: true });
+    }
   }
 }
 
@@ -105,7 +113,9 @@ export function failureMessage(
   what: string,
 ): string {
   const message = redactString(errorMessage(e));
-  if (!(e instanceof StepFailed)) ctx.logger.error(what, { previewId, err: e });
+  if (!(e instanceof StepFailed)) {
+    ctx.logger.error(what, { previewId, err: e });
+  }
   return message;
 }
 
@@ -116,6 +126,8 @@ export async function failStack(
   upAttempted: boolean,
 ): Promise<Preview> {
   ctx.logs.append(r.preview.id, "system", `FAILED: ${message}`);
-  if (upAttempted) await salvage(ctx, r);
+  if (upAttempted) {
+    await salvage(ctx, r);
+  }
   return ctx.states.transition(r.preview.id, "failed", message);
 }

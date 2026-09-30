@@ -96,7 +96,7 @@ export class CloudflareDnsProvider implements DnsProvider {
 
   async waitForPropagation(name: string, expectedValues: string[]): Promise<boolean> {
     const zone = await this.#zoneFor(name);
-    return await waitForTxtPropagation(name, expectedValues, {
+    return waitForTxtPropagation(name, expectedValues, {
       dns: this.#dns,
       zone: zone.name,
       log: this.#log,
@@ -107,11 +107,15 @@ export class CloudflareDnsProvider implements DnsProvider {
 
   async #zoneFor(name: string): Promise<CfZone> {
     const cached = this.#zones.get(name);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     // Singleflight because a wildcard order calls createTxt twice for the same name at once.
-    return await this.#zoneFlight.run(name, async () => {
+    return this.#zoneFlight.run(name, async () => {
       const again = this.#zones.get(name);
-      if (again) return again;
+      if (again) {
+        return again;
+      }
       const zone = await this.#lookupZone(name);
       this.#zones.set(name, zone);
       return zone;
@@ -122,10 +126,12 @@ export class CloudflareDnsProvider implements DnsProvider {
   async #lookupZone(name: string): Promise<CfZone> {
     if (this.#zoneId !== undefined) {
       const zone = await this.#request<CfZone>("GET", `/zones/${encodeURIComponent(this.#zoneId)}`);
-      if (!zone)
+      if (!zone) {
         throw notFound(`Cloudflare zone ${this.#zoneId} not found`, { zoneId: this.#zoneId });
-      if (name === zone.name || name.endsWith(`.${zone.name}`))
+      }
+      if (name === zone.name || name.endsWith(`.${zone.name}`)) {
         return { id: zone.id, name: zone.name };
+      }
     }
 
     const tried = zoneCandidates(name);
@@ -149,7 +155,7 @@ export class CloudflareDnsProvider implements DnsProvider {
     body?: unknown,
     o: { tolerateMissing?: boolean } = {},
   ): Promise<T | null> {
-    return await retry<T | null>(
+    return retry<T | null>(
       async () => {
         const res = await this.#fetch(`${this.#base}${path}`, {
           method,
@@ -163,7 +169,9 @@ export class CloudflareDnsProvider implements DnsProvider {
 
         if (res.status === 429 || res.status >= 500) {
           const hinted = retryAfterMs(res.headers.get("retry-after"));
-          if (hinted > 0) await sleep(Math.min(hinted, this.#retry.maxMs ?? 30_000));
+          if (hinted > 0) {
+            await sleep(Math.min(hinted, this.#retry.maxMs ?? 30_000));
+          }
           throw new AppError(
             res.status === 429 ? "rate_limited" : "bad_gateway",
             `cloudflare ${method} ${path} -> ${res.status}`,
@@ -189,30 +197,37 @@ export class CloudflareDnsProvider implements DnsProvider {
         ...this.#retry,
         shouldRetry: (err) =>
           !(err instanceof AppError) || err.code === "rate_limited" || err.code === "bad_gateway",
-        onRetry: (attempt, delayMs, err) =>
+        onRetry: (attempt, delayMs, err) => {
           this.#log.warn("retrying Cloudflare request", {
             method,
             path,
             attempt,
             delayMs,
             reason: errorMessage(err),
-          }),
+          });
+        },
       },
     );
   }
 }
 
 function retryAfterMs(header: string | null): number {
-  if (!header) return 0;
+  if (!header) {
+    return 0;
+  }
   const seconds = Number(header);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000);
+  }
   const at = Date.parse(header);
   return Number.isNaN(at) ? 0 : Math.max(0, at - Date.now());
 }
 
 async function readEnvelope<T>(res: Response): Promise<CfEnvelope<T>> {
   const text = await res.text().catch(() => "");
-  if (text === "") return {};
+  if (text === "") {
+    return {};
+  }
   try {
     return JSON.parse(text) as CfEnvelope<T>;
   } catch {

@@ -34,7 +34,9 @@ export function createComposeRunner(
       onHostState?.(host.id, true, null);
       return engineEnv(daemonEngine(info));
     } catch (e) {
-      if (e instanceof DockerGuardError) throw e;
+      if (e instanceof DockerGuardError) {
+        throw e;
+      }
       const message = errorMessage(e);
       onHostState?.(host.id, false, message);
       throw new AppError("unavailable", `host "${host.id}" is unreachable: ${message}`, {

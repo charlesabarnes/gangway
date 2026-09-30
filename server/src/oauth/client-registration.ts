@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { must } from "@gangway/shared/must";
 import type { OAuthClientsRepo } from "../db/repos/oauth-clients.ts";
 import {
   ClientMetadataError,
@@ -49,33 +50,41 @@ export type RegistrationResponse = {
 };
 
 function checkRedirect(raw: unknown): string {
-  if (typeof raw !== "string" || raw.length === 0 || raw.length > 2048)
+  if (typeof raw !== "string" || raw.length === 0 || raw.length > 2048) {
     throw new RegistrationError("invalid_redirect_uri", "each redirect_uri is a string URL");
+  }
   let u: URL;
   try {
     u = new URL(raw);
   } catch {
     throw new RegistrationError("invalid_redirect_uri", `${raw} is not an absolute URL`);
   }
-  if (u.hash) throw new RegistrationError("invalid_redirect_uri", `${raw} has a fragment`);
-  if (BLOCKED_SCHEMES.has(u.protocol))
+  if (u.hash) {
+    throw new RegistrationError("invalid_redirect_uri", `${raw} has a fragment`);
+  }
+  if (BLOCKED_SCHEMES.has(u.protocol)) {
     throw new RegistrationError("invalid_redirect_uri", `${u.protocol} redirects are refused`);
+  }
   const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
-  if (u.protocol === "http:" && !loopback)
+  if (u.protocol === "http:" && !loopback) {
     throw new RegistrationError(
       "invalid_redirect_uri",
       `${raw}: plain http is only for localhost, 127.0.0.1 or [::1]`,
     );
+  }
   return raw;
 }
 
 function subsetOf(value: unknown, allowed: readonly string[], field: string): void {
-  if (value === undefined) return;
-  if (!Array.isArray(value) || !value.every((v) => typeof v === "string" && allowed.includes(v)))
+  if (value === undefined) {
+    return;
+  }
+  if (!Array.isArray(value) || !value.every((v) => typeof v === "string" && allowed.includes(v))) {
     throw new RegistrationError(
       "invalid_client_metadata",
       `${field} may only list ${allowed.join(", ")}`,
     );
+  }
 }
 
 /**
@@ -83,21 +92,24 @@ function subsetOf(value: unknown, allowed: readonly string[], field: string): vo
  * secret-based token_endpoint_auth_method is registered as "none" and told so in the answer.
  */
 export function parseRegistration(body: unknown): { clientName: string; redirectUris: string[] } {
-  if (!body || typeof body !== "object" || Array.isArray(body))
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new RegistrationError(
       "invalid_client_metadata",
       "send the client metadata as a JSON object",
     );
+  }
   const d = body as Record<string, unknown>;
   const uris = d["redirect_uris"];
-  if (!Array.isArray(uris) || uris.length === 0 || uris.length > 20)
+  if (!Array.isArray(uris) || uris.length === 0 || uris.length > 20) {
     throw new RegistrationError("invalid_redirect_uri", "redirect_uris needs 1 to 20 URLs");
+  }
   const redirectUris = [...new Set(uris.map(checkRedirect))];
   subsetOf(d["grant_types"], GRANT_TYPES, "grant_types");
   subsetOf(d["response_types"], ["code"], "response_types");
   const name = typeof d["client_name"] === "string" ? cleanClientName(d["client_name"]) : "";
   return {
-    clientName: name || new URL(redirectUris[0]!).hostname || "An MCP client",
+    clientName:
+      name || new URL(must(redirectUris[0], "a redirect URI")).hostname || "An MCP client",
     redirectUris,
   };
 }
@@ -116,11 +128,12 @@ export class ClientRegistry {
     const now = this.#now();
     if (this.#repo.count() >= MAX_CLIENTS) {
       this.#repo.purgeUnused(now - UNUSED_FOR_MS);
-      if (this.#repo.count() >= MAX_CLIENTS)
+      if (this.#repo.count() >= MAX_CLIENTS) {
         throw new RegistrationError(
           "temporarily_unavailable",
           "too many registered clients; try again later",
         );
+      }
     }
     const id = `${REGISTERED_PREFIX}${randomBytes(24).toString("base64url")}`;
     this.#repo.create({ id, clientName, redirectUris, createdAt: now });
@@ -137,7 +150,9 @@ export class ClientRegistry {
 
   get(clientId: string): ClientMetadata {
     const c = this.#repo.get(clientId);
-    if (!c) throw new ClientMetadataError("no client is registered with that client_id");
+    if (!c) {
+      throw new ClientMetadataError("no client is registered with that client_id");
+    }
     this.#repo.touch(clientId, this.#now());
     return {
       clientId: c.id,

@@ -39,7 +39,9 @@ const choice = (value: unknown, options: string[]) => {
 };
 
 export function parseSignup(input: Record<string, unknown>): Parsed {
-  if (text(input.website, 200)) return { kind: "spam" };
+  if (text(input.website, 200)) {
+    return { kind: "spam" };
+  }
   const signup: Signup = {
     name: text(input.name, 100),
     email: text(input.email, 254),
@@ -49,7 +51,9 @@ export function parseSignup(input: Record<string, unknown>): Parsed {
     previews: choice(input.previews, PREVIEW_COUNTS),
     wouldDeploy: text(input.would_deploy, 2000),
   };
-  if (!signup.name) return { kind: "invalid", error: "Add your name." };
+  if (!signup.name) {
+    return { kind: "invalid", error: "Add your name." };
+  }
   if (!EMAIL.test(signup.email)) {
     return { kind: "invalid", error: "That email address does not look right." };
   }
@@ -91,24 +95,29 @@ async function readBody(request: Request, json: boolean): Promise<Record<string,
       const body: unknown = await request.json();
       return body && typeof body === "object" ? (body as Record<string, unknown>) : null;
     }
-    return Object.fromEntries(await request.formData());
+    // The page's form posts urlencoded; nothing here reads multipart.
+    const type = request.headers.get("content-type") ?? "";
+    if (!type.includes("application/x-www-form-urlencoded")) {
+      return null;
+    }
+    return Object.fromEntries(new URLSearchParams(await request.text()));
   } catch {
     return null;
   }
 }
 
 const escape = (s: string) =>
-  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
-function reply(
-  json: boolean,
-  env: Env,
-  cors: Record<string, string>,
-  status: number,
-  error?: string,
-) {
-  if (json) return Response.json(error ? { error } : { ok: true }, { status, headers: cors });
-  if (!error) return Response.redirect(`${env.SITE_URL}/cloud.html#joined`, 303);
+type Replying = { json: boolean; env: Env; cors: Record<string, string> };
+
+function reply({ json, env, cors }: Replying, status: number, error?: string) {
+  if (json) {
+    return Response.json(error ? { error } : { ok: true }, { status, headers: cors });
+  }
+  if (!error) {
+    return Response.redirect(`${env.SITE_URL}/cloud.html#joined`, 303);
+  }
   const back = `${escape(env.SITE_URL)}/cloud.html#cloud`;
   const page = `<!doctype html><meta charset="utf-8"><title>gangway waitlist</title><p>${escape(error)}</p><p><a href="${back}">Back to the form</a></p>`;
   return new Response(page, { status, headers: { "content-type": "text/html; charset=utf-8" } });
@@ -127,7 +136,9 @@ export async function countVisit(request: Request, env: Env): Promise<Response> 
     return new Response("Forbidden", { status: 403 });
   }
   const path = (await request.text()).trim().replace(/\/index\.html$/, "/");
-  if (!PAGE.test(path)) return new Response("Bad page", { status: 400 });
+  if (!PAGE.test(path)) {
+    return new Response("Bad page", { status: 400 });
+  }
   const day = new Date().toISOString().slice(0, 10);
   try {
     await env.DB.prepare(COUNT_VISIT).bind(day, path).run();
@@ -150,34 +161,45 @@ function corsHeaders(origin: string): Record<string, string> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
-    if (pathname === "/hit") return countVisit(request, env);
+    if (pathname === "/hit") {
+      return countVisit(request, env);
+    }
     if (pathname !== "/waitlist") {
       return new Response("Not found", { status: 404 });
     }
     const origin = request.headers.get("origin") ?? "";
     const allowed = env.ALLOWED_ORIGINS.split(",").some((o) => o.trim() === origin);
     const cors = allowed ? corsHeaders(origin) : {};
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors });
+    }
     if (request.method !== "POST") {
       return new Response("Method not allowed", {
         status: 405,
         headers: { allow: "POST, OPTIONS" },
       });
     }
-    if (!allowed) return new Response("Forbidden", { status: 403 });
+    if (!allowed) {
+      return new Response("Forbidden", { status: 403 });
+    }
 
     const json = (request.headers.get("content-type") ?? "").includes("application/json");
     const input = await readBody(request, json);
-    if (!input) return reply(json, env, cors, 400, "The form could not be read.");
+    const r: Replying = { json, env, cors };
+    if (!input) {
+      return reply(r, 400, "The form could not be read.");
+    }
     const parsed = parseSignup(input);
-    if (parsed.kind === "invalid") return reply(json, env, cors, 400, parsed.error);
+    if (parsed.kind === "invalid") {
+      return reply(r, 400, parsed.error);
+    }
     if (parsed.kind === "signup") {
       try {
         await save(env.DB, parsed.signup, request);
       } catch {
-        return reply(json, env, cors, 500, "The waitlist is not taking signups right now.");
+        return reply(r, 500, "The waitlist is not taking signups right now.");
       }
     }
-    return reply(json, env, cors, 200);
+    return reply(r, 200);
   },
 };

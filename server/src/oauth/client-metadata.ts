@@ -1,6 +1,7 @@
 import { lookup as dnsLookup, type LookupAddress } from "node:dns";
 import { request } from "node:https";
 import { BlockList, isIP } from "node:net";
+import { must } from "@gangway/shared/must";
 import { SingleFlight } from "../util/async.ts";
 
 export type ClientMetadata = {
@@ -35,8 +36,9 @@ for (const [net, bits] of [
   ["203.0.113.0", 24],
   ["224.0.0.0", 4],
   ["240.0.0.0", 4],
-] as const)
+] as const) {
   PRIVATE.addSubnet(net, bits, "ipv4");
+}
 for (const [net, bits] of [
   // Not ::ffff:0:0/96, which BlockList matches against every IPv4 address; mapped addresses are unwrapped below.
   ["::", 128],
@@ -47,14 +49,19 @@ for (const [net, bits] of [
   ["fc00::", 7],
   ["fe80::", 10],
   ["ff00::", 8],
-] as const)
+] as const) {
   PRIVATE.addSubnet(net, bits, "ipv6");
+}
 
 export function isPublicAddress(address: string): boolean {
   const family = isIP(address);
-  if (family === 0) return false;
+  if (family === 0) {
+    return false;
+  }
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
-  if (mapped) return !PRIVATE.check(mapped[1]!, "ipv4");
+  if (mapped) {
+    return !PRIVATE.check(must(mapped[1], "a mapped IPv4 address"), "ipv4");
+  }
   return !PRIVATE.check(address, family === 6 ? "ipv6" : "ipv4");
 }
 
@@ -65,17 +72,27 @@ export function checkClientIdUrl(raw: string): URL {
   } catch {
     throw new ClientMetadataError("client_id is not a URL");
   }
-  if (u.protocol !== "https:") throw new ClientMetadataError("client_id must be an https URL");
-  if (u.port !== "" && u.port !== "443")
+  if (u.protocol !== "https:") {
+    throw new ClientMetadataError("client_id must be an https URL");
+  }
+  if (u.port !== "" && u.port !== "443") {
     throw new ClientMetadataError("client_id must use the default https port");
-  if (u.username || u.password)
+  }
+  if (u.username || u.password) {
     throw new ClientMetadataError("client_id must not carry credentials");
-  if (u.hash) throw new ClientMetadataError("client_id must not have a fragment");
-  if (u.pathname === "/" || u.pathname === "")
+  }
+  if (u.hash) {
+    throw new ClientMetadataError("client_id must not have a fragment");
+  }
+  if (u.pathname === "/" || u.pathname === "") {
     throw new ClientMetadataError("client_id must have a path");
-  if (u.href !== raw) throw new ClientMetadataError("client_id must be a normalized URL");
-  if (isIP(u.hostname.replace(/^\[|\]$/g, "")) !== 0)
+  }
+  if (u.href !== raw) {
+    throw new ClientMetadataError("client_id must be a normalized URL");
+  }
+  if (isIP(u.hostname.replace(/^\[|\]$/g, "")) !== 0) {
     throw new ClientMetadataError("client_id must name a host, not an address");
+  }
   return u;
 }
 
@@ -90,11 +107,15 @@ const safeLookup: typeof dnsLookup = ((
   ) => void,
 ) => {
   dnsLookup(hostname, { all: true }, (err, addresses) => {
-    if (err) return callback(err, "", 0);
+    if (err) {
+      callback(err, "", 0);
+      return;
+    }
     const list = addresses;
+    const [first] = list;
     const bad = list.find((a) => !isPublicAddress(a.address));
-    if (list.length === 0 || bad) {
-      return callback(
+    if (!first || bad) {
+      callback(
         Object.assign(
           new Error(
             `refusing to fetch client metadata from a non-public address (${bad?.address ?? "none"})`,
@@ -104,13 +125,17 @@ const safeLookup: typeof dnsLookup = ((
         "",
         0,
       );
+      return;
     }
     const wantsAll =
       typeof options === "object" &&
       options !== null &&
       (options as { all?: boolean }).all === true;
-    if (wantsAll) return callback(null, list);
-    callback(null, list[0]!.address, list[0]!.family);
+    if (wantsAll) {
+      callback(null, list);
+      return;
+    }
+    callback(null, first.address, first.family);
   });
 }) as typeof dnsLookup;
 
@@ -138,14 +163,14 @@ export const fetchDocument: DocumentFetcher = (url) =>
           }
           chunks.push(c);
         });
-        res.on("end", () =>
+        res.on("end", () => {
           resolve({
             status: res.statusCode ?? 0,
             contentType: String(res.headers["content-type"] ?? ""),
             cacheControl: String(res.headers["cache-control"] ?? ""),
             body: Buffer.concat(chunks).toString("utf8"),
-          }),
-        );
+          });
+        });
         res.on("error", reject);
       },
     );
@@ -158,28 +183,34 @@ export const fetchDocument: DocumentFetcher = (url) =>
 
 function ttlOf(cacheControl: string): number {
   const cc = cacheControl.toLowerCase();
-  if (/\bno-store\b|\bno-cache\b/.test(cc)) return MIN_TTL_MS;
+  if (/\bno-store\b|\bno-cache\b/.test(cc)) {
+    return MIN_TTL_MS;
+  }
   const m = /\bmax-age=(\d+)/.exec(cc);
   const ms = m ? Number(m[1]) * 1000 : MIN_TTL_MS;
   return Math.min(MAX_TTL_MS, Math.max(MIN_TTL_MS, ms));
 }
 
 export function parseDocument(url: string, f: Fetched): ClientMetadata {
-  if (f.status !== 200)
+  if (f.status !== 200) {
     throw new ClientMetadataError(`client metadata document answered ${f.status}`);
-  if (!/^application\/(?:[\w.+-]*\+)?json\b/i.test(f.contentType))
+  }
+  if (!/^application\/(?:[\w.+-]*\+)?json\b/i.test(f.contentType)) {
     throw new ClientMetadataError("client metadata document is not JSON");
+  }
   let doc: unknown;
   try {
     doc = JSON.parse(f.body);
   } catch {
     throw new ClientMetadataError("client metadata document is not valid JSON");
   }
-  if (!doc || typeof doc !== "object")
+  if (!doc || typeof doc !== "object") {
     throw new ClientMetadataError("client metadata document is not an object");
+  }
   const d = doc as Record<string, unknown>;
-  if (d["client_id"] !== url)
+  if (d["client_id"] !== url) {
     throw new ClientMetadataError("client metadata document's client_id does not match its URL");
+  }
   const uris = d["redirect_uris"];
   if (
     !Array.isArray(uris) ||
@@ -194,10 +225,11 @@ export function parseDocument(url: string, f: Fetched): ClientMetadata {
   const alsoPublic =
     Array.isArray(d["token_endpoint_auth_methods_supported"]) &&
     d["token_endpoint_auth_methods_supported"].includes("none");
-  if (method !== undefined && method !== "none" && !alsoPublic)
+  if (method !== undefined && method !== "none" && !alsoPublic) {
     throw new ClientMetadataError(
       `token_endpoint_auth_method ${JSON.stringify(method)} is not supported; gangway serves public clients only`,
     );
+  }
   const clientName =
     (typeof d["client_name"] === "string" ? cleanClientName(d["client_name"]) : "") ||
     new URL(url).hostname;
@@ -226,7 +258,9 @@ export class ClientMetadataStore {
   async get(clientId: string): Promise<ClientMetadata> {
     const url = checkClientIdUrl(clientId);
     const hit = this.#cache.get(clientId);
-    if (hit && hit.until > this.#now()) return hit.doc;
+    if (hit && hit.until > this.#now()) {
+      return hit.doc;
+    }
     return this.#flight.run(clientId, async () => {
       let fetched: Fetched;
       try {
@@ -239,7 +273,10 @@ export class ClientMetadataStore {
             );
       }
       const doc = parseDocument(clientId, fetched);
-      if (this.#cache.size >= MAX_CACHE) this.#cache.delete(this.#cache.keys().next().value!);
+      const oldest = this.#cache.keys().next();
+      if (this.#cache.size >= MAX_CACHE && !oldest.done) {
+        this.#cache.delete(oldest.value);
+      }
       this.#cache.set(clientId, { doc, until: this.#now() + ttlOf(fetched.cacheControl) });
       return doc;
     });
@@ -247,7 +284,9 @@ export class ClientMetadataStore {
 }
 
 export function redirectAllowed(requested: string, registered: readonly string[]): boolean {
-  if (registered.includes(requested)) return true;
+  if (registered.includes(requested)) {
+    return true;
+  }
   let r: URL;
   try {
     r = new URL(requested);
@@ -256,7 +295,9 @@ export function redirectAllowed(requested: string, registered: readonly string[]
   }
   const loopback = (u: URL) =>
     u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
-  if (!loopback(r)) return false;
+  if (!loopback(r)) {
+    return false;
+  }
   return registered.some((raw) => {
     try {
       const g = new URL(raw);

@@ -36,17 +36,29 @@ const SECRET_KEYS = new Set([
 
 export function redactString(s: string): string {
   let out = s;
-  for (const re of SECRET_PATTERNS) out = out.replace(re, "[redacted]");
+  for (const re of SECRET_PATTERNS) {
+    out = out.replace(re, "[redacted]");
+  }
   return out;
 }
 
 export function redact(value: unknown, depth = 0): unknown {
-  if (depth > 8) return "[depth-limit]";
-  if (typeof value === "string") return redactString(value);
-  if (value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
+  if (depth > 8) {
+    return "[depth-limit]";
+  }
+  if (typeof value === "string") {
+    return redactString(value);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => redact(v, depth + 1));
+  }
   // A Date has no own enumerable properties and would otherwise become {}.
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
   if (value instanceof Error) {
     const extra = value as Error & { code?: unknown; detail?: unknown };
     return {
@@ -72,7 +84,13 @@ export class Logger {
   #base: LogFields;
   #sink: Sink;
 
-  constructor(level: LogLevel = "info", base: LogFields = {}, sink: Sink = (l) => console.log(l)) {
+  constructor(
+    level: LogLevel = "info",
+    base: LogFields = {},
+    sink: Sink = (l) => {
+      console.log(l);
+    },
+  ) {
     this.#level = level;
     this.#base = base;
     this.#sink = sink;
@@ -83,7 +101,9 @@ export class Logger {
   }
 
   #log(level: LogLevel, msg: string, fields?: LogFields) {
-    if (ORDER[level] < ORDER[this.#level]) return;
+    if (ORDER[level] < ORDER[this.#level]) {
+      return;
+    }
     const record = {
       ts: new Date().toISOString(),
       level,

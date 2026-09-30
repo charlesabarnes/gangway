@@ -221,7 +221,9 @@ test("idle-sleep stops the stack and the next request wakes it", async () => {
       }
     ).preview.state;
   const deadline = Date.now() + 5_000;
-  while ((await state()) !== "asleep" && Date.now() < deadline) await Bun.sleep(50);
+  while ((await state()) !== "asleep" && Date.now() < deadline) {
+    await Bun.sleep(50);
+  }
   expect(await state()).toBe("asleep");
   expect(
     await fetch(`http://127.0.0.1:${upstreamPort}/`).then(

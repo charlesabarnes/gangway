@@ -179,7 +179,9 @@ describe("GET /v1/audit", () => {
   test("pages newest-first; nextBefore walks to the end; limit is capped", async () => {
     const s = setup();
     const audit = new Audit(s.audit, quiet);
-    for (let i = 1; i <= 5; i++) audit.record(ACTOR, "auth.login", `u${i}`);
+    for (let i = 1; i <= 5; i++) {
+      audit.record(ACTOR, "auth.login", `u${i}`);
+    }
     const get = app(s.audit, ACTOR);
 
     const first = (await (await get("/audit?limit=2")).json()) as {

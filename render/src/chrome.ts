@@ -21,12 +21,16 @@ function save(value: string | null): void {
 
 function stored(): string | null {
   const shared = cookie();
-  if (shared) return shared;
+  if (shared) {
+    return shared;
+  }
   // Before the cookie the choice lived in this host's storage; move it over once.
   try {
     const v = localStorage.getItem(KEY);
     localStorage.removeItem(KEY);
-    if (v === "light" || v === "dark") save(v);
+    if (v === "light" || v === "dark") {
+      save(v);
+    }
     return v;
   } catch {
     return null;
@@ -36,8 +40,9 @@ function stored(): string | null {
 export function applyTheme(): void {
   const root = document.documentElement;
   let t = stored() ?? root.dataset["pref"];
-  if (t !== "light" && t !== "dark")
+  if (t !== "light" && t !== "dark") {
     t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
   root.dataset["theme"] = t;
 }
 
@@ -53,14 +58,15 @@ function toggle(): HTMLElement {
   t.setAttribute("role", "group");
   t.setAttribute("aria-label", "Theme");
   let current = stored() ?? "system";
-  const paint = () =>
-    [...t.children].forEach((b, i) =>
-      b.setAttribute("aria-pressed", String(OPTIONS[i]?.[0] === current)),
-    );
+  const paint = () => {
+    [...t.children].forEach((b, i) => {
+      b.setAttribute("aria-pressed", String(OPTIONS[i]?.[0] === current));
+    });
+  };
   for (const [id, glyph] of OPTIONS) {
     const b = document.createElement("button");
     b.type = "button";
-    b.title = `${id[0]!.toUpperCase()}${id.slice(1)} theme`;
+    b.title = `${id.charAt(0).toUpperCase()}${id.slice(1)} theme`;
     b.textContent = glyph;
     b.onclick = () => {
       current = id;
@@ -82,6 +88,8 @@ function toggle(): HTMLElement {
 
 /** The theme toggle on every artifact; gangway itself adds its watermark to the page. */
 export function chrome(): void {
-  if (document.querySelector(".gw-toggle")) return;
+  if (document.querySelector(".gw-toggle")) {
+    return;
+  }
   document.body.append(toggle());
 }

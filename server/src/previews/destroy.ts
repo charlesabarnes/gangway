@@ -14,13 +14,17 @@ export async function destroy(
   actor: Actor,
 ): Promise<Preview> {
   const preview = ctx.previews.get(previewId);
-  if (!preview || preview.state === "destroyed") throw notFound(`no such preview: ${previewId}`);
-  if (preview.state === "destroying")
+  if (!preview || preview.state === "destroyed") {
+    throw notFound(`no such preview: ${previewId}`);
+  }
+  if (preview.state === "destroying") {
     throw new AppError("conflict", "this preview is already being destroyed");
+  }
 
   const host = ctx.hosts.get(preview.hostId);
-  if (!host)
+  if (!host) {
     throw new AppError("internal", `preview ${previewId} is on unknown host ${preview.hostId}`);
+  }
 
   ctx.states.transition(previewId, "destroying");
   ctx.logs.append(previewId, "system", `destroying (requested by ${actorId(actor)})`);
@@ -55,7 +59,9 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   }
 
   // Read again: a rebuild that just finished may have moved it onto gangway's file server.
-  if (!servedByGangway(ctx.previews.get(previewId) ?? preview)) await downStack(ctx, preview, host);
+  if (!servedByGangway(ctx.previews.get(previewId) ?? preview)) {
+    await downStack(ctx, preview, host);
+  }
 
   ctx.table.removePreview(previewId);
   ctx.domains?.releasePreview(previewId);
@@ -80,8 +86,9 @@ async function downStack(ctx: PreviewContext, preview: Preview, host: Host): Pro
       host,
       { cwd: empty },
     );
-    if (res.code !== 0)
+    if (res.code !== 0) {
       throw new Error(`compose down exited ${res.code}: ${res.stderr.slice(-500)}`);
+    }
     await removeLeftovers(ctx, preview, host, empty);
   } catch (e) {
     const message = redactString(errorMessage(e));
@@ -120,12 +127,13 @@ async function removeLeftovers(
   const volumes = await listed([docker, "volume", "ls", "--quiet", "--filter", label]);
   if (volumes.length > 0) {
     const rm = await ctx.compose.capture([docker, "volume", "rm", ...volumes], host, { cwd });
-    if (rm.code !== 0)
+    if (rm.code !== 0) {
       ctx.logger.warn("could not remove a destroyed preview's volumes", {
         previewId: preview.id,
         volumes,
         err: rm.stderr.slice(-300),
       });
+    }
   }
   const images = await listed([
     docker,
@@ -141,12 +149,13 @@ async function removeLeftovers(
     const rm = await ctx.compose.capture([docker, "image", "rm", ...new Set(images)], host, {
       cwd,
     });
-    if (rm.code !== 0)
+    if (rm.code !== 0) {
       ctx.logger.warn("could not remove a destroyed preview's untagged images", {
         previewId: preview.id,
         images,
         err: rm.stderr.slice(-300),
       });
+    }
   }
 }
 

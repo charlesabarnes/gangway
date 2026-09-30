@@ -151,7 +151,9 @@ describe("Scheduler", () => {
       name: "flaky",
       intervalMs: 1000,
       run: () => {
-        if (++n === 1) throw new Error("boom");
+        if (++n === 1) {
+          throw new Error("boom");
+        }
       },
     });
     h.scheduler.start();

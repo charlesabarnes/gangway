@@ -66,7 +66,9 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
   // unless an admin says otherwise.
   settings.defaultTo(SETTINGS.previewsShare, () => isLocalDomain(domains.control()));
   const publicOrigin: PublicOrigin = { scheme: config.publicScheme, port: config.publicPort };
-  const bus = new EventBus(repos.events, (e) => logger.warn("event listener threw", { err: e }));
+  const bus = new EventBus(repos.events, (e) => {
+    logger.warn("event listener threw", { err: e });
+  });
   const shares = sharesFor(config, settings, bus, logger);
   const core: Core = {
     config,

@@ -78,9 +78,10 @@ describe("migration safety", () => {
       "0002_b.sql": "CREATE TABLE b (x);",
     });
     expect(migrate(db, m).applied).toEqual([1, 2]);
-    const rows = db.query<{ version: number; name: string }>(
-      "SELECT version, name FROM schema_migrations ORDER BY version",
-    );
+    const rows = db.query("SELECT version, name FROM schema_migrations ORDER BY version") as {
+      version: number;
+      name: string;
+    }[];
     expect(rows).toEqual([
       { version: 1, name: "a" },
       { version: 2, name: "b" },
@@ -130,7 +131,9 @@ describe("backup before migrating", () => {
     const db = openAt(dbPath);
     migrate(db, migrationFiles(v1));
     const pending = loadMigrations(migrationFiles(v2)).slice(1);
-    for (let t = 1; t <= KEEP_BACKUPS + 2; t++) backupBeforeMigrating(db, dbPath, pending, () => t);
+    for (let t = 1; t <= KEEP_BACKUPS + 2; t++) {
+      backupBeforeMigrating(db, dbPath, pending, () => t);
+    }
     db.close();
 
     const kept = readdirSync(join(dbPath, "..", "backups")).sort();

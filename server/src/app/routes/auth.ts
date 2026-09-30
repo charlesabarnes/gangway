@@ -51,7 +51,9 @@ const meta = (c: Context<AppEnv>): RequestMeta => ({
 });
 
 const appOnly = (c: Context<AppEnv>) => {
-  if (c.env.surface !== "app") throw notFound(`no such resource: ${new URL(c.req.url).pathname}`);
+  if (c.env.surface !== "app") {
+    throw notFound(`no such resource: ${new URL(c.req.url).pathname}`);
+  }
 };
 
 // Login CSRF: checked only when a browser sends Origin, so curl and scripts keep working.
@@ -59,8 +61,9 @@ const refuseForeignOrigin = (c: Context<AppEnv>, d: AuthRouteDeps) => {
   if (
     c.req.header("origin") !== undefined &&
     !(d.auth.originFor && isSameOrigin(c, d.auth.originFor))
-  )
+  ) {
     throw forbidden("cross-origin request refused");
+  }
 };
 
 function wireUser(d: AuthRouteDeps, u: User) {
@@ -70,15 +73,17 @@ function wireUser(d: AuthRouteDeps, u: User) {
 
 function describe(d: AuthRouteDeps, actor: Actor) {
   const permissions = [...actor.permissions].sort();
-  if (actor.kind === "token")
+  if (actor.kind === "token") {
     return {
       authenticated: true,
       setupRequired: false,
       token: { id: actor.tokenId, scopes: actor.scopes },
       permissions,
     };
-  if (actor.kind === "forge" || actor.kind === "workflow")
+  }
+  if (actor.kind === "forge" || actor.kind === "workflow") {
     return { authenticated: true, setupRequired: false, permissions };
+  }
   const user = d.accounts.getUser(actor.userId);
   return {
     authenticated: true,
@@ -96,21 +101,24 @@ function gateTarget(gate: GateDeps | undefined, host: string) {
         passwordSkippable: false,
       })
     : undefined;
-  if (!gate || !entry || !kind || (!kind.private && !kind.passwordSkippable))
+  if (!gate || !entry || !kind || (!kind.private && !kind.passwordSkippable)) {
     throw notFound("no such private preview");
+  }
   return { gate, entry, kind };
 }
 
+type PreviewTarget = { gate: GateDeps; entry: GateEntry; to: string };
+
 function toPreview(
   c: Context<AppEnv>,
-  gate: GateDeps,
-  entry: GateEntry,
+  { gate, entry, to }: PreviewTarget,
   path: string,
-  to: string,
   ticket: string | null,
 ) {
   const target = new URL(path, gate.originFor(entry.hostname));
-  if (ticket !== null) target.searchParams.set("ticket", ticket);
+  if (ticket !== null) {
+    target.searchParams.set("ticket", ticket);
+  }
   target.searchParams.set("to", to);
   c.header("referrer-policy", "no-referrer");
   return c.redirect(target.toString(), 302);
@@ -123,24 +131,28 @@ function gateRoute(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     const { gate, entry, kind } = gateTarget(d.gate, (c.req.query("host") ?? "").toLowerCase());
     const to = gate.safePath(c.req.query("to"));
     c.header("cache-control", "no-store");
+    const dest = { gate, entry, to };
 
     const actor = await resolveActor(c, d.auth).catch(() => null);
     const skipPassword =
-      kind.passwordSkippable && actor !== null && actor.permissions.has("previews.skip_password");
+      kind.passwordSkippable && actor?.permissions.has("previews.skip_password") === true;
     if (!kind.private) {
-      if (!skipPassword) return toPreview(c, gate, entry, "/__gangway/password", to, null);
+      if (!skipPassword) {
+        return toPreview(c, dest, "/__gangway/password", null);
+      }
       const ticket = gate.issueTicket(entry, { skipPassword });
-      return toPreview(c, gate, entry, "/__gangway/auth", to, ticket);
+      return toPreview(c, dest, "/__gangway/auth", ticket);
     }
     if (!actor) {
       const back = `/v1/auth/gate?host=${encodeURIComponent(entry.hostname)}&to=${encodeURIComponent(to)}`;
       return c.redirect(`/login?returnUrl=${encodeURIComponent(back)}`, 302);
     }
-    if (!actor.permissions.has("previews.view_private"))
+    if (!actor.permissions.has("previews.view_private")) {
       throw forbidden('requires the "previews.view_private" permission');
+    }
 
     const ticket = gate.issueTicket(entry, { skipPassword });
-    return toPreview(c, gate, entry, "/__gangway/auth", to, ticket);
+    return toPreview(c, dest, "/__gangway/auth", ticket);
   });
 }
 
@@ -148,7 +160,9 @@ function gateRoute(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 // never a URL gangway logs.
 function emailLinkRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   const links = () => {
-    if (!d.links) throw notFound("no such resource");
+    if (!d.links) {
+      throw notFound("no such resource");
+    }
     return d.links;
   };
 
@@ -206,11 +220,14 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 
   pub.post("/auth/setup", async (c) => {
     appOnly(c);
-    if (!d.bootstrap.pending) throw notFound("no such resource: /v1/auth/setup");
+    if (!d.bootstrap.pending) {
+      throw notFound("no such resource: /v1/auth/setup");
+    }
     refuseForeignOrigin(c, d);
     const { token, email, password } = SetupRequestSchema.parse(await readJson(c));
-    if (!d.bootstrap.check(token))
+    if (!d.bootstrap.check(token)) {
       throw forbidden("that setup link is not valid; the current one is in the server's output");
+    }
     const { user, secret } = await d.accounts.setupFirstAdmin(email, password, meta(c));
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
     c.header("cache-control", "no-store");
@@ -225,13 +242,17 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 
   const required = async (c: Context<AppEnv>): Promise<Actor> => {
     const actor = await resolveActor(c, d.auth);
-    if (!actor) throw unauthorized();
+    if (!actor) {
+      throw unauthorized();
+    }
     return actor;
   };
 
   pub.post("/auth/logout", async (c) => {
     const actor = await resolveActor(c, d.auth);
-    if (actor) d.accounts.logout(actor);
+    if (actor) {
+      d.accounts.logout(actor);
+    }
     clearSessionCookie(c);
     return c.body(null, 204);
   });

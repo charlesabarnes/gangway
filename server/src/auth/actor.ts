@@ -103,25 +103,37 @@ export function workflowActor(c: {
 
 export const can = (actor: Actor, needed: Permission): boolean => actor.permissions.has(needed);
 
-export const actorId = (a: Actor): string =>
-  a.kind === "user"
-    ? `user:${a.userId}`
-    : a.kind === "forge"
-      ? `${a.forge}:${a.login}`
-      : a.kind === "workflow"
-        ? `actions:${a.repository}#${a.runId}`
-        : a.tokenId;
+export function actorId(a: Actor): string {
+  switch (a.kind) {
+    case "user":
+      return `user:${a.userId}`;
+    case "forge":
+      return `${a.forge}:${a.login}`;
+    case "workflow":
+      return `actions:${a.repository}#${a.runId}`;
+    case "token":
+      return a.tokenId;
+  }
+}
 
 export function principalOf(a: Actor): string | null {
-  if (a.kind === "user") return `user:${a.userId}`;
-  if (a.kind !== "token") return null;
-  if (a.userId !== undefined) return `user:${a.userId}`;
+  if (a.kind === "user") {
+    return `user:${a.userId}`;
+  }
+  if (a.kind !== "token") {
+    return null;
+  }
+  if (a.userId !== undefined) {
+    return `user:${a.userId}`;
+  }
   return a.tokenId.startsWith("system:") ? null : a.tokenId;
 }
 
 /** The API token or OAuth grant behind an actor, recorded on what it deploys. */
 export function credentialOf(a: Actor): string | null {
-  if (a.kind !== "token" || a.tokenId.startsWith("system:")) return null;
+  if (a.kind !== "token" || a.tokenId.startsWith("system:")) {
+    return null;
+  }
   return a.tokenId;
 }
 
@@ -132,14 +144,20 @@ export type Provenance = { owner: string | null; credential: string | null };
 const confined = (a: Actor): boolean => a.kind === "token" && !can(a, "previews.read");
 
 export function owns(a: Actor, p: Provenance): boolean {
-  if (confined(a)) return p.credential !== null && p.credential === credentialOf(a);
+  if (confined(a)) {
+    return p.credential !== null && p.credential === credentialOf(a);
+  }
   return p.owner !== null && p.owner === principalOf(a);
 }
 
 /** maySee as a list filter: {} for everything, the one owner or credential, or null for nothing. */
 export function seeFilter(a: Actor): { owner?: string; credential?: string } | null {
-  if (can(a, "previews.read")) return {};
-  if (!can(a, "previews.read_own")) return null;
+  if (can(a, "previews.read")) {
+    return {};
+  }
+  if (!can(a, "previews.read_own")) {
+    return null;
+  }
   if (confined(a)) {
     const credential = credentialOf(a);
     return credential === null ? null : { credential };
@@ -158,7 +176,9 @@ export const mayDestroy = (a: Actor, p: Provenance): boolean =>
   can(a, "previews.destroy") || (can(a, "previews.destroy_own") && owns(a, p));
 
 export function mayRebuild(a: Actor, p: Provenance): boolean {
-  if (can(a, "previews.update")) return true;
+  if (can(a, "previews.update")) {
+    return true;
+  }
   return can(a, "previews.update_own") && owns(a, p);
 }
 
@@ -173,9 +193,15 @@ export function auditActor(a: Actor): {
   id: string;
   name?: string;
 } {
-  if (a.kind === "user") return { type: "user", id: a.userId };
-  if (a.kind === "forge") return { type: a.forge, id: a.login };
-  if (a.kind === "workflow") return { type: "github", id: `actions:${a.repository}#${a.runId}` };
+  if (a.kind === "user") {
+    return { type: "user", id: a.userId };
+  }
+  if (a.kind === "forge") {
+    return { type: a.forge, id: a.login };
+  }
+  if (a.kind === "workflow") {
+    return { type: "github", id: `actions:${a.repository}#${a.runId}` };
+  }
   return a.tokenId.startsWith("system:")
     ? { type: "system", id: a.tokenId.slice("system:".length) }
     : { type: "token", id: a.tokenId, ...(a.name === undefined ? {} : { name: a.name }) };
@@ -187,7 +213,9 @@ export function chainVerifiers(...verifiers: TokenVerifier[]): TokenVerifier {
   return async (presented) => {
     for (const verify of verifiers) {
       const actor = await verify(presented);
-      if (actor) return actor;
+      if (actor) {
+        return actor;
+      }
     }
     return null;
   };

@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { Certificate } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { fromDate, rowToCert, type CertRow } from "./mappers.ts";
@@ -12,12 +13,15 @@ export class CertificatesRepo {
   }
 
   get(domain: string): Certificate | undefined {
-    const r = this.#db.get<CertRow>("SELECT * FROM certificates WHERE domain = $d", { d: domain });
+    const r = this.#db.get("SELECT * FROM certificates WHERE domain = $d", { d: domain }) as
+      CertRow | undefined;
     return r ? rowToCert(r) : undefined;
   }
 
   all(): Certificate[] {
-    return this.#db.query<CertRow>("SELECT * FROM certificates ORDER BY domain").map(rowToCert);
+    return (this.#db.query("SELECT * FROM certificates ORDER BY domain") as CertRow[]).map(
+      rowToCert,
+    );
   }
 
   put(c: Omit<Certificate, "updatedAt" | "source"> & { source?: string | null }): Certificate {
@@ -40,12 +44,14 @@ export class CertificatesRepo {
         now: this.#now(),
       },
     );
-    return this.get(c.domain)!;
+    return must(this.get(c.domain), "the certificate just saved");
   }
 
   isDueForRenewal(domain: string, windowMs: number, now: number = this.#now()): boolean {
     const c = this.get(domain);
-    if (!c || !c.notAfter) return true;
+    if (!c?.notAfter) {
+      return true;
+    }
     return c.notAfter.getTime() - now < windowMs;
   }
 }

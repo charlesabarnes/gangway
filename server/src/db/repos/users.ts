@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import type { User } from "@gangway/shared/domain";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
@@ -56,44 +57,49 @@ export class UsersRepo {
         now: this.#now(),
       },
     );
-    return this.get(u.id)!;
+    return must(this.get(u.id), "the user just saved");
   }
 
   get(id: string): User | undefined {
-    const r = this.#db.get<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE id = $id`, { id });
+    const r = this.#db.get(`SELECT ${USER_COLUMNS} FROM users WHERE id = $id`, { id }) as
+      UserRow | undefined;
     return r ? rowToUser(r) : undefined;
   }
 
   getByEmail(email: string): User | undefined {
-    const r = this.#db.get<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE email = $email`, {
+    const r = this.#db.get(`SELECT ${USER_COLUMNS} FROM users WHERE email = $email`, {
       email,
-    });
+    }) as UserRow | undefined;
     return r ? rowToUser(r) : undefined;
   }
 
   credentials(id: string): UserCredentials | undefined {
-    const r = this.#db.get<{ password_hash: string; password_salt: string }>(
-      "SELECT password_hash, password_salt FROM users WHERE id = $id",
-      { id },
-    );
+    const r = this.#db.get("SELECT password_hash, password_salt FROM users WHERE id = $id", {
+      id,
+    }) as { password_hash: string; password_salt: string } | undefined;
     return r ? { hash: r.password_hash, salt: r.password_salt } : undefined;
   }
 
   list(): User[] {
-    return this.#db
-      .query<UserRow>(`SELECT ${USER_COLUMNS} FROM users ORDER BY created_at, id`)
-      .map(rowToUser);
+    return (
+      this.#db.query(`SELECT ${USER_COLUMNS} FROM users ORDER BY created_at, id`) as UserRow[]
+    ).map(rowToUser);
   }
 
   count(): number {
-    return this.#db.get<{ n: number }>("SELECT COUNT(*) AS n FROM users")!.n;
+    return must(
+      this.#db.get("SELECT COUNT(*) AS n FROM users") as { n: number } | undefined,
+      "a count row",
+    ).n;
   }
 
   update(id: string, patch: { roleId?: string; disabled?: boolean }): User | undefined {
-    if (patch.roleId !== undefined)
+    if (patch.roleId !== undefined) {
       this.#db.run("UPDATE users SET role_id = $r WHERE id = $id", { id, r: patch.roleId });
-    if (patch.disabled !== undefined)
+    }
+    if (patch.disabled !== undefined) {
       this.#db.run("UPDATE users SET disabled = $d WHERE id = $id", { id, d: num(patch.disabled) });
+    }
     return this.get(id);
   }
 
@@ -110,9 +116,10 @@ export class UsersRepo {
   }
 
   countActiveAdmins(exceptId?: string): number {
-    return this.#db.get<{ n: number }>(
+    const row = this.#db.get(
       "SELECT COUNT(*) AS n FROM users WHERE role_id = $admin AND disabled = 0 AND id != $except",
       { admin: ADMIN_ROLE_ID, except: exceptId ?? "" },
-    )!.n;
+    ) as { n: number } | undefined;
+    return must(row, "a count row").n;
   }
 }

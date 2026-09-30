@@ -83,11 +83,15 @@ export function parseLabels(
   raw: Readonly<Record<string, string>> | null | undefined,
 ): LabelParseResult {
   const bag = raw ?? {};
-  if (!isManaged(bag)) return { ok: false, reason: "not-managed" };
+  if (!isManaged(bag)) {
+    return { ok: false, reason: "not-managed" };
+  }
 
   // Version first: a newer gangway's labels must not be read as malformed and stopped.
   const refused = checkVersion(bag[LABEL.version]);
-  if (refused) return refused;
+  if (refused) {
+    return refused;
+  }
 
   const { read, missing, invalid } = labelReader(bag);
   const instance = read(LABEL.instance, "", nonEmpty);

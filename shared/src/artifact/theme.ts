@@ -203,7 +203,9 @@ export const HOUSE: Theme = {
 /** Keeps shapes, paths and text; drops scripts, event handlers, links out and foreign content. */
 export function cleanSvg(svg: string): string | null {
   const s = svg.trim();
-  if (!/^<svg[\s>]/i.test(s) || !/<\/svg>\s*$/i.test(s)) return null;
+  if (!/^<svg[\s>]/i.test(s) || !/<\/svg>\s*$/i.test(s)) {
+    return null;
+  }
   return s
     .replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "")
     .replace(/<(script|foreignObject|iframe|object|embed)\b[^>]*\/?>/gi, "")
@@ -302,7 +304,9 @@ export function styleDecls(style: ThemeStyle): string {
 
 /** The stylesheet the kit loads after its own. `logoUrl` is where the logo is served. */
 export function compileTheme(t: Theme, logoUrl?: string): string {
-  if (t.builtin) return `/* ${t.name}: gangway's own theme */\n`;
+  if (t.builtin) {
+    return `/* ${t.name}: gangway's own theme */\n`;
+  }
   const f = t.fonts;
   const font = (k: ThemeFontSlot) => {
     const stack = f[k] ? (THEME_FONTS[k] as Record<string, string>)[f[k]] : undefined;
@@ -317,10 +321,12 @@ export function compileTheme(t: Theme, logoUrl?: string): string {
     (f.titles ? TITLES[f.titles] : "") +
     (f.titleWeight ? TITLE_WEIGHT[f.titleWeight] : "") +
     (f.titleCase ? TITLE_CASE[f.titleCase] : "") +
-    styleDecls(t.style ?? {}) +
+    styleDecls(t.style) +
     (t.logo && logoUrl ? `--logo:url("${logoUrl}");--logo-w:120px;--logo-gap:14px;` : "");
   const lines = [`/* theme: ${t.name.replace(/\*\//g, "")} */`, `:root{${root}}`];
   const dark = decls(t.tokens.dark);
-  if (dark) lines.push(`:root[data-theme="dark"]{${dark}}`);
+  if (dark) {
+    lines.push(`:root[data-theme="dark"]{${dark}}`);
+  }
   return `${lines.join("\n")}\n`;
 }

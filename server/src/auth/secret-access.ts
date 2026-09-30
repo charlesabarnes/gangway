@@ -27,14 +27,17 @@ export function grantedTargets(
   asked: SecretTargets | null | undefined,
 ): SecretTargets | null {
   if (!scopes.includes("secrets")) {
-    if (asked) throw unprocessable("secretTargets needs the secrets scope");
+    if (asked) {
+      throw unprocessable("secretTargets needs the secrets scope");
+    }
     return null;
   }
   const targets = asked ?? DEFAULT_SECRET_TARGETS;
-  if (targetPermissions(scopes, targets).some((p) => !can(maker, p)))
+  if (targetPermissions(scopes, targets).some((p) => !can(maker, p))) {
     throw unprocessable("your role does not cover project or org secrets", {
       missing: "repos.secrets",
     });
+  }
   return targets;
 }
 
@@ -42,7 +45,9 @@ const targetsOf = (a: Actor): SecretTargets | undefined =>
   a.kind === "token" ? a.secretTargets : undefined;
 
 function mayProject(a: Actor, project: Project): boolean {
-  if (!can(a, "repos.secrets")) return false;
+  if (!can(a, "repos.secrets")) {
+    return false;
+  }
   const t = targetsOf(a);
   return !t || t.projects === "all" || t.projects.includes(project.id);
 }
@@ -52,23 +57,28 @@ export function secretRefusal(a: Actor, target: SecretTarget): string | null {
   const t = targetsOf(a);
   switch (target.kind) {
     case "org":
-      if (!can(a, "repos.secrets") || (t && !t.org))
+      if (!can(a, "repos.secrets") || (t && !t.org)) {
         return "this credential may not set org-wide secrets";
+      }
       return null;
     case "project":
-      if (!mayProject(a, target.project))
+      if (!mayProject(a, target.project)) {
         return `this credential may not set secrets on project "${target.project.slug}"`;
+      }
       return null;
     case "preview": {
-      if (target.project && mayProject(a, target.project)) return null;
+      if (target.project && mayProject(a, target.project)) {
+        return null;
+      }
       const own =
         target.provenance.credential !== null && target.provenance.credential === credentialOf(a);
       if (
         can(a, "previews.secrets") &&
         mayRebuild(a, target.provenance) &&
         (!t || t.previews === "all" || own)
-      )
+      ) {
         return null;
+      }
       return `this credential may not set secrets on preview ${target.name}${t?.previews === "own" ? ": it may set them only on previews it deployed" : ""}`;
     }
   }

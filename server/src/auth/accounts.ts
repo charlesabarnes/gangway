@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { User } from "@gangway/shared/domain";
+import { must } from "@gangway/shared/must";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
@@ -56,7 +57,9 @@ export class Accounts {
       const key = verdict.reason === "ip" ? `ip:${meta.ip}` : `email:${email}`;
       const now = this.#now();
       if ((this.#blockedNoted.get(key) ?? 0) < now - BLOCKED_NOTE_EVERY_MS) {
-        if (this.#blockedNoted.size > 10_000) this.#blockedNoted.clear();
+        if (this.#blockedNoted.size > 10_000) {
+          this.#blockedNoted.clear();
+        }
         this.#blockedNoted.set(key, now);
         audit.record(null, "auth.login.blocked", email, {
           new: { ip: meta.ip, reason: verdict.reason, retryAfterSec: verdict.retryAfterSec },
@@ -77,8 +80,9 @@ export class Accounts {
     }
 
     limiter.succeed(email);
-    if (passwords.needsRehash(usable.hash))
+    if (passwords.needsRehash(usable.hash)) {
       users.setPassword(user.id, await passwords.hash(password));
+    }
     const { secret, session } = sessions.issue(user.id, meta);
     audit.record(
       {
@@ -100,7 +104,9 @@ export class Accounts {
     // Db.transaction is synchronous, so hashing happens before it and nothing inside awaits.
     const credentials = await passwords.hash(password);
     const user = db.transaction(() => {
-      if (users.count() > 0) throw notFound("not found");
+      if (users.count() > 0) {
+        throw notFound("not found");
+      }
       return users.create({ id: ulid(this.#now()), email, roleId: ADMIN_ROLE_ID, ...credentials });
     });
     const { secret } = sessions.issue(user.id, meta);
@@ -124,13 +130,16 @@ export class Accounts {
     input: { email: string; password?: string | undefined; roleId: string },
   ): Promise<User> {
     const { db, users, roles, passwords, audit } = this.#d;
-    if (!roles.get(input.roleId)) throw unprocessable(`no such role: ${input.roleId}`);
+    if (!roles.get(input.roleId)) {
+      throw unprocessable(`no such role: ${input.roleId}`);
+    }
     const invited = input.password === undefined;
     // A random password nobody knows, so the NOT NULL columns hold a hash that never matches.
     const credentials = await passwords.hash(input.password ?? randomBytes(32).toString("base64"));
     const user = db.transaction(() => {
-      if (users.getByEmail(input.email))
+      if (users.getByEmail(input.email)) {
         throw conflict("an account with that email already exists");
+      }
       return users.create({
         id: ulid(this.#now()),
         email: input.email,
@@ -151,14 +160,17 @@ export class Accounts {
     patch: { roleId?: string; disabled?: boolean; password?: string },
   ): Promise<User> {
     const { db, users, roles, passwords, sessions, audit } = this.#d;
-    if (patch.roleId !== undefined && !roles.get(patch.roleId))
+    if (patch.roleId !== undefined && !roles.get(patch.roleId)) {
       throw unprocessable(`no such role: ${patch.roleId}`);
+    }
     const credentials =
       patch.password === undefined ? undefined : await passwords.hash(patch.password);
 
     const { before, after } = db.transaction(() => {
       const before = users.get(id);
-      if (!before) throw notFound(`no such user: ${id}`);
+      if (!before) {
+        throw notFound(`no such user: ${id}`);
+      }
       // Checked inside the transaction so two admins demoting each other cannot both succeed.
       const isAdminNow = before.roleId === ADMIN_ROLE_ID && !before.disabled;
       const stopsBeingOne =
@@ -166,11 +178,16 @@ export class Accounts {
       if (isAdminNow && stopsBeingOne && users.countActiveAdmins(id) === 0) {
         throw conflict("this is the last enabled admin; promote or enable another admin first");
       }
-      if (credentials) users.setPassword(id, credentials);
-      const after = users.update(id, {
-        ...(patch.roleId === undefined ? {} : { roleId: patch.roleId }),
-        ...(patch.disabled === undefined ? {} : { disabled: patch.disabled }),
-      })!;
+      if (credentials) {
+        users.setPassword(id, credentials);
+      }
+      const after = must(
+        users.update(id, {
+          ...(patch.roleId === undefined ? {} : { roleId: patch.roleId }),
+          ...(patch.disabled === undefined ? {} : { disabled: patch.disabled }),
+        }),
+        "the user just read in this transaction",
+      );
       return { before, after };
     });
 
@@ -196,14 +213,19 @@ export class Accounts {
     meta: RequestMeta,
   ): Promise<void> {
     const { users, passwords, limiter, sessions, audit } = this.#d;
-    if (actor.kind !== "user")
+    if (actor.kind !== "user") {
       throw forbidden("only a logged-in user can change their own password");
+    }
     const user = users.get(actor.userId);
     const stored = user ? users.credentials(user.id) : undefined;
-    if (!user || !stored) throw unauthorized();
+    if (!user || !stored) {
+      throw unauthorized();
+    }
 
     const verdict = limiter.check(meta.ip, user.email);
-    if (!verdict.ok) throw rateLimited(verdict.retryAfterSec);
+    if (!verdict.ok) {
+      throw rateLimited(verdict.retryAfterSec);
+    }
     if (!(await passwords.verify(current, stored))) {
       limiter.fail(meta.ip, user.email);
       throw new AppError("forbidden", "the current password is wrong");
@@ -214,7 +236,9 @@ export class Accounts {
   }
 
   logout(actor: Actor): void {
-    if (actor.kind !== "user") return;
+    if (actor.kind !== "user") {
+      return;
+    }
     this.#d.sessions.revoke(actor.sessionId);
     this.#d.audit.record(actor, "auth.logout", actor.userId);
   }

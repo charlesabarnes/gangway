@@ -1,0 +1,92 @@
+import { servedByGangway, type Preview } from "@gangway/shared/domain";
+import type { AppPlan } from "@gangway/shared/app-plan";
+import { serveSite } from "../net/site.ts";
+import { renderDist } from "../previews/artifact-render.ts";
+import type { PreviewContext } from "../previews/context.ts";
+import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
+import { describePlan } from "./describe.ts";
+
+const MANIFEST_SHOWN = 40;
+
+// What a deploy reports once it is up: the plan, the files as deployed, and the paths checked.
+export async function deployReport(
+  ctx: PreviewContext,
+  p: Preview,
+  plan: AppPlan | undefined,
+  check: readonly string[] | undefined,
+): Promise<string> {
+  const out: string[] = [];
+  if (plan) {
+    out.push(describePlan(plan, servedByGangway(p)));
+  }
+  const manifest = await manifestOf(ctx, p);
+  if (manifest) {
+    out.push(manifest);
+  }
+  if (check && check.length > 0) {
+    const checked = await checkPaths(ctx, p, check);
+    if (checked) {
+      out.push(checked);
+    }
+  }
+  return out.length === 0 ? "" : `\n${out.join("\n")}`;
+}
+
+async function manifestOf(ctx: PreviewContext, p: Preview): Promise<string | null> {
+  if (!ctx.sources || p.source.kind !== "tarball" || !(await ctx.sources.has(p.id))) {
+    return null;
+  }
+  const m = await ctx.sources.manifest(p.id);
+  if (m.files.length > MANIFEST_SHOWN) {
+    return `files as deployed: ${m.files.length}${m.truncated ? "+" : ""} (too many to list; the preview page shows them)`;
+  }
+  return `files as deployed (sha256, first 12 hex; compare with shasum -a 256):\n${m.files.map((f) => `  ${f.sha256.slice(0, 12)}  ${String(f.bytes).padStart(8)}  ${f.path}`).join("\n")}`;
+}
+
+async function checkPaths(
+  ctx: PreviewContext,
+  p: Preview,
+  check: readonly string[],
+): Promise<string | null> {
+  const route = ctx.table.forPreview(p.id).find((e) => e.primary) ?? ctx.table.forPreview(p.id)[0];
+  const host = ctx.hosts.get(p.hostId);
+  if (!route || !host) {
+    return null;
+  }
+  if (route.site) {
+    return checkSite(ctx, p, { hostname: route.hostname, check });
+  }
+  const probe = ctx.statusProbe ?? httpStatus;
+  const target = {
+    hostname: route.hostname,
+    upstream: { host: route.upstreamHost, port: route.upstreamPort },
+  };
+  const got = await Promise.all(
+    check.map(async (path) => `${path} ${(await probe(target, host, path)) ?? "no answer"}`),
+  );
+  return `checked: ${got.join(" · ")}`;
+}
+
+// The same answer a visitor gets past the password gate, without a trip through the network.
+async function checkSite(
+  ctx: PreviewContext,
+  p: Preview,
+  { hostname, check }: { hostname: string; check: readonly string[] },
+): Promise<string | null> {
+  const site = await ctx.sites?.open(p.id);
+  if (!site) {
+    return "checked: the preview's files are missing";
+  }
+  const got = await Promise.all(
+    check.map(async (path) => {
+      if (!CHECK_PATH.test(path)) {
+        return `${path} no answer`;
+      }
+      const req = new Request(`https://${hostname}${path}`, { method: "GET" });
+      const res = await serveSite(req, site, { unlisted: false, kitDir: renderDist() });
+      await res.body?.cancel();
+      return `${path} ${res.status}`;
+    }),
+  );
+  return `checked: ${got.join(" · ")}`;
+}

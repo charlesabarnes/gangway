@@ -46,7 +46,11 @@ export type Running = {
 
 export async function boot(config: Config, o: BootOverrides = {}): Promise<Running> {
   const logger = o.logger ?? new Logger(config.logLevel);
-  const announce = o.announce ?? ((t) => console.log(t));
+  const announce =
+    o.announce ??
+    ((t) => {
+      console.log(t);
+    });
   const { core, seeded, workdirs, sources, sites } = await openCore(config, logger);
 
   const dockerClients = new DockerClients();
@@ -122,10 +126,11 @@ function announceStartup(d: StartupNotice): string | null {
   const { config, logger, origin } = d.core;
   // Through announce, not the logger, which would redact the setup link.
   const setupUrl = d.surfaceEnabled("app") ? d.identity.bootstrap.url(origin("app")) : null;
-  if (setupUrl)
+  if (setupUrl) {
     d.announce(
       `\n  No accounts exist yet. Create the first admin here (one use, this run only):\n\n    ${setupUrl}\n`,
     );
+  }
   if (d.core.repos.users.count() > 0 && config.trustedProxies.length === 0) {
     logger.warn(
       "accounts exist but GANGWAY_TRUSTED_PROXIES is empty; if a reverse proxy sits in front, login rate limits and audit IPs will all be the proxy's",

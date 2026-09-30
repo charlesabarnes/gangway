@@ -9,12 +9,18 @@ export type EventRouteDeps = { provenanceOf: (previewId: string) => Provenance }
 
 /** Whether the actor may see a preview's events; each preview's answer is kept for the stream. */
 function seesEventsOf(actor: Actor, d: EventRouteDeps): (previewId: string | null) => boolean {
-  if (can(actor, "previews.read")) return () => true;
+  if (can(actor, "previews.read")) {
+    return () => true;
+  }
   const seen = new Map<string, boolean>();
   return (id) => {
-    if (id === null) return true;
+    if (id === null) {
+      return true;
+    }
     let ok = seen.get(id);
-    if (ok === undefined) seen.set(id, (ok = maySee(actor, d.provenanceOf(id))));
+    if (ok === undefined) {
+      seen.set(id, (ok = maySee(actor, d.provenanceOf(id))));
+    }
     return ok;
   };
 }
@@ -32,7 +38,9 @@ export function eventRoutes(
       c,
       (push) =>
         bus.follow(after, (e) => {
-          if (!sees(e.previewId)) return;
+          if (!sees(e.previewId)) {
+            return;
+          }
           push({
             id: String(e.seq),
             event: e.type,

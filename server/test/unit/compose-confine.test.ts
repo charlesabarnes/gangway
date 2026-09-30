@@ -167,7 +167,9 @@ describe("buildStack confines every container", () => {
   test("0 turns a limit off, leaving the file's own", () => {
     const web = stack({ pids_limit: 200 }, { memoryBytes: 0, cpus: 0, pids: 0 });
     expect(web.pids_limit).toBe(200);
-    for (const key of ["mem_limit", "memswap_limit", "cpus"]) expect(key in web).toBe(false);
+    for (const key of ["mem_limit", "memswap_limit", "cpus"]) {
+      expect(key in web).toBe(false);
+    }
   });
 
   test("no new privileges, and only a short list of capabilities is kept", () => {

@@ -44,7 +44,9 @@ describe("LoginLimiter", () => {
     for (let i = 0; i < 7; i++) {
       limiter.fail("198.51.100.1", email);
       const v = limiter.check("198.51.100.1", email);
-      if (v.ok) throw new Error("expected a lock");
+      if (v.ok) {
+        throw new Error("expected a lock");
+      }
       expect(v.reason).toBe("email");
       locks.push(v.retryAfterSec);
       tick(v.retryAfterSec * 1000);
@@ -55,7 +57,9 @@ describe("LoginLimiter", () => {
 
   test("the account lock holds no matter which address asks", () => {
     const { limiter } = make();
-    for (let i = 0; i < 5; i++) limiter.fail(`198.51.100.${i}`, "ada@example.com");
+    for (let i = 0; i < 5; i++) {
+      limiter.fail(`198.51.100.${i}`, "ada@example.com");
+    }
     expect(limiter.check("203.0.113.99", "ada@example.com").ok).toBe(false);
     expect(limiter.check("203.0.113.99", "bob@example.com").ok).toBe(true);
   });
@@ -76,16 +80,22 @@ describe("LoginLimiter", () => {
 
   test("a whole IPv6 /64 is one source", () => {
     const { limiter } = make();
-    for (let i = 0; i < 10; i++) limiter.fail(`2001:db8:1:2::${i + 1}`, `user${i}@example.com`);
+    for (let i = 0; i < 10; i++) {
+      limiter.fail(`2001:db8:1:2::${i + 1}`, `user${i}@example.com`);
+    }
     expect(limiter.check("2001:db8:1:2:ffff:ffff:ffff:ffff", "x@example.com").ok).toBe(false);
     expect(limiter.check("2001:db8:1:3::1", "x@example.com").ok).toBe(true);
   });
 
   test("success clears the account's streak but not the source's", () => {
     const { limiter } = make();
-    for (let i = 0; i < 4; i++) limiter.fail("203.0.113.7", "ada@example.com");
+    for (let i = 0; i < 4; i++) {
+      limiter.fail("203.0.113.7", "ada@example.com");
+    }
     limiter.succeed("ada@example.com");
-    for (let i = 0; i < 4; i++) limiter.fail("203.0.113.7", "ada@example.com");
+    for (let i = 0; i < 4; i++) {
+      limiter.fail("203.0.113.7", "ada@example.com");
+    }
     expect(limiter.check("203.0.113.7", "ada@example.com").ok).toBe(true); // streak restarted at 0
     // Logging in to your own account must not buy fresh guesses at someone else's.
     limiter.fail("203.0.113.7", "bob@example.com");
@@ -98,7 +108,9 @@ describe("LoginLimiter", () => {
 
   test("a streak is forgotten after an hour of quiet", () => {
     const { limiter, tick } = make({ ipMax: 1000 });
-    for (let i = 0; i < 4; i++) limiter.fail("203.0.113.7", "ada@example.com");
+    for (let i = 0; i < 4; i++) {
+      limiter.fail("203.0.113.7", "ada@example.com");
+    }
     tick(61 * MIN);
     limiter.fail("203.0.113.7", "ada@example.com");
     expect(limiter.check("203.0.113.7", "ada@example.com").ok).toBe(true);
@@ -106,9 +118,12 @@ describe("LoginLimiter", () => {
 
   test("memory is bounded, and flooding addresses cannot evict an account's lock", () => {
     const { limiter } = make({ maxKeys: 100 });
-    for (let i = 0; i < 5; i++) limiter.fail("198.51.100.1", "ada@example.com");
-    for (let i = 0; i < 5000; i++)
+    for (let i = 0; i < 5; i++) {
+      limiter.fail("198.51.100.1", "ada@example.com");
+    }
+    for (let i = 0; i < 5000; i++) {
       limiter.fail(`10.${(i >> 8) & 255}.${i & 255}.1`, "ada@example.com");
+    }
     expect(limiter.trackedKeys).toEqual({ ips: 100, emails: 1 });
     expect(limiter.check("203.0.113.200", "ada@example.com").ok).toBe(false);
   });

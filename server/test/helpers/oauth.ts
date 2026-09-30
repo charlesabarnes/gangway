@@ -42,7 +42,9 @@ export async function setupOAuth() {
     clients: clientResolver(registry, {
       get: async (id) => {
         const r = docs[id];
-        if (!r) throw new ClientMetadataError("unknown");
+        if (!r) {
+          throw new ClientMetadataError("unknown");
+        }
         return { clientId: id, clientName: "Claude", redirectUris: r };
       },
     }),
@@ -67,9 +69,13 @@ export async function setupOAuth() {
       scope: "read deploy",
       resource: RESOURCE,
     });
-    for (const [k, v] of Object.entries(over))
-      if (v === null) q.delete(k);
-      else q.set(k, v);
+    for (const [k, v] of Object.entries(over)) {
+      if (v === null) {
+        q.delete(k);
+      } else {
+        q.set(k, v);
+      }
+    }
     return q;
   };
   /** Straight through to a code, as a user would click. */
@@ -78,7 +84,9 @@ export async function setupOAuth() {
     const out = await oauth.authorize(
       authorizeQuery(scopes?.includes("update") ? { scope: scopes.join(" ") } : {}),
     );
-    if (out.kind !== "consent") throw new Error(JSON.stringify(out));
+    if (out.kind !== "consent") {
+      throw new Error(JSON.stringify(out));
+    }
     const { redirect } = oauth.decide(actor, out.requestId, {
       approve: true,
       ...(scopes ? { scopes } : {}),

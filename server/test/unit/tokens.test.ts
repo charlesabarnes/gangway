@@ -119,8 +119,9 @@ describe("minting", () => {
       t.tokens.mint(t.adaActor, { name: "short", scopes: ["read"], expiresIn: "90d" }).token
         .expiresAt,
     ).toEqual(new Date(t.clock.t + 90 * DAY));
-    for (const expiresIn of ["soon", "", "-1d", "0s"])
+    for (const expiresIn of ["soon", "", "-1d", "0s"]) {
       expect(() => t.tokens.mint(t.adaActor, { name: "x", scopes: ["read"], expiresIn })).toThrow();
+    }
   });
 });
 
@@ -152,8 +153,9 @@ describe("verifying", () => {
       "Bearer x",
       "gw_e2e_admin_token_0123456789abcdef",
       "x".repeat(100_000),
-    ])
+    ]) {
       expect(await t.tokens.verify(junk)).toBeNull();
+    }
     expect(reads).toBe(0);
     expect(await t.tokens.verify(`gw_${"A".repeat(43)}`)).toBeNull();
     expect(reads).toBe(1);

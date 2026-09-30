@@ -40,8 +40,12 @@ export class Mailer {
   async send(m: Mail): Promise<void> {
     const url = this.#d.url();
     const from = this.#d.from();
-    if (url === "" || from === "") throw conflict("email is not set up on this server");
-    if (this.#cached?.url !== url) this.#cached = { url, send: this.#transport(url) };
+    if (url === "" || from === "") {
+      throw conflict("email is not set up on this server");
+    }
+    if (this.#cached?.url !== url) {
+      this.#cached = { url, send: this.#transport(url) };
+    }
     try {
       await this.#cached.send({ ...m, from });
     } catch (e) {

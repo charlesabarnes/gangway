@@ -3,7 +3,9 @@ import { AppError, type ErrorCode } from "../../errors.ts";
 
 // A bare startsWith would accept /tmp/foobar as inside /tmp/foo.
 export function containedIn(parent: string, child: string): boolean {
-  if (child === parent) return true;
+  if (child === parent) {
+    return true;
+  }
   return child.startsWith(parent.endsWith(path.sep) ? parent : parent + path.sep);
 }
 

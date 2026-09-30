@@ -35,11 +35,16 @@ export class GitHubForge implements Forge {
     rawBody: Uint8Array,
   ): { ok: true; deliveryId: string } | { ok: false; reason: string } {
     const secret = this.#secret();
-    if (secret === "") return { ok: false, reason: "no webhook secret is configured" };
-    if (!verifySignature(secret, rawBody, headers.get(SIGNATURE_HEADER)))
+    if (secret === "") {
+      return { ok: false, reason: "no webhook secret is configured" };
+    }
+    if (!verifySignature(secret, rawBody, headers.get(SIGNATURE_HEADER))) {
       return { ok: false, reason: "bad signature" };
+    }
     const deliveryId = headers.get(DELIVERY_HEADER) ?? "";
-    if (deliveryId === "") return { ok: false, reason: "no delivery id" };
+    if (deliveryId === "") {
+      return { ok: false, reason: "no delivery id" };
+    }
     return { ok: true, deliveryId };
   }
 
@@ -53,13 +58,15 @@ export class GitHubForge implements Forge {
       "GET",
       `${repoPath(repo)}/pulls/${number}`,
     );
-    if (r.status === 404)
+    if (r.status === 404) {
       throw notFound(`${repo.fullName}#${number} does not exist or the App cannot see it`);
+    }
     const pr = r.status === 200 ? pullRequestOf(r.body, repo) : null;
-    if (!pr)
+    if (!pr) {
       throw internal(`GitHub answered ${r.status} for ${repo.fullName}#${number}`, {
         status: r.status,
       });
+    }
     return pr;
   }
 
@@ -81,11 +88,14 @@ export class GitHubForge implements Forge {
         `${base}/issues/comments/${existingId}`,
         { body: marked },
       );
-      if (r.status === 200) return existingId;
-      if (r.status !== 404)
+      if (r.status === 200) {
+        return existingId;
+      }
+      if (r.status !== 404) {
         throw internal(`GitHub answered ${r.status} editing comment ${existingId}`, {
           status: r.status,
         });
+      }
     }
     const r = await this.#app.asInstallation<{ id?: number }>(
       pr.repo.installationId,
@@ -93,10 +103,11 @@ export class GitHubForge implements Forge {
       `${base}/issues/${pr.number}/comments`,
       { body: marked },
     );
-    if (r.status !== 201 || typeof r.body?.id !== "number")
+    if (r.status !== 201 || typeof r.body?.id !== "number") {
       throw internal(`GitHub answered ${r.status} creating a comment on #${pr.number}`, {
         status: r.status,
       });
+    }
     return r.body.id;
   }
 
@@ -134,17 +145,22 @@ export class GitHubForge implements Forge {
     o: { environmentUrl?: string; logUrl?: string } = {},
   ): Promise<void> {
     const body: Record<string, unknown> = { state, auto_inactive: false };
-    if (o.environmentUrl !== undefined) body["environment_url"] = o.environmentUrl;
-    if (o.logUrl !== undefined) body["log_url"] = o.logUrl;
+    if (o.environmentUrl !== undefined) {
+      body["environment_url"] = o.environmentUrl;
+    }
+    if (o.logUrl !== undefined) {
+      body["log_url"] = o.logUrl;
+    }
     const r = await this.#app.asInstallation(
       repo.installationId,
       "POST",
       `${repoPath(repo)}/deployments/${deploymentId}/statuses`,
       body,
     );
-    if (r.status !== 201)
+    if (r.status !== 201) {
       throw internal(`GitHub answered ${r.status} setting deployment ${deploymentId} to ${state}`, {
         status: r.status,
       });
+    }
   }
 }

@@ -63,8 +63,9 @@ test("one certificate covers the control and the preview domain", async () => {
   const running = await start({ GANGWAY_BASE_DOMAIN: CONTROL, GANGWAY_PREVIEW_DOMAIN: PREVIEWS });
   const ca = readFileSync(running.caPath!, "utf8");
   const port = running.listener.port;
-  for (const name of [`app.${CONTROL}`, CONTROL, `acme.${PREVIEWS}`, PREVIEWS])
+  for (const name of [`app.${CONTROL}`, CONTROL, `acme.${PREVIEWS}`, PREVIEWS]) {
     expect(await handshake(port, name, ca)).toBe(true);
+  }
 });
 
 test("the UI answers on the control domain and not on the preview domain", async () => {

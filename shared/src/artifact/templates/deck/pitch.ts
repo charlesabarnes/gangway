@@ -33,7 +33,12 @@ export const pitch: ArtifactTemplate = {
   build(s) {
     const trend = chart("line", { x: "week", y: "previews", title: "Previews a week, pilot" }, [
       ["week", "previews"],
-      ...["W1", "W2", "W3", "W4", "W5", "W6"].map((w, i) => [w, [12, 31, 44, 58, 61, 66][i]!]),
+      ["W1", 12],
+      ["W2", 31],
+      ["W3", 44],
+      ["W4", 58],
+      ["W5", 61],
+      ["W6", 66],
     ]);
     const proof = {
       number: `{layout=big}\n## Since the pilot began\n${stat({ label: "Median wait for a first review", value: "26 h", delta: "-40%", good: "down", note: "43 h before the pilot" })}`,

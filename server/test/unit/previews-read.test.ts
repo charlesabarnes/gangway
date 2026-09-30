@@ -38,7 +38,9 @@ async function frames(res: Response, count: number, timeoutMs = 3000) {
       reader.read(),
       Bun.sleep(Math.max(1, deadline - Date.now())).then(() => null),
     ]);
-    if (next === null) break;
+    if (next === null) {
+      break;
+    }
     if (next.done) {
       ended = true;
       break;
@@ -86,7 +88,9 @@ describe("GET /v1/previews", () => {
   test("pages newest first with limit and cursor, and says where the next page starts", async () => {
     const t = make();
     const made = [];
-    for (const name of ["a", "b", "c"]) made.push(await t.deployed(name));
+    for (const name of ["a", "b", "c"]) {
+      made.push(await t.deployed(name));
+    }
     const page = async (q: string) =>
       (await (await t.get(`/previews${q}`)).json()) as {
         previews: { id: string }[];
@@ -158,8 +162,9 @@ describe("GET /v1/previews/:id/events and /builds", () => {
       `/previews/${p.id}`,
       `/previews/${p.id}/events`,
       `/previews/${p.id}/builds`,
-    ])
+    ]) {
       expect((await reader.get(path)).status).toBe(200);
+    }
     expect((await reader.get(`/previews/${p.id}`, { method: "DELETE" })).status).toBe(403);
 
     const nobody = make({
@@ -174,8 +179,9 @@ describe("GET /v1/previews/:id/events and /builds", () => {
       "/previews/x/events",
       "/previews/x/builds",
       "/previews/x/logs",
-    ])
+    ]) {
       expect((await nobody.get(path)).status).toBe(403);
+    }
   });
 });
 
@@ -232,8 +238,9 @@ describe("GET /v1/previews/:id/logs", () => {
     expect(whole.out).toHaveLength(300);
     expect(whole.out.some((f) => f.line.includes("not shown"))).toBe(false);
 
-    for (const bad of ["0", "-5", "many", "5001"])
+    for (const bad of ["0", "-5", "many", "5001"]) {
       expect((await t.get(`/previews/${p.id}/logs?tail=${bad}`)).status).toBe(422);
+    }
   });
 
   test("resuming with Last-Event-ID sends exactly the lines after the cursor", async () => {

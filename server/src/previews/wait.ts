@@ -31,18 +31,23 @@ export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<v
     for (const c of rows) {
       const died =
         c.state === "dead" || (c.state === "exited" && (c.exitCode !== 0 || routed.has(c.service)));
-      if (died)
+      if (died) {
         throw new StepFailed(
           `service "${c.service}" exited${c.exitCode === null ? "" : ` with code ${c.exitCode}`}`,
         );
-      if (c.health === "unhealthy") throw new StepFailed(`service "${c.service}" is unhealthy`);
+      }
+      if (c.health === "unhealthy") {
+        throw new StepFailed(`service "${c.service}" is unhealthy`);
+      }
     }
     const waiting = rows
       .filter((c) => !(c.state === "exited" && c.exitCode === 0))
       .filter((c) => c.state !== "running" || (c.health !== null && c.health !== "healthy"));
     const seen = new Set(rows.map((c) => c.service));
     const missing = [...routed].filter((s) => !seen.has(s));
-    if (rows.length > 0 && waiting.length === 0 && missing.length === 0) return;
+    if (rows.length > 0 && waiting.length === 0 && missing.length === 0) {
+      return;
+    }
 
     const status = [
       ...waiting.map((c) => `${c.service}: ${c.health ?? c.state}`),
@@ -52,10 +57,11 @@ export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<v
       ctx.logs.append(r.previewId, "system", `waiting for ${status || "containers"}`);
       last = status;
     }
-    if (Date.now() >= deadline)
+    if (Date.now() >= deadline) {
       throw new StepFailed(
         `timed out after ${Math.round(ctx.timings.startTimeoutMs / 1000)}s waiting for ${status || "containers"}`,
       );
+    }
     await sleep(ctx.timings.pollIntervalMs);
   }
 }
@@ -69,10 +75,13 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
       pending.map((route) => ctx.probe(route, r.host, r.health?.[route.service])),
     );
     pending = pending.filter((_, i) => !results[i]);
-    if (pending.length === 0) return;
+    if (pending.length === 0) {
+      return;
+    }
     if (Date.now() >= deadline) {
+      const health = r.health;
       throw new StepFailed(
-        `${pending.map((p) => `${p.service}:${p.containerPort}${r.health?.[p.service] ?? ""}`).join(", ")} never answered${r.health && pending.some((p) => r.health![p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`,
+        `${pending.map((p) => `${p.service}:${p.containerPort}${health?.[p.service] ?? ""}`).join(", ")} never answered${health && pending.some((p) => health[p.service]) ? " with a 2xx/3xx" : " HTTP"} -- is that the right port, and does the app listen on 0.0.0.0?`,
       );
     }
     await sleep(ctx.timings.pollIntervalMs);
@@ -96,7 +105,9 @@ export async function salvage(
       r.host,
       { cwd: empty },
     );
-    if (logs.stdout) ctx.logs.append(r.preview.id, "stdout", logs.stdout);
+    if (logs.stdout) {
+      ctx.logs.append(r.preview.id, "stdout", logs.stdout);
+    }
     // Keep volumes: a failed rebuild must not take the add-on's data.
     await ctx.compose.capture(
       downArgv(

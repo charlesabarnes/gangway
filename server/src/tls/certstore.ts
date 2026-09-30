@@ -31,14 +31,20 @@ export class CertStore {
       throw new Error("refusing to swap in an empty certificate bundle");
     }
     this.#bundle = bundle;
-    for (const fn of this.#listeners) await fn(bundle);
+    for (const fn of this.#listeners) {
+      await fn(bundle);
+    }
   }
 
   earliestNotAfter(): Date | null {
     let earliest: Date | null = null;
     for (const m of this.#bundle.materials) {
-      if (!m.notAfter) continue;
-      if (!earliest || m.notAfter < earliest) earliest = m.notAfter;
+      if (!m.notAfter) {
+        continue;
+      }
+      if (!earliest || m.notAfter < earliest) {
+        earliest = m.notAfter;
+      }
     }
     return earliest;
   }

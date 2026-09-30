@@ -39,9 +39,14 @@ export async function signedInApp(
     const headers = new Headers(init.headers);
     headers.set("host", HOST);
     headers.set("origin", `https://${HOST}`);
-    if (init.as?.startsWith("gw_")) headers.set("authorization", `Bearer ${init.as}`);
-    else if (init.as) headers.set("cookie", init.as);
-    if (init.json !== undefined) headers.set("content-type", "application/json");
+    if (init.as?.startsWith("gw_")) {
+      headers.set("authorization", `Bearer ${init.as}`);
+    } else if (init.as) {
+      headers.set("cookie", init.as);
+    }
+    if (init.json !== undefined) {
+      headers.set("content-type", "application/json");
+    }
     return Promise.resolve(
       handle(
         new Request(`https://${HOST}${path}`, {

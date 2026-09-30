@@ -37,7 +37,9 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
     await next();
     const path = new URL(c.req.url).pathname;
     // The frame page says for itself who may frame it: the UI, and only the UI.
-    if (path === "/v1/auth/gate" || path === FRAME_PATH) return;
+    if (path === "/v1/auth/gate" || path === FRAME_PATH) {
+      return;
+    }
     try {
       c.res.headers.set("x-frame-options", "DENY");
       c.res.headers.append("content-security-policy", "frame-ancestors 'none'");
@@ -53,7 +55,9 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
   );
 
   app.use(async (c, next) => {
-    if (!d.draining?.()) return next();
+    if (!d.draining?.()) {
+      return next();
+    }
     return problemResponse(c, new AppError("unavailable", "gangway is shutting down"), {
       "retry-after": "5",
       connection: "close",
@@ -78,11 +82,15 @@ export function createApp(d: AppDeps): Hono<AppEnv> {
     const isApiPath = path === "/v1" || path.startsWith("/v1/");
     if (c.env.surface === "app" && !isApiPath) {
       const kit = (await serveKitFont(c.req.raw)) ?? (await serveKitFrame(c.req.raw));
-      if (kit) return kit;
+      if (kit) {
+        return kit;
+      }
     }
     if (c.env.surface === "app" && d.staticDir && !isApiPath) {
       const res = await serveStatic(c.req.raw, { root: d.staticDir });
-      if (res) return res;
+      if (res) {
+        return res;
+      }
     }
     return problemResponse(c, notFound(`no such resource: ${path}`));
   });

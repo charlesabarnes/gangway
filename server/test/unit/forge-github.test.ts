@@ -58,7 +58,9 @@ describe("parsing GitHub's webhook", () => {
     for (const action of ["opened", "synchronize", "reopened", "ready_for_review"] as const) {
       const ev = parseGitHubEvent("pull_request", prEvent(action));
       expect(ev.type).toBe("pr.updated");
-      if (ev.type !== "pr.updated") throw new Error();
+      if (ev.type !== "pr.updated") {
+        throw new Error();
+      }
       expect(ev.action).toBe(action);
       expect(ev.pr).toMatchObject({
         number: 123,
@@ -241,8 +243,9 @@ function fakeGitHub(o: { tokenTtlMs?: number; failEdit?: boolean } = {}) {
     calls.push({ method, path, auth: headers.get("authorization"), body });
 
     if (method === "POST" && /^\/app\/installations\/\d+\/access_tokens$/.test(path)) {
-      if (!headers.get("authorization")?.startsWith("Bearer "))
+      if (!headers.get("authorization")?.startsWith("Bearer ")) {
         return json(401, { message: "Bad credentials" });
+      }
       tokenSeq += 1;
       return json(201, {
         token: `ghs_${tokenSeq}`,
@@ -250,12 +253,16 @@ function fakeGitHub(o: { tokenTtlMs?: number; failEdit?: boolean } = {}) {
       });
     }
     const presented = headers.get("authorization") ?? "";
-    if (!presented.startsWith("token ghs_") || revoked.has(presented.slice("token ".length)))
+    if (!presented.startsWith("token ghs_") || revoked.has(presented.slice("token ".length))) {
       return json(401, { message: "Bad credentials" });
+    }
 
-    if (method === "GET" && path === "/repos/acme/web-app/pulls/123") return json(200, pull());
-    if (method === "GET" && path === "/repos/acme/web-app/pulls/999")
+    if (method === "GET" && path === "/repos/acme/web-app/pulls/123") {
+      return json(200, pull());
+    }
+    if (method === "GET" && path === "/repos/acme/web-app/pulls/999") {
       return json(404, { message: "Not Found" });
+    }
     if (method === "POST" && path === "/repos/acme/web-app/issues/123/comments") {
       const id = nextId++;
       comments.set(id, body.body);
@@ -264,14 +271,18 @@ function fakeGitHub(o: { tokenTtlMs?: number; failEdit?: boolean } = {}) {
     const edit = /^\/repos\/acme\/web-app\/issues\/comments\/(\d+)$/.exec(path);
     if (method === "PATCH" && edit) {
       const id = Number(edit[1]);
-      if (o.failEdit || !comments.has(id)) return json(404, { message: "Not Found" });
+      if (o.failEdit || !comments.has(id)) {
+        return json(404, { message: "Not Found" });
+      }
       comments.set(id, body.body);
       return json(200, { id });
     }
-    if (method === "POST" && path === "/repos/acme/web-app/deployments")
+    if (method === "POST" && path === "/repos/acme/web-app/deployments") {
       return json(201, { id: 555 });
-    if (method === "POST" && path === "/repos/acme/web-app/deployments/555/statuses")
+    }
+    if (method === "POST" && path === "/repos/acme/web-app/deployments/555/statuses") {
       return json(201, { id: 777 });
+    }
     return json(404, { message: `unhandled ${method} ${path}` });
   };
 
@@ -477,14 +488,16 @@ describe("GitHubApp.installedRepositories", () => {
       log: silentLogger(),
       fetch: async (url, init) => {
         calls.push(`${init?.method ?? "GET"} ${url.replace(BASE, "")}`);
-        if (url.endsWith("/app/installations?per_page=100"))
+        if (url.endsWith("/app/installations?per_page=100")) {
           return Response.json([{ id: 11 }, { id: 22 }]);
+        }
         const tok = /\/app\/installations\/(\d+)\/access_tokens$/.exec(url);
-        if (tok)
+        if (tok) {
           return Response.json(
             { token: `ghs_${tok[1]}`, expires_at: new Date(Date.now() + 3_600_000).toISOString() },
             { status: 201 },
           );
+        }
         if (url.endsWith("/installation/repositories?per_page=100")) {
           const auth = new Headers(init?.headers).get("authorization");
           return Response.json({
