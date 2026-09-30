@@ -33,7 +33,9 @@ die() {
   # Stay up, so the message stays on the status page and in the log instead of a restart loop.
   exec sleep infinity
 }
-html() { sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
+# What the VM reports (its address, the URL, the setup link) is escaped like the console: a
+# compromised VM must not get markup onto a page this host serves.
+html() { sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'"; s/'/\\&#39;/g"; }
 
 # --- the host ---------------------------------------------------------------------------------
 
@@ -232,13 +234,17 @@ pre{background:#f4f4f5;padding:.8rem;overflow:auto;font-size:12px;max-height:22r
 .setup{background:#fff7e0;border:1px solid #f0d890;padding:.8rem;border-radius:6px;margin-top:1rem}
 @media(prefers-color-scheme:dark){body{background:#111;color:#eee}pre{background:#1c1c1e}a{color:#6aa9ff}.setup{background:#2a2410;border-color:#6b5a20}}</style>
 </head><body><h1>gangway in a box</h1><dl>
-<dt>VM</dt><dd>$(printf '%s' "$VM_NAME" | html) &middot; $(printf '%s' "$1" | html)${5:+ &middot; $5}</dd>
+<dt>VM</dt><dd>$(printf '%s' "$VM_NAME" | html) &middot; $(printf '%s' "$1" | html)${5:+ &middot; $(printf '%s' "$5" | html)}</dd>
 <dt>Status</dt><dd>$(printf '%s' "$2" | html)</dd>
 HTML
-    [ -n "${3:-}" ] && printf '<dt>gangway</dt><dd><a href="%s">%s</a></dd>\n' "$3" "$3"
+    if [ -n "${3:-}" ]; then
+      url=$(printf '%s' "$3" | html)
+      printf '<dt>gangway</dt><dd><a href="%s">%s</a></dd>\n' "$url" "$url"
+    fi
     printf '</dl>\n'
     if [ -n "${4:-}" ]; then
-      printf '<div class="setup"><strong>Create the first admin account.</strong> This link works once, until gangway restarts:<br><a href="%s">%s</a></div>\n' "$4" "$4"
+      link=$(printf '%s' "$4" | html)
+      printf '<div class="setup"><strong>Create the first admin account.</strong> This link works once, until gangway restarts:<br><a href="%s">%s</a></div>\n' "$link" "$link"
     fi
     if [ -f "$DOMAINS/$VM_NAME/console.log" ]; then
       printf '<dt>Console</dt><pre>'
