@@ -127,10 +127,11 @@ function checkChart(c: Ctx, b: Extract<Block, { type: "chart" }>) {
     return;
   }
   if (!inline) {
-    return void c.issues.push({
+    c.issues.push({
       line: b.line,
       message: "the chart has no rows: put CSV inside the fence, or src=data/x.csv",
     });
+    return;
   }
   const head = csvHeader(b.csv);
   const want = [a["x"], ...(a["y"] ?? "").split(",")]
@@ -156,10 +157,11 @@ function checkFlow(c: Ctx, b: Extract<Block, { type: "flow" }>) {
 
 function checkContainer(c: Ctx, b: Extract<Block, { type: "container" }>) {
   if (!(CONTAINERS as readonly string[]).includes(b.name)) {
-    return void c.issues.push({
+    c.issues.push({
       line: b.line,
       message: `unknown block :::${b.name}; blocks are ${oneOf(CONTAINERS)}`,
     });
+    return;
   }
   if (!b.closed) {
     c.issues.push({ line: b.line, message: `:::${b.name} is never closed with :::` });

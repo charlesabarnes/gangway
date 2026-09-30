@@ -9,6 +9,7 @@ import {
   startOverride,
   type RuleContext,
 } from "./rule-context.ts";
+import { reason } from "./types.ts";
 
 const DEV_COMMANDS = [
   String.raw`vite(?:\s+dev)?`,
@@ -111,30 +112,24 @@ function installAndBuild(
   plan.install = override(file?.install, pkg ? pm.install : null);
   plan.build = override(file?.build, scripts["build"] !== undefined ? pm.run("build") : null);
   if (plan.install && file?.install === undefined) {
-    plan.reasons.push({
-      level: "info",
-      found: pm.source,
-      then: `installs with \`${cmdText(plan.install)}\``,
-    });
+    plan.reasons.push(reason("info", pm.source, `installs with \`${cmdText(plan.install)}\``));
   }
   if (plan.build && file?.build === undefined) {
-    plan.reasons.push({
-      level: "info",
-      found: "a build script",
-      then: `runs \`${cmdText(plan.build)}\``,
-    });
+    plan.reasons.push(reason("info", "a build script", `runs \`${cmdText(plan.build)}\``));
   }
 }
 
 function runStartScript({ plan }: RuleContext, pm: Pm, start: string, isDev: boolean): void {
   plan.start = pm.run("start");
-  plan.reasons.push({
-    level: isDev ? "warn" : "info",
-    found: `"start": "${start}"`,
-    then: isDev
-      ? `runs \`${cmdText(plan.start)}\` -- a development server; it may refuse the preview's hostname`
-      : `runs \`${cmdText(plan.start)}\``,
-  });
+  plan.reasons.push(
+    reason(
+      isDev ? "warn" : "info",
+      `"start": "${start}"`,
+      isDev
+        ? `runs \`${cmdText(plan.start)}\` -- a development server; it may refuse the preview's hostname`
+        : `runs \`${cmdText(plan.start)}\``,
+    ),
+  );
 }
 
 function runEntry({ plan, have, rt }: RuleContext, runtime: "node" | "bun", pkg: Json | null) {
@@ -150,13 +145,14 @@ function runEntry({ plan, have, rt }: RuleContext, runtime: "node" | "bun", pkg:
   if (runtime === "node") {
     plan.start = ["node", entry];
   }
-  plan.reasons.push({
-    level: "info",
-    found: main ? `package.json main: ${entry}` : entry,
-    then:
+  plan.reasons.push(
+    reason(
+      "info",
+      main ? `package.json main: ${entry}` : entry,
       runtime === "node"
         ? `runs \`node ${entry}\` -- listen on $PORT`
         : `runs ${entry}; a Workers-style \`export default { fetch }\` is served on $PORT`,
-  });
+    ),
+  );
   return true;
 }

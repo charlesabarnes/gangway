@@ -200,6 +200,13 @@ export const HOUSE: Theme = {
   logo: null,
 };
 
+const SVG_STRIP = [
+  /<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi,
+  /<\/?(script|foreignObject|iframe|object|embed|style)\b[^>]*>/gi,
+  /[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
+  /\s(href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>"']+)/gi,
+];
+
 /** Keeps shapes, paths and text; drops scripts, event handlers, links out and foreign content. */
 export function cleanSvg(svg: string): string | null {
   const s = svg.trim();
@@ -210,10 +217,10 @@ export function cleanSvg(svg: string): string | null {
   let out = s;
   for (let prev = ""; out !== prev;) {
     prev = out;
-    out = out.replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "");
-    out = out.replace(/<\/?(script|foreignObject|iframe|object|embed|style)\b[^>]*>/gi, "");
-    out = out.replace(/[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-    out = out.replace(/\s(href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>"']+)/gi, "");
+    for (const re of SVG_STRIP) {
+      // codeql[js/incomplete-multi-character-sanitization] The outer loop repeats until nothing changes.
+      out = out.replace(re, "");
+    }
   }
   return out;
 }

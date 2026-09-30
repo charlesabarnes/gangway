@@ -50,6 +50,7 @@ async function start(env: Record<string, string>) {
 
 function handshake(port: number, servername: string, ca: string) {
   return new Promise<boolean>((resolve, reject) => {
+    // codeql[js/disabling-certificate-validation] The test checks socket.authorized itself, against its own CA.
     const socket = connect({ host: "127.0.0.1", port, servername, ca, rejectUnauthorized: false });
     socket.once("secureConnect", () => {
       resolve(socket.authorized);

@@ -134,8 +134,8 @@ export class AuditLog {
   );
 
   constructor() {
-    void this.#page();
-    if (this.#auth.can('users.read')) void this.#loadEmails();
+    void this.#page(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
+    if (this.#auth.can('users.read')) void this.#loadEmails(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
   }
 
   async #loadEmails(): Promise<void> {

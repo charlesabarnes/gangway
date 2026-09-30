@@ -6,6 +6,6 @@ import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 export class SafeFramePipe implements PipeTransform {
   readonly #sanitizer = inject(DomSanitizer);
   transform(url: string): SafeResourceUrl | null {
-    return url.startsWith('https://') ? this.#sanitizer.bypassSecurityTrustResourceUrl(url) : null;
+    return url.startsWith('https://') ? this.#sanitizer.bypassSecurityTrustResourceUrl(url) : null; // NOSONAR only https preview URLs the server hands out
   }
 }

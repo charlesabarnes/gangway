@@ -36,12 +36,37 @@ const byRegex =
 const isSpace = (c: string | undefined) => c !== undefined && /\s/.test(c);
 const LINE_END = /[\n\r\u2028\u2029]/;
 
+function spacesAt(s: string, i: number): number {
+  let j = i;
+  while (isSpace(s[j])) {
+    j++;
+  }
+  return j - i;
+}
+
 function runOf(s: string, i: number, c: string): number {
   let j = i;
   while (s[j] === c) {
     j++;
   }
   return j - i;
+}
+
+function firstLabel(s: string, start: number, close: (s: string, i: number) => number): Hit | null {
+  let e = start + 1;
+  while (e <= s.length && !LINE_END.test(s.charAt(e - 1))) {
+    const j = e + spacesAt(s, e);
+    const end = j === e ? -1 : close(s, j);
+    if (end !== -1) {
+      return { len: end, label: s.slice(start, e) };
+    }
+    // Every label ending inside this run of spaces meets the same failed closer, so skip them.
+    if (LINE_END.test(s.slice(e, j))) {
+      return null;
+    }
+    e = Math.max(j, e + 1);
+  }
+  return null;
 }
 
 /** "-- text -->", matched as /^open\s+(.+?)\s+close/ would be, without its backtracking. */
@@ -60,23 +85,9 @@ function labelled(
     if (start === open.length) {
       return null;
     }
-    for (let e = start + 1; e <= s.length && !LINE_END.test(s.charAt(e - 1)); e++) {
-      let j = e;
-      while (isSpace(s[j])) {
-        j++;
-      }
-      if (j === e) {
-        continue;
-      }
-      const end = close(s, j);
-      if (end !== -1) {
-        return { len: end, label: s.slice(start, e) };
-      }
-      // Every label ending inside this run of spaces meets the same failed closer, so skip them.
-      if (LINE_END.test(s.slice(e, j))) {
-        break;
-      }
-      e = j - 1;
+    const hit = firstLabel(s, start, close);
+    if (hit) {
+      return hit;
     }
     // No label closes; with three or more spaces before the arrow the regex made a blank label.
     const end = close(s, start);

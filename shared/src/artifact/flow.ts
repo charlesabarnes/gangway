@@ -117,29 +117,33 @@ function chain(g: Builder, text: string, line: number): void {
   let rest = text;
   const first = nodeAt(rest);
   if (!first) {
-    return void g.issues.push({ line, message: `can't read "${text}"` });
+    g.issues.push({ line, message: `can't read "${text}"` });
+    return;
   }
   touch(g, first, line);
   let prev = first.id;
   rest = rest.slice(first.len).trimStart();
   while (rest.length > 0) {
     if (rest.startsWith("&")) {
-      return void g.issues.push({
+      g.issues.push({
         line,
         message: "A & B is not supported; write one edge per line",
       });
+      return;
     }
     const e = edgeAt(rest);
     if (!e) {
-      return void g.issues.push({
+      g.issues.push({
         line,
         message: `expected an arrow (-->, -.->, ==>, ---) after ${prev}, found "${rest.slice(0, 20)}"`,
       });
+      return;
     }
     rest = rest.slice(e.len).trimStart();
     const next = nodeAt(rest);
     if (!next) {
-      return void g.issues.push({ line, message: `an arrow from ${prev} goes nowhere` });
+      g.issues.push({ line, message: `an arrow from ${prev} goes nowhere` });
+      return;
     }
     touch(g, next, line);
     g.edges.push({
@@ -214,10 +218,11 @@ function legend(g: Builder, words: string, text: string, line: number): void {
     } else if ((FLOW_TONES as readonly string[]).includes(w)) {
       item.tone = w as FlowTone;
     } else {
-      return void g.issues.push({
+      g.issues.push({
         line,
         message: `legend ${w}: a tone (${FLOW_TONES.join(" | ")}) or a line (solid | dashed | thick)`,
       });
+      return;
     }
   }
   g.legend.push(item);

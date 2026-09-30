@@ -11,7 +11,7 @@ import {
   startOverride,
   type RuleContext,
 } from "./rule-context.ts";
-import type { ReadFile } from "./types.ts";
+import { type ReadFile, reason } from "./types.ts";
 
 export function applyRuntimeRules(ctx: RuleContext, runtime: RuntimeId): void {
   switch (runtime) {
@@ -44,12 +44,9 @@ export function applyRuntimeRules(ctx: RuleContext, runtime: RuntimeId): void {
 }
 
 const STATIC_FALLBACKS = {
-  "404": { found: "404.html", then: "serves the files; 404.html for unknown paths" },
-  spa: {
-    found: "index.html",
-    then: "serves the files; index.html for unknown paths (single-page apps)",
-  },
-  listing: { found: "no index.html", then: "serves the files and lists directories" },
+  "404": ["404.html", "serves the files; 404.html for unknown paths"],
+  spa: ["index.html", "serves the files; index.html for unknown paths (single-page apps)"],
+  listing: ["no index.html", "serves the files and lists directories"],
 } as const;
 
 function staticFallback(have: Set<string>): keyof typeof STATIC_FALLBACKS {
@@ -72,7 +69,8 @@ function planStatic(ctx: RuleContext): void {
   }
   const fallback = staticFallback(have);
   plan.serve = { kind: "static", output: false, fallback };
-  plan.reasons.push({ level: "info", ...STATIC_FALLBACKS[fallback] });
+  const [found, then] = STATIC_FALLBACKS[fallback];
+  plan.reasons.push(reason("info", found, then));
 }
 
 function planPhp(ctx: RuleContext): void {
@@ -88,18 +86,18 @@ function planPhp(ctx: RuleContext): void {
   plan.build = override(file?.build, null);
   plan.docroot = file?.docroot ?? (have.has("public/index.php") ? "public" : "");
   if (composer) {
-    plan.reasons.push({
-      level: "info",
-      found: "composer.json",
-      then: `installs with \`${plan.install ? cmdText(plan.install) : "(nothing)"}\``,
-    });
+    plan.reasons.push(
+      reason(
+        "info",
+        "composer.json",
+        `installs with \`${plan.install ? cmdText(plan.install) : "(nothing)"}\``,
+      ),
+    );
   }
   const docroot = plan.docroot ? `${plan.docroot}/` : "the root";
-  plan.reasons.push({
-    level: "info",
-    found: phpDocrootSource(ctx),
-    then: `Apache serves ${docroot}, with mod_rewrite on`,
-  });
+  plan.reasons.push(
+    reason("info", phpDocrootSource(ctx), `Apache serves ${docroot}, with mod_rewrite on`),
+  );
 }
 
 function phpDocrootSource({ plan, file }: RuleContext): string {
@@ -125,11 +123,13 @@ function planPython(ctx: RuleContext): void {
   plan.install = override(file?.install, pythonInstall(have));
   plan.build = override(file?.build, null);
   if (plan.install) {
-    plan.reasons.push({
-      level: "info",
-      found: have.has("requirements.txt") ? "requirements.txt" : "pyproject.toml",
-      then: `installs with \`${cmdText(plan.install)}\``,
-    });
+    plan.reasons.push(
+      reason(
+        "info",
+        have.has("requirements.txt") ? "requirements.txt" : "pyproject.toml",
+        `installs with \`${cmdText(plan.install)}\``,
+      ),
+    );
   }
   plan.start = startOverride(ctx);
   if (!plan.start) {
@@ -142,18 +142,18 @@ function pythonStart({ plan, have, rt }: RuleContext): void {
   if (entry) {
     plan.start = ["python", entry];
     plan.entry = entry;
-    plan.reasons.push({
-      level: "info",
-      found: entry,
-      then: `runs \`python ${entry}\` -- listen on $PORT, on 0.0.0.0`,
-    });
+    plan.reasons.push(
+      reason("info", entry, `runs \`python ${entry}\` -- listen on $PORT, on 0.0.0.0`),
+    );
   } else if (have.has("manage.py")) {
     plan.start = "python manage.py runserver 0.0.0.0:$PORT";
-    plan.reasons.push({
-      level: "warn",
-      found: "manage.py (Django)",
-      then: "runs Django's development server; put `start: gunicorn <project>.wsgi` in gangway.yml for a real one",
-    });
+    plan.reasons.push(
+      reason(
+        "warn",
+        "manage.py (Django)",
+        "runs Django's development server; put `start: gunicorn <project>.wsgi` in gangway.yml for a real one",
+      ),
+    );
   } else {
     plan.reasons.push(noEntry(rt, " (or `start:` in gangway.yml, or a Procfile)"));
   }
@@ -167,11 +167,7 @@ function planWorkerd(ctx: RuleContext): void {
   plan.build = override(file?.build, null);
   plan.entry = wranglerMain(have, text) ?? firstEntry(have, rt);
   if (plan.entry) {
-    plan.reasons.push({
-      level: "info",
-      found: plan.entry,
-      then: "bundles it with esbuild and runs it on workerd",
-    });
+    plan.reasons.push(reason("info", plan.entry, "bundles it with esbuild and runs it on workerd"));
   } else {
     plan.reasons.push(noEntry(rt, " (or wrangler's `main`)"));
   }
@@ -209,22 +205,20 @@ function planDeno(ctx: RuleContext): void {
   const task = str(((denoJson?.["tasks"] ?? {}) as Json)["start"]);
   if (!plan.start && task) {
     plan.start = "deno task start";
-    plan.reasons.push({
-      level: "info",
-      found: "deno.json tasks.start",
-      then: "runs `deno task start`",
-    });
+    plan.reasons.push(reason("info", "deno.json tasks.start", "runs `deno task start`"));
   }
   if (plan.start) {
     return;
   }
   plan.entry = firstEntry(have, rt);
   if (plan.entry) {
-    plan.reasons.push({
-      level: "info",
-      found: plan.entry,
-      then: "runs it; a Workers-style `export default { fetch }` is served on $PORT",
-    });
+    plan.reasons.push(
+      reason(
+        "info",
+        plan.entry,
+        "runs it; a Workers-style `export default { fetch }` is served on $PORT",
+      ),
+    );
   } else {
     plan.reasons.push(noEntry(rt));
   }

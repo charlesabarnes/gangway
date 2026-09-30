@@ -34,7 +34,7 @@ export class GitHubCallback {
   protected readonly error = signal<string | null>(null);
 
   constructor() {
-    void this.#exchange();
+    void this.#exchange(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
   }
 
   async #exchange(): Promise<void> {

@@ -23,19 +23,19 @@ const MAX_CACHE = 500;
 const PRIVATE = new BlockList();
 for (const [net, bits] of [
   ["0.0.0.0", 8],
-  ["10.0.0.0", 8],
-  ["100.64.0.0", 10],
+  ["10.0.0.0", 8], // NOSONAR a special-use range this blocks
+  ["100.64.0.0", 10], // NOSONAR a special-use range this blocks
   ["127.0.0.0", 8],
-  ["169.254.0.0", 16],
-  ["172.16.0.0", 12],
-  ["192.0.0.0", 24],
+  ["169.254.0.0", 16], // NOSONAR a special-use range this blocks
+  ["172.16.0.0", 12], // NOSONAR a special-use range this blocks
+  ["192.0.0.0", 24], // NOSONAR a special-use range this blocks
   ["192.0.2.0", 24],
-  ["192.168.0.0", 16],
-  ["198.18.0.0", 15],
+  ["192.168.0.0", 16], // NOSONAR a special-use range this blocks
+  ["198.18.0.0", 15], // NOSONAR a special-use range this blocks
   ["198.51.100.0", 24],
   ["203.0.113.0", 24],
-  ["224.0.0.0", 4],
-  ["240.0.0.0", 4],
+  ["224.0.0.0", 4], // NOSONAR a special-use range this blocks
+  ["240.0.0.0", 4], // NOSONAR a special-use range this blocks
 ] as const) {
   PRIVATE.addSubnet(net, bits, "ipv4");
 }
@@ -43,12 +43,12 @@ for (const [net, bits] of [
   // Not ::ffff:0:0/96, which BlockList matches against every IPv4 address; mapped addresses are unwrapped below.
   ["::", 128],
   ["::1", 128],
-  ["64:ff9b::", 96],
-  ["100::", 64],
+  ["64:ff9b::", 96], // NOSONAR a special-use range this blocks
+  ["100::", 64], // NOSONAR a special-use range this blocks
   ["2001:db8::", 32],
-  ["fc00::", 7],
-  ["fe80::", 10],
-  ["ff00::", 8],
+  ["fc00::", 7], // NOSONAR a special-use range this blocks
+  ["fe80::", 10], // NOSONAR a special-use range this blocks
+  ["ff00::", 8], // NOSONAR a special-use range this blocks
 ] as const) {
   PRIVATE.addSubnet(net, bits, "ipv6");
 }

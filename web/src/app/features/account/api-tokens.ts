@@ -277,7 +277,7 @@ export class ApiTokens {
   protected readonly canWide = computed(() => this.#auth.can('repos.secrets'));
 
   constructor() {
-    void this.#load();
+    void this.#load(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
   }
 
   async #load(): Promise<void> {

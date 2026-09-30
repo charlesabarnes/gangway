@@ -1,7 +1,7 @@
 import { must } from "../must.ts";
 import type { GangwayFile } from "../gangway-file.ts";
 import { cmdText } from "./command-text.ts";
-import type { AppPlan, ReadFile } from "./types.ts";
+import { type AppPlan, type ReadFile, reason } from "./types.ts";
 
 export type Procfile = Record<string, string>;
 
@@ -45,20 +45,24 @@ export function applyProcfile(
   if (procfile) {
     const others = Object.keys(procfile).filter((k) => k !== "web" && k !== "release");
     if (others.length > 0) {
-      plan.reasons.push({
-        level: "warn",
-        found: `Procfile: ${others.join(", ")}`,
-        then: "only `web` and `release` run in a preview",
-      });
+      plan.reasons.push(
+        reason(
+          "warn",
+          `Procfile: ${others.join(", ")}`,
+          "only `web` and `release` run in a preview",
+        ),
+      );
     }
   }
   plan.release = file?.release ?? procfile?.["release"] ?? null;
   if (plan.release !== null) {
-    plan.reasons.push({
-      level: "info",
-      found: file?.release ? "release: in gangway.yml" : "Procfile release:",
-      then: `runs \`${cmdText(plan.release)}\` before each version goes live`,
-    });
+    plan.reasons.push(
+      reason(
+        "info",
+        file?.release ? "release: in gangway.yml" : "Procfile release:",
+        `runs \`${cmdText(plan.release)}\` before each version goes live`,
+      ),
+    );
   }
   return procfile;
 }

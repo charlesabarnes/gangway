@@ -9,7 +9,7 @@ const report = join(dir, "junit.xml");
 
 try {
   execFileSync(
-    "bun",
+    "bun", // NOSONAR a dev script run with the developer's own PATH
     ["test", "--reporter=junit", `--reporter-outfile=${report}`, "server/test/unit", "shared/test"],
     { stdio: "ignore" },
   );

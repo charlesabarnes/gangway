@@ -1,5 +1,5 @@
 import { isRelPath } from "../gangway-file.ts";
-import type { Reason } from "./types.ts";
+import { reason, type Reason } from "./types.ts";
 
 export type Json = Record<string, unknown>;
 
@@ -15,11 +15,9 @@ export function readJson(text: string | undefined, name: string, reasons: Reason
       return v as Json;
     }
   } catch {}
-  reasons.push({
-    level: "error",
-    found: `${name} is not valid JSON`,
-    then: "fix it, or the install step would fail anyway",
-  });
+  reasons.push(
+    reason("error", `${name} is not valid JSON`, "fix it, or the install step would fail anyway"),
+  );
   return null;
 }
 

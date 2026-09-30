@@ -80,7 +80,8 @@ function checkFlow(html: string, t: Tag, issues: LintIssue[]) {
 function checkTag(html: string, t: Tag, issues: LintIssue[]) {
   const a = t.attrs;
   if (!(ELEMENTS as readonly string[]).includes(t.name)) {
-    return void issues.push({ line: t.line, message: `unknown element <${t.name}>` });
+    issues.push({ line: t.line, message: `unknown element <${t.name}>` });
+    return;
   }
   if (t.name === "gw-chart") {
     checkChart(html, t, issues);

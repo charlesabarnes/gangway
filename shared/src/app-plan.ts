@@ -14,7 +14,7 @@ import {
 import { STATIC_OUTPUTS } from "./plan/rule-context.ts";
 import { chooseRuntime, pickVersion } from "./plan/runtime-choice.ts";
 import { applyRuntimeRules } from "./plan/runtime-rules.ts";
-import type { AppPlan, PlanInput } from "./plan/types.ts";
+import { type AppPlan, type PlanInput, reason } from "./plan/types.ts";
 
 export { cmdText } from "./plan/command-text.ts";
 export { MAX_PLAN_FILE_BYTES } from "./plan/config.ts";
@@ -123,15 +123,13 @@ export function planApp(input: PlanInput): AppPlan {
   applyRuntimeRules({ plan, file, have: scope.have, text: scope.text, rt, procfile }, runtime);
 
   if (file?.port !== undefined && plan.serve.kind === "static") {
-    plan.reasons.push({ level: "info", found: `port: ${file.port}`, then: "nginx listens there" });
+    plan.reasons.push(reason("info", `port: ${file.port}`, "nginx listens there"));
   }
   resolveAddons(plan, input, file, scope.have);
   if (plan.addons.length > 0 && plan.serve.kind === "static") {
-    plan.reasons.push({
-      level: "warn",
-      found: "add-ons on a static site",
-      then: "nothing in a static site can connect to them",
-    });
+    plan.reasons.push(
+      reason("warn", "add-ons on a static site", "nothing in a static site can connect to them"),
+    );
   }
   suggestAddons(plan, scope.text);
   return plan;

@@ -8,7 +8,7 @@ import {
   type RuntimeId,
 } from "../runtimes.ts";
 import type { Scope } from "./root.ts";
-import type { AppPlan, PlanChoice, PlanInput, Reason } from "./types.ts";
+import { type AppPlan, type PlanChoice, type PlanInput, reason, type Reason } from "./types.ts";
 
 type Asked = { choice: Exclude<PlanChoice, "own">; file: GangwayFile | null };
 
@@ -20,28 +20,30 @@ export function chooseRuntime(
 ): RuntimeId {
   if (choice !== "auto") {
     if (file?.runtime && file.runtime !== choice) {
-      reasons.push({
-        level: "info",
-        found: `gangway.yml says ${file.runtime}`,
-        then: `building as ${runtimeById(choice).name}, as asked`,
-      });
+      reasons.push(
+        reason(
+          "info",
+          `gangway.yml says ${file.runtime}`,
+          `building as ${runtimeById(choice).name}, as asked`,
+        ),
+      );
     }
     return choice;
   }
   if (file?.runtime) {
-    reasons.push({
-      level: "info",
-      found: `runtime: ${file.runtime}`,
-      then: `builds it as ${runtimeById(file.runtime).name}`,
-    });
+    reasons.push(
+      reason("info", `runtime: ${file.runtime}`, `builds it as ${runtimeById(file.runtime).name}`),
+    );
     return file.runtime;
   }
   if (input.previous !== undefined && input.previous !== "own") {
-    reasons.push({
-      level: "info",
-      found: "the previous build",
-      then: `builds it as ${runtimeById(input.previous).name} again`,
-    });
+    reasons.push(
+      reason(
+        "info",
+        "the previous build",
+        `builds it as ${runtimeById(input.previous).name} again`,
+      ),
+    );
     return input.previous;
   }
   return detectFromMarkers(scope, reasons);
@@ -53,11 +55,9 @@ function detectFromMarkers(scope: Scope, reasons: Reason[]): RuntimeId {
   const marker = DETECTION.filter((r) => r.runtime === runtime)
     .flatMap((r) => r.markers)
     .find((m) => scope.have.has(m));
-  reasons.push({
-    level: "info",
-    found: marker ?? "no marker file",
-    then: `looks like ${runtimeById(runtime).name}`,
-  });
+  reasons.push(
+    reason("info", marker ?? "no marker file", `looks like ${runtimeById(runtime).name}`),
+  );
   return runtime;
 }
 

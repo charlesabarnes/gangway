@@ -1,7 +1,7 @@
 import { must } from "../must.ts";
 import type { GangwayFile } from "../gangway-file.ts";
 import { ADDONS, addonById, isSql, type AddonChoice } from "../addons.ts";
-import type { AddonRequest, AppPlan, PlanInput, ReadFile } from "./types.ts";
+import { type AddonRequest, type AppPlan, type PlanInput, type ReadFile, reason } from "./types.ts";
 
 export function resolveAddons(
   plan: AppPlan,
@@ -19,11 +19,13 @@ export function resolveAddons(
     }
     out.push(choice);
     const a = addonById(choice.id);
-    plan.reasons.push({
-      level: "info",
-      found: `${a.name} ${choice.version} (${from})`,
-      then: `a throwaway database beside the app; ${a.env[0]} in its environment; gone when the preview is`,
-    });
+    plan.reasons.push(
+      reason(
+        "info",
+        `${a.name} ${choice.version} (${from})`,
+        `a throwaway database beside the app; ${a.env[0]} in its environment; gone when the preview is`,
+      ),
+    );
   }
   if (asked !== input.previousAddons) {
     warnRemoved(plan, input, out);
@@ -55,16 +57,18 @@ function checkAddon(
     if (file?.addons !== undefined && input.addons === undefined) {
       plan.issues.push({ path: "addons", message: offers });
     } else {
-      plan.reasons.push({ level: "error", found: `${a.name} ${version}`, then: offers });
+      plan.reasons.push(reason("error", `${a.name} ${version}`, offers));
     }
     return null;
   }
   if (prev && prev.version !== version) {
-    plan.reasons.push({
-      level: "error",
-      found: `${a.name} ${prev.version} -> ${version}`,
-      then: "a new major version needs a new preview: its data directory would not start",
-    });
+    plan.reasons.push(
+      reason(
+        "error",
+        `${a.name} ${prev.version} -> ${version}`,
+        "a new major version needs a new preview: its data directory would not start",
+      ),
+    );
     return null;
   }
   return { id, version };
@@ -73,11 +77,13 @@ function checkAddon(
 function warnRemoved(plan: AppPlan, input: PlanInput, kept: AddonChoice[]): void {
   for (const p of input.previousAddons ?? []) {
     if (!kept.some((o) => o.id === p.id)) {
-      plan.reasons.push({
-        level: "warn",
-        found: `${addonById(p.id).name} removed`,
-        then: "its container goes; its data is kept until the preview is destroyed, and comes back if you add it again",
-      });
+      plan.reasons.push(
+        reason(
+          "warn",
+          `${addonById(p.id).name} removed`,
+          "its container goes; its data is kept until the preview is destroyed, and comes back if you add it again",
+        ),
+      );
     }
   }
 }
@@ -89,11 +95,13 @@ function findSqlSeed(plan: AppPlan, chosen: AddonChoice[], have: Set<string>): v
   }
   plan.sqlSeed = addonById(sql.id).seedFiles.find((f) => have.has(f)) ?? null;
   if (plan.sqlSeed) {
-    plan.reasons.push({
-      level: "info",
-      found: plan.sqlSeed,
-      then: `loaded into ${addonById(sql.id).name} on its first start only; later edits do not re-run it`,
-    });
+    plan.reasons.push(
+      reason(
+        "info",
+        plan.sqlSeed,
+        `loaded into ${addonById(sql.id).name} on its first start only; later edits do not re-run it`,
+      ),
+    );
   }
 }
 

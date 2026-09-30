@@ -234,7 +234,7 @@ export class ProjectsPage {
   protected readonly unconnected = computed(() => this.projects().filter((p) => !p.fullName));
 
   constructor() {
-    void this.#load();
+    void this.#load(); // NOSONAR the load starts with the component; moving it to ngOnInit changes its timing
     this.store.connect();
     inject(DestroyRef).onDestroy(() => this.store.disconnect());
     effect(() => {

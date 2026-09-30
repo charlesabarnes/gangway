@@ -42,6 +42,7 @@ const dns: DnsProvider = {
 
 const presented = (port: number, servername: string) =>
   new Promise<{ issuer: string; sans: string }>((resolve, reject) => {
+    // codeql[js/disabling-certificate-validation] It reads which certificate Pebble's listener presents; trust isn't the question.
     const s = tlsConnect({ host: "127.0.0.1", port, servername, rejectUnauthorized: false }, () => {
       // With no certificate this is an empty object, whatever the type says.
       const c: Partial<PeerCertificate> = s.getPeerCertificate();
