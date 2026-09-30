@@ -37,17 +37,20 @@ interface Commit {
   commit: { message: string; committer: { date: string } };
 }
 
-function withoutComments(text: string): string {
-  let previous;
-  do {
-    previous = text;
-    text = text.replace(/<!--[\s\S]*?-->/g, "");
-  } while (text !== previous);
-  return text.replace(/<!--|-->/g, "");
+// Drops the template's hint lines; the notes are Markdown, so GitHub hides any comment left over.
+function withoutHints(lines: string[]): string[] {
+  let hint = false;
+  return lines.filter((line) => {
+    const t = line.trim();
+    if (!hint && t.startsWith("<!--")) hint = true;
+    const keep = !hint;
+    if (hint && t.endsWith("-->")) hint = false;
+    return keep;
+  });
 }
 
 export function section(body: string, heading: string): string {
-  const lines = withoutComments(body).split(/\r?\n/);
+  const lines = withoutHints(body.split(/\r?\n/));
   const start = lines.findIndex((l) => l.trim().toLowerCase() === `## ${heading.toLowerCase()}`);
   if (start < 0) return "";
   const end = lines.findIndex((l, i) => i > start && /^## /.test(l));
