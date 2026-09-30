@@ -7,7 +7,6 @@ import path from "node:path";
 const ROOT = path.resolve(import.meta.dir, "..");
 const SRC = path.join(ROOT, "site");
 const OUT = path.resolve(ROOT, process.argv[2] ?? "dist/site");
-// OUT is deleted before the copy, so it must be a folder inside the repository and not the repo itself.
 if (!OUT.startsWith(ROOT + path.sep) || OUT === SRC || SRC.startsWith(OUT + path.sep)) {
   throw new Error(`the output folder must be inside ${ROOT} and outside site/: ${OUT}`);
 }

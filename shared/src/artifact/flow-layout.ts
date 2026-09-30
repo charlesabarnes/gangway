@@ -111,13 +111,14 @@ function order(layers: Vertex[][], links: [Vertex, Vertex][]): Vertex[][] {
   let bestCount = crossings(best, links);
   let cur = best.map((l) => [...l]);
   const sweep = (from: number, to: number, step: number, near: Map<Vertex, Vertex[]>) => {
-    for (let r = from; r !== to; r += step) {
+    // Up or down the layers, whichever way step points, stopping short of to.
+    for (let r = from; (to - r) * step > 0; r += step) {
       const prev = new Map(must(cur[r - step], "the previous layer").map((v, i) => [v, i]));
       const keyed = must(cur[r], "a layer").map((v, i) => {
         const ns = (near.get(v) ?? []).map((n) => prev.get(n)).filter((x) => x !== undefined);
         return { v, key: ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : i };
       });
-      cur[r] = keyed.sort((a, b) => a.key - b.key).map((k) => k.v);
+      cur[r] = keyed.toSorted((a, b) => a.key - b.key).map((k) => k.v);
     }
   };
   for (let iter = 0; iter < 12 && bestCount > 0; iter++) {
@@ -142,7 +143,7 @@ function settle(layer: { v: Vertex; want: number }[], gap: number): void {
   for (const { v, want } of layer) {
     const prev = placed.at(-1);
     const min = prev ? prev.x + (prev.v.cross + v.cross) / 2 + gap : want;
-    placed.push({ v, want, x: want < min ? min : want });
+    placed.push({ v, want, x: Math.max(min, want) });
   }
   const shift = placed.reduce((s, p) => s + (p.want - p.x), 0) / Math.max(1, layer.length);
   for (const p of placed) {

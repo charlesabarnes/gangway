@@ -155,9 +155,11 @@ class Stat extends HTMLElement {
     const delta = attr(this, "delta").trim();
     const up = !/^[-−]/.test(delta);
     const good = up === (attr(this, "good", "up") === "up");
+    const tone = good ? "good" : "bad";
+    const arrow = up ? "▲" : "▼";
     const foot = [
       delta
-        ? `<span data-part="delta" class="${good ? "good" : "bad"}">${up ? "▲" : "▼"} ${esc(delta.replace(/^[+\-−]/, ""))}</span>`
+        ? `<span data-part="delta" class="${tone}">${arrow} ${esc(delta.replace(/^[+\-−]/, ""))}</span>`
         : "",
       this.hasAttribute("note") ? `<span data-part="note">${esc(attr(this, "note"))}</span>` : "",
     ].join("");

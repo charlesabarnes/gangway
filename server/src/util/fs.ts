@@ -3,10 +3,7 @@ import { open } from "node:fs/promises";
 
 export type RegularFile = { size: number; mode: number; data: Buffer | null };
 
-/**
- * Checks and reads a regular file through one handle, so a swap between the two can't redirect the
- * read. Null when the path is missing, a symlink or not a regular file; data is null past maxBytes.
- */
+/** Checked and read through one handle; null for a missing path, a link or a non-file. */
 export async function readRegularFile(
   file: string,
   maxBytes = Infinity,
@@ -27,7 +24,6 @@ export async function readRegularFile(
   }
 }
 
-/** Runs a read, turning a missing file into null; any other error is thrown. */
 export function readIfExists<T>(read: () => T): T | null {
   try {
     return read();

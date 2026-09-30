@@ -21,11 +21,14 @@ export const usesKit = (html: string) => /\/_gangway\/kit\.(js|css)/.test(html);
 
 type Tag = { name: string; attrs: Record<string, string>; line: number; at: number; end: number };
 
+// An opening tag, <gw-name attr attr="x" attr='x' attr=x>, built up from its attributes.
+const ATTR_VALUE = String.raw`(?:"[^"]*"|'[^']*'|[^\s>"']+)`;
+const ATTR = String.raw`\s+[^\s>="']+(?:=${ATTR_VALUE})?`;
+const TAG = String.raw`<(gw-[\w-]+)((?:${ATTR})*)\s*\/?>`;
+
 function tags(html: string): Tag[] {
   const out: Tag[] = [];
-  for (const m of html.matchAll(
-    /<(gw-[\w-]+)((?:\s+[^\s>="']+(?:=(?:"[^"]*"|'[^']*'|[^\s>"']+))?)*)\s*\/?>/g,
-  )) {
+  for (const m of html.matchAll(new RegExp(TAG, "g"))) {
     const at = m.index;
     out.push({
       name: must(m[1], "a tag name"),
@@ -125,7 +128,7 @@ export function lintHtml(html: string): { info: ArtifactInfo | null; issues: Lin
     });
   }
   const info = roots[0] ? infoOf(html, roots[0]) : null;
-  return { info, issues: issues.sort((a, b) => a.line - b.line).slice(0, 20) };
+  return { info, issues: issues.toSorted((a, b) => a.line - b.line).slice(0, 20) };
 }
 
 const modeOf = (m: string | undefined): ArtifactMode =>

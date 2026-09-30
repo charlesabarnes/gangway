@@ -129,7 +129,7 @@ export function renderTemplate(input: TemplateInput): Record<string, string> {
     );
   }
   const { markdown, data } = t.build(settingsFor(t, input));
-  return { [ARTIFACT_FILE]: markdown, ...(data ?? {}) };
+  return { [ARTIFACT_FILE]: markdown, ...data };
 }
 
 export function optionText(o: TemplateOption): string {

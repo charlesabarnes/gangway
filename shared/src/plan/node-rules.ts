@@ -10,8 +10,19 @@ import {
   type RuleContext,
 } from "./rule-context.ts";
 
-const DEV_SERVER =
-  /^\s*(?:npx\s+)?(?:vite(?:\s+dev)?|next\s+dev|nuxt\s+dev|ng\s+serve|react-scripts\s+start|vue-cli-service\s+serve|astro\s+dev|svelte-kit\s+dev|webpack(?:-dev-server|\s+serve)|parcel(?!\s+build))(?:\s|$)/;
+const DEV_COMMANDS = [
+  String.raw`vite(?:\s+dev)?`,
+  String.raw`next\s+dev`,
+  String.raw`nuxt\s+dev`,
+  String.raw`ng\s+serve`,
+  String.raw`react-scripts\s+start`,
+  String.raw`vue-cli-service\s+serve`,
+  String.raw`astro\s+dev`,
+  String.raw`svelte-kit\s+dev`,
+  String.raw`webpack(?:-dev-server|\s+serve)`,
+  String.raw`parcel(?!\s+build)`,
+].join("|");
+const DEV_SERVER = new RegExp(String.raw`^\s*(?:npx\s+)?(?:${DEV_COMMANDS})(?:\s|$)`);
 
 type Pm = {
   install: string;

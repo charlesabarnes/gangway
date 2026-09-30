@@ -44,6 +44,11 @@ describe("themes", () => {
     expect(css).toContain(':root[data-theme="dark"]{--paper:#000;}');
   });
 
+  test("a theme's name can't close the comment it is written into", () => {
+    const css = compileTheme(theme({ name: "**//}body{display:none}/*" }), "/logo.svg");
+    expect(css.split("\n")[0]).toBe("/* theme: //}body{display:none}/ */");
+  });
+
   test("compile a style and the new fonts to fixed values, nothing for one left out", () => {
     const css = compileTheme(
       theme({

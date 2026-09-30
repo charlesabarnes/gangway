@@ -57,10 +57,12 @@ export function serveBuilt({ plan, file }: RuleContext, why: string, reasonFound
   const out = file?.static === undefined || file.static === true ? null : file.static;
   plan.serve = { kind: "static", output: out, fallback: "spa" };
   plan.start = null;
+  const guesses = STATIC_OUTPUTS.slice(0, 3).join("/, ");
+  const served = out ? `${out}/` : `the build's output (${guesses}/ …)`;
   plan.reasons.push({
     level: "info",
     found: reasonFound,
-    then: `${why}serves ${out ? `${out}/` : `the build's output (${STATIC_OUTPUTS.slice(0, 3).join("/, ")}/ …)`} with nginx`,
+    then: `${why}serves ${served} with nginx`,
   });
 }
 

@@ -214,7 +214,7 @@ export function cleanSvg(svg: string): string | null {
       .replace(/<(script|foreignObject|iframe|object|embed|style)\b[\s\S]*?<\/\1\s*>/gi, "")
       .replace(/<\/?(script|foreignObject|iframe|object|embed|style)\b[^>]*>/gi, "")
       .replace(/[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-      .replace(/\s(href|xlink:href)\s*=\s*("\s*(?!#)[^"]*"|'\s*(?!#)[^']*'|(?!#)[^\s>"']+)/gi, "");
+      .replace(/\s(href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*'|(?!#)[^\s>"']+)/gi, "");
   }
   return out;
 }
@@ -329,7 +329,7 @@ export function compileTheme(t: Theme, logoUrl?: string): string {
     (f.titleCase ? TITLE_CASE[f.titleCase] : "") +
     styleDecls(t.style) +
     (t.logo && logoUrl ? `--logo:url("${logoUrl}");--logo-w:120px;--logo-gap:14px;` : "");
-  const lines = [`/* theme: ${t.name.replace(/\*\//g, "")} */`, `:root{${root}}`];
+  const lines = [`/* theme: ${t.name.replaceAll("*", "")} */`, `:root{${root}}`];
   const dark = decls(t.tokens.dark);
   if (dark) {
     lines.push(`:root[data-theme="dark"]{${dark}}`);

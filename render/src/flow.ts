@@ -415,7 +415,8 @@ function legend(g: FlowGraph): HTMLElement {
   box.dataset["part"] = "legend";
   for (const item of g.legend) {
     const row = document.createElement("span");
-    row.className = `key ${item.style}${item.tone ? ` tone-${item.tone}` : ""}`;
+    const tone = item.tone ? ` tone-${item.tone}` : "";
+    row.className = `key ${item.style}${tone}`;
     const s = svg("svg", { width: 28, height: 8, viewBox: "0 0 28 8", "aria-hidden": "true" }, row);
     svg("line", { x1: 1, y1: 4, x2: 27, y2: 4, class: "line" }, s);
     row.append(item.text);

@@ -254,11 +254,10 @@ function lines(p: Plot, filled: boolean): Element {
     if (!r) {
       return;
     }
-    tip.show(
-      px(i),
-      20,
-      `${esc(r[cfg.x])} ${ys.map((k) => `· ${esc(cfg.labels[k] ?? k)} <b>${esc(fmt(r[k], cfg.format))}</b>`).join(" ")}`,
-    );
+    const values = ys
+      .map((k) => `· ${esc(cfg.labels[k] ?? k)} <b>${esc(fmt(r[k], cfg.format))}</b>`)
+      .join(" ");
+    tip.show(px(i), 20, `${esc(r[cfg.x])} ${values}`);
   });
   hit.addEventListener("pointerleave", tip.hide);
   return f.el;

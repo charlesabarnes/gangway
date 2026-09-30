@@ -186,9 +186,6 @@ a {
 :is(gw-chart, gw-flow, gw-callout, gw-grid, gw-columns, gw-facts, gw-screen, gw-slide, gw-frame) {
   display: block;
 }
-gw-flag {
-  display: inline-flex;
-}
 
 /* Type: italic serif for titles, condensed caps for labels, mono for data. */
 .gw-caps,
@@ -598,6 +595,7 @@ gw-stat svg.spark circle {
 
 /* Flag: a coloured square and the word, never colour alone. */
 gw-flag {
+  display: inline-flex;
   align-items: center;
   gap: 7px;
   font: 600 11px/1.3 var(--font-sans);
@@ -1253,8 +1251,6 @@ gw-deck > [data-part="stage"] > [data-part="canvas"] {
 }
 gw-slide {
   cursor: pointer;
-}
-gw-slide {
   --slide-pad-x: 96px;
   display: none;
   position: relative;

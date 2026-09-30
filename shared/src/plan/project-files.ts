@@ -8,7 +8,9 @@ export function readJson(text: string | undefined, name: string, reasons: Reason
     return null;
   }
   try {
-    const v = JSON.parse(name.endsWith("c") ? text.replace(/^\s*\/\/.*$/gm, "") : text) as unknown;
+    const v = JSON.parse(
+      name.endsWith("c") ? text.replace(/^[ \t]*\/\/.*$/gm, "") : text,
+    ) as unknown;
     if (v && typeof v === "object" && !Array.isArray(v)) {
       return v as Json;
     }

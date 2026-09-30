@@ -27,6 +27,8 @@ export function chartAttrs(rest: string): Attrs {
   return parseAttrs(rest);
 }
 
+const LINE_BREAK = /[\n\r\u2028\u2029]/;
+
 export type FrontMatter = { meta: Record<string, string>; body: string; offset: number };
 
 export function frontMatter(src: string): FrontMatter {
@@ -36,11 +38,15 @@ export function frontMatter(src: string): FrontMatter {
   }
   const meta: Record<string, string> = {};
   for (const line of (m[1] ?? "").split(/\r?\n/)) {
-    const kv = /^([\w-]+):\s*(.*?)\s*$/.exec(line);
-    if (kv) {
-      meta[must(kv[1], "a key")] = (kv[2] ?? "")
-        .replace(/\s+#.*$/, "")
-        .replace(/^(["'])(.*)\1$/, "$2");
+    const kv = /^([\w-]+):(.*)$/s.exec(line);
+    const value = kv?.[2]?.trim() ?? "";
+    // A value never spans a line break; a ` #` starts a comment.
+    if (kv && !LINE_BREAK.test(value)) {
+      const hash = value.search(/\s#/);
+      meta[must(kv[1], "a key")] = (hash === -1 ? value : value.slice(0, hash).trimEnd()).replace(
+        /^(["'])(.*)\1$/,
+        "$2",
+      );
     }
   }
   return { meta, body: src.slice(m[0].length), offset: m[0].split("\n").length - 1 };
@@ -62,7 +68,7 @@ export type Block =
   | { type: "code"; line: number; lines: string[] }
   | { type: "text"; line: number; text: string };
 
-const OPEN = /^(:{3,})\s*([\w-]+)\s*(.*)$/;
+const OPEN = /^(:{3,})\s*([\w-]+)(?![\w-])\s*(\S.*)?$/;
 const FENCE_END = /^```\s*$/;
 
 /** The lines after line `i` up to the one matching `end`, and that line's index. */
@@ -80,7 +86,8 @@ function fenced(
 /** Splits markdown into blocks gangway knows and plain text, with 1-based line numbers. */
 export function scan(lines: string[], first = 1): Block[] {
   const out: Block[] = [];
-  for (let i = 0; i < lines.length; i++) {
+  let i = 0;
+  while (i < lines.length) {
     const line = must(lines[i], "a line");
     const at = first + i;
     const chart = /^```chart\b(.*)$/.exec(line);
@@ -93,7 +100,7 @@ export function scan(lines: string[], first = 1): Block[] {
         closed: f.closed,
         csv: f.inner,
       });
-      i = f.end;
+      i = f.end + 1;
       continue;
     }
     const flow = /^```(flow|mermaid)\b(.*)$/.exec(line);
@@ -109,19 +116,19 @@ export function scan(lines: string[], first = 1): Block[] {
           closed: f.closed,
           src: f.inner,
         });
-        i = f.end;
+        i = f.end + 1;
         continue;
       }
     }
     if (line.startsWith("```")) {
       const f = fenced(lines, i);
       out.push({ type: "code", line: at, lines: [line, ...f.inner, "```"] });
-      i = f.end;
+      i = f.end + 1;
       continue;
     }
     const open = OPEN.exec(line);
     if (open) {
-      const close = new RegExp(`^:{${must(open[1], "a colon fence").length}}\\s*$`);
+      const close = new RegExp(String.raw`^:{${must(open[1], "a colon fence").length}}\s*$`);
       const f = fenced(lines, i, close);
       const [name = "", rest = ""] = [open[2], open[3]];
       out.push({
@@ -133,15 +140,16 @@ export function scan(lines: string[], first = 1): Block[] {
         body: scan(f.inner, at + 1),
         raw: f.inner,
       });
-      i = f.end;
+      i = f.end + 1;
       continue;
     }
     const stat = /^::stat\{(.*)\}\s*$/.exec(line);
     if (stat) {
       out.push({ type: "stat", attrs: parseAttrs(stat[1]), line: at });
-      continue;
+    } else {
+      out.push({ type: "text", line: at, text: line });
     }
-    out.push({ type: "text", line: at, text: line });
+    i++;
   }
   return out;
 }

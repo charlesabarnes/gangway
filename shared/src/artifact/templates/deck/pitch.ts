@@ -40,10 +40,15 @@ export const pitch: ArtifactTemplate = {
       ["W5", 61],
       ["W6", 66],
     ]);
+    const pilot = block(
+      "columns",
+      {},
+      `Previews grew each week of the pilot, and **nobody asked** for the old way back.\n\n- 4 teams, 38 repositories\n- 272 previews in six weeks\n+++\n${trend}`,
+    );
     const proof = {
       number: `{layout=big}\n## Since the pilot began\n${stat({ label: "Median wait for a first review", value: "26 h", delta: "-40%", good: "down", note: "43 h before the pilot" })}`,
       stats: `{layout=stats}\n## Six weeks of the pilot\n${block("stats", {}, "First review | 26 h | -40% good | 43 h before\nReviews on a phone | 31% | +31% | none before\nReverted changes | 2 | -5 good | 7 the quarter before")}`,
-      chart: `{layout=split}\n## Teams used it every week\n${block("columns", {}, `Previews grew each week of the pilot, and **nobody asked** for the old way back.\n\n- 4 teams, 38 repositories\n- 272 previews in six weeks\n+++\n${trend}`)}`,
+      chart: `{layout=split}\n## Teams used it every week\n${pilot}`,
     }[str(s, "proof") as "number" | "stats" | "chart"];
     const deck = slides(
       `# ${s.title}\n${s.subtitle}\n\nNotes: One minute. The demo comes after the ask.`,

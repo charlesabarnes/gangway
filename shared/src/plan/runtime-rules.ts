@@ -94,10 +94,11 @@ function planPhp(ctx: RuleContext): void {
       then: `installs with \`${plan.install ? cmdText(plan.install) : "(nothing)"}\``,
     });
   }
+  const docroot = plan.docroot ? `${plan.docroot}/` : "the root";
   plan.reasons.push({
     level: "info",
     found: phpDocrootSource(ctx),
-    then: `Apache serves ${plan.docroot ? `${plan.docroot}/` : "the root"}, with mod_rewrite on`,
+    then: `Apache serves ${docroot}, with mod_rewrite on`,
   });
 }
 
@@ -176,15 +177,16 @@ function planWorkerd(ctx: RuleContext): void {
   }
 }
 
+// `main = "…"` with only spaces before it on its line; the blank lines above it change nothing.
+const TOML_MAIN = /^[^\S\n\r\u2028\u2029]*main\s*=\s*["']([^"'\n]+)["']/m;
+
 function wranglerMain(have: Set<string>, text: ReadFile): string | null {
   for (const name of ["wrangler.toml", "wrangler.json", "wrangler.jsonc"]) {
     const t = text(name);
     if (t === undefined) {
       continue;
     }
-    const m = name.endsWith(".toml")
-      ? /^\s*main\s*=\s*["']([^"'\n]+)["']/m.exec(t)
-      : /"main"\s*:\s*"([^"\n]+)"/.exec(t);
+    const m = name.endsWith(".toml") ? TOML_MAIN.exec(t) : /"main"\s*:\s*"([^"\n]+)"/.exec(t);
     const found = entryFrom(have, m?.[1]);
     if (found) {
       return found;

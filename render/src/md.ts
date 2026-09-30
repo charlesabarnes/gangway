@@ -26,10 +26,16 @@ function control(name: string, text: string, a: Attrs): string {
   switch (name) {
     case "flag":
       return `<gw-flag${attrText(a)}>${label}</gw-flag>`;
-    case "button":
-      return `<button type="button"${a["go"] ? ` data-go="${esc(a["go"])}"` : ""}${"ghost" in a ? ' class="ghost"' : ""}>${label}</button>`;
-    case "input":
-      return `<label><span>${label}</span><input name="${field}"${["placeholder", "type", "value"].map((k) => (a[k] ? ` ${k}="${esc(a[k])}"` : "")).join("")}></label>`;
+    case "button": {
+      const go = a["go"] ? ` data-go="${esc(a["go"])}"` : "";
+      return `<button type="button"${go}${"ghost" in a ? ' class="ghost"' : ""}>${label}</button>`;
+    }
+    case "input": {
+      const extra = ["placeholder", "type", "value"]
+        .map((k) => (a[k] ? ` ${k}="${esc(a[k])}"` : ""))
+        .join("");
+      return `<label><span>${label}</span><input name="${field}"${extra}></label>`;
+    }
     case "select": {
       const opts = (a["options"] ?? "").split(",").map((o) => `<option>${esc(o.trim())}</option>`);
       return `<label><span>${label}</span><select name="${field}">${opts.join("")}</select></label>`;
@@ -61,10 +67,10 @@ function tabs(text: string, a: Attrs): string {
   const go = items(a["go"] ?? "");
   const at = Number(a["at"] ?? 0);
   return `<gw-tabs>${items(text)
-    .map(
-      (t, i) =>
-        `<a${go[i] ? ` href="#${esc(go[i])}"` : ""}${i + 1 === at ? ' aria-current="page"' : ""}>${esc(t)}</a>`,
-    )
+    .map((t, i) => {
+      const href = go[i] ? ` href="#${esc(go[i])}"` : "";
+      return `<a${href}${i + 1 === at ? ' aria-current="page"' : ""}>${esc(t)}</a>`;
+    })
     .join("")}</gw-tabs>`;
 }
 
@@ -82,12 +88,25 @@ const inline = (line: string) =>
     raw === undefined && !BARE.has(name) ? whole : control(name, text, parseAttrs(raw)),
   );
 
+/** A change that ends in a spaced-off `good` or `down-good` word: the change without it, else null. */
+function withoutGood(change: string): string | null {
+  for (const word of ["down-good", "good"]) {
+    const rest = change.slice(0, -word.length);
+    const before = rest.trimEnd();
+    if (change.endsWith(word) && before !== rest) {
+      return before;
+    }
+  }
+  return null;
+}
+
 function statTag(cells: string[]): string {
   const [label = "", value = "", change = "", note = ""] = cells.map((c) => c.trim());
-  const down = /\s+(down-good|good)$/.test(change);
+  const stripped = withoutGood(change);
+  const down = stripped !== null;
   const a: Attrs = { label, value };
   if (change) {
-    a["delta"] = change.replace(/\s+(down-good|good)$/, "");
+    a["delta"] = stripped ?? change;
   }
   if (down) {
     a["good"] = "down";
@@ -120,7 +139,8 @@ function container(b: Extract<Block, { type: "container" }>): string {
         half.push(l);
       }
     }
-    return `<gw-columns${attrText(b.attrs)}>${halves.map((h) => `<div>${render(scan(h))}</div>`).join("")}</gw-columns>`;
+    const cols = halves.map((h) => `<div>${render(scan(h))}</div>`).join("");
+    return `<gw-columns${attrText(b.attrs)}>${cols}</gw-columns>`;
   }
   if (b.name === "app") {
     // The sidebar is its own column; everything else is the page beside it.
@@ -134,8 +154,8 @@ function container(b: Extract<Block, { type: "container" }>): string {
 const BLOCK_TAGS = "grid|chart|flow|callout|stat|facts|card|section|columns|note|image|steps|tabs";
 const unwrap = (h: string) =>
   h
-    .replace(new RegExp(`<p>(\\s*<gw-(?:${BLOCK_TAGS})\\b)`, "g"), "$1")
-    .replace(new RegExp(`(</gw-(?:${BLOCK_TAGS})>\\s*)</p>`, "g"), "$1")
+    .replace(new RegExp(String.raw`<p>(\s*<gw-(?:${BLOCK_TAGS})\b)`, "g"), "$1")
+    .replace(new RegExp(String.raw`(</gw-(?:${BLOCK_TAGS})>\s*)</p>`, "g"), "$1")
     .replace(/<p>(\s*<svg\b[\s\S]*?<\/svg>\s*)<\/p>/g, "$1");
 
 /** Renders scanned blocks: runs of plain markdown go through marked, gangway blocks become elements. */
@@ -219,7 +239,7 @@ function layoutOf(i: number, body: string[]): string | undefined {
 function slide(p: Piece, i: number): string {
   const { body, notes } = split(p);
   const layout = p.head?.["layout"] ?? layoutOf(i, body);
-  const a: Attrs = { ...(p.head ?? {}), ...(layout ? { layout } : {}) };
+  const a: Attrs = { ...p.head, ...(layout ? { layout } : {}) };
   const aside = notes.length ? `<aside class="notes">${render(scan(notes))}</aside>` : "";
   return `<gw-slide${attrText(a)}>${render(scan(body))}${aside}</gw-slide>`;
 }

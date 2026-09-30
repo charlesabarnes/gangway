@@ -2,7 +2,7 @@ import { must } from "./must.ts";
 import { GANGWAY_FILES } from "./gangway-file.ts";
 import { runtimeById } from "./runtimes.ts";
 import { resolveAddons, suggestAddons } from "./plan/addons.ts";
-import { applySettings, MAX_PLAN_FILE_BYTES, readConfig } from "./plan/config.ts";
+import { applySettings, readConfig } from "./plan/config.ts";
 import { planOwnStack, wantsOwnStack } from "./plan/own-stack.ts";
 import { applyProcfile } from "./plan/procfile.ts";
 import {
@@ -17,7 +17,7 @@ import { applyRuntimeRules } from "./plan/runtime-rules.ts";
 import type { AppPlan, PlanInput } from "./plan/types.ts";
 
 export { cmdText } from "./plan/command-text.ts";
-export { MAX_PLAN_FILE_BYTES };
+export { MAX_PLAN_FILE_BYTES } from "./plan/config.ts";
 export type {
   AddonRequest,
   AppPlan,
@@ -47,7 +47,8 @@ export const STATIC_BUILD_OUTPUTS: readonly string[] = STATIC_OUTPUTS;
 
 export function planError(p: AppPlan): string | null {
   if (p.issues.length > 0) {
-    return `gangway.yml: ${p.issues.map((i) => (i.path ? `${i.path}: ${i.message}` : i.message)).join("; ")}`;
+    const issues = p.issues.map((i) => (i.path ? `${i.path}: ${i.message}` : i.message));
+    return `gangway.yml: ${issues.join("; ")}`;
   }
   const e = p.reasons.find((r) => r.level === "error");
   return e ? `${e.found}: ${e.then}` : null;

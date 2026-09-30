@@ -92,6 +92,21 @@ function sidebar(body: HTMLElement, last: Element | null): void {
   body.append(head, main);
 }
 
+/** Where a `— Name` line starts: the first newline in the blank run before a dash and a space, or -1. */
+function citeAt(text: string): number {
+  for (const m of text.matchAll(/[—–]\s/g)) {
+    let start = m.index;
+    while (start > 0 && /\s/.test(text.charAt(start - 1))) {
+      start--;
+    }
+    const nl = text.indexOf("\n", start);
+    if (nl !== -1 && nl < m.index) {
+      return nl;
+    }
+  }
+  return -1;
+}
+
 /** Markdown joins a quote and its `> — Name, role` line; this splits them into two paragraphs. */
 function splitCite(body: HTMLElement): void {
   const p = body.querySelector("blockquote > p:only-of-type");
@@ -100,12 +115,12 @@ function splitCite(body: HTMLElement): void {
   }
   const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
   for (let t = w.nextNode() as Text | null; t; t = w.nextNode() as Text | null) {
-    const m = /\n\s*(?=[—–]\s)/.exec(t.data);
-    if (!m) {
+    const at = citeAt(t.data);
+    if (at === -1) {
       continue;
     }
     const r = document.createRange();
-    r.setStart(t, m.index);
+    r.setStart(t, at);
     r.setEndAfter(p.lastChild);
     const cite = document.createElement("p");
     cite.append(r.extractContents());
@@ -136,10 +151,13 @@ function fitNumbers(s: HTMLElement): void {
   const sized = values.map((v) => {
     const stat = must(v.closest("gw-stat"), "the stat around a value");
     const t = getComputedStyle(stat);
-    return { v, room: stat.clientWidth - parseFloat(t.paddingLeft) - parseFloat(t.paddingRight) };
+    return {
+      v,
+      room: stat.clientWidth - Number.parseFloat(t.paddingLeft) - Number.parseFloat(t.paddingRight),
+    };
   });
   const over = () => sized.some(({ v, room }) => v.scrollWidth > room + 1);
-  let size = parseFloat(getComputedStyle(first).fontSize);
+  let size = Number.parseFloat(getComputedStyle(first).fontSize);
   while (over() && size > 24) {
     size -= 2;
     for (const v of values) {

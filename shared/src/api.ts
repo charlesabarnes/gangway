@@ -26,7 +26,7 @@ const imageRef = z
 
 const envMap = z
   .record(
-    z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid environment variable name"),
+    z.string().regex(/^[A-Za-z_]\w*$/, "not a valid environment variable name"),
     z.string().max(32_768),
   )
   .refine((e) => Object.keys(e).length <= 100, "at most 100 variables");
@@ -344,7 +344,7 @@ export const EnvPatchSchema = z
   .strictObject({
     set: z
       .record(
-        z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not a valid variable name"),
+        z.string().regex(/^[A-Za-z_]\w*$/, "not a valid variable name"),
         z.union([z.string(), z.strictObject({ value: z.string(), level: secretLevel })]),
       )
       .optional(),

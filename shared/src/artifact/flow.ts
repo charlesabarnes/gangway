@@ -1,6 +1,6 @@
 /** Mermaid flowcharts (the subset people write), parsed here so the linter and the kit agree. */
 import { must } from "../must.ts";
-import { edgeAt, nodeAt, unquote, type NodeMatch } from "./flow-syntax.ts";
+import { classLine, edgeAt, nodeAt, uncomment, unquote, type NodeMatch } from "./flow-syntax.ts";
 
 export const FLOW_DIRECTIONS = ["TB", "TD", "BT", "LR", "RL"] as const;
 export type FlowDirection = "TB" | "BT" | "LR" | "RL";
@@ -223,30 +223,36 @@ function legend(g: Builder, words: string, text: string, line: number): void {
   g.legend.push(item);
 }
 
-function statement(g: Builder, s: string, line: number): void {
-  if (header(g, s, line)) {
-    return;
-  }
+/** `direction`, `subgraph` and `end`; false when the statement is none of them. */
+function nesting(g: Builder, s: string, line: number): boolean {
   const dir = /^direction\s+(\w+)$/i.exec(s);
   // Inside a subgraph the chart's own direction holds: groups are laid out with the whole chart.
   if (dir) {
     if (!g.open.length) {
       direction(g, must(dir[1], "a direction"), line);
     }
-    return;
+    return true;
   }
-  const sub = /^subgraph\b\s*(.*)$/.exec(s);
+  const sub = /^subgraph\b\s*(\S.*)?$/.exec(s);
   if (sub) {
-    if (!sub[1]) {
-      return void g.issues.push({ line, message: "a subgraph needs a name" });
+    if (sub[1]) {
+      subgraph(g, sub[1], line);
+    } else {
+      g.issues.push({ line, message: "a subgraph needs a name" });
     }
-    subgraph(g, sub[1], line);
-    return;
+    return true;
   }
   if (s === "end") {
     if (!g.open.pop()) {
       g.issues.push({ line, message: "end without a subgraph to close" });
     }
+    return true;
+  }
+  return false;
+}
+
+function statement(g: Builder, s: string, line: number): void {
+  if (header(g, s, line) || nesting(g, s, line)) {
     return;
   }
   // Styling is Mermaid's; gangway draws its own.
@@ -258,12 +264,10 @@ function statement(g: Builder, s: string, line: number): void {
     legend(g, must(key[1], "legend words"), must(key[2], "legend text"), line);
     return;
   }
-  const cls = /^class\s+([\p{L}\p{N}_,\s]+?)\s+([\w-]+)$/u.exec(s);
+  const cls = classLine(s);
   if (cls) {
-    const tone = must(cls[2], "a class name");
-    for (const id of must(cls[1], "class ids")
-      .split(",")
-      .map((x) => x.trim())) {
+    const [ids, tone] = cls;
+    for (const id of ids.split(",").map((x) => x.trim())) {
       g.classes.push({ id, tone, line });
     }
     return;
@@ -333,7 +337,7 @@ export function parseFlow(src: string, first = 1, dir?: string): FlowGraph {
     direction(g, dir, first - 1);
   }
   src.split(/\r?\n/).forEach((raw, i) => {
-    const text = raw.replace(/%%.*$/, "");
+    const text = uncomment(raw);
     for (const part of text.split(";")) {
       const s = part.trim();
       if (s) {

@@ -70,10 +70,11 @@ export const talk: ArtifactTemplate = {
         .join("\n"),
       4,
     );
+    const agenda = used.map(([n], i) => `${i + 1}. ${n}`).join("\n");
     const deck = slides(
       `# ${s.title}\n${s.subtitle}`,
       flag(s, "agenda") &&
-        `{layout=agenda}\n## In this talk\n${used.map(([n], i) => `${i + 1}. ${n}`).join("\n")}\n${used.length + 1}. What to take away`,
+        `{layout=agenda}\n## In this talk\n${agenda}\n${used.length + 1}. What to take away`,
       ...used.map(([name, body]) => `{layout=section}\n## ${name}\n\n---\n\n${body}`),
       "{layout=quote}\n> Make the common case a lookup, and the rare case a page that says why.\n>\n> — A design note",
       `{layout=section}\n## What to take away\n\n---\n\n{layout=cards}\n## Three things to remember\n${takeaways}`,
