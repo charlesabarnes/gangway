@@ -43,7 +43,11 @@ for (const [name, open] of DRIVERS) {
     test("opens with WAL and foreign keys enforced", () => {
       const { db, journalMode } = fresh();
       expect(journalMode).toBe("wal");
-      expect(Number(db.pragma<any>("PRAGMA foreign_keys")!.foreign_keys)).toBe(1);
+      expect(
+        Number(
+          (db.pragma("PRAGMA foreign_keys") as { foreign_keys: number } | undefined)!.foreign_keys,
+        ),
+      ).toBe(1);
       expect(compareVersion(db.sqliteVersion, [3, 38, 0])).toBe(true);
       db.close();
     });
@@ -60,11 +64,13 @@ for (const [name, open] of DRIVERS) {
       const r = db.run("INSERT INTO t (id, n) VALUES ($id, $n)", { id: "a", n: 1 });
       expect(r.changes).toBe(1);
       db.run("INSERT INTO t (id, n) VALUES ($id, $n)", { id: "b", n: 2 });
-      expect(db.query<{ id: string }>("SELECT id FROM t ORDER BY id")).toEqual([
+      expect(db.query("SELECT id FROM t ORDER BY id") as { id: string }[]).toEqual([
         { id: "a" },
         { id: "b" },
       ]);
-      expect(db.get<{ n: number }>("SELECT n FROM t WHERE id = $id", { id: "b" })!.n).toBe(2);
+      expect(
+        (db.get("SELECT n FROM t WHERE id = $id", { id: "b" }) as { n: number } | undefined)!.n,
+      ).toBe(2);
       expect(db.get("SELECT n FROM t WHERE id = $id", { id: "zz" })).toBeUndefined();
       db.close();
     });

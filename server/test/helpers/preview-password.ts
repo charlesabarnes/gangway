@@ -148,8 +148,7 @@ export function settingsPasswordApi() {
         records.push(a);
       },
     },
-    undefined,
-    (p) => passwords.hash(p),
+    { hashPassword: (p) => passwords.hash(p) },
   );
   return { settings, put, records };
 }

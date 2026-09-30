@@ -17,6 +17,21 @@ type ProxyOptions = {
   stall?: boolean;
 };
 
+// SOCKS5 address types: 0x01 IPv4, 0x03 a name with its length first, 0x04 IPv6.
+function addressLength(atyp: number, buf: Buffer): number {
+  if (atyp === 0x01) {
+    return 4;
+  }
+  return atyp === 0x04 ? 16 : 1 + buf[4]!;
+}
+
+function hostOf(atyp: number, raw: Buffer): string {
+  if (atyp === 0x01) {
+    return [...raw].join(".");
+  }
+  return atyp === 0x03 ? raw.subarray(1).toString() : "::1";
+}
+
 /** A SOCKS5 server that CONNECTs for real, so the tunnel can be exercised end to end. */
 function socksProxy(
   o: ProxyOptions,
@@ -51,13 +66,12 @@ function socksProxy(
       }
       if (stage === "request" && buf.length >= 7) {
         const atyp = buf[3]!;
-        const alen = atyp === 0x01 ? 4 : atyp === 0x04 ? 16 : 1 + buf[4]!;
+        const alen = addressLength(atyp, buf);
         if (buf.length < 4 + alen + 2) {
           return;
         }
         const raw = buf.subarray(4, 4 + alen);
-        const host =
-          atyp === 0x01 ? [...raw].join(".") : atyp === 0x03 ? raw.subarray(1).toString() : "::1";
+        const host = hostOf(atyp, raw);
         const port = buf.readUInt16BE(4 + alen);
         requests.push({ atyp, host, port });
         stage = "tunnel";

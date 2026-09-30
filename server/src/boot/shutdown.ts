@@ -27,7 +27,7 @@ export function createStop(d: ShutdownDeps): (graceMs: number) => Promise<void> 
     // Tunnels first: they point at a listener that is about to stop taking requests.
     ctx.shares?.stopAll();
     void redirect?.stop(true);
-    void listener.stop(false);
+    listener.stop(false);
 
     const left = () => Math.max(0, graceMs - (Date.now() - began));
     await d.scheduler.stop(graceMs);

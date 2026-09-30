@@ -156,7 +156,7 @@ describe("password reset", () => {
     t.links.requestReset("bob@example.com", META);
     await t.flush();
     const secret = t.secretOf(t.sent[0]!);
-    const rows = t.db.query<{ id: string }>("SELECT id FROM user_links");
+    const rows = t.db.query("SELECT id FROM user_links") as { id: string }[];
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).not.toContain(secret);
     expect(rows[0]!.id).toMatch(/^[0-9a-f]{64}$/);

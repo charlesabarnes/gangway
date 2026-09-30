@@ -452,7 +452,7 @@ describe("ManualDnsProvider", () => {
   });
 
   test("polls the authoritative nameservers like the Cloudflare provider does", async () => {
-    const dns = fakeDns((ip, _n, round) => (ip === "10.0.0.1" ? ["v1"] : round >= 3 ? ["v1"] : []));
+    const dns = fakeDns((ip, _n, round) => (ip === "10.0.0.1" || round >= 3 ? ["v1"] : []));
     const p = new ManualDnsProvider({ log: silentLogger(), dns, timeoutMs: 2_000, intervalMs: 5 });
     expect(await p.waitForPropagation(CHALLENGE, ["v1"])).toBe(true);
   });

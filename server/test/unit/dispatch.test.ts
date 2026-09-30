@@ -33,7 +33,7 @@ function entry(over: Partial<RouteEntry> = {}): RouteEntry {
 
 function deps(over: Partial<DispatchDeps> = {}, e: RouteEntry | null = entry()): DispatchDeps {
   const table = {
-    lookup: (h: string) => (e && h === e.hostname ? e : undefined),
+    lookup: (h: string) => (h === e?.hostname ? e : undefined),
   } as unknown as DispatchDeps["table"];
   return {
     baseDomain: () => BASE,

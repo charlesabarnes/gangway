@@ -42,9 +42,9 @@ describe("PUT /v1/previews/:id/title", () => {
     );
     expect((await t.putTitle(p.id, { title: null })).status).toBe(200);
     expect(t.previews.get(p.id)!.title).toBeNull();
-    const audit = t.db.query<{ new_json: string }>(
+    const audit = t.db.query(
       "SELECT new_json FROM audit WHERE action = 'preview.title' ORDER BY seq",
-    );
+    ) as { new_json: string }[];
     expect(audit.map((a) => JSON.parse(a.new_json))).toEqual(["Demo for Sam", null]);
   });
 

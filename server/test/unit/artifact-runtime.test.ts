@@ -83,7 +83,7 @@ describe("an artifact.md upload", () => {
 
   test("writeRuntime copies the kit into .gangway/ readable by nginx", async () => {
     const dir = await folder(DECK);
-    await writeRuntime(dir, await planned(dir), {}, join(tempDir(), "c.yaml"));
+    await writeRuntime(dir, await planned(dir), join(tempDir(), "c.yaml"));
     const js = join(dir, ".gangway/render/kit.js");
     expect(existsSync(js)).toBe(true);
     expect(statSync(js).mode & 0o777).toBe(0o644);

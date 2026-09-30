@@ -198,9 +198,9 @@ describe("PUT /v1/previews/:id/watermark", () => {
     expect(((await res.json()) as { preview: { watermark: string } }).preview.watermark).toBe(
       "off",
     );
-    const audit = t.db.query<{ new_json: string }>(
-      "SELECT new_json FROM audit WHERE action = 'preview.watermark'",
-    );
+    const audit = t.db.query("SELECT new_json FROM audit WHERE action = 'preview.watermark'") as {
+      new_json: string;
+    }[];
     expect(audit.map((a) => JSON.parse(a.new_json))).toEqual(["off"]);
   });
 

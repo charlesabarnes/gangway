@@ -80,12 +80,12 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
     async capture(argv): Promise<ComposeResult> {
       const cmd = argv.find((a) => ["config", "ps", "down", "logs"].includes(a))!;
       daemon.composed.push(cmd);
-      const stdout =
-        cmd === "config"
-          ? await Bun.file(argv[argv.indexOf("--file") + 1]!).text()
-          : cmd === "ps"
-            ? JSON.stringify({ Service: "web", State: "running" })
-            : "";
+      let stdout = "";
+      if (cmd === "config") {
+        stdout = await Bun.file(argv[argv.indexOf("--file") + 1]!).text();
+      } else if (cmd === "ps") {
+        stdout = JSON.stringify({ Service: "web", State: "running" });
+      }
       return { code: 0, stdout, stderr: "", signal: null };
     },
   };

@@ -125,11 +125,13 @@ function registerPreviewJobs(scheduler: Scheduler, d: JobDeps): void {
 }
 
 function registerCertRenewal(scheduler: Scheduler, r: CertRenewal, domains: Core["domains"]): void {
-  r.certStore.onSwap(() => r.listener.swapCerts());
+  r.certStore.onSwap(() => {
+    r.listener.swapCerts();
+  });
   // A domain that changes mid-run is caught by running again, not left for the next hour.
-  let changed = false;
+  let changes = 0;
   domains.onChange(() => {
-    changed = true;
+    changes++;
     scheduler.trigger("cert-renew").catch(() => {});
   });
   // Hourly because Let's Encrypt allows 5 failed validations per hour.
@@ -138,13 +140,14 @@ function registerCertRenewal(scheduler: Scheduler, r: CertRenewal, domains: Core
     intervalMs: 3_600_000,
     initialDelayMs: 0,
     run: async (signal) => {
+      let seen: number;
       do {
-        changed = false;
+        seen = changes;
         const next = await r.manager.refresh(signal);
         if (next) {
           await r.certStore.swap(next);
         }
-      } while (changed && !signal.aborted);
+      } while (changes !== seen && !signal.aborted);
     },
   });
 }

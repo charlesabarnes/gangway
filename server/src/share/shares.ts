@@ -103,7 +103,9 @@ export class Shares {
     this.#byHost.set(live.host, live);
     this.#o.logger.info("preview shared", { previewId, url: live.url });
     this.#o.onChange?.(view(live), null);
-    void tunnel.ended.then(() => this.#end(live, "dropped"));
+    void tunnel.ended.then(() => {
+      this.#end(live, "dropped");
+    });
     return view(live);
   }
 

@@ -104,7 +104,7 @@ export function setupPreviewContext() {
     },
     async capture(argv): Promise<ComposeResult> {
       fake.all.push(argv);
-      const cmd = argv.find((a) => ["config", "ps", "down", "logs", "stop", "start"].includes(a))!;
+      const cmd = argv.find((a) => ["config", "ps", "down", "logs", "stop", "start"].includes(a));
       const project = argv[argv.indexOf("--project-name") + 1] ?? "";
       if (cmd === "stop") {
         fake.stops.push(argv);
@@ -152,14 +152,14 @@ export function setupPreviewContext() {
       if (cmd === undefined && argv.includes("build")) {
         fake.builds++;
       }
-      const stdout =
-        cmd === "config"
-          ? await Bun.file(argv[argv.indexOf("--file") + 1]!).text()
-          : cmd === "ps"
-            ? JSON.stringify({ Service: "web", State: fake.psState })
-            : cmd === "logs"
-              ? fake.runtimeLog
-              : "";
+      let stdout = "";
+      if (cmd === "config") {
+        stdout = await Bun.file(argv[argv.indexOf("--file") + 1]!).text();
+      } else if (cmd === "ps") {
+        stdout = JSON.stringify({ Service: "web", State: fake.psState });
+      } else if (cmd === "logs") {
+        stdout = fake.runtimeLog;
+      }
       return { code: 0, stdout, stderr: "", signal: null };
     },
   };

@@ -46,7 +46,11 @@ export type Running = {
 
 export async function boot(config: Config, o: BootOverrides = {}): Promise<Running> {
   const logger = o.logger ?? new Logger(config.logLevel);
-  const announce = o.announce ?? ((t) => console.log(t));
+  const announce =
+    o.announce ??
+    ((t) => {
+      console.log(t);
+    });
   const { core, seeded, workdirs, sources, sites } = await openCore(config, logger);
 
   const dockerClients = new DockerClients();

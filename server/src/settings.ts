@@ -79,7 +79,7 @@ export const SETTINGS = {
   previewWatermark: def("previews.watermark", z.boolean(), true),
   previewWatermarkLink: def(
     "previews.watermark.link",
-    z.string().url().or(z.literal("")),
+    z.url().or(z.literal("")),
     "https://gangway.sh",
   ),
   // The theme an artifact gets when it names none; "chart" is gangway's own.
@@ -117,11 +117,11 @@ export const SETTINGS = {
   updatesCheck: def("updates.check", z.boolean(), true),
   acmeDirectoryUrl: def(
     "acme.directoryUrl",
-    z.string().url(),
+    z.url(),
     // Staging by default: production allows 50 certs per domain per week.
     "https://acme-staging-v02.api.letsencrypt.org/directory",
   ),
-  acmeEmail: def("acme.email", z.string().email().or(z.literal("")), ""),
+  acmeEmail: def("acme.email", z.email().or(z.literal("")), ""),
   mailSmtpUrl: def("mail.smtp.url", smtpUrl, "", { secret: true }),
   mailFrom: def("mail.from", mailFrom, ""),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),

@@ -148,8 +148,8 @@ describe("generated build files", () => {
     const { composeFile } = await writeRuntime(
       dir,
       await planned(dir, "bun"),
-      { API_KEY: "s3cret" },
       join(out, "c.yaml"),
+      { secrets: { API_KEY: "s3cret" } },
     );
     expect(existsSync(join(dir, ".gangway/Dockerfile"))).toBe(true);
     expect(existsSync(join(dir, ".gangway/entry.ts"))).toBe(true);
@@ -162,7 +162,7 @@ describe("generated build files", () => {
     expect(readFileSync(join(dir, composeFile), "utf8")).toContain("s3cret");
     expect(composeFile.startsWith("..")).toBe(true);
     await expect(
-      writeRuntime(dir, await planned(dir, "bun"), {}, join(dir, "inside.yaml")),
+      writeRuntime(dir, await planned(dir, "bun"), join(dir, "inside.yaml")),
     ).rejects.toMatchObject({ code: "internal" });
   });
 

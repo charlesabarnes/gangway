@@ -55,7 +55,9 @@ describe("Secrets: two scopes, one shape", () => {
     const audited: unknown[] = [];
     const store = new MemorySettingsStore();
     const secrets = new Secrets(repos, store, new SecretBox(randomBytes(32)), {
-      record: (_a, action, target, change) => audited.push({ action, target, ...change }),
+      audit: {
+        record: (_a, action, target, change) => audited.push({ action, target, ...change }),
+      },
     });
     return { db, repos, repo, secrets, audited, store };
   };
@@ -91,9 +93,8 @@ describe("Secrets: two scopes, one shape", () => {
     });
     expect(secrets.valuesFor(repo.id, "standard")).toEqual({ PUBLIC_KEY: "pk" });
     expect(secrets.valuesFor(repo.id, "none")).toEqual({});
-    const row = db.get<{ env_ciphertext: string }>(
-      "SELECT env_ciphertext FROM projects WHERE id = 'r1'",
-    )!;
+    const row = (db.get("SELECT env_ciphertext FROM projects WHERE id = 'r1'") as
+      { env_ciphertext: string } | undefined)!;
     expect(row.env_ciphertext).toMatch(/^v1\./);
     expect(JSON.stringify([row, audited])).not.toMatch(/fa-new|fa-abc/);
     expect(audited.at(-1)).toMatchObject({

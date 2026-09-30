@@ -78,9 +78,10 @@ describe("migration safety", () => {
       "0002_b.sql": "CREATE TABLE b (x);",
     });
     expect(migrate(db, m).applied).toEqual([1, 2]);
-    const rows = db.query<{ version: number; name: string }>(
-      "SELECT version, name FROM schema_migrations ORDER BY version",
-    );
+    const rows = db.query("SELECT version, name FROM schema_migrations ORDER BY version") as {
+      version: number;
+      name: string;
+    }[];
     expect(rows).toEqual([
       { version: 1, name: "a" },
       { version: 2, name: "b" },

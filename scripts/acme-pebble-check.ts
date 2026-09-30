@@ -3,11 +3,12 @@ import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect as tlsConnect } from "node:tls";
+import { type PeerCertificate, connect as tlsConnect } from "node:tls";
 import { boot } from "../server/src/boot.ts";
 import { loadConfig } from "../server/src/config.ts";
 import { Logger } from "../server/src/logger.ts";
 import type { DnsProvider } from "../server/src/tls/dns/provider.ts";
+import { must } from "../shared/src/must.ts";
 
 const DIRECTORY = process.env["PEBBLE_DIRECTORY"] ?? "https://localhost:31900/dir";
 const CHALLTESTSRV = process.env["PEBBLE_CHALLTESTSRV"] ?? "http://localhost:31901";
@@ -42,7 +43,8 @@ const dns: DnsProvider = {
 const presented = (port: number, servername: string) =>
   new Promise<{ issuer: string; sans: string }>((resolve, reject) => {
     const s = tlsConnect({ host: "127.0.0.1", port, servername, rejectUnauthorized: false }, () => {
-      const c = s.getPeerCertificate();
+      // With no certificate this is an empty object, whatever the type says.
+      const c: Partial<PeerCertificate> = s.getPeerCertificate();
       s.end();
       resolve({ issuer: String(c.issuer?.CN ?? ""), sans: String(c.subjectaltname ?? "") });
     });
@@ -142,7 +144,7 @@ try {
     host: `_acme-challenge.${CUSTOMER}.`,
     target: `${CLAIM}.acme.${BASE}.`,
   });
-  running.ctx.domains!.refresh();
+  must(running.ctx.domains, "domain claims to be configured").refresh();
   await running.scheduler.trigger("cert-renew");
   const customer = await presented(port, `shop.${CUSTOMER}`);
   check(
@@ -162,7 +164,7 @@ try {
       await fetch(`https://127.0.0.1:${port}/healthz`, {
         headers: { host: `api.${BASE}` },
         tls: { rejectUnauthorized: false },
-      } as RequestInit)
+      })
     ).status === 200,
   );
   await running.stop();

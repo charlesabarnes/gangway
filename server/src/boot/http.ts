@@ -49,9 +49,15 @@ export function createHttp(core: Core, parts: HttpParts): Http {
     staticDir: existsSync(staticDir) ? staticDir : undefined,
     health: () => ({ routes: d.ctx.table.size }),
     draining: () => d.signal.aborted,
-    root: (root) => oauthRootRoutes(root, { oauth: d.identity.oauth, enabled: mcpOn }),
-    v1: (api) => v1Routes(api, { ...d, mcp, mcpOn }),
-    publicV1: (pub) => publicRoutes(pub, { ctx: d.ctx, auth, identity: d.identity, gate }),
+    root: (root) => {
+      oauthRootRoutes(root, { oauth: d.identity.oauth, enabled: mcpOn });
+    },
+    v1: (api) => {
+      v1Routes(api, { ...d, mcp, mcpOn });
+    },
+    publicV1: (pub) => {
+      publicRoutes(pub, { ctx: d.ctx, auth, identity: d.identity, gate });
+    },
   });
   return { app, gate, mcp };
 }
@@ -67,13 +73,14 @@ function createGate({ repos, settings, previewPasswords, origin, logger }: HttpD
     passwords: previewPasswords,
     limiter: new LoginLimiter({ emailFree: 10 }),
     loginDefault: () => settings.get(SETTINGS.previewPasswordLogin),
-    onPasswordFailure: (entry, clientIp, reason) =>
+    onPasswordFailure: (entry, clientIp, reason) => {
       logger.warn("preview password refused", {
         previewId: entry.previewId,
         host: entry.hostname,
         clientIp,
         reason,
-      }),
+      });
+    },
   });
 }
 

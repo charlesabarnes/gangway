@@ -84,7 +84,13 @@ export class Logger {
   #base: LogFields;
   #sink: Sink;
 
-  constructor(level: LogLevel = "info", base: LogFields = {}, sink: Sink = (l) => console.log(l)) {
+  constructor(
+    level: LogLevel = "info",
+    base: LogFields = {},
+    sink: Sink = (l) => {
+      console.log(l);
+    },
+  ) {
     this.#level = level;
     this.#base = base;
     this.#sink = sink;

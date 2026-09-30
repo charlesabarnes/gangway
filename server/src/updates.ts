@@ -16,7 +16,7 @@ export type UpdateStatus = {
 
 type Release = { latest: string; url: string; checkedAt: number };
 
-const ReleaseSchema = z.object({ tag_name: z.string().min(1), html_url: z.string().url() });
+const ReleaseSchema = z.object({ tag_name: z.string().min(1), html_url: z.url() });
 
 const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)$/;
 
@@ -32,12 +32,15 @@ export function isNewer(latest: string, current: string): boolean {
   if (!a || !b) {
     return false;
   }
-  for (let i = 0; i < 3; i++) {
-    if (a[i] !== b[i]) {
-      return a[i]! > b[i]!;
-    }
+  const [aMajor, aMinor, aPatch] = a;
+  const [bMajor, bMinor, bPatch] = b;
+  if (aMajor !== bMajor) {
+    return aMajor > bMajor;
   }
-  return false;
+  if (aMinor !== bMinor) {
+    return aMinor > bMinor;
+  }
+  return aPatch > bPatch;
 }
 
 export type UpdateCheckOptions = {

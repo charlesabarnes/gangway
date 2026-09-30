@@ -38,7 +38,7 @@ export async function resolveCertificates(
     }
     case "acme":
       return acmeCertificates(d);
-    default: {
+    case "selfsigned": {
       const { caPath, devCa } = devCaOf(d);
       const manager = new CertManager({
         mode: "selfsigned",

@@ -175,7 +175,7 @@ export function loadConfig(
   }
 
   const overrides: Record<string, unknown> = {
-    ...((fileConfig["overrides"] as Record<string, unknown>) ?? {}),
+    ...((fileConfig["overrides"] as Record<string, unknown> | undefined) ?? {}),
   };
   for (const [envVar, key] of Object.entries(SETTING_ENV_MAP)) {
     const v = env[envVar];

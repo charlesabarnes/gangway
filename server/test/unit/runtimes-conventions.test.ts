@@ -105,12 +105,9 @@ describe("build conventions and scripts", () => {
     const out = tempDir();
     const plan = await planned(dir);
     expect(plan.root).toBe("site");
-    const { composeFile } = await writeRuntime(
-      dir,
-      plan,
-      { MODE: "secret-wins" },
-      join(out, "c.yaml"),
-    );
+    const { composeFile } = await writeRuntime(dir, plan, join(out, "c.yaml"), {
+      secrets: { MODE: "secret-wins" },
+    });
     expect(existsSync(join(dir, "site/.gangway/Dockerfile"))).toBe(true);
     expect(existsSync(join(dir, ".gangway"))).toBe(false);
     const doc = JSON.parse(readFileSync(join(dir, composeFile), "utf8"));

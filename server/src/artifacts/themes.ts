@@ -6,6 +6,7 @@ import {
   type ThemePatch,
 } from "@gangway/shared/artifact/theme";
 import { HOUSE_THEME } from "@gangway/shared/artifact/vocab";
+import { must } from "@gangway/shared/must";
 import type { AuditSink } from "../audit/audit.ts";
 import { actorId, type Actor } from "../auth/actor.ts";
 import type { ArtifactThemesRepo } from "../db/repos/artifacts.ts";
@@ -63,7 +64,10 @@ export function updateTheme(d: ThemeDeps, actor: Actor, id: string, patch: Theme
     throw notFound(`no such theme: ${id}`);
   }
   const logo = logoOf(patch.logo);
-  const t = d.themes.update(id, { ...patch, ...(logo === undefined ? {} : { logo }) })!;
+  const t = must(
+    d.themes.update(id, { ...patch, ...(logo === undefined ? {} : { logo }) }),
+    "the theme just read",
+  );
   d.audit.record(actor, "artifact_theme.updated", id, { old: before.name, new: t.name });
   return t;
 }

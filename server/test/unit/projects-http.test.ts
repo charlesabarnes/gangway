@@ -43,20 +43,17 @@ function make() {
     templates,
     project: (ref) => projects.find(ref),
     defaultFor: () => "default",
-    projectForSource: (src) =>
-      src.kind === "pushed"
-        ? projects.getByFullName("github", src.pr.repo)
-        : src.kind === "pr"
-          ? projects.getByFullName("github", src.repo)
-          : undefined,
+    projectForSource: (src) => {
+      if (src.kind === "pushed") {
+        return projects.getByFullName("github", src.pr.repo);
+      }
+      return src.kind === "pr" ? projects.getByFullName("github", src.repo) : undefined;
+    },
   });
-  const secrets = new Secrets(
-    projects,
-    new MemorySettingsStore(),
-    new SecretBox(randomBytes(32)),
-    s.ctx.audit,
-    s.ctx.previews,
-  );
+  const secrets = new Secrets(projects, new MemorySettingsStore(), new SecretBox(randomBytes(32)), {
+    audit: s.ctx.audit,
+    previews: s.ctx.previews,
+  });
   s.ctx.secretsFor = (id, clearance) => secrets.valuesFor(id, clearance);
   s.ctx.secrets = secrets;
   const pulls = new Pulls({

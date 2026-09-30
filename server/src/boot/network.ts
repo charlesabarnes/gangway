@@ -96,8 +96,9 @@ export function startNetwork(d: NetworkDeps): Network {
       socketsPerClient: d.settings.get(SETTINGS.limitsSocketsClient),
     }),
     {
-      report: (refused) =>
-        logger.warn("refused preview requests over the rate limits", { refused }),
+      report: (refused) => {
+        logger.warn("refused preview requests over the rate limits", { refused });
+      },
     },
   );
   const deps = { ...dispatchDeps(d, resolveClientIp, gate ?? undefined), rates };
@@ -108,7 +109,9 @@ export function startNetwork(d: NetworkDeps): Network {
     idleTimeout: 120,
     certStore,
     deps,
-    onError: (e) => logger.error("listener error", { err: e }),
+    onError: (e) => {
+      logger.error("listener error", { err: e });
+    },
   });
   const ask = tlsAsk({ trustedProxies: config.trustedProxies, answers: answersFor(deps) });
   return { listener, rates, redirect: startRedirect(config, ask), certStore };
@@ -141,7 +144,9 @@ function dispatchDeps(
     },
     logTailFor: (id) => ctx.logs.tail(id, 50),
     clientIpFor: clientIpFor(d, resolveClientIp),
-    onProxied: (entry) => table.touch(entry.hostname, Date.now()),
+    onProxied: (entry) => {
+      table.touch(entry.hostname, Date.now());
+    },
     watermark: watermarkFor(d),
   };
 }

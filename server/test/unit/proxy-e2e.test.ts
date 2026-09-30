@@ -13,8 +13,8 @@ import type { DispatchDeps } from "../../src/net/dispatch.ts";
 const BASE = "preview.test.invalid";
 const PREVIEW = `fixture-web.${BASE}`;
 
-let upstream: AnyServer;
-let listener: RunningListener;
+let upstream: AnyServer | undefined;
+let listener: RunningListener | undefined;
 let store: CertStore;
 let entry: RouteEntry;
 let caPem: string;
@@ -32,7 +32,7 @@ function raw(opts: {
       const s = tls.connect(
         {
           host: "127.0.0.1",
-          port: listener.port,
+          port: listener!.port,
           servername: opts.host,
           rejectUnauthorized: false,
         },
@@ -296,7 +296,7 @@ describe("TLS", () => {
   test("SNI presents the wildcard certificate", async () => {
     const serial = await new Promise<string>((res, rej) => {
       const s = tls.connect(
-        { host: "127.0.0.1", port: listener.port, servername: PREVIEW, rejectUnauthorized: false },
+        { host: "127.0.0.1", port: listener!.port, servername: PREVIEW, rejectUnauthorized: false },
         () => {
           const c = s.getPeerCertificate();
           res(c.serialNumber);
@@ -311,7 +311,7 @@ describe("TLS", () => {
   test("the leaf chains to the dev CA, so a client trusting the CA verifies it", async () => {
     const ok = await new Promise<boolean>((res) => {
       const s = tls.connect(
-        { host: "127.0.0.1", port: listener.port, servername: PREVIEW, ca: [caPem] },
+        { host: "127.0.0.1", port: listener!.port, servername: PREVIEW, ca: [caPem] },
         () => {
           res(s.authorized);
           s.destroy();
@@ -328,7 +328,7 @@ describe("TLS", () => {
         const s = tls.connect(
           {
             host: "127.0.0.1",
-            port: listener.port,
+            port: listener!.port,
             servername: PREVIEW,
             rejectUnauthorized: false,
           },
@@ -342,7 +342,7 @@ describe("TLS", () => {
     const before = await serialOf();
     const ca = await createCa();
     await store.swap({ materials: [await issueLeaf(ca, [`*.${BASE}`, BASE])] });
-    listener.swapCerts();
+    listener!.swapCerts();
 
     let after = before;
     for (let i = 0; i < 20 && after === before; i++) {
@@ -356,7 +356,7 @@ describe("TLS", () => {
 
 describe("streaming and limits", () => {
   test.concurrent("SSE is not buffered", async () => {
-    const res = await fetch(`https://127.0.0.1:${listener.port}/sse`, {
+    const res = await fetch(`https://127.0.0.1:${listener!.port}/sse`, {
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },
     } as RequestInit);
@@ -375,7 +375,7 @@ describe("streaming and limits", () => {
   });
 
   test.concurrent("a stream quiet for longer than the idle timeout stays open", async () => {
-    const res = await fetch(`https://127.0.0.1:${listener.port}/quiet`, {
+    const res = await fetch(`https://127.0.0.1:${listener!.port}/quiet`, {
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },
     } as RequestInit);
@@ -421,7 +421,7 @@ describe("streaming and limits", () => {
 
 describe("WebSocket relay", () => {
   test("echoes text and binary, negotiates a subprotocol, propagates close", async () => {
-    const ws = new WebSocket(`wss://127.0.0.1:${listener.port}/ws`, {
+    const ws = new WebSocket(`wss://127.0.0.1:${listener!.port}/ws`, {
       protocols: ["gangway-v1"],
       headers: { host: PREVIEW },
       tls: { rejectUnauthorized: false },

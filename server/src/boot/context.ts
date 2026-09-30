@@ -54,13 +54,10 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
   const triggerDefault = (t: Trigger) => settings.get(TEMPLATE_SETTING[t]);
   const policy = createPolicy(repos, triggerDefault, core.logger);
   const secretsKey = loadOrCreateSecretsKey(core.stateDir);
-  const secrets = new Secrets(
-    repos.projects,
-    repos.settings,
-    new SecretBox(secretsKey),
-    core.audit,
-    repos.previews,
-  );
+  const secrets = new Secrets(repos.projects, repos.settings, new SecretBox(secretsKey), {
+    audit: core.audit,
+    previews: repos.previews,
+  });
   const previewPasswords = new Passwords({ ln: 14 });
   const ctx: PreviewContext = {
     instance: config.instanceId,
@@ -116,9 +113,9 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
 }
 
 function composeFor(dockerClients: DockerClients, repos: Repos): ComposeRunner {
-  return createComposeRunner(dockerClients, (hostId, ok, err) =>
-    repos.hosts.setState(hostId, ok ? "ready" : "unreachable", err),
-  );
+  return createComposeRunner(dockerClients, (hostId, ok, err) => {
+    repos.hosts.setState(hostId, ok ? "ready" : "unreachable", err);
+  });
 }
 
 function createPolicy(
@@ -146,7 +143,8 @@ function repoFullName(source: DeploySource): string | null {
       return source.pr.repo;
     case "git":
       return githubFullName(source.repo);
-    default:
+    case "image":
+    case "tarball":
       return null;
   }
 }

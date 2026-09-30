@@ -25,9 +25,9 @@ describe("PUT /v1/previews/:id/password", () => {
 
     await t.put(p.id, { password: { mode: "none" } });
     expect(t.table.forPreview(p.id)[0]!.password).toEqual({ mode: "none" });
-    const audit = t.db.query<{ action: string; new_json: string }>(
+    const audit = t.db.query(
       "SELECT action, new_json FROM audit WHERE action = 'preview.password' ORDER BY seq",
-    );
+    ) as { action: string; new_json: string }[];
     expect(audit.map((a) => JSON.parse(a.new_json).mode)).toEqual(["set", "generated", "none"]);
     expect(JSON.stringify(audit)).not.toContain("brand new password");
   });

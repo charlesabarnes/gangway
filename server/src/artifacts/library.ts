@@ -10,6 +10,7 @@ import {
 } from "@gangway/shared/artifact/templates/index";
 import { cleanSvg, compileTheme, HOUSE, type Theme } from "@gangway/shared/artifact/theme";
 import { ARTIFACT_FILE, HOUSE_THEME, type ArtifactKind } from "@gangway/shared/artifact/vocab";
+import { must } from "@gangway/shared/must";
 import type {
   ArtifactTemplatesRepo,
   ArtifactThemesRepo,
@@ -78,7 +79,8 @@ export class ArtifactLibrary {
   }
 
   themeCss(id: string | null, logoUrl: string): string {
-    return this.#memo(this.resolve(id), `css:${logoUrl}`, (t) => compileTheme(t, logoUrl))!;
+    const css = this.#memo(this.resolve(id), `css:${logoUrl}`, (t) => compileTheme(t, logoUrl));
+    return must(css, "compiled theme css");
   }
 
   themeLogo(id: string | null): string | null {
@@ -90,10 +92,13 @@ export class ArtifactLibrary {
     if (!m) {
       this.#compiled.set(t, (m = new Map<string, string | null>()));
     }
-    if (!m.has(key)) {
-      m.set(key, make(t));
+    const cached = m.get(key);
+    if (cached !== undefined) {
+      return cached;
     }
-    return m.get(key)!;
+    const made = make(t);
+    m.set(key, made);
+    return made;
   }
 
   templates(kind?: ArtifactKind): TemplateSummary[] {

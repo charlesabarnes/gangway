@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import type { Domain, DomainKind, Preview, Project } from "@gangway/shared/domain";
+import type { Domain, DomainKind, DomainStatus, Preview, Project } from "@gangway/shared/domain";
 import { domainsProblem, isWithin, labelUnder } from "@gangway/shared/hostname";
+import { must } from "@gangway/shared/must";
 import type { AuditSink } from "../audit/audit.ts";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import type { DomainsRepo } from "../db/repos/domains.ts";
@@ -212,14 +213,10 @@ export async function checkDomain(
   const owned = cnames.includes(want);
   const routingOk = there.some((a) => here.includes(a));
   const expired = deps.now() - d.createdAt.getTime() > CLAIM_PATIENCE_MS;
-  const status = owned || d.status === "active" ? "active" : expired ? "failed" : "pending";
-  const lastError = !owned
-    ? `_acme-challenge.${d.name} is not yet a CNAME to ${want}`
-    : !routingOk
-      ? `${d.kind === "wildcard" ? `*.${d.name}` : d.name} does not resolve to ${control} yet`
-      : null;
+  const status = statusAfterCheck(owned || d.status === "active", expired);
+  const lastError = checkError(d, { control, want }, { owned, routingOk });
   deps.domains.recordCheck(d.id, { status, routingOk, lastError });
-  const after = deps.domains.get(d.id)!;
+  const after = must(deps.domains.get(d.id), "the domain just checked");
   if (after.status !== d.status || after.routingOk !== d.routingOk) {
     deps.registry.refresh();
     const payload = { domain: d.name, status: after.status, routingOk: after.routingOk };
@@ -229,6 +226,27 @@ export async function checkDomain(
     deps.audit.record(actor, "domain.verified", d.id, { new: { name: d.name } });
   }
   return viewOf(after, control);
+}
+
+function statusAfterCheck(active: boolean, expired: boolean): DomainStatus {
+  if (active) {
+    return "active";
+  }
+  return expired ? "failed" : "pending";
+}
+
+function checkError(
+  d: Domain,
+  at: { control: string; want: string },
+  found: { owned: boolean; routingOk: boolean },
+): string | null {
+  if (!found.owned) {
+    return `_acme-challenge.${d.name} is not yet a CNAME to ${at.want}`;
+  }
+  if (!found.routingOk) {
+    return `${d.kind === "wildcard" ? `*.${d.name}` : d.name} does not resolve to ${at.control} yet`;
+  }
+  return null;
 }
 
 const RECHECK_ACTIVE_MS = 3_600_000;
@@ -254,11 +272,16 @@ export async function checkDue(deps: ClaimDeps, signal?: AbortSignal): Promise<n
 
 export function domainsOf(deps: Pick<ClaimDeps, "domains" | "registry">, target: DomainTarget) {
   const control = deps.registry.control();
-  const rows =
-    target.kind === "org"
-      ? deps.domains.all().filter((d) => d.projectId === null && d.previewId === null)
-      : target.kind === "project"
-        ? deps.domains.forProject(target.project.id)
-        : deps.domains.forPreview(target.preview.id);
-  return rows.map((d) => viewOf(d, control));
+  return rowsFor(deps.domains, target).map((d) => viewOf(d, control));
+}
+
+function rowsFor(domains: DomainsRepo, target: DomainTarget): Domain[] {
+  switch (target.kind) {
+    case "org":
+      return domains.all().filter((d) => d.projectId === null && d.previewId === null);
+    case "project":
+      return domains.forProject(target.project.id);
+    case "preview":
+      return domains.forPreview(target.preview.id);
+  }
 }

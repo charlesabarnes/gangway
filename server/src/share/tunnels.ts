@@ -1,5 +1,6 @@
 import { promises as dnsPromises } from "node:dns";
 import { Resolver } from "node:dns/promises";
+import { must } from "@gangway/shared/must";
 
 export type Tunnel = {
   host: string;
@@ -25,7 +26,13 @@ export type TunnelSpawner = (argv: string[]) => Spawned;
 
 const bunSpawner: TunnelSpawner = (argv) => {
   const proc = Bun.spawn({ cmd: argv, stdin: "ignore", stdout: "ignore", stderr: "pipe" });
-  return { stderr: proc.stderr, exited: proc.exited, kill: () => proc.kill() };
+  return {
+    stderr: proc.stderr,
+    exited: proc.exited,
+    kill: () => {
+      proc.kill();
+    },
+  };
 };
 
 const URL_RE = /https:\/\/([a-z0-9-]+\.trycloudflare\.com)\b/;
@@ -112,7 +119,13 @@ export class QuickTunnels implements ShareProvider {
     let host: string | undefined;
     let settle: ((err?: Error) => void) | undefined;
     const ready = new Promise<void>((resolve, reject) => {
-      settle = (err) => (err ? reject(err) : resolve());
+      settle = (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      };
     });
     const exited = proc.exited.then(() => undefined);
 
@@ -144,19 +157,31 @@ export class QuickTunnels implements ShareProvider {
       signal?.removeEventListener("abort", onAbort);
       settle = undefined;
     }
-    const name = host!;
-    let gone = false;
-    void exited.then(() => (gone = true));
+    const name = must(host, "the tunnel's hostname");
+    const exit = { gone: false };
+    void exited.then(() => (exit.gone = true));
     // An early lookup is a miss the visitor's resolver keeps for a minute: wait until it resolves.
     const deadline = Date.now() + this.#dnsWaitMs;
-    while (!gone && !signal?.aborted && Date.now() < deadline && !(await this.#resolves(name))) {
+    while (
+      !exit.gone &&
+      !signal?.aborted &&
+      Date.now() < deadline &&
+      !(await this.#resolves(name))
+    ) {
       await Bun.sleep(this.#dnsPollMs);
     }
-    if (gone || signal?.aborted) {
+    if (exit.gone || signal?.aborted) {
       proc.kill();
       throw failure("cloudflared exited before its hostname was in DNS", tail);
     }
-    return { host: name, url: `https://${name}`, ended: exited, stop: () => proc.kill() };
+    return {
+      host: name,
+      url: `https://${name}`,
+      ended: exited,
+      stop: () => {
+        proc.kill();
+      },
+    };
   }
 }
 

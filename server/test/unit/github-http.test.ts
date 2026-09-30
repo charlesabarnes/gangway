@@ -56,7 +56,7 @@ async function make(o: { overrides?: Record<string, unknown>; conversion?: numbe
         repos,
         new MemorySettingsStore(),
         new SecretBox(randomBytes(32)),
-        s.audit,
+        { audit: s.audit },
       );
       const previews = { list: () => [] };
       projectRoutes(api, { projects: repos, audit: s.audit, secrets, previews });

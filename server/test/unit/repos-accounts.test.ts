@@ -400,9 +400,9 @@ for (const [name, open] of DRIVERS) {
         expect(roles.syncCatalogue(grown).added).toEqual(["previews.clone"]);
         expect(roles.syncCatalogue(grown).added).toEqual([]);
         expect(
-          db.get<{ ok: number }>(
+          db.get(
             "SELECT 1 AS ok FROM role_permissions WHERE role_id = 'admin' AND permission_id = 'previews.clone'",
-          ),
+          ) as { ok: number } | undefined,
         ).toEqual({ ok: 1 });
         rp.reload();
         expect([...rp.for("member")]).toEqual(["previews.read"]);

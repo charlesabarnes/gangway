@@ -26,14 +26,12 @@ async function make() {
     upstream: { dial: "direct", address: "127.0.0.1", proxy: null },
     ports: { rangeStart: 31000, rangeEnd: 31499 },
   });
-  const triggerDefault = (t: string) =>
-    settings.get(
-      t === "pr"
-        ? SETTINGS.templatePr
-        : t === "api"
-          ? SETTINGS.templateApi
-          : SETTINGS.templateManual,
-    );
+  const triggerDefault = (t: string) => {
+    if (t === "pr") {
+      return settings.get(SETTINGS.templatePr);
+    }
+    return settings.get(t === "api" ? SETTINGS.templateApi : SETTINGS.templateManual);
+  };
   const { call, login, ada } = await signedInApp(s, {
     envToken: ENV_TOKEN,
     v1: (api) => {
@@ -43,7 +41,7 @@ async function make() {
         audit: s.audit,
         namedByTrigger: (id) => TRIGGERS.filter((t) => triggerDefault(t) === id),
       });
-      settingsRoutes(api, settings, s.audit, templates);
+      settingsRoutes(api, settings, s.audit, { templates });
       projectRoutes(api, { projects: repos, audit: s.audit, templates });
     },
   });

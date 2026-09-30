@@ -95,22 +95,23 @@ async function readBody(request: Request, json: boolean): Promise<Record<string,
       const body: unknown = await request.json();
       return body && typeof body === "object" ? (body as Record<string, unknown>) : null;
     }
-    return Object.fromEntries(await request.formData());
+    // The page's form posts urlencoded; nothing here reads multipart.
+    const type = request.headers.get("content-type") ?? "";
+    if (!type.includes("application/x-www-form-urlencoded")) {
+      return null;
+    }
+    return Object.fromEntries(new URLSearchParams(await request.text()));
   } catch {
     return null;
   }
 }
 
 const escape = (s: string) =>
-  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
-function reply(
-  json: boolean,
-  env: Env,
-  cors: Record<string, string>,
-  status: number,
-  error?: string,
-) {
+type Replying = { json: boolean; env: Env; cors: Record<string, string> };
+
+function reply({ json, env, cors }: Replying, status: number, error?: string) {
   if (json) {
     return Response.json(error ? { error } : { ok: true }, { status, headers: cors });
   }
@@ -184,20 +185,21 @@ export default {
 
     const json = (request.headers.get("content-type") ?? "").includes("application/json");
     const input = await readBody(request, json);
+    const r: Replying = { json, env, cors };
     if (!input) {
-      return reply(json, env, cors, 400, "The form could not be read.");
+      return reply(r, 400, "The form could not be read.");
     }
     const parsed = parseSignup(input);
     if (parsed.kind === "invalid") {
-      return reply(json, env, cors, 400, parsed.error);
+      return reply(r, 400, parsed.error);
     }
     if (parsed.kind === "signup") {
       try {
         await save(env.DB, parsed.signup, request);
       } catch {
-        return reply(json, env, cors, 500, "The waitlist is not taking signups right now.");
+        return reply(r, 500, "The waitlist is not taking signups right now.");
       }
     }
-    return reply(json, env, cors, 200);
+    return reply(r, 200);
   },
 };

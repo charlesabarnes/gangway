@@ -138,7 +138,10 @@ const lines = (out: string[], code = 0) =>
 describe("the service", () => {
   test("a query runs in the add-on container and is audited without its results", async () => {
     const { s, p, data, seen } = await withPostgres(lines(["n,secret_value", "1,hunter2"]));
-    const r = await data.query(ACTOR, p.id, "postgres", "select n, secret_value from t", false);
+    const r = await data.query(ACTOR, p.id, "postgres", {
+      text: "select n, secret_value from t",
+      write: false,
+    });
     expect(r).toMatchObject({
       columns: ["n", "secret_value"],
       rows: [["1", "hunter2"]],
@@ -182,17 +185,20 @@ describe("the service", () => {
       yield { type: "exit", code: 0, signal: null };
     });
     expect(
-      (await data.rows(ACTOR, p.id, "postgres", { schema: "public", name: "visits" }, 50, 0)).rows,
+      (
+        await data.rows(ACTOR, p.id, "postgres", {
+          table: { schema: "public", name: "visits" },
+          limit: 50,
+          offset: 0,
+        })
+      ).rows,
     ).toEqual([["7"]]);
     await expect(
-      data.rows(
-        ACTOR,
-        p.id,
-        "postgres",
-        { schema: "public", name: "users; drop table visits" },
-        50,
-        0,
-      ),
+      data.rows(ACTOR, p.id, "postgres", {
+        table: { schema: "public", name: "users; drop table visits" },
+        limit: 50,
+        offset: 0,
+      }),
     ).rejects.toMatchObject({ code: "not_found" });
   });
 
@@ -202,16 +208,20 @@ describe("the service", () => {
       yield { type: "exit", code: 1, signal: null };
     });
     await expect(
-      data.query(ACTOR, p.id, "postgres", "select * from nope", false),
+      data.query(ACTOR, p.id, "postgres", { text: "select * from nope", write: false }),
     ).rejects.toMatchObject({
       code: "unprocessable",
       message: expect.stringContaining("does not exist"),
     });
-    await expect(data.query(ACTOR, p.id, "redis", "GET x", false)).rejects.toMatchObject({
+    await expect(
+      data.query(ACTOR, p.id, "redis", { text: "GET x", write: false }),
+    ).rejects.toMatchObject({
       code: "not_found",
     });
     s.ctx.states.transition(p.id, "asleep");
-    await expect(data.query(ACTOR, p.id, "postgres", "select 1", false)).rejects.toMatchObject({
+    await expect(
+      data.query(ACTOR, p.id, "postgres", { text: "select 1", write: false }),
+    ).rejects.toMatchObject({
       code: "conflict",
     });
   });
@@ -225,12 +235,15 @@ describe("the service", () => {
       }
       yield { type: "exit", code: signal?.aborted ? 137 : 0, signal: null };
     });
-    const r = await data.query(ACTOR, p.id, "postgres", "select big", false);
+    const r = await data.query(ACTOR, p.id, "postgres", { text: "select big", write: false });
     expect(r.truncated).toBe(true);
     const many = await withPostgres(
       lines(["n", ...Array.from({ length: 1500 }, (_, i) => String(i))]),
     );
-    const m = await many.data.query(ACTOR, many.p.id, "postgres", "select n", false);
+    const m = await many.data.query(ACTOR, many.p.id, "postgres", {
+      text: "select n",
+      write: false,
+    });
     expect(m.rows).toHaveLength(1000);
     expect(m.truncated).toBe(true);
   });
@@ -244,9 +257,11 @@ describe("the service", () => {
       await gate;
       yield { type: "exit", code: 0, signal: null };
     });
-    const first = data.query(ACTOR, p.id, "postgres", "select pg_sleep(1)", false);
+    const first = data.query(ACTOR, p.id, "postgres", { text: "select pg_sleep(1)", write: false });
     await Bun.sleep(5);
-    await expect(data.query(ACTOR, p.id, "postgres", "select 1", false)).rejects.toMatchObject({
+    await expect(
+      data.query(ACTOR, p.id, "postgres", { text: "select 1", write: false }),
+    ).rejects.toMatchObject({
       code: "conflict",
     });
     release();
@@ -256,12 +271,16 @@ describe("the service", () => {
 
   test("redis writes are refused read-only before anything runs", async () => {
     const { data, seen, p } = await withPostgres(lines([]));
-    await expect(data.query(ACTOR, p.id, "postgres", "", false)).rejects.toMatchObject({
+    await expect(
+      data.query(ACTOR, p.id, "postgres", { text: "", write: false }),
+    ).rejects.toMatchObject({
       code: "unprocessable",
     });
     expect(seen).toHaveLength(0);
     // Refused by the read allowlist before anything is looked up or run.
-    await expect(data.query(ACTOR, p.id, "redis", "FLUSHALL", false)).rejects.toMatchObject({
+    await expect(
+      data.query(ACTOR, p.id, "redis", { text: "FLUSHALL", write: false }),
+    ).rejects.toMatchObject({
       code: "unprocessable",
     });
   });

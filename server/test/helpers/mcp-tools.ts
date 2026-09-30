@@ -37,13 +37,10 @@ export function setupTools(o: { uploads?: { maxBytes?: number } } = {}) {
     : undefined;
   const deploys = new IdempotentDeploys(s.ctx, new IdempotencyRepo(s.db, s.ctx.now));
   const projects = new ProjectsRepo(s.db, s.ctx.now);
-  const secrets = new Secrets(
-    projects,
-    new MemorySettingsStore(),
-    new SecretBox(randomBytes(32)),
-    s.ctx.audit,
-    s.ctx.previews,
-  );
+  const secrets = new Secrets(projects, new MemorySettingsStore(), new SecretBox(randomBytes(32)), {
+    audit: s.ctx.audit,
+    previews: s.ctx.previews,
+  });
   s.ctx.secrets = secrets;
   s.ctx.secretsFor = (id, clearance) => secrets.valuesFor(id, clearance);
   const secretUploads = new SecretUploads({

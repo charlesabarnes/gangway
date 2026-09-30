@@ -63,12 +63,15 @@ describe("the editor's random themes", () => {
   });
 
   // A seeded generator, so a failure names a seed that reproduces it.
-  const seeded = (seed: number) => () => {
-    // mulberry32
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+  const seeded = (seed: number) => {
+    let state = seed;
+    return () => {
+      // mulberry32
+      state = (state + 0x6d2b79f5) | 0;
+      let t = Math.imul(state ^ (state >>> 15), 1 | state);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+    };
   };
 
   test("are readable themes the server takes, and nearly never the same twice", () => {
