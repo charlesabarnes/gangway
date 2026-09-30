@@ -60,6 +60,18 @@ It needs Unraid's VM service (**Settings → VM Manager**) and hardware virtuali
 The VM's CPUs, memory (4096 MB), disk (40G), network and an SSH key for the `debian` user are
 under **Show more settings**.
 
+### VM Manager fails to start after a reboot
+
+Templates from before 2026-09-30 mounted libvirt's socket file, `/var/run/libvirt/libvirt-sock`.
+Docker starts before libvirt when Unraid boots, so it makes an empty directory at that path, and
+libvirt can no longer create its socket: **Settings → VM Manager** shows the service as stopped.
+Newer templates mount the `/var/run/libvirt` folder instead. On an older install:
+
+1. Edit the gangway-inabox container, and set **Libvirt** to `/var/run/libvirt` on both the host
+   and the container side. Apply.
+2. If the VM service is already stopped, run `rmdir /var/run/libvirt/libvirt-sock` in a terminal
+   on the server, then start the service again in **Settings → VM Manager**.
+
 ## gangway
 
 gangway on Unraid's own Docker, with host networking and the Docker socket. Previews run as
