@@ -57,7 +57,7 @@ async function boot(): Promise<void> {
   chrome();
   // Drawn, in its fonts; a timer, as browsers hold rAF back in a frame not yet shown.
   await new Promise((r) => setTimeout(r, 0));
-  await document.fonts?.ready;
+  await document.fonts.ready;
   document.dispatchEvent(new Event("gw-drawn"));
 }
 

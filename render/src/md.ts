@@ -8,12 +8,8 @@ import {
   type Block,
   type Piece,
 } from "@gangway/shared/artifact/grammar";
-import {
-  ARROW_LINE,
-  ROOT_TAG,
-  type ArtifactKind,
-  type RetiredKind,
-} from "@gangway/shared/artifact/vocab";
+import { ARROW_LINE, ROOT_TAG } from "@gangway/shared/artifact/vocab";
+import { must } from "@gangway/shared/must";
 import { marked } from "marked";
 
 export const esc = (s: string) =>
@@ -114,12 +110,14 @@ function container(b: Extract<Block, { type: "container" }>): string {
       .join("")}</gw-facts>`;
   }
   if (b.name === "columns") {
-    const halves: string[][] = [[]];
+    let half: string[] = [];
+    const halves = [half];
     for (const l of b.raw) {
       if (l.trim() === "+++") {
-        halves.push([]);
+        half = [];
+        halves.push(half);
       } else {
-        halves.at(-1)!.push(l);
+        half.push(l);
       }
     }
     return `<gw-columns${attrText(b.attrs)}>${halves.map((h) => `<div>${render(scan(h))}</div>`).join("")}</gw-columns>`;
@@ -192,9 +190,10 @@ function split(p: Piece): { body: string[]; notes: string[] } {
   if (i === -1) {
     return { body: p.lines, notes: [] };
   }
+  const [first = "", ...rest] = p.lines.slice(i);
   return {
     body: p.lines.slice(0, i),
-    notes: [p.lines[i]!.replace(/^notes:\s*/i, ""), ...p.lines.slice(i + 1)],
+    notes: [first.replace(/^notes:\s*/i, ""), ...rest],
   };
 }
 
@@ -253,7 +252,9 @@ function frame(p: Piece): string {
   const body = p.lines.filter((l) => {
     const m = ARROW_LINE.exec(l.trim());
     if (m) {
-      links.push(`<gw-link${attrText({ to: m[1]!, ...(m[2] ? { label: m[2] } : {}) })}></gw-link>`);
+      links.push(
+        `<gw-link${attrText({ to: must(m[1], "a link's target"), ...(m[2] ? { label: m[2] } : {}) })}></gw-link>`,
+      );
     }
     return !m;
   });
@@ -262,8 +263,10 @@ function frame(p: Piece): string {
 
 export function compile(src: string): string {
   const { meta, body, offset } = frontMatter(src);
-  const kind = (meta["kind"] ?? "document") as ArtifactKind | RetiredKind;
-  const tag = ROOT_TAG[kind] ?? "gw-doc";
+  // The kind is whatever the author wrote, so it may name no root.
+  const roots: Partial<Record<string, string>> = ROOT_TAG;
+  const kind = meta["kind"] ?? "document";
+  const tag = roots[kind] ?? "gw-doc";
   const { kind: _kind, ...attrs } = meta;
   let inner: string;
   if (kind === "deck") {

@@ -1,3 +1,4 @@
+import { must } from "@gangway/shared/must";
 import { parseFlow, type FlowGraph, type FlowNode } from "@gangway/shared/artifact/flow";
 import {
   layoutFlow,
@@ -18,6 +19,7 @@ import {
   type Drawn,
 } from "./flow-draw.ts";
 import { layoutElk, loadElk } from "./flow-elk.ts";
+import { problem } from "./elements.ts";
 import { esc } from "./md.ts";
 
 const STEP_MS = 1400;
@@ -38,7 +40,7 @@ class Flow extends HTMLElement {
       return;
     }
     this.dataset["ready"] = "1";
-    const src = this.textContent ?? "";
+    const src = this.textContent;
     this.textContent = "";
     const title = this.getAttribute("title") ?? "";
     if (title) {
@@ -71,7 +73,7 @@ class Flow extends HTMLElement {
     }
 
     if (g.issues.length) {
-      this.#problem(g.issues.map((i) => `line ${i.line}: ${i.message}`).join("; "));
+      problem(this, g.issues.map((i) => `line ${i.line}: ${i.message}`).join("; "));
       if (g.nodes.length === 0) {
         return;
       }
@@ -81,7 +83,7 @@ class Flow extends HTMLElement {
     void document.fonts
       .load(useTheme(this))
       .catch(() => {})
-      .then(() => this.#render(plot, title));
+      .then(() => this.#render(g, plot, title));
   }
 
   /** Subgraphs need ELK; if it cannot load, the chart is drawn flat without its groups. */
@@ -98,7 +100,8 @@ class Flow extends HTMLElement {
           ),
         ];
       } catch (err) {
-        this.#problem(
+        problem(
+          this,
           `the layout engine did not load, so its groups are not drawn (${err instanceof Error ? err.message : String(err)})`,
         );
       }
@@ -116,25 +119,19 @@ class Flow extends HTMLElement {
     clearTimeout(this.#timer);
   }
 
-  #problem(msg: string) {
-    const p = document.createElement("div");
-    p.className = "gw-problem";
-    p.textContent = `<gw-flow>: ${msg}`;
-    this.prepend(p);
-    console.error(p.textContent);
-  }
-
-  async #render(plot: HTMLElement, title: string) {
-    const lines = new Map(this.#graph!.nodes.map((n) => [n.id, wrap(n.label)]));
-    const [g, layout] = await this.#layout(this.#graph!, (n) => sizeFor(lines.get(n.id)!, n));
-    const d = draw(plot, g, layout, lines, title);
+  async #render(graph: FlowGraph, plot: HTMLElement, title: string) {
+    const lines = new Map(graph.nodes.map((n) => [n.id, wrap(n.label)]));
+    const [g, layout] = await this.#layout(graph, (n) =>
+      sizeFor(lines.get(n.id) ?? wrap(n.label), n),
+    );
+    const d = draw(plot, { graph: g, layout, lines, title });
     this.#drawn = d;
     this.#fit(plot, d.svg, layout);
     if (this.hasAttribute("animate")) {
       this.classList.add("animate");
     }
     this.#wire(d, layout);
-    this.#reveal();
+    this.#reveal(d);
   }
 
   /**
@@ -150,9 +147,9 @@ class Flow extends HTMLElement {
       this.classList.add("wide");
     }
     const size = () => {
-      if (this.classList.contains("wide")) {
+      if (body && this.classList.contains("wide")) {
         const room = document.documentElement.clientWidth - this.getBoundingClientRect().left - 24;
-        this.style.width = `${Math.max(body!.clientWidth, Math.min(layout.width, room))}px`;
+        this.style.width = `${Math.max(body.clientWidth, Math.min(layout.width, room))}px`;
       }
       const avail = plot.clientWidth;
       if (avail <= 0) {
@@ -171,16 +168,16 @@ class Flow extends HTMLElement {
   }
 
   /** Draw in once the reader reaches it, rank by rank; then, with `animate`, keep it flowing. */
-  #reveal() {
+  #reveal(d: Drawn) {
     const show = () => {
       this.classList.add("drawn");
       if (!this.hasAttribute("animate") || reduced()) {
         return;
       }
-      const last = Math.max(0, ...this.#drawn!.edges.map((x) => x.e.rank));
+      const last = Math.max(0, ...d.edges.map((x) => x.e.rank));
       setTimeout(
         () => {
-          for (const x of this.#drawn!.edges) {
+          for (const x of d.edges) {
             x.path.removeAttribute("pathLength");
           }
           this.classList.add("flowing");
@@ -189,7 +186,8 @@ class Flow extends HTMLElement {
       );
     };
     if (reduced() || !("IntersectionObserver" in window)) {
-      return show();
+      show();
+      return;
     }
     const io = new IntersectionObserver(
       (entries) => {
@@ -207,12 +205,25 @@ class Flow extends HTMLElement {
   #wire(d: Drawn, layout: FlowLayout) {
     const byId = new Map(layout.nodes.map((n) => [n.id, n]));
     for (const [id, g] of d.nodes) {
-      const n = byId.get(id)!;
-      g.addEventListener("pointerenter", () => this.#highlight(id));
-      g.addEventListener("pointerleave", () => this.#highlight(null));
-      g.addEventListener("focus", () => this.#highlight(id));
-      g.addEventListener("blur", () => this.#highlight(null));
-      const act = () => this.#activate(n);
+      const n = byId.get(id);
+      if (!n) {
+        continue;
+      }
+      g.addEventListener("pointerenter", () => {
+        this.#highlight(id);
+      });
+      g.addEventListener("pointerleave", () => {
+        this.#highlight(null);
+      });
+      g.addEventListener("focus", () => {
+        this.#highlight(id);
+      });
+      g.addEventListener("blur", () => {
+        this.#highlight(null);
+      });
+      const act = () => {
+        this.#activate(n);
+      };
       g.addEventListener("click", act);
       g.addEventListener("keydown", (ev) => {
         if (ev.key !== "Enter" && ev.key !== " ") {
@@ -265,7 +276,7 @@ class Flow extends HTMLElement {
   }
 
   #showNote(n: FlowNode | undefined, hide = false) {
-    const box = this.#note!;
+    const box = must(this.#note, "the note box");
     if (!n?.note || hide) {
       box.hidden = true;
       delete box.dataset["id"];
@@ -304,7 +315,8 @@ class Flow extends HTMLElement {
 
   #toggle() {
     if (this.#timer) {
-      return this.#stop();
+      this.#stop();
+      return;
     }
     if (this.#step >= this.#order.length - 1) {
       this.#step = -1;
@@ -342,7 +354,7 @@ class Flow extends HTMLElement {
     this.classList.add("drawn");
     this.#step = step;
     const seen = new Set(this.#order.slice(0, step + 1));
-    const current = this.#order[step]!;
+    const current = this.#order[step];
     d.svg.classList.add("playing");
     d.svg.classList.remove("focus");
     for (const [id, g] of d.nodes) {
@@ -358,17 +370,17 @@ class Flow extends HTMLElement {
       }
     }
     if (into) {
-      this.#travel(into.path);
+      this.#travel(into);
     }
     const count = this.#controls?.querySelector('[data-part="count"]');
     if (count) {
       count.textContent = `${step + 1} / ${this.#order.length}`;
     }
-    this.#showNote(this.#graph!.nodes.find((n) => n.id === current));
+    this.#showNote(this.#graph?.nodes.find((n) => n.id === current));
   }
 
   /** A dot runs along the edge into the step, so the eye follows the flow. */
-  #travel(path: SVGPathElement) {
+  #travel({ path, g }: Drawn["edges"][number]) {
     for (const old of this.querySelectorAll(".runner")) {
       old.remove();
     }
@@ -376,9 +388,11 @@ class Flow extends HTMLElement {
       return;
     }
     const len = path.getTotalLength();
-    const dot = svg("circle", { r: 5, class: "runner" }, path.parentElement!);
+    const dot = svg("circle", { r: 5, class: "runner" }, g);
     // A hidden tab runs no animation frames; the dot must not outlive its step.
-    setTimeout(() => dot.remove(), 900);
+    setTimeout(() => {
+      dot.remove();
+    }, 900);
     const t0 = performance.now();
     const frame = (t: number) => {
       const k = Math.min(1, (t - t0) / 650);

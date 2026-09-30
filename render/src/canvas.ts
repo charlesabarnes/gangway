@@ -1,29 +1,27 @@
 import {
   bounds,
   CANVAS_GAP,
-  connector,
   fit,
   FRAME_WIDTH,
   layoutFrames,
   type Box,
   type CanvasLayout,
 } from "@gangway/shared/artifact/canvas";
+import { must } from "@gangway/shared/must";
+import { drawArrows, MAP_H, MAP_W, paintMap, type View } from "./canvas-draw.ts";
 import { rootSettings } from "./elements.ts";
 import { svg } from "./flow-draw.ts";
 import { esc } from "./md.ts";
 
 const MIN = 0.05;
 const MAX = 4;
-const MAP_W = 180;
-const MAP_H = 120;
 const INTERACTIVE = "a,button,input,select,textarea,summary,label,[contenteditable],gw-flow svg";
 
-type View = { k: number; x: number; y: number };
-
-const num = (v: string | null, d?: number) => {
+const num = (v: string | null) => {
   const n = v === null ? NaN : Number(v);
-  return Number.isFinite(n) ? n : d;
+  return Number.isFinite(n) ? n : undefined;
 };
+const numOr = (v: string | null, d: number) => num(v) ?? d;
 
 /** A board of frames the reader pans and zooms. */
 class Canvas extends HTMLElement {
@@ -43,7 +41,9 @@ class Canvas extends HTMLElement {
     }
     this.dataset["ready"] = "1";
     rootSettings(this);
-    queueMicrotask(() => this.#build());
+    queueMicrotask(() => {
+      this.#build();
+    });
   }
 
   #build() {
@@ -65,11 +65,21 @@ class Canvas extends HTMLElement {
       this.classList.add("gw-list");
     }
     this.#layout();
-    void document.fonts?.ready.then(() => this.#layout());
+    void document.fonts.ready.then(() => {
+      this.#layout();
+    });
     for (const img of this.querySelectorAll("img")) {
-      img.addEventListener("load", () => this.#layout(), { once: true });
+      img.addEventListener(
+        "load",
+        () => {
+          this.#layout();
+        },
+        { once: true },
+      );
     }
-    const sized = new ResizeObserver(() => this.#layout());
+    const sized = new ResizeObserver(() => {
+      this.#layout();
+    });
     for (const f of this.#frames) {
       sized.observe(f);
     }
@@ -87,7 +97,7 @@ class Canvas extends HTMLElement {
       if (f.getAttribute("frame") !== "window") {
         continue;
       }
-      const w = num(f.getAttribute("w"), FRAME_WIDTH)!;
+      const w = numOr(f.getAttribute("w"), FRAME_WIDTH);
       f.style.zoom = list && room > 0 && room < w ? String(room / w) : "";
     }
   }
@@ -127,7 +137,7 @@ class Canvas extends HTMLElement {
     const title = f.getAttribute("title") ?? f.id;
     label.innerHTML = `<a href="#${esc(f.id)}">${esc(title)}</a>`;
     f.replaceChildren(label, body, ...links);
-    f.style.width = `${num(f.getAttribute("w"), FRAME_WIDTH)}px`;
+    f.style.width = `${numOr(f.getAttribute("w"), FRAME_WIDTH)}px`;
     const h = num(f.getAttribute("h"));
     if (h !== undefined) {
       f.style.height = `${h}px`;
@@ -152,7 +162,7 @@ class Canvas extends HTMLElement {
             )
             .join("")}</select>`
         : "");
-    this.#zoom = c.querySelector(".gw-zoom")!;
+    this.#zoom = must(c.querySelector<HTMLElement>(".gw-zoom"), "the zoom button");
     c.addEventListener("click", (e) => {
       const act = (e.target as Element).closest<HTMLElement>("[data-do]")?.dataset["do"];
       if (act === "in") {
@@ -209,16 +219,18 @@ class Canvas extends HTMLElement {
     }
     this.#boxes = layoutFrames(specs, {
       layout: (this.getAttribute("layout") as CanvasLayout | null) ?? "grid",
-      columns:
-        num(this.getAttribute("columns"), Math.min(4, Math.ceil(Math.sqrt(specs.length)))) ?? 3,
-      gap: num(this.getAttribute("gap"), CANVAS_GAP) ?? CANVAS_GAP,
+      columns: numOr(this.getAttribute("columns"), Math.min(4, Math.ceil(Math.sqrt(specs.length)))),
+      gap: numOr(this.getAttribute("gap"), CANVAS_GAP),
     });
     for (const f of this.#frames) {
-      const b = this.#boxes.get(f.id)!;
+      const b = this.#boxes.get(f.id);
+      if (!b) {
+        continue;
+      }
       f.style.left = `${b.x}px`;
       f.style.top = `${b.y}px`;
     }
-    this.#arrows();
+    drawArrows(this.#links, this.#frames, this.#boxes);
     if (!this.#fitted) {
       this.#fitted = true;
       const id = decodeURIComponent(location.hash.slice(1));
@@ -227,37 +239,6 @@ class Canvas extends HTMLElement {
       }
     }
     this.#paint();
-  }
-
-  #arrows() {
-    for (const old of this.#links.querySelectorAll("g")) {
-      old.remove();
-    }
-    const world = bounds(this.#boxes.values());
-    this.#links.setAttribute("width", String(world.x + world.w + 200));
-    this.#links.setAttribute("height", String(world.y + world.h + 200));
-    for (const f of this.#frames) {
-      for (const l of f.querySelectorAll(":scope > gw-link")) {
-        const a = this.#boxes.get(f.id);
-        const b = this.#boxes.get(l.getAttribute("to") ?? "");
-        if (!a || !b) {
-          continue;
-        }
-        const c = connector(a, b);
-        const g = svg("g", { class: "gw-arrow" }, this.#links);
-        svg("path", { d: c.d, "marker-end": "url(#gw-canvas-arrow)" }, g);
-        const text = l.getAttribute("label");
-        if (text) {
-          const t = svg("text", { x: c.mid.x, y: c.mid.y }, g);
-          t.textContent = text;
-          const w = t.getComputedTextLength?.() || text.length * 7;
-          g.insertBefore(
-            svg("rect", { x: c.mid.x - w / 2 - 6, y: c.mid.y - 11, width: w + 12, height: 22 }),
-            t,
-          );
-        }
-      }
-    }
   }
 
   #listen() {
@@ -286,7 +267,8 @@ class Canvas extends HTMLElement {
       const ps = [...pointers.values()];
       const cx = ps.reduce((s, p) => s + p.x, 0) / ps.length;
       const cy = ps.reduce((s, p) => s + p.y, 0) / ps.length;
-      const d = ps.length > 1 ? Math.hypot(ps[0]!.x - ps[1]!.x, ps[0]!.y - ps[1]!.y) : 0;
+      const [p, q] = ps;
+      const d = p && q ? Math.hypot(p.x - q.x, p.y - q.y) : 0;
       if (last) {
         const v = { ...this.#view, x: this.#view.x + cx - last.x, y: this.#view.y + cy - last.y };
         this.#set(v, false);
@@ -323,7 +305,9 @@ class Canvas extends HTMLElement {
       },
       { passive: false },
     );
-    window.addEventListener("keydown", (e) => this.#key(e));
+    window.addEventListener("keydown", (e) => {
+      this.#key(e);
+    });
     window.addEventListener("hashchange", () =>
       this.#focus(decodeURIComponent(location.hash.slice(1)), true),
     );
@@ -333,8 +317,9 @@ class Canvas extends HTMLElement {
     if (e.target instanceof Element && e.target.closest("input,textarea,select")) {
       return;
     }
-    const pan = (x: number, y: number) =>
+    const pan = (x: number, y: number) => {
       this.#set({ ...this.#view, x: this.#view.x + x, y: this.#view.y + y }, true);
+    };
     if (e.key === "+" || e.key === "=") {
       this.#zoomBy(1.25);
     } else if (e.key === "-") {
@@ -409,27 +394,7 @@ class Canvas extends HTMLElement {
     this.#port.style.backgroundSize = `${80 * k}px ${80 * k}px, ${80 * k}px ${80 * k}px, ${fine}px ${fine}px, ${fine}px ${fine}px`;
     this.#port.style.backgroundPosition = `${x}px ${y}px`;
     this.#zoom.textContent = `${Math.round(k * 100)}%`;
-    this.#paintMap();
-  }
-
-  #paintMap() {
-    const world = bounds(this.#boxes.values());
-    if (world.w === 0) {
-      return;
-    }
-    const s = Math.min(MAP_W / world.w, MAP_H / world.h);
-    const ox = (MAP_W - world.w * s) / 2 - world.x * s;
-    const oy = (MAP_H - world.h * s) / 2 - world.y * s;
-    const { k, x, y } = this.#view;
-    const rects = [...this.#boxes.values()]
-      .map(
-        (b) =>
-          `<rect class="f" x="${ox + b.x * s}" y="${oy + b.y * s}" width="${b.w * s}" height="${b.h * s}"/>`,
-      )
-      .join("");
-    const vw = this.#port.clientWidth / k;
-    const vh = this.#port.clientHeight / k;
-    this.#map.innerHTML = `${rects}<rect class="v" x="${ox + (-x / k) * s}" y="${oy + (-y / k) * s}" width="${vw * s}" height="${vh * s}"/>`;
+    paintMap(this.#map, this.#boxes, this.#view, this.#port);
   }
 }
 

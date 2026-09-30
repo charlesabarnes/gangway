@@ -54,8 +54,7 @@ export function useTheme(el: Element): string {
 let counter = 0;
 let canvas: CanvasRenderingContext2D | null = null;
 
-export function measure(text: string, font?: string): number {
-  font ??= FONT;
+export function measure(text: string, font = FONT): number {
   canvas ??= document.createElement("canvas").getContext("2d");
   if (!canvas) {
     return text.length * 7;
@@ -64,11 +63,17 @@ export function measure(text: string, font?: string): number {
   return canvas.measureText(text).width;
 }
 
+function kindOf(raw: string, i: number): Line["kind"] {
+  if (i === 0) {
+    return "name";
+  }
+  return /^\s*`[^`]+`\s*$/.test(raw) ? "code" : "detail";
+}
+
 export function wrap(label: string): Line[] {
   const out: Line[] = [];
   label.split("\n").forEach((raw, i) => {
-    const code = i > 0 && /^\s*`[^`]+`\s*$/.test(raw);
-    const kind: Line["kind"] = i === 0 ? "name" : code ? "code" : "detail";
+    const kind = kindOf(raw, i);
     const { font, max } = LOOK[kind];
     let cur = "";
     for (const word of raw.replace(/`/g, "").split(/\s+/).filter(Boolean)) {
@@ -116,7 +121,8 @@ export function sizeFor(lines: Line[], n: FlowNode): Size {
       return { w: w + h * 0.6, h };
     case "cylinder":
       return { w, h: h + 12 };
-    default:
+    case "box":
+    case "round":
       return { w, h };
   }
 }
@@ -154,14 +160,23 @@ function shape(n: PlacedNode, g: SVGGElement): void {
       );
       return;
     }
-    default: {
-      const rx = n.shape === "stadium" ? h / 2 : n.shape === "round" ? RADIUS + 10 : RADIUS || 2;
-      svg("rect", { ...at, rx: Math.min(rx, h / 2) }, g);
-    }
+    case "stadium":
+      svg("rect", { ...at, rx: h / 2 }, g);
+      return;
+    case "round":
+      svg("rect", { ...at, rx: Math.min(RADIUS + 10, h / 2) }, g);
+      return;
+    case "box":
+      svg("rect", { ...at, rx: Math.min(RADIUS || 2, h / 2) }, g);
   }
 }
 
-function text(lines: Line[], x: number, y: number, g: SVGGElement, cls: string): void {
+function text(
+  lines: Line[],
+  { x, y }: { x: number; y: number },
+  g: SVGGElement,
+  cls: string,
+): void {
   const t = svg("text", { x, y, class: cls }, g);
   let at = y - lines.reduce((s, l) => s + LOOK[l.kind].height, 0) / 2;
   for (const l of lines) {
@@ -199,8 +214,9 @@ function arrowheads(defs: SVGElement, id: string): (tone: string | null) => stri
   const heads = new Map<string, string>();
   return (tone) => {
     const key = tone ?? "ink";
-    if (heads.has(key)) {
-      return heads.get(key)!;
+    const made = heads.get(key);
+    if (made) {
+      return made;
     }
     const ref = `${id}-a-${key}`;
     const m = svg(
@@ -223,12 +239,21 @@ function arrowheads(defs: SVGElement, id: string): (tone: string | null) => stri
   };
 }
 
+function nodeRole(n: PlacedNode, acts: boolean): string {
+  if (n.link) {
+    return "link";
+  }
+  return acts ? "button" : "img";
+}
+
 export function draw(
   host: HTMLElement,
-  graph: FlowGraph,
-  layout: FlowLayout,
-  lines: Map<string, Line[]>,
-  title: string,
+  {
+    graph,
+    layout,
+    lines,
+    title,
+  }: { graph: FlowGraph; layout: FlowLayout; lines: Map<string, Line[]>; title: string },
 ): Drawn {
   const id = `gwf${++counter}`;
   const s = svg("svg", {
@@ -282,7 +307,7 @@ export function draw(
       {
         class: `node ${n.shape}${n.tone ? ` tone-${n.tone}` : ""}${acts ? " acts" : ""}`,
         tabindex: 0,
-        role: n.link ? "link" : acts ? "button" : "img",
+        role: nodeRole(n, acts),
         "aria-label": `${plain(n.label)}${n.note ? `. ${n.note}` : ""}`,
         "data-id": n.id,
       },
@@ -291,7 +316,7 @@ export function draw(
     g.style.setProperty("--d", `${n.rank * 140}ms`);
     g.style.transformOrigin = `${n.x}px ${n.y}px`;
     shape(n, g);
-    text(lines.get(n.id) ?? wrap(n.label), n.x, n.y, g, "label");
+    text(lines.get(n.id) ?? wrap(n.label), n, g, "label");
     if (n.note) {
       svg("circle", { cx: n.x + n.w / 2 - 7, cy: n.y - n.h / 2 + 7, r: 3, class: "has-note" }, g);
     }

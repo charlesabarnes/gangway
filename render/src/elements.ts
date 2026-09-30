@@ -69,7 +69,7 @@ function parts(doc: HTMLElement): void {
       body.append(n);
     }
   }
-  if (!lead.textContent?.trim() && lead.children.length === 0) {
+  if (!lead.textContent.trim() && lead.children.length === 0) {
     out.shift();
   }
   doc.append(...out);
@@ -197,7 +197,8 @@ class Facts extends HTMLElement {
         return;
       }
       const row = document.createElement("div");
-      const dd = kids[i + 1]?.localName === "dd" ? [kids[i + 1]!] : [];
+      const next = kids[i + 1];
+      const dd = next?.localName === "dd" ? [next] : [];
       row.append(k, ...dd);
       this.appendChild(row);
     });
@@ -209,7 +210,7 @@ class Chart extends HTMLElement {
     if (!once(this)) {
       return;
     }
-    const csv = this.textContent ?? "";
+    const csv = this.textContent;
     this.textContent = "";
     if (this.hasAttribute("title")) {
       this.insertAdjacentHTML(
@@ -236,7 +237,8 @@ class Chart extends HTMLElement {
         text = await (await fetch(`/${attr(this, "src").replace(/^\//, "")}`)).text();
       }
     } catch (err) {
-      return problem(this, `could not load ${attr(this, "src")}: ${(err as Error).message}`);
+      problem(this, `could not load ${attr(this, "src")}: ${(err as Error).message}`);
+      return;
     }
     const labels = Object.fromEntries(
       attr(this, "labels")

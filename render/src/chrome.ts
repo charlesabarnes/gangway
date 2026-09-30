@@ -58,14 +58,15 @@ function toggle(): HTMLElement {
   t.setAttribute("role", "group");
   t.setAttribute("aria-label", "Theme");
   let current = stored() ?? "system";
-  const paint = () =>
-    [...t.children].forEach((b, i) =>
-      b.setAttribute("aria-pressed", String(OPTIONS[i]?.[0] === current)),
-    );
+  const paint = () => {
+    [...t.children].forEach((b, i) => {
+      b.setAttribute("aria-pressed", String(OPTIONS[i]?.[0] === current));
+    });
+  };
   for (const [id, glyph] of OPTIONS) {
     const b = document.createElement("button");
     b.type = "button";
-    b.title = `${id[0]!.toUpperCase()}${id.slice(1)} theme`;
+    b.title = `${id.charAt(0).toUpperCase()}${id.slice(1)} theme`;
     b.textContent = glyph;
     b.onclick = () => {
       current = id;

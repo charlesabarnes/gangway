@@ -1,6 +1,8 @@
+import { must } from "@gangway/shared/must";
+
 const NS = "http://www.w3.org/2000/svg";
 const COLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)", "var(--s6)"];
-const color = (i: number) => COLORS[i % COLORS.length]!;
+const color = (i: number) => must(COLORS[i % COLORS.length], "a series colour");
 
 export type Row = Record<string, string | number>;
 export type ChartConfig = {
@@ -119,6 +121,8 @@ function tipper(host: HTMLElement) {
 const num = (v: unknown) => (typeof v === "number" ? v : 0);
 const label = (s: string) => s.replace(/^\d{4}-(\d\d)-(\d\d)$/, "$1/$2");
 
+type Plot = { host: HTMLElement; rows: Row[]; ys: string[]; cfg: ChartConfig };
+
 type Frame = {
   el: SVGSVGElement;
   g: SVGGElement;
@@ -128,14 +132,7 @@ type Frame = {
   y: (v: number) => number;
 };
 
-function frame(
-  host: HTMLElement,
-  height: number,
-  rows: Row[],
-  ys: string[],
-  cfg: ChartConfig,
-  endLabel: boolean,
-): Frame {
+function frame({ host, rows, ys, cfg }: Plot, height: number, endLabel: boolean): Frame {
   const width = Math.max(240, host.clientWidth || 600);
   const vals = rows.flatMap((r) =>
     cfg.stacked ? [ys.reduce((t, k) => t + num(r[k]), 0)] : ys.map((k) => num(r[k])),
@@ -146,8 +143,8 @@ function frame(
   const t = fit ? ticks(hi0, lo0) : ticks(Math.max(hi0, 0), Math.min(lo0, 0));
   const left = Math.max(...t.map((v) => fmt(v, cfg.format).length)) * 7 + 12;
   const right = endLabel ? 56 : 10;
-  const lo = t[0]!;
-  const hi = t.at(-1)!;
+  const lo = must(t[0], "a tick");
+  const hi = must(t.at(-1), "a tick");
   const y = (v: number) => 8 + (1 - (v - lo) / (hi - lo || 1)) * (height - 34);
   const el = svg("svg", { width, height, role: "img" });
   const g = svg("g", { class: "axis" }, el);
@@ -165,20 +162,21 @@ function frame(
   return { el, g, width, left, right, y };
 }
 
-function xLabels(f: Frame, rows: Row[], x: string, px: (i: number) => number, height: number) {
+function xLabels(f: Frame, { rows, cfg }: Plot, px: (i: number) => number, height: number) {
   const every = Math.ceil(rows.length / Math.max(1, Math.floor((f.width - f.left) / 70)));
   rows.forEach((r, i) => {
     if (i % every === 0) {
       svg("text", { x: px(i), y: height - 8, "text-anchor": "middle" }, f.g).textContent = label(
-        String(r[x]),
+        String(r[cfg.x]),
       );
     }
   });
 }
 
-function bars(host: HTMLElement, rows: Row[], ys: string[], cfg: ChartConfig): Element {
+function bars(p: Plot): Element {
+  const { host, rows, ys, cfg } = p;
   const height = cfg.height ?? 260;
-  const f = frame(host, height, rows, ys, cfg, false);
+  const f = frame(p, height, false);
   const band = (f.width - f.left - f.right) / rows.length;
   const groups = cfg.stacked ? 1 : ys.length;
   const w = Math.max(2, Math.min(24, (band * 0.7) / groups - 2));
@@ -206,29 +204,24 @@ function bars(host: HTMLElement, rows: Row[], ys: string[], cfg: ChartConfig): E
         },
         f.el,
       );
-      rect.addEventListener("pointerenter", () =>
+      rect.addEventListener("pointerenter", () => {
         tip.show(
           x0 + w / 2,
           top,
           `${esc(r[cfg.x])} · ${esc(cfg.labels[k] ?? k)} <b>${esc(fmt(v, cfg.format))}</b>`,
-        ),
-      );
+        );
+      });
       rect.addEventListener("pointerleave", tip.hide);
     });
   });
-  xLabels(f, rows, cfg.x, (i) => f.left + band * i + band / 2, height);
+  xLabels(f, p, (i) => f.left + band * i + band / 2, height);
   return f.el;
 }
 
-function lines(
-  host: HTMLElement,
-  rows: Row[],
-  ys: string[],
-  cfg: ChartConfig,
-  filled: boolean,
-): Element {
+function lines(p: Plot, filled: boolean): Element {
+  const { host, rows, ys, cfg } = p;
   const height = cfg.height ?? 240;
-  const f = frame(host, height, rows, ys, cfg, ys.length === 1);
+  const f = frame(p, height, ys.length === 1);
   const span = f.width - f.left - f.right;
   const px = (i: number) => f.left + (rows.length === 1 ? 0.5 : i / (rows.length - 1)) * span;
   ys.forEach((k, s) => {
@@ -251,13 +244,16 @@ function lines(
       );
     }
   });
-  xLabels(f, rows, cfg.x, px, height);
+  xLabels(f, p, px, height);
   const tip = tipper(host);
   const hit = svg("rect", { x: f.left, y: 0, width: span, height, fill: "transparent" }, f.el);
   hit.addEventListener("pointermove", (e) => {
     const at = (e.clientX - f.el.getBoundingClientRect().left - f.left) / span;
     const i = Math.max(0, Math.min(rows.length - 1, Math.round(at * (rows.length - 1))));
-    const r = rows[i]!;
+    const r = rows[i];
+    if (!r) {
+      return;
+    }
     tip.show(
       px(i),
       20,
@@ -336,11 +332,12 @@ export function drawChart(host: HTMLElement, rows: Row[], cfg: ChartConfig): voi
       .join("");
     host.appendChild(legend);
   }
+  const plot = { host, rows, ys, cfg };
   const make: Record<string, () => Element> = {
-    bar: () => bars(host, rows, ys, cfg),
-    line: () => lines(host, rows, ys, cfg, false),
-    area: () => lines(host, rows, ys, cfg, true),
-    donut: () => donut(rows, ys[0]!, cfg),
+    bar: () => bars(plot),
+    line: () => lines(plot, false),
+    area: () => lines(plot, true),
+    donut: () => donut(rows, ys[0] ?? "", cfg),
   };
   const draw = make[cfg.type];
   if (!draw) {
