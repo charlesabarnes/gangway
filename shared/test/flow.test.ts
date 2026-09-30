@@ -291,3 +291,11 @@ describe("flowcharts in artifact.md", () => {
     ]);
   });
 });
+
+describe("a labelled edge that never closes", () => {
+  test("is turned down in linear time, however long its run of spaces", () => {
+    const began = performance.now();
+    parseFlow(`flowchart LR\n  a -- label${" ".repeat(100_000)}nowhere`);
+    expect(performance.now() - began).toBeLessThan(500);
+  });
+});

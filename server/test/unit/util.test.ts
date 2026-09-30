@@ -4,6 +4,7 @@ import { ULID_RE, isUlid, ulid } from "../../src/util/ulid.ts";
 import { Logger, redact, redactString } from "../../src/logger.ts";
 import { AppError, notFound } from "../../src/errors.ts";
 import { readRegularFile } from "../../src/util/fs.ts";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -242,5 +243,11 @@ describe("readRegularFile", () => {
     expect(await readRegularFile(join(dir, "link"))).toBeNull();
     expect(await readRegularFile(dir)).toBeNull();
     expect(await readRegularFile(join(dir, "missing"))).toBeNull();
+  });
+
+  test("turns down a pipe with no writer instead of waiting on it", async () => {
+    const fifo = join(mkdtempSync(join(tmpdir(), "gw-fs-")), "pipe");
+    execFileSync("mkfifo", [fifo]);
+    expect(await readRegularFile(fifo)).toBeNull();
   });
 });

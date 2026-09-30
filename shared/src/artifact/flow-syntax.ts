@@ -44,14 +44,6 @@ function runOf(s: string, i: number, c: string): number {
   return j - i;
 }
 
-function spacedClose(s: string, i: number, close: (s: string, i: number) => number): number {
-  let j = i;
-  while (isSpace(s[j])) {
-    j++;
-  }
-  return j === i ? -1 : close(s, j);
-}
-
 /** "-- text -->", matched as /^open\s+(.+?)\s+close/ would be, without its backtracking. */
 function labelled(
   open: string,
@@ -69,13 +61,24 @@ function labelled(
       return null;
     }
     for (let e = start + 1; e <= s.length && !LINE_END.test(s.charAt(e - 1)); e++) {
-      const end = spacedClose(s, e, close);
+      let j = e;
+      while (isSpace(s[j])) {
+        j++;
+      }
+      if (j === e) {
+        continue;
+      }
+      const end = close(s, j);
       if (end !== -1) {
         return { len: end, label: s.slice(start, e) };
       }
+      // Every label ending inside this run of spaces meets the same failed closer, so skip them.
+      if (LINE_END.test(s.slice(e, j))) {
+        break;
+      }
+      e = j - 1;
     }
-    // No label ends in an arrow; the regex then gave some spaces back to make a blank label,
-    // which it can when three or more spaces lead up to the arrow.
+    // No label closes; with three or more spaces before the arrow the regex made a blank label.
     const end = close(s, start);
     for (let p = start - 2; p > open.length && end !== -1; p--) {
       if (!LINE_END.test(s.charAt(p))) {

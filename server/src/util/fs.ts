@@ -8,7 +8,10 @@ export async function readRegularFile(
   file: string,
   maxBytes = Infinity,
 ): Promise<RegularFile | null> {
-  const fh = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW).catch(() => null);
+  const fh = await open(
+    file,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  ).catch(() => null);
   if (!fh) {
     return null;
   }
