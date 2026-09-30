@@ -10,6 +10,9 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # Without this CodeRabbit skipped PRs into master as "not the default branch".
+    base_branches:
+      - "master"
   # Generated, vendored or lock files: nothing to review.
   path_filters:
     - "!bun.lock"
