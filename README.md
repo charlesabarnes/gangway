@@ -35,6 +35,11 @@ You get a URL in three ways, and all three produce the same kind of preview:
 It runs as a single process on a plain Docker host, with no Kubernetes. You self-host it on
 your own domain.
 
+I used AI extensively to build this application. I am a professional software engineer, so the
+architecture and general code direction has been determined and curated by me. This app is live in
+production for myself, but until the 1.0 release I can not guarantee there won't be rough edges.
+Please reach out if you have thoughts, comments, or concerns to share about this.
+
 https://github.com/user-attachments/assets/f53178ca-89fc-4ecf-b6b7-bf7490b57ac2
 
 ## What you get
