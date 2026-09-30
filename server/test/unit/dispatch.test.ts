@@ -372,6 +372,29 @@ describe("a private control plane", () => {
       expect((await dispatch(at(BASE, path), stranger)).status).toBe(200);
     expect((await dispatch(at(BASE, "/v1/previews"), stranger)).status).toBe(404);
   });
+
+  test("only a workflow's OIDC deploy or teardown call gets past the list", async () => {
+    const stranger = d("203.0.113.9");
+    const call = (method: string, path: string, authorization?: string) =>
+      new Request(`https://api.${BASE}${path}`, {
+        method,
+        headers: { host: `api.${BASE}`, ...(authorization ? { authorization } : {}) },
+      });
+    const jwt = "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJyZXBvIn0.c2ln";
+    for (const method of ["PUT", "DELETE"])
+      expect(
+        (await dispatch(call(method, "/v1/projects/site/pulls/12", jwt), stranger)).status,
+      ).toBe(200);
+    for (const [method, path, auth] of [
+      ["PUT", "/v1/projects/site/pulls/12", "Bearer gw_notajwt"],
+      ["PUT", "/v1/projects/site/pulls/12", undefined],
+      ["GET", "/v1/projects/site/pulls/12", jwt],
+      ["PUT", "/v1/projects/site", jwt],
+      ["PUT", "/v1/projects/site/pulls/12/x", jwt],
+      ["POST", "/v1/previews", jwt],
+    ] as const)
+      expect((await dispatch(call(method, path, auth), stranger)).status).toBe(404);
+  });
 });
 
 describe("rate limits and custom hostnames", () => {
