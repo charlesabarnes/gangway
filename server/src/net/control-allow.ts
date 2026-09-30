@@ -18,9 +18,7 @@ export function isPublicControlPath(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname) || pathname.startsWith(FONT_PATH);
 }
 
-// A pull-request workflow runs on GitHub's runners, from anywhere, and proves itself with the OIDC
-// JWT GitHub signs for that run; auth then holds it to this one route. gangway's own tokens and
-// sessions are not JWTs, so they still need an allowed address.
+// A PR workflow calls from GitHub's runners with an OIDC JWT; gangway's own tokens are not JWTs.
 const PULL_PREVIEW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
 const JWT_BEARER = /^Bearer\s+[\w-]+\.[\w-]+\.[\w-]+$/i;
 
