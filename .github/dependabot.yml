@@ -24,6 +24,8 @@ updates:
     cooldown: { default-days: 7 }
     groups:
       web: { update-types: [minor, patch] }
+      # Angular's packages pin each other as exact peers, so a fix to one only installs with all of them.
+      angular-security: { applies-to: security-updates, patterns: ["@angular/*"] }
 
   - package-ecosystem: docker
     directories: [/, /unraid/inabox]
