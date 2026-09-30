@@ -7,7 +7,7 @@
 
 # The web and render stages emit only JS, CSS and fonts, so they run on the build machine
 # rather than under emulation for each target platform.
-FROM --platform=$BUILDPLATFORM node:24-alpine AS web
+FROM --platform=$BUILDPLATFORM node:26-alpine AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
