@@ -1,0 +1,152 @@
+# gangway previews of gangway.sh and its docs, on demo.gangway.sh. Adapted from the workflow
+# gangway generates for a project: it builds .github/preview-site/Dockerfile (the site and docs as
+# pages.yml builds them, behind nginx) rather than the repository's own Dockerfile, which is
+# gangway itself, and runs only for pull requests that touch what Pages publishes.
+#
+# On every push to such a pull request this builds the image on GitHub's runners, pushes it to
+# GitHub's registry, and asks gangway to run it; when the pull request closes, it asks gangway to
+# tear the preview down. gangway trusts this run by its OIDC token, which GitHub signs for this
+# repository and this pull request: there is no secret to store.
+#
+# Pull requests from forks are skipped: GitHub gives their runs no OIDC token. The template,
+# visibility, TTL and runtime secrets are the project's, set in gangway.
+name: gangway preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    paths:
+      - "site/**"
+      - "guide/**"
+      - ".github/assets/screenshots/**"
+      - "scripts/build-site.ts"
+      - ".github/preview-site/**"
+      - ".github/workflows/gangway-preview.yml"
+
+concurrency:
+  group: gangway-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  GANGWAY_API: https://api.demo.gangway.sh
+  GANGWAY_PROJECT: gangway-site
+  # nginx in .github/preview-site listens here.
+  PORT: "8080"
+
+jobs:
+  build:
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: name
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/site-preview" >> "$GITHUB_OUTPUT"
+      - id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: .github/preview-site/Dockerfile
+          push: true
+          tags: ${{ steps.name.outputs.name }}:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+      - id: image
+        env:
+          NAME: ${{ steps.name.outputs.name }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: echo "ref=$NAME@$DIGEST" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only what gangway needs: an OIDC token, and a GITHUB_TOKEN that can read the image.
+    permissions:
+      id-token: write
+      packages: read
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - id: deploy
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          oidc=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$GANGWAY_API" | jq -r .value)
+          jq -n --arg image "$IMAGE" --arg sha "$SHA" --argjson port "$PORT" --arg u "$REGISTRY_USER" --arg p "$REGISTRY_TOKEN" \
+            '{image: $image, sha: $sha, port: $port, registry: {username: $u, password: $p}}' > body.json
+          code=$(curl -sS -o result.json -w '%{http_code}' -X PUT "$GANGWAY_API/v1/projects/$GANGWAY_PROJECT/pulls/$PR?wait=true" \
+            -H "Authorization: Bearer $oidc" -H 'content-type: application/json' --data @body.json)
+          rm -f body.json
+          jq '{state: .preview.state, url: .preview.urls[0].url, error: .preview.error, detail: .detail}' result.json
+          echo "url=$(jq -r '.preview.urls[0].url // empty' result.json)" >> "$GITHUB_OUTPUT"
+          test "$code" -lt 300
+
+  comment:
+    needs: [build, deploy]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          URL: ${{ needs.deploy.outputs.url }}
+          RESULT: ${{ needs.deploy.result }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          marker='<!-- gangway-preview -->'
+          if [ "$RESULT" = success ] && [ -n "$URL" ]; then
+            body=$(printf '%s\n**Preview ready:** %s (docs at [/docs/](%sdocs/))\n\n_Commit %s. Torn down when this pull request closes._' "$marker" "$URL" "$URL" "${SHA::7}")
+          else
+            body=$(printf '%s\n**Preview failed** for %s. [The run](%s) has gangway'"'"'s answer.' "$marker" "${SHA::7}" "$RUN")
+          fi
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
+
+  teardown:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+      pull-requests: write
+    steps:
+      - env:
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          oidc=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$GANGWAY_API" | jq -r .value)
+          curl -fsS -X DELETE "$GANGWAY_API/v1/projects/$GANGWAY_PROJECT/pulls/$PR" -H "Authorization: Bearer $oidc"
+          # The comment said "ready" with a URL that is now gone: say so instead.
+          marker='<!-- gangway-preview -->'
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$(printf '%s\n_Preview torn down: this pull request is closed._' "$marker")" > /dev/null
+          fi
