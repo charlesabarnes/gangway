@@ -3,9 +3,11 @@
  * Runs only with GANGWAY_REQUIRE_DOCKER=1, on a Linux host where gangway and Docker share 127.0.0.1.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { boot, type Running } from "../../src/boot.ts";
 import { loadConfig } from "../../src/config.ts";
-import { tempDir } from "../helpers/db.ts";
 import { client } from "../helpers/fake-daemon.ts";
 import { freePort } from "../helpers/free-port.ts";
 import { Logger } from "../../src/logger.ts";
@@ -45,6 +47,8 @@ const ours = (kind: "ps" | "network" | "volume") =>
   ).then((r) => lines(r.stdout));
 
 let running: Running | undefined;
+// Not tempDir(): its cleanup runs after each test, and this boot serves them all.
+const stateDir = mkdtempSync(join(tmpdir(), "gangway-it-"));
 let call: ReturnType<typeof client>;
 
 type Deployed = { status: number; id: string; state: string; text: string };
@@ -91,7 +95,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
   beforeAll(async () => {
     const config = loadConfig(
       {
-        GANGWAY_STATE_DIR: tempDir(),
+        GANGWAY_STATE_DIR: stateDir,
         GANGWAY_INSTANCE: INSTANCE,
         GANGWAY_LISTEN_ADDRESS: "127.0.0.1",
         GANGWAY_LISTEN_PORT: String(await freePort()),
@@ -114,6 +118,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
 
   afterAll(async () => {
     await running?.stop();
+    rmSync(stateDir, { recursive: true, force: true });
     // Whatever a failed test left behind; only this run's instance, never anything else.
     for (const c of await ours("ps")) {
       await docker("rm", "-f", "-v", c);
