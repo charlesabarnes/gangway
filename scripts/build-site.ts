@@ -59,4 +59,20 @@ for (const name of readdirSync(OUT, { recursive: true, encoding: "utf8" })) {
   });
   writeFileSync(page, html);
 }
+// A page's lastmod is its last commit; a shallow clone has no history, so it leaves them out.
+const git = (...args: string[]) =>
+  Bun.spawnSync(["git", ...args], { cwd: ROOT })
+    .stdout.toString()
+    .trim();
+const sitemap = path.join(OUT, "sitemap.xml");
+if (git("rev-parse", "--is-shallow-repository") === "false") {
+  const xml = readFileSync(sitemap, "utf8").replace(
+    /<loc>https:\/\/gangway\.sh\/([^<]*)<\/loc>/g,
+    (loc: string, page: string) => {
+      const date = git("log", "-1", "--format=%cs", "--", path.join("site", page || "index.html"));
+      return date ? `${loc}<lastmod>${date}</lastmod>` : loc;
+    },
+  );
+  writeFileSync(sitemap, xml);
+}
 console.log(`site built into ${path.relative(ROOT, OUT)}: ${tagged} links tagged`);
