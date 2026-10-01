@@ -181,10 +181,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
     const [ca, cb] = [await containerOf(a.id), await containerOf(b.id)];
     // The sanity check first: the request itself works, so a failure below is the network.
     expect((await fetchFrom(ca, "http://127.0.0.1:8080/")).stdout).toBe("ok");
-    const ip = await ipOf(cb);
-    trace(`from ${ca} to ${ip}`);
-    const across = await fetchFrom(ca, `http://${ip}:8080/`);
-    trace(`across: ${across.code} ${across.stderr}`);
+    const across = await fetchFrom(ca, `http://${await ipOf(cb)}:8080/`);
     expect(across.code).not.toBe(0);
   }, 180_000);
 
