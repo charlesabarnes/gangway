@@ -52,6 +52,9 @@ export async function buildImages(
   if (toBuild.length === 0) {
     return;
   }
+  const release = await ctx.buildSlots?.acquire(r.signal, () => {
+    p.log(`waiting for a build slot (${ctx.buildSlots?.waiting ?? 0} ahead)`);
+  });
   const id = buildId ?? ulid(ctx.now());
   ctx.builds.start({ id, previewId: p.id, services: toBuild });
   try {
@@ -64,6 +67,8 @@ export async function buildImages(
       e instanceof StepFailed ? e.exitCode : null,
     );
     throw e;
+  } finally {
+    release?.();
   }
 }
 

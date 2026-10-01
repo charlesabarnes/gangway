@@ -283,3 +283,32 @@ export function policyViolations(
     ...resourceViolations(project, doc),
   ];
 }
+
+function strings(v: unknown): string[] {
+  if (typeof v === "string") {
+    return [v];
+  }
+  return typeof v === "object" && v !== null ? Object.values(v).flatMap(strings) : [];
+}
+
+// Shorter values would match by chance inside a Dockerfile; whole they are still caught.
+const MIN_SUBSTRING = 6;
+
+/**
+ * `compose config` reads secrets as `.env`, so `${NAME}` in `build.args` or `dockerfile_inline`
+ * puts the value into the image's history, where anyone who can pull the image reads it.
+ */
+export function buildSecretViolations(doc: Json, secrets: Record<string, string>): string[] {
+  const values = Object.entries(secrets).filter(([, v]) => v !== "");
+  return Object.entries(obj(doc["services"])).flatMap(([name, raw]) => {
+    const inBuild = strings(obj(raw)["build"]);
+    return values
+      .filter(([, v]) =>
+        inBuild.some((s) => s === v || (v.length >= MIN_SUBSTRING && s.includes(v))),
+      )
+      .map(
+        ([key]) =>
+          `service "${name}": build uses the secret ${key} (secrets reach the running container only; read it at runtime)`,
+      );
+  });
+}

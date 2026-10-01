@@ -20,7 +20,7 @@ import { RouteTable } from "../../src/routing/table.ts";
 import { tempDb } from "./db.ts";
 import { seededHosts } from "./hosts.ts";
 import { silentLogger } from "./logger.ts";
-import { ACTOR } from "./preview-context.ts";
+import { ACTOR, ISOLATED_NETWORK } from "./preview-context.ts";
 
 const cmdOf = (argv: string[]) =>
   argv.find((a) => ["config", "build", "up", "ps", "down", "logs"].includes(a))!;
@@ -80,7 +80,7 @@ export function setupScriptedDeploy(script: Script = {}) {
     async capture(argv, _host, o): Promise<ComposeResult> {
       // The shared preview network is plumbing, not part of a stack's compose sequence.
       if (argv[1] === "network") {
-        return { code: 0, stdout: "[]", stderr: "", signal: null };
+        return { code: 0, stdout: ISOLATED_NETWORK, stderr: "", signal: null };
       }
       record(argv, o.cwd);
       const ok = (stdout: string): ComposeResult => ({ code: 0, stdout, stderr: "", signal: null });

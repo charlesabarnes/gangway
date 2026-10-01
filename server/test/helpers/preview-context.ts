@@ -20,6 +20,7 @@ import { Logger } from "../../src/logger.ts";
 import type { PreviewContext } from "../../src/previews/context.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
 import { deploy } from "../../src/previews/deploy.ts";
+import { ICC_OPTION } from "../../src/previews/stack-file.ts";
 import type { DeployInput } from "../../src/previews/deploy-types.ts";
 import { PreviewLogs } from "../../src/previews/logs.ts";
 import { Workdirs } from "../../src/previews/source/workdir.ts";
@@ -27,6 +28,11 @@ import { PreviewStates } from "../../src/previews/state.ts";
 import { RouteTable } from "../../src/routing/table.ts";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
 import { tempDb } from "./db.ts";
+
+/** `docker network inspect` of the shared preview network, as gangway creates it. */
+export const ISOLATED_NETWORK = JSON.stringify([
+  { Name: "gw-default-previews", Options: { [ICC_OPTION]: "false" } },
+]);
 import { seededHosts } from "./hosts.ts";
 import { silentLogger } from "./logger.ts";
 
@@ -104,6 +110,9 @@ export function setupPreviewContext() {
     },
     async capture(argv): Promise<ComposeResult> {
       fake.all.push(argv);
+      if (argv[1] === "network" && argv[2] === "inspect") {
+        return { code: 0, stdout: ISOLATED_NETWORK, stderr: "", signal: null };
+      }
       const cmd = argv.find((a) => ["config", "ps", "down", "logs", "stop", "start"].includes(a));
       const project = argv[argv.indexOf("--project-name") + 1] ?? "";
       if (cmd === "stop") {

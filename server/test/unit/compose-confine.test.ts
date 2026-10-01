@@ -4,6 +4,7 @@ import {
   KEPT_CAPABILITIES,
   parseComposeModel,
 } from "../../src/previews/compose-model.ts";
+import { buildSecretViolations } from "../../src/previews/compose-policy.ts";
 
 /** Shaped like the parsed output of a real `docker compose config`. */
 const resolved = (services: Record<string, unknown>) => ({
@@ -124,6 +125,42 @@ const stackOf = (services: Record<string, unknown>, limits = LIMITS) => {
     }),
   );
 };
+
+describe("policy: secrets never reach a build", () => {
+  const secrets = { API_KEY: "sk-live-0123456789", FLAG: "on", EMPTY: "" };
+  const build = (b: unknown) => resolved({ web: { image: "x", build: b } });
+
+  test.each([
+    ["an arg", { context: "/src", args: { KEY: "sk-live-0123456789" } }, "API_KEY"],
+    [
+      "part of an arg",
+      { context: "/src", args: { URL: "https://x:sk-live-0123456789@h" } },
+      "API_KEY",
+    ],
+    [
+      "an inline Dockerfile",
+      { context: "/src", dockerfile_inline: "FROM x\nENV K=sk-live-0123456789" },
+      "API_KEY",
+    ],
+    ["a label", { context: "/src", labels: { f: "on" } }, "FLAG"],
+  ])("a secret in %s is refused, by name only", (_, b, key) => {
+    const v = buildSecretViolations(build(b), secrets);
+    expect(v).toEqual([expect.stringContaining(`the secret ${key}`)]);
+    expect(v.join()).not.toContain("sk-live");
+  });
+
+  test("short values must match whole; runtime environment is fine", () => {
+    expect(
+      buildSecretViolations(build({ context: "/src", args: { MODE: "online" } }), secrets),
+    ).toEqual([]);
+    expect(
+      buildSecretViolations(
+        resolved({ web: { image: "x", environment: { KEY: "sk-live-0123456789" } } }),
+        secrets,
+      ),
+    ).toEqual([]);
+  });
+});
 
 describe("buildStack confines every container", () => {
   const stack = (svc: Record<string, unknown>, limits = LIMITS) =>

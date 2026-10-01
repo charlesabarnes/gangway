@@ -19,7 +19,12 @@ work, run gangway [in a VM](/docs/install/vm/); on Unraid,
   limits.
 - Previews publish their ports on the host's `127.0.0.1` only, so gangway's visibility gate is the
   only way in.
-- Secrets never reach a build context.
+- Secrets never reach a build: a compose file that puts one in `build.args`, a label or an
+  inline Dockerfile is refused.
+- Single-service previews share one network only where the engine stops its containers talking
+  to each other. Anywhere else, each preview gets a network of its own.
+- At most `GANGWAY_PREVIEW_BUILDS` images build at once (2 by default). Builds run outside the
+  container limits.
 
 **Previews can reach the internet and your LAN.** If that matters, firewall the preview networks
 (Docker's `DOCKER-USER` chain), or give gangway a Docker host of its own.

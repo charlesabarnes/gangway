@@ -6,7 +6,9 @@ import { parse as parseYaml } from "yaml";
 import { composeArgv } from "../docker/compose.ts";
 import { AppError, unprocessable } from "../errors.ts";
 import { redactString } from "../logger.ts";
+import { obj } from "../util/json.ts";
 import { buildStack, parseComposeModel, type ComposeModel } from "./compose-model.ts";
+import { buildSecretViolations } from "./compose-policy.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import type { PreviewContext } from "./context.ts";
 import { withDotenv, type OwnStack } from "./own-stack.ts";
@@ -47,10 +49,9 @@ export async function readModel(
 
   // compose may return the path as given or with symlinks resolved (macOS temp dirs are symlinks).
   const model = parseComposeModel(PLAN_PROJECT, resolved, [wd.srcDir, await realpath(wd.srcDir)]);
-  if (model.violations.length > 0) {
-    throw unprocessable("the compose file asks for things a preview may not have", {
-      violations: model.violations,
-    });
+  const violations = [...model.violations, ...buildSecretViolations(obj(resolved), dotenv ?? {})];
+  if (violations.length > 0) {
+    throw unprocessable("the compose file asks for things a preview may not have", { violations });
   }
   return { model, resolved };
 }
@@ -68,10 +69,8 @@ export async function writeStack(
   s: StackPlan,
 ): Promise<string | null> {
   const source = ctx.previews.get(s.preview.id)?.source ?? s.preview.source;
-  const network = sharedNetworkFor(ctx.instance, s.model, source);
-  if (network) {
-    await ensureNetwork(ctx, s.host, network);
-  }
+  const wanted = sharedNetworkFor(ctx.instance, s.model, source);
+  const network = wanted && (await isolatedNetwork(ctx, s.host, wanted)) ? wanted : null;
   await writeFile(
     stackPath,
     buildStack({
@@ -136,36 +135,53 @@ export function sharedNetworkFor(
   return single ? `gw-${instance}-previews` : null;
 }
 
-async function ensureNetwork(ctx: PreviewContext, host: Host, name: string): Promise<void> {
+export const ICC_OPTION = "com.docker.network.bridge.enable_icc";
+
+const iccOff = (inspected: string) => {
+  try {
+    const net = obj((JSON.parse(inspected) as unknown[])[0]);
+    return obj(net["Options"])[ICC_OPTION] === "false";
+  } catch {
+    return false;
+  }
+};
+
+// Shared for its address pool, not to talk: one preview could otherwise reach another's container
+// past its password. Without the engine keeping them apart, each preview keeps its own network.
+async function isolatedNetwork(ctx: PreviewContext, host: Host, name: string): Promise<boolean> {
   const docker = ctx.docker ?? "docker";
   const cwd = await mkdtemp(join(tmpdir(), "gangway-net-"));
+  const run = (argv: string[]) => ctx.compose.capture([docker, "network", ...argv], host, { cwd });
   try {
-    const found = await ctx.compose.capture([docker, "network", "inspect", name], host, { cwd });
-    if (found.code === 0) {
-      return;
-    }
-    const create = (...opts: string[]) =>
-      ctx.compose.capture(
-        [docker, "network", "create", "--label", `gangway.instance=${ctx.instance}`, ...opts, name],
-        host,
-        { cwd },
-      );
-    // Previews share the network for its address pool, not to talk: one could otherwise reach
-    // another's container directly, past its password or sign-in.
-    let made = await create("--opt", "com.docker.network.bridge.enable_icc=false");
-    if (made.code !== 0 && !/already exists/.test(made.stderr)) {
-      ctx.logger.warn(
-        "the engine refused an isolated network; previews on it can reach each other",
-        {
+    let found = await run(["inspect", name]);
+    if (found.code !== 0) {
+      const made = await run([
+        "create",
+        "--label",
+        `gangway.instance=${ctx.instance}`,
+        "--opt",
+        `${ICC_OPTION}=false`,
+        name,
+      ]);
+      if (made.code === 0) {
+        return true;
+      }
+      if (!/already exists/.test(made.stderr)) {
+        ctx.logger.warn("the engine refused an isolated network; each preview keeps its own", {
           network: name,
           stderr: made.stderr.trim(),
-        },
-      );
-      made = await create();
+        });
+        return false;
+      }
+      found = await run(["inspect", name]);
     }
-    if (made.code !== 0 && !/already exists/.test(made.stderr)) {
-      throw new AppError("internal", `could not create the ${name} network: ${made.stderr.trim()}`);
+    if (found.code === 0 && iccOff(found.stdout)) {
+      return true;
     }
+    ctx.logger.warn("the shared network lets previews reach each other; each keeps its own", {
+      network: name,
+    });
+    return false;
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

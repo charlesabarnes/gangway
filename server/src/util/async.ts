@@ -19,6 +19,64 @@ export class SingleFlight<T> {
   }
 }
 
+/** At most `limit()` holders at once, the rest served in order; a limit of 0 is none. */
+export class Slots {
+  readonly #limit: () => number;
+  #busy = 0;
+  #waiting: (() => void)[] = [];
+
+  constructor(limit: () => number) {
+    this.#limit = limit;
+  }
+
+  get waiting() {
+    return this.#waiting.length;
+  }
+
+  /** Resolves to the release once a slot is free; `onWait` runs if it has to wait. */
+  async acquire(signal?: AbortSignal, onWait?: () => void): Promise<() => void> {
+    signal?.throwIfAborted();
+    if (this.#full()) {
+      onWait?.();
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => {
+          this.#waiting = this.#waiting.filter((w) => w !== turn);
+          reject(signal?.reason instanceof Error ? signal.reason : new Error("aborted"));
+        };
+        const turn = () => {
+          signal?.removeEventListener("abort", abort);
+          resolve();
+        };
+        this.#waiting.push(turn);
+        signal?.addEventListener("abort", abort, { once: true });
+      });
+    } else {
+      this.#busy++;
+    }
+    let held = true;
+    return () => {
+      if (held) {
+        held = false;
+        this.#busy--;
+        this.#next();
+      }
+    };
+  }
+
+  #full() {
+    const n = this.#limit();
+    return n > 0 && this.#busy >= n;
+  }
+
+  // A slot passes straight to the next in line, so a newcomer never overtakes it.
+  #next() {
+    while (this.#waiting.length > 0 && !this.#full()) {
+      this.#busy++;
+      this.#waiting.shift()?.();
+    }
+  }
+}
+
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export type BackoffOptions = {
