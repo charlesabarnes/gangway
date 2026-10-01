@@ -24,7 +24,7 @@ const httpd = (extra = "") => `services:
   web:
     image: busybox:1.36
     command: ["sh", "-c", "echo ok > /tmp/index.html && exec httpd -f -p 8080 -h /tmp"]
-    x-gangway: { port: 8080 }
+    x-gangway: { expose: true, port: 8080 }
 ${extra}`;
 
 async function docker(...args: string[]) {
@@ -169,7 +169,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
 
     const extended = await deploy({
       "compose.yaml":
-        "services:\n  web:\n    extends: { file: base.yaml, service: web }\n    x-gangway: { port: 8080 }\n",
+        "services:\n  web:\n    extends: { file: base.yaml, service: web }\n    x-gangway: { expose: true, port: 8080 }\n",
       "base.yaml": httpd("    label_file: /etc/hostname\n"),
     });
     expect(extended.state).not.toBe("awake");
@@ -191,7 +191,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
 
   test("a secret reaches the running container but never a build", async () => {
     const baked = await deploy({
-      "compose.yaml": `services:\n  web:\n    build:\n      context: .\n      args: { TOKEN: "\${GW_IT_TOKEN}" }\n    x-gangway: { port: 8080 }\n`,
+      "compose.yaml": `services:\n  web:\n    build:\n      context: .\n      args: { TOKEN: "\${GW_IT_TOKEN}" }\n    x-gangway: { expose: true, port: 8080 }\n`,
       Dockerfile: "FROM busybox:1.36\nARG TOKEN\nRUN echo $TOKEN > /token\n",
     });
     expect(baked.state).not.toBe("awake");
@@ -199,7 +199,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
     expect(baked.text).not.toContain(SECRET);
 
     const runtime = await deploy({
-      "compose.yaml": `services:\n  web:\n    build: .\n    command: ["sh", "-c", "echo ok > /tmp/index.html && exec httpd -f -p 8080 -h /tmp"]\n    environment: { TOKEN: "\${GW_IT_TOKEN}" }\n    x-gangway: { port: 8080 }\n`,
+      "compose.yaml": `services:\n  web:\n    build: .\n    command: ["sh", "-c", "echo ok > /tmp/index.html && exec httpd -f -p 8080 -h /tmp"]\n    environment: { TOKEN: "\${GW_IT_TOKEN}" }\n    x-gangway: { expose: true, port: 8080 }\n`,
       Dockerfile: "FROM busybox:1.36\n",
     });
     expectAwake(runtime);
