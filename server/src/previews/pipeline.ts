@@ -55,10 +55,22 @@ export async function buildImages(
   const release = await ctx.buildSlots?.acquire(r.signal, () => {
     p.log(`waiting for a build slot (${ctx.buildSlots?.waiting ?? 0} ahead)`);
   });
-  const id = buildId ?? ulid(ctx.now());
-  ctx.builds.start({ id, previewId: p.id, services: toBuild });
   try {
-    await p.step("build", buildArgv(p.base, toBuild), "build");
+    await recordBuild(ctx, p, r, { id: buildId ?? ulid(ctx.now()), services: toBuild });
+  } finally {
+    release?.();
+  }
+}
+
+async function recordBuild(
+  ctx: PreviewContext,
+  p: Pipeline,
+  r: RunPlan,
+  { id, services }: { id: string; services: string[] },
+): Promise<void> {
+  ctx.builds.start({ id, previewId: p.id, services });
+  try {
+    await p.step("build", buildArgv(p.base, services), "build");
     ctx.builds.finish(id, "succeeded", 0);
   } catch (e) {
     ctx.builds.finish(
@@ -67,8 +79,6 @@ export async function buildImages(
       e instanceof StepFailed ? e.exitCode : null,
     );
     throw e;
-  } finally {
-    release?.();
   }
 }
 

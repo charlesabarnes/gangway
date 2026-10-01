@@ -25,35 +25,50 @@ export async function readModel(
   wd: Workdir,
   { composeFile, dotenv }: OwnStack,
 ): Promise<Planned> {
-  const argv = composeArgv({
-    project: PLAN_PROJECT,
-    files: [join(wd.srcDir, composeFile)],
-    projectDirectory: wd.srcDir,
-    docker: ctx.docker,
-    command: "config",
-  });
-  const r = await withDotenv(wd.srcDir, dotenv, () =>
-    ctx.compose.capture(argv, host, { cwd: wd.srcDir }),
-  );
+  const config = (args: string[]) =>
+    ctx.compose.capture(
+      composeArgv({
+        project: PLAN_PROJECT,
+        files: [join(wd.srcDir, composeFile)],
+        projectDirectory: wd.srcDir,
+        docker: ctx.docker,
+        command: "config",
+        args,
+      }),
+      host,
+      { cwd: wd.srcDir },
+    );
+  // The same files, merged but with every `${NAME}` left in place: what the build asks for by name.
+  const [r, raw] = await withDotenv(wd.srcDir, dotenv, async () => [
+    await config([]),
+    dotenv ? await config(["--no-interpolate"]) : null,
+  ]);
+  const resolved = configOutput(r);
+  const asked = raw ? configOutput(raw) : {};
+
+  // compose may return the path as given or with symlinks resolved (macOS temp dirs are symlinks).
+  const model = parseComposeModel(PLAN_PROJECT, resolved, [wd.srcDir, await realpath(wd.srcDir)]);
+  const violations = [
+    ...model.violations,
+    ...buildSecretViolations(obj(resolved), obj(asked), dotenv ?? {}),
+  ];
+  if (violations.length > 0) {
+    throw unprocessable("the compose file asks for things a preview may not have", { violations });
+  }
+  return { model, resolved };
+}
+
+function configOutput(r: { code: number; stdout: string; stderr: string }): unknown {
   if (r.code !== 0) {
     throw unprocessable("the compose file is not valid", {
       compose: redactString(r.stderr).slice(-2_000),
     });
   }
-  let resolved: unknown;
   try {
-    resolved = parseYaml(r.stdout);
+    return parseYaml(r.stdout);
   } catch {
     throw new AppError("internal", "could not read `compose config` output");
   }
-
-  // compose may return the path as given or with symlinks resolved (macOS temp dirs are symlinks).
-  const model = parseComposeModel(PLAN_PROJECT, resolved, [wd.srcDir, await realpath(wd.srcDir)]);
-  const violations = [...model.violations, ...buildSecretViolations(obj(resolved), dotenv ?? {})];
-  if (violations.length > 0) {
-    throw unprocessable("the compose file asks for things a preview may not have", { violations });
-  }
-  return { model, resolved };
 }
 
 export type StackPlan = Planned & {

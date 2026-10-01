@@ -36,8 +36,11 @@ export class Slots {
   /** Resolves to the release once a slot is free; `onWait` runs if it has to wait. */
   async acquire(signal?: AbortSignal, onWait?: () => void): Promise<() => void> {
     signal?.throwIfAborted();
+    // A raised limit goes to those already waiting before any newcomer.
+    this.#next();
     if (this.#full()) {
       onWait?.();
+      signal?.throwIfAborted();
       await new Promise<void>((resolve, reject) => {
         const abort = () => {
           this.#waiting = this.#waiting.filter((w) => w !== turn);

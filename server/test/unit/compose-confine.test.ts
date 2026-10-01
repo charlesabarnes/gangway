@@ -127,8 +127,11 @@ const stackOf = (services: Record<string, unknown>, limits = LIMITS) => {
 };
 
 describe("policy: secrets never reach a build", () => {
-  const secrets = { API_KEY: "sk-live-0123456789", FLAG: "on", EMPTY: "" };
+  const secrets = { API_KEY: "sk-live-0123456789", FLAG: "on", PIN: "12345", EMPTY: "" };
   const build = (b: unknown) => resolved({ web: { image: "x", build: b } });
+  const none = resolved({});
+  const check = (resolvedBuild: unknown, askedBuild: unknown = {}) =>
+    buildSecretViolations(build(resolvedBuild), build(askedBuild), secrets);
 
   test.each([
     ["an arg", { context: "/src", args: { KEY: "sk-live-0123456789" } }, "API_KEY"],
@@ -143,22 +146,39 @@ describe("policy: secrets never reach a build", () => {
       "API_KEY",
     ],
     ["a label", { context: "/src", labels: { f: "on" } }, "FLAG"],
-  ])("a secret in %s is refused, by name only", (_, b, key) => {
-    const v = buildSecretViolations(build(b), secrets);
+    ["a label's name", { context: "/src", labels: { "sk-live-0123456789": "marker" } }, "API_KEY"],
+  ])("a secret's value in %s is refused, by name only", (_, b, key) => {
+    const v = check(b);
     expect(v).toEqual([expect.stringContaining(`the secret ${key}`)]);
     expect(v.join()).not.toContain("sk-live");
   });
 
-  test("short values must match whole; runtime environment is fine", () => {
+  test.each([
+    ["${PIN}", "ENV P=${PIN}"],
+    ["$PIN", "ENV P=$PIN"],
+    ["a default", "ENV P=${PIN:-0000}"],
+    ["a nested default", "ENV P=${X:-${PIN}}"],
+  ])("a reference by %s is refused whatever the value's length", (_, line) => {
+    const v = check(
+      {
+        context: "/src",
+        dockerfile_inline: `FROM x\n${line.replace(/\$\{?PIN[^}\n]*\}?/, "12345")}`,
+      },
+      { context: "/src", dockerfile_inline: `FROM x\n${line}` },
+    );
+    expect(v).toEqual([expect.stringContaining("the secret PIN")]);
+  });
+
+  test("short values must match whole; escaped and longer names are not references", () => {
+    expect(check({ context: "/src", args: { MODE: "online" } })).toEqual([]);
     expect(
-      buildSecretViolations(build({ context: "/src", args: { MODE: "online" } }), secrets),
+      check({}, { context: "/src", dockerfile_inline: "RUN echo $$PIN ${PINNED} $PIN_CODE" }),
     ).toEqual([]);
-    expect(
-      buildSecretViolations(
-        resolved({ web: { image: "x", environment: { KEY: "sk-live-0123456789" } } }),
-        secrets,
-      ),
-    ).toEqual([]);
+  });
+
+  test("runtime environment is fine", () => {
+    const env = resolved({ web: { image: "x", environment: { KEY: "sk-live-0123456789" } } });
+    expect(buildSecretViolations(env, none, secrets)).toEqual([]);
   });
 });
 

@@ -284,27 +284,42 @@ export function policyViolations(
   ];
 }
 
+/** Every string inside, keys too: a label's name is image metadata as much as its value. */
 function strings(v: unknown): string[] {
   if (typeof v === "string") {
     return [v];
   }
-  return typeof v === "object" && v !== null ? Object.values(v).flatMap(strings) : [];
+  if (typeof v !== "object" || v === null) {
+    return [];
+  }
+  return [...(Array.isArray(v) ? [] : Object.keys(v)), ...Object.values(v).flatMap(strings)];
 }
 
-// Shorter values would match by chance inside a Dockerfile; whole they are still caught.
 const MIN_SUBSTRING = 6;
 
-/**
- * `compose config` reads secrets as `.env`, so `${NAME}` in `build.args` or `dockerfile_inline`
- * puts the value into the image's history, where anyone who can pull the image reads it.
- */
-export function buildSecretViolations(doc: Json, secrets: Record<string, string>): string[] {
-  const values = Object.entries(secrets).filter(([, v]) => v !== "");
-  return Object.entries(obj(doc["services"])).flatMap(([name, raw]) => {
-    const inBuild = strings(obj(raw)["build"]);
+/** `$NAME`, `${NAME}` or `${NAME:-x}`, but not the escaped `$$NAME`; names are `\w` only. */
+const refersTo = (name: string) => new RegExp(`(?<!\\$)\\$\\{?${name}(?!\\w)`);
+
+// A secret in a build lands in the image. `asked` is read with --no-interpolate, so a reference
+// is caught at any length; values shorter than MIN_SUBSTRING would match a Dockerfile by chance.
+export function buildSecretViolations(
+  resolved: Json,
+  asked: Json,
+  secrets: Record<string, string>,
+): string[] {
+  const values = Object.entries(secrets);
+  const services = new Set([
+    ...Object.keys(obj(resolved["services"])),
+    ...Object.keys(obj(asked["services"])),
+  ]);
+  return [...services].flatMap((name) => {
+    const built = strings(obj(obj(obj(resolved["services"])[name])["build"]));
+    const named = strings(obj(obj(obj(asked["services"])[name])["build"]));
     return values
-      .filter(([, v]) =>
-        inBuild.some((s) => s === v || (v.length >= MIN_SUBSTRING && s.includes(v))),
+      .filter(
+        ([key, v]) =>
+          named.some((s) => refersTo(key).test(s)) ||
+          (v !== "" && built.some((s) => s === v || (v.length >= MIN_SUBSTRING && s.includes(v)))),
       )
       .map(
         ([key]) =>
