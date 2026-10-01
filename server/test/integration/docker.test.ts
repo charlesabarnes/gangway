@@ -70,6 +70,13 @@ async function deploy(files: Record<string, string>): Promise<Deployed> {
   };
 }
 
+/** The whole answer and log on failure, not just the state. */
+const expectAwake = (...ds: Deployed[]) => {
+  for (const d of ds) {
+    expect({ state: d.state, text: d.text }).toMatchObject({ state: "awake" });
+  }
+};
+
 async function containerOf(previewId: string) {
   const ids = lines(
     (await docker("ps", "-q", "--filter", `label=gangway.preview_id=${previewId}`)).stdout,
@@ -140,7 +147,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
   test("two previews on the shared network cannot reach each other", async () => {
     const a = await deploy({ "compose.yaml": httpd() });
     const b = await deploy({ "compose.yaml": httpd() });
-    expect([a.state, b.state]).toEqual(["awake", "awake"]);
+    expectAwake(a, b);
 
     const net = await docker("network", "inspect", `gw-${INSTANCE}-previews`);
     expect(net.code).toBe(0);
@@ -176,7 +183,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
       "sub/base.yaml": httpd("    env_file: web.env\n").replace("  web:", "  base:"),
       "sub/web.env": "GREETING=hello\n",
     });
-    expect(ok.state).toBe("awake");
+    expectAwake(ok);
     expect((await docker("exec", await containerOf(ok.id), "env")).stdout).toContain(
       "GREETING=hello",
     );
@@ -195,7 +202,7 @@ describe.skipIf(!enabled)("against real Docker", () => {
       "compose.yaml": `services:\n  web:\n    build: .\n    command: ["sh", "-c", "echo ok > /tmp/index.html && exec httpd -f -p 8080 -h /tmp"]\n    environment: { TOKEN: "\${GW_IT_TOKEN}" }\n    x-gangway: { port: 8080 }\n`,
       Dockerfile: "FROM busybox:1.36\n",
     });
-    expect(runtime.state).toBe("awake");
+    expectAwake(runtime);
     const c = await containerOf(runtime.id);
     expect((await docker("exec", c, "env")).stdout).toContain(`TOKEN=${SECRET}`);
     const image = (await docker("inspect", "--format", "{{.Image}}", c)).stdout;
