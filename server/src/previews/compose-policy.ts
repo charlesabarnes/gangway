@@ -297,8 +297,9 @@ function strings(v: unknown): string[] {
 
 const MIN_SUBSTRING = 6;
 
-/** `$NAME`, `${NAME}` or `${NAME:-x}`, but not the escaped `$$NAME`; names are `\w` only. */
-const refersTo = (name: string) => new RegExp(`(?<!\\$)\\$\\{?${name}(?!\\w)`);
+/** Each name in `$NAME`, `${NAME}` or `${NAME:-x}`, but not the escaped `$$NAME`. */
+const referenced = (strs: string[]) =>
+  new Set(strs.flatMap((s) => [...s.matchAll(/(?<!\$)\$\{?([A-Za-z_]\w*)/g)].map((m) => m[1])));
 
 // A secret in a build lands in the image. `asked` is read with --no-interpolate, so a reference
 // is caught at any length; values shorter than MIN_SUBSTRING would match a Dockerfile by chance.
@@ -314,11 +315,11 @@ export function buildSecretViolations(
   ]);
   return [...services].flatMap((name) => {
     const built = strings(obj(obj(obj(resolved["services"])[name])["build"]));
-    const named = strings(obj(obj(obj(asked["services"])[name])["build"]));
+    const named = referenced(strings(obj(obj(obj(asked["services"])[name])["build"])));
     return values
       .filter(
         ([key, v]) =>
-          named.some((s) => refersTo(key).test(s)) ||
+          named.has(key) ||
           (v !== "" && built.some((s) => s === v || (v.length >= MIN_SUBSTRING && s.includes(v)))),
       )
       .map(
