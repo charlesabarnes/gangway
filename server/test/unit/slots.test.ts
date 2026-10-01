@@ -25,6 +25,18 @@ describe("Slots", () => {
     expect(order).toEqual(["queued"]);
   });
 
+  test("refresh lets those waiting in once the limit is raised", async () => {
+    let limit = 1;
+    const slots = new Slots(() => limit);
+    await slots.acquire();
+    const queued = slots.acquire();
+    limit = 2;
+    expect(await settled(queued)).toBe(false);
+    slots.refresh();
+    await queued;
+    expect(slots.waiting).toBe(0);
+  });
+
   test("an abort inside onWait never queues", async () => {
     const slots = new Slots(() => 1);
     await slots.acquire();

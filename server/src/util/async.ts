@@ -33,6 +33,11 @@ export class Slots {
     return this.#waiting.length;
   }
 
+  /** After the limit changes: a raised one lets those waiting in now. */
+  refresh() {
+    this.#next();
+  }
+
   /** Resolves to the release once a slot is free; `onWait` runs if it has to wait. */
   async acquire(signal?: AbortSignal, onWait?: () => void): Promise<() => void> {
     signal?.throwIfAborted();

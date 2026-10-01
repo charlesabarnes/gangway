@@ -10,6 +10,7 @@ import type { DomainRegistry } from "../../domains/registry.ts";
 import type { Mailer } from "../../mail/mailer.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
+import type { Slots } from "../../util/async.ts";
 
 export function settingsRoutes(
   api: Hono<AppEnv>,
@@ -19,10 +20,12 @@ export function settingsRoutes(
     templates,
     hashPassword,
     domains,
+    buildSlots,
   }: {
     templates?: Pick<TemplatesRepo, "get">;
     hashPassword?: (plain: string) => Promise<{ hash: string; salt: string }>;
     domains?: DomainRegistry;
+    buildSlots?: Pick<Slots, "refresh"> | undefined;
   } = {},
 ): void {
   api.get("/settings", requirePermission("settings.read"), (c) =>
@@ -51,6 +54,9 @@ export function settingsRoutes(
     }
     if (domainWrite) {
       domains?.refresh();
+    }
+    if (writes.some((w) => w.key === SETTINGS.previewsBuilds.key)) {
+      buildSlots?.refresh();
     }
 
     audit.record(actor, "settings.changed", null, {
