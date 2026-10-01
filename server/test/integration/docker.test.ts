@@ -28,7 +28,7 @@ const httpd = (extra = "") => `services:
 ${extra}`;
 
 async function docker(...args: string[]) {
-  const p = Bun.spawn(["docker", ...args], { stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn(["docker", ...args], { stdout: "pipe", stderr: "pipe", timeout: 60_000 });
   const [stdout, stderr, code] = await Promise.all([
     new Response(p.stdout).text(),
     new Response(p.stderr).text(),
@@ -53,8 +53,14 @@ let call: ReturnType<typeof client>;
 
 type Deployed = { status: number; id: string; state: string; text: string };
 
+const trace = (line: string) => process.stderr.write(`${line}\n`);
+let deploys = 0;
+
 async function deploy(files: Record<string, string>): Promise<Deployed> {
-  const res = await call(API, "/v1/previews?wait=true&visibility=public&runtime=own", {
+  const name = `it-${++deploys}`;
+  trace(`deploying ${name}`);
+  const query = `wait=true&visibility=public&runtime=own&name=${name}`;
+  const res = await call(API, `/v1/previews?${query}`, {
     method: "POST",
     headers: { "content-type": "application/gzip" },
     body: await tarball(files),
@@ -62,6 +68,7 @@ async function deploy(files: Record<string, string>): Promise<Deployed> {
   const body = (await res.json()) as { preview?: { id: string; state: string } };
   const id = body.preview?.id ?? "";
   const logs = id ? await (await call(API, `/v1/previews/${id}/logs`)).text() : "";
+  trace(`${name}: ${res.status} ${body.preview?.state ?? ""}`);
   return {
     status: res.status,
     id,
@@ -155,7 +162,10 @@ describe.skipIf(!enabled)("against real Docker", () => {
     const [ca, cb] = [await containerOf(a.id), await containerOf(b.id)];
     // The sanity check first: the request itself works, so a failure below is the network.
     expect((await fetchFrom(ca, "http://127.0.0.1:8080/")).stdout).toBe("ok");
-    const across = await fetchFrom(ca, `http://${await ipOf(cb)}:8080/`);
+    const ip = await ipOf(cb);
+    trace(`from ${ca} to ${ip}`);
+    const across = await fetchFrom(ca, `http://${ip}:8080/`);
+    trace(`across: ${across.code} ${across.stderr}`);
     expect(across.code).not.toBe(0);
   }, 180_000);
 
