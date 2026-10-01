@@ -8,7 +8,7 @@ import { loadConfig } from "../../src/config.ts";
 import { tempDir } from "../helpers/db.ts";
 import { client } from "../helpers/fake-daemon.ts";
 import { freePort } from "../helpers/free-port.ts";
-import { silentLogger } from "../helpers/logger.ts";
+import { Logger } from "../../src/logger.ts";
 import { tarball } from "../helpers/runtimes-fixtures.ts";
 
 const enabled = process.env["GANGWAY_REQUIRE_DOCKER"] === "1";
@@ -101,7 +101,8 @@ describe.skipIf(!enabled)("against real Docker", () => {
       { hosts: [{ portRangeStart: PORTS.start, portRangeEnd: PORTS.end }] },
     );
     config.publicPort = config.listenPort;
-    running = await boot(config, { announce: () => {}, logger: silentLogger() });
+    // Warnings and errors go to the job log: they are what explains a failed deploy here.
+    running = await boot(config, { announce: () => {}, logger: new Logger("warn") });
     call = client(running);
     const set = await call(API, "/v1/secrets", {
       method: "PATCH",
