@@ -410,7 +410,8 @@ export class PreviewsRepo {
   findPullRequest(repo: string, number: number): Preview | undefined {
     const r = this.#db.get(
       `SELECT * FROM previews
-        WHERE source_kind = 'pr' AND json_extract(source_json, '$.repo') = $repo AND json_extract(source_json, '$.number') = $number
+        WHERE ((source_kind = 'pr' AND json_extract(source_json, '$.repo') = $repo AND json_extract(source_json, '$.number') = $number)
+            OR (source_kind = 'tarball' AND json_extract(source_json, '$.pr.repo') = $repo AND json_extract(source_json, '$.pr.number') = $number))
           AND state != 'destroyed'
         ORDER BY id DESC LIMIT 1`,
       { repo, number },

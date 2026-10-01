@@ -74,6 +74,7 @@ async function recordSource(
   const next: PreviewSource = {
     kind: "tarball",
     uploadId: source.uploadId,
+    ...(source.pr ? { pr: source.pr } : {}),
     ...(up.runtime ? { runtime: up.runtime } : {}),
     ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
     ...networkField(network ?? source.network),

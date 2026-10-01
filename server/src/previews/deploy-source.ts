@@ -159,6 +159,7 @@ async function tarballSource(
     source: {
       kind: "tarball",
       uploadId: id,
+      ...(source.pr ? { pr: source.pr } : {}),
       ...(up.runtime ? { runtime: up.runtime } : {}),
       ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
       ...networkField(source.network),

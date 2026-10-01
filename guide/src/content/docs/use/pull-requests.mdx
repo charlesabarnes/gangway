@@ -27,6 +27,15 @@ import Shot from "../../../components/Shot.astro";
 
 Pull requests from forks wait until a maintainer comments `/preview deploy`.
 
+A static site needs no image. Have the workflow build the site and send the built folder as a
+tarball instead, and gangway serves the files itself:
+
+```sh
+tar -czf - -C dist . | curl -fsS -X PUT \
+  "$GANGWAY_API/v1/projects/$GANGWAY_PROJECT/pulls/$PR?sha=$SHA&wait=true" \
+  -H "Authorization: Bearer $oidc" -H 'content-type: application/gzip' --data-binary @-
+```
+
 An agent can do step 2 for you: in Claude Code, `/gangway:setup-pr-previews` connects the
 repository, adds a Dockerfile if there is none, and opens a pull request with the workflow, whose
 own run is the first preview.

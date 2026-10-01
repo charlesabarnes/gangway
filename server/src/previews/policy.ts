@@ -26,7 +26,11 @@ export type PolicyDeps = {
 };
 
 export function triggerOf(source: DeploySource, actor: Actor): Trigger {
-  if (source.kind === "pr" || source.kind === "pushed") {
+  if (
+    source.kind === "pr" ||
+    source.kind === "pushed" ||
+    (source.kind === "tarball" && source.pr)
+  ) {
     return "pr";
   }
   return actor.kind === "user" ? "manual" : "api";

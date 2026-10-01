@@ -143,8 +143,9 @@ function repoFullName(source: DeploySource): string | null {
       return source.pr.repo;
     case "git":
       return githubFullName(source.repo);
-    case "image":
     case "tarball":
+      return source.pr?.repo ?? null;
+    case "image":
       return null;
   }
 }

@@ -6,6 +6,7 @@ import type {
   Preview,
   Visibility,
   PasswordLogin,
+  PullRequestRef,
 } from "@gangway/shared/domain";
 import type { AddonRequest, AppPlan } from "@gangway/shared/app-plan";
 import type { PasswordChoice } from "@gangway/shared/api";
@@ -34,6 +35,7 @@ export type DeploySource =
   | {
       kind: "tarball";
       archive: TarballSource;
+      pr?: PullRequestRef | undefined;
       port?: number | undefined;
       digest?: string | undefined;
       runtime?: RuntimeChoice | undefined;

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
+import { dirname } from "node:path";
 import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { authRoutes } from "../../src/app/routes/auth.ts";
 import { previewRoutes } from "../../src/app/routes/previews.ts";
@@ -17,6 +18,8 @@ import { deploy, urlsFor } from "../../src/previews/deploy.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { PolicyResolver } from "../../src/previews/policy.ts";
+import { SiteStore } from "../../src/previews/site.ts";
+import { SourceStore } from "../../src/previews/source/store.ts";
 import { Pulls, registryOf } from "../../src/projects/pulls.ts";
 import { workflowFor } from "../../src/projects/workflow.ts";
 import { SecretBox } from "../../src/secrets/box.ts";
@@ -25,6 +28,7 @@ import { MemorySettingsStore } from "../../src/settings.ts";
 import { IdempotencyRepo } from "../../src/db/repos/idempotency.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { tarball } from "../helpers/runtimes-fixtures.ts";
 
 const ADMIN = "gw_projects_env_token_0123456789abcd";
 const HOST = "api.preview.localhost:8443";
@@ -37,6 +41,9 @@ const wf = (repo = "acme/web-app", ref = "refs/pull/7/merge", event = "pull_requ
 
 function make() {
   const s = setupPreviewContext();
+  const stateDir = dirname(s.ctx.workdirs.root);
+  s.ctx.sources = new SourceStore(stateDir);
+  s.ctx.sites = new SiteStore(stateDir);
   const projects = new ProjectsRepo(s.db);
   const templates = new TemplatesRepo(s.db);
   s.ctx.policy = new PolicyResolver({
@@ -46,6 +53,9 @@ function make() {
     projectForSource: (src) => {
       if (src.kind === "pushed") {
         return projects.getByFullName("github", src.pr.repo);
+      }
+      if (src.kind === "tarball") {
+        return src.pr && projects.getByFullName("github", src.pr.repo);
       }
       return src.kind === "pr" ? projects.getByFullName("github", src.repo) : undefined;
     },
@@ -113,17 +123,24 @@ function make() {
       }),
   });
   const handle = surfaceHandler(hono, "api");
-  const call = (path: string, o: { method?: string; json?: unknown; as?: string } = {}) => {
+  const call = (
+    path: string,
+    o: { method?: string; json?: unknown; tar?: Uint8Array; as?: string } = {},
+  ) => {
     const headers = new Headers({ host: HOST, authorization: `Bearer ${o.as ?? ADMIN}` });
     if (o.json !== undefined) {
       headers.set("content-type", "application/json");
     }
+    if (o.tar !== undefined) {
+      headers.set("content-type", "application/gzip");
+    }
+    const payload = o.tar ?? (o.json === undefined ? undefined : JSON.stringify(o.json));
     return Promise.resolve(
       handle(
         new Request(`https://${HOST}${path}`, {
           method: o.method ?? "GET",
           headers,
-          ...(o.json === undefined ? {} : { body: JSON.stringify(o.json) }),
+          ...(payload === undefined ? {} : { body: payload }),
         }),
         { clientIp: "203.0.113.7" },
       ),
@@ -333,6 +350,40 @@ describe("/v1/projects/:ref/pulls/:n", () => {
     expect(
       (await t.call("/v1/projects/web-app/pulls/7", { method: "DELETE", as: wf() })).status,
     ).toBe(204);
+  });
+
+  test("serves an uploaded static site as the PR's preview, with no container", async () => {
+    const t = setup();
+    const upload = async (sha: string, html: string) =>
+      t.call(`/v1/projects/web-app/pulls/7?sha=${sha}&wait=true`, {
+        method: "PUT",
+        as: wf(),
+        tar: await tarball({ "index.html": html, "404.html": "<p>gone</p>" }),
+      });
+    const res = await upload(SHA, "<h1>one</h1>");
+    expect(res.status).toBe(201);
+    const { preview } = (await res.json()) as any;
+    expect(preview).toMatchObject({
+      state: "awake",
+      projectId: "P1",
+      source: {
+        kind: "tarball",
+        serve: "gangway",
+        pr: { repo: "acme/web-app", number: 7, sha: SHA },
+      },
+    });
+    expect(preview.urls[0].url).toMatch(
+      /^https:\/\/web-app-pr-7-[a-z0-9]+\.preview\.localhost:8443\/$/,
+    );
+    expect(t.s.fake.ups).toBe(0);
+    expect(await (await upload(SHA, "<h1>one</h1>")).json()).toMatchObject({ unchanged: true });
+    const next = (await (await upload("b".repeat(40), "<h1>two</h1>")).json()) as any;
+    expect(next.preview.id).not.toBe(preview.id);
+    expect(t.s.previews.get(preview.id)!.state).toBe("destroyed");
+    expect(
+      (await t.call("/v1/projects/web-app/pulls/7", { method: "DELETE", as: wf() })).status,
+    ).toBe(204);
+    expect(t.s.previews.get(next.preview.id)!.state).toBe("destroyed");
   });
 
   test.each([

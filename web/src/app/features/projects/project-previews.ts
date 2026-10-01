@@ -1,6 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { Project } from '../../core/api.types';
+import type { PreviewSource, Project } from '../../core/api.types';
 import { Clock } from '../../core/clock';
 import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { PreviewIconTile } from '../../ui/preview-icon';
@@ -26,7 +26,7 @@ import { PreviewsStore } from '../previews/previews.store';
             pv.title ?? pv.project.replace(prefix(pv.project), '')
           }}</span>
           <span class="text-muted">{{
-            pv.source.kind === 'pr' ? '#' + $any(pv.source).number : pv.source.kind
+            prNumber(pv.source) ? '#' + prNumber(pv.source) : pv.source.kind
           }}</span>
           <span class="ml-auto text-muted">{{ pv.createdAt | relativeTime: clock.now() }}</span>
         </a>
@@ -62,6 +62,10 @@ export class ProjectPreviews {
     const id = this.project().id;
     return this.#store.previews().filter((p) => p.projectId === id);
   });
+
+  protected prNumber(s: PreviewSource): number | null {
+    return s.kind === 'pr' ? s.number : s.kind === 'tarball' ? (s.pr?.number ?? null) : null;
+  }
 
   protected prefix(project: string): string {
     return /^gw-[^-]+-/.exec(project)?.[0] ?? '';

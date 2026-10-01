@@ -1,16 +1,12 @@
 # gangway previews of gangway.sh and its docs, on demo.gangway.sh. Adapted from the workflow
-# gangway generates for a project: it builds .github/preview-site/Dockerfile (the site and docs as
-# pages.yml builds them, behind nginx) rather than the repository's own Dockerfile, which is
-# gangway itself, and builds only for pull requests that touch what Pages publishes. That check is a
-# job, not a `paths:` filter, so closing any pull request still tears its preview down.
+# gangway generates for a project: rather than build and push an image, it builds the site and docs
+# as pages.yml does and uploads the files, which gangway serves itself. It runs only for pull
+# requests that touch what Pages publishes. That check is a job, not a `paths:` filter, so closing
+# any pull request still tears its preview down.
 #
-# On every push to such a pull request this builds the image on GitHub's runners, pushes it to
-# GitHub's registry, and asks gangway to run it; when the pull request closes, it asks gangway to
-# tear the preview down. gangway trusts this run by its OIDC token, which GitHub signs for this
-# repository and this pull request: there is no secret to store.
-#
-# Pull requests from forks are skipped: GitHub gives their runs no OIDC token. The template,
-# visibility, TTL and runtime secrets are the project's, set in gangway.
+# gangway trusts this run by its OIDC token, which GitHub signs for this repository and this pull
+# request: there is no secret to store. Pull requests from forks are skipped: GitHub gives their
+# runs no OIDC token. Visibility and TTL are the project's, set in gangway.
 name: gangway preview
 
 on:
@@ -26,8 +22,6 @@ permissions: {}
 env:
   GANGWAY_API: https://api.demo.gangway.sh
   GANGWAY_PROJECT: gangway-site
-  # nginx in .github/preview-site listens here.
-  PORT: "8080"
 
 jobs:
   # Does this pull request change what Pages publishes?
@@ -48,79 +42,48 @@ jobs:
           set -euo pipefail
           files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')
           site=false
-          if grep -qE '^(site/|guide/|\.github/assets/screenshots/|\.github/preview-site/|scripts/build-site\.ts$|\.github/workflows/gangway-preview\.yml$)' <<< "$files"; then
+          if grep -qE '^(site/|guide/|\.github/assets/screenshots/|scripts/build-site\.ts$|\.github/workflows/gangway-preview\.yml$)' <<< "$files"; then
             site=true
           fi
           echo "site=$site" >> "$GITHUB_OUTPUT"
 
-  build:
+  deploy:
     needs: changes
     if: needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
-      packages: write
+      id-token: write
     outputs:
-      image: ${{ steps.image.outputs.ref }}
+      url: ${{ steps.deploy.outputs.url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: name
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/site-preview" >> "$GITHUB_OUTPUT"
-      - id: push
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: .github/preview-site/Dockerfile
-          push: true
-          tags: ${{ steps.name.outputs.name }}:pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-      - id: image
-        env:
-          NAME: ${{ steps.name.outputs.name }}
-          DIGEST: ${{ steps.push.outputs.digest }}
-        run: echo "ref=$NAME@$DIGEST" >> "$GITHUB_OUTPUT"
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Only what gangway needs: an OIDC token, and a GITHUB_TOKEN that can read the image.
-    permissions:
-      id-token: write
-      packages: read
-    outputs:
-      url: ${{ steps.deploy.outputs.url }}
-    steps:
+          bun-version-file: package.json
+      - run: bun scripts/build-site.ts
+      - run: bun install --frozen-lockfile && bun run build && cp -R dist ../dist/site/docs
+        working-directory: guide
       - id: deploy
         env:
-          IMAGE: ${{ needs.build.outputs.image }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           oidc=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$GANGWAY_API" | jq -r .value)
-          jq -n --arg image "$IMAGE" --arg sha "$SHA" --argjson port "$PORT" --arg u "$REGISTRY_USER" --arg p "$REGISTRY_TOKEN" \
-            '{image: $image, sha: $sha, port: $port, registry: {username: $u, password: $p}}' > body.json
-          code=$(curl -sS -o result.json -w '%{http_code}' -X PUT "$GANGWAY_API/v1/projects/$GANGWAY_PROJECT/pulls/$PR?wait=true" \
-            -H "Authorization: Bearer $oidc" -H 'content-type: application/json' --data @body.json)
-          rm -f body.json
+          tar -czf site.tgz -C dist/site .
+          code=$(curl -sS -o result.json -w '%{http_code}' -X PUT "$GANGWAY_API/v1/projects/$GANGWAY_PROJECT/pulls/$PR?sha=$SHA&wait=true" \
+            -H "Authorization: Bearer $oidc" -H 'content-type: application/gzip' --data-binary @site.tgz)
           jq '{state: .preview.state, url: .preview.urls[0].url, error: .preview.error, detail: .detail}' result.json
           echo "url=$(jq -r '.preview.urls[0].url // empty' result.json)" >> "$GITHUB_OUTPUT"
           test "$code" -lt 300
 
   comment:
-    needs: [build, deploy]
-    if: always() && needs.build.result == 'success'
+    needs: [changes, deploy]
+    if: always() && needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
