@@ -129,6 +129,7 @@ function serverSettingRoutes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     templates: repos.templates,
     hashPassword: hash,
     domains: d.domains,
+    buildSlots: ctx.buildSlots,
   });
   mailSettingsRoutes(api, audit, identity.mailer);
   updateRoutes(api, d.updates);

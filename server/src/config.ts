@@ -137,6 +137,7 @@ const SETTING_ENV_MAP = {
   GANGWAY_PREVIEW_MEMORY: "previews.limits.memory",
   GANGWAY_PREVIEW_CPUS: "previews.limits.cpus",
   GANGWAY_PREVIEW_PIDS: "previews.limits.pids",
+  GANGWAY_PREVIEW_BUILDS: "previews.limits.builds",
   GANGWAY_SHARE: "previews.share.enabled",
   GANGWAY_UPDATE_CHECK: "updates.check",
   GANGWAY_CF_API_TOKEN: "acme.cloudflare.apiToken",

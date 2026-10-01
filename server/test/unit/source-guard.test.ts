@@ -135,6 +135,68 @@ describe("inspectComposeFile", () => {
     });
   });
 
+  test.each([
+    [
+      "an included file's env_file",
+      "include: [sub/inc.yaml]\nservices: {}\n",
+      "sub/inc.yaml",
+      "services:\n  db:\n    image: x\n    env_file: ../../../etc/passwd\n",
+    ],
+    [
+      "an included file's own include",
+      "include: [sub/inc.yaml]\nservices: {}\n",
+      "sub/inc.yaml",
+      "include: [/etc/compose.yaml]\n",
+    ],
+    [
+      "an extended file's extends",
+      "services:\n  web:\n    extends: { file: base.yaml, service: b }\n",
+      "base.yaml",
+      "services:\n  b:\n    image: x\n    extends: { file: /etc/base.yaml, service: c }\n",
+    ],
+    [
+      "an extended file's label_file",
+      "services:\n  web:\n    extends: { file: base.yaml, service: b }\n",
+      "base.yaml",
+      "services:\n  b:\n    image: x\n    label_file: /proc/self/environ\n",
+    ],
+  ])("%s outside the source is refused", async (_, top, name, nested) => {
+    await expect(inspectComposeFile(tree({ "compose.yaml": top, [name]: nested }))).rejects.toThrow(
+      "outside the uploaded source",
+    );
+  });
+
+  test("a path that only escapes from the include's project_directory is refused", async () => {
+    const dir = tree({
+      "compose.yaml":
+        "include:\n  - path: a/inc.yaml\n    project_directory: a/b/c\nservices: {}\n",
+      "a/inc.yaml": "services:\n  db:\n    image: x\n    env_file: ../../../../x.env\n",
+    });
+    await expect(inspectComposeFile(dir)).rejects.toThrow("outside the uploaded source");
+  });
+
+  test.each([
+    "oci://docker.io/x/y:1",
+    "git@github.com:x/y.git",
+    "https://example.com/c.yaml",
+    "~/c.yaml",
+  ])("a remote include `%s` is refused", async (p) => {
+    await expect(
+      inspectComposeFile(tree({ "compose.yaml": `include: ["${p}"]\nservices: {}\n` })),
+    ).rejects.toThrow("not a file in the uploaded source");
+  });
+
+  test("nested files inside the source are fine, cycles included", async () => {
+    const dir = tree({
+      "compose.yaml":
+        "include: [sub/inc.yaml]\nservices:\n  web:\n    extends: { file: sub/inc.yaml, service: db }\n",
+      "sub/inc.yaml":
+        "include: [../compose.yaml]\nservices:\n  db:\n    image: x\n    env_file: db.env\n",
+      "sub/db.env": "A=1",
+    });
+    expect(await inspectComposeFile(dir)).toBe("compose.yaml");
+  });
+
   test("a compose.yaml that is itself a symlink is not a compose file", async () => {
     const dir = tree();
     symlinkSync("/etc/hosts", join(dir, "compose.yaml"));

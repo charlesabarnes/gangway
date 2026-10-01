@@ -23,6 +23,7 @@ import type { PreviewPasswordDeps } from "./password-deps.ts";
 import type { PreviewLimits } from "./compose-model.ts";
 import type { DomainRegistry } from "../domains/registry.ts";
 import type { Shares } from "../share/shares.ts";
+import type { Slots } from "../util/async.ts";
 
 export type PreviewTimings = {
   startTimeoutMs: number;
@@ -77,6 +78,7 @@ export type PreviewContext = {
   artifacts?: ArtifactLibrary | undefined;
   artifactCss?: (() => boolean) | undefined;
   limits?: (() => PreviewLimits) | undefined;
+  buildSlots?: Slots | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };

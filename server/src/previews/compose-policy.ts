@@ -283,3 +283,48 @@ export function policyViolations(
     ...resourceViolations(project, doc),
   ];
 }
+
+/** Every string inside, keys too: a label's name is image metadata as much as its value. */
+function strings(v: unknown): string[] {
+  if (typeof v === "string") {
+    return [v];
+  }
+  if (typeof v !== "object" || v === null) {
+    return [];
+  }
+  return [...(Array.isArray(v) ? [] : Object.keys(v)), ...Object.values(v).flatMap(strings)];
+}
+
+const MIN_SUBSTRING = 6;
+
+/** Each name in `$NAME`, `${NAME}` or `${NAME:-x}`, but not the escaped `$$NAME`. */
+const referenced = (strs: string[]) =>
+  new Set(strs.flatMap((s) => [...s.matchAll(/(?<!\$)\$\{?([A-Za-z_]\w*)/g)].map((m) => m[1])));
+
+// A secret in a build lands in the image. `asked` is read with --no-interpolate, so a reference
+// is caught at any length; values shorter than MIN_SUBSTRING would match a Dockerfile by chance.
+export function buildSecretViolations(
+  resolved: Json,
+  asked: Json,
+  secrets: Record<string, string>,
+): string[] {
+  const values = Object.entries(secrets);
+  const services = new Set([
+    ...Object.keys(obj(resolved["services"])),
+    ...Object.keys(obj(asked["services"])),
+  ]);
+  return [...services].flatMap((name) => {
+    const built = strings(obj(obj(obj(resolved["services"])[name])["build"]));
+    const named = referenced(strings(obj(obj(obj(asked["services"])[name])["build"])));
+    return values
+      .filter(
+        ([key, v]) =>
+          named.has(key) ||
+          (v !== "" && built.some((s) => s === v || (v.length >= MIN_SUBSTRING && s.includes(v)))),
+      )
+      .map(
+        ([key]) =>
+          `service "${name}": build uses the secret ${key} (secrets reach the running container only; read it at runtime)`,
+      );
+  });
+}

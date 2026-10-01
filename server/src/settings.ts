@@ -105,6 +105,8 @@ export const SETTINGS = {
   ),
   previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 0),
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
+  // Builds run outside every preview's limits, so a burst of them would take the whole host.
+  previewsBuilds: def("previews.limits.builds", z.coerce.number().int().min(0), 2),
   // Per minute, for preview traffic; 0 turns a limit off.
   limitsRequestsClient: def("limits.requests.client", z.coerce.number().int().min(0), 1200),
   limitsRequestsPreview: def("limits.requests.preview", z.coerce.number().int().min(0), 12000),

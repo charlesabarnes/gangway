@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildStack, parseComposeModel } from "../../src/previews/compose-model.ts";
-import { sharedNetworkFor } from "../../src/previews/stack-file.ts";
+import { ICC_OPTION, sharedNetworkFor } from "../../src/previews/stack-file.ts";
 import { deployFiles, edit, setupRuntimes } from "../helpers/runtimes-fixtures.ts";
 
 // What compose config resolves: every stack lists its default network.
@@ -79,16 +79,32 @@ describe("deploying on the shared network", () => {
     expect(creates).toHaveLength(1);
     expect(creates[0]).toContain("com.docker.network.bridge.enable_icc=false");
     expect(creates[0]?.at(-1)).toBe("gw-default-previews");
+    expect(joinedShared(s)).toBe(true);
   });
 
-  test("an engine without that option still gets a shared network, and says so", async () => {
+  test("an engine without that option keeps each preview on its own network", async () => {
     const s = setupRuntimes();
     const creates = networkCalls(s, { refuseIcc: true });
     const res = await deployFiles(s, { "index.html": "hi" }, "static");
     await res.done;
-    expect(creates).toHaveLength(2);
-    expect(creates[1]).not.toContain("com.docker.network.bridge.enable_icc=false");
+    expect(creates).toHaveLength(1);
     expect(s.ctx.previews.get(res.preview.id)?.state).toBe("awake");
+    expect(joinedShared(s)).toBe(false);
+  });
+
+  test.each([
+    ["without the option", { Options: {} }],
+    ["with containers allowed to talk", { Options: { [ICC_OPTION]: "true" } }],
+    ["that cannot be read", "not json"],
+  ])("an existing shared network %s is not joined", async (_, net) => {
+    const s = setupRuntimes();
+    const creates = networkCalls(s, {
+      existing: typeof net === "string" ? net : JSON.stringify([net]),
+    });
+    const res = await deployFiles(s, { "index.html": "hi" }, "static");
+    await res.done;
+    expect(creates).toHaveLength(0);
+    expect(joinedShared(s)).toBe(false);
   });
 
   test("a rebuild on the shared network drops the old per-project network", async () => {
@@ -103,12 +119,17 @@ describe("deploying on the shared network", () => {
 });
 
 /** Make the shared network missing, so the deploy creates it; returns every create argv. */
-function networkCalls(s: ReturnType<typeof setupRuntimes>, o: { refuseIcc?: boolean } = {}) {
+function networkCalls(
+  s: ReturnType<typeof setupRuntimes>,
+  o: { refuseIcc?: boolean; existing?: string } = {},
+) {
   const creates: string[][] = [];
   const capture = s.ctx.compose.capture.bind(s.ctx.compose);
   s.ctx.compose.capture = async (argv, host, opts) => {
     if (argv.includes("network") && argv.includes("inspect")) {
-      return { code: 1, stdout: "", stderr: "not found", signal: null };
+      return o.existing === undefined
+        ? { code: 1, stdout: "", stderr: "not found", signal: null }
+        : { code: 0, stdout: o.existing, stderr: "", signal: null };
     }
     if (argv.includes("network") && argv.includes("create")) {
       creates.push(argv);
@@ -121,3 +142,6 @@ function networkCalls(s: ReturnType<typeof setupRuntimes>, o: { refuseIcc?: bool
   };
   return creates;
 }
+
+const joinedShared = (s: ReturnType<typeof setupRuntimes>) =>
+  JSON.stringify(s.fake.stacks.at(-1)?.["networks"] ?? {}).includes("gw-default-previews");

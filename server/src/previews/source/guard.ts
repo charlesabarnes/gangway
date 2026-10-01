@@ -43,7 +43,8 @@ function list(v: unknown): unknown[] {
   return v === undefined || v === null ? [] : [v];
 }
 
-type FileRef = { where: string; path: string };
+/** `compose`: a compose file in its own right, read and checked in turn. */
+type FileRef = { where: string; path: string; compose?: true; projectDirectory?: string };
 
 export function referencedFiles(doc: unknown): FileRef[] {
   const d = obj(doc);
@@ -56,15 +57,15 @@ export function referencedFiles(doc: unknown): FileRef[] {
 function includeFiles(d: Record<string, unknown>): FileRef[] {
   const out: FileRef[] = [];
   for (const inc of list(d["include"])) {
-    const paths =
-      typeof inc === "string"
-        ? [inc]
-        : [
-            ...list(obj(inc)["path"]),
-            ...list(obj(inc)["env_file"]),
-            ...list(obj(inc)["project_directory"]),
-          ];
-    for (const p of paths) {
+    const entry = typeof inc === "string" ? { path: inc } : obj(inc);
+    const dir = entry["project_directory"];
+    const projectDirectory = typeof dir === "string" ? { projectDirectory: dir } : {};
+    for (const p of list(entry["path"])) {
+      if (typeof p === "string") {
+        out.push({ where: "include", path: p, compose: true, ...projectDirectory });
+      }
+    }
+    for (const p of [...list(entry["env_file"]), dir]) {
       if (typeof p === "string") {
         out.push({ where: "include", path: p });
       }
@@ -88,7 +89,7 @@ function serviceFiles(name: string, s: Record<string, unknown>): FileRef[] {
   }
   const ext = obj(s["extends"])["file"];
   if (typeof ext === "string") {
-    out.push({ where: `service "${name}": extends.file`, path: ext });
+    out.push({ where: `service "${name}": extends.file`, path: ext, compose: true });
   }
   return out;
 }
@@ -106,22 +107,81 @@ export async function inspectComposeFile(srcDir: string): Promise<string | null>
   if (!found) {
     return null;
   }
+  const walk = { srcDir, real: await realpath(srcDir), seen: new Set<string>() };
+  await inspectOne(walk, path.join(srcDir, found), [srcDir], found);
+  return found;
+}
 
+type Walk = { srcDir: string; real: string; seen: Set<string> };
+
+// An included or extended file is read just like the top one, so its references are checked too.
+const MAX_COMPOSE_FILES = 64;
+
+// git, oci and http includes fetch a file gangway never sees; `~` is the server's home.
+const remote = (p: string) =>
+  /^[a-z][\w+.-]*:/i.test(p) || p.startsWith("git@") || p.startsWith("~");
+
+async function readComposeDoc(file: string, shown: string): Promise<unknown> {
   let doc: unknown;
   try {
-    doc = parseYaml(await readFile(path.join(srcDir, found), "utf8"), { merge: true });
+    doc = parseYaml(await readFile(file, "utf8"), { merge: true });
   } catch (e) {
-    throw unprocessable(`${found} is not valid YAML`, {
+    throw unprocessable(`${shown} is not valid YAML`, {
       detail: e instanceof Error ? e.message.slice(0, 500) : String(e),
     });
   }
+  return doc;
+}
+
+/** Each place compose may resolve `ref` from: the referring file's folder and its project folder. */
+function placesFor(walk: Walk, ref: FileRef, bases: readonly string[]): string[] {
+  if (ref.path.includes("$")) {
+    throw unprocessable(`${ref.where}: variables are not allowed in file paths`);
+  }
+  if (remote(ref.path)) {
+    throw unprocessable(`${ref.where}: ${ref.path} is not a file in the uploaded source`);
+  }
+  const out = [...new Set(bases.map((b) => path.resolve(b, ref.path)))];
+  if (out.some((p) => !containedIn(walk.srcDir, p))) {
+    throw unprocessable(`${ref.where}: ${ref.path} is outside the uploaded source`);
+  }
+  return out;
+}
+
+async function inspectOne(
+  walk: Walk,
+  file: string,
+  bases: readonly string[],
+  shown: string,
+): Promise<void> {
+  // Through a link that stays inside, which assertNoEscapingSymlinks already promised.
+  const real = await realpath(file).catch(() => null);
+  if (real === null || walk.seen.has(real)) {
+    return;
+  }
+  if (!containedIn(walk.real, real)) {
+    throw unprocessable(`${shown} is outside the uploaded source`);
+  }
+  walk.seen.add(real);
+  if (walk.seen.size > MAX_COMPOSE_FILES) {
+    throw unprocessable(`the compose file includes more than ${MAX_COMPOSE_FILES} files`);
+  }
+  const doc = await readComposeDoc(real, shown);
+  const here = [...new Set([path.dirname(file), ...bases])];
   for (const ref of referencedFiles(doc)) {
-    if (ref.path.includes("$")) {
-      throw unprocessable(`${ref.where}: variables are not allowed in file paths`);
-    }
-    if (!containedIn(srcDir, path.resolve(srcDir, ref.path))) {
-      throw unprocessable(`${ref.where}: ${ref.path} is outside the uploaded source`);
+    const places = placesFor(walk, ref, here);
+    if (ref.compose) {
+      // An included file is its own project, with its own folder; an extended one is read in this one's.
+      const next = ref.where === "include" ? projectDirs(walk, ref, here) : here;
+      for (const p of places) {
+        await inspectOne(walk, p, next, path.relative(walk.srcDir, p));
+      }
     }
   }
-  return found;
+}
+
+function projectDirs(walk: Walk, ref: FileRef, here: readonly string[]): string[] {
+  return ref.projectDirectory === undefined
+    ? []
+    : placesFor(walk, { where: ref.where, path: ref.projectDirectory }, here);
 }
