@@ -16,6 +16,9 @@ const repoName = (repo: string) => repo.split("/").pop() ?? "repo";
 export function defaultName(source: DeploySource, runtime: RuntimeId | null): string {
   switch (source.kind) {
     case "tarball":
+      if (source.pr) {
+        return `${repoName(source.pr.repo)}-pr-${source.pr.number}`;
+      }
       return runtime ? `${runtime}-${unguessable().slice(0, 4)}` : "preview";
     case "pr":
       return `${repoName(source.repo)}-pr-${source.number}`;

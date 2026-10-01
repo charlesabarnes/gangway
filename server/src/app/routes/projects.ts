@@ -1,9 +1,10 @@
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import {
   EnvPatchSchema,
   ProjectCreateSchema,
   ProjectPatchSchema,
   PullDeploySchema,
+  PullUploadQuerySchema,
   type ProjectPatchRequest,
 } from "@gangway/shared/api";
 import type { Preview, Project } from "@gangway/shared/domain";
@@ -19,8 +20,9 @@ import {
   createProject,
 } from "../../projects/create.ts";
 import { readJson } from "../problem.ts";
+import { isTarballRequest } from "./previews.ts";
 import type { PreviewUrl } from "../../previews/deploy-types.ts";
-import type { Pulls } from "../../projects/pulls.ts";
+import type { PullDeployRequest, Pulls } from "../../projects/pulls.ts";
 import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../../projects/workflow.ts";
 import { changeSecrets, listSecrets, type SecretChangeDeps } from "../../secrets/change.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
@@ -162,6 +164,15 @@ function projectSecretRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   });
 }
 
+function uploadRequest(c: Context<AppEnv>): PullDeployRequest {
+  const { sha, port } = PullUploadQuerySchema.parse(c.req.query());
+  const archive = c.req.raw.body;
+  if (!archive) {
+    throw badRequest("the request has no body; send the tar or tar.gz as the body");
+  }
+  return { archive, sha, port };
+}
+
 function projectPullRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.get("/projects/:ref/workflow", requirePermission("previews.read"), (c) => {
     const project = findProject(d.projects, c.req.param("ref"));
@@ -179,7 +190,7 @@ function projectPullRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
       throw notFound("pull request previews are not available on this server");
     }
     const n = pullNumber(c.req.param("n"));
-    const req = PullDeploySchema.parse(await readJson(c));
+    const req = isTarballRequest(c) ? uploadRequest(c) : PullDeploySchema.parse(await readJson(c));
     const out = await d.pulls.deploy(c.req.param("ref"), n, req, c.get("actor"));
     if (out.action === "unchanged") {
       return c.json({ preview: d.wire(out.preview), unchanged: true });

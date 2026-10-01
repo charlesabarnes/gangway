@@ -1,5 +1,5 @@
 // Listing and changing secrets at one target, shared by the REST routes and the MCP secrets tool.
-import type { Preview } from "@gangway/shared/domain";
+import { pullRequestOf, type Preview } from "@gangway/shared/domain";
 import type { Actor } from "../auth/actor.ts";
 import { secretRefusal, type SecretTarget } from "../auth/secret-access.ts";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
@@ -54,12 +54,12 @@ export function changeSecrets(
 /** Containers keep the env they started with, so say what has to happen for a change to land. */
 export function appliesTo(d: SecretChangeDeps, target: SecretTarget): string {
   if (target.kind === "preview") {
-    const kind = target.preview.source.kind;
-    if (kind === "tarball") {
-      return `stored on ${target.name}; it takes effect on its next rebuild (deploy with preview: "${target.name}")`;
-    }
-    if (kind === "pr") {
+    const source = target.preview.source;
+    if (pullRequestOf(source)) {
       return `stored on ${target.name}; it takes effect on the pull request's next push, and is kept across pushes`;
+    }
+    if (source.kind === "tarball") {
+      return `stored on ${target.name}; it takes effect on its next rebuild (deploy with preview: "${target.name}")`;
     }
     return `stored on ${target.name}; it takes effect when it is deployed again`;
   }

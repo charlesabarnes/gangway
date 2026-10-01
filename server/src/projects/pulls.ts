@@ -1,14 +1,29 @@
-import { hasRepo, type Preview, type Project } from "@gangway/shared/domain";
+import {
+  hasRepo,
+  pullRequestOf,
+  type Preview,
+  type Project,
+  type PullRequestRef,
+} from "@gangway/shared/domain";
 import type { Actor } from "../auth/actor.ts";
 import { AppError, conflict, forbidden, notFound } from "../errors.ts";
-import type { DeployInput, DeployResult, RegistryLogin } from "../previews/deploy-types.ts";
+import type {
+  DeployInput,
+  DeployResult,
+  DeploySource,
+  RegistryLogin,
+} from "../previews/deploy-types.ts";
+import type { TarballSource } from "../previews/source/tarball.ts";
 
-export type PullDeployRequest = {
-  image: string;
-  port: number;
-  sha: string;
-  registry?: { username: string; password: string } | undefined;
-};
+/** An image the workflow pushed, or the PR's files (a built static site, say) uploaded as a tarball. */
+export type PullDeployRequest =
+  | {
+      image: string;
+      port: number;
+      sha: string;
+      registry?: { username: string; password: string } | undefined;
+    }
+  | { archive: TarballSource; sha: string; port?: number | undefined };
 
 export type PullsDeps = {
   projects: { find(ref: string): Project | undefined };
@@ -32,6 +47,30 @@ export function registryOf(image: string): string {
     (first.includes(".") || first.includes(":") || first === "localhost")
     ? first
     : "docker.io";
+}
+
+function sameHead(p: Preview, req: PullDeployRequest): boolean {
+  if ("image" in req) {
+    return p.source.kind === "pr" && p.source.sha === req.sha && p.source.image === req.image;
+  }
+  return p.source.kind === "tarball" && pullRequestOf(p.source)?.sha === req.sha;
+}
+
+function sourceOf(req: PullDeployRequest, pr: PullRequestRef) {
+  if ("archive" in req) {
+    return {
+      kind: "tarball",
+      archive: req.archive,
+      port: req.port,
+      runtime: "auto",
+      pr,
+    } satisfies DeploySource;
+  }
+  const registry: RegistryLogin | undefined = req.registry && {
+    server: registryOf(req.image),
+    ...req.registry,
+  };
+  return { kind: "pushed", image: req.image, port: req.port, pr, registry } satisfies DeploySource;
 }
 
 export class Pulls {
@@ -89,12 +128,7 @@ export class Pulls {
     }
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
-      if (
-        existing?.source.kind === "pr" &&
-        existing.source.sha === req.sha &&
-        existing.source.image === req.image &&
-        LIVE.has(existing.state)
-      ) {
+      if (existing && sameHead(existing, req) && LIVE.has(existing.state)) {
         return { action: "unchanged", preview: existing };
       }
       // The PR's own secrets outlive its head: read them before the old preview goes.
@@ -104,23 +138,13 @@ export class Pulls {
       if (existing) {
         await this.#d.previews.destroy(existing.id, actor);
       }
-      const registry: RegistryLogin | undefined = req.registry && {
-        server: registryOf(req.image),
-        ...req.registry,
-      };
       const result = await this.#d.previews.deploy({
         actor,
         name: `${project.slug}-pr-${number}`,
         projectId: project.id,
         ...(existing?.secretLevel ? { secretLevel: existing.secretLevel } : {}),
         carrySecrets,
-        source: {
-          kind: "pushed",
-          image: req.image,
-          port: req.port,
-          pr: { repo: project.fullName, number, sha: req.sha },
-          registry,
-        },
+        source: sourceOf(req, { repo: project.fullName, number, sha: req.sha }),
       });
       return { action: "deployed", result };
     });

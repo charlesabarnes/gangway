@@ -9,6 +9,7 @@ export function sourceLabel(s: PreviewSource): string {
     case 'image':
       return s.image;
     case 'tarball': {
+      if (s.pr) return `${s.pr.repo}#${s.pr.number}`;
       const runtime = s.runtime ? `uploaded files · ${s.runtime}` : 'uploaded archive';
       const base = s.serve === 'gangway' ? `${runtime} · served by gangway` : runtime;
       if (!s.addons?.length) return base;

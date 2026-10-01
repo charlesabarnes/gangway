@@ -124,6 +124,8 @@ export type PreviewNetwork = Exclude<NetworkChoice, "auto">;
 export const WATERMARK_CHOICES = ["inherit", "on", "off"] as const;
 export type WatermarkChoice = (typeof WATERMARK_CHOICES)[number];
 
+export type PullRequestRef = { repo: string; number: number; sha: string };
+
 export type PreviewSource =
   | { kind: "pr"; repo: string; number: number; sha: string; image?: string }
   | { kind: "manual"; userId: string }
@@ -137,12 +139,22 @@ export type PreviewSource =
       network?: PreviewNetwork;
       /** "gangway": its files are served by gangway itself, with no container. */
       serve?: "gangway";
+      /** The pull request whose workflow uploaded it. */
+      pr?: PullRequestRef;
     }
   | { kind: "git"; repo: string; ref: string };
 
 /** Whether gangway serves this preview's files itself instead of running a container. */
 export const servedByGangway = (p: { source: PreviewSource }): boolean =>
   p.source.kind === "tarball" && p.source.serve === "gangway";
+
+/** The pull request a preview was deployed for, whether gangway built it or a workflow sent it. */
+export function pullRequestOf(s: PreviewSource): PullRequestRef | null {
+  if (s.kind === "pr") {
+    return s;
+  }
+  return s.kind === "tarball" ? (s.pr ?? null) : null;
+}
 
 export type Preview = {
   id: string;

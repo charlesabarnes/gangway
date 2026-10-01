@@ -294,6 +294,12 @@ export const PullDeploySchema = z.strictObject({
 });
 export type PullDeployRequestBody = z.infer<typeof PullDeploySchema>;
 
+/** The query of a pull request deploy whose body is the PR's files as a tarball. */
+export const PullUploadQuerySchema = z.object({
+  sha: PullDeploySchema.shape.sha,
+  port: z.coerce.number().int().min(1).max(65535).optional(),
+});
+
 export const ProjectPatchSchema = z.strictObject({
   name: z.string().trim().min(1).max(64).optional(),
   repository: RepositorySchema.nullable().optional(),

@@ -42,6 +42,8 @@ const contentTypeOf = (c: Context<AppEnv>) =>
     .trim()
     .toLowerCase();
 
+export const isTarballRequest = (c: Context<AppEnv>) => isTarball(contentTypeOf(c));
+
 function previewHelpers(ctx: PreviewContext) {
   return {
     ctx,
@@ -127,7 +129,7 @@ function deployRoutes(api: Hono<AppEnv>, { wire }: Previews, deploys: Idempotent
     "/previews",
     requirePermission("previews.deploy", "previews.deploy_static"),
     async (c) => {
-      const req = isTarball(contentTypeOf(c)) ? tarballRequest(c) : await jsonRequest(c);
+      const req = isTarballRequest(c) ? tarballRequest(c) : await jsonRequest(c);
       const res = await deploys.deploy(
         { ...req, actor: c.get("actor") },
         c.req.header("idempotency-key"),

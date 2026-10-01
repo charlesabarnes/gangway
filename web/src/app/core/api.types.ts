@@ -37,6 +37,8 @@ export type PreviewSource =
       network?: 'shared' | 'isolated';
       /** gangway serves the files itself, with no container. */
       serve?: 'gangway';
+      /** The pull request whose workflow uploaded it. */
+      pr?: { repo: string; number: number; sha: string };
     }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];
