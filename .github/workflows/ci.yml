@@ -1,5 +1,5 @@
-# Typecheck, lint, format and unit tests, plus the web build. No Docker: the suite fakes the
-# compose runner and the daemon. Anything that needs a real Docker host is checked by hand.
+# Typecheck, lint, format and unit tests, plus the web build. The unit suite fakes the compose
+# runner and the daemon; the docker job runs gangway against the runner's real Docker engine.
 name: ci
 
 on:
@@ -34,6 +34,24 @@ jobs:
       # The artifact tests serve the built kit, and render/dist is not committed.
       - run: bun run build:render
       - run: bun run test
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - run: docker version && docker compose version
+      # Pulled first so a slow registry is not a deploy timeout.
+      - run: docker pull -q busybox:1.36
+      - run: bun test server/test/integration
+        env:
+          GANGWAY_REQUIRE_DOCKER: "1"
 
   web:
     runs-on: ubuntu-latest
