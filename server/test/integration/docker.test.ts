@@ -56,6 +56,25 @@ type Deployed = { status: number; id: string; state: string; text: string };
 const trace = (line: string) => process.stderr.write(`${line}\n`);
 let deploys = 0;
 
+/** The log so far: the route streams it live and never ends on its own. */
+async function logsOf(id: string): Promise<string> {
+  const res = await call(API, `/v1/previews/${id}/logs`, { signal: AbortSignal.timeout(2_000) });
+  const reader = res.body?.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  try {
+    for (;;) {
+      const chunk = await reader?.read();
+      if (!chunk || chunk.done) {
+        return text;
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+  } catch {
+    return text;
+  }
+}
+
 async function deploy(files: Record<string, string>): Promise<Deployed> {
   const name = `it-${++deploys}`;
   trace(`deploying ${name}`);
@@ -67,8 +86,8 @@ async function deploy(files: Record<string, string>): Promise<Deployed> {
   });
   const body = (await res.json()) as { preview?: { id: string; state: string } };
   const id = body.preview?.id ?? "";
-  const logs = id ? await (await call(API, `/v1/previews/${id}/logs`)).text() : "";
-  trace(`${name}: ${res.status} ${body.preview?.state ?? ""}\n${logs.slice(-6000)}`);
+  const logs = id ? await logsOf(id) : "";
+  trace(`${name}: ${res.status} ${body.preview?.state ?? ""}`);
   return {
     status: res.status,
     id,
