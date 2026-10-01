@@ -56,15 +56,19 @@ type Deployed = { status: number; id: string; state: string; text: string };
 const trace = (line: string) => process.stderr.write(`${line}\n`);
 let deploys = 0;
 
-/** The log so far: the route streams it live and never ends on its own. */
+const QUIET_MS = 1_000;
+
+/** The whole log so far: the route replays it, then stays open for live lines, so stop once it goes quiet. */
 async function logsOf(id: string): Promise<string> {
-  const res = await call(API, `/v1/previews/${id}/logs`, { signal: AbortSignal.timeout(2_000) });
+  const ac = new AbortController();
+  const res = await call(API, `/v1/previews/${id}/logs`, { signal: ac.signal });
   const reader = res.body?.getReader();
   const decoder = new TextDecoder();
   let text = "";
   try {
     for (;;) {
-      const chunk = await reader?.read();
+      const quiet = Bun.sleep(QUIET_MS).then(() => null);
+      const chunk = await Promise.race([reader?.read(), quiet]);
       if (!chunk || chunk.done) {
         return text;
       }
@@ -72,6 +76,8 @@ async function logsOf(id: string): Promise<string> {
     }
   } catch {
     return text;
+  } finally {
+    ac.abort();
   }
 }
 
@@ -111,15 +117,14 @@ async function containerOf(previewId: string) {
   return ids[0]!;
 }
 
-const ipOf = async (container: string) =>
-  (
-    await docker(
-      "inspect",
-      "--format",
-      "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
-      container,
-    )
-  ).stdout.split(" ")[0]!;
+/** The container's address on `network`, failing the test if it is not attached there. */
+async function ipOn(container: string, network: string): Promise<string> {
+  const r = await docker("inspect", "--format", "{{json .NetworkSettings.Networks}}", container);
+  expect(r.code).toBe(0);
+  const ip = (JSON.parse(r.stdout) as Record<string, { IPAddress?: string }>)[network]?.IPAddress;
+  expect(ip).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+  return ip!;
+}
 
 const fetchFrom = (container: string, url: string) =>
   docker("exec", container, "wget", "-T", "3", "-qO-", url);
@@ -175,13 +180,13 @@ describe.skipIf(!enabled)("against real Docker", () => {
     const b = await deploy({ "compose.yaml": httpd() });
     expectAwake(a, b);
 
-    const net = await docker("network", "inspect", `gw-${INSTANCE}-previews`);
-    expect(net.code).toBe(0);
+    const shared = `gw-${INSTANCE}-previews`;
 
     const [ca, cb] = [await containerOf(a.id), await containerOf(b.id)];
     // The sanity check first: the request itself works, so a failure below is the network.
     expect((await fetchFrom(ca, "http://127.0.0.1:8080/")).stdout).toBe("ok");
-    const across = await fetchFrom(ca, `http://${await ipOf(cb)}:8080/`);
+    await ipOn(ca, shared);
+    const across = await fetchFrom(ca, `http://${await ipOn(cb, shared)}:8080/`);
     expect(across.code).not.toBe(0);
   }, 180_000);
 
@@ -237,6 +242,8 @@ describe.skipIf(!enabled)("against real Docker", () => {
   }, 240_000);
 
   test("destroying every preview leaves no container or volume behind", async () => {
+    // One of its own, so the test means something when run alone.
+    expectAwake(await deploy({ "compose.yaml": httpd() }));
     const list = (await (await call(API, "/v1/previews")).json()) as {
       previews: { id: string; state: string }[];
     };
