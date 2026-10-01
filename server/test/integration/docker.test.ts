@@ -68,7 +68,7 @@ async function deploy(files: Record<string, string>): Promise<Deployed> {
   const body = (await res.json()) as { preview?: { id: string; state: string } };
   const id = body.preview?.id ?? "";
   const logs = id ? await (await call(API, `/v1/previews/${id}/logs`)).text() : "";
-  trace(`${name}: ${res.status} ${body.preview?.state ?? ""}`);
+  trace(`${name}: ${res.status} ${body.preview?.state ?? ""}\n${logs.slice(-6000)}`);
   return {
     status: res.status,
     id,
