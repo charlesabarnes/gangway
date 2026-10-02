@@ -20,6 +20,14 @@ export async function destroy(
   if (preview.state === "destroying") {
     throw new AppError("conflict", "this preview is already being destroyed");
   }
+  // Destroying takes the volumes with it: production's data goes only once it stops being production.
+  const project = ctx.previews.productionOf(previewId);
+  if (project !== null) {
+    throw new AppError(
+      "conflict",
+      `this preview is ${project}'s production: choose another production preview, or none, first`,
+    );
+  }
 
   const host = ctx.hosts.get(preview.hostId);
   if (!host) {

@@ -17,6 +17,7 @@ import { readRegularFile } from "../util/fs.ts";
 import type { RenderedAddons } from "./addons.ts";
 import { composeForRuntime } from "./compose-generate.ts";
 import { renderRuntime } from "./runtime-dockerfile.ts";
+import { DOCKERIGNORE_CREDENTIALS } from "./sensitive.ts";
 import { shq } from "./runtime-templates.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { containedIn, DIR_MODE, FILE_MODE } from "./source/types.ts";
@@ -119,7 +120,7 @@ export async function writeRuntime(
   await writeFile(path.join(dir, "Dockerfile"), rendered.dockerfile, { mode: FILE_MODE });
   await writeFile(
     path.join(dir, "Dockerfile.dockerignore"),
-    ".git\n**/node_modules\n.gangway/out\n",
+    [".git", "**/node_modules", ".gangway/out", ...DOCKERIGNORE_CREDENTIALS, ""].join("\n"),
     { mode: FILE_MODE },
   );
   for (const [name, body] of Object.entries({ ...rendered.files, ...sidecars?.files })) {

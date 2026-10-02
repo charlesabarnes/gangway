@@ -60,6 +60,9 @@ describe("build conventions and scripts", () => {
     expect(r.dockerfile).toContain("FROM nginxinc/nginx-unprivileged:1.29-alpine");
     expect(r.dockerfile).toContain("COPY --from=build /out/ /usr/share/nginx/html/");
     expect(r.files["nginx.conf"]).toContain("listen 3000;");
+    // A .env or a key a build left in its output is refused; .well-known is not.
+    expect(r.files["nginx.conf"]).toContain("location ~ /\\.(?!well-known/) { return 404; }");
+    expect(r.files["nginx.conf"]).toContain("location ~* \\.(?:pem|key|p12|pfx)$ { return 404; }");
     expect(r.files["collect-static.sh"]).toContain(
       "for d in 'dist' 'build' 'out' '.output/public' dist/*/browser; do",
     );

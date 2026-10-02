@@ -53,9 +53,8 @@ function imageViolations(at: string, s: Json): string[] {
   if (gangwayImage(s["image"])) {
     out.push(`${at}: image ${String(s["image"])} is not allowed (gw-* images are gangway's own)`);
   }
-  const tags = arr(obj(s["build"])["tags"]).filter(gangwayImage);
-  if (tags.length > 0) {
-    out.push(`${at}: build.tags ${tags.join(", ")} are not allowed`);
+  if (obj(s["build"])["tags"] !== undefined) {
+    out.push(`${at}: build.tags is not allowed (gangway names the images a preview builds)`);
   }
   return out;
 }

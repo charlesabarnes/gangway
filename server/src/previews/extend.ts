@@ -7,6 +7,23 @@ import type { PreviewContext } from "./context.ts";
 
 export const EXTEND_FOREVER = "none";
 
+// Production must not lapse with the TTL it had as a preview: it is kept until destroyed.
+export function keepForProduction(
+  ctx: {
+    previews: Pick<PreviewContext["previews"], "get" | "setTtlExpiresAt">;
+    audit: PreviewContext["audit"];
+  },
+  actor: Actor,
+  previewId: string,
+): void {
+  const old = ctx.previews.get(previewId)?.ttlExpiresAt;
+  if (!old) {
+    return;
+  }
+  ctx.previews.setTtlExpiresAt(previewId, null);
+  ctx.audit.record(actor, "preview.extend", previewId, { old: old.toISOString(), new: null });
+}
+
 // Adds `by` to what is left (or to now, if lapsed), or keeps it forever; never shortens a life.
 export function extendPreview(
   ctx: Pick<PreviewContext, "previews" | "audit" | "now">,

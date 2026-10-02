@@ -112,6 +112,20 @@ describe("the file server", () => {
     expect(await link.text()).not.toContain("secret");
   });
 
+  test("no dotfile is served, but .well-known is", async () => {
+    const s = await site({
+      ...SITE,
+      ".env": "SECRET=1",
+      "a/.git/config": "[core]",
+      ".well-known/security.txt": "Contact: x",
+    });
+    expect((await get(s, "/.env")).status).toBe(404);
+    expect((await get(s, "/%2eenv")).status).toBe(404);
+    expect((await get(s, "/a/.git/config")).status).toBe(404);
+    expect((await get(s, "/a/.well-known/x")).status).toBe(404);
+    expect(await (await get(s, "/.well-known/security.txt")).text()).toBe("Contact: x");
+  });
+
   test("only GET and HEAD, and HEAD has no body", async () => {
     const s = await site(SITE);
     const post = await get(s, "/", { method: "POST" });
@@ -286,6 +300,34 @@ describe("deploying files gangway serves", () => {
     const done = await (await deployFiles(s, SITE, "auto", "off")).done;
     expect(done.source).not.toHaveProperty("serve");
     expect(s.fake.ups).toBeGreaterThan(0);
+  });
+
+  test("env files and keys are left out of the site, and the log names them", async () => {
+    const s = setupServed();
+    const res = await deployFiles(
+      s,
+      {
+        ...SITE,
+        ".env": "SECRET=1",
+        ".env.example": "SECRET=",
+        "deploy/server.pem": "-----BEGIN",
+        ".aws/credentials": "[default]",
+      },
+      "auto",
+      "leaky",
+    );
+    expect((await res.done).state).toBe("awake");
+    const opened = (await s.sites.open(res.preview.id))!;
+    for (const f of [".env", "deploy/server.pem", ".aws/credentials"]) {
+      expect(await Bun.file(join(opened.root, f)).exists()).toBe(false);
+    }
+    // A template with no values in it is kept, though the file server never serves a dotfile.
+    expect(await Bun.file(join(opened.root, ".env.example")).exists()).toBe(true);
+    expect((await get(opened, "/.env")).status).toBe(404);
+    const log = s.ctx.logs.read(res.preview.id).map((l) => l.line);
+    expect(log).toContain(
+      "not published, as they may hold secrets: .aws/, .env, deploy/server.pem (use gangway secrets instead)",
+    );
   });
 
   test("an edit swaps the files in place without a container", async () => {

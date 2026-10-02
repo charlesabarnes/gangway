@@ -313,9 +313,25 @@ describe("urls and destroy", () => {
       "https://shop.preview.test:8443/",
     ]);
 
+    // Production keeps its volumes until someone chooses another production preview, or none.
+    await expect(destroy(s.ctx, p.id, ACTOR)).rejects.toThrow("this preview is web's production");
+    expect(s.ctx.previews.get(p.id)!.state).toBe("awake");
+    r.projects.update("p1", { productionPreviewId: null });
+
     await destroy(s.ctx, p.id, ACTOR);
     expect(r.domains.forPreview(p.id)).toEqual([]);
-    expect(r.projects.get("p1")!.productionPreviewId).toBeNull();
     expect(r.registry.aliasTarget("www.shop.example")).toBeUndefined();
+  });
+
+  test("a production preview never lapses with its TTL", async () => {
+    const s = setupPreviewContext();
+    const r = registry(s.db);
+    const p = await s.deployed("shop");
+    const lapsed = s.ctx.now() + 8 * 86_400_000;
+    expect(s.ctx.previews.expired(lapsed).map((v) => v.id)).toEqual([p.id]);
+    r.projects.create({ id: "p1", name: "web", slug: "web" });
+    r.projects.update("p1", { productionPreviewId: p.id });
+    expect(s.ctx.previews.expired(lapsed)).toEqual([]);
+    expect(s.ctx.previews.productionOf(p.id)).toBe("web");
   });
 });

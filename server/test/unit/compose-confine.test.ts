@@ -171,7 +171,7 @@ describe("policy: builds get no host network, no privilege and no entitlements",
     ]);
   });
 
-  test("no host names, no cache shared with the host or other previews, no gw-* tags", () => {
+  test("no host names, no cache shared with the host or other previews, no tags", () => {
     const build = (b: Record<string, unknown>) =>
       violations({ web: { build: { context: "/x", ...b } } });
     expect(build({ extra_hosts: ["db:10.0.0.5"] })).toEqual([
@@ -186,10 +186,13 @@ describe("policy: builds get no host network, no privilege and no entitlements",
     expect(build({ isolation: "process" })).toEqual([
       'service "web": build.isolation is not allowed',
     ]);
-    expect(build({ tags: ["app:dev", "gw-main-shop-web"] })).toEqual([
-      'service "web": build.tags gw-main-shop-web are not allowed',
-    ]);
-    expect(build({ tags: ["app:dev"] })).toEqual([]);
+    // Any tag, not only gw-*: one named node:24-alpine would replace the base every build uses.
+    const tagsRefused = [
+      'service "web": build.tags is not allowed (gangway names the images a preview builds)',
+    ];
+    expect(build({ tags: ["app:dev", "gw-main-shop-web"] })).toEqual(tagsRefused);
+    expect(build({ tags: ["node:24-alpine"] })).toEqual(tagsRefused);
+    expect(build({ tags: [] })).toEqual(tagsRefused);
   });
 });
 

@@ -17,6 +17,7 @@ import {
   type ClaimDeps,
 } from "../../domains/claims.ts";
 import { notFound, unprocessable } from "../../errors.ts";
+import { keepForProduction } from "../../previews/extend.ts";
 import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
@@ -115,6 +116,9 @@ function projectDomainRoutes(api: Hono<AppEnv>, d: DomainRouteDeps): void {
       old: project.productionPreviewId,
       new: previewId,
     });
+    if (previewId !== null) {
+      keepForProduction(d, c.get("actor"), previewId);
+    }
     d.registry.refresh();
     return c.json({ project: after });
   });

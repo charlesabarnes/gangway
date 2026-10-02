@@ -1,62 +1,19 @@
 import { must } from "@gangway/shared/must";
 import type { PreviewIcon } from "@gangway/shared/preview-icon";
 import type {
-  Clearance,
   PasswordLogin,
   PasswordMode,
   Preview,
-  PreviewKind,
   PreviewSource,
   PreviewState,
-  Visibility,
   WatermarkChoice,
 } from "@gangway/shared/domain";
 import type { Provenance } from "../../auth/actor.ts";
 import type { Db, Params } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
+import type { CreatePreview, PreviewFilter, StoredPreviewPassword } from "./preview-inputs.ts";
 
-export type CreatePreview = {
-  id: string;
-  project: string;
-  title?: string | null;
-  icon?: PreviewIcon | null;
-  hostId: string;
-  kind?: PreviewKind;
-  state: PreviewState;
-  source: PreviewSource;
-  visibility: Visibility;
-  ttlExpiresAt?: Date | null;
-  idleAfterMs?: number | null;
-  secretLevel?: Clearance | null;
-  templateId?: string | null;
-  projectId?: string | null;
-  owner?: string | null;
-  credential?: string | null;
-  password?: StoredPreviewPassword;
-  passwordLogin?: PasswordLogin;
-  watermark?: WatermarkChoice | undefined;
-  domain?: string | null | undefined;
-};
-
-export type StoredPreviewPassword = {
-  mode: PasswordMode;
-  secret: { hash: string; salt: string } | null;
-};
-
-export type PreviewFilter = {
-  state?: PreviewState | PreviewState[];
-  hostId?: string;
-  kind?: PreviewKind;
-  projectId?: string;
-  includeDestroyed?: boolean;
-  /** Only previews this principal deployed (previews.owner). */
-  owner?: string;
-  /** Only previews this credential deployed (previews.credential). */
-  credential?: string;
-  /** Only ids below this one: the next page after it. */
-  before?: string;
-  limit?: number;
-};
+export type { CreatePreview, PreviewFilter, StoredPreviewPassword } from "./preview-inputs.ts";
 
 const watermarkColumn = (w: WatermarkChoice | undefined): string | null =>
   w === "on" || w === "off" ? w : null;
@@ -383,14 +340,25 @@ export class PreviewsRepo {
     });
   }
 
+  // A project's production preview never lapses, whatever TTL it had before it was chosen.
   expired(now: number = this.#now()): Preview[] {
     return this.#previews(
       `SELECT * FROM previews
        WHERE ttl_expires_at IS NOT NULL AND ttl_expires_at <= $now
          AND state NOT IN ('destroyed', 'destroying')
+         AND id NOT IN (SELECT production_preview_id FROM projects
+                        WHERE production_preview_id IS NOT NULL)
        ORDER BY ttl_expires_at`,
       { now },
     );
+  }
+
+  /** The project whose production this preview is, or null. */
+  productionOf(id: string): string | null {
+    const r = this.#db.get("SELECT slug FROM projects WHERE production_preview_id = $id LIMIT 1", {
+      id,
+    }) as { slug: string } | null | undefined;
+    return r?.slug ?? null;
   }
 
   idleSince(cutoff: number): Preview[] {
