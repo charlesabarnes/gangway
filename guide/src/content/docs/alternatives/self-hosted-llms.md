@@ -27,7 +27,7 @@ have, with everything on your own hardware.
 
 1. Install gangway on the same server or another one: see [Quickstart](/docs/quickstart/). It runs
    on any Docker host, including Unraid.
-2. Make an API token in gangway and add gangway to your client as an MCP server.
+2. Add gangway to your client as an MCP server, signing in with OAuth or an API token.
    [Connect any MCP client](/docs/use/mcp-clients/) has the steps.
 3. Use a model with reliable tool calling. gangway's `deploy` tool takes whole files, which small
    models get wrong.
