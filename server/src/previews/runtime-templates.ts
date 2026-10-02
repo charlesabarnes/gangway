@@ -1,5 +1,6 @@
 import { STATIC_BUILD_OUTPUTS } from "@gangway/shared/app-plan";
 import type { Command } from "@gangway/shared/gangway-file";
+import { NGINX_DENY } from "./sensitive.ts";
 
 const WORKERD_COMPAT_DATE = "2026-09-01";
 
@@ -153,7 +154,7 @@ server {
   root /usr/share/nginx/html;
   index index.html index.htm;
   ${gzip}${fallback === "listing" ? "autoindex on;\n  " : ""}${fallback === "404" ? "error_page 404 /404.html;\n  " : ""}location ^~ /.gangway/ { return 404; }
-  location / { try_files $uri $uri/ $uri.html ${tail}; }
+  ${NGINX_DENY}location / { try_files $uri $uri/ $uri.html ${tail}; }
 }
 `;
 }

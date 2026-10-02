@@ -352,6 +352,10 @@ export async function serveSite(
   if (site.kit && url.pathname.startsWith(KIT_PREFIX)) {
     return serveKit(req, site, parts.slice(1), o);
   }
+  // publish leaves secrets out; this keeps any dotfile it let through (or an older site's) unseen.
+  if (parts.some((s, i) => s.startsWith(".") && !(i === 0 && s === ".well-known"))) {
+    return plain(404, "not found");
+  }
 
   const hit = await lookup(site.root, url, parts);
   if (hit && "redirect" in hit) {

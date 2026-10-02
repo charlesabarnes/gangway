@@ -4,6 +4,8 @@ import { serveSite } from "../net/site.ts";
 import { renderDist } from "../previews/artifact-render.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
+import { sensitiveName } from "../previews/sensitive.ts";
+import { withheldLine } from "../previews/site.ts";
 import { describePlan } from "./describe.ts";
 
 const MANIFEST_SHOWN = 40;
@@ -37,6 +39,26 @@ async function manifestOf(ctx: PreviewContext, p: Preview): Promise<string | nul
     return null;
   }
   const m = await ctx.sources.manifest(p.id);
+  const left = servedByGangway(p) ? withheldLine(withheldOf(m.files.map((f) => f.path))) : null;
+  const shown = manifestRows(m);
+  return left ? `${shown}\n${left}` : shown;
+}
+
+// The paths publish leaves out, by the same rule: a sensitive file, or one in a sensitive directory.
+function withheldOf(paths: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const p of paths) {
+    const parts = p.split("/");
+    const at = parts.findIndex((name, i) => sensitiveName(name, i < parts.length - 1));
+    if (at >= 0) {
+      const dir = at < parts.length - 1;
+      out.add(dir ? `${parts.slice(0, at + 1).join("/")}/` : p);
+    }
+  }
+  return [...out];
+}
+
+function manifestRows(m: Awaited<ReturnType<NonNullable<PreviewContext["sources"]>["manifest"]>>) {
   if (m.files.length > MANIFEST_SHOWN) {
     return `files as deployed: ${m.files.length}${m.truncated ? "+" : ""} (too many to list; the preview page shows them)`;
   }

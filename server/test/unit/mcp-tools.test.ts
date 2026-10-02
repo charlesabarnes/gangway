@@ -6,7 +6,9 @@ import { refusalDetail } from "../../src/mcp/describe.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { TOOL_PERMISSIONS } from "../../src/mcp/tool-access.ts";
 import { DeployArgs } from "../../src/mcp/tool-specs.ts";
+import { SiteStore } from "../../src/previews/site.ts";
 import { READ_ONLY, setupTools } from "../helpers/mcp-tools.ts";
+import { tempDir } from "../helpers/db.ts";
 import { ACTOR } from "../helpers/preview-context.ts";
 
 const sha12 = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 12);
@@ -321,6 +323,19 @@ describe("the tools", () => {
     });
     expect(again).toContain(`${sha12("v2")}         2  index.html`);
     expect(again).toContain("checked: / 200");
+  });
+
+  test("ready names the files a site gangway serves left out as secrets", async () => {
+    const s = setupTools();
+    s.ctx.sites = new SiteStore(tempDir());
+    const out = await s.tools.deploy(s.scope(), {
+      files: { "index.html": "<h1>hi</h1>", ".env": "SECRET=1", "keys/.ssh/id_rsa": "k" },
+      name: "leaky",
+      visibility: "public",
+    });
+    expect(out).toContain(
+      "not published, as they may hold secrets: .env, keys/.ssh/ (use gangway secrets instead)",
+    );
   });
 
   test("a plan that cannot run says why, reason by reason", async () => {
