@@ -144,3 +144,75 @@ describe("a rebuild that fails rolls back", () => {
     expect(await s.sources.hasDraft(p.id)).toBe(false);
   });
 });
+
+describe("a rebuild that could not roll back is refused", () => {
+  /** Make `docker image tag` fail for the targets `fails` picks. */
+  function failTags(s: RuntimesHarness, fails: (target: string) => boolean) {
+    const capture = s.ctx.compose.capture.bind(s.ctx.compose);
+    s.ctx.compose.capture = async (argv, host, o) =>
+      argv[1] === "image" && argv[2] === "tag" && fails(argv[4]!)
+        ? { code: 1, stdout: "", stderr: "no space left", signal: null }
+        : capture(argv, host, o);
+  }
+
+  test("a serving preview whose images cannot be tagged changes nothing", async () => {
+    const s = setupRuntimes();
+    const { p, ref } = await serving(s);
+    const builds = s.fake.builds;
+    failTags(s, () => true);
+
+    await expect(edit(s, p.id, { "index.ts": "v2" })).rejects.toMatchObject({
+      code: "unavailable",
+      message: expect.stringContaining("could not keep the serving version's images"),
+    });
+
+    expect(s.fake.builds).toBe(builds);
+    expect(s.previews.get(p.id)!.state).toBe("awake");
+    expect(s.fake.images.get(`${ref}:latest`)).toBe(OLD);
+    expect(await deployedText(s, p.id)).toBe("v1");
+    expect(await s.sources.hasDraft(p.id)).toBe(false);
+    expect(s.ctx.inflight.has(p.id)).toBe(false);
+  });
+
+  test("a snapshot that fails halfway drops the tags it made", async () => {
+    const s = setupRuntimes();
+    const { p, ref } = await serving(s);
+    s.fake.containers.push({ ref: `${p.project}-worker`, id: `sha256:${"b".repeat(64)}` });
+    failTags(s, (target) => target.startsWith(`${p.project}-worker`));
+
+    await expect(edit(s, p.id, { "index.ts": "v2" })).rejects.toMatchObject({
+      code: "unavailable",
+    });
+
+    expect(s.fake.all.some((a) => a[2] === "tag" && a[4] === `${ref}:prev`)).toBe(true);
+    expect(prevTags(s)).toEqual([]);
+  });
+
+  test("an asleep preview's stopped containers are kept, and it rolls back", async () => {
+    const s = setupRuntimes();
+    const { p, ref } = await serving(s);
+    s.ctx.states.transition(p.id, "asleep");
+    const ups = s.fake.ups;
+    s.ctx.probe = async () => s.fake.ups !== ups + 1;
+
+    const o = await edit(s, p.id, { "index.ts": "broken" });
+
+    expect(o).toMatchObject({ outcome: "failed", preview: { state: "awake" } });
+    expect(s.fake.images.get(`${ref}:latest`)).toBe(OLD);
+    expect(prevTags(s)).toEqual([]);
+  });
+
+  test("a failed preview has nothing to keep and rebuilds without a snapshot", async () => {
+    const s = setupRuntimes();
+    s.fake.answering = false;
+    const p = await (await deployFiles(s, { "index.ts": "v1" }, "bun", "edit")).done;
+    expect(p.state).toBe("failed");
+    s.fake.containers = [];
+    s.fake.answering = true;
+
+    const o = await edit(s, p.id, { "index.ts": "fixed" });
+
+    expect(o).toMatchObject({ outcome: "succeeded", preview: { state: "awake" } });
+    expect(s.fake.all.some((a) => a[1] === "ps" && a.includes("--quiet"))).toBe(false);
+  });
+});

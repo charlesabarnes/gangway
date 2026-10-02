@@ -11,10 +11,17 @@ const SAFE_NAME = /^[a-z0-9][a-z0-9._-]*$/;
 
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 
-/** Tag what the project's containers run, by image id (`:latest` may never have served), as `:prev`. */
+/** A serving preview whose images could not all be kept: a rebuild could not roll back. */
+export class SnapshotFailed extends Error {}
+
+/**
+ * Tag what the project's containers run, stopped ones too, by image id (`:latest` may never have
+ * served) as `:prev`. All or nothing: any failure drops what was tagged and throws SnapshotFailed.
+ */
 export async function keepPrevious(ctx: ImagesContext, s: ProjectScope): Promise<string[]> {
   const docker = ctx.docker ?? "docker";
   const run = (argv: string[]) => ctx.compose.capture(argv, s.host, { cwd: s.cwd });
+  const kept: string[] = [];
   try {
     const ps = await run([
       docker,
@@ -29,7 +36,7 @@ export async function keepPrevious(ctx: ImagesContext, s: ProjectScope): Promise
       .map((l) => l.trim())
       .filter((l) => /^[0-9a-f]{12,64}$/.test(l));
     if (ps.code !== 0 || containers.length === 0) {
-      return [];
+      throw new SnapshotFailed("found none of its containers");
     }
     const inspected = await run([
       docker,
@@ -39,31 +46,33 @@ export async function keepPrevious(ctx: ImagesContext, s: ProjectScope): Promise
       "{{.Config.Image}} {{.Image}}",
       ...containers,
     ]);
-    if (inspected.code !== 0) {
-      return [];
+    const lines = inspected.stdout.split("\n").filter((l) => l.trim() !== "");
+    if (inspected.code !== 0 || lines.length !== containers.length) {
+      throw new SnapshotFailed("could not inspect its containers");
     }
     const images = new Map<string, string>();
-    for (const line of inspected.stdout.split("\n")) {
+    for (const line of lines) {
       const [ref = "", id = ""] = line.trim().split(" ");
       const name = ref.replace(/:latest$/, "");
-      if (name.startsWith(`${s.project}-`) && SAFE_NAME.test(name) && IMAGE_ID.test(id)) {
-        images.set(name, images.get(name) ?? id);
+      if (!name.startsWith(`${s.project}-`)) {
+        continue;
       }
+      if (!SAFE_NAME.test(name) || !IMAGE_ID.test(id) || (images.get(name) ?? id) !== id) {
+        throw new SnapshotFailed(`could not tell which image ${name} runs`);
+      }
+      images.set(name, id);
     }
-    const kept: string[] = [];
     for (const [name, id] of images) {
       const tagged = await run([docker, "image", "tag", id, `${name}:${PREVIOUS_TAG}`]);
-      if (tagged.code === 0) {
-        kept.push(name);
+      if (tagged.code !== 0) {
+        throw new SnapshotFailed(`could not tag ${name}:${PREVIOUS_TAG}`);
       }
+      kept.push(name);
     }
     return kept;
   } catch (e) {
-    ctx.logger.warn("could not keep the previous images; a failed rebuild cannot roll back", {
-      project: s.project,
-      err: e,
-    });
-    return [];
+    await dropPrevious(ctx, s, kept);
+    throw e instanceof SnapshotFailed ? e : new SnapshotFailed(String(e));
   }
 }
 

@@ -32,6 +32,8 @@ export type RebuildRun = RunPlan & {
   /** What the rebuild was asked for: planned again from the deployed source to roll back. */
   rebuild: Rebuild;
   keep: RebuildPlan["keep"];
+  /** The serving version's images kept as `:prev`, or null when nothing served to roll back to. */
+  previous: string[] | null;
 };
 
 export function outcomeOf(
@@ -112,7 +114,7 @@ export async function rebuildFailed(
     }
     return outcomeOf(ctx, r, "failed", message);
   }
-  if (f.upAttempted && r.preview.state !== "failed") {
+  if (f.upAttempted && r.previous !== null) {
     p.log(`rebuild FAILED: ${message} -- rolling back to the previous version`);
     if (f.released) {
       p.log(MIGRATED_AHEAD);

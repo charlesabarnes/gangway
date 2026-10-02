@@ -140,11 +140,23 @@ export function setupPreviewContext() {
           config: dir ? readFileSync(join(dir, "config.json"), "utf8") : null,
         });
       }
+      const project = argv[argv.indexOf("--project-name") + 1] ?? "";
+      const services = argv.includes("--file")
+        ? Object.entries(
+            (
+              parseYaml(readFileSync(argv[argv.indexOf("--file") + 1]!, "utf8")) as {
+                services?: Record<string, { build?: unknown; image?: string }>;
+              }
+            ).services ?? {},
+          )
+        : [];
       if (argv.includes("build")) {
         fake.builds++;
         if (fake.buildExit === 0) {
-          for (const c of fake.containers) {
-            fake.images.set(`${c.ref}:latest`, imageId(++fake.built));
+          for (const [name, svc] of services) {
+            if (svc.build !== undefined) {
+              fake.images.set(`${project}-${name}:latest`, imageId(++fake.built));
+            }
           }
         }
         yield {
@@ -162,10 +174,15 @@ export function setupPreviewContext() {
         return;
       }
       fake.ups++;
-      fake.containers = fake.containers.map((c) => ({
-        ...c,
-        id: fake.images.get(`${c.ref}:latest`) ?? c.id,
-      }));
+      if (services.length > 0) {
+        fake.containers = services.map(([name, svc]) => {
+          const ref = svc.build === undefined ? String(svc.image) : `${project}-${name}`;
+          const tag = ref.includes(":") ? ref : `${ref}:latest`;
+          const id = fake.images.get(tag) ?? imageId(++fake.built);
+          fake.images.set(tag, id);
+          return { ref, id };
+        });
+      }
       yield { type: "exit", code: 0, signal: null };
     },
     async capture(argv): Promise<ComposeResult> {

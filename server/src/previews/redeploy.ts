@@ -17,7 +17,12 @@ import {
   waitTargetFor,
   type Pipeline,
 } from "./pipeline.ts";
-import { dropPrevious, keepPrevious } from "./previous-images.ts";
+import {
+  dropPrevious,
+  keepPrevious,
+  SnapshotFailed,
+  type ProjectScope,
+} from "./previous-images.ts";
 import {
   keepDraft,
   outcomeOf,
@@ -174,9 +179,14 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   }
   const b: Rebuild = { input, sources, preview, host, wd, routes: routesOf(ctx, id) };
   let plan: RebuildPlan;
+  let previous: string[] | null;
   try {
     plan = await planRebuild(ctx, b);
     checkContainerAllowed(input.actor, "the new source", plan.site === null);
+    previous =
+      plan.site === null && preview.state !== "failed"
+        ? await snapshot(ctx, { host, project: preview.project, cwd: wd.srcDir })
+        : null;
   } catch (e) {
     await wd.cleanup();
     ctx.inflight.delete(id);
@@ -203,6 +213,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     addonServices: plan.addonServices,
     rebuild: b,
     keep: plan.keep,
+    previous,
   };
   void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
     .then(
@@ -223,6 +234,21 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     });
 
   return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
+}
+
+/** A rebuild that could not roll back is refused before it changes anything. */
+async function snapshot(ctx: PreviewContext, scope: ProjectScope): Promise<string[]> {
+  try {
+    return await keepPrevious(ctx, scope);
+  } catch (e) {
+    if (!(e instanceof SnapshotFailed)) {
+      throw e;
+    }
+    throw new AppError(
+      "unavailable",
+      `not rebuilding: gangway could not keep the serving version's images to roll back to (${e.message}). Nothing changed and the previous version is still serving; try again`,
+    );
+  }
 }
 
 async function startAddons(ctx: BuildingContext, p: Pipeline, r: RebuildRun): Promise<void> {
@@ -318,12 +344,11 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
     ctx.states.transition(p.id, "building");
   }
 
-  const f: Failure = { e: null, upAttempted: false, released: false, previous: [] };
+  const f: Failure = { e: null, upAttempted: false, released: false, previous: r.previous ?? [] };
   try {
     const shared = await writeStack(ctx, p.stackPath, r);
     const images = { host: r.host, base: p.base, cwd: r.wd.srcDir };
     const before = await imageIds(ctx, images);
-    f.previous = await keepPrevious(ctx, scopeOf(p, r));
     await buildImages(ctx, p, r, r.buildId);
     await startAddons(ctx, p, r);
     const release = releaseFor(r.model, r.routes);
