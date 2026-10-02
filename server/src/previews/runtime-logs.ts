@@ -13,7 +13,10 @@ export type RuntimeLogs = { lines: string[] } | { lines: null; why: string };
 const SERVICE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/;
 
 export async function runtimeLogs(
-  ctx: PreviewContext,
+  ctx: Pick<
+    PreviewContext,
+    "hosts" | "compose" | "docker" | "secrets" | "secretsFor" | "addonSecret"
+  >,
   p: Preview,
   opts: { tail: number; service?: string | undefined },
 ): Promise<RuntimeLogs> {
@@ -71,7 +74,7 @@ export async function runtimeLogs(
 }
 
 /** What the preview's containers were given as secrets, as they would be given now. */
-function secretValues(ctx: PreviewContext, p: Preview): string[] {
+function secretValues(ctx: Pick<PreviewContext, "secrets" | "secretsFor">, p: Preview): string[] {
   const shared =
     p.secretLevel === null || p.secretLevel === "none"
       ? {}
@@ -80,7 +83,7 @@ function secretValues(ctx: PreviewContext, p: Preview): string[] {
   return [...Object.values(shared), ...Object.values(own)].filter((v) => v.length >= 8);
 }
 
-function addonPasswords(ctx: PreviewContext, p: Preview): string[] {
+function addonPasswords(ctx: Pick<PreviewContext, "addonSecret">, p: Preview): string[] {
   const secret = ctx.addonSecret;
   if (p.source.kind !== "tarball" || !p.source.addons?.length || !secret) {
     return [];

@@ -78,7 +78,7 @@ export type StackInput = {
 };
 
 export async function ownStack(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "logs">,
   { logId: id, srcDir, env, port: askedPort }: StackInput,
   plan: AppPlan | null,
   sidecars?: RenderedAddons,

@@ -10,7 +10,7 @@ import { obj } from "../util/json.ts";
 import { buildStack, parseComposeModel, type ComposeModel } from "./compose-model.ts";
 import { buildSecretViolations } from "./compose-policy.ts";
 import type { PlannedRoute } from "./planned-route.ts";
-import type { PreviewContext } from "./context.ts";
+import type { PlanningContext, PreviewContext } from "./context.ts";
 import { withDotenv, type OwnStack } from "./own-stack.ts";
 import type { Workdir } from "./source/workdir.ts";
 
@@ -20,7 +20,7 @@ export const STACK_FILE = "gangway.stack.yaml";
 export type Planned = { model: ComposeModel; resolved: unknown };
 
 export async function readModel(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "compose" | "docker">,
   host: Host,
   wd: Workdir,
   { composeFile, dotenv }: OwnStack,
@@ -79,7 +79,7 @@ export type StackPlan = Planned & {
 };
 
 export async function writeStack(
-  ctx: PreviewContext,
+  ctx: PlanningContext,
   stackPath: string,
   s: StackPlan,
 ): Promise<string | null> {
@@ -117,7 +117,7 @@ export async function writeStack(
  * moved off it. The daemon refuses to remove a network that still has containers.
  */
 export async function dropProjectNetwork(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "compose" | "docker" | "instance">,
   host: Host,
   project: string,
 ): Promise<void> {
@@ -163,7 +163,11 @@ const iccOff = (inspected: string) => {
 
 // Shared for its address pool, not to talk: one preview could otherwise reach another's container
 // past its password. Without the engine keeping them apart, each preview keeps its own network.
-async function isolatedNetwork(ctx: PreviewContext, host: Host, name: string): Promise<boolean> {
+async function isolatedNetwork(
+  ctx: Pick<PreviewContext, "compose" | "docker" | "instance" | "logger">,
+  host: Host,
+  name: string,
+): Promise<boolean> {
   const docker = ctx.docker ?? "docker";
   const cwd = await mkdtemp(join(tmpdir(), "gangway-net-"));
   const run = (argv: string[]) => ctx.compose.capture([docker, "network", ...argv], host, { cwd });

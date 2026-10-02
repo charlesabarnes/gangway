@@ -66,7 +66,7 @@ const TOWARDS_AWAKE: Partial<Record<PreviewState, PreviewState>> = {
 };
 
 /** Walk a preview whose files were just published to awake, through the states a start takes. */
-export function markServing(ctx: PreviewContext, id: string): Preview {
+export function markServing(ctx: Pick<PreviewContext, "previews" | "states">, id: string): Preview {
   let p = ctx.previews.get(id);
   while (p && p.state !== "awake") {
     const next = TOWARDS_AWAKE[p.state];
@@ -82,7 +82,10 @@ export function markServing(ctx: PreviewContext, id: string): Preview {
 }
 
 /** Whether this deploy's files go to gangway's file server instead of a container. */
-export function servesHere(ctx: PreviewContext, plan: AppPlan | undefined): boolean {
+export function servesHere(
+  ctx: Pick<PreviewContext, "sites" | "sources" | "serveStatic">,
+  plan: AppPlan | undefined,
+): boolean {
   return (
     ctx.sites !== undefined &&
     ctx.sources !== undefined &&

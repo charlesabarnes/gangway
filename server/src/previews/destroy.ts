@@ -76,7 +76,11 @@ async function teardownInner(ctx: PreviewContext, preview: Preview, host: Host):
   return gone;
 }
 
-async function downStack(ctx: PreviewContext, preview: Preview, host: Host): Promise<void> {
+async function downStack(
+  ctx: Pick<PreviewContext, "compose" | "docker" | "logs" | "logger" | "states">,
+  preview: Preview,
+  host: Host,
+): Promise<void> {
   const previewId = preview.id;
   // Without -f, compose searches the cwd and its parents for a compose file.
   const empty = await mkdtemp(join(tmpdir(), "gangway-down-"));
@@ -108,7 +112,7 @@ export const rmiFor = (p: Preview): "local" | "all" =>
   p.source.kind === "pr" && p.source.image ? "all" : "local";
 
 async function removeLeftovers(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "compose" | "docker" | "logger">,
   preview: Preview,
   host: Host,
   cwd: string,
@@ -160,7 +164,7 @@ async function removeLeftovers(
 }
 
 export async function releaseStack(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "compose" | "docker">,
   preview: Preview,
   host: Host,
 ): Promise<boolean> {

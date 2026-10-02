@@ -6,9 +6,9 @@ import { addonServices } from "./addons.ts";
 import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
 import type { PlannedRoute } from "./planned-route.ts";
-import type { PreviewContext } from "./context.ts";
+import type { PreviewContext, StaticContext } from "./context.ts";
 import { networkField } from "./deploy-source.ts";
-import { prepareUpload, type PreparedUpload } from "./prepare-upload.ts";
+import { prepareUpload, type PreparedUpload, type UploadContext } from "./prepare-upload.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import type { RuntimeChoice } from "./runtimes.ts";
 import { applyEdits } from "./source-edits.ts";
@@ -22,7 +22,7 @@ import { compareCodeUnits } from "../util/compare.ts";
 type TarballPreviewSource = Extract<PreviewSource, { kind: "tarball" }>;
 
 async function stageSource(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "logs">,
   input: RedeployInput,
   sources: SourceStore,
   wd: Workdir,
@@ -61,7 +61,7 @@ function assertSameExposure(routes: PlannedRoute[], model: ComposeModel): void {
 }
 
 async function recordSource(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "previews">,
   b: Rebuild,
   source: TarballPreviewSource,
   up: PreparedUpload,
@@ -105,7 +105,11 @@ export type RebuildPlan = {
   site: AppPlan | null;
 };
 
-function siteFor(ctx: PreviewContext, source: TarballPreviewSource, plan: AppPlan): AppPlan | null {
+function siteFor(
+  ctx: Pick<PreviewContext, "sites" | "sources" | "serveStatic">,
+  source: TarballPreviewSource,
+  plan: AppPlan,
+): AppPlan | null {
   if (source.serve !== "gangway") {
     return servesHere(ctx, plan) ? plan : null;
   }
@@ -117,7 +121,12 @@ function siteFor(ctx: PreviewContext, source: TarballPreviewSource, plan: AppPla
   );
 }
 
-export async function planRebuild(ctx: PreviewContext, b: Rebuild): Promise<RebuildPlan> {
+export async function planRebuild(
+  ctx: UploadContext &
+    StaticContext &
+    Pick<PreviewContext, "compose" | "docker" | "secrets" | "secretsFor">,
+  b: Rebuild,
+): Promise<RebuildPlan> {
   const { input, preview, routes, wd } = b;
   const id = preview.id;
   const source = preview.source as TarballPreviewSource;

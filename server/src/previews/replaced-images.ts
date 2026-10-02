@@ -10,7 +10,7 @@ import type { ComposeBase } from "./pipeline.ts";
 export type ImageScope = { host: Host; base: ComposeBase; cwd: string };
 
 export async function imageIds(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "compose" | "docker" | "logger">,
   { host, base, cwd }: ImageScope,
 ): Promise<Set<string>> {
   try {
@@ -33,7 +33,7 @@ export async function imageIds(
 }
 
 export async function removeReplaced(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "compose" | "docker" | "logs" | "logger">,
   scope: ImageScope,
   before: Set<string>,
   previewId: string,

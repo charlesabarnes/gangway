@@ -10,7 +10,7 @@ const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 export type TimedResult = QueryResult & { ms: number };
 
 export type Exec = {
-  ctx: PreviewContext;
+  ctx: Pick<PreviewContext, "compose" | "docker">;
   preview: Preview;
   host: Host;
   addon: AddonId;

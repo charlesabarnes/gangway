@@ -7,7 +7,7 @@ import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors
 import { ulid } from "../util/ulid.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import { checkContainerAllowed } from "./container-access.ts";
-import type { PreviewContext } from "./context.ts";
+import type { BuildingContext, PlanningContext, PreviewContext, StaticContext } from "./context.ts";
 import {
   buildImages,
   failStack,
@@ -47,7 +47,7 @@ export type RedeployResult = {
 const REBUILD_REFUSAL =
   'this preview was deployed by someone else: "previews.update_own" covers only your own, and rebuilding any preview needs "previews.update" (the `update` scope for a token or an agent)';
 
-const routesOf = (ctx: PreviewContext, previewId: string): PlannedRoute[] =>
+const routesOf = (ctx: Pick<PreviewContext, "table">, previewId: string): PlannedRoute[] =>
   ctx.table.forPreview(previewId).map((e) => ({
     hostname: e.hostname,
     previewId: e.previewId,
@@ -58,7 +58,10 @@ const routesOf = (ctx: PreviewContext, previewId: string): PlannedRoute[] =>
   }));
 
 /** A domain chosen since the last build takes effect now, before the stack sees its URLs. */
-function moveToChosenDomain(ctx: PreviewContext, preview: Preview): void {
+function moveToChosenDomain(
+  ctx: Pick<PreviewContext, "domains" | "table" | "logs">,
+  preview: Preview,
+): void {
   if (!ctx.domains) {
     return;
   }
@@ -69,7 +72,7 @@ function moveToChosenDomain(ctx: PreviewContext, preview: Preview): void {
 }
 
 async function checkRebuildable(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "previews" | "sources" | "hosts">,
   input: RedeployInput,
 ): Promise<{ host: Host; sources: SourceStore }> {
   const id = input.previewId;
@@ -101,7 +104,10 @@ type Claimed = {
 };
 
 // No await from these checks until the inflight claim, so two saves can't both get past.
-function claimRebuild(ctx: PreviewContext, id: string): Claimed {
+function claimRebuild(
+  ctx: Pick<PreviewContext, "previews" | "inflight" | "teardowns">,
+  id: string,
+): Claimed {
   const preview = ctx.previews.get(id);
   if (!preview) {
     throw notFound(`no such preview: ${id}`);
@@ -123,7 +129,12 @@ function claimRebuild(ctx: PreviewContext, id: string): Claimed {
   return { preview, abort, done, settle };
 }
 
-function announce(ctx: PreviewContext, b: Rebuild, plan: RebuildPlan, buildId: string): void {
+function announce(
+  ctx: Pick<PreviewContext, "bus" | "audit">,
+  b: Rebuild,
+  plan: RebuildPlan,
+  buildId: string,
+): void {
   const id = b.preview.id;
   ctx.bus.publish(
     "preview.redeploy",
@@ -211,7 +222,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
 type RebuildRun = RunPlan & { buildId: string; addonServices: string[] };
 
 function outcomeOf(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "bus" | "previews">,
   r: RebuildRun,
   o: "succeeded" | "failed",
   error?: string,
@@ -230,7 +241,7 @@ function outcomeOf(
   };
 }
 
-async function startAddons(ctx: PreviewContext, p: Pipeline, r: RebuildRun): Promise<void> {
+async function startAddons(ctx: BuildingContext, p: Pipeline, r: RebuildRun): Promise<void> {
   if (r.addonServices.length === 0) {
     return;
   }
@@ -250,7 +261,7 @@ async function startAddons(ctx: PreviewContext, p: Pipeline, r: RebuildRun): Pro
 }
 
 async function rebuildFailed(
-  ctx: PreviewContext,
+  ctx: BuildingContext & Pick<PreviewContext, "previews" | "bus">,
   p: Pipeline,
   r: RebuildRun,
   { e, upAttempted }: { e: unknown; upAttempted: boolean },
@@ -275,7 +286,7 @@ async function rebuildFailed(
 }
 
 async function runSite(
-  ctx: PreviewContext,
+  ctx: StaticContext & BuildingContext & Pick<PreviewContext, "table" | "bus">,
   r: RebuildRun,
   plan: AppPlan,
 ): Promise<RedeployOutcome> {
@@ -323,7 +334,10 @@ async function runSite(
   }
 }
 
-async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome> {
+async function run(
+  ctx: PlanningContext & BuildingContext & Pick<PreviewContext, "bus">,
+  r: RebuildRun,
+): Promise<RedeployOutcome> {
   const p = openPipeline(ctx, r);
   if (ctx.previews.get(p.id)?.state === "failed") {
     ctx.states.transition(p.id, "building");

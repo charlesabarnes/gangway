@@ -11,7 +11,7 @@ import { selectExposed } from "./compose-routes.ts";
 import { checkContainerAllowed } from "./container-access.ts";
 import { checkWatermarkAllowed } from "./watermark.ts";
 import { checkDomainChoice } from "./domain.ts";
-import type { PreviewContext } from "./context.ts";
+import type { BuildingContext, PlanningContext, PreviewContext, StaticContext } from "./context.ts";
 import { claimPreview } from "./deploy-claim.ts";
 import { urlsFor } from "./deploy-names.ts";
 import { writeSource, type Materialized } from "./deploy-source.ts";
@@ -40,7 +40,11 @@ export { urlsFor };
 type Template = ResolvedPolicy["template"];
 type Owner = ResolvedPolicy["project"];
 
-function resolveHost(ctx: PreviewContext, input: DeployInput, template: Template): Host {
+function resolveHost(
+  ctx: Pick<PreviewContext, "hosts" | "logger">,
+  input: DeployInput,
+  template: Template,
+): Host {
   const allHosts = ctx.hosts.list();
   let wantedHost = input.hostId ?? template.hostId ?? undefined;
   if (
@@ -62,7 +66,7 @@ function resolveHost(ctx: PreviewContext, input: DeployInput, template: Template
  * those carried from the preview it replaces, then the ones sent with this deploy.
  */
 function envFor(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "secrets" | "secretsFor">,
   input: DeployInput,
   owner: Owner,
   secretLevel: Clearance,
@@ -76,14 +80,21 @@ function envFor(
   return { ...shared, ...own };
 }
 
-function previewSecrets(ctx: PreviewContext, input: DeployInput): Record<string, string> {
+function previewSecrets(
+  ctx: Pick<PreviewContext, "secrets">,
+  input: DeployInput,
+): Record<string, string> {
   const carried =
     input.carrySecrets && ctx.secrets ? ctx.secrets.openCarried(input.carrySecrets) : {};
   return { ...carried, ...input.secrets };
 }
 
 /** Stores the preview's own secrets on its row, once the row exists. */
-function keepSecrets(ctx: PreviewContext, input: DeployInput, id: string): void {
+function keepSecrets(
+  ctx: Pick<PreviewContext, "secrets" | "previews">,
+  input: DeployInput,
+  id: string,
+): void {
   if (!ctx.secrets) {
     return;
   }
@@ -96,7 +107,7 @@ function keepSecrets(ctx: PreviewContext, input: DeployInput, id: string): void 
 }
 
 function visibilityFor(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "privateAvailable">,
   input: DeployInput,
   { template, project: owner }: ResolvedPolicy,
   model: ComposeModel,
@@ -203,7 +214,11 @@ async function prepare(
   };
 }
 
-async function keepUpload(ctx: PreviewContext, id: string, pristine: string | null | undefined) {
+async function keepUpload(
+  ctx: Pick<PreviewContext, "sources" | "logger">,
+  id: string,
+  pristine: string | null | undefined,
+) {
   if (!pristine || !ctx.sources) {
     return;
   }
@@ -287,7 +302,11 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 
 type DeployRun = RunPlan & { dockerConfig?: string | undefined };
 
-async function publishSite(ctx: PreviewContext, r: DeployRun, plan: AppPlan): Promise<Preview> {
+async function publishSite(
+  ctx: StaticContext & BuildingContext,
+  r: DeployRun,
+  plan: AppPlan,
+): Promise<Preview> {
   const id = r.preview.id;
   try {
     const { files } = await must(ctx.sites, "the site store").publish(id, r.wd.srcDir, plan);
@@ -306,7 +325,7 @@ async function publishSite(ctx: PreviewContext, r: DeployRun, plan: AppPlan): Pr
   }
 }
 
-async function run(ctx: PreviewContext, r: DeployRun): Promise<Preview> {
+async function run(ctx: PlanningContext & BuildingContext, r: DeployRun): Promise<Preview> {
   const p = openPipeline(ctx, r);
   let upAttempted = false;
   try {
