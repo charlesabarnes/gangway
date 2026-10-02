@@ -140,7 +140,7 @@ x-gangway:
     const needles = [
       "privileged",
       "network_mode: host",
-      "pid: host",
+      "pid is not allowed",
       "container_name",
       "devices",
       "cap_add",
