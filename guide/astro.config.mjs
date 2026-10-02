@@ -78,7 +78,7 @@ export default defineConfig({
             "use/deploy",
             "use/agents",
             "use/chatgpt",
-            "use/open-webui",
+            "use/mcp-clients",
             "use/pull-requests",
             "use/sharing",
             "use/domains",

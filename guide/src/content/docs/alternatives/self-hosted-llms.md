@@ -1,14 +1,15 @@
 ---
 title: ChatGPT Sites and Claude artifacts for self-hosted LLMs
-description: Give Open WebUI, LibreChat or any self-hosted LLM what ChatGPT Sites and Claude artifacts do, publishing pages and apps to a URL, on your own server.
+description: Give any self-hosted LLM or MCP-compatible agent what ChatGPT Sites and Claude artifacts do, publishing pages and apps to a URL, on your own server.
 ---
 
 ChatGPT has Sites and Claude has artifacts: ask for a report, a deck, a dashboard or a small app,
-and get it back at a link you can share. Self-hosted chat apps such as Open WebUI and LibreChat
-have nothing like it. A local model can write the HTML, but there is nowhere to put it.
+and get it back at a link you can share. Run your own model, in a self-hosted chat app or an agent
+of your own, and there is nothing like it. The model can write the HTML, but there is nowhere to
+put it.
 
-gangway is that place. It is a self-hosted server that any MCP client can deploy to, so the model
-you run in Open WebUI gets the same "make it and give me the link" that ChatGPT and Claude users
+gangway is that place. It is a self-hosted server that any MCP-compatible client can deploy to, so
+whatever model you run gets the same "make it and give me the link" that ChatGPT and Claude users
 have, with everything on your own hardware.
 
 ## What your model gets
@@ -19,15 +20,15 @@ have, with everything on your own hardware.
   beside it. Neither Sites nor artifacts runs those.
 - **Edits at the same URL.** Ask for a change and the model redeploys in place.
 - **Control over who sees it.** Public, unlisted, a password, or only people signed in to gangway.
-- **Nothing sent to a third party.** The model, the chat app and the pages all run on servers you
+- **Nothing sent to a third party.** The model, the client and the pages all run on servers you
   own.
 
 ## Set it up
 
 1. Install gangway on the same server or another one: see [Quickstart](/docs/quickstart/). It runs
    on any Docker host, including Unraid.
-2. Make an API token in gangway and add gangway to your chat app as an MCP server.
-   [Use it from Open WebUI](/docs/use/open-webui/) has the steps.
+2. Make an API token in gangway and add gangway to your client as an MCP server.
+   [Connect any MCP client](/docs/use/mcp-clients/) has the steps.
 3. Use a model with reliable tool calling. gangway's `deploy` tool takes whole files, which small
    models get wrong.
 
