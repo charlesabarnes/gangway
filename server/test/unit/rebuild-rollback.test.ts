@@ -116,6 +116,21 @@ describe("a rebuild that fails rolls back", () => {
     expect(await s.sources.hasDraft(p.id)).toBe(false);
   });
 
+  test("a build that times out puts :latest back on what serves", async () => {
+    const s = setupRuntimes();
+    const { p, ref } = await serving(s);
+    s.fake.buildHang = true;
+    s.ctx.buildTimeoutMs = () => 50;
+
+    const o = await edit(s, p.id, { "index.ts": "slow" });
+
+    expect(o).toMatchObject({ outcome: "failed", preview: { state: "awake" } });
+    expect(o.error).toContain("previews.limits.buildTimeout");
+    expect(s.fake.images.get(`${ref}:latest`)).toBe(OLD);
+    expect(prevTags(s)).toEqual([]);
+    expect(await deployedText(s, p.id)).toBe("v1");
+  });
+
   test("a rebuild that serves keeps no :prev tag and stores its source as deployed", async () => {
     const s = setupRuntimes();
     const { p, ref } = await serving(s);
