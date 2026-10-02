@@ -101,26 +101,35 @@ export async function waitAnswering(ctx: WaitContext, r: WaitTarget): Promise<vo
   }
 }
 
+/** Copy a failed stack's last log lines into the preview's log, before anything replaces it. */
+export async function keepLastLogs(
+  ctx: WaitContext,
+  r: { preview: Preview; host: Host },
+  cwd: string,
+): Promise<void> {
+  const logs = await ctx.compose.capture(
+    composeArgv({
+      project: r.preview.project,
+      files: [],
+      command: "logs",
+      args: ["--no-color", "--tail", "60"],
+      docker: ctx.docker,
+    }),
+    r.host,
+    { cwd },
+  );
+  if (logs.stdout) {
+    ctx.logs.append(r.preview.id, "stdout", logs.stdout);
+  }
+}
+
 export async function salvage(
   ctx: WaitContext,
   r: { preview: Preview; host: Host },
 ): Promise<void> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-salvage-"));
   try {
-    const logs = await ctx.compose.capture(
-      composeArgv({
-        project: r.preview.project,
-        files: [],
-        command: "logs",
-        args: ["--no-color", "--tail", "60"],
-        docker: ctx.docker,
-      }),
-      r.host,
-      { cwd: empty },
-    );
-    if (logs.stdout) {
-      ctx.logs.append(r.preview.id, "stdout", logs.stdout);
-    }
+    await keepLastLogs(ctx, r, empty);
     // Keep volumes: a failed rebuild must not take the add-on's data.
     await ctx.compose.capture(
       downArgv(

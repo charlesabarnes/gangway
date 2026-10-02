@@ -74,8 +74,9 @@ describe("destroy", () => {
       "--rmi",
       "local",
     ]);
-    // Then anything still labelled with the project, which a kept volume would be.
-    expect(s.calls.slice(-2).map((c) => c.argv)).toEqual([
+    // Then anything still labelled with the project, which a kept volume would be, and any image
+    // a rebuild that never finished kept to roll back to.
+    expect(s.calls.slice(-3).map((c) => c.argv)).toEqual([
       [
         "docker",
         "volume",
@@ -83,6 +84,17 @@ describe("destroy", () => {
         "--quiet",
         "--filter",
         "label=com.docker.compose.project=gw-default-web-app",
+      ],
+      [
+        "docker",
+        "image",
+        "ls",
+        "--filter",
+        "label=com.docker.compose.project=gw-default-web-app",
+        "--filter",
+        "reference=*:prev",
+        "--format",
+        "{{.Repository}}",
       ],
       [
         "docker",

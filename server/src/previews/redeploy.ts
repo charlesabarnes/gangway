@@ -7,18 +7,25 @@ import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors
 import { ulid } from "../util/ulid.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import { checkContainerAllowed } from "./container-access.ts";
-import type { BuildingContext, PlanningContext, PreviewContext, StaticContext } from "./context.ts";
+import type { BuildingContext, PreviewContext, StaticContext } from "./context.ts";
 import {
   buildImages,
-  failStack,
   failureMessage,
   openPipeline,
   runJob,
   startStack,
   waitTargetFor,
   type Pipeline,
-  type RunPlan,
 } from "./pipeline.ts";
+import { dropPrevious, keepPrevious } from "./previous-images.ts";
+import {
+  outcomeOf,
+  rebuildFailed,
+  scopeOf,
+  type Failure,
+  type RebuildRun,
+  type RedeployOutcome,
+} from "./rebuild-failure.ts";
 import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import { releaseStack } from "./destroy.ts";
@@ -30,13 +37,8 @@ import { releaseFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
 
 export { checkEditPath, type SourceEdits } from "./source-edits.ts";
+export type { RedeployOutcome } from "./rebuild-failure.ts";
 
-export type RedeployOutcome = {
-  preview: Preview;
-  buildId: string;
-  outcome: "succeeded" | "failed";
-  error?: string;
-};
 export type RedeployResult = {
   preview: Preview;
   buildId: string;
@@ -145,7 +147,7 @@ function announce(
     new: {
       project: b.preview.project,
       change: b.input.change.kind,
-      runtime: plan.next.kind === "tarball" ? (plan.next.runtime ?? "own") : null,
+      runtime: plan.next.runtime ?? "own",
       buildId,
     },
   });
@@ -196,7 +198,10 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     buildId,
     signal: abort.signal,
     ...plan.planned,
+    source: plan.next,
     addonServices: plan.addonServices,
+    rebuild: b,
+    keep: plan.keep,
   };
   void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
     .then(
@@ -219,28 +224,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
 }
 
-type RebuildRun = RunPlan & { buildId: string; addonServices: string[] };
-
-function outcomeOf(
-  ctx: Pick<PreviewContext, "bus" | "previews">,
-  r: RebuildRun,
-  o: "succeeded" | "failed",
-  error?: string,
-): RedeployOutcome {
-  const id = r.preview.id;
-  ctx.bus.publish(
-    "preview.redeploy",
-    { phase: o, buildId: r.buildId, ...(error ? { error } : {}) },
-    id,
-  );
-  return {
-    preview: ctx.previews.get(id) ?? r.preview,
-    buildId: r.buildId,
-    outcome: o,
-    ...(error ? { error } : {}),
-  };
-}
-
 async function startAddons(ctx: BuildingContext, p: Pipeline, r: RebuildRun): Promise<void> {
   if (r.addonServices.length === 0) {
     return;
@@ -260,31 +243,6 @@ async function startAddons(ctx: BuildingContext, p: Pipeline, r: RebuildRun): Pr
   });
 }
 
-async function rebuildFailed(
-  ctx: BuildingContext & Pick<PreviewContext, "previews" | "bus">,
-  p: Pipeline,
-  r: RebuildRun,
-  { e, upAttempted }: { e: unknown; upAttempted: boolean },
-): Promise<RedeployOutcome> {
-  // destroy() aborted the run and owns the preview from here.
-  if (r.signal.aborted) {
-    return {
-      preview: ctx.previews.get(p.id) ?? r.preview,
-      buildId: r.buildId,
-      outcome: "failed",
-      error: "cancelled",
-    };
-  }
-  const message = failureMessage(ctx, p.id, e, "redeploy pipeline error");
-  const state = ctx.previews.get(p.id)?.state;
-  if (!upAttempted && state !== "building") {
-    p.log(`rebuild FAILED: ${message} -- the previous version is still serving`);
-    return outcomeOf(ctx, r, "failed", message);
-  }
-  await failStack(ctx, r, message, upAttempted);
-  return outcomeOf(ctx, r, "failed", message);
-}
-
 async function runSite(
   ctx: StaticContext & BuildingContext & Pick<PreviewContext, "table" | "bus">,
   r: RebuildRun,
@@ -296,9 +254,7 @@ async function runSite(
   try {
     const { files } = await must(ctx.sites, "the site store").publish(id, r.wd.srcDir, plan);
     r.signal.throwIfAborted();
-    if (moving && was.source.kind === "tarball") {
-      ctx.previews.setSource(id, { ...was.source, serve: "gangway" });
-    }
+    await r.keep("deployed", moving ? { serve: "gangway" } : {});
     ctx.table.setSite(id, true);
     markServing(ctx, id);
     ctx.logs.append(id, "system", `rebuilt: serving ${files} files from gangway`);
@@ -323,6 +279,7 @@ async function runSite(
       };
     }
     const message = failureMessage(ctx, id, e, "site rebuild error");
+    await r.keep("draft");
     ctx.logs.append(
       id,
       "system",
@@ -334,40 +291,55 @@ async function runSite(
   }
 }
 
-async function run(
-  ctx: PlanningContext & BuildingContext & Pick<PreviewContext, "bus">,
-  r: RebuildRun,
-): Promise<RedeployOutcome> {
+/** The new version serves: failing to store its source must not roll it back. */
+async function keepDeployed(ctx: Pick<PreviewContext, "logger">, r: RebuildRun): Promise<void> {
+  try {
+    await r.keep("deployed");
+  } catch (e) {
+    ctx.logger.error("could not keep a rebuilt preview's source", {
+      previewId: r.preview.id,
+      err: e,
+    });
+  }
+}
+
+async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome> {
   const p = openPipeline(ctx, r);
   if (ctx.previews.get(p.id)?.state === "failed") {
     ctx.states.transition(p.id, "building");
   }
 
-  let upAttempted = false;
+  const f: Failure = { e: null, upAttempted: false, released: false, previous: [] };
   try {
     const shared = await writeStack(ctx, p.stackPath, r);
     const images = { host: r.host, base: p.base, cwd: r.wd.srcDir };
     const before = await imageIds(ctx, images);
+    f.previous = await keepPrevious(ctx, scopeOf(p, r));
     await buildImages(ctx, p, r, r.buildId);
     await startAddons(ctx, p, r);
-    await runJob(p, "release", releaseFor(r.model, r.routes));
+    const release = releaseFor(r.model, r.routes);
+    f.released = release !== null;
+    await runJob(p, "release", release);
 
     r.signal.throwIfAborted();
     ctx.states.transition(p.id, "starting");
-    upAttempted = true;
+    f.upAttempted = true;
     await startStack(p);
     const target = waitTargetFor(p, r);
     await waitHealthy(ctx, target);
     await waitAnswering(ctx, target);
     p.log("rebuilt: awake");
     ctx.states.transition(p.id, "awake");
+    await keepDeployed(ctx, r);
+    // Untag first: the replaced images are then removed as before, and `:prev` keeps none.
+    await dropPrevious(ctx, scopeOf(p, r), f.previous);
     await removeReplaced(ctx, images, before, p.id);
     if (shared) {
       await dropProjectNetwork(ctx, r.host, p.base.project);
     }
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
-    return await rebuildFailed(ctx, p, r, { e, upAttempted });
+    return await rebuildFailed(ctx, p, r, { ...f, e });
   } finally {
     await r.wd.cleanup();
   }
