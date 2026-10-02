@@ -81,7 +81,6 @@ export type PreviewContext = {
   limits?: (() => PreviewLimits) | undefined;
   quota?: (() => PreviewQuota) | undefined;
   buildSlots?: Slots | undefined;
-  /** How long one build may run before it is stopped; 0 leaves it unbounded. */
   buildTimeoutMs?: (() => number) | undefined;
   buildRoom?: ((host: Host) => Promise<string | null>) | undefined;
   passwords?: PreviewPasswordDeps | undefined;

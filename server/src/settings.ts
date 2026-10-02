@@ -105,9 +105,8 @@ export const SETTINGS = {
   ),
   previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 2),
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
-  // Per preview, replicas counted: the per-container limits above times this is one preview's most.
+  // Per preview, replicas counted; container previews at once, served sites not counted.
   previewsContainers: def("previews.limits.containers", z.coerce.number().int().min(0), 10),
-  // Previews that run containers; gangway's own static sites cost a few files and are not counted.
   previewsActive: def("previews.limits.active", z.coerce.number().int().min(0), 50),
   previewsActivePerUser: def("previews.limits.activePerUser", z.coerce.number().int().min(0), 20),
   // Builds run outside every preview's limits, so a burst of them would take the whole host.

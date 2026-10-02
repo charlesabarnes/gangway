@@ -178,9 +178,6 @@ async function prepare(
   const material = await writeSource(ctx, source, { id, env, wd });
   const site = material.plan && servesHere(ctx, material.plan) ? material.plan : null;
   checkContainerAllowed(input.actor, "this source", site === null);
-  if (site === null) {
-    checkQuota(ctx, input.actor);
-  }
   if (site && material.source.kind === "tarball") {
     material.source = { ...material.source, serve: "gangway" };
   }
@@ -191,6 +188,10 @@ async function prepare(
   const visibility = visibilityFor(ctx, input, policy, model);
   const ttlMs = ttlFor(input, policy, model);
   const password = await resolvePassword(ctx.passwords, input.password);
+  // No await between the count and the row it adds, so two deploys cannot both pass.
+  if (site === null) {
+    checkQuota(ctx, input.actor);
+  }
   const { preview, routes } = claimPreview(ctx, {
     id,
     input,

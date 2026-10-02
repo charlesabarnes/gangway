@@ -70,12 +70,10 @@ async function checkPaths(
   return checkedLine(got);
 }
 
-/**
- * The statuses on one line, then a warning for each server error: a preview counts as up once
- * it answers short of one on `/` or its health path, so a 500 on another path must not read as fine.
- */
+// A preview is up once `/` answers short of a 5xx, so a 500 on another path must not read as fine.
 function checkedLine(got: readonly { path: string; status: number | null }[]): string {
-  const line = `checked: ${got.map((g) => `${g.path} ${g.status ?? "no answer"}`).join(" · ")}`;
+  const statuses = got.map((g) => `${g.path} ${g.status ?? "no answer"}`);
+  const line = `checked: ${statuses.join(" · ")}`;
   const failing = got.filter((g) => g.status === null || g.status >= 500);
   if (failing.length === 0) {
     return line;

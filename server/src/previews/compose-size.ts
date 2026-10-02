@@ -13,10 +13,6 @@ export function replicasOf(s: Json): number {
   return asked.length === 0 ? 1 : Math.max(...asked);
 }
 
-/**
- * Every container is capped on its own, so the number of them is what bounds a preview as a
- * whole: replicas multiply the memory and processes it may take. 0 leaves it off.
- */
 export function sizeViolations(doc: Json, maxContainers: number): string[] {
   if (maxContainers <= 0) {
     return [];
