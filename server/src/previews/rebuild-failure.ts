@@ -87,9 +87,11 @@ export async function rebuildFailed(
   f: Failure,
 ): Promise<RedeployOutcome> {
   const scope = scopeOf(p, r);
-  // destroy() aborted the run and owns the preview from here.
   const cancelled = async (): Promise<RedeployOutcome> => {
-    await dropPrevious(ctx, scope, f.previous);
+    // destroy() aborted the run and owns the preview from here; otherwise gangway is stopping.
+    await (ctx.teardowns.has(p.id)
+      ? dropPrevious(ctx, scope, f.previous)
+      : interrupted(ctx, p, r, f));
     return {
       preview: ctx.previews.get(p.id) ?? r.preview,
       buildId: r.buildId,
@@ -133,6 +135,26 @@ export async function rebuildFailed(
   await dropPrevious(ctx, scope, f.previous);
   await failStack(ctx, r, message, f.upAttempted);
   return outcomeOf(ctx, r, "failed", message);
+}
+
+const UNVERIFIED =
+  "a restart interrupted the rebuild after the new version started, before it was checked; rebuild or redeploy it";
+
+/** A stack nobody checked is never adopted: the next boot would otherwise mark it awake. */
+async function interrupted(
+  ctx: PreviewContext,
+  p: Pipeline,
+  r: RebuildRun,
+  f: Failure,
+): Promise<void> {
+  const scope = scopeOf(p, r);
+  if (ctx.previews.get(p.id)?.state !== "starting") {
+    await restorePrevious(ctx, scope, f.previous);
+    return;
+  }
+  ctx.states.transition(p.id, "failed", UNVERIFIED);
+  p.log(`FAILED: ${UNVERIFIED}`);
+  await dropPrevious(ctx, scope, f.previous);
 }
 
 export const scopeOf = (p: Pipeline, r: RebuildRun): ProjectScope => ({

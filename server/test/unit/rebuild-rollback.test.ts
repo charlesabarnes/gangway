@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { destroy } from "../../src/previews/destroy.ts";
 import { restorePrevious } from "../../src/previews/previous-images.ts";
+import { redeploy } from "../../src/previews/redeploy.ts";
 import { ACTOR } from "../helpers/preview-context.ts";
 import {
   deployFiles,
@@ -230,6 +231,46 @@ describe("a rebuild that could not roll back is refused", () => {
 
     expect(o).toMatchObject({ outcome: "succeeded", preview: { state: "awake" } });
     expect(s.fake.all.some((a) => a[1] === "ps" && a.includes("--quiet"))).toBe(false);
+  });
+});
+
+describe("a rebuild that gangway's shutdown interrupts", () => {
+  test("after up, the unchecked version is marked failed, never adopted", async () => {
+    const s = setupRuntimes();
+    const { p } = await serving(s);
+    s.ctx.probe = async () => {
+      s.ctx.inflight.get(p.id)?.abort.abort();
+      return false;
+    };
+
+    const o = await edit(s, p.id, { "index.ts": "v2" });
+
+    expect(o).toMatchObject({ error: "cancelled", preview: { state: "failed" } });
+    expect(s.previews.get(p.id)!.error).toContain("before it was checked");
+    expect(prevTags(s)).toEqual([]);
+    expect(await deployedText(s, p.id)).toBe("v1");
+  });
+
+  test("during the build, :latest goes back to what serves", async () => {
+    const s = setupRuntimes();
+    const { p, ref } = await serving(s);
+    s.fake.buildHang = true;
+    const builds = s.fake.builds;
+
+    const res = await redeploy(s.ctx, {
+      actor: ACTOR,
+      previewId: p.id,
+      change: { kind: "edit", files: { "index.ts": "v2" } },
+    });
+    while (s.fake.builds === builds) {
+      await Bun.sleep(5);
+    }
+    s.ctx.inflight.get(p.id)!.abort.abort();
+    const o = await res.done;
+
+    expect(o).toMatchObject({ error: "cancelled", preview: { state: "awake" } });
+    expect(s.fake.images.get(`${ref}:latest`)).toBe(OLD);
+    expect(prevTags(s)).toEqual([]);
   });
 });
 
