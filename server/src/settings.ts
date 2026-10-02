@@ -103,11 +103,22 @@ export const SETTINGS = {
     z.string().refine((v) => parseBytes(v) !== null, "a size like 512m or 2g, or 0 for no limit"),
     "1g",
   ),
-  previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 0),
+  previewsCpus: def("previews.limits.cpus", z.coerce.number().min(0), 2),
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
+  // Per preview, replicas counted; container previews at once, served sites not counted.
+  previewsContainers: def("previews.limits.containers", z.coerce.number().int().min(0), 10),
+  previewsActive: def("previews.limits.active", z.coerce.number().int().min(0), 50),
+  previewsActivePerUser: def("previews.limits.activePerUser", z.coerce.number().int().min(0), 20),
   // Builds run outside every preview's limits, so a burst of them would take the whole host.
   previewsBuilds: def("previews.limits.builds", z.coerce.number().int().min(0), 2),
   previewsBuildQueue: def("previews.limits.buildQueue", z.coerce.number().int().min(0), 10),
+  previewsBuildTimeout: def(
+    "previews.limits.buildTimeout",
+    z
+      .string()
+      .refine((v) => v === "0" || parseDuration(v) !== null, "a duration like 15m, or 0 for none"),
+    "15m",
+  ),
   previewsBuildMemory: def(
     "previews.limits.buildMemory",
     z.string().refine((v) => parseBytes(v) !== null, "a size like 512m or 2g, or 0 for no check"),

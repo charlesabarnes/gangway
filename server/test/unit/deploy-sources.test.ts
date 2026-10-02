@@ -113,6 +113,27 @@ describe("tarball source", () => {
     expect(s.ctx.builds.forPreview(res.preview.id)).toEqual([]);
   });
 
+  test("a build past its time is stopped, fails the preview and says which setting", async () => {
+    const s = setupPreviewContext();
+    s.fake.buildHang = true;
+    s.ctx.buildTimeoutMs = () => 50;
+    const res = await deploy(s.ctx, {
+      ...base,
+      name: "endless",
+      source: {
+        kind: "tarball",
+        archive: await tarball([{ name: "Dockerfile", content: "FROM x" }]),
+        port: 80,
+      },
+    });
+    expect(await res.done).toMatchObject({
+      state: "failed",
+      error: expect.stringContaining("previews.limits.buildTimeout"),
+    });
+    expect(s.ctx.builds.forPreview(res.preview.id)).toMatchObject([{ state: "failed" }]);
+    expect(s.fake.ups).toBe(0);
+  });
+
   test("a full line of builds turns the next one away, saying how many wait", async () => {
     const s = setupPreviewContext();
     s.ctx.buildSlots = new Slots(

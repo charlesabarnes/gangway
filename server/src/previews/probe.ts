@@ -27,19 +27,15 @@ export const httpProbe: RouteProbe = async (route, host, healthPath) => {
       finish(false);
     }, 3_000);
     let head = "";
+    // A health path must answer 2xx/3xx. Without one any answer short of a server error will do:
+    // plenty of apps 404 on `/`, but one that 500s there is not up.
+    const below = healthPath ? 400 : 500;
     socket.on("data", (chunk: Buffer) => {
       head += chunk.toString("latin1");
-      if (!healthPath) {
-        if (head.length >= 5) {
-          clearTimeout(timer);
-          finish(head.startsWith("HTTP/"));
-        }
-        return;
-      }
       if (head.length >= 12 || !head.startsWith("HTTP/".slice(0, head.length))) {
         clearTimeout(timer);
         const status = /^HTTP\/\d(?:\.\d)? (\d{3})/.exec(head);
-        finish(status !== null && Number(status[1]) < 400);
+        finish(status !== null && Number(status[1]) < below);
       }
     });
     socket.on("error", () => {

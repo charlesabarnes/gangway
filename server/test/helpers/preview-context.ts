@@ -51,6 +51,8 @@ export function setupPreviewContext() {
     ups: 0,
     builds: 0,
     buildExit: 0,
+    /** A build that runs until its signal aborts, as `compose build` killed by it would. */
+    buildHang: false,
     failDownFor: new Set<string>(),
     planDelayMs: 0,
     runs: [] as string[][],
@@ -96,6 +98,14 @@ export function setupPreviewContext() {
           stream: "stderr",
           line: "#1 [internal] load build definition from Dockerfile",
         };
+        if (fake.buildHang && o.signal) {
+          const signal = o.signal;
+          await new Promise((resolve) => {
+            signal.addEventListener("abort", resolve, { once: true });
+          });
+          yield { type: "exit", code: 143, signal: "SIGTERM" };
+          return;
+        }
         yield { type: "exit", code: fake.buildExit, signal: null };
         return;
       }

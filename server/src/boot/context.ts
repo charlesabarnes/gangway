@@ -21,6 +21,7 @@ import { SETTINGS } from "../settings.ts";
 import { noRoomForBuild } from "../previews/build-room.ts";
 import { Slots } from "../util/async.ts";
 import { parseBytes } from "../util/bytes.ts";
+import { idleMs } from "../util/duration.ts";
 import type { Core } from "./core.ts";
 import type { Repos } from "./storage.ts";
 
@@ -98,11 +99,17 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
       memoryBytes: parseBytes(settings.get(SETTINGS.previewsMemory)) ?? 0,
       cpus: settings.get(SETTINGS.previewsCpus),
       pids: settings.get(SETTINGS.previewsPids),
+      containers: settings.get(SETTINGS.previewsContainers),
+    }),
+    quota: () => ({
+      active: settings.get(SETTINGS.previewsActive),
+      perUser: settings.get(SETTINGS.previewsActivePerUser),
     }),
     buildSlots: new Slots(
       () => settings.get(SETTINGS.previewsBuilds),
       () => settings.get(SETTINGS.previewsBuildQueue),
     ),
+    buildTimeoutMs: () => idleMs(settings.get(SETTINGS.previewsBuildTimeout)),
     buildRoom: (host) =>
       noRoomForBuild(host, core.stateDir, {
         memoryBytes: parseBytes(settings.get(SETTINGS.previewsBuildMemory)) ?? 0,

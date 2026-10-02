@@ -92,9 +92,10 @@ export async function waitAnswering(ctx: WaitContext, r: WaitTarget): Promise<vo
       const targets = pending
         .map((p) => `${p.service}:${p.containerPort}${health?.[p.service] ?? ""}`)
         .join(", ");
-      const answer = health && pending.some((p) => health[p.service]) ? " with a 2xx/3xx" : " HTTP";
+      const answer =
+        health && pending.some((p) => health[p.service]) ? " with a 2xx/3xx" : " HTTP below 500";
       throw new StepFailed(
-        `${targets} never answered${answer} -- is that the right port, and does the app listen on 0.0.0.0?`,
+        `${targets} never answered${answer} -- is that the right port, does the app listen on 0.0.0.0, and does its log show an error?`,
       );
     }
     await sleep(ctx.timings.pollIntervalMs);

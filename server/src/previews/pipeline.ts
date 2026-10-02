@@ -91,8 +91,13 @@ async function recordBuild(
   { id, services }: { id: string; services: string[] },
 ): Promise<void> {
   ctx.builds.start({ id, previewId: p.id, services });
+  // Builds run outside every container limit, so a build that never ends holds a slot for good.
+  const limitMs = ctx.buildTimeoutMs?.() ?? 0;
+  const deadline = limitMs > 0 ? AbortSignal.timeout(limitMs) : null;
   try {
-    await p.step("build", buildArgv(p.base, services), "build");
+    await p.step("build", buildArgv(p.base, services), "build", {
+      signal: deadline ? AbortSignal.any([r.signal, deadline]) : r.signal,
+    });
     ctx.builds.finish(id, "succeeded", 0);
   } catch (e) {
     ctx.builds.finish(
@@ -100,6 +105,11 @@ async function recordBuild(
       r.signal.aborted ? "cancelled" : "failed",
       e instanceof StepFailed ? e.exitCode : null,
     );
+    if (deadline?.aborted && !r.signal.aborted) {
+      throw new StepFailed(
+        `the build ran longer than ${Math.round(limitMs / 1000)}s and was stopped (previews.limits.buildTimeout)`,
+      );
+    }
     throw e;
   }
 }
@@ -124,7 +134,7 @@ export async function startStack(p: Pipeline, dockerConfig?: string): Promise<vo
       "up",
       upArgv(p.base, ["--no-build", "--remove-orphans"]),
       "stdout",
-      dockerConfig ? { DOCKER_CONFIG: dockerConfig } : undefined,
+      dockerConfig ? { env: { DOCKER_CONFIG: dockerConfig } } : undefined,
     );
   } finally {
     if (dockerConfig) {
