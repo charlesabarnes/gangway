@@ -61,7 +61,7 @@ export default defineConfig({
         },
       ],
       sidebar: [
-        { label: "Start here", items: ["", "quickstart"] },
+        { label: "Start here", items: ["", "quickstart", "chatgpt-sites"] },
         {
           label: "Install",
           items: [
@@ -74,7 +74,14 @@ export default defineConfig({
         },
         {
           label: "Use it",
-          items: ["use/deploy", "use/agents", "use/pull-requests", "use/sharing", "use/domains"],
+          items: [
+            "use/deploy",
+            "use/agents",
+            "use/chatgpt",
+            "use/pull-requests",
+            "use/sharing",
+            "use/domains",
+          ],
         },
         {
           label: "Set up",
