@@ -31,7 +31,7 @@ import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import { releaseStack } from "./destroy.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
-import { markServing } from "./site.ts";
+import { markServing, withheldLine } from "./site.ts";
 import type { SourceStore } from "./source/store.ts";
 import { dropProjectNetwork, writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
@@ -253,11 +253,19 @@ async function runSite(
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
   try {
-    const { files } = await must(ctx.sites, "the site store").publish(id, r.wd.srcDir, plan);
+    const { files, withheld } = await must(ctx.sites, "the site store").publish(
+      id,
+      r.wd.srcDir,
+      plan,
+    );
     r.signal.throwIfAborted();
     await r.keep("deployed", moving ? { serve: "gangway" } : {});
     ctx.table.setSite(id, true);
     markServing(ctx, id);
+    const left = withheldLine(withheld);
+    if (left) {
+      ctx.logs.append(id, "system", left);
+    }
     ctx.logs.append(id, "system", `rebuilt: serving ${files} files from gangway`);
     if (moving) {
       const removed = await releaseStack(ctx, was, r.host);
