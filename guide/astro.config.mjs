@@ -2,6 +2,9 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 
+const FONTS =
+  "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400;1,500&display=swap";
+
 export default defineConfig({
   site: "https://gangway.sh",
   base: "/docs",
@@ -23,11 +26,25 @@ export default defineConfig({
           tag: "link",
           attrs: { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: true },
         },
+        // Fonts load without blocking the first paint; display=swap shows the fallback meanwhile.
         {
           tag: "link",
+          attrs: { rel: "stylesheet", href: FONTS, media: "print", onload: "this.media='all'" },
+        },
+        { tag: "noscript", content: `<link rel="stylesheet" href="${FONTS}" />` },
+        // Starlight sets a large twitter:card but no image; share gangway.sh's.
+        {
+          tag: "meta",
+          attrs: { property: "og:image", content: "https://gangway.sh/assets/og.png" },
+        },
+        { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
+        { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+        {
+          tag: "meta",
           attrs: {
-            rel: "stylesheet",
-            href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400;1,500&display=swap",
+            property: "og:image:alt",
+            content:
+              "gangway, open source under Apache 2.0: full-stack artifacts on your domain, beside a list of decks, dashboards and tools and their states.",
           },
         },
         // gangway.sh keeps its theme choice as gw-theme; start the docs on the same one.
