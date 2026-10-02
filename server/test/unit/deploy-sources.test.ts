@@ -4,6 +4,7 @@ import { pack } from "tar-stream";
 import { gzipSync } from "node:zlib";
 import { deploy } from "../../src/previews/deploy.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
+import { Slots } from "../../src/util/async.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
 type Entry = { name: string; content?: string; linkname?: string };
@@ -90,6 +91,51 @@ describe("tarball source", () => {
       { state: "failed", exitCode: 17 },
     ]);
     expect(s.fake.ups).toBe(0);
+  });
+
+  test("no room on the host fails the preview before any build, with the reason", async () => {
+    const s = setupPreviewContext();
+    s.ctx.buildRoom = async () => "the host has 100 MiB of memory available";
+    const res = await deploy(s.ctx, {
+      ...base,
+      name: "cramped",
+      source: {
+        kind: "tarball",
+        archive: await tarball([{ name: "Dockerfile", content: "FROM x" }]),
+        port: 80,
+      },
+    });
+    expect(await res.done).toMatchObject({
+      state: "failed",
+      error: expect.stringContaining("not building now: the host has 100 MiB"),
+    });
+    expect(s.fake.builds).toBe(0);
+    expect(s.ctx.builds.forPreview(res.preview.id)).toEqual([]);
+  });
+
+  test("a full line of builds turns the next one away, saying how many wait", async () => {
+    const s = setupPreviewContext();
+    s.ctx.buildSlots = new Slots(
+      () => 1,
+      () => 1,
+    );
+    const hold = await s.ctx.buildSlots.acquire();
+    const waiting = s.ctx.buildSlots.acquire();
+    const res = await deploy(s.ctx, {
+      ...base,
+      name: "turned-away",
+      source: {
+        kind: "tarball",
+        archive: await tarball([{ name: "Dockerfile", content: "FROM x" }]),
+        port: 80,
+      },
+    });
+    expect(await res.done).toMatchObject({
+      state: "failed",
+      error: expect.stringContaining("1 builds are already waiting"),
+    });
+    hold();
+    (await waiting)();
   });
 
   test.each([

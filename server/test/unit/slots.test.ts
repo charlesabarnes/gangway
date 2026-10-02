@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Slots } from "../../src/util/async.ts";
+import { LineFull, Slots } from "../../src/util/async.ts";
 
 const settled = async <T>(p: Promise<T>) => {
   let done = false;
@@ -12,6 +12,27 @@ const settled = async <T>(p: Promise<T>) => {
 };
 
 describe("Slots", () => {
+  test("a full line turns newcomers away; 0 leaves it unbounded", async () => {
+    const slots = new Slots(
+      () => 1,
+      () => 1,
+    );
+    await slots.acquire();
+    void slots.acquire();
+    await expect(slots.acquire()).rejects.toBeInstanceOf(LineFull);
+    expect(slots.waiting).toBe(1);
+
+    const open = new Slots(
+      () => 1,
+      () => 0,
+    );
+    await open.acquire();
+    for (let i = 0; i < 5; i++) {
+      void open.acquire();
+    }
+    expect(open.waiting).toBe(5);
+  });
+
   test("a raised limit serves those waiting before a newcomer", async () => {
     let limit = 1;
     const slots = new Slots(() => limit);

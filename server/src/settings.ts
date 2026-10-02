@@ -107,6 +107,17 @@ export const SETTINGS = {
   previewsPids: def("previews.limits.pids", z.coerce.number().int().min(0), 1024),
   // Builds run outside every preview's limits, so a burst of them would take the whole host.
   previewsBuilds: def("previews.limits.builds", z.coerce.number().int().min(0), 2),
+  previewsBuildQueue: def("previews.limits.buildQueue", z.coerce.number().int().min(0), 10),
+  previewsBuildMemory: def(
+    "previews.limits.buildMemory",
+    z.string().refine((v) => parseBytes(v) !== null, "a size like 512m or 2g, or 0 for no check"),
+    "512m",
+  ),
+  previewsBuildDisk: def(
+    "previews.limits.buildDisk",
+    z.string().refine((v) => parseBytes(v) !== null, "a size like 512m or 2g, or 0 for no check"),
+    "2g",
+  ),
   // Per minute, for preview traffic; 0 turns a limit off.
   limitsRequestsClient: def("limits.requests.client", z.coerce.number().int().min(0), 1200),
   limitsRequestsPreview: def("limits.requests.preview", z.coerce.number().int().min(0), 12000),

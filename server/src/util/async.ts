@@ -20,13 +20,26 @@ export class SingleFlight<T> {
 }
 
 /** At most `limit()` holders at once, the rest served in order; a limit of 0 is none. */
+/** The line in front of a Slots was already as long as it may be. */
+export class LineFull extends Error {
+  readonly waiting: number;
+
+  constructor(waiting: number) {
+    super(`${waiting} are already waiting`);
+    this.waiting = waiting;
+  }
+}
+
 export class Slots {
   readonly #limit: () => number;
+  readonly #maxWaiting: () => number;
   #busy = 0;
   #waiting: (() => void)[] = [];
 
-  constructor(limit: () => number) {
+  /** `maxWaiting` caps the line; past it acquire throws LineFull. 0 for either is no limit. */
+  constructor(limit: () => number, maxWaiting: () => number = () => 0) {
     this.#limit = limit;
+    this.#maxWaiting = maxWaiting;
   }
 
   get waiting() {
@@ -44,6 +57,10 @@ export class Slots {
     // A raised limit goes to those already waiting before any newcomer.
     this.#next();
     if (this.#full()) {
+      const max = this.#maxWaiting();
+      if (max > 0 && this.#waiting.length >= max) {
+        throw new LineFull(this.#waiting.length);
+      }
       onWait?.();
       signal?.throwIfAborted();
       await new Promise<void>((resolve, reject) => {

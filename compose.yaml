@@ -51,6 +51,9 @@
 #   GANGWAY_PREVIEW_CPUS=0                optional, per container; unset = no CPU limit
 #   GANGWAY_PREVIEW_PIDS=1024             optional, per container; unset = 1024
 #   GANGWAY_PREVIEW_BUILDS=2              optional, builds at once; the rest wait; 0 = no limit
+#   GANGWAY_PREVIEW_BUILD_QUEUE=10        optional, builds that may wait; more are turned away
+#   GANGWAY_PREVIEW_BUILD_MEMORY=512m     optional, free memory a build needs to start; 0 = off
+#   GANGWAY_PREVIEW_BUILD_DISK=2g         optional, free state disk a build needs to start; 0 = off
 #   GANGWAY_CONTROL_ALLOW=192.168.1.0/24,100.64.0.0/10
 #                                         optional: only these networks reach the UI and API
 #
@@ -107,6 +110,9 @@ services:
       GANGWAY_PREVIEW_CPUS: ${GANGWAY_PREVIEW_CPUS:-}
       GANGWAY_PREVIEW_PIDS: ${GANGWAY_PREVIEW_PIDS:-}
       GANGWAY_PREVIEW_BUILDS: ${GANGWAY_PREVIEW_BUILDS:-}
+      GANGWAY_PREVIEW_BUILD_QUEUE: ${GANGWAY_PREVIEW_BUILD_QUEUE:-}
+      GANGWAY_PREVIEW_BUILD_MEMORY: ${GANGWAY_PREVIEW_BUILD_MEMORY:-}
+      GANGWAY_PREVIEW_BUILD_DISK: ${GANGWAY_PREVIEW_BUILD_DISK:-}
       GANGWAY_CONTROL_ALLOW: ${GANGWAY_CONTROL_ALLOW:-}
       # false stops the daily check for a new release on GitHub, and locks it off in Settings.
       GANGWAY_UPDATE_CHECK: ${GANGWAY_UPDATE_CHECK:-}
