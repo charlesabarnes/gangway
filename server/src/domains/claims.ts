@@ -22,7 +22,10 @@ export type DomainView = Domain & { records: DnsRecord[] };
 export type ClaimDeps = {
   registry: DomainRegistry;
   domains: DomainsRepo;
-  previews: Pick<PreviewsRepo, "domainChosen" | "forgetDomain" | "provenanceOf" | "get">;
+  previews: Pick<
+    PreviewsRepo,
+    "domainChosen" | "forgetDomain" | "provenanceOf" | "get" | "setTtlExpiresAt"
+  >;
   hostnames: () => Iterable<string>;
   audit: AuditSink;
   bus?: EventBus | undefined;
