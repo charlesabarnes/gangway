@@ -74,11 +74,27 @@ export default defineConfig({
         },
         {
           label: "Use it",
-          items: ["use/deploy", "use/agents", "use/pull-requests", "use/sharing", "use/domains"],
+          items: [
+            "use/deploy",
+            "use/agents",
+            "use/chatgpt",
+            "use/mcp-clients",
+            "use/pull-requests",
+            "use/sharing",
+            "use/domains",
+          ],
         },
         {
           label: "Set up",
           items: ["setup/reverse-proxy", "setup/configuration", "setup/upgrades"],
+        },
+        {
+          label: "Alternatives",
+          items: [
+            "alternatives/self-hosted-llms",
+            "alternatives/chatgpt-sites",
+            "alternatives/claude-artifacts",
+          ],
         },
         {
           label: "Reference",

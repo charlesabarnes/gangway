@@ -1,0 +1,81 @@
+---
+title: Connect any MCP client
+description: Connect any MCP-compatible chat app or agent to gangway with OAuth or an API token, so whatever model it runs can publish pages and apps to a URL.
+---
+
+Any chat app or agent that speaks MCP can deploy to gangway, with any model behind it: a report, a
+deck, a dashboard or a whole app, at a URL on your domain. That covers self-hosted chat apps such
+as Open WebUI, LibreChat or LM Studio, agent frameworks, and your own scripts. Claude Code, Codex,
+Cursor and VS Code have their own steps in [Connect an agent](/docs/use/agents/).
+
+## Before you start
+
+- **A client that speaks Streamable HTTP MCP**, signing in with OAuth or sending an
+  `Authorization` header. Most do; look for a remote MCP server, tool server or connector setting.
+- **MCP turned on in gangway**, under **Admin → Server → Surfaces**.
+- **A model with reliable tool calling.** gangway's `deploy` tool takes whole files as arguments,
+  which small models get wrong. Pick one that is good at tool use.
+
+## 1. Choose how it signs in
+
+**OAuth**, if the client offers it. Choose OAuth, give it the MCP URL, and sign in to gangway when
+your browser opens. gangway asks you to approve the client and choose its scopes, as for any
+[agent](/docs/use/agents/#3-sign-in-and-approve), and lists it under **Account → Connected agents**.
+The client registers itself, so there is no client ID or secret to paste. Then skip to
+[Use it](#3-use-it).
+
+**An API token** otherwise. In gangway, open **Account → API tokens** and make a token for the
+client. Choose its scopes:
+
+- `artifacts` to let it deploy only static sites and artifacts, and touch only what it deployed;
+- `read` and `deploy` to let it run apps with a backend and a database too.
+
+Copy the token. It starts with `gw_` and is shown once.
+
+## 2. Add gangway to the client
+
+With a token, add a remote MCP server with:
+
+| Setting   | Value                                       |
+| --------- | ------------------------------------------- |
+| Transport | Streamable HTTP                             |
+| URL       | `https://mcp.<your domain>/`                |
+| Auth      | Bearer, with the token; or the header below |
+| Header    | `Authorization: Bearer gw_…`                |
+
+A client configured in JSON usually takes something like:
+
+```json
+{
+  "mcpServers": {
+    "gangway": {
+      "url": "https://mcp.<your domain>/",
+      "headers": { "Authorization": "Bearer gw_…" }
+    }
+  }
+}
+```
+
+The client connects and lists gangway's tools.
+
+## 3. Use it
+
+Turn gangway's tools on for a chat if the client asks you to, and ask for something:
+
+> Make a one-page report on these numbers and put it on gangway.
+
+The model deploys and replies with the URL. Ask for a change and it redeploys to the same URL.
+gangway's MCP server tells every client how to use its templates, so documents, decks and boards
+come out in your theme.
+
+## If it does not work
+
+- **The client cannot connect.** It has to reach and trust the MCP URL from wherever it runs, often
+  its own container. A `lan` or `local` install uses gangway's own certificate, which most clients
+  do not trust out of the box; use a domain. See [Choosing a mode](/docs/install/modes/).
+- **It connects but gets 401.** The header is missing or the token was revoked or has expired. Some
+  clients send an empty header when Bearer is chosen with no key.
+- **The connection times out.** Some clients give the first handshake only a few seconds; raise
+  their MCP timeout.
+- **The model describes a deploy instead of making one, or sends broken arguments.** That is the
+  model, not the connection; try one with stronger tool calling.

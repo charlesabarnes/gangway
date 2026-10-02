@@ -1,0 +1,66 @@
+---
+title: Use it from ChatGPT
+description: Add gangway to ChatGPT as a custom MCP connector, so ChatGPT deploys to your server.
+---
+
+ChatGPT can deploy to gangway the way Claude Code and Codex do: you add gangway as a custom
+connector, sign in once, and ChatGPT gets the same tools. What it makes lands on your server, on
+your domain, not on [ChatGPT Sites](/docs/alternatives/chatgpt-sites/).
+
+## Before you start
+
+- **A ChatGPT plan with developer mode.** Custom MCP connectors need Plus, Pro, Business,
+  Enterprise or Edu. On Business and Enterprise, a workspace admin may have to allow them.
+- **gangway reachable from the internet.** ChatGPT calls your MCP URL from OpenAI's servers, so
+  `https://mcp.<your domain>/` must answer from outside your network. A `local` or `lan` install,
+  or one behind a VPN only, cannot be used from ChatGPT. See [Choosing a mode](/docs/install/modes/).
+- **MCP turned on**, under **Admin → Server → Surfaces**.
+
+## 1. Turn on developer mode
+
+In ChatGPT, open **Settings** and turn on **Developer mode**. It has been under **Apps &
+Connectors → Advanced settings** and, more recently, **Security and login**; OpenAI moves it now
+and then.
+
+## 2. Add gangway as a connector
+
+Under **Settings → Apps & Connectors**, choose **Create** and fill in:
+
+| Field          | Value                                     |
+| -------------- | ----------------------------------------- |
+| Name           | `gangway`                                 |
+| Description    | `Deploys apps and artifacts to my server` |
+| MCP server URL | `https://mcp.<your domain>/`              |
+| Authentication | OAuth                                     |
+
+ChatGPT registers itself with a Client ID Metadata Document, which gangway accepts; there is no
+client ID or secret to paste.
+
+## 3. Sign in and approve
+
+ChatGPT opens gangway in your browser. Sign in, and gangway asks you to approve ChatGPT and choose
+its scopes, as for any [agent](/docs/use/agents/#3-sign-in-and-approve). Pick `artifacts` if you
+only want ChatGPT to deploy static sites and artifacts, and touch only what it deployed itself.
+
+ChatGPT is then listed under **Account → Connected agents**, where you can disconnect it.
+
+## 4. Use it
+
+Start a new chat, turn on the gangway connector for it, and ask for something:
+
+> Make a one-page report on last quarter's signups and put it on gangway.
+
+ChatGPT deploys and replies with the URL. Ask for a change and it redeploys to the same URL.
+gangway's MCP server sends every client the same instructions for its templates, so documents, decks
+and boards come out in your theme whichever agent made them.
+
+## If it does not connect
+
+- **ChatGPT cannot reach the server.** From a machine outside your network, run
+  `curl -i https://mcp.<your domain>/`. gangway answers `405 Method Not Allowed`, since MCP wants a
+  POST; anything else, or no answer, means ChatGPT cannot reach it either. Check your reverse proxy
+  and DNS.
+- **Sign-in stops on a gangway error page.** The page says why the client was refused.
+- **The tools are listed but every chat fails.** Upgrade gangway; v0.1.0 published tool schemas
+  ChatGPT could not read.
+- **Something else.** See [Troubleshooting](/docs/reference/troubleshooting/).
