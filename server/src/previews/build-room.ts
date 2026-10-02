@@ -22,6 +22,11 @@ async function freeDisk(dir: string): Promise<number | null> {
 
 export const HOST_PROBES: RoomProbes = { memory: availableMemory, disk: freeDisk };
 
+const LOOPBACK = /^tcp:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?\/?$/i;
+
+export const onThisMachine = (dockerHost: string) =>
+  dockerHost.startsWith("unix://") || LOOPBACK.test(dockerHost);
+
 const mib = (n: number) => `${Math.floor(n / 1024 ** 2)} MiB`;
 
 // Memory only when Docker runs on this machine; the disk is gangway's, where uploads are unpacked.
@@ -31,7 +36,7 @@ export async function noRoomForBuild(
   needs: BuildNeeds,
   probes: RoomProbes = HOST_PROBES,
 ): Promise<string | null> {
-  if (needs.memoryBytes > 0 && host.dockerHost.startsWith("unix://")) {
+  if (needs.memoryBytes > 0 && onThisMachine(host.dockerHost)) {
     const free = await probes.memory();
     if (free !== null && free < needs.memoryBytes) {
       return `the host has ${mib(free)} of memory available; a build needs ${mib(needs.memoryBytes)} (previews.limits.buildMemory)`;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Host } from "@gangway/shared/domain";
-import { noRoomForBuild, type RoomProbes } from "../../src/previews/build-room.ts";
+import { noRoomForBuild, onThisMachine, type RoomProbes } from "../../src/previews/build-room.ts";
 
 const MiB = 1024 ** 2;
 const host = (dockerHost: string) => ({ dockerHost }) as Host;
@@ -28,6 +28,24 @@ describe("noRoomForBuild", () => {
   test("memory is only checked when the build runs on this machine", async () => {
     const remote = host("ssh://builder@10.0.0.9");
     expect(await noRoomForBuild(remote, "/state", needs, probes(1, 9000 * MiB))).toBeNull();
+  });
+
+  test("a socket or a loopback address is this machine; anything else may not be", () => {
+    for (const h of [
+      "unix:///var/run/docker.sock",
+      "tcp://127.0.0.1:2375",
+      "tcp://localhost:2376",
+      "tcp://[::1]:2375",
+    ]) {
+      expect(onThisMachine(h)).toBe(true);
+    }
+    for (const h of [
+      "tcp://10.0.0.9:2375",
+      "ssh://builder@10.0.0.9",
+      "tcp://127.0.0.1.evil.example:2375",
+    ]) {
+      expect(onThisMachine(h)).toBe(false);
+    }
   });
 
   test("0 turns a check off, and an unreadable reading never refuses", async () => {
