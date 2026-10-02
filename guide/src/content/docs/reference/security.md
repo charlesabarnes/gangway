@@ -42,6 +42,7 @@ gangway checks the file after `docker compose config` has resolved it. A service
 `platform`, `ports`, `post_start`, `pre_stop`, `profiles`, `pull_policy`, `read_only`, `restart`,
 `scale`, `secrets`, `shm_size`, `stdin_open`, `stop_grace_period`, `stop_signal`, `tmpfs`, `tty`,
 `ulimits`, `user`, `volumes`, `volumes_from`, `working_dir`, and any `x-` extension.
+`runtime` and `isolation` are accepted only at their default value.
 
 Some of these are checked further. `build` is limited to a context inside the upload, and
 `deploy` to resources, replicas, labels and a restart policy. Volumes must be named volumes or
