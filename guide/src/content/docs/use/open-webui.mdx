@@ -1,0 +1,60 @@
+---
+title: Use it from Open WebUI
+description: Connect Open WebUI to gangway over MCP, so a local or self-hosted model can publish pages and apps to a URL.
+---
+
+[Open WebUI](https://docs.openwebui.com/) speaks MCP, so any model you run in it can deploy to
+gangway: a report, a deck, a dashboard or a whole app, at a URL on your domain. Nothing leaves your
+own servers.
+
+## Before you start
+
+- **Open WebUI v0.6.31 or later.** Earlier versions have no MCP support of their own.
+- **MCP turned on in gangway**, under **Admin → Server → Surfaces**.
+- **A model with reliable tool calling.** gangway's `deploy` tool takes whole files as arguments,
+  which small models get wrong. Pick one that is good at tool use.
+
+## 1. Make an API token
+
+In gangway, open **Account → API tokens** and make a token for Open WebUI. Choose its scopes:
+
+- `artifacts` to let it deploy only static sites and artifacts, and touch only what it deployed;
+- `read` and `deploy` to let it run apps with a backend and a database too.
+
+Copy the token. It starts with `gw_` and is shown once.
+
+## 2. Add gangway as a tool server
+
+In Open WebUI, open **Settings → Admin → Integrations**, and under **External Tool Servers** choose
+**+ Add Connection**:
+
+| Field      | Value                        |
+| ---------- | ---------------------------- |
+| Type       | MCP (Streamable HTTP)        |
+| Server URL | `https://mcp.<your domain>/` |
+| Auth       | Bearer                       |
+| Key        | the `gw_…` token             |
+
+Save. Open WebUI connects and lists gangway's tools.
+
+## 3. Use it
+
+Open a chat, choose **+ → Integrations → Tools**, turn gangway on, and ask for something:
+
+> Make a one-page report on these numbers and put it on gangway.
+
+The model deploys and replies with the URL. Ask for a change and it redeploys to the same URL.
+gangway's MCP server tells every client how to use its templates, so documents, decks and boards
+come out in your theme.
+
+## If it does not work
+
+- **Open WebUI cannot connect.** It reaches gangway from its own container, so the MCP URL must
+  resolve and be trusted there. A `lan` or `local` install uses gangway's own certificate, which
+  Open WebUI does not trust out of the box; use a domain. See [Choosing a mode](/docs/install/modes/).
+- **The connection times out.** Raise `MCP_INITIALIZE_TIMEOUT` in Open WebUI (10 seconds by default).
+- **The model describes a deploy instead of making one, or sends broken arguments.** That is the
+  model, not the connection; try one with stronger tool calling.
+
+Other self-hosted chat apps that can send a bearer header to a Streamable HTTP MCP server, such as
+LibreChat, connect the same way. See [Connect an agent](/docs/use/agents/#other-clients).

@@ -78,6 +78,7 @@ export default defineConfig({
             "use/deploy",
             "use/agents",
             "use/chatgpt",
+            "use/open-webui",
             "use/pull-requests",
             "use/sharing",
             "use/domains",
@@ -89,7 +90,11 @@ export default defineConfig({
         },
         {
           label: "Alternatives",
-          items: ["alternatives/chatgpt-sites", "alternatives/claude-artifacts"],
+          items: [
+            "alternatives/self-hosted-llms",
+            "alternatives/chatgpt-sites",
+            "alternatives/claude-artifacts",
+          ],
         },
         {
           label: "Reference",
