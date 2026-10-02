@@ -1,7 +1,6 @@
 import { readFile, statfs } from "node:fs/promises";
 import type { Host } from "@gangway/shared/domain";
 
-/** The least a build needs free when it starts; 0 skips that check. */
 export type BuildNeeds = { memoryBytes: number; diskBytes: number };
 
 export type RoomProbes = {
@@ -25,10 +24,7 @@ export const HOST_PROBES: RoomProbes = { memory: availableMemory, disk: freeDisk
 
 const mib = (n: number) => `${Math.floor(n / 1024 ** 2)} MiB`;
 
-/**
- * Why a build may not start now, or null. Memory is checked only when the build runs on this
- * machine; the disk is gangway's state directory, where every upload is unpacked.
- */
+// Memory only when Docker runs on this machine; the disk is gangway's, where uploads are unpacked.
 export async function noRoomForBuild(
   host: Host,
   stateDir: string,
