@@ -8,7 +8,7 @@ import { composeForImage } from "./compose-generate.ts";
 import type { PreviewContext } from "./context.ts";
 import type { DeploySource, RegistryLogin } from "./deploy-types.ts";
 import { COMPOSE_FILE, ownStack } from "./own-stack.ts";
-import { prepareUpload } from "./prepare-upload.ts";
+import { prepareUpload, type UploadContext } from "./prepare-upload.ts";
 import { cloneRepo } from "./source/git.ts";
 import { assertNoEscapingSymlinks } from "./source/guard.ts";
 import { extractTarball } from "./source/tarball.ts";
@@ -27,6 +27,7 @@ export type Materialized = {
 type Env = Record<string, string> | undefined;
 /** Where a source is written: the preview it is for, its secrets and its working directory. */
 export type SourceTarget = { id: string; env: Env; wd: Workdir };
+type CloneContext = Pick<PreviewContext, "logs" | "logger" | "git">;
 type SourceOf<K extends DeploySource["kind"]> = Extract<DeploySource, { kind: K }>;
 
 async function writeDockerConfig(dir: string, login: RegistryLogin): Promise<string> {
@@ -58,7 +59,7 @@ async function imageSource(source: SourceOf<"image">, wd: Workdir): Promise<Mate
 }
 
 async function pushedSource(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "logs">,
   source: SourceOf<"pushed">,
   { id, env, wd }: SourceTarget,
 ): Promise<Materialized> {
@@ -87,7 +88,7 @@ async function pushedSource(
 }
 
 async function cloneGit(
-  ctx: PreviewContext,
+  ctx: CloneContext,
   id: string,
   source: SourceOf<"git">,
   wd: Workdir,
@@ -108,7 +109,7 @@ async function cloneGit(
 }
 
 async function clonePr(
-  ctx: PreviewContext,
+  ctx: CloneContext,
   id: string,
   source: SourceOf<"pr">,
   wd: Workdir,
@@ -130,7 +131,7 @@ async function clonePr(
 }
 
 async function clonedSource(
-  ctx: PreviewContext,
+  ctx: CloneContext,
   source: SourceOf<"git" | "pr">,
   { id, env, wd }: SourceTarget,
 ): Promise<Materialized> {
@@ -144,7 +145,7 @@ async function clonedSource(
 }
 
 async function tarballSource(
-  ctx: PreviewContext,
+  ctx: UploadContext,
   source: SourceOf<"tarball">,
   { id, env, wd }: SourceTarget,
 ): Promise<Materialized> {
@@ -173,7 +174,7 @@ async function tarballSource(
 }
 
 export async function writeSource(
-  ctx: PreviewContext,
+  ctx: CloneContext & UploadContext,
   source: DeploySource,
   target: SourceTarget,
 ): Promise<Materialized> {

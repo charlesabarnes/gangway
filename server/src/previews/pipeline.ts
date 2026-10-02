@@ -6,7 +6,7 @@ import { AppError, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { LineFull } from "../util/async.ts";
 import { ulid } from "../util/ulid.ts";
-import type { PreviewContext } from "./context.ts";
+import type { BuildingContext, PreviewContext } from "./context.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { STACK_FILE, type StackPlan } from "./stack-file.ts";
 import { healthOf, StepFailed, stepper, type Job, type Step } from "./steps.ts";
@@ -24,7 +24,10 @@ export type Pipeline = {
   log: (line: string) => void;
 };
 
-export function openPipeline(ctx: PreviewContext, r: RunPlan): Pipeline {
+export function openPipeline(
+  ctx: Pick<PreviewContext, "compose" | "docker" | "logs">,
+  r: RunPlan,
+): Pipeline {
   const id = r.preview.id;
   const stackPath = join(r.wd.dir, STACK_FILE);
   return {
@@ -44,7 +47,7 @@ export function openPipeline(ctx: PreviewContext, r: RunPlan): Pipeline {
 }
 
 export async function buildImages(
-  ctx: PreviewContext,
+  ctx: BuildingContext,
   p: Pipeline,
   r: RunPlan,
   buildId?: string,
@@ -82,7 +85,7 @@ async function buildSlot(ctx: PreviewContext, p: Pipeline, r: RunPlan) {
 }
 
 async function recordBuild(
-  ctx: PreviewContext,
+  ctx: BuildingContext,
   p: Pipeline,
   r: RunPlan,
   { id, services }: { id: string; services: string[] },
@@ -141,7 +144,7 @@ export const waitTargetFor = (p: Pipeline, r: RunPlan): WaitTarget => ({
 });
 
 export function failureMessage(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "logger">,
   previewId: string,
   e: unknown,
   what: string,
@@ -154,7 +157,7 @@ export function failureMessage(
 }
 
 export async function failStack(
-  ctx: PreviewContext,
+  ctx: BuildingContext,
   r: { preview: Preview; host: Host },
   message: string,
   upAttempted: boolean,

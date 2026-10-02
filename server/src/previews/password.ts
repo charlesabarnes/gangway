@@ -100,7 +100,10 @@ export function logGenerated(
 }
 
 export async function setPreviewPassword(
-  ctx: PreviewContext,
+  ctx: Pick<
+    PreviewContext,
+    "previews" | "privateAvailable" | "passwords" | "table" | "audit" | "logs"
+  >,
   input: {
     actor: Actor;
     previewId: string;

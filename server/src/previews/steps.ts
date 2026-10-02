@@ -20,7 +20,7 @@ export type Step = (
 ) => Promise<void>;
 
 export function stepper(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "logs" | "compose">,
   o: { previewId: string; host: Host; cwd: string; signal: AbortSignal },
 ): Step {
   return async (what, argv, stream, env) => {

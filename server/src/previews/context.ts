@@ -83,3 +83,47 @@ export type PreviewContext = {
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };
+
+export type PlanningContext = Pick<
+  PreviewContext,
+  "instance" | "env" | "origin" | "docker" | "compose" | "previews" | "logger" | "limits"
+>;
+
+/** Running compose steps for a preview: builds, health waits and the logs they write. */
+export type BuildingContext = Pick<
+  PreviewContext,
+  | "compose"
+  | "docker"
+  | "logs"
+  | "logger"
+  | "now"
+  | "builds"
+  | "buildSlots"
+  | "states"
+  | "probe"
+  | "timings"
+>;
+
+/** Moving a preview between states, and the shared bookkeeping that keeps two moves apart. */
+export type LifecycleContext = Pick<
+  PreviewContext,
+  | "compose"
+  | "docker"
+  | "logs"
+  | "logger"
+  | "now"
+  | "probe"
+  | "timings"
+  | "states"
+  | "previews"
+  | "hosts"
+  | "table"
+  | "inflight"
+  | "teardowns"
+  | "policy"
+>;
+
+export type StaticContext = Pick<
+  PreviewContext,
+  "previews" | "states" | "sites" | "sources" | "serveStatic" | "artifacts" | "artifactCss"
+>;

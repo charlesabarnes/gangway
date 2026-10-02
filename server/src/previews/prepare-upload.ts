@@ -22,13 +22,21 @@ export type PreparedUpload = {
   plan: AppPlan;
 };
 
+export type UploadContext = Pick<
+  PreviewContext,
+  "logs" | "sources" | "artifacts" | "artifactCss" | "addonSecret"
+>;
+
 export type PlanOptions = {
   previous?: RuntimeId | "own" | undefined;
   addons?: readonly AddonRequest[] | undefined;
   previousAddons?: readonly AddonChoice[] | undefined;
 };
 
-async function keepPristine(ctx: PreviewContext, wd: Workdir): Promise<string | null> {
+async function keepPristine(
+  ctx: Pick<PreviewContext, "sources">,
+  wd: Workdir,
+): Promise<string | null> {
   if (!ctx.sources) {
     return null;
   }
@@ -44,7 +52,7 @@ async function keepPristine(ctx: PreviewContext, wd: Workdir): Promise<string | 
 }
 
 function renderSidecars(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "logs" | "addonSecret">,
   logId: string,
   plan: AppPlan,
   env: Record<string, string> | undefined,
@@ -88,7 +96,7 @@ export type Upload = {
 };
 
 async function writePlannedRuntime(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "logs">,
   { logId, wd, choice, env, port }: Upload,
   plan: AppPlan,
   sidecars: RenderedAddons | undefined,
@@ -116,7 +124,10 @@ async function writePlannedRuntime(
 }
 
 /** What the plan cannot know: whether this server has the theme, and allows its own CSS. */
-function checkArtifact(ctx: PreviewContext, plan: AppPlan): void {
+function checkArtifact(
+  ctx: Pick<PreviewContext, "artifacts" | "artifactCss">,
+  plan: AppPlan,
+): void {
   const a = plan.artifact;
   if (!a) {
     return;
@@ -137,7 +148,7 @@ function checkArtifact(ctx: PreviewContext, plan: AppPlan): void {
 }
 
 export async function prepareUpload(
-  ctx: PreviewContext,
+  ctx: UploadContext,
   upload: Upload,
   opts: PlanOptions = {},
 ): Promise<PreparedUpload> {

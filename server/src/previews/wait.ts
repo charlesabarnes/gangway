@@ -8,6 +8,11 @@ import type { PreviewContext } from "./context.ts";
 import { rmiFor } from "./destroy.ts";
 import { StepFailed } from "./steps.ts";
 
+type WaitContext = Pick<
+  PreviewContext,
+  "compose" | "docker" | "logs" | "logger" | "probe" | "timings"
+>;
+
 export type WaitTarget = {
   previewId: string;
   host: Host;
@@ -33,7 +38,7 @@ function assertNoneFailed(rows: readonly ComposePsEntry[], routed: ReadonlySet<s
   }
 }
 
-export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<void> {
+export async function waitHealthy(ctx: WaitContext, r: WaitTarget): Promise<void> {
   const deadline = Date.now() + ctx.timings.startTimeoutMs;
   const argv = r.ps;
   let last = "";
@@ -70,7 +75,7 @@ export async function waitHealthy(ctx: PreviewContext, r: WaitTarget): Promise<v
   }
 }
 
-export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise<void> {
+export async function waitAnswering(ctx: WaitContext, r: WaitTarget): Promise<void> {
   const deadline = Date.now() + ctx.timings.probeTimeoutMs;
   let pending = [...r.routes];
   for (;;) {
@@ -97,7 +102,7 @@ export async function waitAnswering(ctx: PreviewContext, r: WaitTarget): Promise
 }
 
 export async function salvage(
-  ctx: PreviewContext,
+  ctx: WaitContext,
   r: { preview: Preview; host: Host },
 ): Promise<void> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-salvage-"));

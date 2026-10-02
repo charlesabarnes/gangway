@@ -46,7 +46,11 @@ function slugFor(c: Claim): string {
   return c.visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
 }
 
-function createPreview(ctx: PreviewContext, c: Claim, project: string): Preview {
+function createPreview(
+  ctx: Pick<PreviewContext, "previews" | "now">,
+  c: Claim,
+  project: string,
+): Preview {
   const { template, project: owner } = c.policy;
   return ctx.previews.create({
     id: c.id,
@@ -72,7 +76,7 @@ function createPreview(ctx: PreviewContext, c: Claim, project: string): Preview 
 }
 
 function claimRoutes(
-  ctx: PreviewContext,
+  ctx: Pick<PreviewContext, "table" | "previews">,
   c: Claim,
   preview: Preview,
   routes: PlannedRoute[],
@@ -101,7 +105,10 @@ function claimRoutes(
 
 // No await in here: until the route rows are claimed, concurrent deploys could take the same port.
 export function claimPreview(
-  ctx: PreviewContext,
+  ctx: Pick<
+    PreviewContext,
+    "instance" | "previews" | "domains" | "previewDomain" | "table" | "logs" | "now"
+  >,
   c: Claim,
 ): { preview: Preview; routes: PlannedRoute[] } {
   const slug = slugFor(c);

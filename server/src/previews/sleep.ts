@@ -7,7 +7,7 @@ import { AppError, errorMessage } from "../errors.ts";
 import { type Logger, redactString } from "../logger.ts";
 import { idleMs } from "../util/duration.ts";
 import { SingleFlight } from "../util/async.ts";
-import type { PreviewContext } from "./context.ts";
+import type { LifecycleContext } from "./context.ts";
 import { StepFailed } from "./steps.ts";
 import { waitAnswering, waitHealthy, type WaitTarget } from "./wait.ts";
 
@@ -19,7 +19,7 @@ export type IdleReport = {
 };
 
 export async function sleepPreview(
-  ctx: PreviewContext,
+  ctx: LifecycleContext,
   previewId: string,
   why: string,
 ): Promise<Preview> {
@@ -56,7 +56,7 @@ export async function sleepPreview(
 }
 
 export async function sweepIdle(
-  ctx: PreviewContext,
+  ctx: LifecycleContext,
   logger: Logger,
   signal?: AbortSignal,
 ): Promise<IdleReport> {
@@ -113,11 +113,11 @@ export async function sweepIdle(
 }
 
 export class Waker {
-  readonly #ctx: PreviewContext;
+  readonly #ctx: LifecycleContext;
   readonly #log: Logger;
   readonly #flights = new SingleFlight<Preview>();
 
-  constructor(ctx: PreviewContext, log: Logger) {
+  constructor(ctx: LifecycleContext, log: Logger) {
     this.#ctx = ctx;
     this.#log = log;
   }

@@ -24,11 +24,13 @@ export type AddonView = AddonChoice & { name: string; service: string; env: read
 /** One statement to run against an add-on, and what it is for in the audit log. */
 type Statement = { addon: AddonId; text: string; write: boolean; kind: string };
 
+type DataContext = Pick<PreviewContext, "previews" | "hosts" | "audit" | "compose" | "docker">;
+
 export class DataBrowser {
-  readonly #ctx: PreviewContext;
+  readonly #ctx: DataContext;
   readonly #busy = new Set<string>();
 
-  constructor(ctx: PreviewContext) {
+  constructor(ctx: DataContext) {
     this.#ctx = ctx;
   }
 
