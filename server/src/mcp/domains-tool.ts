@@ -13,6 +13,7 @@ import {
 } from "../domains/claims.ts";
 import { forbidden, notFound, unprocessable } from "../errors.ts";
 import { setPreviewDomain } from "../previews/domain.ts";
+import { keepForProduction } from "../previews/extend.ts";
 import { nameOf, resolveFor } from "./resolve.ts";
 import { jsonObject, plain } from "./tool-specs.ts";
 import type { ToolDeps } from "./tool-deps.ts";
@@ -152,6 +153,9 @@ function setProduction({ d, c, actor }: DomainCall, project: Project, ref: strin
     old: project.productionPreviewId,
     new: preview?.id ?? null,
   });
+  if (preview) {
+    keepForProduction({ previews: d.ctx.previews, audit: c.audit }, actor, preview.id);
+  }
   c.registry.refresh();
 }
 

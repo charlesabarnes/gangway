@@ -16,15 +16,17 @@ import { runtimeById } from "@gangway/shared/runtimes";
 import { AppError, badRequest, unprocessable } from "../errors.ts";
 import { compress, compressible } from "../net/encode.ts";
 import { ENCODED_DIR } from "../net/site.ts";
+import { compareCodeUnits } from "../util/compare.ts";
 import { isUlid } from "../util/ulid.ts";
 import { artifactIndex, kitConfig, renderAssets } from "./artifact-render.ts";
 import type { PreviewContext } from "./context.ts";
 import type { Planned } from "./stack-file.ts";
+import { sensitiveName } from "./sensitive.ts";
 import { GENERATED_DIR } from "./source/store.ts";
 import { containedIn, DIR_MODE, FILE_MODE } from "./source/types.ts";
 
 /** Left out of a site, as the container build leaves them out of its context. */
-const SKIPPED = new Set([".git", "node_modules", GENERATED_DIR]);
+export const SKIPPED = new Set([".git", "node_modules", GENERATED_DIR]);
 
 export type SiteFallback = "spa" | "404";
 
@@ -118,23 +120,46 @@ export function siteModel(plan: AppPlan, port: number | undefined): Planned {
   };
 }
 
-async function copyFiles(from: string, to: string): Promise<number> {
-  let n = 0;
+/** `withheld`: what was left out as sensitive (sensitive.ts), for the deploy's log. */
+export type Copied = { files: number; withheld: string[] };
+
+const WITHHELD_SHOWN = 10;
+
+/** The log line that says what publish left out, or null when it left nothing out. */
+export function withheldLine(withheld: readonly string[]): string | null {
+  if (withheld.length === 0) {
+    return null;
+  }
+  const shown = withheld.toSorted(compareCodeUnits).slice(0, WITHHELD_SHOWN).join(", ");
+  const more =
+    withheld.length > WITHHELD_SHOWN ? ` and ${withheld.length - WITHHELD_SHOWN} more` : "";
+  return `not published, as they may hold secrets: ${shown}${more} (use gangway secrets instead)`;
+}
+
+async function copyFiles(from: string, to: string, rel = ""): Promise<Copied> {
+  const out: Copied = { files: 0, withheld: [] };
   await mkdir(to, { recursive: true, mode: DIR_MODE });
   for (const e of await readdir(from, { withFileTypes: true })) {
     if (SKIPPED.has(e.name)) {
       continue;
     }
+    const at = rel ? `${rel}/${e.name}` : e.name;
+    if (sensitiveName(e.name, e.isDirectory())) {
+      out.withheld.push(e.isDirectory() ? `${at}/` : at);
+      continue;
+    }
     const src = path.join(from, e.name);
     const dest = path.join(to, e.name);
     if (e.isDirectory()) {
-      n += await copyFiles(src, dest);
+      const sub = await copyFiles(src, dest, at);
+      out.files += sub.files;
+      out.withheld.push(...sub.withheld);
     } else if (e.isFile()) {
       await copyFile(src, dest);
-      n++;
+      out.files++;
     }
   }
-  return n;
+  return out;
 }
 
 /** Writes a .br and a .gz of each compressible file under `from` into the same place under `to`. */
@@ -176,7 +201,7 @@ export class SiteStore {
   }
 
   /** Build the site from a planned upload beside the live one, then swap it in. */
-  async publish(previewId: string, srcDir: string, plan: AppPlan): Promise<{ files: number }> {
+  async publish(previewId: string, srcDir: string, plan: AppPlan): Promise<Copied> {
     if (!servable(plan)) {
       throw unprocessable("this upload needs a container to serve it");
     }
@@ -190,7 +215,7 @@ export class SiteStore {
     const old = `${dest}.old`;
     await mkdir(this.#root, { recursive: true, mode: DIR_MODE });
     await rm(next, { recursive: true, force: true });
-    const files = await copyFiles(from, path.join(next, "root"));
+    const copied = await copyFiles(from, path.join(next, "root"));
 
     const meta: SiteMeta = {
       fallback: plan.serve.fallback,
@@ -215,7 +240,7 @@ export class SiteStore {
     await rename(next, dest);
     this.#open.delete(previewId);
     await rm(old, { recursive: true, force: true });
-    return { files };
+    return copied;
   }
 
   async has(previewId: string): Promise<boolean> {

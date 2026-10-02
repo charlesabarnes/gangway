@@ -6,7 +6,9 @@ import { refusalDetail } from "../../src/mcp/describe.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { TOOL_PERMISSIONS } from "../../src/mcp/tool-access.ts";
 import { DeployArgs } from "../../src/mcp/tool-specs.ts";
+import { SiteStore } from "../../src/previews/site.ts";
 import { READ_ONLY, setupTools } from "../helpers/mcp-tools.ts";
+import { tempDir } from "../helpers/db.ts";
 import { ACTOR } from "../helpers/preview-context.ts";
 
 const sha12 = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 12);
@@ -337,6 +339,25 @@ describe("the tools", () => {
     });
     expect(out).toContain("checked: / 404 · /api 500 · /gone no answer");
     expect(out).toContain("WARNING: /api answered 500, /gone did not answer.");
+  });
+
+  test("ready names the files a site gangway serves left out as secrets", async () => {
+    const s = setupTools();
+    s.ctx.sites = new SiteStore(tempDir());
+    const out = await s.tools.deploy(s.scope(), {
+      files: {
+        "index.html": "<h1>hi</h1>",
+        ".env": "SECRET=1",
+        "keys/.ssh/id_rsa": "k",
+        // Left out whole, as publish leaves node_modules out: not named as withheld.
+        "node_modules/pkg/.env": "X=1",
+      },
+      name: "leaky",
+      visibility: "public",
+    });
+    expect(out).toContain(
+      "not published, as they may hold secrets: .env, keys/.ssh/ (use gangway secrets instead)",
+    );
   });
 
   test("a plan that cannot run says why, reason by reason", async () => {

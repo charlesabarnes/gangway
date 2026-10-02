@@ -30,7 +30,7 @@ import {
 } from "./pipeline.ts";
 import type { ResolvedPolicy } from "./policy.ts";
 import { checkQuota } from "./quota.ts";
-import { markServing, servesHere, siteModel } from "./site.ts";
+import { markServing, servesHere, siteModel, withheldLine } from "./site.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { readModel, writeStack, type Planned } from "./stack-file.ts";
 import { releaseFor, seedFor } from "./steps.ts";
@@ -314,8 +314,16 @@ async function publishSite(
 ): Promise<Preview> {
   const id = r.preview.id;
   try {
-    const { files } = await must(ctx.sites, "the site store").publish(id, r.wd.srcDir, plan);
+    const { files, withheld } = await must(ctx.sites, "the site store").publish(
+      id,
+      r.wd.srcDir,
+      plan,
+    );
     r.signal.throwIfAborted();
+    const left = withheldLine(withheld);
+    if (left) {
+      ctx.logs.append(id, "system", left);
+    }
     ctx.logs.append(id, "system", `serving ${files} files from gangway: no container to start`);
     ctx.logs.append(id, "system", "awake");
     return markServing(ctx, id);

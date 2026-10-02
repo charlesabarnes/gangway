@@ -299,4 +299,16 @@ describe("the routes", () => {
     expect(s.projects.get("p1")!.productionPreviewId).toBe(stray.id);
     expect(s.audit.page({ limit: 5, action: "project.production" }).entries).toHaveLength(1);
   });
+
+  test("production drops its TTL: it lives until someone destroys it", async () => {
+    const s = setup();
+    const app = api(s);
+    const p = await s.deployed("shop");
+    s.db.run("UPDATE previews SET project_id = 'p1' WHERE id = $id", { id: p.id });
+    expect(s.previews.get(p.id)!.ttlExpiresAt).not.toBeNull();
+    const ok = await app.request("/projects/web/production", json({ previewId: p.id }, "PUT"));
+    expect(ok.status).toBe(200);
+    expect(s.previews.get(p.id)!.ttlExpiresAt).toBeNull();
+    expect(s.audit.page({ limit: 5, action: "preview.extend" }).entries).toHaveLength(1);
+  });
 });

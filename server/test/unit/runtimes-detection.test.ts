@@ -153,9 +153,12 @@ describe("generated build files", () => {
     );
     expect(existsSync(join(dir, ".gangway/Dockerfile"))).toBe(true);
     expect(existsSync(join(dir, ".gangway/entry.ts"))).toBe(true);
-    expect(readFileSync(join(dir, ".gangway/Dockerfile.dockerignore"), "utf8")).toContain(
-      "node_modules",
-    );
+    const ignore = readFileSync(join(dir, ".gangway/Dockerfile.dockerignore"), "utf8");
+    expect(ignore).toContain("node_modules");
+    // Keys and credentials never reach an image layer.
+    expect(ignore).toContain("**/.ssh\n");
+    expect(ignore).toContain("**/*.pem\n");
+    expect(ignore).toContain("**/*.key\n");
     // nginx runs unprivileged and cannot read a 0600 config.
     expect(statSync(join(dir, ".gangway/Dockerfile")).mode & 0o777).toBe(0o644);
     expect(statSync(join(out, "c.yaml")).mode & 0o777).toBe(0o600);

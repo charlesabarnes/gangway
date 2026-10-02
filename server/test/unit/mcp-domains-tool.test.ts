@@ -27,6 +27,20 @@ describe("the domains tool", () => {
     expect(status).toContain("moves to alt.localhost on its next rebuild");
   });
 
+  test("choosing production drops the preview's TTL, and destroy then refuses it", async () => {
+    const s = setupTools();
+    const p = await s.deployed("shop");
+    s.projects.create({ id: "p1", name: "web", slug: "web" });
+    s.db.run("UPDATE previews SET project_id = 'p1' WHERE id = $id", { id: p.id });
+    const out = await s.tools.domains(s.scope(), {
+      target: { project: "web" },
+      production: "shop",
+    });
+    expect(out).toContain("production is now shop");
+    expect(s.ctx.previews.get(p.id)!.ttlExpiresAt).toBeNull();
+    await expect(s.tools.destroy(s.scope(), "shop")).rejects.toThrow("web's production");
+  });
+
   test("a claim answers with the records to set, and check makes it active", async () => {
     const s = setupTools();
     s.projects.create({ id: "p1", name: "web", slug: "web" });
