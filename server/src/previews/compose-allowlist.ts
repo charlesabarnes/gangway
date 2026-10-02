@@ -124,8 +124,11 @@ function unknown(at: string, v: unknown, allowed: ReadonlySet<string>): string[]
   return Object.entries(obj(v))
     .filter(([k, val]) => !allowed.has(k) && !k.startsWith("x-") && val !== null)
     .map(([k]) => k)
-    .sort()
-    .map((k) => `${at}${k} is not allowed${REASONS[k] ? ` (${REASONS[k]})` : ""}`);
+    .sort((a, b) => a.localeCompare(b))
+    .map((k) => {
+      const reason = REASONS[k];
+      return reason ? `${at}${k} is not allowed (${reason})` : `${at}${k} is not allowed`;
+    });
 }
 
 const entries = (v: unknown): [string, unknown][] =>
