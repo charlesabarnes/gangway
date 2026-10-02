@@ -61,7 +61,7 @@ export default defineConfig({
         },
       ],
       sidebar: [
-        { label: "Start here", items: ["", "quickstart", "chatgpt-sites"] },
+        { label: "Start here", items: ["", "quickstart"] },
         {
           label: "Install",
           items: [
@@ -86,6 +86,10 @@ export default defineConfig({
         {
           label: "Set up",
           items: ["setup/reverse-proxy", "setup/configuration", "setup/upgrades"],
+        },
+        {
+          label: "Alternatives",
+          items: ["alternatives/chatgpt-sites", "alternatives/claude-artifacts"],
         },
         {
           label: "Reference",

@@ -1,6 +1,6 @@
 ---
-title: gangway and ChatGPT Sites
-description: How gangway compares with ChatGPT Sites, and when to pick which.
+title: gangway as a ChatGPT Sites alternative
+description: A self-hosted alternative to ChatGPT Sites, for any agent and apps with a real backend. How they compare and when to pick which.
 ---
 
 [ChatGPT Sites](https://help.openai.com/en/articles/20001339-creating-and-managing-chatgpt-sites)
