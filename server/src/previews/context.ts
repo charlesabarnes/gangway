@@ -99,6 +99,7 @@ export type BuildingContext = Pick<
   | "now"
   | "builds"
   | "buildSlots"
+  | "buildRoom"
   | "states"
   | "probe"
   | "timings"

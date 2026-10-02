@@ -68,7 +68,7 @@ export async function buildImages(
   }
 }
 
-async function buildSlot(ctx: PreviewContext, p: Pipeline, r: RunPlan) {
+async function buildSlot(ctx: BuildingContext, p: Pipeline, r: RunPlan) {
   try {
     return await ctx.buildSlots?.acquire(r.signal, () => {
       p.log(`waiting for a build slot (${ctx.buildSlots?.waiting ?? 0} ahead)`);
