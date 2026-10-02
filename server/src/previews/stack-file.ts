@@ -81,6 +81,8 @@ export type StackPlan = Planned & {
   host: Host;
   routes: PlannedRoute[];
   visibility: Visibility;
+  /** The source the stack is for, when it is not yet the preview's own (a rebuild in flight). */
+  source?: PreviewSource | undefined;
 };
 
 export async function writeStack(
@@ -88,7 +90,7 @@ export async function writeStack(
   stackPath: string,
   s: StackPlan,
 ): Promise<string | null> {
-  const source = ctx.previews.get(s.preview.id)?.source ?? s.preview.source;
+  const source = s.source ?? ctx.previews.get(s.preview.id)?.source ?? s.preview.source;
   const wanted = sharedNetworkFor(ctx.instance, s.model, source);
   const network = wanted && (await isolatedNetwork(ctx, s.host, wanted)) ? wanted : null;
   await writeFile(

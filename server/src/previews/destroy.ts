@@ -7,6 +7,7 @@ import { downArgv } from "../docker/compose.ts";
 import { AppError, notFound, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import type { PreviewContext } from "./context.ts";
+import { dropPrevious, leftoverPrevious } from "./previous-images.ts";
 
 export async function destroy(
   ctx: PreviewContext,
@@ -147,6 +148,9 @@ async function removeLeftovers(
       });
     }
   }
+  // A rebuild that never finished may have left the old version's images tagged to roll back to.
+  const scope = { host, project: preview.project, cwd };
+  await dropPrevious(ctx, scope, await leftoverPrevious(ctx, scope));
   const images = await listed([
     docker,
     "image",

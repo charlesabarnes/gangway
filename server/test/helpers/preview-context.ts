@@ -72,6 +72,61 @@ export function setupPreviewContext() {
     all: [] as string[][],
     /** What `compose logs` prints: the containers' own output. */
     runtimeLog: "",
+    /** The engine's image tags (`name:tag` -> id), for the commands a rebuild runs on them. */
+    images: new Map<string, string>(),
+    /**
+     * The running version's containers, by the image name they were given and the image they
+     * run. A build moves each name's `:latest`; an `up` recreates them on it.
+     */
+    containers: [] as { ref: string; id: string }[],
+    built: 0,
+  };
+  const imageId = (n: number) => `sha256:${n.toString(16).padStart(64, "0")}`;
+  /** `docker ps`, `docker container inspect` and `docker image tag|rm|ls`, over fake.images. */
+  const engine = (argv: string[]): ComposeResult | null => {
+    const ok = (stdout = ""): ComposeResult => ({ code: 0, stdout, stderr: "", signal: null });
+    const [, what, verb] = argv;
+    if (what === "ps" && argv.includes("--quiet")) {
+      return ok(fake.containers.map((_, i) => `c${String(i).padStart(11, "0")}`).join("\n"));
+    }
+    if (what === "container" && verb === "inspect") {
+      return ok(fake.containers.map((c) => `${c.ref} ${c.id}`).join("\n"));
+    }
+    if (what !== "image") {
+      return null;
+    }
+    const resolve = (ref: string) =>
+      ref.startsWith("sha256:") ? ref : fake.images.get(ref.includes(":") ? ref : `${ref}:latest`);
+    if (verb === "inspect" && argv.includes("{{.Id}}")) {
+      const id = resolve(argv.at(-1)!);
+      return id ? ok(id) : { code: 1, stdout: "", stderr: "No such image", signal: null };
+    }
+    if (verb === "tag") {
+      const id = resolve(argv[3]!);
+      if (!id) {
+        return { code: 1, stdout: "", stderr: "No such image", signal: null };
+      }
+      fake.images.set(argv[4]!, id);
+      return ok();
+    }
+    if (verb === "rm") {
+      const ref = argv[3]!;
+      for (const [k, v] of fake.images) {
+        if (k === ref || v === ref) {
+          fake.images.delete(k);
+        }
+      }
+      return ok();
+    }
+    if (verb === "ls" && argv.includes("reference=*:prev")) {
+      return ok(
+        [...fake.images.keys()]
+          .filter((k) => k.endsWith(":prev"))
+          .map((k) => k.slice(0, -":prev".length))
+          .join("\n"),
+      );
+    }
+    return null;
   };
   const compose: ComposeRunner = {
     async *stream(argv, _host, o): AsyncGenerator<ComposeEvent> {
@@ -91,8 +146,25 @@ export function setupPreviewContext() {
           config: dir ? readFileSync(join(dir, "config.json"), "utf8") : null,
         });
       }
+      const project = argv[argv.indexOf("--project-name") + 1] ?? "";
+      const services = argv.includes("--file")
+        ? Object.entries(
+            (
+              parseYaml(readFileSync(argv[argv.indexOf("--file") + 1]!, "utf8")) as {
+                services?: Record<string, { build?: unknown; image?: string }>;
+              }
+            ).services ?? {},
+          )
+        : [];
       if (argv.includes("build")) {
         fake.builds++;
+        if (fake.buildExit === 0) {
+          for (const [name, svc] of services) {
+            if (svc.build !== undefined) {
+              fake.images.set(`${project}-${name}:latest`, imageId(++fake.built));
+            }
+          }
+        }
         yield {
           type: "line",
           stream: "stderr",
@@ -116,10 +188,23 @@ export function setupPreviewContext() {
         return;
       }
       fake.ups++;
+      if (services.length > 0) {
+        fake.containers = services.map(([name, svc]) => {
+          const ref = svc.build === undefined ? String(svc.image) : `${project}-${name}`;
+          const tag = ref.includes(":") ? ref : `${ref}:latest`;
+          const id = fake.images.get(tag) ?? imageId(++fake.built);
+          fake.images.set(tag, id);
+          return { ref, id };
+        });
+      }
       yield { type: "exit", code: 0, signal: null };
     },
     async capture(argv): Promise<ComposeResult> {
       fake.all.push(argv);
+      const answered = engine(argv);
+      if (answered) {
+        return answered;
+      }
       if (argv[1] === "network" && argv[2] === "inspect") {
         return { code: 0, stdout: ISOLATED_NETWORK, stderr: "", signal: null };
       }

@@ -19,15 +19,16 @@ import { servable, servesHere, siteModel } from "./site.ts";
 import { readModel, type Planned } from "./stack-file.ts";
 import { compareCodeUnits } from "../util/compare.ts";
 
-type TarballPreviewSource = Extract<PreviewSource, { kind: "tarball" }>;
+export type TarballPreviewSource = Extract<PreviewSource, { kind: "tarball" }>;
 
-async function stageSource(
-  ctx: Pick<PreviewContext, "logs">,
-  input: RedeployInput,
-  sources: SourceStore,
-  wd: Workdir,
-): Promise<void> {
+async function stageSource(ctx: Pick<PreviewContext, "logs">, b: Rebuild): Promise<void> {
+  const { input, sources, wd } = b;
   const id = input.previewId;
+  if (b.restore) {
+    await sources.copyTo(id, wd.srcDir, { deployed: true });
+    ctx.logs.append(id, "system", "planning the previous version again");
+    return;
+  }
   if (input.change.kind === "replace") {
     const r = await extractTarball(input.change.archive, wd.srcDir);
     ctx.logs.append(
@@ -60,31 +61,50 @@ function assertSameExposure(routes: PlannedRoute[], model: ComposeModel): void {
   }
 }
 
-async function recordSource(
-  ctx: Pick<PreviewContext, "previews">,
+function nextSource(
   b: Rebuild,
   source: TarballPreviewSource,
   up: PreparedUpload,
-): Promise<PreviewSource> {
-  const id = b.preview.id;
-  const network = b.input.network;
-  if (up.pristine) {
-    await b.sources.adopt(id, up.pristine);
-  }
-  const next: PreviewSource = {
+): TarballPreviewSource {
+  return {
     kind: "tarball",
     uploadId: source.uploadId,
     ...(source.pr ? { pr: source.pr } : {}),
     ...(up.runtime ? { runtime: up.runtime } : {}),
     ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
-    ...networkField(network ?? source.network),
+    ...networkField(b.input.network ?? source.network),
     // A preview moving onto gangway's file server is marked once its files are published.
     ...(source.serve ? { serve: source.serve } : {}),
   };
-  if (JSON.stringify(next) !== JSON.stringify(source)) {
-    ctx.previews.setSource(id, next);
-  }
-  return next;
+}
+
+/** Store the planned source as deployed once it serves, or as the editor's draft when not. */
+function keeper(
+  ctx: Pick<PreviewContext, "previews">,
+  b: Rebuild,
+  next: TarballPreviewSource,
+  up: PreparedUpload,
+): RebuildPlan["keep"] {
+  const id = b.preview.id;
+  const source = b.preview.source;
+  return async (as, change = {}) => {
+    if (b.restore) {
+      return;
+    }
+    if (as === "draft") {
+      if (up.pristine) {
+        await b.sources.keepDraft(id, up.pristine);
+      }
+      return;
+    }
+    if (up.pristine) {
+      await b.sources.adopt(id, up.pristine);
+    }
+    const served: TarballPreviewSource = { ...next, ...change };
+    if (JSON.stringify(served) !== JSON.stringify(source)) {
+      ctx.previews.setSource(id, served);
+    }
+  };
 }
 
 export type Rebuild = {
@@ -94,11 +114,13 @@ export type Rebuild = {
   host: Host;
   wd: Workdir;
   routes: PlannedRoute[];
+  restore?: boolean;
 };
 
 export type RebuildPlan = {
   planned: Planned;
-  next: PreviewSource;
+  next: TarballPreviewSource;
+  keep: (as: "deployed" | "draft", change?: Partial<TarballPreviewSource>) => Promise<void>;
   addonServices: string[];
   app: AppPlan;
   /** The plan gangway serves as files, or null when a container runs the rebuilt preview. */
@@ -133,7 +155,7 @@ export async function planRebuild(
   if (routes.length === 0) {
     throw conflict("the preview has no routes to rebuild behind");
   }
-  await stageSource(ctx, input, b.sources, wd);
+  await stageSource(ctx, b);
   const choice: RuntimeChoice = input.runtime ?? "auto";
   const shared =
     preview.secretLevel === null || preview.secretLevel === "none"
@@ -155,6 +177,13 @@ export async function planRebuild(
   const site = siteFor(ctx, source, up.plan);
   const planned = site ? siteModel(site, port) : await readModel(ctx, b.host, wd, up);
   assertSameExposure(routes, planned.model);
-  const next = await recordSource(ctx, b, source, up);
-  return { planned, next, addonServices: addonServices(up.plan.addons), app: up.plan, site };
+  const next = nextSource(b, source, up);
+  return {
+    planned,
+    next,
+    keep: keeper(ctx, b, next, up),
+    addonServices: addonServices(up.plan.addons),
+    app: up.plan,
+    site,
+  };
 }

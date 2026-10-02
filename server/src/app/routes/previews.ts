@@ -226,7 +226,7 @@ function readRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
       throw notFound("this preview keeps no source: only uploaded previews do");
     }
     return c.json(
-      await planFromDisk(ctx.sources.dirFor(p.id), "auto", {
+      await planFromDisk(await ctx.sources.editableDir(p.id), "auto", {
         previous: p.source.runtime ?? "own",
         previousAddons: p.source.addons,
       }),
