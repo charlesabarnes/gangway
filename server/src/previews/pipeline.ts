@@ -2,8 +2,9 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Host, Preview } from "@gangway/shared/domain";
 import { buildArgv, psArgv, runArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
-import { errorMessage } from "../errors.ts";
+import { AppError, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
+import { LineFull } from "../util/async.ts";
 import { ulid } from "../util/ulid.ts";
 import type { PreviewContext } from "./context.ts";
 import type { Workdir } from "./source/workdir.ts";
@@ -52,13 +53,31 @@ export async function buildImages(
   if (toBuild.length === 0) {
     return;
   }
-  const release = await ctx.buildSlots?.acquire(r.signal, () => {
-    p.log(`waiting for a build slot (${ctx.buildSlots?.waiting ?? 0} ahead)`);
-  });
+  const release = await buildSlot(ctx, p, r);
   try {
+    const refused = await ctx.buildRoom?.(r.host);
+    if (refused) {
+      throw new AppError("unavailable", `not building now: ${refused}`);
+    }
     await recordBuild(ctx, p, r, { id: buildId ?? ulid(ctx.now()), services: toBuild });
   } finally {
     release?.();
+  }
+}
+
+async function buildSlot(ctx: PreviewContext, p: Pipeline, r: RunPlan) {
+  try {
+    return await ctx.buildSlots?.acquire(r.signal, () => {
+      p.log(`waiting for a build slot (${ctx.buildSlots?.waiting ?? 0} ahead)`);
+    });
+  } catch (e) {
+    if (e instanceof LineFull) {
+      throw new AppError(
+        "unavailable",
+        `${e.waiting} builds are already waiting; try again in a few minutes (previews.limits.buildQueue)`,
+      );
+    }
+    throw e;
   }
 }
 

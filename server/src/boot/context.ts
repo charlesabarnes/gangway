@@ -18,6 +18,7 @@ import { PreviewStates } from "../previews/state.ts";
 import { SecretBox, loadOrCreateSecretsKey } from "../secrets/box.ts";
 import { Secrets } from "../secrets/secrets.ts";
 import { SETTINGS } from "../settings.ts";
+import { noRoomForBuild } from "../previews/build-room.ts";
 import { Slots } from "../util/async.ts";
 import { parseBytes } from "../util/bytes.ts";
 import type { Core } from "./core.ts";
@@ -98,7 +99,15 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
       cpus: settings.get(SETTINGS.previewsCpus),
       pids: settings.get(SETTINGS.previewsPids),
     }),
-    buildSlots: new Slots(() => settings.get(SETTINGS.previewsBuilds)),
+    buildSlots: new Slots(
+      () => settings.get(SETTINGS.previewsBuilds),
+      () => settings.get(SETTINGS.previewsBuildQueue),
+    ),
+    buildRoom: (host) =>
+      noRoomForBuild(host, core.stateDir, {
+        memoryBytes: parseBytes(settings.get(SETTINGS.previewsBuildMemory)) ?? 0,
+        diskBytes: parseBytes(settings.get(SETTINGS.previewsBuildDisk)) ?? 0,
+      }),
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
     // A separate semaphore, so a burst of preview password forms never queues an operator's login.
     passwords: {

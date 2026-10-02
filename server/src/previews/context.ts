@@ -3,7 +3,7 @@ import type { AuditSink } from "../audit/audit.ts";
 import type { Secrets } from "../secrets/secrets.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
 import type { CloneOptions } from "./source/git.ts";
-import type { Clearance, Preview } from "@gangway/shared/domain";
+import type { Clearance, Host, Preview } from "@gangway/shared/domain";
 import type { AddonId } from "@gangway/shared/addons";
 import type { PublicOrigin } from "@gangway/shared/url";
 import type { HostsRepo } from "../db/repos/hosts.ts";
@@ -79,6 +79,7 @@ export type PreviewContext = {
   artifactCss?: (() => boolean) | undefined;
   limits?: (() => PreviewLimits) | undefined;
   buildSlots?: Slots | undefined;
+  buildRoom?: ((host: Host) => Promise<string | null>) | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
 };
