@@ -321,6 +321,22 @@ describe("the tools", () => {
     });
     expect(again).toContain(`${sha12("v2")}         2  index.html`);
     expect(again).toContain("checked: / 200");
+    expect(again).not.toContain("WARNING");
+  });
+
+  test("a checked path that answers a server error, or nothing, is flagged", async () => {
+    const s = setupTools();
+    const answers: Record<string, number | null> = { "/": 404, "/api": 500, "/gone": null };
+    s.ctx.statusProbe = async (_route, _host, path) => answers[path] ?? null;
+    const out = await s.tools.deploy(s.scope(), {
+      image: "traefik/whoami:v1.10",
+      port: 80,
+      name: "half",
+      visibility: "public",
+      check: ["/", "/api", "/gone"],
+    });
+    expect(out).toContain("checked: / 404 · /api 500 · /gone no answer");
+    expect(out).toContain("WARNING: /api answered 500, /gone did not answer.");
   });
 
   test("a plan that cannot run says why, reason by reason", async () => {

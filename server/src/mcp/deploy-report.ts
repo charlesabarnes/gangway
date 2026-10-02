@@ -65,9 +65,25 @@ async function checkPaths(
     upstream: { host: route.upstreamHost, port: route.upstreamPort },
   };
   const got = await Promise.all(
-    check.map(async (path) => `${path} ${(await probe(target, host, path)) ?? "no answer"}`),
+    check.map(async (path) => ({ path, status: await probe(target, host, path) })),
   );
-  return `checked: ${got.join(" · ")}`;
+  return checkedLine(got);
+}
+
+/**
+ * The statuses on one line, then a warning for each server error: a preview counts as up once
+ * it answers short of one on `/` or its health path, so a 500 on another path must not read as fine.
+ */
+function checkedLine(got: readonly { path: string; status: number | null }[]): string {
+  const line = `checked: ${got.map((g) => `${g.path} ${g.status ?? "no answer"}`).join(" · ")}`;
+  const failing = got.filter((g) => g.status === null || g.status >= 500);
+  if (failing.length === 0) {
+    return line;
+  }
+  const what = failing
+    .map((g) => (g.status === null ? `${g.path} did not answer` : `${g.path} answered ${g.status}`))
+    .join(", ");
+  return `${line}\nWARNING: ${what}. The deploy is up, but that is not working: read logs with source: "runtime".`;
 }
 
 // The same answer a visitor gets past the password gate, without a trip through the network.
@@ -83,13 +99,13 @@ async function checkSite(
   const got = await Promise.all(
     check.map(async (path) => {
       if (!CHECK_PATH.test(path)) {
-        return `${path} no answer`;
+        return { path, status: null };
       }
       const req = new Request(`https://${hostname}${path}`, { method: "GET" });
       const res = await serveSite(req, site, { unlisted: false, kitDir: renderDist() });
       await res.body?.cancel();
-      return `${path} ${res.status}`;
+      return { path, status: res.status };
     }),
   );
-  return `checked: ${got.join(" · ")}`;
+  return checkedLine(got);
 }
