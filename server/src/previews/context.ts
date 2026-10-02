@@ -21,6 +21,7 @@ import type { Policy } from "./policy.ts";
 import type { PreviewStates } from "./state.ts";
 import type { PreviewPasswordDeps } from "./password-deps.ts";
 import type { PreviewLimits } from "./compose-model.ts";
+import type { PreviewQuota } from "./quota.ts";
 import type { DomainRegistry } from "../domains/registry.ts";
 import type { Shares } from "../share/shares.ts";
 import type { Slots } from "../util/async.ts";
@@ -78,7 +79,9 @@ export type PreviewContext = {
   artifacts?: ArtifactLibrary | undefined;
   artifactCss?: (() => boolean) | undefined;
   limits?: (() => PreviewLimits) | undefined;
+  quota?: (() => PreviewQuota) | undefined;
   buildSlots?: Slots | undefined;
+  buildTimeoutMs?: (() => number) | undefined;
   buildRoom?: ((host: Host) => Promise<string | null>) | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
@@ -99,6 +102,7 @@ export type BuildingContext = Pick<
   | "now"
   | "builds"
   | "buildSlots"
+  | "buildTimeoutMs"
   | "buildRoom"
   | "states"
   | "probe"

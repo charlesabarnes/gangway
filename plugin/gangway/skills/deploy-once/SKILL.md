@@ -60,7 +60,7 @@ Call `deploy` with `upload: "<the id>"` and:
 
 Leave `visibility` out: the server's setting decides. Pass it only when the user asks for public, unlisted or private. The same goes for `ttl`: the server's default applies unless the user says how long.
 
-Read the answer: each checked path's status, the plan gangway followed (runtime, what runs, and why), and every deployed file with its sha256. Check that no `.env` is in the list.
+Read the answer: each checked path's status (a `WARNING` line means a path answered 5xx or nothing: read the runtime logs before you call it done), the plan gangway followed (runtime, what runs, and why), and every deployed file with its sha256. Check that no `.env` is in the list.
 
 ## 4. When something is wrong
 

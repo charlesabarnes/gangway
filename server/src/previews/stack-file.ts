@@ -20,7 +20,7 @@ export const STACK_FILE = "gangway.stack.yaml";
 export type Planned = { model: ComposeModel; resolved: unknown };
 
 export async function readModel(
-  ctx: Pick<PreviewContext, "compose" | "docker">,
+  ctx: Pick<PreviewContext, "compose" | "docker" | "limits">,
   host: Host,
   wd: Workdir,
   { composeFile, dotenv }: OwnStack,
@@ -47,7 +47,12 @@ export async function readModel(
   const asked = raw ? configOutput(raw) : {};
 
   // compose may return the path as given or with symlinks resolved (macOS temp dirs are symlinks).
-  const model = parseComposeModel(PLAN_PROJECT, resolved, [wd.srcDir, await realpath(wd.srcDir)]);
+  const model = parseComposeModel(
+    PLAN_PROJECT,
+    resolved,
+    [wd.srcDir, await realpath(wd.srcDir)],
+    ctx.limits?.(),
+  );
   const violations = [
     ...model.violations,
     ...buildSecretViolations(obj(resolved), obj(asked), dotenv ?? {}),

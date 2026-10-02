@@ -147,8 +147,12 @@ describe("loadConfig", () => {
   test("preview limits have safe defaults and come from the environment", () => {
     const defaults = new Settings({}, new MemorySettingsStore());
     expect(defaults.get(SETTINGS.previewsMemory)).toBe("1g");
-    expect(defaults.get(SETTINGS.previewsCpus)).toBe(0);
+    expect(defaults.get(SETTINGS.previewsCpus)).toBe(2);
     expect(defaults.get(SETTINGS.previewsPids)).toBe(1024);
+    expect(defaults.get(SETTINGS.previewsContainers)).toBe(10);
+    expect(defaults.get(SETTINGS.previewsActive)).toBe(50);
+    expect(defaults.get(SETTINGS.previewsActivePerUser)).toBe(20);
+    expect(defaults.get(SETTINGS.previewsBuildTimeout)).toBe("15m");
 
     const c = loadConfig({
       GANGWAY_PREVIEW_MEMORY: "512m",

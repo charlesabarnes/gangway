@@ -29,6 +29,7 @@ import {
   type RunPlan,
 } from "./pipeline.ts";
 import type { ResolvedPolicy } from "./policy.ts";
+import { checkQuota } from "./quota.ts";
 import { markServing, servesHere, siteModel, withheldLine } from "./site.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { readModel, writeStack, type Planned } from "./stack-file.ts";
@@ -187,6 +188,10 @@ async function prepare(
   const visibility = visibilityFor(ctx, input, policy, model);
   const ttlMs = ttlFor(input, policy, model);
   const password = await resolvePassword(ctx.passwords, input.password);
+  // No await between the count and the row it adds, so two deploys cannot both pass.
+  if (site === null) {
+    checkQuota(ctx, input.actor);
+  }
   const { preview, routes } = claimPreview(ctx, {
     id,
     input,
