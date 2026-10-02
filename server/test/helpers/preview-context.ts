@@ -97,6 +97,10 @@ export function setupPreviewContext() {
     }
     const resolve = (ref: string) =>
       ref.startsWith("sha256:") ? ref : fake.images.get(ref.includes(":") ? ref : `${ref}:latest`);
+    if (verb === "inspect" && argv.includes("{{.Id}}")) {
+      const id = resolve(argv.at(-1)!);
+      return id ? ok(id) : { code: 1, stdout: "", stderr: "No such image", signal: null };
+    }
     if (verb === "tag") {
       const id = resolve(argv[3]!);
       if (!id) {

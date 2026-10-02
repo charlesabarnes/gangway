@@ -97,12 +97,12 @@ function keeper(
       }
       return;
     }
+    if (up.pristine) {
+      await b.sources.adopt(id, up.pristine);
+    }
     const served: TarballPreviewSource = { ...next, ...change };
     if (JSON.stringify(served) !== JSON.stringify(source)) {
       ctx.previews.setSource(id, served);
-    }
-    if (up.pristine) {
-      await b.sources.adopt(id, up.pristine);
     }
   };
 }

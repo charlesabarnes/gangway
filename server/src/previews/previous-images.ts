@@ -95,22 +95,32 @@ export async function dropPrevious(
   }
 }
 
-/** Move `:latest` back to the images kept as `:prev`, then drop `:prev`. */
+/** Move `:latest` back to `:prev`, all or nothing: on failure `:latest` is as it was, `:prev` kept. */
 export async function restorePrevious(
   ctx: ImagesContext,
   s: ProjectScope,
   names: readonly string[],
 ): Promise<boolean> {
   const docker = ctx.docker ?? "docker";
+  const run = (argv: string[]) => ctx.compose.capture(argv, s.host, { cwd: s.cwd });
+  const moved: [string, string | null][] = [];
   for (const name of names) {
-    const res = await ctx.compose.capture(
-      [docker, "image", "tag", `${name}:${PREVIOUS_TAG}`, `${name}:latest`],
-      s.host,
-      { cwd: s.cwd },
-    );
+    const was = await run([docker, "image", "inspect", "--format", "{{.Id}}", `${name}:latest`]);
+    const id = was.code === 0 && IMAGE_ID.test(was.stdout.trim()) ? was.stdout.trim() : null;
+    const res = await run([docker, "image", "tag", `${name}:${PREVIOUS_TAG}`, `${name}:latest`]);
     if (res.code !== 0) {
+      for (const [back, to] of moved) {
+        await (to
+          ? run([docker, "image", "tag", to, `${back}:latest`])
+          : run([docker, "image", "rm", `${back}:latest`]));
+      }
+      ctx.logger.warn("could not move :latest back to the previous images; kept :prev", {
+        image: name,
+        err: res.stderr.slice(-300),
+      });
       return false;
     }
+    moved.push([name, id]);
   }
   await dropPrevious(ctx, s, names);
   return true;

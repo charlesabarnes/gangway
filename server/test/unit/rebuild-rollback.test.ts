@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { destroy } from "../../src/previews/destroy.ts";
+import { restorePrevious } from "../../src/previews/previous-images.ts";
 import { ACTOR } from "../helpers/preview-context.ts";
 import {
   deployFiles,
@@ -229,5 +230,55 @@ describe("a rebuild that could not roll back is refused", () => {
 
     expect(o).toMatchObject({ outcome: "succeeded", preview: { state: "awake" } });
     expect(s.fake.all.some((a) => a[1] === "ps" && a.includes("--quiet"))).toBe(false);
+  });
+});
+
+describe("keeping one version consistent", () => {
+  test("a source that cannot be stored rolls the new version back", async () => {
+    const s = setupRuntimes();
+    const { p, ref } = await serving(s);
+    s.sources.adopt = async () => {
+      throw new Error("disk full");
+    };
+
+    const o = await edit(s, p.id, { "index.ts": "v2" });
+
+    expect(o).toMatchObject({ outcome: "failed", preview: { state: "awake" } });
+    expect(o.error).toContain("disk full");
+    expect(s.fake.images.get(`${ref}:latest`)).toBe(OLD);
+    expect(await deployedText(s, p.id)).toBe("v1");
+    expect((await s.sources.list(p.id)).files[0]!.text).toBe("v2");
+  });
+
+  test("a failed adopt leaves the deployed source in place", async () => {
+    const s = setupRuntimes();
+    const { p } = await serving(s);
+
+    await expect(s.sources.adopt(p.id, join(s.stateDir, "missing"))).rejects.toThrow();
+
+    expect(await deployedText(s, p.id)).toBe("v1");
+  });
+
+  test("a restore that fails halfway puts :latest back and keeps :prev", async () => {
+    const s = setupRuntimes();
+    const { p } = await serving(s);
+    const [web, worker] = [`${p.project}-web`, `${p.project}-worker`];
+    const [NEW, PREV] = [`sha256:${"c".repeat(64)}`, `sha256:${"d".repeat(64)}`];
+    for (const name of [web, worker]) {
+      s.fake.images.set(`${name}:latest`, NEW);
+      s.fake.images.set(`${name}:prev`, PREV);
+    }
+    const capture = s.ctx.compose.capture.bind(s.ctx.compose);
+    s.ctx.compose.capture = async (argv, host, o) =>
+      argv[2] === "tag" && argv[4] === `${worker}:latest`
+        ? { code: 1, stdout: "", stderr: "no space left", signal: null }
+        : capture(argv, host, o);
+    const scope = { host: s.ctx.hosts.get(p.hostId)!, project: p.project, cwd: s.stateDir };
+
+    expect(await restorePrevious(s.ctx, scope, [web, worker])).toBe(false);
+
+    expect(s.fake.images.get(`${web}:latest`)).toBe(NEW);
+    expect(s.fake.images.get(`${worker}:latest`)).toBe(NEW);
+    expect(prevTags(s).sort()).toEqual([`${web}:prev`, `${worker}:prev`]);
   });
 });

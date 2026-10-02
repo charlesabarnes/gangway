@@ -47,8 +47,8 @@ export class SourceStore {
 
   /** Store `dir` as the source of the version that is serving; any draft is done with. */
   async adopt(previewId: string, dir: string): Promise<void> {
-    await this.#replace(this.dirFor(previewId), dir);
     await rm(this.draftDirFor(previewId), { recursive: true, force: true });
+    await this.#replace(this.dirFor(previewId), dir);
   }
 
   /** Keep `dir` as edits that did not deploy; the deployed source stays as it is. */
@@ -56,15 +56,24 @@ export class SourceStore {
     await this.#replace(this.draftDirFor(previewId), dir);
   }
 
+  /** Either `dir` is at `dest`, or what was at `dest` is back there and this throws. */
   async #replace(dest: string, dir: string): Promise<void> {
     const old = `${dest}.old`;
     await mkdir(this.#root, { recursive: true, mode: MODE });
     await rm(old, { recursive: true, force: true });
-    if (await isDir(dest)) {
+    const had = await isDir(dest);
+    if (had) {
       await rename(dest, old);
     }
-    await rename(dir, dest);
-    await rm(old, { recursive: true, force: true });
+    try {
+      await rename(dir, dest);
+    } catch (e) {
+      if (had) {
+        await rename(old, dest);
+      }
+      throw e;
+    }
+    await rm(old, { recursive: true, force: true }).catch(() => undefined);
   }
 
   /** Copy the editable source, or with `deployed` the one that is serving. */

@@ -326,18 +326,6 @@ async function runSite(
   }
 }
 
-/** The new version serves: failing to store its source must not roll it back. */
-async function keepDeployed(ctx: Pick<PreviewContext, "logger">, r: RebuildRun): Promise<void> {
-  try {
-    await r.keep("deployed");
-  } catch (e) {
-    ctx.logger.error("could not keep a rebuilt preview's source", {
-      previewId: r.preview.id,
-      err: e,
-    });
-  }
-}
-
 async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome> {
   const p = openPipeline(ctx, r);
   if (ctx.previews.get(p.id)?.state === "failed") {
@@ -362,9 +350,10 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
     const target = waitTargetFor(p, r);
     await waitHealthy(ctx, target);
     await waitAnswering(ctx, target);
+    // A source that cannot be stored rolls back: what serves and what is stored stay one version.
+    await r.keep("deployed");
     p.log("rebuilt: awake");
     ctx.states.transition(p.id, "awake");
-    await keepDeployed(ctx, r);
     // Untag first: the replaced images are then removed as before, and `:prev` keeps none.
     await dropPrevious(ctx, scopeOf(p, r), f.previous);
     await removeReplaced(ctx, images, before, p.id);
