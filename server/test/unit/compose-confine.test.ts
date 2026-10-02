@@ -68,6 +68,93 @@ describe("policy: nothing reaches the operator's other containers or the host", 
   });
 });
 
+describe("policy: only fields gangway knows are allowed", () => {
+  const doc = (extra: Record<string, unknown>, svc: Record<string, unknown> = {}) =>
+    parseComposeModel("gw-x", { ...resolved({ web: { image: "n", ...svc } }), ...extra }, ["/x"])
+      .violations;
+
+  test.each([
+    ["a field Compose may add one day", { future_thing: true }, "future_thing"],
+    ["logging", { logging: { driver: "syslog" } }, "logging is not allowed (gangway reads"],
+    ["annotations", { annotations: { "io.kubernetes.cri-o.Devices": "/dev/sda" } }, "annotations"],
+    ["a deploy field", { deploy: { placement: { constraints: ["x"] } } }, "deploy.placement"],
+    [
+      "a reserved device",
+      { deploy: { resources: { reservations: { devices: [{}] } } } },
+      "deploy.resources.reservations.devices",
+    ],
+    ["a build field", { build: { context: "/x", ssh: ["default"] } }, "build.ssh"],
+    [
+      "a bind option on a mount",
+      { volumes: [{ type: "volume", source: "d", target: "/d", bind: { propagation: "shared" } }] },
+      "volumes: bind",
+    ],
+    [
+      "a network option",
+      { networks: { default: { driver_opts: { x: "y" } } } },
+      "networks.default.driver_opts",
+    ],
+  ])("%s on a service is refused by name", (_, svc, needle) => {
+    expect(doc({}, svc)).toEqual([expect.stringContaining(needle)]);
+  });
+
+  test.each([
+    ["a top-level section", { models: { m: { model: "ai/x" } } }, "models is not allowed"],
+    [
+      "addresses for a network",
+      {
+        networks: {
+          default: { name: "gw-x_default", ipam: { config: [{ subnet: "192.168.1.0/24" }] } },
+        },
+      },
+      'network "default": ipam is not allowed',
+    ],
+    [
+      "bridge options",
+      {
+        networks: {
+          default: {
+            name: "gw-x_default",
+            ipam: {},
+            driver_opts: { "com.docker.network.bridge.name": "docker0" },
+          },
+        },
+      },
+      "driver_opts",
+    ],
+    ["a volume plugin", { volumes: { d: { driver: "local-persist" } } }, "only the local driver"],
+  ])("%s is refused", (_, extra, needle) => {
+    expect(doc(extra)).toEqual([expect.stringContaining(needle)]);
+  });
+
+  test("what compose config writes for an ordinary stack passes", () => {
+    const web = {
+      image: "n",
+      command: ["node", "server.js"],
+      environment: { A: "1" },
+      networks: { default: null },
+      ports: [{ mode: "ingress", target: 3000, protocol: "tcp" }],
+      volumes: [{ type: "volume", source: "d", target: "/d", volume: {} }],
+      healthcheck: { test: ["CMD", "true"], interval: "5s" },
+      deploy: { resources: { limits: { memory: "512M" } }, restart_policy: { condition: "any" } },
+      depends_on: { db: { condition: "service_started", required: true } },
+      "x-gangway": { expose: true },
+      entrypoint: null,
+    };
+    expect(
+      parseComposeModel(
+        "gw-x",
+        {
+          ...resolved({ web, db: { image: "pg" } }),
+          volumes: { d: { name: "gw-x_d" } },
+          "x-anything": 1,
+        },
+        ["/x"],
+      ).violations,
+    ).toEqual([]);
+  });
+});
+
 describe("policy: builds get no host network, no privilege and no entitlements", () => {
   test("only the default or no network, and nothing privileged", () => {
     const build = (b: Record<string, unknown>) =>

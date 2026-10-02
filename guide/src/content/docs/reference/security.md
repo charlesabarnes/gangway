@@ -13,8 +13,9 @@ work, run gangway [in a VM](/docs/install/vm/); on Unraid,
 
 ## Previews are treated as hostile
 
-- The Compose policy refuses host namespaces, bind mounts, devices, added capabilities, external
-  networks and volumes, and other previews' images.
+- A compose file may use only the fields listed [below](#what-a-compose-file-may-use). Anything
+  else is refused by name, so host namespaces, bind mounts, devices and added capabilities never
+  reach Docker, and neither does a field a newer Compose adds.
 - Every container runs with `no-new-privileges`, without `NET_RAW`, and under memory and process
   limits.
 - Previews publish their ports on the host's `127.0.0.1` only, so gangway's visibility gate is the
@@ -28,6 +29,28 @@ work, run gangway [in a VM](/docs/install/vm/); on Unraid,
 
 **Previews can reach the internet and your LAN.** If that matters, firewall the preview networks
 (Docker's `DOCKER-USER` chain), or give gangway a Docker host of its own.
+
+## What a compose file may use
+
+gangway checks the file after `docker compose config` has resolved it. A service may use:
+
+`attach`, `build`, `cap_drop`, `command`, `configs`, `cpu_count`, `cpu_percent`, `cpu_period`,
+`cpu_quota`, `cpu_shares`, `cpus`, `cpuset`, `depends_on`, `deploy`, `develop`, `domainname`,
+`entrypoint`, `env_file`, `environment`, `expose`, `extends`, `group_add`, `healthcheck`,
+`hostname`, `image`, `init`, `label_file`, `labels`, `links`, `mem_limit`, `mem_reservation`,
+`mem_swappiness`, `memswap_limit`, `network_mode`, `networks`, `oom_score_adj`, `pids_limit`,
+`platform`, `ports`, `post_start`, `pre_stop`, `profiles`, `pull_policy`, `read_only`, `restart`,
+`scale`, `secrets`, `shm_size`, `stdin_open`, `stop_grace_period`, `stop_signal`, `tmpfs`, `tty`,
+`ulimits`, `user`, `volumes`, `volumes_from`, `working_dir`, and any `x-` extension.
+`runtime` and `isolation` are accepted only at their default value.
+
+Some of these are checked further. `build` is limited to a context inside the upload, and
+`deploy` to resources, replicas, labels and a restart policy. Volumes must be named volumes or
+tmpfs. `network_mode`, `volumes_from` and `links` may point only at the preview's own services.
+Networks use the bridge driver, volumes the local driver, and secrets and configs inline `content`
+only.
+
+If your file needs a field that is not here, open an issue.
 
 ## Keep the dashboard private
 
