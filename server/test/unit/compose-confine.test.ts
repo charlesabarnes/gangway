@@ -193,7 +193,7 @@ describe("policy: builds get no host network, no privilege and no entitlements",
   });
 });
 
-const LIMITS = { memoryBytes: 2 * 1024 ** 3, cpus: 2, pids: 1024 };
+const LIMITS = { memoryBytes: 2 * 1024 ** 3, cpus: 2, pids: 1024, containers: 0 };
 
 const stackOf = (services: Record<string, unknown>, limits = LIMITS) => {
   const input = resolved(services);
@@ -212,6 +212,45 @@ const stackOf = (services: Record<string, unknown>, limits = LIMITS) => {
     }),
   );
 };
+
+describe("policy: a preview runs a bounded number of containers", () => {
+  const sized = (services: Record<string, unknown>, containers: number) =>
+    parseComposeModel("gw-x", resolved(services), ["/x"], { ...LIMITS, containers }).violations;
+
+  test("replicas count, in either spelling, and the services with them are named", () => {
+    const v = sized(
+      {
+        web: { image: "n", scale: 3 },
+        worker: { image: "n", deploy: { replicas: 10_000 } },
+        db: { image: "p" },
+      },
+      10,
+    );
+    expect(v[0]).toContain("10004 containers across 3 services");
+    expect(v[0]).toContain("previews.limits.containers");
+    expect(v.slice(1)).toEqual([
+      expect.stringContaining('service "web": 3 replicas'),
+      expect.stringContaining('service "worker": 10000 replicas'),
+    ]);
+  });
+
+  test("too many services is refused even with no replicas", () => {
+    const services = Object.fromEntries(
+      Array.from({ length: 11 }, (_, i) => [`s${i}`, { image: "n" }]),
+    );
+    expect(sized(services, 10)).toEqual([
+      expect.stringContaining("11 containers across 11 services"),
+    ]);
+  });
+
+  test("up to the limit passes, a replica count of 0 starts nothing, and 0 turns it off", () => {
+    expect(sized({ web: { image: "n", scale: 9 }, db: { image: "p" } }, 10)).toEqual([]);
+    expect(sized({ web: { image: "n", deploy: { replicas: 0 } }, db: { image: "p" } }, 1)).toEqual(
+      [],
+    );
+    expect(sized({ web: { image: "n", scale: 500 } }, 0)).toEqual([]);
+  });
+});
 
 describe("policy: secrets never reach a build", () => {
   const secrets = { API_KEY: "sk-live-0123456789", FLAG: "on", PIN: "12345", EMPTY: "" };
@@ -309,7 +348,7 @@ describe("buildStack confines every container", () => {
   });
 
   test("0 turns a limit off, leaving the file's own", () => {
-    const web = stack({ pids_limit: 200 }, { memoryBytes: 0, cpus: 0, pids: 0 });
+    const web = stack({ pids_limit: 200 }, { memoryBytes: 0, cpus: 0, pids: 0, containers: 0 });
     expect(web.pids_limit).toBe(200);
     for (const key of ["mem_limit", "memswap_limit", "cpus"]) {
       expect(key in web).toBe(false);

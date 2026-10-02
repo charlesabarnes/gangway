@@ -16,18 +16,24 @@ export type Step = (
   what: string,
   argv: string[],
   stream: "build" | "seed" | "stdout",
-  env?: Record<string, string>,
+  more?: {
+    env?: Record<string, string> | undefined;
+    /** In place of the run's own signal: one that also gives up at a deadline. */
+    signal?: AbortSignal | undefined;
+  },
 ) => Promise<void>;
 
 export function stepper(
   ctx: Pick<PreviewContext, "logs" | "compose">,
   o: { previewId: string; host: Host; cwd: string; signal: AbortSignal },
 ): Step {
-  return async (what, argv, stream, env) => {
+  return async (what, argv, stream, more) => {
+    const env = more?.env;
+    const signal = more?.signal ?? o.signal;
     ctx.logs.append(o.previewId, "system", `$ compose ${what}`);
     for await (const ev of ctx.compose.stream(argv, o.host, {
       cwd: o.cwd,
-      signal: o.signal,
+      signal,
       ...(env ? { env } : {}),
     })) {
       if (ev.type === "line") {
@@ -41,7 +47,7 @@ export function stepper(
         throw new StepFailed(`compose ${what} exited ${ev.code}${signal}`, ev.code);
       }
     }
-    o.signal.throwIfAborted();
+    signal.throwIfAborted();
   };
 }
 

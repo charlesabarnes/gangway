@@ -29,6 +29,7 @@ import {
   type RunPlan,
 } from "./pipeline.ts";
 import type { ResolvedPolicy } from "./policy.ts";
+import { checkQuota } from "./quota.ts";
 import { markServing, servesHere, siteModel } from "./site.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { readModel, writeStack, type Planned } from "./stack-file.ts";
@@ -177,6 +178,9 @@ async function prepare(
   const material = await writeSource(ctx, source, { id, env, wd });
   const site = material.plan && servesHere(ctx, material.plan) ? material.plan : null;
   checkContainerAllowed(input.actor, "this source", site === null);
+  if (site === null) {
+    checkQuota(ctx, input.actor);
+  }
   if (site && material.source.kind === "tarball") {
     material.source = { ...material.source, serve: "gangway" };
   }

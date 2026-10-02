@@ -7,6 +7,7 @@ import { parseDuration } from "../util/duration.ts";
 import { obj, type Json } from "../util/json.ts";
 import { literal } from "./compose-generate.ts";
 import { arr, policyViolations } from "./compose-policy.ts";
+import { sizeViolations } from "./compose-size.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 
 const portNumber = z.number().int().min(1).max(65535);
@@ -78,6 +79,7 @@ export function parseComposeModel(
   project: string,
   resolved: unknown,
   sourceDirs: readonly string[] = [],
+  limits: PreviewLimits = NO_LIMITS,
 ): ComposeModel {
   const doc = obj(resolved);
   const rawServices = obj(doc["services"]);
@@ -107,7 +109,10 @@ export function parseComposeModel(
     networks: Object.keys(obj(doc["networks"])),
     volumes: Object.keys(obj(doc["volumes"])),
     x: parseExtension(StackExtensionSchema, doc["x-gangway"], "stack"),
-    violations: policyViolations(project, doc, sourceDirs),
+    violations: [
+      ...policyViolations(project, doc, sourceDirs),
+      ...sizeViolations(doc, limits.containers),
+    ],
   };
 }
 
@@ -125,10 +130,10 @@ export type StackInput = {
   limits?: PreviewLimits | undefined;
 };
 
-/** The operator's ceiling for every preview container; 0 leaves that limit off. */
-export type PreviewLimits = { memoryBytes: number; cpus: number; pids: number };
+/** The operator's ceiling for every preview container, and how many of them; 0 leaves a limit off. */
+export type PreviewLimits = { memoryBytes: number; cpus: number; pids: number; containers: number };
 
-export const NO_LIMITS: PreviewLimits = { memoryBytes: 0, cpus: 0, pids: 0 };
+export const NO_LIMITS: PreviewLimits = { memoryBytes: 0, cpus: 0, pids: 0, containers: 0 };
 
 const positive = (v: unknown): number | null => {
   const n = typeof v === "string" ? Number(v) : v;

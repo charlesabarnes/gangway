@@ -47,16 +47,20 @@ which upgrades leave alone.
 
 ## Previews
 
-| Variable                       | Default              |                                                                             |
-| ------------------------------ | -------------------- | --------------------------------------------------------------------------- |
-| `GANGWAY_PREVIEW_MEMORY`       | `1g`                 | Memory limit for every preview container; 0 is off                          |
-| `GANGWAY_PREVIEW_CPUS`         | off                  | CPU limit for every preview container                                       |
-| `GANGWAY_PREVIEW_PIDS`         | `1024`               | Process limit for every preview container                                   |
-| `GANGWAY_PREVIEW_BUILDS`       | `2`                  | Image builds at once; the rest wait their turn; 0 is off                    |
-| `GANGWAY_PREVIEW_BUILD_QUEUE`  | `10`                 | Builds that may wait; past it a deploy is turned away; 0 is off             |
-| `GANGWAY_PREVIEW_BUILD_MEMORY` | `512m`               | Memory the host must have available for a build to start; 0 is off          |
-| `GANGWAY_PREVIEW_BUILD_DISK`   | `2g`                 | Free space gangway's state disk must have for a build to start; 0 is off    |
-| `GANGWAY_RECONCILE_ORPHANS`    | `report` (installer) | `report` or `stop` containers that look like gangway's but it does not know |
+| Variable                          | Default              |                                                                                |
+| --------------------------------- | -------------------- | ------------------------------------------------------------------------------ |
+| `GANGWAY_PREVIEW_MEMORY`          | `1g`                 | Memory limit for every preview container; 0 is off                             |
+| `GANGWAY_PREVIEW_CPUS`            | `2`                  | CPU limit for every preview container; 0 is off                                |
+| `GANGWAY_PREVIEW_PIDS`            | `1024`               | Process limit for every preview container                                      |
+| `GANGWAY_PREVIEW_CONTAINERS`      | `10`                 | Containers one preview may run, replicas counted; 0 is off                     |
+| `GANGWAY_PREVIEW_ACTIVE`          | `50`                 | Container previews the server runs at once; static sites don't count; 0 is off |
+| `GANGWAY_PREVIEW_ACTIVE_PER_USER` | `20`                 | The same, per user or API token; 0 is off                                      |
+| `GANGWAY_PREVIEW_BUILDS`          | `2`                  | Image builds at once; the rest wait their turn; 0 is off                       |
+| `GANGWAY_PREVIEW_BUILD_QUEUE`     | `10`                 | Builds that may wait; past it a deploy is turned away; 0 is off                |
+| `GANGWAY_PREVIEW_BUILD_TIMEOUT`   | `15m`                | How long one build may run before it is stopped; 0 is off                      |
+| `GANGWAY_PREVIEW_BUILD_MEMORY`    | `512m`               | Memory the host must have available for a build to start; 0 is off             |
+| `GANGWAY_PREVIEW_BUILD_DISK`      | `2g`                 | Free space gangway's state disk must have for a build to start; 0 is off       |
+| `GANGWAY_RECONCILE_ORPHANS`       | `report` (installer) | `report` or `stop` containers that look like gangway's but it does not know    |
 
 ## Email, updates, GitHub
 
