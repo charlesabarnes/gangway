@@ -64,6 +64,24 @@ describe("a rebuild that fails rolls back", () => {
     expect(log).toContain("rolled back to the previous version; it is serving again");
   });
 
+  test("a draft that cannot be kept still rolls back and drops :prev", async () => {
+    const s = setupRuntimes();
+    const { p, ref } = await serving(s);
+    const ups = s.fake.ups;
+    s.ctx.probe = async () => s.fake.ups !== ups + 1;
+    s.sources.keepDraft = async () => {
+      throw new Error("disk full");
+    };
+    s.ctx.logger = s.logger;
+
+    const o = await edit(s, p.id, { "index.ts": "broken" });
+
+    expect(o).toMatchObject({ outcome: "failed", preview: { state: "awake" } });
+    expect(s.fake.images.get(`${ref}:latest`)).toBe(OLD);
+    expect(prevTags(s)).toEqual([]);
+    expect(s.lines.join("\n")).toContain("could not keep a failed rebuild's draft");
+  });
+
   test("when the previous version does not come back either, the stack is torn down", async () => {
     const s = setupRuntimes();
     const { p } = await serving(s);

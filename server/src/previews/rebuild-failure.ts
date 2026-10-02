@@ -54,6 +54,18 @@ export function outcomeOf(
   };
 }
 
+/** Losing the failed edits must not stop the rollback or the cleanup after it. */
+export async function keepDraft(ctx: Pick<PreviewContext, "logger">, r: RebuildRun): Promise<void> {
+  try {
+    await r.keep("draft");
+  } catch (e) {
+    ctx.logger.error("could not keep a failed rebuild's draft", {
+      previewId: r.preview.id,
+      err: e,
+    });
+  }
+}
+
 export type Failure = {
   e: unknown;
   upAttempted: boolean;
@@ -87,7 +99,7 @@ export async function rebuildFailed(
     return cancelled();
   }
   const message = failureMessage(ctx, p.id, f.e, "redeploy pipeline error");
-  await r.keep("draft");
+  await keepDraft(ctx, r);
   const state = ctx.previews.get(p.id)?.state;
   if (!f.upAttempted && state !== "building") {
     p.log(`rebuild FAILED: ${message} -- the previous version is still serving`);
@@ -127,10 +139,7 @@ export const scopeOf = (p: Pipeline, r: RebuildRun): ProjectScope => ({
   cwd: r.wd.srcDir,
 });
 
-/**
- * Bring back the version that was serving: plan its deployed source again (no build), point
- * `:latest` back at its images, and start it as any start does.
- */
+/** Plan the deployed source again, point `:latest` back at its images and start it, no build. */
 async function rollBack(
   ctx: PreviewContext,
   r: RebuildRun,
@@ -172,7 +181,6 @@ async function rollBack(
     if (!(await restorePrevious(ctx, { ...scopeOf(p, r), cwd: wd.srcDir }, previous))) {
       throw new Error("could not move the previous images back to :latest");
     }
-    // Their `:prev` tags are gone now; nothing is left to drop.
     previous.splice(0);
     await writeStack(ctx, p.stackPath, back);
     await startStack(p);

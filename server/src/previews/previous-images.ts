@@ -1,25 +1,17 @@
 import type { Host } from "@gangway/shared/domain";
 import type { PreviewContext } from "./context.ts";
 
-/** The tag a rebuild keeps the serving version's built images under, to roll back to. */
 export const PREVIOUS_TAG = "prev";
 
 type ImagesContext = Pick<PreviewContext, "compose" | "docker" | "logger">;
 
-/** A preview's compose project, and where to ask about it. */
 export type ProjectScope = { host: Host; project: string; cwd: string };
 
 const SAFE_NAME = /^[a-z0-9][a-z0-9._-]*$/;
 
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 
-/**
- * Tag the image every container of the running version uses, where gangway built it
- * (`<project>-<service>`), as `:prev` before a rebuild takes `:latest`. Tagged by the image the
- * container runs, not by name: `:latest` may be a build that never served. Found through the
- * project's containers, never a name pattern, so another preview's images are never touched.
- * Returns the names tagged.
- */
+/** Tag what the project's containers run, by image id (`:latest` may never have served), as `:prev`. */
 export async function keepPrevious(ctx: ImagesContext, s: ProjectScope): Promise<string[]> {
   const docker = ctx.docker ?? "docker";
   const run = (argv: string[]) => ctx.compose.capture(argv, s.host, { cwd: s.cwd });
@@ -75,7 +67,6 @@ export async function keepPrevious(ctx: ImagesContext, s: ProjectScope): Promise
   }
 }
 
-/** Drop the `:prev` tags, so the images they held are untagged and removed as replaced ones. */
 export async function dropPrevious(
   ctx: ImagesContext,
   s: ProjectScope,
@@ -148,10 +139,7 @@ export async function leftoverPrevious(ctx: ImagesContext, s: ProjectScope): Pro
     : [];
 }
 
-/**
- * Remove the project's untagged images: what a build that never served left behind once `:latest`
- * went back to the previous version. An image a container still runs is refused and kept.
- */
+/** Remove the project's untagged images: a build that never served, once `:latest` went back. */
 export async function removeUntagged(ctx: ImagesContext, s: ProjectScope): Promise<void> {
   const docker = ctx.docker ?? "docker";
   const run = (argv: string[]) => ctx.compose.capture(argv, s.host, { cwd: s.cwd });

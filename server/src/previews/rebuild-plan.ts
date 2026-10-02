@@ -78,10 +78,7 @@ function nextSource(
   };
 }
 
-/**
- * Store what was planned once the rebuild is over: as the deployed source and the preview's
- * runtime, add-ons and network when the new version serves, or as a draft for the editor when not.
- */
+/** Store the planned source as deployed once it serves, or as the editor's draft when not. */
 function keeper(
   ctx: Pick<PreviewContext, "previews">,
   b: Rebuild,
@@ -117,17 +114,12 @@ export type Rebuild = {
   host: Host;
   wd: Workdir;
   routes: PlannedRoute[];
-  /** Plan the deployed source again, as it is, to roll back to it; store nothing. */
   restore?: boolean;
 };
 
 export type RebuildPlan = {
   planned: Planned;
   next: TarballPreviewSource;
-  /**
-   * Store the planned source: `deployed` once the new version serves (with `change` on top, when
-   * serving changed it), `draft` when the rebuild failed.
-   */
   keep: (as: "deployed" | "draft", change?: Partial<TarballPreviewSource>) => Promise<void>;
   addonServices: string[];
   app: AppPlan;

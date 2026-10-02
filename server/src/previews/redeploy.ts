@@ -19,6 +19,7 @@ import {
 } from "./pipeline.ts";
 import { dropPrevious, keepPrevious } from "./previous-images.ts";
 import {
+  keepDraft,
   outcomeOf,
   rebuildFailed,
   scopeOf,
@@ -279,7 +280,7 @@ async function runSite(
       };
     }
     const message = failureMessage(ctx, id, e, "site rebuild error");
-    await r.keep("draft");
+    await keepDraft(ctx, r);
     ctx.logs.append(
       id,
       "system",
