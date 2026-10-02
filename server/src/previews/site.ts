@@ -26,7 +26,7 @@ import { GENERATED_DIR } from "./source/store.ts";
 import { containedIn, DIR_MODE, FILE_MODE } from "./source/types.ts";
 
 /** Left out of a site, as the container build leaves them out of its context. */
-const SKIPPED = new Set([".git", "node_modules", GENERATED_DIR]);
+export const SKIPPED = new Set([".git", "node_modules", GENERATED_DIR]);
 
 export type SiteFallback = "spa" | "404";
 

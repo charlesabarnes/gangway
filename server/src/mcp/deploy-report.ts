@@ -5,7 +5,7 @@ import { renderDist } from "../previews/artifact-render.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { CHECK_PATH, httpStatus } from "../previews/probe.ts";
 import { sensitiveName } from "../previews/sensitive.ts";
-import { withheldLine } from "../previews/site.ts";
+import { SKIPPED, withheldLine } from "../previews/site.ts";
 import { describePlan } from "./describe.ts";
 
 const MANIFEST_SHOWN = 40;
@@ -49,6 +49,9 @@ function withheldOf(paths: readonly string[]): string[] {
   const out = new Set<string>();
   for (const p of paths) {
     const parts = p.split("/");
+    if (parts.some((name) => SKIPPED.has(name))) {
+      continue;
+    }
     const at = parts.findIndex((name, i) => sensitiveName(name, i < parts.length - 1));
     if (at >= 0) {
       const dir = at < parts.length - 1;

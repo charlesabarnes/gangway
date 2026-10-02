@@ -44,9 +44,7 @@ export type PreviewFilter = {
   kind?: PreviewKind;
   projectId?: string;
   includeDestroyed?: boolean;
-  /** Only previews this principal deployed (previews.owner). */
   owner?: string;
-  /** Only previews this credential deployed (previews.credential). */
   credential?: string;
   /** Only ids below this one: the next page after it. */
   before?: string;

@@ -329,7 +329,13 @@ describe("the tools", () => {
     const s = setupTools();
     s.ctx.sites = new SiteStore(tempDir());
     const out = await s.tools.deploy(s.scope(), {
-      files: { "index.html": "<h1>hi</h1>", ".env": "SECRET=1", "keys/.ssh/id_rsa": "k" },
+      files: {
+        "index.html": "<h1>hi</h1>",
+        ".env": "SECRET=1",
+        "keys/.ssh/id_rsa": "k",
+        // Left out whole, as publish leaves node_modules out: not named as withheld.
+        "node_modules/pkg/.env": "X=1",
+      },
       name: "leaky",
       visibility: "public",
     });

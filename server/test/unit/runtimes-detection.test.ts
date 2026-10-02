@@ -158,6 +158,7 @@ describe("generated build files", () => {
     // Keys and credentials never reach an image layer.
     expect(ignore).toContain("**/.ssh\n");
     expect(ignore).toContain("**/*.pem\n");
+    expect(ignore).toContain("**/*.key\n");
     // nginx runs unprivileged and cannot read a 0600 config.
     expect(statSync(join(dir, ".gangway/Dockerfile")).mode & 0o777).toBe(0o644);
     expect(statSync(join(out, "c.yaml")).mode & 0o777).toBe(0o600);
