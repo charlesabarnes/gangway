@@ -76,13 +76,13 @@ const SHARED_CACHE_HEADERS = [
   "surrogate-control",
 ];
 
-/** cache-control that only the visitor's own browser may act on; `no-store` is left as it is. */
+/** cache-control that only the visitor's own browser may act on (`no-store` alone yields to `must-understand`). */
 export function privateCacheControl(value: string | null): string {
   const kept = (value ?? "")
     .split(",")
     .map((d) => d.trim())
     .filter((d) => d !== "" && !/^(?:public|private\s*=.*|s-maxage\s*=.*)$/i.test(d));
-  if (kept.some((d) => /^(?:private|no-store)$/i.test(d))) {
+  if (kept.some((d) => /^private$/i.test(d))) {
     return kept.join(", ");
   }
   return ["private", ...kept].join(", ");

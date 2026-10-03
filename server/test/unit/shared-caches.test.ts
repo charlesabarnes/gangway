@@ -17,10 +17,13 @@ describe("privateCacheControl", () => {
     expect(privateCacheControl("")).toBe("private");
   });
 
-  test("s-maxage and a field-only private go; no-store and private stay as they are", () => {
+  test("s-maxage and a field-only private go; private is added once", () => {
     expect(privateCacheControl("max-age=60, s-maxage=3600")).toBe("private, max-age=60");
     expect(privateCacheControl('private="set-cookie", max-age=60')).toBe("private, max-age=60");
-    expect(privateCacheControl("no-store")).toBe("no-store");
+    expect(privateCacheControl("no-store")).toBe("private, no-store");
+    expect(privateCacheControl("no-store, must-understand")).toBe(
+      "private, no-store, must-understand",
+    );
     expect(privateCacheControl("private, no-cache")).toBe("private, no-cache");
     expect(privateCacheControl("Public, S-MaxAge=10")).toBe("private");
   });
