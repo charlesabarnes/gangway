@@ -294,7 +294,8 @@ describe("sign-in through an OpenID Connect provider", () => {
     for (let n = 0; n < 21; n++) {
       places.push((await t.req("/v1/auth/oidc/start")).headers.get("location") ?? "");
     }
-    expect(places.slice(0, 20).every((l) => l.startsWith(ISSUER))).toBe(true);
+    const issuer = new URL(ISSUER).origin;
+    expect(places.slice(0, 20).every((l) => new URL(l).origin === issuer)).toBe(true);
     expect(places[20]).toBe("/login?sso=rate-limited");
   });
 
