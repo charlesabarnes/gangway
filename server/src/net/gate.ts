@@ -110,6 +110,10 @@ export class PreviewGate {
     return login === "on" || (login === "inherit" && this.#o.loginDefault());
   }
 
+  /** Whether a visitor must sign in or give a password before the preview answers. */
+  readonly restricts = (entry: RouteEntry): boolean =>
+    isPrivate(entry) || this.#secretFor(entry) !== null;
+
   gateable(entry: RouteEntry): { private: boolean; passwordSkippable: boolean } {
     return {
       private: isPrivate(entry),

@@ -69,6 +69,38 @@ export function buildResponseHeaders(src: Headers, opts: { unlisted: boolean }):
   return out;
 }
 
+// A CDN honours these over cache-control, so they could still share a gated preview's responses.
+const SHARED_CACHE_HEADERS = [
+  "cdn-cache-control",
+  "cloudflare-cdn-cache-control",
+  "surrogate-control",
+];
+
+/**
+ * cache-control that lets only the visitor's own browser keep a response: `public` and `private="…"`
+ * become `private`, and `s-maxage` (for shared caches only) goes. `no-store` is left as it is.
+ */
+export function privateCacheControl(value: string | null): string {
+  const kept = (value ?? "")
+    .split(",")
+    .map((d) => d.trim())
+    .filter((d) => d !== "" && !/^(?:public|private\s*=.*|s-maxage\s*=.*)$/i.test(d));
+  if (kept.some((d) => /^(?:private|no-store)$/i.test(d))) {
+    return kept.join(", ");
+  }
+  return ["private", ...kept].join(", ");
+}
+
+/** The same response, marked so that a CDN or proxy between the visitor and gangway never stores it. */
+export function keepFromSharedCaches(res: Response): Response {
+  const headers = new Headers(res.headers);
+  headers.set("cache-control", privateCacheControl(headers.get("cache-control")));
+  for (const h of SHARED_CACHE_HEADERS) {
+    headers.delete(h);
+  }
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
 export function isWebSocketUpgrade(req: Request): boolean {
   return req.headers.get("upgrade")?.toLowerCase() === "websocket";
 }
