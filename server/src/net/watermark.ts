@@ -11,14 +11,19 @@ export const MARK_PATH = "/__gangway/mark.js";
 /** The full mark, or only the report link (on domains where reporting must stay possible). */
 export type MarkMode = "mark" | "report";
 
-const TAGS: Record<MarkMode, string> = {
-  mark: `<script src="${MARK_PATH}" async data-gangway-mark></script>`,
-  report: `<script src="${MARK_PATH}?report" async data-gangway-mark></script>`,
-};
-// A stamped page's validator: the upstream's plus one of these, a different one per mode.
-const SUFFIXES: Record<MarkMode, string> = { mark: "-gwm", report: "-gwr" };
+/** The mode, and a digest of the script's settings: both go in its URL and the page's validator. */
+export type Stamp = { mode: MarkMode; version: string };
 
-/** The mode a request for MARK_PATH asks for. */
+function tagFor(s: Stamp): string {
+  const query = [s.version ? `v=${s.version}` : "", s.mode === "report" ? "report" : ""]
+    .filter(Boolean)
+    .join("&");
+  return `<script src="${MARK_PATH}${query ? `?${query}` : ""}" async data-gangway-mark></script>`;
+}
+
+const suffixFor = (s: Stamp) => `-gw${s.mode === "report" ? "r" : "m"}${s.version}`;
+const MARK: Stamp = { mode: "mark", version: "" };
+
 export function markModeOf(url: URL): MarkMode {
   return url.searchParams.has("report") ? "report" : "mark";
 }
@@ -32,19 +37,16 @@ export function wantsMark(req: Request): boolean {
   return dest === null || dest === "document";
 }
 
-/** Asks for the page uncompressed, as stamp() rewrites it, and drops a validator for the unmarked page. */
-export function forMark(req: Request): Request {
+/** Asks for the page uncompressed, as stamp() rewrites it; only this stamp's validators go on. */
+export function forMark(req: Request, s: Stamp = MARK): Request {
   const headers = new Headers(req.headers);
   headers.set("accept-encoding", "identity");
+  const suffix = suffixFor(s);
   const tags = (headers.get("if-none-match") ?? "")
     .split(",")
     .map((t) => t.trim())
-    .flatMap((t) => {
-      const suffix = Object.values(SUFFIXES).find((x) => t.endsWith(`${x}"`));
-      return suffix === undefined
-        ? []
-        : [`W/${t.replace(/^W\//, "").slice(0, -suffix.length - 1)}"`];
-    });
+    .filter((t) => t.endsWith(`${suffix}"`))
+    .map((t) => `W/${t.replace(/^W\//, "").slice(0, -suffix.length - 1)}"`);
   if (tags.length > 0) {
     headers.set("if-none-match", tags.join(", "));
   } else {
@@ -53,22 +55,22 @@ export function forMark(req: Request): Request {
   return new Request(req, { headers });
 }
 
-function markedTag(etag: string | null, mode: MarkMode): string | null {
+function markedTag(etag: string | null, s: Stamp): string | null {
   if (!etag) {
     return null;
   }
   const inner = etag.replace(/^W\//, "");
   return inner.startsWith('"') && inner.endsWith('"')
-    ? `W/${inner.slice(0, -1)}${SUFFIXES[mode]}"`
+    ? `W/${inner.slice(0, -1)}${suffixFor(s)}"`
     : null;
 }
 
 /** The page with the mark added before </body>, or at the end; anything else untouched. */
-export function stamp(res: Response, req: Request, mode: MarkMode = "mark"): Response {
-  const TAG = TAGS[mode];
+export function stamp(res: Response, req: Request, s: Stamp = MARK): Response {
+  const TAG = tagFor(s);
   if (res.status === 304) {
     const headers = new Headers(res.headers);
-    const tag = markedTag(headers.get("etag"), mode);
+    const tag = markedTag(headers.get("etag"), s);
     if (tag) {
       headers.set("etag", tag);
     }
@@ -121,7 +123,7 @@ export function stamp(res: Response, req: Request, mode: MarkMode = "mark"): Res
   for (const h of ["content-length", "content-encoding", "content-md5"]) {
     headers.delete(h);
   }
-  const tag = markedTag(headers.get("etag"), mode);
+  const tag = markedTag(headers.get("etag"), s);
   if (tag) {
     headers.set("etag", tag);
   } else {
@@ -182,9 +184,9 @@ export function markScript(link: string, report = "", mode: MarkMode = "mark"): 
       ? `<div class="chip only">${reportLink}</div>`
       : `<div class="chip"><a class="brand"${href} title="Made with gangway" aria-label="Made with gangway">${inner}</a>${reportLink}</div>`;
   const html = `<style>${dropNewlineRuns(CSS)}</style>${body}`;
-  const joiner = report.includes("?") ? "&" : "?";
+  const [before, after] = reportParts(report);
   const setReport = report
-    ? `var r=s.querySelector(".report");if(r)r.href=${JSON.stringify(clean(report) + joiner + "url=")}+encodeURIComponent(location.origin+location.pathname);`
+    ? `var r=s.querySelector(".report");if(r)r.href=${JSON.stringify(before)}+encodeURIComponent(location.origin+location.pathname)+${JSON.stringify(after)};`
     : "";
   return String.raw`(()=>{if(window.top!==window.self||customElements.get("gangway-mark"))return;
 try{var h=location.hostname.split(".").slice(1).join(".");if(h.indexOf(".")>0&&window.FontFace){var f=new FontFace("gw-mark-mono","url(//"+h+"/_gangway/fonts/mono-600.woff2)",{weight:"600"});f.load().then(function(x){document.fonts.add(x)},function(){})}}catch(e){}
@@ -194,6 +196,16 @@ f();new MutationObserver(f).observe(d,{attributes:true,attributeFilter:["data-th
 var put=function(){if(!document.querySelector("gangway-mark"))document.documentElement.appendChild(document.createElement("gangway-mark"))};
 document.body?put():document.addEventListener("DOMContentLoaded",put);})();
 `;
+}
+
+function reportParts(report: string): [string, string] {
+  if (!report) {
+    return ["", ""];
+  }
+  const u = new URL(report);
+  u.searchParams.set("url", "GWURL");
+  const [before = "", after = ""] = u.toString().replace(/["<>]/g, "").split("GWURL");
+  return [before, after];
 }
 
 /** Whether a host is a listed domain or under one: never a mere suffix of another name. */

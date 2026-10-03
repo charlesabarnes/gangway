@@ -48,6 +48,8 @@ describe("what a preview's pages carry", () => {
     const w = watermark({ overrides: { "previews.watermark.report": REPORT } });
     expect(w.script("mark")).toContain(`${REPORT}?url=`);
     expect(w.script("report")).toContain("chip only");
+    // A new report URL is a new script URL, so browsers drop the cached one.
+    expect(w.version()).not.toBe(watermark({}).version());
   });
 });
 

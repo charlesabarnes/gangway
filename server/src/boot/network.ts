@@ -185,6 +185,11 @@ export function watermarkFor({
         ? "report"
         : null;
     },
+    version: () => {
+      const link = settings.get(SETTINGS.previewWatermarkLink);
+      const report = settings.get(SETTINGS.previewWatermarkReport);
+      return Bun.hash(`${link}\n${report}`).toString(36).slice(0, 8);
+    },
     script: (mode: MarkMode) => {
       const link = settings.get(SETTINGS.previewWatermarkLink);
       const report = settings.get(SETTINGS.previewWatermarkReport);

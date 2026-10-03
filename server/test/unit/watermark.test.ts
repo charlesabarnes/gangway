@@ -111,6 +111,9 @@ describe("the report link", () => {
     );
     expect(js).not.toContain("location.href");
     expect(js).not.toContain("location.search");
+    expect(markScript("", "https://x.example.com/r#form")).toContain(
+      '"https://x.example.com/r?url="+encodeURIComponent(location.origin+location.pathname)+"#form"',
+    );
     expect(markScript("", "https://x.example.com/r?src=mark")).toContain(
       '"https://x.example.com/r?src=mark&url="',
     );
@@ -134,13 +137,31 @@ describe("the report link", () => {
   });
 
   test("a report-mode page gets the report script tag and its own validator", async () => {
-    const res = stamp(page("<body>x</body>", { etag: '"abc"' }), nav(), "report");
+    const report = { mode: "report", version: "" } as const;
+    const res = stamp(page("<body>x</body>", { etag: '"abc"' }), nav(), report);
     expect(await res.text()).toBe(
       `<body>x<script src="${MARK_PATH}?report" async data-gangway-mark></script></body>`,
     );
     expect(res.headers.get("etag")).toBe('W/"abc-gwr"');
-    const again = forMark(nav({ "if-none-match": 'W/"abc-gwr"' }));
+    const again = forMark(nav({ "if-none-match": 'W/"abc-gwr"' }), report);
     expect(again.headers.get("if-none-match")).toBe('W/"abc"');
+  });
+
+  test("only the current stamp's validator goes upstream", () => {
+    const mark = { mode: "mark", version: "v2" } as const;
+    const stale = forMark(nav({ "if-none-match": 'W/"abc-gwr", W/"abc-gwmv1"' }), mark);
+    expect(stale.headers.get("if-none-match")).toBeNull();
+    const fresh = forMark(nav({ "if-none-match": 'W/"abc-gwmv2"' }), mark);
+    expect(fresh.headers.get("if-none-match")).toBe('W/"abc"');
+  });
+
+  test("the script URL and validator carry the settings' version", async () => {
+    const res = stamp(page("<body>x</body>", { etag: '"abc"' }), nav(), {
+      mode: "report",
+      version: "k3x",
+    });
+    expect(await res.text()).toContain(`src="${MARK_PATH}?v=k3x&report"`);
+    expect(res.headers.get("etag")).toBe('W/"abc-gwrk3x"');
   });
 
   test("dispatch stamps by the mode it is given and answers the report script", async () => {
@@ -209,7 +230,7 @@ function deps(on: boolean | MarkMode, seen: Request[] = []): DispatchDeps {
     surfaceEnabled: () => true,
     handlers: {},
     clientIpFor: () => "10.0.0.1",
-    watermark: { mode: () => mode, script: (m) => `/* ${m} */` },
+    watermark: { mode: () => mode, script: (m) => `/* ${m} */`, version: () => "" },
   };
 }
 

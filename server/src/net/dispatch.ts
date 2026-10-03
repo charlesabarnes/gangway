@@ -25,6 +25,7 @@ import {
   stamp,
   wantsMark,
   type MarkMode,
+  type Stamp,
 } from "./watermark.ts";
 
 export type Surface = "app" | "api" | "mcp" | "hooks" | "registry" | "www";
@@ -65,7 +66,12 @@ export type DispatchDeps = {
   onProxied?: (entry: RouteEntry) => void;
   /** The gangway watermark: what a preview's pages carry (the mark, a report link, nothing) and its script. */
   watermark?:
-    | { mode: (entry: RouteEntry) => MarkMode | null; script: (mode: MarkMode) => string }
+    | {
+        mode: (entry: RouteEntry) => MarkMode | null;
+        script: (mode: MarkMode) => string;
+        /** Changes with the settings the script draws, so browsers fetch the new one. */
+        version: () => string;
+      }
     | undefined;
 };
 
@@ -243,10 +249,12 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
 async function respond(req: Request, visit: Visit, entry: RouteEntry): Promise<Response> {
   const { d } = visit;
   const mode = d.watermark && wantsMark(req) ? d.watermark.mode(entry) : null;
+  const s: Stamp | null =
+    d.watermark && mode !== null ? { mode, version: d.watermark.version() } : null;
   const res =
-    mode === null
+    s === null
       ? await answer(req, visit, entry)
-      : stamp(await answer(forMark(req), visit, entry), req, mode);
+      : stamp(await answer(forMark(req, s), visit, entry), req, s);
   // A CDN in front would otherwise hand a gated preview's files to people who never passed the gate.
   return d.restricted?.(entry) ? keepFromSharedCaches(res) : res;
 }
