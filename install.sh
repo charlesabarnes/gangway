@@ -273,6 +273,8 @@ if [ "$UPGRADE" = 1 ]; then
   # The state directory the install runs with, where gangway keeps its pre-migration backups.
   if [ "$MANAGER" = compose ]; then
     state_path=$(conf_get GANGWAY_STATE_PATH)
+    # Compose reads a relative bind path from the project directory, so this does too.
+    case "$state_path" in /* | "") ;; *) state_path=$CONF/${state_path#./} ;; esac
     STATE=${state_path:-$STATE}
   fi
   DOMAIN=$(conf_get GANGWAY_BASE_DOMAIN)
