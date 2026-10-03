@@ -13,6 +13,8 @@ export interface DnsQueries {
   resolveNs(zone: string): Promise<string[]>;
   resolveAddresses(host: string): Promise<string[]>;
   resolveTxtFrom(serverIp: string, name: string): Promise<string[]>;
+  /** One hop: what `host` is a CNAME to, or nothing. */
+  resolveCname(host: string): Promise<string[]>;
 }
 
 const QUERY_TIMEOUT_MS = 5_000;
@@ -36,6 +38,9 @@ export function nodeDnsQueries(): DnsQueries {
       r.setServers([serverIp]);
       // Long TXT values arrive as several strings of up to 255 bytes.
       return (await r.resolveTxt(name)).map((chunks) => chunks.join(""));
+    },
+    resolveCname(host) {
+      return new Resolver({ timeout: QUERY_TIMEOUT_MS, tries: 2 }).resolveCname(host);
     },
   };
 }

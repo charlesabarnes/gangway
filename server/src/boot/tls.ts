@@ -1,6 +1,7 @@
 import type { Logger } from "../logger.ts";
 import { SETTINGS, type Settings } from "../settings.ts";
 import { AcmeProvider, type AcmeConnect } from "../tls/acme.ts";
+import { AcmeDnsProvider } from "../tls/dns/acme-dns.ts";
 import { CloudflareDnsProvider } from "../tls/dns/cloudflare.ts";
 import { ManualDnsProvider } from "../tls/dns/manual.ts";
 import type { DnsProvider } from "../tls/dns/provider.ts";
@@ -82,7 +83,17 @@ function devCaOf(d: TlsDeps): { devCa: () => Promise<DevCa>; caPath: () => Promi
   return { devCa: async () => (await load()).ca, caPath: async () => (await load()).caPath };
 }
 
-function dnsProvider(settings: Settings, log: Logger): DnsProvider {
+export function dnsProvider(settings: Settings, log: Logger): DnsProvider {
+  const acmeDnsUrl = settings.get(SETTINGS.acmeDnsUrl);
+  if (acmeDnsUrl) {
+    return new AcmeDnsProvider({
+      url: acmeDnsUrl,
+      username: settings.get(SETTINGS.acmeDnsUsername),
+      password: settings.get(SETTINGS.acmeDnsPassword),
+      subdomain: settings.get(SETTINGS.acmeDnsSubdomain),
+      log,
+    });
+  }
   const token = settings.get(SETTINGS.cloudflareApiToken);
   const zoneId = settings.get(SETTINGS.cloudflareZoneId);
   return token

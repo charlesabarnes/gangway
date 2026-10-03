@@ -28,6 +28,13 @@ DNS-01 works through Cloudflare, so the domain's DNS must be on Cloudflare and g
 token with **Zone → DNS → Edit** on it. Nothing needs to reach gangway from the internet for the
 certificate, so this works on a LAN-only server too.
 
+If your DNS is somewhere else, use an [acme-dns](https://github.com/joohoi/acme-dns) server
+instead. Register an account on it, add one CNAME record from `_acme-challenge.<your domain>` to
+the account's `<subdomain>.<acme-dns domain>`, and install with `--acme-dns-url`,
+`--acme-dns-user`, `--acme-dns-key` and `--acme-dns-subdomain`. Before each order, gangway checks
+that the CNAME is there and names the record if it is not. To use custom domains as well, also point
+`*.acme.<your domain>` at the same subdomain with a CNAME.
+
 ## lan
 
 No domain: gangway answers at `https://app.<host-ip>.sslip.io:8443` on your network, for trying it
