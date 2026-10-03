@@ -65,6 +65,7 @@
         "name": "admin"
       }
     },
+    "passwords": true,
     "permissions": ["previews.read"]
   },
   "login": {

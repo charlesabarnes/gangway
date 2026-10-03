@@ -16,6 +16,7 @@ export type SessionInfo =
   | {
       authenticated: true;
       setupRequired: false;
+      passwords?: boolean;
       user?: SessionUser;
       token?: { id: string; scopes: Scope[] };
       permissions: Permission[];

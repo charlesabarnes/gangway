@@ -101,17 +101,19 @@ function describe(d: AuthRouteDeps, actor: Actor) {
       authenticated: true,
       setupRequired: false,
       token: { id: actor.tokenId, scopes: actor.scopes },
+      passwords: passwordsOn(d),
       permissions,
     };
   }
   if (actor.kind === "forge" || actor.kind === "workflow") {
-    return { authenticated: true, setupRequired: false, permissions };
+    return { authenticated: true, setupRequired: false, passwords: passwordsOn(d), permissions };
   }
   const user = d.accounts.getUser(actor.userId);
   return {
     authenticated: true,
     setupRequired: false,
     ...(user ? { user: wireUser(d, user) } : {}),
+    passwords: passwordsOn(d),
     permissions,
   };
 }

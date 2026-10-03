@@ -24,7 +24,7 @@ export class AuthService {
   });
   readonly passwords = computed(() => {
     const i = this.#info();
-    return i?.authenticated !== false || i.passwords !== false;
+    return i?.passwords !== false;
   });
   readonly user = computed<SessionUser | null>(() => {
     const i = this.#info();

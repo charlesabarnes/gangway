@@ -44,8 +44,9 @@ address as verified (`email_verified: true`).
 ## Turn passwords off
 
 With single sign-on working, you can turn off **Also allow sign-in with a password**, or set
-`GANGWAY_PASSWORD_LOGIN=false`. Password login, password resets and first passwords are then
-refused, and the login page shows only the provider's button. Inviting someone by email still
+`GANGWAY_PASSWORD_LOGIN=false`. Password login, password resets and first passwords for new users
+are then refused, and the login page shows only the provider's button. The one exception is the
+first admin made on the setup page, who still sets a password, since nobody can sign in yet. Inviting someone by email still
 works: they get a note that says where to sign in.
 
 gangway refuses to turn passwords off while the provider is not fully set up. If the provider's
