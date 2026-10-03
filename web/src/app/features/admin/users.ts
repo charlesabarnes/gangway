@@ -307,13 +307,8 @@ export class UsersList {
       const { sent } = await firstValueFrom(
         this.#http.post<{ sent: 'invite' | 'reset' | 'sso' }>(`/v1/users/${u.id}/email-link`, {}),
       );
-      this.#toasts.info(
-        sent === 'invite'
-          ? `Invitation sent to ${u.email}`
-          : sent === 'sso'
-            ? `Sign-in details sent to ${u.email}`
-            : `Reset link sent to ${u.email}`,
-      );
+      const what = { invite: 'Invitation', sso: 'Sign-in details', reset: 'Reset link' }[sent];
+      this.#toasts.info(`${what} sent to ${u.email}`);
     } catch (err) {
       this.#toasts.problem(`Could not email ${u.email}`, toProblem(err));
     } finally {

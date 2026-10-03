@@ -186,7 +186,7 @@ describe("password reset", () => {
     expect(t.links.requestReset("cy@example.com", META)).toBeUndefined();
     await t.flush();
     expect(t.sent).toEqual([]);
-    expect(t.links.sendFor(actor, cy)).rejects.toMatchObject({ status: 409 });
+    await expect(t.links.sendFor(actor, cy)).rejects.toMatchObject({ status: 409 });
   });
 
   test("asking again straight away is refused, and only the newest link works", async () => {

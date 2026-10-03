@@ -51,7 +51,13 @@ const TIMEOUT_MS = 10_000;
 
 const b64url = (b: Buffer) => b.toString("base64url");
 const decode = (s: string) => JSON.parse(Buffer.from(s, "base64url").toString("utf8")) as unknown;
-const trimSlash = (s: string) => s.replace(/\/+$/, "");
+const trimSlash = (s: string) => {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === "/") {
+    end--;
+  }
+  return s.slice(0, end);
+};
 
 // The message a person sees when anything about the provider's answer is wrong. The detail goes
 // to the log; telling a stranger which check failed helps nobody but them.
@@ -221,7 +227,7 @@ export class Sso {
     }
     const body = (await res.json()) as { id_token?: unknown };
     if (typeof body.id_token !== "string") {
-      throw new Error("the token endpoint returned no id_token");
+      throw new TypeError("the token endpoint returned no id_token");
     }
     return body.id_token;
   }

@@ -196,12 +196,17 @@ export class AddUser {
     const password = this.password();
     const how = this.how();
     const inviting = how === 'invite';
+    const access: Record<How, object> = {
+      sso: { sso: true },
+      invite: { invite: true },
+      password: { password },
+    };
     try {
       const { user, invite } = await firstValueFrom(
         this.#http.post<{ user: User; invite?: { sent: boolean; error?: string } }>('/v1/users', {
           email: this.email().trim(),
           roleId: this.roleId(),
-          ...(how === 'sso' ? { sso: true } : inviting ? { invite: true } : { password }),
+          ...access[how],
         }),
       );
       this.added.emit({ user, password: how === 'password' ? password : null });
