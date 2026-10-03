@@ -107,7 +107,6 @@ export class EmailLinks {
         `Sign in there with "${label}", using this email address:`,
         `${origin}/login`,
       ].join("\n"),
-      // An HTTPS mail endpoint renders its own invitation from these.
       purpose: "invite",
       link: `${origin}/login`,
     });
