@@ -57,7 +57,6 @@ const reportUrl = z
 
 const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/;
 
-// A comma-separated env var or a list; each a lowercase hostname.
 const reportDomains = z.preprocess(
   (v) =>
     typeof v === "string"
@@ -130,7 +129,6 @@ export const SETTINGS = {
     z.url().or(z.literal("")),
     "https://gangway.sh",
   ),
-  // Where the mark's Report link goes; empty for none.
   previewWatermarkReport: def("previews.watermark.report", reportUrl, ""),
   // Previews under these domains always carry the report link, even with the mark off.
   previewReportDomains: def("previews.report.domains", reportDomains, []),

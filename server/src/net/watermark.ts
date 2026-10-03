@@ -15,8 +15,7 @@ const TAGS: Record<MarkMode, string> = {
   mark: `<script src="${MARK_PATH}" async data-gangway-mark></script>`,
   report: `<script src="${MARK_PATH}?report" async data-gangway-mark></script>`,
 };
-// A stamped page's validator is the upstream's plus one of these, so a revalidation still
-// reaches it; one per mode, so a page cached with one is not kept once the other applies.
+// A stamped page's validator: the upstream's plus one of these, a different one per mode.
 const SUFFIXES: Record<MarkMode, string> = { mark: "-gwm", report: "-gwr" };
 
 /** The mode a request for MARK_PATH asks for. */
@@ -168,11 +167,7 @@ svg{width:22px;height:22px;flex:none;display:block}
 @media print{:host{display:none}}
 `;
 
-/**
- * The script behind MARK_PATH: the brand links to `link` (none when empty). With `report` set, a
- * Report link sits beside it, or alone in "report" mode; it carries the page's address without the
- * query or fragment, which can hold secrets, and is built in the browser.
- */
+/** The script behind MARK_PATH; the Report link sends the page's address without query or hash. */
 export function markScript(link: string, report = "", mode: MarkMode = "mark"): string {
   const clean = (u: string) => u.replace(/["<>&]/g, "");
   const reportLink = report
