@@ -13,7 +13,7 @@ import {
   wakingPage,
 } from "./error-pages.ts";
 import { themed } from "./page-chrome.ts";
-import { isWebSocketUpgrade } from "./headers.ts";
+import { isWebSocketUpgrade, keepFromSharedCaches } from "./headers.ts";
 import { release, tryAcquire, type Limits } from "./limits.ts";
 import type { RequestRates } from "./rates.ts";
 import { isBodyTooLarge, isTimeout, type Upstream } from "./upstream.ts";
@@ -49,6 +49,8 @@ export type DispatchDeps = {
     req: Request,
     clientIp?: string,
   ) => Response | Promise<Response> | null;
+  /** Whether a preview asks for a sign-in or a password; its responses are then kept from shared caches. */
+  restricted?: (entry: RouteEntry) => boolean;
   logTailFor?: (previewId: string) => string[];
   logUrlFor?: (previewId: string) => string | undefined;
   clientIpFor: (req: Request) => string;
@@ -222,12 +224,17 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
     return new Response("websocket upgrade failed", { status: 400 });
   }
 
-  if (d.watermark && wantsMark(req) && d.watermark.on(entry)) {
-    const marked = forMark(req);
-    const res = await answer(marked, visit, entry);
-    return stamp(res, req);
-  }
-  return answer(req, visit, entry);
+  return respond(req, visit, entry);
+}
+
+async function respond(req: Request, visit: Visit, entry: RouteEntry): Promise<Response> {
+  const { d } = visit;
+  const res =
+    d.watermark && wantsMark(req) && d.watermark.on(entry)
+      ? stamp(await answer(forMark(req), visit, entry), req)
+      : await answer(req, visit, entry);
+  // A CDN in front would otherwise hand a gated preview's files to people who never passed the gate.
+  return d.restricted?.(entry) ? keepFromSharedCaches(res) : res;
 }
 
 function answer(req: Request, visit: Visit, entry: RouteEntry): Promise<Response> {

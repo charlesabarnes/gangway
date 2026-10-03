@@ -132,6 +132,7 @@ function dispatchDeps(
     surfaceEnabled: d.surfaceEnabled,
     controlGate: gate,
     visibilityGate: http.gate.handle,
+    restricted: http.gate.restricts,
     wake: waker(d),
     font: serveKitFont,
     site: siteFor(d),
