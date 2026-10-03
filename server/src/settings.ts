@@ -43,9 +43,20 @@ const smtpUrl = z
   .string()
   .trim()
   .refine(
-    (v) => v === "" || (/^(?:smtps?|https):\/\/[^/]/.test(v) && URL.canParse(v)),
+    (v) => v === "" || (/^(?:smtps?|https):\/\/[^/]/.test(v) && URL.canParse(v) && decodes(v)),
     "an smtp://, smtps:// or https:// URL, like smtp://user:password@smtp.example.com:587",
   );
+
+function decodes(v: string): boolean {
+  const u = new URL(v);
+  try {
+    decodeURIComponent(u.username);
+    decodeURIComponent(u.password);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const mailFrom = z
   .string()

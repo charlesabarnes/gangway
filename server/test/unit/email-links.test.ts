@@ -107,7 +107,15 @@ describe("mailer", () => {
 
   test("the settings refuse what is not an SMTP or HTTPS URL or an address", () => {
     const t = setup();
-    for (const bad of ["http://mail.example.com", "smtp://", "https://", "smtp.example.com:587"]) {
+    for (const bad of [
+      "http://mail.example.com",
+      "smtp://",
+      "https://",
+      "smtp.example.com:587",
+      // A broken %-escape in the login would fail every send.
+      "https://:bad%zz@mail.example.com/send",
+      "smtp://u%E0%A4%A:pw@smtp.example.com",
+    ]) {
       expect(() => t.settings.set(SETTINGS.mailSmtpUrl, bad)).toThrow();
     }
     t.settings.set(SETTINGS.mailSmtpUrl, "https://:secret@mail.example.com/send");
@@ -175,8 +183,8 @@ describe("the https transport", () => {
     expect(calls[0]!.init.headers).toEqual({ "content-type": "application/json" });
   });
 
-  test("a refusal is the endpoint's own words, cut short, and never the credential", async () => {
-    const { fetchImpl } = capture(403, `quota exceeded ${"x".repeat(500)}`);
+  test("a refusal names the status only, never what the endpoint echoed", async () => {
+    const { fetchImpl } = capture(403, `bad token topsecret for ${mail.link}`);
     const err = await https(
       "https://u:topsecret@mail.example.com/send",
       fetchImpl,
@@ -184,9 +192,7 @@ describe("the https transport", () => {
       () => null,
       (e: unknown) => e as Error,
     );
-    expect(err?.message.startsWith("HTTP 403: quota exceeded")).toBe(true);
-    expect(err!.message.length).toBeLessThan(220);
-    expect(err!.message).not.toContain("topsecret");
+    expect(err?.message).toBe("the endpoint answered HTTP 403");
   });
 
   test("the mailer picks it for an https:// URL and reports a refusal as a 422", async () => {
@@ -198,7 +204,7 @@ describe("the https transport", () => {
     });
     await expect(mailer.send({ to: "a@b.c", subject: "s", text: "t" })).rejects.toMatchObject({
       status: 422,
-      message: "the mail server refused: HTTP 500: down",
+      message: "the mail server refused: the endpoint answered HTTP 500",
     });
     expect(calls[0]!.url).toBe("https://mail.example.com/send");
   });

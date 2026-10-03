@@ -22,7 +22,14 @@ export type MailerDeps = {
 };
 
 const HTTPS_TIMEOUT_MS = 20_000;
-const MAX_ERROR_CHARS = 200;
+
+export function httpsCredential(url: URL): string | null {
+  try {
+    return decodeURIComponent(url.password || url.username);
+  } catch {
+    return null;
+  }
+}
 
 // A dead relay must fail a request in seconds, not hang it on the OS's TCP timeout.
 function smtp(url: string): Send {
@@ -41,7 +48,7 @@ function smtp(url: string): Send {
 // One JSON POST per message; the URL's password (or user name) goes as a bearer token instead.
 export function https(url: string, fetchImpl: FetchLike = (u, init) => fetch(u, init)): Send {
   const target = new URL(url);
-  const credential = decodeURIComponent(target.password || target.username);
+  const credential = httpsCredential(target) ?? "";
   target.username = "";
   target.password = "";
   const endpoint = target.toString();
@@ -65,8 +72,9 @@ export function https(url: string, fetchImpl: FetchLike = (u, init) => fetch(u, 
       signal: AbortSignal.timeout(HTTPS_TIMEOUT_MS),
     });
     if (!res.ok) {
-      const detail = (await res.text().catch(() => "")).trim().slice(0, MAX_ERROR_CHARS);
-      throw new Error(`HTTP ${res.status}${detail === "" ? "" : `: ${detail}`}`);
+      // Status only: an endpoint may echo the bearer token or the one-use link back.
+      await res.body?.cancel().catch(() => undefined);
+      throw new Error(`the endpoint answered HTTP ${res.status}`);
     }
   };
 }
