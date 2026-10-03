@@ -115,6 +115,8 @@ export class AcmeDnsProvider implements DnsProvider {
       async () => {
         const res = await this.#fetch(`${this.#url}${path}`, {
           method: "POST",
+          // A redirect would carry the account's key to wherever it points.
+          redirect: "manual",
           headers: {
             "x-api-user": this.#username,
             "x-api-key": this.#password,

@@ -13,7 +13,7 @@ const TARGET = `${SUB}.auth.acme-dns.test`;
 const CHALLENGE = "_acme-challenge.preview.example.com";
 const PASSWORD = "test-password-not-real";
 
-type Call = { url: string; headers: Headers; body: any };
+type Call = { url: string; headers: Headers; body: any; redirect: RequestRedirect | undefined };
 
 /** An acme-dns /update endpoint that keeps the two latest values, as the real one does. */
 function fakeAcmeDns(o: { statuses?: number[] } = {}) {
@@ -23,7 +23,7 @@ function fakeAcmeDns(o: { statuses?: number[] } = {}) {
   const fetchImpl: FetchLike = async (url, init) => {
     const headers = new Headers(init?.headers);
     const body = JSON.parse(String(init?.body));
-    calls.push({ url, headers, body });
+    calls.push({ url, headers, body, redirect: init?.redirect });
     const status = statuses.shift() ?? 200;
     if (status !== 200) {
       return new Response(JSON.stringify({ error: "nope" }), { status });
@@ -150,6 +150,13 @@ describe("AcmeDnsProvider createTxt", () => {
     expect(JSON.stringify({ m: (err as Error).message, d: (err as any).detail })).not.toContain(
       PASSWORD,
     );
+  });
+
+  test("never follows a redirect with the account's key", async () => {
+    const api = fakeAcmeDns({ statuses: [302] });
+    await expect(provider(api, delegated(api)).createTxt(CHALLENGE, "v")).rejects.toThrow(/302/);
+    expect(api.calls).toHaveLength(1);
+    expect(api.calls[0]!.redirect).toBe("manual");
   });
 
   test("a 400 is permanent", async () => {
