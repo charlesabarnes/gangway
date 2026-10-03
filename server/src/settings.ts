@@ -47,12 +47,14 @@ const smtpUrl = z
     "an smtp://, smtps:// or https:// URL, like smtp://user:password@smtp.example.com:587",
   );
 
+const RFC6750_BEARER_TOKEN = /^(?:[\w.~+/-]+=*)?$/;
+
 function decodes(v: string): boolean {
   const u = new URL(v);
   try {
-    decodeURIComponent(u.username);
-    decodeURIComponent(u.password);
-    return true;
+    const username = decodeURIComponent(u.username);
+    const password = decodeURIComponent(u.password);
+    return u.protocol !== "https:" || RFC6750_BEARER_TOKEN.test(password || username);
   } catch {
     return false;
   }

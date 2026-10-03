@@ -114,6 +114,8 @@ describe("mailer", () => {
       "smtp.example.com:587",
       // A broken %-escape in the login would fail every send.
       "https://:bad%zz@mail.example.com/send",
+      // Not a bearer token: a newline would break the header.
+      "https://:tok%0Aen@mail.example.com/send",
       "smtp://u%E0%A4%A:pw@smtp.example.com",
     ]) {
       expect(() => t.settings.set(SETTINGS.mailSmtpUrl, bad)).toThrow();
