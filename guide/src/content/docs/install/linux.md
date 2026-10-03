@@ -44,6 +44,10 @@ curl -fsSL gangway.sh/install | sh -s -- --domain preview.example.com --tls acme
 | `--lan`                     | no domain, reachable on your network at `*.<host-ip>.sslip.io`          |
 | `--local`                   | no domain, this machine only                                            |
 | `--cf-token <token>`        | Cloudflare API token with DNS edit on the domain (`acme`)               |
+| `--acme-dns-url <url>`      | an [acme-dns](/docs/install/modes/#acme) server, instead of Cloudflare  |
+| `--acme-dns-user <user>`    | its account's username (or `GANGWAY_ACME_DNS_USERNAME`)                 |
+| `--acme-dns-key <key>`      | its account's password (or `GANGWAY_ACME_DNS_PASSWORD`)                 |
+| `--acme-dns-subdomain <s>`  | its account's subdomain (or `GANGWAY_ACME_DNS_SUBDOMAIN`)               |
 | `--acme-email <email>`      | contact address for Let's Encrypt (`acme`, optional)                    |
 | `--listen <address>`        | where gangway listens behind a proxy (default the docker0 gateway)      |
 | `--trusted-proxies <cidrs>` | where the proxy connects from (default the docker0 subnet)              |
@@ -80,6 +84,9 @@ GANGWAY_LISTEN_HTTP_PORT=80
 GANGWAY_TLS_MODE=acme
 GANGWAY_TRUSTED_PROXIES=
 GANGWAY_CF_API_TOKEN=...                   # a Cloudflare token that can edit the zone's DNS
+# or, for DNS that is not on Cloudflare, an acme-dns account:
+# GANGWAY_ACME_DNS_URL=https://auth.example.org  GANGWAY_ACME_DNS_USERNAME=...
+# GANGWAY_ACME_DNS_PASSWORD=...  GANGWAY_ACME_DNS_SUBDOMAIN=...
 GANGWAY_ACME_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
 ```
 

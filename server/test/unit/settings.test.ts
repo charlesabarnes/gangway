@@ -210,6 +210,7 @@ describe("secrets in the view", () => {
       source: "default",
     });
     expect(view["acme.cloudflare.apiToken"]).toMatchObject({ secret: true, value: null });
+    expect(view["acme.acmeDns.password"]).toMatchObject({ secret: true, value: null });
     expect(view["github.appId"]).toMatchObject({
       secret: false,
       value: "12345",

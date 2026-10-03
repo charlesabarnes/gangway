@@ -32,6 +32,10 @@ which upgrades leave alone.
 | `GANGWAY_TLS_KEY_PATH`       | _(none)_                  | Key for `file` mode                                              |
 | `GANGWAY_CF_API_TOKEN`       | _(none)_                  | Cloudflare token with DNS edit, for `acme`                       |
 | `GANGWAY_CF_ZONE_ID`         | _(looked up)_             | The zone, if the token cannot list zones                         |
+| `GANGWAY_ACME_DNS_URL`       | _(none)_                  | An acme-dns server, for `acme` instead of Cloudflare             |
+| `GANGWAY_ACME_DNS_USERNAME`  | _(none)_                  | The acme-dns account's username                                  |
+| `GANGWAY_ACME_DNS_PASSWORD`  | _(none)_                  | The acme-dns account's password                                  |
+| `GANGWAY_ACME_DNS_SUBDOMAIN` | _(none)_                  | The acme-dns account's subdomain                                 |
 | `GANGWAY_ACME_EMAIL`         | _(none)_                  | Contact address for Let's Encrypt                                |
 | `GANGWAY_ACME_DIRECTORY_URL` | staging (compose)         | Set to `https://acme-v02.api.letsencrypt.org/directory` for real |
 

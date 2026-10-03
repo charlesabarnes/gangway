@@ -26,6 +26,12 @@ DIR=
 DOMAIN=
 TLS=
 CF_TOKEN=
+# Or an acme-dns account, for DNS that is not on Cloudflare; from the environment, so its key
+# need not be on the command line.
+ACME_DNS_URL=${GANGWAY_ACME_DNS_URL:-}
+ACME_DNS_USER=${GANGWAY_ACME_DNS_USERNAME:-}
+ACME_DNS_KEY=${GANGWAY_ACME_DNS_PASSWORD:-}
+ACME_DNS_SUBDOMAIN=${GANGWAY_ACME_DNS_SUBDOMAIN:-}
 ACME_EMAIL=
 VERSION=latest
 IMAGE=
@@ -50,9 +56,14 @@ Usage: install.sh [options]
   --domain <domain>       base domain, e.g. preview.example.com (*.<domain> must point here)
   --tls proxy|acme|local  proxy: a reverse proxy in front holds 443 and the certificate
                           acme:  gangway holds 443 and gets a wildcard certificate itself
-                                 (Let's Encrypt over DNS-01, needs a Cloudflare API token)
+                                 (Let's Encrypt over DNS-01, through Cloudflare or acme-dns)
                           local: see --local
   --cf-token <token>      Cloudflare API token that can edit the domain's DNS (acme only)
+  --acme-dns-url <url>    acme-dns server, instead of Cloudflare (acme only; with the three below,
+                          and _acme-challenge.<domain> a CNAME to the account's subdomain)
+  --acme-dns-user <user>  acme-dns account username (or GANGWAY_ACME_DNS_USERNAME)
+  --acme-dns-key <key>    acme-dns account password (or GANGWAY_ACME_DNS_PASSWORD)
+  --acme-dns-subdomain <s>  acme-dns account subdomain (or GANGWAY_ACME_DNS_SUBDOMAIN)
   --acme-email <email>    contact address for Let's Encrypt (acme only, optional)
   --version <v>           image tag to run, e.g. 0.1.0 or edge (default latest)
   --rollback              put back the version and database from before the last upgrade
@@ -87,6 +98,10 @@ while [ $# -gt 0 ]; do
     --local) TLS=local ;;
     --lan) TLS=local LAN=1 ;;
     --cf-token) CF_TOKEN=${2:?--cf-token needs a value}; shift ;;
+    --acme-dns-url) ACME_DNS_URL=${2:?--acme-dns-url needs a value}; shift ;;
+    --acme-dns-user) ACME_DNS_USER=${2:?--acme-dns-user needs a value}; shift ;;
+    --acme-dns-key) ACME_DNS_KEY=${2:?--acme-dns-key needs a value}; shift ;;
+    --acme-dns-subdomain) ACME_DNS_SUBDOMAIN=${2:?--acme-dns-subdomain needs a value}; shift ;;
     --acme-email) ACME_EMAIL=${2:?--acme-email needs a value}; shift ;;
     --version) VERSION=${2:?--version needs a value}; shift ;;
     --rollback) ROLLBACK=1 ;;
@@ -326,14 +341,28 @@ if [ "$UPGRADE" = 0 ]; then
     say ""
     say "Who holds port 443 and the wildcard certificate for *.$DOMAIN?"
     say "  proxy  a reverse proxy already on this host (Nginx Proxy Manager, Caddy, Traefik, ...)"
-    say "  acme   gangway itself, with a Let's Encrypt certificate over Cloudflare DNS"
+    say "  acme   gangway itself, with a Let's Encrypt certificate over Cloudflare DNS or acme-dns"
     TLS=$(ask "proxy or acme" proxy)
   fi
   case "$TLS" in proxy | acme | local) ;; *) die "--tls must be proxy, acme or local, not \"$TLS\"" ;; esac
 
-  if [ "$TLS" = acme ]; then
-    [ -n "$CF_TOKEN" ] || CF_TOKEN=$(ask_secret "Cloudflare API token with Zone:DNS:Edit on $DOMAIN")
-    [ -n "$CF_TOKEN" ] || die "acme needs a Cloudflare API token (--cf-token)"
+  if [ "$TLS" = acme ] && [ -n "$ACME_DNS_URL$ACME_DNS_USER$ACME_DNS_KEY$ACME_DNS_SUBDOMAIN" ]; then
+    [ -z "$CF_TOKEN" ] || die "pass --cf-token or the --acme-dns-* flags, not both"
+    [ -n "$ACME_DNS_URL" ] && [ -n "$ACME_DNS_USER" ] && [ -n "$ACME_DNS_KEY" ] && [ -n "$ACME_DNS_SUBDOMAIN" ] ||
+      die "acme-dns needs all of --acme-dns-url, --acme-dns-user, --acme-dns-key and --acme-dns-subdomain"
+    # https only: every order sends the account's key.
+    case "$ACME_DNS_URL" in
+      https://*[!A-Za-z0-9:/._-]*) die "--acme-dns-url \"$ACME_DNS_URL\" is not a URL" ;;
+      https://?*) ;;
+      *) die "--acme-dns-url must start with https://" ;;
+    esac
+    for v in "$ACME_DNS_USER" "$ACME_DNS_KEY" "$ACME_DNS_SUBDOMAIN"; do
+      case "$v" in *[!A-Za-z0-9_-]*) die "acme-dns credentials are letters, digits, - and _ only" ;; esac
+    done
+    [ -n "$ACME_EMAIL" ] || ACME_EMAIL=$(ask "Email for Let's Encrypt notices (optional)" "")
+  elif [ "$TLS" = acme ]; then
+    [ -n "$CF_TOKEN" ] || CF_TOKEN=$(ask_secret "Cloudflare API token with Zone:DNS:Edit on $DOMAIN (or rerun with the --acme-dns-* flags)")
+    [ -n "$CF_TOKEN" ] || die "acme needs a Cloudflare API token (--cf-token) or an acme-dns account (--acme-dns-*)"
     [ -n "$ACME_EMAIL" ] || ACME_EMAIL=$(ask "Email for Let's Encrypt notices (optional)" "")
   fi
 fi
@@ -377,14 +406,20 @@ if [ "$UPGRADE" = 0 ]; then
       for p in 443 80; do
         ! port_busy "$p" || die "port $p is already in use; with --tls acme gangway needs 443 and 80 (or use --tls proxy)"
       done
-      verify=$(mktemp)
-      if curl -fsS -H "Authorization: Bearer $CF_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify -o "$verify" 2>/dev/null &&
-        grep -q '"success": *true' "$verify"; then
-        rm -f "$verify"
-        say "Cloudflare token is valid"
+      if [ -n "$ACME_DNS_URL" ]; then
+        # gangway checks the CNAME before the CA validates, and names the record if it is missing.
+        say "DNS-01 through acme-dns at $ACME_DNS_URL"
+        say "_acme-challenge.$DOMAIN must be a CNAME to $ACME_DNS_SUBDOMAIN.<the acme-dns domain>"
       else
-        rm -f "$verify"
-        die "Cloudflare rejected the API token"
+        verify=$(mktemp)
+        if curl -fsS -H "Authorization: Bearer $CF_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify -o "$verify" 2>/dev/null &&
+          grep -q '"success": *true' "$verify"; then
+          rm -f "$verify"
+          say "Cloudflare token is valid"
+        else
+          rm -f "$verify"
+          die "Cloudflare rejected the API token"
+        fi
       fi
       ;;
     proxy)
@@ -417,7 +452,14 @@ initial_env() {
       say "GANGWAY_LISTEN_PORT=443"
       say "GANGWAY_LISTEN_HTTP_PORT=80"
       say "GANGWAY_TRUSTED_PROXIES="
-      say "GANGWAY_CF_API_TOKEN=$CF_TOKEN"
+      if [ -n "$ACME_DNS_URL" ]; then
+        say "GANGWAY_ACME_DNS_URL=$ACME_DNS_URL"
+        say "GANGWAY_ACME_DNS_USERNAME=$ACME_DNS_USER"
+        say "GANGWAY_ACME_DNS_PASSWORD=$ACME_DNS_KEY"
+        say "GANGWAY_ACME_DNS_SUBDOMAIN=$ACME_DNS_SUBDOMAIN"
+      else
+        say "GANGWAY_CF_API_TOKEN=$CF_TOKEN"
+      fi
       say "GANGWAY_ACME_EMAIL=$ACME_EMAIL"
       say "GANGWAY_ACME_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory"
       ;;
@@ -548,7 +590,7 @@ unraid_template() { # a dockerMan template holding every setting, so the Docker 
 XML
   initial_env | while IFS='=' read -r key value; do
     mask=false
-    case "$key" in *TOKEN*) mask=true ;; esac
+    case "$key" in *TOKEN* | *PASSWORD*) mask=true ;; esac
     printf '  <Config Name="%s" Target="%s" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="%s">%s</Config>\n' \
       "$key" "$key" "$mask" "$(xml_escape "$value")"
   done
