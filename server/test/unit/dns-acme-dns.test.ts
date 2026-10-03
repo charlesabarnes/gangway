@@ -13,7 +13,7 @@ const TARGET = `${SUB}.auth.acme-dns.test`;
 const CHALLENGE = "_acme-challenge.preview.example.com";
 const PASSWORD = "test-password-not-real";
 
-type Call = { url: string; headers: Headers; body: any; redirect: RequestRedirect | undefined };
+type Call = { url: string; headers: Headers; body: any; redirect: RequestInit["redirect"] };
 
 /** An acme-dns /update endpoint that keeps the two latest values, as the real one does. */
 function fakeAcmeDns(o: { statuses?: number[] } = {}) {
