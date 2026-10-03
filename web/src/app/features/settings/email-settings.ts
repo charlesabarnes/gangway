@@ -57,7 +57,8 @@ const FROM_KEY = 'mail.from';
               data-testid="smtp-url"
             />
             <span class="mt-1 block text-xs font-normal tracking-normal text-muted normal-case">
-              smtp:// upgrades with STARTTLS on 587; smtps:// is TLS on 465.
+              smtp:// upgrades with STARTTLS on 587; smtps:// is TLS on 465; https:// posts each
+              message as JSON, with the password as a bearer token.
               @if (managed(url$)) {
                 Managed by config.
               }

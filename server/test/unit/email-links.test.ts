@@ -105,11 +105,22 @@ describe("mailer", () => {
     });
   });
 
-  test("the settings refuse what is not an SMTP URL or an address", () => {
+  test("the settings refuse what is not an SMTP or HTTPS URL or an address", () => {
     const t = setup();
-    for (const bad of ["http://smtp.example.com", "smtp://", "smtp.example.com:587"]) {
+    for (const bad of [
+      "http://mail.example.com",
+      "smtp://",
+      "https://",
+      "smtp.example.com:587",
+      // A broken %-escape in the login would fail every send.
+      "https://:bad%zz@mail.example.com/send",
+      // Not a bearer token: a newline would break the header.
+      "https://:tok%0Aen@mail.example.com/send",
+      "smtp://u%E0%A4%A:pw@smtp.example.com",
+    ]) {
       expect(() => t.settings.set(SETTINGS.mailSmtpUrl, bad)).toThrow();
     }
+    t.settings.set(SETTINGS.mailSmtpUrl, "https://:secret@mail.example.com/send");
     for (const bad of ["noreply", "gangway <noreply>", "a@b.c\r\nBcc: x@y.z"]) {
       expect(() => t.settings.set(SETTINGS.mailFrom, bad)).toThrow();
     }
@@ -135,6 +146,9 @@ describe("password reset", () => {
     expect(t.sent[0]!.text).toContain("expires in an hour");
     const secret = t.secretOf(t.sent[0]!);
     expect(t.links.inspect(secret)).toEqual({ email: "bob@example.com", purpose: "reset" });
+    // An HTTPS endpoint renders its own message from these.
+    expect(t.sent[0]!.purpose).toBe("reset");
+    expect(t.sent[0]!.link).toBe(`https://app.example.com/set-password#${secret}`);
 
     const { user, secret: session } = await t.links.redeem(secret, NEW_PASSWORD, META);
     expect(user.email).toBe("bob@example.com");
@@ -187,6 +201,24 @@ describe("password reset", () => {
     await t.flush();
     expect(t.sent).toEqual([]);
     await expect(t.links.sendFor(actor, cy)).rejects.toMatchObject({ status: 409 });
+  });
+
+  test("an sso-only sign-in notice is an invitation with the login link", async () => {
+    const t = setup();
+    await t.admin();
+    const actor = t.sessions.resolve(
+      (await t.accounts.login("ada@example.com", PASSWORD, META)).secret,
+    )!.actor;
+    const cy = await t.accounts.createUser(actor, {
+      email: "cy@example.com",
+      roleId: "member",
+      sso: true,
+    });
+    await t.links.sendSsoNotice(actor, cy, "Sign in with Example");
+    expect(t.sent).toHaveLength(1);
+    expect(t.sent[0]).toMatchObject({ to: "cy@example.com", purpose: "invite" });
+    expect(t.sent[0]!.link).toEndWith("/login");
+    expect(t.sent[0]!.text).toContain(t.sent[0]!.link!);
   });
 
   test("asking again straight away is refused, and only the newest link works", async () => {

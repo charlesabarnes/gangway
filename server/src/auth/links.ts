@@ -107,6 +107,9 @@ export class EmailLinks {
         `Sign in there with "${label}", using this email address:`,
         `${origin}/login`,
       ].join("\n"),
+      // An HTTPS mail endpoint renders its own invitation from these.
+      purpose: "invite",
+      link: `${origin}/login`,
     });
     this.#d.audit.record(actor, "user.link.sent", user.id, { new: { purpose: "sso" } });
   }
@@ -160,9 +163,11 @@ export class EmailLinks {
     const origin = this.#d.appOrigin();
     const url = `${origin}/set-password#${secret}`;
     const inviter = by?.kind === "user" ? this.#d.users.get(by.userId)?.email : undefined;
-    await this.#d.mailer.send(
-      message(purpose, user.email, { url, host: new URL(origin).host, inviter }),
-    );
+    await this.#d.mailer.send({
+      ...message(purpose, user.email, { url, host: new URL(origin).host, inviter }),
+      purpose,
+      link: url,
+    });
   }
 }
 

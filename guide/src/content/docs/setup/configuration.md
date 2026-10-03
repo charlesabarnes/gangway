@@ -32,6 +32,10 @@ which upgrades leave alone.
 | `GANGWAY_TLS_KEY_PATH`       | _(none)_                  | Key for `file` mode                                              |
 | `GANGWAY_CF_API_TOKEN`       | _(none)_                  | Cloudflare token with DNS edit, for `acme`                       |
 | `GANGWAY_CF_ZONE_ID`         | _(looked up)_             | The zone, if the token cannot list zones                         |
+| `GANGWAY_ACME_DNS_URL`       | _(none)_                  | An acme-dns server, for `acme` instead of Cloudflare             |
+| `GANGWAY_ACME_DNS_USERNAME`  | _(none)_                  | The acme-dns account's username                                  |
+| `GANGWAY_ACME_DNS_PASSWORD`  | _(none)_                  | The acme-dns account's password                                  |
+| `GANGWAY_ACME_DNS_SUBDOMAIN` | _(none)_                  | The acme-dns account's subdomain                                 |
 | `GANGWAY_ACME_EMAIL`         | _(none)_                  | Contact address for Let's Encrypt                                |
 | `GANGWAY_ACME_DIRECTORY_URL` | staging (compose)         | Set to `https://acme-v02.api.letsencrypt.org/directory` for real |
 
@@ -64,17 +68,35 @@ which upgrades leave alone.
 
 ## Email, sign-in, updates, GitHub
 
-| Variable                     | Default   |                                                                        |
-| ---------------------------- | --------- | ---------------------------------------------------------------------- |
-| `GANGWAY_SMTP_URL`           | _(Admin)_ | `smtp://user:pass@host:587` or `smtps://…:465`, for invites and resets |
-| `GANGWAY_MAIL_FROM`          | _(Admin)_ | The sender address                                                     |
-| `GANGWAY_OIDC_ISSUER`        | _(Admin)_ | An OpenID Connect issuer URL, for [single sign-on](/docs/setup/sso/)   |
-| `GANGWAY_OIDC_CLIENT_ID`     | _(Admin)_ | The client id gangway has at that provider                             |
-| `GANGWAY_OIDC_CLIENT_SECRET` | _(Admin)_ | Its client secret                                                      |
-| `GANGWAY_OIDC_LABEL`         | _(Admin)_ | The sign-in button's text; `Sign in with SSO` by default               |
-| `GANGWAY_PASSWORD_LOGIN`     | on        | `false` leaves only single sign-on, once the provider is set up        |
-| `GANGWAY_UPDATE_CHECK`       | on        | `false` stops the daily check for a new release                        |
-| `GANGWAY_GITHUB_APP_ID` etc. | _(Admin)_ | The GitHub App, if not created from **Admin → GitHub**                 |
+| Variable                     | Default   |                                                                                                               |
+| ---------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| `GANGWAY_SMTP_URL`           | _(Admin)_ | `smtp://user:pass@host:587` or `smtps://…:465`, for invites and resets; or an `https://` endpoint (see below) |
+| `GANGWAY_MAIL_FROM`          | _(Admin)_ | The sender address                                                                                            |
+| `GANGWAY_OIDC_ISSUER`        | _(Admin)_ | An OpenID Connect issuer URL, for [single sign-on](/docs/setup/sso/)                                          |
+| `GANGWAY_OIDC_CLIENT_ID`     | _(Admin)_ | The client id gangway has at that provider                                                                    |
+| `GANGWAY_OIDC_CLIENT_SECRET` | _(Admin)_ | Its client secret                                                                                             |
+| `GANGWAY_OIDC_LABEL`         | _(Admin)_ | The sign-in button's text; `Sign in with SSO` by default                                                      |
+| `GANGWAY_PASSWORD_LOGIN`     | on        | `false` leaves only single sign-on, once the provider is set up                                               |
+| `GANGWAY_UPDATE_CHECK`       | on        | `false` stops the daily check for a new release                                                               |
+| `GANGWAY_GITHUB_APP_ID` etc. | _(Admin)_ | The GitHub App, if not created from **Admin → GitHub**                                                        |
+
+With an `https://` URL, gangway sends no mail itself. It posts each message as JSON to that URL, and
+your service sends it, with its own templates if you like. The URL's password (or its user name, if
+there is no password) goes as `Authorization: Bearer <token>`, and never in the request URL:
+
+```json
+{
+  "from": "gangway <noreply@example.com>",
+  "to": "ana@example.com",
+  "subject": "Reset your gangway password",
+  "text": "…",
+  "purpose": "reset",
+  "link": "https://app.example.com/set-password#…"
+}
+```
+
+`purpose` is `invite`, `reset` or `test`; `link` is the one-use link in `text`, or `null` for a test.
+Any 2xx answer counts as sent.
 
 ## Paths and logging
 

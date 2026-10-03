@@ -160,6 +160,9 @@ function fakeDns(
       }
       return a;
     },
+    async resolveCname() {
+      return [];
+    },
   };
 }
 
@@ -407,6 +410,9 @@ describe("waitForTxtPropagation", () => {
       async resolveTxtFrom() {
         return [];
       },
+      async resolveCname() {
+        return [];
+      },
     };
     await expect(
       waitForTxtPropagation(CHALLENGE, ["v1"], { dns, zone: "example.com", log: silentLogger() }),
@@ -423,6 +429,7 @@ describe("waitForTxtPropagation", () => {
       },
       resolveAddresses: (h) => base.resolveAddresses(h),
       resolveTxtFrom: (ip, n) => base.resolveTxtFrom(ip, n),
+      resolveCname: (h) => base.resolveCname(h),
     };
     const cf = fakeCloudflare();
     const ok = await provider(cf, {

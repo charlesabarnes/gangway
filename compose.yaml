@@ -76,6 +76,7 @@
 #   GANGWAY_LISTEN_ADDRESS=::  GANGWAY_LISTEN_PORT=443  GANGWAY_LISTEN_HTTP_PORT=80
 #   GANGWAY_TLS_MODE=acme  GANGWAY_TRUSTED_PROXIES=  GANGWAY_ACME_EMAIL=you@example.com
 #   GANGWAY_CF_API_TOKEN=...   GANGWAY_ACME_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
+#   (or, for DNS not on Cloudflare, GANGWAY_ACME_DNS_URL/_USERNAME/_PASSWORD/_SUBDOMAIN for acme-dns)
 name: ${GANGWAY_CONTAINER:-gangway}
 services:
   gangway:
@@ -106,6 +107,11 @@ services:
       GANGWAY_ACME_DIRECTORY_URL: ${GANGWAY_ACME_DIRECTORY_URL:-https://acme-staging-v02.api.letsencrypt.org/directory}
       GANGWAY_ACME_EMAIL: ${GANGWAY_ACME_EMAIL:-}
       GANGWAY_CF_API_TOKEN: ${GANGWAY_CF_API_TOKEN:-}
+      # Or an acme-dns account, for DNS-01 when the domain's DNS is not on Cloudflare.
+      GANGWAY_ACME_DNS_URL: ${GANGWAY_ACME_DNS_URL:-}
+      GANGWAY_ACME_DNS_USERNAME: ${GANGWAY_ACME_DNS_USERNAME:-}
+      GANGWAY_ACME_DNS_PASSWORD: ${GANGWAY_ACME_DNS_PASSWORD:-}
+      GANGWAY_ACME_DNS_SUBDOMAIN: ${GANGWAY_ACME_DNS_SUBDOMAIN:-}
       # The first run against a daemon full of real workloads: look before it touches.
       # Switch to `stop` once a pass reports nothing surprising.
       GANGWAY_RECONCILE_ORPHANS: ${GANGWAY_RECONCILE_ORPHANS:-report}

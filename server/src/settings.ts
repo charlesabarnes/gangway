@@ -43,9 +43,22 @@ const smtpUrl = z
   .string()
   .trim()
   .refine(
-    (v) => v === "" || (/^smtps?:\/\/[^/]/.test(v) && URL.canParse(v)),
-    "an smtp:// or smtps:// URL, like smtp://user:password@smtp.example.com:587",
+    (v) => v === "" || (/^(?:smtps?|https):\/\/[^/]/.test(v) && URL.canParse(v) && decodes(v)),
+    "an smtp://, smtps:// or https:// URL, like smtp://user:password@smtp.example.com:587",
   );
+
+const RFC6750_BEARER_TOKEN = /^(?:[\w.~+/-]+=*)?$/;
+
+function decodes(v: string): boolean {
+  const u = new URL(v);
+  try {
+    const username = decodeURIComponent(u.username);
+    const password = decodeURIComponent(u.password);
+    return u.protocol !== "https:" || RFC6750_BEARER_TOKEN.test(password || username);
+  } catch {
+    return false;
+  }
+}
 
 const mailFrom = z
   .string()
@@ -169,6 +182,10 @@ export const SETTINGS = {
   passwordLogin: def("auth.passwords", z.boolean(), true),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
+  acmeDnsUrl: def("acme.acmeDns.url", z.url({ protocol: /^https$/ }).or(z.literal("")), ""),
+  acmeDnsUsername: def("acme.acmeDns.username", z.string(), ""),
+  acmeDnsPassword: def("acme.acmeDns.password", z.string(), "", { secret: true }),
+  acmeDnsSubdomain: def("acme.acmeDns.subdomain", z.string(), ""),
   githubAppId: def("github.appId", z.string(), ""),
   githubAppSlug: def("github.appSlug", z.string(), ""),
   githubClientId: def("github.clientId", z.string(), ""),
