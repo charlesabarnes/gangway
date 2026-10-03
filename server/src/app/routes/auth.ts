@@ -10,6 +10,7 @@ import type { User } from "@gangway/shared/domain";
 import type { Accounts, RequestMeta } from "../../auth/accounts.ts";
 import type { Actor } from "../../auth/actor.ts";
 import type { Bootstrap } from "../../auth/bootstrap.ts";
+import { WindowLimiter } from "../../auth/limiter.ts";
 import type { EmailLinks } from "../../auth/links.ts";
 import type { RolePermissions } from "../../auth/roles.ts";
 import type { Sso } from "../../auth/sso.ts";
@@ -47,6 +48,8 @@ export type AuthRouteDeps = {
   sso?: Sso | undefined;
   /** False only while an identity provider is set up and password sign-in is turned off. */
   passwords?: (() => boolean) | undefined;
+  /** Caps sign-in starts per source, so a flood cannot push out other people's pending state. */
+  ssoStarts?: WindowLimiter | undefined;
 };
 
 const STATE_COOKIE = "gw_oidc";
@@ -310,6 +313,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 // Sign-in through the identity provider. The callback is a top-level GET from the provider, so
 // the state cookie is SameSite=Lax; the state is also held server-side and used once.
 function ssoRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
+  const starts = d.ssoStarts ?? new WindowLimiter({ max: 20, windowMs: 60_000 });
   const sso = () => {
     if (!d.sso?.configured) {
       throw notFound("sign-in with an identity provider is not set up");
@@ -324,6 +328,9 @@ function ssoRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 
   pub.get("/auth/oidc/start", async (c) => {
     appOnly(c);
+    if (!starts.allow(meta(c).ip)) {
+      return back(c, "rate-limited");
+    }
     const { url, state } = await sso().begin(safeNext(c.req.query("next")));
     setCookie(c, STATE_COOKIE, state, {
       prefix: "host",

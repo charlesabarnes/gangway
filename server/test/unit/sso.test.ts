@@ -279,10 +279,23 @@ describe("sign-in through an OpenID Connect provider", () => {
     });
   });
 
-  test("an expired token is refused", async () => {
+  test("an expired or not-yet-valid token is refused", async () => {
     await refused((t) => {
       t.p.state.claims = { exp: Math.floor(Date.now() / 1000) - 3600 };
     });
+    await refused((t) => {
+      t.p.state.claims = { nbf: Math.floor(Date.now() / 1000) + 3600 };
+    });
+  });
+
+  test("starts are capped per source before any state is made", async () => {
+    const t = make();
+    const places = [];
+    for (let n = 0; n < 21; n++) {
+      places.push((await t.req("/v1/auth/oidc/start")).headers.get("location") ?? "");
+    }
+    expect(places.slice(0, 20).every((l) => l.startsWith(ISSUER))).toBe(true);
+    expect(places[20]).toBe("/login?sso=rate-limited");
   });
 
   test("a nonce from another sign-in is refused", async () => {

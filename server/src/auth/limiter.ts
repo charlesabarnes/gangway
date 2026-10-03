@@ -34,6 +34,28 @@ export function sourceKey(ip: string): string {
     .join(":")}::/64`;
 }
 
+/** At most `max` events per source in any `windowMs`; sources kept in a Bounded map. */
+export class WindowLimiter {
+  readonly #max: number;
+  readonly #windowMs: number;
+  readonly #now: () => number;
+  readonly #hits: Bounded<number[]>;
+  constructor(o: { max: number; windowMs: number; now?: () => number; maxKeys?: number }) {
+    this.#max = o.max;
+    this.#windowMs = o.windowMs;
+    this.#now = o.now ?? Date.now;
+    this.#hits = new Bounded(o.maxKeys ?? 10_000);
+  }
+  allow(ip: string): boolean {
+    const key = sourceKey(ip);
+    const now = this.#now();
+    const recent = (this.#hits.get(key) ?? []).filter((t) => now - t < this.#windowMs);
+    const ok = recent.length < this.#max;
+    this.#hits.set(key, ok ? [...recent, now] : recent);
+    return ok;
+  }
+}
+
 /** A map that forgets its oldest key past max, so an attacker cannot grow it without bound. */
 export class Bounded<V> {
   readonly #max: number;

@@ -360,6 +360,9 @@ function checkClaims(
   if (typeof c["exp"] !== "number" || c["exp"] + SKEW_S < now) {
     throw new Error("the id_token has expired");
   }
+  if (typeof c["nbf"] === "number" && c["nbf"] - SKEW_S > now) {
+    throw new Error("the id_token is not yet valid");
+  }
   if (typeof c["iat"] === "number" && c["iat"] - SKEW_S > now) {
     throw new Error("the id_token is from the future");
   }
