@@ -56,7 +56,6 @@ const mailFrom = z
     'an address, or a name and an address like "gangway <noreply@example.com>"',
   );
 
-// An OpenID Connect issuer: https, no query or fragment; discovery is <issuer>/.well-known/...
 const oidcIssuer = z
   .string()
   .trim()
@@ -167,7 +166,6 @@ export const SETTINGS = {
   oidcClientId: def("auth.oidc.clientId", z.string().trim().max(512), ""),
   oidcClientSecret: def("auth.oidc.clientSecret", z.string().max(1024), "", { secret: true }),
   oidcLabel: def("auth.oidc.label", z.string().trim().min(1).max(60), "Sign in with SSO"),
-  // Off leaves only the provider; it counts only while the provider is set up, so no lock-out.
   passwordLogin: def("auth.passwords", z.boolean(), true),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),

@@ -7,9 +7,7 @@ export type AnonymousSession = {
   authenticated: false;
   setupRequired: boolean;
   passwordReset?: boolean;
-  /** An identity provider people sign in with, named by its button. */
   oidc?: { label: string } | null;
-  /** False when only the identity provider signs people in. */
   passwords?: boolean;
 };
 

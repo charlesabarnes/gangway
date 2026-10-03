@@ -22,8 +22,7 @@ export type SetupRequest = z.infer<typeof SetupRequestSchema>;
 
 const roleId = z.string().min(1).max(64);
 
-// A first password to hand over, `invite: true` to email a link to choose one, or `sso: true`
-// for someone who signs in only through the identity provider.
+// A first password to hand over, `invite: true` to email a link, or `sso: true` for SSO only.
 export const CreateUserSchema = z
   .strictObject({
     email,

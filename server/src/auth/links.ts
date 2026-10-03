@@ -86,10 +86,7 @@ export class EmailLinks {
     return purpose;
   }
 
-  /**
-   * With password sign-in off there is nothing to set: the email only says where to sign in.
-   * It carries no secret, so it is safe to send again.
-   */
+  /** With passwords off: says where to sign in. It carries no secret, so a resend is harmless. */
   async sendSsoNotice(actor: Actor, user: User, label: string): Promise<void> {
     if (user.disabled) {
       throw conflict("the account is disabled; enable it first");
