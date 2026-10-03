@@ -141,6 +141,10 @@ services:
       GANGWAY_OIDC_LABEL: ${GANGWAY_OIDC_LABEL:-}
       # false allows only the provider to sign people in (ignored until the provider is set up).
       GANGWAY_PASSWORD_LOGIN: ${GANGWAY_PASSWORD_LOGIN:-}
+      # A Report link on the watermark, to this https URL; and the domains (comma-separated) whose
+      # previews always show it, even with the watermark off. Empty leaves both to Admin > Settings.
+      GANGWAY_WATERMARK_REPORT_URL: ${GANGWAY_WATERMARK_REPORT_URL:-}
+      GANGWAY_REPORT_DOMAINS: ${GANGWAY_REPORT_DOMAINS:-}
       # Public share links (Cloudflare quick tunnels): on by default only for a local-only
       # install. true or false pins them.
       GANGWAY_SHARE: ${GANGWAY_SHARE:-}

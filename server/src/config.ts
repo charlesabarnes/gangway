@@ -152,6 +152,8 @@ const SETTING_ENV_MAP = {
   GANGWAY_PREVIEW_BUILD_DISK: "previews.limits.buildDisk",
   GANGWAY_SHARE: "previews.share.enabled",
   GANGWAY_UPDATE_CHECK: "updates.check",
+  GANGWAY_WATERMARK_REPORT_URL: "previews.watermark.report",
+  GANGWAY_REPORT_DOMAINS: "previews.report.domains",
   GANGWAY_CF_API_TOKEN: "acme.cloudflare.apiToken",
   GANGWAY_CF_ZONE_ID: "acme.cloudflare.zoneId",
   GANGWAY_ACME_DNS_URL: "acme.acmeDns.url",

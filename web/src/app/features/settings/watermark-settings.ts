@@ -10,6 +10,8 @@ import { ToastService } from '../../ui/toast';
 
 const ON = 'previews.watermark';
 const LINK = 'previews.watermark.link';
+const REPORT = 'previews.watermark.report';
+const DOMAINS = 'previews.report.domains';
 
 /** The watermark gangway adds to every page a preview answers. */
 @Component({
@@ -58,6 +60,52 @@ const LINK = 'previews.watermark.link';
             </button>
           }
         </form>
+        <form
+          class="flex flex-wrap items-end gap-4"
+          (submit)="$event.preventDefault(); saveReport()"
+        >
+          <label class="gw-label min-w-72 flex-1"
+            >Where its Report link goes
+            <input
+              [class]="field"
+              name="report"
+              type="url"
+              placeholder="No Report link"
+              [value]="report()"
+              (input)="report.set($any($event.target).value)"
+              [disabled]="!canWrite() || managed(report$) || saving() !== null"
+              data-testid="watermark-report"
+          /></label>
+          <label class="gw-label min-w-72 flex-1"
+            >Domains that always show it
+            <input
+              [class]="field"
+              name="domains"
+              placeholder="example.com, other.example.com"
+              [value]="domains()"
+              (input)="domains.set($any($event.target).value)"
+              [disabled]="!canWrite() || managed(domains$) || saving() !== null"
+              data-testid="watermark-report-domains"
+          /></label>
+          @if (canWrite() && !(managed(report$) && managed(domains$))) {
+            <button
+              appBtn
+              type="submit"
+              [disabled]="
+                saving() !== null || (report() === savedReport() && domains() === savedDomains())
+              "
+            >
+              {{ saving() === report$ ? 'Saving…' : 'Save' }}
+            </button>
+          }
+        </form>
+        <p class="gw-section-note -mt-2">
+          With a Report link set, anyone viewing a preview can report it. Previews under the listed
+          domains keep the link even with the watermark off.
+          @if (managed(report$) || managed(domains$)) {
+            <span class="text-xs text-muted">managed by config</span>
+          }
+        </p>
       </div>
     </div>
   `,
@@ -78,6 +126,15 @@ export class WatermarkSettings {
   protected readonly on = linkedSignal(() => this.#row(ON)?.value !== false);
   protected readonly savedLink = linkedSignal(() => String(this.#row(LINK)?.value ?? ''));
   protected readonly link = linkedSignal(() => this.savedLink());
+  protected readonly report$ = REPORT;
+  protected readonly domains$ = DOMAINS;
+  protected readonly savedReport = linkedSignal(() => String(this.#row(REPORT)?.value ?? ''));
+  protected readonly report = linkedSignal(() => this.savedReport());
+  protected readonly savedDomains = linkedSignal(() => {
+    const v = this.#row(DOMAINS)?.value;
+    return Array.isArray(v) ? v.join(', ') : '';
+  });
+  protected readonly domains = linkedSignal(() => this.savedDomains());
   protected readonly managed = (key: string) => this.#row(key)?.managedByConfig === true;
 
   protected async setOn(on: boolean): Promise<void> {
@@ -97,11 +154,34 @@ export class WatermarkSettings {
     }
   }
 
+  protected async saveReport(): Promise<void> {
+    const report = this.report().trim();
+    const domains = this.domains()
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+    const values: Record<string, unknown> = {};
+    if (!this.managed(REPORT) && report !== this.savedReport()) values[REPORT] = report;
+    if (!this.managed(DOMAINS) && domains.join(', ') !== this.savedDomains())
+      values[DOMAINS] = domains;
+    if (Object.keys(values).length === 0) return;
+    if (await this.#putAll(REPORT, values)) {
+      this.savedReport.set(report);
+      this.savedDomains.set(domains.join(', '));
+      this.domains.set(domains.join(', '));
+      this.#toasts.info(report ? 'Previews show a Report link' : 'Previews show no Report link');
+    }
+  }
+
   async #put(key: string, value: unknown): Promise<boolean> {
+    return this.#putAll(key, { [key]: value });
+  }
+
+  async #putAll(busy: string, values: Record<string, unknown>): Promise<boolean> {
     if (this.saving() !== null) return false;
-    this.saving.set(key);
+    this.saving.set(busy);
     try {
-      await firstValueFrom(this.#http.put('/v1/settings', { values: { [key]: value } }));
+      await firstValueFrom(this.#http.put('/v1/settings', { values }));
       return true;
     } catch (e) {
       this.#toasts.problem('Could not change the setting', toProblem(e));

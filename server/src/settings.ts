@@ -47,6 +47,27 @@ const smtpUrl = z
     "an smtp://, smtps:// or https:// URL, like smtp://user:password@smtp.example.com:587",
   );
 
+const reportUrl = z
+  .string()
+  .trim()
+  .refine(
+    (v) => v === "" || (v.startsWith("https://") && URL.canParse(v)),
+    "an https:// URL, or empty for no report link",
+  );
+
+const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/;
+
+const reportDomains = z.preprocess(
+  (v) =>
+    typeof v === "string"
+      ? v
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      : v,
+  z.array(z.string().regex(HOSTNAME, "a lowercase hostname, like example.com")).max(50),
+);
+
 const RFC6750_BEARER_TOKEN = /^(?:[\w.~+/-]+=*)?$/;
 
 function decodes(v: string): boolean {
@@ -108,6 +129,9 @@ export const SETTINGS = {
     z.url().or(z.literal("")),
     "https://gangway.sh",
   ),
+  previewWatermarkReport: def("previews.watermark.report", reportUrl, ""),
+  // Previews under these domains always carry the report link, even with the mark off.
+  previewReportDomains: def("previews.report.domains", reportDomains, []),
   // The theme an artifact gets when it names none; "chart" is gangway's own.
   artifactTheme: def(
     "artifacts.theme",

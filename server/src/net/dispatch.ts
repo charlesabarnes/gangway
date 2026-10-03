@@ -17,7 +17,16 @@ import { isWebSocketUpgrade, keepFromSharedCaches } from "./headers.ts";
 import { release, tryAcquire, type Limits } from "./limits.ts";
 import type { RequestRates } from "./rates.ts";
 import { isBodyTooLarge, isTimeout, type Upstream } from "./upstream.ts";
-import { forMark, MARK_PATH, markResponse, stamp, wantsMark } from "./watermark.ts";
+import {
+  forMark,
+  MARK_PATH,
+  markModeOf,
+  markResponse,
+  stamp,
+  wantsMark,
+  type MarkMode,
+  type Stamp,
+} from "./watermark.ts";
 
 export type Surface = "app" | "api" | "mcp" | "hooks" | "registry" | "www";
 
@@ -55,8 +64,15 @@ export type DispatchDeps = {
   logUrlFor?: (previewId: string) => string | undefined;
   clientIpFor: (req: Request) => string;
   onProxied?: (entry: RouteEntry) => void;
-  /** The gangway watermark: whether a preview's pages carry it, and the script that draws it. */
-  watermark?: { on: (entry: RouteEntry) => boolean; script: () => string } | undefined;
+  /** The gangway watermark: what a preview's pages carry (the mark, a report link, nothing) and its script. */
+  watermark?:
+    | {
+        mode: (entry: RouteEntry) => MarkMode | null;
+        script: (mode: MarkMode) => string;
+        /** Changes with the settings the script draws, so browsers fetch the new one. */
+        version: () => string;
+      }
+    | undefined;
 };
 
 export function hostKind(
@@ -206,8 +222,11 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
   if (wait) {
     return tooManyPage(host, wait);
   }
-  if (d.watermark && req.url.includes(MARK_PATH) && new URL(req.url).pathname === MARK_PATH) {
-    return markResponse(req, d.watermark.script());
+  if (d.watermark && req.url.includes(MARK_PATH)) {
+    const url = new URL(req.url);
+    if (url.pathname === MARK_PATH) {
+      return markResponse(req, d.watermark.script(markModeOf(url)));
+    }
   }
 
   const gated = d.visibilityGate?.(entry, req, clientIp);
@@ -229,10 +248,13 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
 
 async function respond(req: Request, visit: Visit, entry: RouteEntry): Promise<Response> {
   const { d } = visit;
+  const mode = d.watermark && wantsMark(req) ? d.watermark.mode(entry) : null;
+  const s: Stamp | null =
+    d.watermark && mode !== null ? { mode, version: d.watermark.version() } : null;
   const res =
-    d.watermark && wantsMark(req) && d.watermark.on(entry)
-      ? stamp(await answer(forMark(req), visit, entry), req)
-      : await answer(req, visit, entry);
+    s === null
+      ? await answer(req, visit, entry)
+      : stamp(await answer(forMark(req, s), visit, entry), req, s);
   // A CDN in front would otherwise hand a gated preview's files to people who never passed the gate.
   return d.restricted?.(entry) ? keepFromSharedCaches(res) : res;
 }

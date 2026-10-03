@@ -11,7 +11,7 @@ import { controlAllowRisk, controlGate } from "../net/control-allow.ts";
 import { clientIpOf, startListener, type RunningListener } from "../net/listener.ts";
 import { clientIpResolver, type ClientIpResolver } from "../net/trusted-proxy.ts";
 import { serveSite, THEME_LOGO_PATH } from "../net/site.ts";
-import { markScript } from "../net/watermark.ts";
+import { markScript, underDomains, type MarkMode } from "../net/watermark.ts";
 import { useFontHostFor } from "../net/page-chrome.ts";
 import { normalizeHost } from "@gangway/shared/hostname";
 import { tunnelClientIp, tunnelPeerFor } from "../share/client-ip.ts";
@@ -169,17 +169,40 @@ function clientIpFor(
   };
 }
 
-function watermarkFor({ ctx, settings }: NetworkDeps): NonNullable<DispatchDeps["watermark"]> {
-  let cached: { link: string; script: string } | null = null;
+export function watermarkFor({
+  ctx,
+  settings,
+}: NetworkDeps): NonNullable<DispatchDeps["watermark"]> {
+  const cached = new Map<string, string>();
   return {
-    on: (entry) =>
-      ctx.previews.watermarkOf(entry.previewId) ?? settings.get(SETTINGS.previewWatermark),
-    script: () => {
-      const link = settings.get(SETTINGS.previewWatermarkLink);
-      if (cached?.link !== link) {
-        cached = { link, script: markScript(link) };
+    // With the mark off, a page under a report domain still carries the report link.
+    mode: (entry) => {
+      if (ctx.previews.watermarkOf(entry.previewId) ?? settings.get(SETTINGS.previewWatermark)) {
+        return "mark";
       }
-      return cached.script;
+      const report = settings.get(SETTINGS.previewWatermarkReport);
+      return report && underDomains(entry.hostname, settings.get(SETTINGS.previewReportDomains))
+        ? "report"
+        : null;
+    },
+    version: () => {
+      const link = settings.get(SETTINGS.previewWatermarkLink);
+      const report = settings.get(SETTINGS.previewWatermarkReport);
+      return Bun.hash(`${link}\n${report}`).toString(36).slice(0, 8);
+    },
+    script: (mode: MarkMode) => {
+      const link = settings.get(SETTINGS.previewWatermarkLink);
+      const report = settings.get(SETTINGS.previewWatermarkReport);
+      const key = JSON.stringify([link, report, mode]);
+      let script = cached.get(key);
+      if (script === undefined) {
+        if (cached.size > 8) {
+          cached.clear();
+        }
+        script = markScript(link, report, mode);
+        cached.set(key, script);
+      }
+      return script;
     },
   };
 }
