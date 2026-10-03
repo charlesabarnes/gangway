@@ -31,6 +31,7 @@ export type CreateUser = {
   email: string;
   roleId: string;
   invited?: boolean;
+  ssoOnly?: boolean;
 } & UserCredentials;
 
 // Emails arrive trimmed and lowercased; the UNIQUE column has no NOCASE collation.
@@ -45,8 +46,8 @@ export class UsersRepo {
 
   create(u: CreateUser): User {
     this.#db.run(
-      `INSERT INTO users (id, email, password_hash, password_salt, role_id, disabled, invited, created_at)
-       VALUES ($id, $email, $hash, $salt, $role, 0, $invited, $now)`,
+      `INSERT INTO users (id, email, password_hash, password_salt, role_id, disabled, invited, sso_only, created_at)
+       VALUES ($id, $email, $hash, $salt, $role, 0, $invited, $ssoOnly, $now)`,
       {
         id: u.id,
         email: u.email,
@@ -54,6 +55,7 @@ export class UsersRepo {
         salt: u.salt,
         role: u.roleId,
         invited: num(u.invited === true),
+        ssoOnly: num(u.ssoOnly === true),
         now: this.#now(),
       },
     );
@@ -103,16 +105,28 @@ export class UsersRepo {
     return this.get(id);
   }
 
-  /** Also ends an invitation: the account now has a password someone chose. */
+  /** Signs in only through the identity provider, so no emailed link may set a password. */
+  isSsoOnly(id: string): boolean {
+    const r = this.#db.get("SELECT sso_only FROM users WHERE id = $id", { id }) as
+      { sso_only: number } | undefined;
+    return r?.sso_only === 1;
+  }
+
+  /** Also ends an invitation, and SSO-only: the account now has a password someone chose. */
   setPassword(id: string, c: UserCredentials): void {
     this.#db.run(
-      "UPDATE users SET password_hash = $hash, password_salt = $salt, invited = 0 WHERE id = $id",
+      "UPDATE users SET password_hash = $hash, password_salt = $salt, invited = 0, sso_only = 0 WHERE id = $id",
       {
         id,
         hash: c.hash,
         salt: c.salt,
       },
     );
+  }
+
+  /** An invited account that signs in through its identity provider has accepted the invitation. */
+  clearInvited(id: string): void {
+    this.#db.run("UPDATE users SET invited = 0 WHERE id = $id", { id });
   }
 
   countActiveAdmins(exceptId?: string): number {

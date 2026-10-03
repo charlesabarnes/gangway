@@ -6,6 +6,7 @@ import { LoginLimiter } from "../auth/limiter.ts";
 import { Passwords } from "../auth/password.ts";
 import { RolePermissions } from "../auth/roles.ts";
 import { Sessions } from "../auth/sessions.ts";
+import { Sso } from "../auth/sso.ts";
 import { Tokens } from "../auth/tokens.ts";
 import { Mailer } from "../mail/mailer.ts";
 import { SETTINGS } from "../settings.ts";
@@ -23,6 +24,9 @@ export type Identity = {
   bootstrap: Bootstrap;
   mailer: Mailer;
   links: EmailLinks;
+  sso: Sso;
+  /** False only while an identity provider is set up and password sign-in is turned off. */
+  passwords: () => boolean;
 };
 
 export function createIdentity({ db, repos, audit, origin, settings, logger }: Core): Identity {
@@ -47,6 +51,7 @@ export function createIdentity({ db, repos, audit, origin, settings, logger }: C
   const accounts = new Accounts({
     db,
     users: repos.users,
+    identities: repos.userIdentities,
     roles: repos.roles,
     sessions,
     audit,
@@ -73,7 +78,32 @@ export function createIdentity({ db, repos, audit, origin, settings, logger }: C
   });
   const tokens = new Tokens(repos.tokens, roles, audit);
   const bootstrap = new Bootstrap(() => repos.users.count());
-  return { roles, sessions, oauth, accounts, tokens, bootstrap, mailer, links };
+  const sso = new Sso({
+    config: () => {
+      const issuer = settings.get(SETTINGS.oidcIssuer);
+      const clientId = settings.get(SETTINGS.oidcClientId);
+      const clientSecret = settings.get(SETTINGS.oidcClientSecret);
+      return issuer === "" || clientId === "" || clientSecret === ""
+        ? null
+        : { issuer, clientId, clientSecret, label: settings.get(SETTINGS.oidcLabel) };
+    },
+    redirectUri: () => `${origin("app")}/v1/auth/oidc/callback`,
+    logger: logger.child({ mod: "sso" }),
+  });
+  // Off counts only while the provider is set up, so a half-finished setup never locks anyone out.
+  const passwordLogin = () => settings.get(SETTINGS.passwordLogin) || !sso.configured;
+  return {
+    roles,
+    sessions,
+    oauth,
+    accounts,
+    tokens,
+    bootstrap,
+    mailer,
+    links,
+    sso,
+    passwords: passwordLogin,
+  };
 }
 
 export function resolveAdminToken(

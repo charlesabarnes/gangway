@@ -22,16 +22,17 @@ export type SetupRequest = z.infer<typeof SetupRequestSchema>;
 
 const roleId = z.string().min(1).max(64);
 
-// A first password to hand over, or `invite: true` to email a link to choose one.
+// A first password to hand over, `invite: true` to email a link, or `sso: true` for SSO only.
 export const CreateUserSchema = z
   .strictObject({
     email,
     roleId,
     password: password.optional(),
     invite: z.literal(true).optional(),
+    sso: z.literal(true).optional(),
   })
-  .refine((u) => (u.password === undefined) !== (u.invite === undefined), {
-    message: "give a first password, or invite: true to email a link, not both",
+  .refine((u) => [u.password, u.invite, u.sso].filter((v) => v !== undefined).length === 1, {
+    message: "give exactly one of: a first password, invite: true, or sso: true",
   });
 export type CreateUserRequest = z.infer<typeof CreateUserSchema>;
 

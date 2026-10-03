@@ -1,4 +1,5 @@
 import type { Context, Hono } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { ChangePasswordSchema, LoginRequestSchema, SetupRequestSchema } from "@gangway/shared/api";
 import {
   EmailLinkSchema,
@@ -9,9 +10,11 @@ import type { User } from "@gangway/shared/domain";
 import type { Accounts, RequestMeta } from "../../auth/accounts.ts";
 import type { Actor } from "../../auth/actor.ts";
 import type { Bootstrap } from "../../auth/bootstrap.ts";
+import { WindowLimiter } from "../../auth/limiter.ts";
 import type { EmailLinks } from "../../auth/links.ts";
 import type { RolePermissions } from "../../auth/roles.ts";
-import { forbidden, notFound, unauthorized } from "../../errors.ts";
+import type { Sso } from "../../auth/sso.ts";
+import { AppError, forbidden, notFound, unauthorized } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { AppEnv } from "../env.ts";
 import {
@@ -42,7 +45,29 @@ export type AuthRouteDeps = {
   links?: EmailLinks | undefined;
   roles: RolePermissions;
   sessionMaxAgeSec: number;
+  sso?: Sso | undefined;
+  /** False only while an identity provider is set up and password sign-in is turned off. */
+  passwords?: (() => boolean) | undefined;
+  /** Caps sign-in starts per source, so a flood cannot push out other people's pending state. */
+  ssoStarts?: WindowLimiter | undefined;
 };
+
+const STATE_COOKIE = "gw_oidc";
+
+const passwordsOn = (d: AuthRouteDeps) => d.passwords?.() ?? true;
+
+const refuseWithoutPasswords = (d: AuthRouteDeps) => {
+  if (!passwordsOn(d)) {
+    throw forbidden(
+      `password sign-in is off on this server; use "${d.sso?.label() ?? "single sign-on"}"`,
+    );
+  }
+};
+
+// Only a path on this origin, so the callback cannot be made into an open redirect. Browsers drop
+// tabs and newlines from URLs, so "/\t/evil.example" would become "//evil.example": refuse them.
+const safeNext = (raw: string | undefined): string =>
+  raw !== undefined && /^\/(?![/\\])/.test(raw) && !/[\u0000-\u001f\u007f]/.test(raw) ? raw : "/";
 
 type GateEntry = NonNullable<ReturnType<GateDeps["lookup"]>>;
 
@@ -79,17 +104,19 @@ function describe(d: AuthRouteDeps, actor: Actor) {
       authenticated: true,
       setupRequired: false,
       token: { id: actor.tokenId, scopes: actor.scopes },
+      passwords: passwordsOn(d),
       permissions,
     };
   }
   if (actor.kind === "forge" || actor.kind === "workflow") {
-    return { authenticated: true, setupRequired: false, permissions };
+    return { authenticated: true, setupRequired: false, passwords: passwordsOn(d), permissions };
   }
   const user = d.accounts.getUser(actor.userId);
   return {
     authenticated: true,
     setupRequired: false,
     ...(user ? { user: wireUser(d, user) } : {}),
+    passwords: passwordsOn(d),
     permissions,
   };
 }
@@ -170,6 +197,7 @@ function emailLinkRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   pub.post("/auth/password-reset", async (c) => {
     appOnly(c);
     refuseForeignOrigin(c, d);
+    refuseWithoutPasswords(d);
     const { email } = PasswordResetRequestSchema.parse(await readJson(c));
     links().requestReset(email, meta(c));
     return c.body(null, 202);
@@ -178,6 +206,7 @@ function emailLinkRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   pub.post("/auth/link", async (c) => {
     appOnly(c);
     refuseForeignOrigin(c, d);
+    refuseWithoutPasswords(d);
     const { token } = EmailLinkSchema.parse(await readJson(c));
     c.header("cache-control", "no-store");
     return c.json(links().inspect(token));
@@ -186,6 +215,7 @@ function emailLinkRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   pub.post("/auth/link/redeem", async (c) => {
     appOnly(c);
     refuseForeignOrigin(c, d);
+    refuseWithoutPasswords(d);
     const { token, password } = RedeemEmailLinkSchema.parse(await readJson(c));
     const { user, secret } = await links().redeem(token, password, meta(c));
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
@@ -207,7 +237,9 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
         : {
             authenticated: false,
             setupRequired: d.bootstrap.pending,
-            passwordReset: d.links?.available === true,
+            passwordReset: passwordsOn(d) && d.links?.available === true,
+            oidc: d.sso?.configured ? { label: d.sso.label() } : null,
+            passwords: passwordsOn(d),
           },
     );
   });
@@ -215,6 +247,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
   pub.post("/auth/login", async (c) => {
     appOnly(c);
     refuseForeignOrigin(c, d);
+    refuseWithoutPasswords(d);
     const { email, password } = LoginRequestSchema.parse(await readJson(c));
     const { user, secret } = await d.accounts.login(email, password, meta(c));
     setSessionCookie(c, secret, d.sessionMaxAgeSec);
@@ -249,6 +282,7 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 
   gateRoute(pub, d);
   emailLinkRoutes(pub, d);
+  ssoRoutes(pub, d);
 
   const required = async (c: Context<AppEnv>): Promise<Actor> => {
     const actor = await resolveActor(c, d.auth);
@@ -269,8 +303,88 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
 
   pub.post("/auth/password", async (c) => {
     const actor = await required(c);
+    refuseWithoutPasswords(d);
     const { current, next } = ChangePasswordSchema.parse(await readJson(c));
     await d.accounts.changeOwnPassword(actor, current, next, meta(c));
     return c.body(null, 204);
+  });
+}
+
+// Sign-in through the identity provider. The callback is a top-level GET from the provider, so
+// the state cookie is SameSite=Lax; the state is also held server-side and used once.
+function ssoRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
+  const starts = d.ssoStarts ?? new WindowLimiter({ max: 20, windowMs: 60_000 });
+  const sso = () => {
+    if (!d.sso?.configured) {
+      throw notFound("sign-in with an identity provider is not set up");
+    }
+    return d.sso;
+  };
+  const back = (c: Context<AppEnv>, reason: string) => {
+    deleteCookie(c, STATE_COOKIE, { prefix: "host", path: "/", secure: true });
+    c.header("cache-control", "no-store");
+    return c.redirect(`/login?sso=${reason}`, 302);
+  };
+
+  pub.get("/auth/oidc/start", async (c) => {
+    appOnly(c);
+    if (!starts.allow(meta(c).ip)) {
+      return back(c, "rate-limited");
+    }
+    const { url, state } = await sso().begin(safeNext(c.req.query("next")));
+    setCookie(c, STATE_COOKIE, state, {
+      prefix: "host",
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+      maxAge: 600,
+    });
+    c.header("cache-control", "no-store");
+    c.header("referrer-policy", "no-referrer");
+    return c.redirect(url, 302);
+  });
+
+  pub.get("/auth/oidc/callback", async (c) => {
+    appOnly(c);
+    const provider = sso();
+    const m = meta(c);
+    // The person cancelled, or the provider refused them: nothing to count against anyone.
+    if (c.req.query("error") !== undefined) {
+      return back(c, "cancelled");
+    }
+    try {
+      d.accounts.ssoGate(m);
+    } catch {
+      return back(c, "rate-limited");
+    }
+    let identity;
+    try {
+      identity = await provider.complete({
+        state: c.req.query("state") ?? "",
+        cookieState: getCookie(c, STATE_COOKIE, "host"),
+        code: c.req.query("code") ?? "",
+      });
+    } catch (e) {
+      const reason = e instanceof AppError && e.status === 401 ? "failed" : "unavailable";
+      d.accounts.ssoFailed(m, e instanceof Error ? e.message : String(e));
+      return back(c, reason);
+    }
+    let secret: string;
+    try {
+      ({ secret } = d.accounts.ssoLogin(identity, m));
+    } catch (e) {
+      if (e instanceof AppError && e.status === 429) {
+        return back(c, "rate-limited");
+      }
+      if (e instanceof AppError && e.status === 403) {
+        return back(c, "no-account");
+      }
+      throw e;
+    }
+    deleteCookie(c, STATE_COOKIE, { prefix: "host", path: "/", secure: true });
+    setSessionCookie(c, secret, d.sessionMaxAgeSec);
+    c.header("cache-control", "no-store");
+    return c.redirect(identity.next, 302);
   });
 }

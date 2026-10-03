@@ -79,6 +79,8 @@ describe("first-run setup over HTTP", () => {
       authenticated: false,
       setupRequired: true,
       passwordReset: false,
+      oidc: null,
+      passwords: true,
     });
 
     const res = await t.app("/v1/auth/setup", {

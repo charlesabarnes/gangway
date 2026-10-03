@@ -4,6 +4,7 @@ import { must } from "@gangway/shared/must";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
+import type { UserIdentitiesRepo } from "../db/repos/user-identities.ts";
 import type { UsersRepo } from "../db/repos/users.ts";
 import type { Db } from "../db/types.ts";
 import {
@@ -20,6 +21,7 @@ import type { Actor } from "./actor.ts";
 import type { LoginLimiter } from "./limiter.ts";
 import type { Passwords } from "./password.ts";
 import type { Sessions } from "./sessions.ts";
+import type { SsoIdentity } from "./sso.ts";
 
 export type RequestMeta = { ip: string; userAgent: string | null };
 export type LoggedIn = { user: User; secret: string };
@@ -27,6 +29,8 @@ export type LoggedIn = { user: User; secret: string };
 export type AccountsDeps = {
   db: Pick<Db, "transaction">;
   users: UsersRepo;
+  /** Needed only for sign-in through an identity provider. */
+  identities?: UserIdentitiesRepo | undefined;
   roles: RolesRepo;
   sessions: Sessions;
   passwords: Passwords;
@@ -37,6 +41,7 @@ export type AccountsDeps = {
 };
 
 const BAD_LOGIN = "wrong email or password";
+const NO_ACCOUNT = "there is no account here for that sign-in; ask an admin to add you";
 const BLOCKED_NOTE_EVERY_MS = 15 * 60_000;
 
 export class Accounts {
@@ -99,6 +104,74 @@ export class Accounts {
     return { user, secret };
   }
 
+  /** Signs in someone the provider vouched for: by (issuer, subject), else by verified email. */
+  ssoLogin(identity: SsoIdentity, meta: RequestMeta): LoggedIn {
+    const { users, identities, limiter, audit, sessions, db } = this.#d;
+    if (!identities) {
+      throw new AppError("internal", "identity provider sign-in is not wired");
+    }
+    // Per address, like password logins: one person's failures never lock anyone else out.
+    const key = `sso:${identity.email}`;
+    const verdict = limiter.check(meta.ip, key);
+    if (!verdict.ok) {
+      throw rateLimited(verdict.retryAfterSec, "too many failed sign-ins; try again later");
+    }
+    const user = db.transaction(() => {
+      const linked = identities.userFor(identity.issuer, identity.subject);
+      const found = linked === undefined ? users.getByEmail(identity.email) : users.get(linked);
+      if (!found || found.disabled) {
+        return { refused: found ? ("disabled" as const) : ("unknown" as const) };
+      }
+      // Linked to another subject here: the email moved to someone else at the provider.
+      if (linked === undefined && identities.hasIssuer(found.id, identity.issuer)) {
+        return { refused: "subject-mismatch" as const };
+      }
+      identities.link(identity.issuer, identity.subject, found.id);
+      if (found.invited) {
+        users.clearInvited(found.id);
+      }
+      return { user: must(users.get(found.id), "the user just read") };
+    });
+    if ("refused" in user) {
+      limiter.fail(meta.ip, key);
+      audit.record(null, "auth.login.failed", identity.email, {
+        new: { ip: meta.ip, method: "sso", reason: user.refused },
+      });
+      throw forbidden(NO_ACCOUNT);
+    }
+    limiter.succeed(key);
+    const { secret, session } = sessions.issue(user.user.id, meta);
+    audit.record(
+      {
+        kind: "user",
+        userId: user.user.id,
+        roleId: user.user.roleId,
+        permissions: new Set(),
+        sessionId: session.id,
+      },
+      "auth.login",
+      user.user.id,
+      { new: { ip: meta.ip, method: "sso" } },
+    );
+    return { user: user.user, secret };
+  }
+
+  /** Before a callback is checked: a source with too many failures waits. */
+  ssoGate(meta: RequestMeta): void {
+    const verdict = this.#d.limiter.check(meta.ip, `sso-callback:${meta.ip}`);
+    if (!verdict.ok) {
+      throw rateLimited(verdict.retryAfterSec, "too many failed sign-ins; try again later");
+    }
+  }
+
+  /** A callback the provider's answer did not pass: counted against the source, and audited. */
+  ssoFailed(meta: RequestMeta, reason: string): void {
+    this.#d.limiter.fail(meta.ip, `sso-callback:${meta.ip}`);
+    this.#d.audit.record(null, "auth.login.failed", null, {
+      new: { ip: meta.ip, method: "sso", reason },
+    });
+  }
+
   async setupFirstAdmin(email: string, password: string, meta: RequestMeta): Promise<LoggedIn> {
     const { db, users, passwords, sessions, audit } = this.#d;
     // Db.transaction is synchronous, so hashing happens before it and nothing inside awaits.
@@ -124,16 +197,23 @@ export class Accounts {
     return this.#d.users.get(id);
   }
 
-  /** Without a password the account is invited: nobody can log in until its link is used. */
+  isSsoOnly(id: string): boolean {
+    return this.#d.users.isSsoOnly(id);
+  }
+
+  /**
+   * Without a password the account is invited: nobody can log in until its link is used. With
+   * `sso`, it signs in only through the identity provider and is not waiting on anything.
+   */
   async createUser(
     actor: Actor,
-    input: { email: string; password?: string | undefined; roleId: string },
+    input: { email: string; password?: string | undefined; roleId: string; sso?: boolean },
   ): Promise<User> {
     const { db, users, roles, passwords, audit } = this.#d;
     if (!roles.get(input.roleId)) {
       throw unprocessable(`no such role: ${input.roleId}`);
     }
-    const invited = input.password === undefined;
+    const invited = input.password === undefined && input.sso !== true;
     // A random password nobody knows, so the NOT NULL columns hold a hash that never matches.
     const credentials = await passwords.hash(input.password ?? randomBytes(32).toString("base64"));
     const user = db.transaction(() => {
@@ -145,11 +225,17 @@ export class Accounts {
         email: input.email,
         roleId: input.roleId,
         invited,
+        ssoOnly: input.sso === true,
         ...credentials,
       });
     });
     audit.record(actor, "user.created", user.id, {
-      new: { email: user.email, roleId: user.roleId, ...(invited ? { invited } : {}) },
+      new: {
+        email: user.email,
+        roleId: user.roleId,
+        ...(invited ? { invited } : {}),
+        ...(input.sso === true ? { sso: true } : {}),
+      },
     });
     return user;
   }

@@ -22,6 +22,7 @@ import {
   SqliteSettingsStore,
   TokensRepo,
   UserLinksRepo,
+  UserIdentitiesRepo,
   UsersRepo,
 } from "../db/repos/index.ts";
 import { OAuthClientsRepo } from "../db/repos/oauth-clients.ts";
@@ -60,6 +61,7 @@ export type Repos = {
   tokens: TokensRepo;
   users: UsersRepo;
   userLinks: UserLinksRepo;
+  userIdentities: UserIdentitiesRepo;
 };
 
 export function openStorage(path: string, logger: Logger): { db: Db; repos: Repos } {
@@ -98,6 +100,7 @@ function openRepos(db: Db): Repos {
     tokens: new TokensRepo(db),
     users: new UsersRepo(db),
     userLinks: new UserLinksRepo(db),
+    userIdentities: new UserIdentitiesRepo(db),
   };
 }
 

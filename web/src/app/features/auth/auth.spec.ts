@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { render, type Rendered } from '../../../testing/render';
 import { HARD_NAVIGATE } from '../../core/auth.guard';
+import { AuthService } from '../../core/auth.service';
 import { Login } from './login';
 import { Setup } from './setup';
 
@@ -156,6 +157,32 @@ describe('Login', () => {
       );
     await r.settle();
     expect(r.text('error')).toContain('01REQ');
+  });
+
+  const session = async (r: Rendered<unknown>, info: Record<string, unknown>) => {
+    const loading = TestBed.inject(AuthService).refresh();
+    r.http
+      .expectOne('/v1/auth/session')
+      .flush({ authenticated: false, setupRequired: false, ...info });
+    await loading;
+    await r.settle();
+  };
+
+  it('offers the identity provider, carrying where the person was headed', async () => {
+    const r = await open({ returnUrl: '/previews/01ABC' });
+    await session(r, { oidc: { label: 'Sign in with Example' }, passwords: true });
+    const sso = r.byTestId('sso') as HTMLAnchorElement;
+    expect(sso.textContent?.trim()).toBe('Sign in with Example');
+    expect(sso.getAttribute('href')).toBe('/v1/auth/oidc/start?next=%2Fpreviews%2F01ABC');
+    expect(r.byTestId('password')).not.toBeNull();
+  });
+
+  it('with passwords off there is only the provider, and a failed sign-in says why', async () => {
+    const r = await open({ sso: 'no-account' });
+    await session(r, { oidc: { label: 'Sign in with Example' }, passwords: false });
+    expect(r.byTestId('sso')).not.toBeNull();
+    expect(r.el.querySelector('form')).toBeNull();
+    expect(r.byTestId('sso-error')?.textContent).toContain('no account here');
   });
 
   it('password managers can find the fields', async () => {

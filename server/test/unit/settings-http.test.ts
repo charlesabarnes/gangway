@@ -99,4 +99,29 @@ describe("/v1/settings", () => {
     expect(refused.status).toBe(409);
     expect(((await refused.json()) as { detail: string }).detail).toContain("/v1/surfaces");
   });
+
+  const OIDC = {
+    "auth.oidc.issuer": "https://id.example.com",
+    "auth.oidc.clientId": "gangway",
+    "auth.oidc.clientSecret": "s3cret-value",
+  };
+
+  test.each(Object.keys(OIDC))("passwords cannot go off while %s is empty", async (missing) => {
+    const { call, ada, settings } = await make();
+    const values = { ...OIDC, [missing]: "", "auth.passwords": false };
+    const res = await call("/v1/settings", { method: "PUT", as: ada, json: { values } });
+    expect(res.status).toBe(422);
+    expect(settings.get(SETTINGS.passwordLogin)).toBe(true);
+  });
+
+  test("passwords go off with the provider set; its secret then stays", async () => {
+    const { call, ada, settings } = await make();
+    const put = (values: Record<string, unknown>) =>
+      call("/v1/settings", { method: "PUT", as: ada, json: { values } });
+    expect((await put({ ...OIDC, "auth.passwords": false })).status).toBe(200);
+    expect(settings.get(SETTINGS.passwordLogin)).toBe(false);
+    expect((await put({ "auth.oidc.clientSecret": "" })).status).toBe(422);
+    expect((await put({ "auth.oidc.clientSecret": "", "auth.passwords": false })).status).toBe(422);
+    expect(settings.get(SETTINGS.oidcClientSecret)).toBe("s3cret-value");
+  });
 });

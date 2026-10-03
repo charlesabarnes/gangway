@@ -63,7 +63,8 @@ export class EmailLinks {
     limiter.fail(meta.ip, email);
 
     const user = users.getByEmail(email);
-    if (!user || user.disabled) {
+    // An SSO-only account has no password to reset; the answer looks the same either way.
+    if (!user || user.disabled || users.isSsoOnly(user.id)) {
       audit.record(null, "auth.reset.requested", email, { new: { ip: meta.ip, sent: false } });
       return;
     }
@@ -80,10 +81,36 @@ export class EmailLinks {
     if (user.disabled) {
       throw conflict("the account is disabled; enable it first");
     }
+    if (this.#d.users.isSsoOnly(user.id)) {
+      throw conflict("the account signs in only with single sign-on; it has no password to set");
+    }
     const purpose: LinkPurpose = user.invited ? "invite" : "reset";
     await this.#send(user, purpose, actor);
     this.#d.audit.record(actor, "user.link.sent", user.id, { new: { purpose } });
     return purpose;
+  }
+
+  /** With passwords off: says where to sign in. It carries no secret, so a resend is harmless. */
+  async sendSsoNotice(actor: Actor, user: User, label: string): Promise<void> {
+    if (user.disabled) {
+      throw conflict("the account is disabled; enable it first");
+    }
+    const origin = this.#d.appOrigin();
+    const host = new URL(origin).host;
+    const inviter = actor.kind === "user" ? this.#d.users.get(actor.userId)?.email : undefined;
+    await this.#d.mailer.send({
+      to: user.email,
+      subject: `You have access to gangway at ${host}`,
+      text: [
+        `${inviter ?? "An admin"} added you to gangway at ${host}.`,
+        "",
+        `Sign in there with "${label}", using this email address:`,
+        `${origin}/login`,
+      ].join("\n"),
+      purpose: "invite",
+      link: `${origin}/login`,
+    });
+    this.#d.audit.record(actor, "user.link.sent", user.id, { new: { purpose: "sso" } });
   }
 
   inspect(secret: string): { email: string; purpose: LinkPurpose } {

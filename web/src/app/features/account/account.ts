@@ -47,7 +47,9 @@ import { ChangePassword } from './change-password';
         </div>
       }
 
-      <app-change-password />
+      @if (auth.passwords()) {
+        <app-change-password />
+      }
 
       @if (canTokens()) {
         <app-api-tokens />

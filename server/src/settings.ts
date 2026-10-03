@@ -69,6 +69,19 @@ const mailFrom = z
     'an address, or a name and an address like "gangway <noreply@example.com>"',
   );
 
+const oidcIssuer = z
+  .string()
+  .trim()
+  .refine(
+    (v) =>
+      v === "" ||
+      (URL.canParse(v) &&
+        new URL(v).protocol === "https:" &&
+        new URL(v).search === "" &&
+        new URL(v).hash === ""),
+    "an https:// issuer URL, like https://auth.example.com/application/o/gangway/",
+  );
+
 // A PEM pasted into an env var arrives with literal \n sequences.
 const pem = z.string().transform((v) => v.replaceAll(String.raw`\n`, "\n").trim());
 
@@ -161,6 +174,12 @@ export const SETTINGS = {
   acmeEmail: def("acme.email", z.email().or(z.literal("")), ""),
   mailSmtpUrl: def("mail.smtp.url", smtpUrl, "", { secret: true }),
   mailFrom: def("mail.from", mailFrom, ""),
+  // Sign-in through an OpenID Connect provider; on when the issuer, client id and secret are set.
+  oidcIssuer: def("auth.oidc.issuer", oidcIssuer, ""),
+  oidcClientId: def("auth.oidc.clientId", z.string().trim().max(512), ""),
+  oidcClientSecret: def("auth.oidc.clientSecret", z.string().max(1024), "", { secret: true }),
+  oidcLabel: def("auth.oidc.label", z.string().trim().min(1).max(60), "Sign in with SSO"),
+  passwordLogin: def("auth.passwords", z.boolean(), true),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
   acmeDnsUrl: def("acme.acmeDns.url", z.url({ protocol: /^https$/ }).or(z.literal("")), ""),

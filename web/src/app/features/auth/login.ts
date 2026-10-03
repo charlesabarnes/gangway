@@ -7,6 +7,14 @@ import { Btn } from '../../ui/button';
 import { ErrorAlert } from '../../ui/error-alert';
 import { AuthCard, FIELD, LABEL } from './auth-card';
 
+const SSO_ERRORS: Record<string, string> = {
+  'no-account': 'There is no account here for that sign-in. Ask your gangway admin to add you.',
+  failed: 'Signing in with the identity provider did not work. Try again.',
+  cancelled: 'Sign-in was cancelled.',
+  'rate-limited': 'Too many failed sign-ins. Wait a moment and try again.',
+  unavailable: 'The identity provider is not answering. Try again in a moment.',
+};
+
 @Component({
   selector: 'app-login',
   imports: [AuthCard, Btn, ErrorAlert, RouterLink],
@@ -14,71 +22,92 @@ import { AuthCard, FIELD, LABEL } from './auth-card';
     <app-auth-card heading="Log in">
       <span lede>Use the account your gangway admin gave you.</span>
 
-      <form (submit)="submit($event)" novalidate class="space-y-[18px]">
-        @if (auth.unreachable()) {
-          <app-error-alert class="px-3 py-2.5" data-testid="unreachable">
-            Cannot reach the server. It may be restarting — try again in a moment.
-          </app-error-alert>
-        }
-        @if (error(); as e) {
-          <app-error-alert class="px-3 py-2.5" data-testid="error">{{ e }}</app-error-alert>
-        }
-
-        <div>
-          <label for="email" [class]="label">Email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autocomplete="username"
-            required
-            autofocus
-            [class]="field"
-            [value]="email()"
-            (input)="email.set($any($event.target).value)"
-            data-testid="email"
-          />
-        </div>
-        <div>
-          <label for="password" [class]="label">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            required
-            [class]="field"
-            [value]="password()"
-            (input)="password.set($any($event.target).value)"
-            data-testid="password"
-          />
-          @if (auth.passwordReset()) {
-            <a
-              routerLink="/forgot-password"
-              [queryParams]="email().trim() ? { email: email().trim() } : {}"
-              class="mt-2 inline-block text-xs text-muted hover:text-ink"
-              data-testid="forgot"
-              >Forgot your password?</a
-            >
-          }
-        </div>
-
-        <button
+      @if (auth.unreachable()) {
+        <app-error-alert class="mb-[18px] block px-3 py-2.5" data-testid="unreachable">
+          Cannot reach the server. It may be restarting — try again in a moment.
+        </app-error-alert>
+      }
+      @if (ssoError(); as e) {
+        <app-error-alert class="mb-[18px] block px-3 py-2.5" data-testid="sso-error">{{
+          e
+        }}</app-error-alert>
+      }
+      @if (auth.oidc(); as label) {
+        <a
           appBtn
-          type="submit"
+          [variant]="auth.passwords() ? 'ghost' : 'primary'"
           class="w-full !py-[13px] !text-sm !tracking-[.14em]"
-          [disabled]="busy() || lockedFor() > 0"
-          data-testid="submit"
+          [href]="ssoHref()"
+          data-testid="sso"
+          >{{ label }}</a
         >
-          @if (lockedFor() > 0) {
-            Try again in {{ countdown() }}
-          } @else if (busy()) {
-            Logging in…
-          } @else {
-            Log in
+        @if (auth.passwords()) {
+          <p class="my-[18px] text-center text-xs text-muted">or with a password</p>
+        }
+      }
+
+      @if (auth.passwords()) {
+        <form (submit)="submit($event)" novalidate class="space-y-[18px]">
+          @if (error(); as e) {
+            <app-error-alert class="px-3 py-2.5" data-testid="error">{{ e }}</app-error-alert>
           }
-        </button>
-      </form>
+
+          <div>
+            <label for="email" [class]="label">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              required
+              autofocus
+              [class]="field"
+              [value]="email()"
+              (input)="email.set($any($event.target).value)"
+              data-testid="email"
+            />
+          </div>
+          <div>
+            <label for="password" [class]="label">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              [class]="field"
+              [value]="password()"
+              (input)="password.set($any($event.target).value)"
+              data-testid="password"
+            />
+            @if (auth.passwordReset()) {
+              <a
+                routerLink="/forgot-password"
+                [queryParams]="email().trim() ? { email: email().trim() } : {}"
+                class="mt-2 inline-block text-xs text-muted hover:text-ink"
+                data-testid="forgot"
+                >Forgot your password?</a
+              >
+            }
+          </div>
+
+          <button
+            appBtn
+            type="submit"
+            class="w-full !py-[13px] !text-sm !tracking-[.14em]"
+            [disabled]="busy() || lockedFor() > 0"
+            data-testid="submit"
+          >
+            @if (lockedFor() > 0) {
+              Try again in {{ countdown() }}
+            } @else if (busy()) {
+              Logging in…
+            } @else {
+              Log in
+            }
+          </button>
+        </form>
+      }
     </app-auth-card>
   `,
 })
@@ -95,6 +124,16 @@ export class Login {
   protected readonly password = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  // Where the identity provider's callback sent the browser back, and why.
+  protected readonly ssoError = computed(() => {
+    const reason = this.#route.snapshot.queryParamMap.get('sso');
+    return reason === null ? null : (SSO_ERRORS[reason] ?? SSO_ERRORS['failed']!);
+  });
+  protected readonly ssoHref = computed(() => {
+    const to = safeReturnUrl(this.#route.snapshot.queryParamMap.get('returnUrl'));
+    return `/v1/auth/oidc/start?next=${encodeURIComponent(to)}`;
+  });
 
   protected readonly lockedFor = signal(0);
   protected readonly countdown = computed(() => {
