@@ -133,6 +133,7 @@ export function mailSettingsRoutes(api: Hono<AppEnv>, audit: AuditSink, mailer: 
     const { to } = MailTestSchema.parse(await readJson(c));
     await mailer.send({
       to,
+      purpose: "test",
       subject: "gangway can send email",
       text: [
         "This is a test from gangway's Admin > Server settings.",

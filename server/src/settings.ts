@@ -43,8 +43,8 @@ const smtpUrl = z
   .string()
   .trim()
   .refine(
-    (v) => v === "" || (/^smtps?:\/\/[^/]/.test(v) && URL.canParse(v)),
-    "an smtp:// or smtps:// URL, like smtp://user:password@smtp.example.com:587",
+    (v) => v === "" || (/^(?:smtps?|https):\/\/[^/]/.test(v) && URL.canParse(v)),
+    "an smtp://, smtps:// or https:// URL, like smtp://user:password@smtp.example.com:587",
   );
 
 const mailFrom = z
