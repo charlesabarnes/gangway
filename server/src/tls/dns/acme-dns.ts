@@ -53,7 +53,11 @@ export class AcmeDnsProvider implements DnsProvider {
         throw new AppError("unprocessable", `acme-dns needs a ${field}`);
       }
     }
-    this.#url = o.url.replace(/\/+$/, "");
+    let url = o.url;
+    while (url.endsWith("/")) {
+      url = url.slice(0, -1);
+    }
+    this.#url = url;
     this.#username = o.username;
     this.#password = o.password;
     this.#subdomain = o.subdomain.toLowerCase();

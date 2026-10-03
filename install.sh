@@ -350,10 +350,11 @@ if [ "$UPGRADE" = 0 ]; then
     [ -z "$CF_TOKEN" ] || die "pass --cf-token or the --acme-dns-* flags, not both"
     [ -n "$ACME_DNS_URL" ] && [ -n "$ACME_DNS_USER" ] && [ -n "$ACME_DNS_KEY" ] && [ -n "$ACME_DNS_SUBDOMAIN" ] ||
       die "acme-dns needs all of --acme-dns-url, --acme-dns-user, --acme-dns-key and --acme-dns-subdomain"
+    # https only: every order sends the account's key.
     case "$ACME_DNS_URL" in
-      http://*[!A-Za-z0-9:/._-]* | https://*[!A-Za-z0-9:/._-]*) die "--acme-dns-url \"$ACME_DNS_URL\" is not a URL" ;;
-      http://?* | https://?*) ;;
-      *) die "--acme-dns-url must start with https:// (or http://)" ;;
+      https://*[!A-Za-z0-9:/._-]*) die "--acme-dns-url \"$ACME_DNS_URL\" is not a URL" ;;
+      https://?*) ;;
+      *) die "--acme-dns-url must start with https://" ;;
     esac
     for v in "$ACME_DNS_USER" "$ACME_DNS_KEY" "$ACME_DNS_SUBDOMAIN"; do
       case "$v" in *[!A-Za-z0-9_-]*) die "acme-dns credentials are letters, digits, - and _ only" ;; esac

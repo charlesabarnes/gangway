@@ -150,7 +150,7 @@ export const SETTINGS = {
   mailFrom: def("mail.from", mailFrom, ""),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
-  acmeDnsUrl: def("acme.acmeDns.url", z.url().or(z.literal("")), ""),
+  acmeDnsUrl: def("acme.acmeDns.url", z.url({ protocol: /^https$/ }).or(z.literal("")), ""),
   acmeDnsUsername: def("acme.acmeDns.username", z.string(), ""),
   acmeDnsPassword: def("acme.acmeDns.password", z.string(), "", { secret: true }),
   acmeDnsSubdomain: def("acme.acmeDns.subdomain", z.string(), ""),

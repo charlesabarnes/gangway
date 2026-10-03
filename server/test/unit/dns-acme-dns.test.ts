@@ -11,7 +11,7 @@ const API = "https://auth.acme-dns.test";
 const SUB = "d420c923-bbd7-4056-ab64-c3ca54c9b3cf";
 const TARGET = `${SUB}.auth.acme-dns.test`;
 const CHALLENGE = "_acme-challenge.preview.example.com";
-const PASSWORD = "htB9mR9DYgcu9bX_afHF62erXaH2TS7bg9KW3F7Z";
+const PASSWORD = "test-password-not-real";
 
 type Call = { url: string; headers: Headers; body: any };
 
@@ -196,6 +196,12 @@ describe("choosing the DNS-01 provider", () => {
       [SETTINGS.cloudflareApiToken.key]: "cf",
     });
     expect(dnsProvider(settings, silentLogger())).toBeInstanceOf(AcmeDnsProvider);
+  });
+
+  test("the acme-dns URL must be https, since every order sends the account's key", () => {
+    const settings = settingsWith({ [SETTINGS.acmeDnsUrl.key]: "http://auth.acme-dns.test" });
+    expect(() => settings.get(SETTINGS.acmeDnsUrl)).toThrow(/acme\.acmeDns\.url/);
+    expect(settingsWith({ [SETTINGS.acmeDnsUrl.key]: API }).get(SETTINGS.acmeDnsUrl)).toBe(API);
   });
 
   test("Cloudflare with a token, else manual", () => {
