@@ -8,6 +8,7 @@ export { IdempotencyRepo, type IdempotencyRecord } from "./idempotency.ts";
 export { BuildsRepo, type Build, type BuildState } from "./builds.ts";
 export { UsersRepo, type CreateUser, type UserCredentials } from "./users.ts";
 export { UserLinksRepo, type LinkPurpose, type UserLink } from "./user-links.ts";
+export { UserIdentitiesRepo } from "./user-identities.ts";
 export { SessionsRepo, type CreateSession } from "./sessions.ts";
 export { TokensRepo, type CreateToken } from "./tokens.ts";
 export { AuditRepo, type AppendAudit } from "./audit.ts";

@@ -49,6 +49,7 @@ export function settingsRoutes(
         next(SETTINGS.previewDomain.key, settings.get(SETTINGS.previewDomain)),
       );
     }
+    assertSignInPossible(settings, writes);
     for (const w of writes) {
       settings.set(w.def, w.value);
     }
@@ -193,4 +194,23 @@ function shown(w: SettingWrite, v: unknown): unknown {
     return v;
   }
   return v === "" ? "[unset]" : "[set]";
+}
+
+const OIDC_KEYS = [SETTINGS.oidcIssuer, SETTINGS.oidcClientId, SETTINGS.oidcClientSecret];
+
+// Password sign-in may go off only while an identity provider is fully set up, so a change here
+// can never leave nobody able to sign in.
+function assertSignInPossible(settings: Settings, writes: { key: string; value: unknown }[]): void {
+  const after = <T>(d: SettingDef<T>): T =>
+    writes.some((w) => w.key === d.key)
+      ? (writes.find((w) => w.key === d.key)?.value as T)
+      : settings.get(d);
+  if (after(SETTINGS.passwordLogin)) {
+    return;
+  }
+  if (OIDC_KEYS.some((d) => String(after(d)).trim() === "")) {
+    throw unprocessable(
+      "password sign-in can be turned off only while the identity provider's issuer, client id and secret are set",
+    );
+  }
 }

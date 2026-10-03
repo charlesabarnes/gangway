@@ -72,7 +72,10 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   addonRoutes(api, new DataBrowser(ctx));
   auditRoutes(api, repos.audit);
   tokenRoutes(api, identity.tokens);
-  userRoutes(api, identity.accounts, identity.links);
+  userRoutes(api, identity.accounts, identity.links, {
+    sso: identity.sso,
+    passwords: identity.passwords,
+  });
   roleRoutes(api, identity.roles);
   serverSettingRoutes(api, d);
   projectRoutes(api, {
@@ -168,6 +171,8 @@ export function publicRoutes(pub: Hono<AppEnv>, { ctx, auth, identity, gate }: P
     links: identity.links,
     roles: identity.roles,
     sessionMaxAgeSec: Math.floor(identity.sessions.timings.absoluteMs / 1000),
+    sso: identity.sso,
+    passwords: identity.passwords,
     gate: {
       lookup: (host) => table.lookup(host),
       issueTicket: (e, o) => gate.issueTicket(e, o),

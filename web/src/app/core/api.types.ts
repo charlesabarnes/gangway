@@ -238,19 +238,7 @@ export const SCOPE_PERMISSIONS: Record<Scope, readonly Permission[]> = {
   admin: PERMISSIONS,
 };
 
-export type SessionUser = { id: string; email: string; role: { id: string; name: string } };
-
-export type SessionInfo =
-  | { authenticated: false; setupRequired: boolean; passwordReset?: boolean }
-  | {
-      authenticated: true;
-      setupRequired: false;
-      user?: SessionUser;
-      token?: { id: string; scopes: Scope[] };
-      permissions: Permission[];
-    };
-
-export type LoginResponse = { user: SessionUser; permissions: Permission[] };
+export type { LoginResponse, SessionInfo, SessionUser } from './session.types';
 
 export type GitHubStatus = {
   configured: boolean;

@@ -18,7 +18,13 @@ export function generatePassword(length = 20): string {
 /** A new account, and its first password to hand over, or null when it was invited by email. */
 export type Added = { user: User; password: string | null };
 
-/** Adds an account: an emailed invitation, or a first password the admin hands over. */
+/** How a new account gets in. */
+export type How = 'sso' | 'invite' | 'password';
+
+/**
+ * Adds an account: through the identity provider, an emailed invitation, or a first password
+ * the admin hands over.
+ */
 @Component({
   selector: 'app-add-user',
   imports: [Btn],
@@ -28,7 +34,12 @@ export type Added = { user: User; password: string | null };
       <div class="flex flex-col gap-1">
         <h2 class="gw-h2">Add a user</h2>
         <p class="gw-section-note">
-          @if (mail()) {
+          @if (sso(); as label) {
+            They sign in with “{{ label }}” using this email address.
+            @if (!localLogin()) {
+              Password sign-in is off on this server.
+            }
+          } @else if (mail()) {
             Email them an invitation to choose a password, or set a first password and hand it over.
           } @else {
             You set a first password and hand it over. To email invitations instead, set up email
@@ -69,32 +80,24 @@ export type Added = { user: User; password: string | null };
             </select></label
           >
         </div>
-        @if (mail()) {
+        @if (choices().length > 1) {
           <fieldset class="flex flex-wrap gap-x-6 gap-y-2" data-testid="invite-choice">
             <legend class="sr-only">How they get in</legend>
-            <label class="flex items-center gap-2.5 text-[15px]">
-              <input
-                type="radio"
-                name="how"
-                [checked]="invite()"
-                (change)="invite.set(true)"
-                data-testid="how-invite"
-              />
-              Email an invitation
-            </label>
-            <label class="flex items-center gap-2.5 text-[15px]">
-              <input
-                type="radio"
-                name="how"
-                [checked]="!invite()"
-                (change)="invite.set(false)"
-                data-testid="how-password"
-              />
-              Set a first password
-            </label>
+            @for (c of choices(); track c.how) {
+              <label class="flex items-center gap-2.5 text-[15px]">
+                <input
+                  type="radio"
+                  name="how"
+                  [checked]="how() === c.how"
+                  (change)="pick.set(c.how)"
+                  [attr.data-testid]="'how-' + c.how"
+                />
+                {{ c.label }}
+              </label>
+            }
           </fieldset>
         }
-        <div class="flex items-end gap-3" [hidden]="inviting()">
+        <div class="flex items-end gap-3" [hidden]="how() !== 'password'">
           <label class="gw-label block min-w-0 flex-1"
             >First password
             <input
@@ -119,13 +122,13 @@ export type Added = { user: User; password: string | null };
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button appBtn type="submit" [disabled]="!ready() || busy()" data-testid="create-user">
-            @if (inviting()) {
+            @if (how() === 'invite') {
               {{ busy() ? 'Sending…' : 'Send invitation' }}
             } @else {
               {{ busy() ? 'Adding…' : 'Add user' }}
             }
           </button>
-          @if (!inviting() && password().length > 0 && password().length < 12) {
+          @if (how() === 'password' && password().length > 0 && password().length < 12) {
             <span class="text-sm text-muted">At least 12 characters.</span>
           }
           @if (error(); as e) {
@@ -141,6 +144,10 @@ export class AddUser {
   readonly defaultRole = input.required<string>();
   /** The server can send email, so an account can be an invitation instead of a password. */
   readonly mail = input.required<boolean>();
+  /** The identity provider's button text, when one is set up. */
+  readonly sso = input<string | null>(null);
+  /** Password sign-in is on; off leaves only the identity provider. */
+  readonly localLogin = input(true);
   readonly added = output<Added>();
 
   readonly #http = inject(HttpClient);
@@ -152,14 +159,32 @@ export class AddUser {
   protected readonly email = signal('');
   protected readonly password = signal(generatePassword());
   protected readonly roleId = linkedSignal(() => this.defaultRole());
-  protected readonly invite = signal(true);
-  protected readonly inviting = computed(() => this.mail() && this.invite());
+  protected readonly choices = computed(() => {
+    const out: { how: How; label: string }[] = [];
+    const label = this.sso();
+    if (label !== null) out.push({ how: 'sso', label: `Signs in with “${label}”` });
+    if (this.mail())
+      out.push({
+        how: 'invite',
+        label: this.localLogin()
+          ? 'Email an invitation'
+          : 'The same, and email them where to sign in',
+      });
+    if (this.localLogin()) out.push({ how: 'password', label: 'Set a first password' });
+    return out;
+  });
+  protected readonly pick = signal<How | null>(null);
+  protected readonly how = computed<How>(() => {
+    const options = this.choices().map((c) => c.how);
+    const picked = this.pick();
+    return picked !== null && options.includes(picked) ? picked : (options[0] ?? 'password');
+  });
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly ready = computed(
     () =>
       this.email().trim().includes('@') &&
-      (this.inviting() || this.password().length >= 12) &&
+      (this.how() !== 'password' || this.password().length >= 12) &&
       this.roleId() !== '',
   );
 
@@ -169,16 +194,18 @@ export class AddUser {
     this.busy.set(true);
     this.error.set(null);
     const password = this.password();
-    const inviting = this.inviting();
+    const how = this.how();
+    const inviting = how === 'invite';
     try {
       const { user, invite } = await firstValueFrom(
         this.#http.post<{ user: User; invite?: { sent: boolean; error?: string } }>('/v1/users', {
           email: this.email().trim(),
           roleId: this.roleId(),
-          ...(inviting ? { invite: true } : { password }),
+          ...(how === 'sso' ? { sso: true } : inviting ? { invite: true } : { password }),
         }),
       );
-      this.added.emit({ user, password: inviting ? null : password });
+      this.added.emit({ user, password: how === 'password' ? password : null });
+      if (how === 'sso') this.#toasts.info(`Added ${user.email}`);
       if (inviting && invite?.sent) this.#toasts.info(`Invitation sent to ${user.email}`);
       else if (inviting)
         this.error.set(

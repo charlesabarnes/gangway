@@ -50,7 +50,9 @@
   "sessionAnonymous": {
     "authenticated": false,
     "setupRequired": true,
-    "passwordReset": false
+    "passwordReset": false,
+    "oidc": null,
+    "passwords": true
   },
   "sessionUser": {
     "authenticated": true,

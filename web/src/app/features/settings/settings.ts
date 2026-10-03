@@ -12,6 +12,7 @@ import { PreviewPolicies } from './preview-policies';
 import { SurfacesSettings } from './surfaces-settings';
 import { UpdateSettings } from './update-settings';
 import { EmailSettings } from './email-settings';
+import { SsoSettings } from './sso-settings';
 import { WatermarkSettings } from './watermark-settings';
 import { DomainSettings } from './domain-settings';
 import { LimitSettings } from './limit-settings';
@@ -33,6 +34,7 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
     SurfacesSettings,
     UpdateSettings,
     EmailSettings,
+    SsoSettings,
     WatermarkSettings,
     DomainSettings,
     LimitSettings,
@@ -48,6 +50,7 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
       }
       @if (show('server') && canReadSettings()) {
         <app-email-settings [settings]="settings()" [(saving)]="saving" />
+        <app-sso-settings [settings]="settings()" [(saving)]="saving" />
       }
       @if (show('server') && canSurfaces()) {
         <app-surfaces-settings [(saving)]="saving" />

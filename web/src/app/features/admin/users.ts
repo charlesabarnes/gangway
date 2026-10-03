@@ -66,6 +66,8 @@ type Pending = { kind: 'disable' | 'reset'; user: User };
         [roles]="roleOptions()"
         [defaultRole]="defaultRole()"
         [mail]="mail()"
+        [sso]="sso()"
+        [localLogin]="localLogin()"
         (added)="added($event)"
       />
     }
@@ -136,18 +138,26 @@ type Pending = { kind: 'disable' | 'reset'; user: User };
                           (click)="emailLink(u)"
                           data-testid="email-link"
                         >
-                          {{ u.invited ? 'Resend invitation' : 'Email a reset link' }}
+                          {{
+                            !localLogin()
+                              ? 'Email where to sign in'
+                              : u.invited
+                                ? 'Resend invitation'
+                                : 'Email a reset link'
+                          }}
                         </button>
                       }
-                      <button
-                        type="button"
-                        class="gw-action"
-                        [disabled]="rowBusy() === u.id"
-                        (click)="ask('reset', u)"
-                        data-testid="reset-password"
-                      >
-                        {{ u.invited ? 'Set a password' : 'Reset password' }}
-                      </button>
+                      @if (localLogin()) {
+                        <button
+                          type="button"
+                          class="gw-action"
+                          [disabled]="rowBusy() === u.id"
+                          (click)="ask('reset', u)"
+                          data-testid="reset-password"
+                        >
+                          {{ u.invited ? 'Set a password' : 'Reset password' }}
+                        </button>
+                      }
                       @if (u.id !== me()) {
                         @if (u.disabled) {
                           <button
@@ -221,6 +231,10 @@ export class UsersList {
 
   /** The server can send email, so an account can be an invitation instead of a password. */
   protected readonly mail = signal(false);
+  /** The identity provider's button text, when one is set up. */
+  protected readonly sso = signal<string | null>(null);
+  /** Password sign-in is on; off leaves only the identity provider. */
+  protected readonly localLogin = signal(true);
   protected readonly defaultRole = signal('');
 
   protected readonly canManage = computed(() => this.#auth.can('users.manage'));
@@ -238,14 +252,23 @@ export class UsersList {
 
   async #load(): Promise<void> {
     try {
-      const [{ users, email }, roles] = await Promise.all([
-        firstValueFrom(this.#http.get<{ users: User[]; email?: boolean }>('/v1/users')),
+      const [{ users, email, sso, localLogin }, roles] = await Promise.all([
+        firstValueFrom(
+          this.#http.get<{
+            users: User[];
+            email?: boolean;
+            sso?: { label: string } | null;
+            localLogin?: boolean;
+          }>('/v1/users'),
+        ),
         this.#auth.can('roles.read')
           ? firstValueFrom(this.#http.get<RolesResponse>('/v1/roles')).then((r) => r.roles)
           : Promise.resolve([]),
       ]);
       this.users.set(users);
       this.mail.set(email === true);
+      this.sso.set(sso?.label ?? null);
+      this.localLogin.set(localLogin !== false);
       this.#roles.set(roles);
       // Default to a role the matrix can narrow, so a new account is never everything by accident.
       this.defaultRole.set(roles.find((r) => r.editable)?.id ?? this.roleOptions()[0]?.id ?? '');
@@ -282,10 +305,14 @@ export class UsersList {
     this.rowBusy.set(u.id);
     try {
       const { sent } = await firstValueFrom(
-        this.#http.post<{ sent: 'invite' | 'reset' }>(`/v1/users/${u.id}/email-link`, {}),
+        this.#http.post<{ sent: 'invite' | 'reset' | 'sso' }>(`/v1/users/${u.id}/email-link`, {}),
       );
       this.#toasts.info(
-        sent === 'invite' ? `Invitation sent to ${u.email}` : `Reset link sent to ${u.email}`,
+        sent === 'invite'
+          ? `Invitation sent to ${u.email}`
+          : sent === 'sso'
+            ? `Sign-in details sent to ${u.email}`
+            : `Reset link sent to ${u.email}`,
       );
     } catch (err) {
       this.#toasts.problem(`Could not email ${u.email}`, toProblem(err));

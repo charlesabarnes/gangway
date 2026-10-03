@@ -115,6 +115,11 @@ export class UsersRepo {
     );
   }
 
+  /** An invited account that signs in through its identity provider has accepted the invitation. */
+  clearInvited(id: string): void {
+    this.#db.run("UPDATE users SET invited = 0 WHERE id = $id", { id });
+  }
+
   countActiveAdmins(exceptId?: string): number {
     const row = this.#db.get(
       "SELECT COUNT(*) AS n FROM users WHERE role_id = $admin AND disabled = 0 AND id != $except",

@@ -86,6 +86,30 @@ export class EmailLinks {
     return purpose;
   }
 
+  /**
+   * With password sign-in off there is nothing to set: the email only says where to sign in.
+   * It carries no secret, so it is safe to send again.
+   */
+  async sendSsoNotice(actor: Actor, user: User, label: string): Promise<void> {
+    if (user.disabled) {
+      throw conflict("the account is disabled; enable it first");
+    }
+    const origin = this.#d.appOrigin();
+    const host = new URL(origin).host;
+    const inviter = actor.kind === "user" ? this.#d.users.get(actor.userId)?.email : undefined;
+    await this.#d.mailer.send({
+      to: user.email,
+      subject: `You have access to gangway at ${host}`,
+      text: [
+        `${inviter ?? "An admin"} added you to gangway at ${host}.`,
+        "",
+        `Sign in there with "${label}", using this email address:`,
+        `${origin}/login`,
+      ].join("\n"),
+    });
+    this.#d.audit.record(actor, "user.link.sent", user.id, { new: { purpose: "sso" } });
+  }
+
   inspect(secret: string): { email: string; purpose: LinkPurpose } {
     const link = this.#d.links.get(idOf(secret));
     const user = link && this.#d.users.get(link.userId);

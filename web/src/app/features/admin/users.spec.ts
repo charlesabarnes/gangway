@@ -40,7 +40,13 @@ const ADA = user({});
 const BOB = user({ id: 'u2', email: 'bob@example.com', roleId: 'member' });
 
 async function open(
-  o: { permissions?: readonly Permission[]; users?: User[]; email?: boolean } = {},
+  o: {
+    permissions?: readonly Permission[];
+    users?: User[];
+    email?: boolean;
+    sso?: { label: string } | null;
+    localLogin?: boolean;
+  } = {},
 ) {
   const r = await render(Host);
   const permissions = o.permissions ?? PERMISSIONS;
@@ -53,7 +59,12 @@ async function open(
   });
   await loading;
   await r.settle();
-  r.http.expectOne('/v1/users').flush({ users: o.users ?? [ADA, BOB], email: o.email ?? false });
+  r.http.expectOne('/v1/users').flush({
+    users: o.users ?? [ADA, BOB],
+    email: o.email ?? false,
+    sso: o.sso ?? null,
+    localLogin: o.localLogin ?? true,
+  });
   if (permissions.includes('roles.read')) r.http.expectOne('/v1/roles').flush({ roles: ROLES });
   await r.settle();
   return r;
@@ -73,6 +84,21 @@ const row = (r: Rendered<unknown>, email: string) =>
 
 describe('Admin · Users', () => {
   beforeAll(installDialogPolyfill);
+
+  it('with single sign-on and passwords off, a new account signs in with the provider', async () => {
+    const r = await open({ sso: { label: 'Sign in with Example' }, localLogin: false });
+    expect(r.byTestId('reset-password')).toBeNull();
+    expect(r.byTestId('new-password')?.closest('[hidden]')).not.toBeNull();
+    type(r, 'new-email', 'cy@example.com');
+    await r.settle();
+    r.byTestId('user-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await r.settle();
+    const req = r.http.expectOne({ method: 'POST', url: '/v1/users' });
+    expect(req.request.body).toEqual({ email: 'cy@example.com', roleId: 'member', sso: true });
+    req.flush({ user: user({ id: 'u3', email: 'cy@example.com', roleId: 'member' }) });
+    await r.settle();
+    expect(r.byTestId('handoff')).toBeNull();
+  });
 
   it('lists accounts with role names, status, and marks you', async () => {
     const r = await open({ users: [ADA, { ...BOB, disabled: true }] });

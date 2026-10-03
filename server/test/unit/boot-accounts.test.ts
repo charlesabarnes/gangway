@@ -83,6 +83,8 @@ test("first run announces an unlogged setup URL that makes the admin, once", asy
     authenticated: false,
     setupRequired: true,
     passwordReset: false,
+    oidc: null,
+    passwords: true,
   });
 
   const made = await first.call("app", "/v1/auth/setup", {
@@ -130,6 +132,8 @@ test("first run announces an unlogged setup URL that makes the admin, once", asy
     authenticated: false,
     setupRequired: false,
     passwordReset: false,
+    oidc: null,
+    passwords: true,
   });
   expect(
     (

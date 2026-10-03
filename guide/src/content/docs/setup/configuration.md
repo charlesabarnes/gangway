@@ -62,12 +62,17 @@ which upgrades leave alone.
 | `GANGWAY_PREVIEW_BUILD_DISK`      | `2g`                 | Free space gangway's state disk must have for a build to start; 0 is off       |
 | `GANGWAY_RECONCILE_ORPHANS`       | `report` (installer) | `report` or `stop` containers that look like gangway's but it does not know    |
 
-## Email, updates, GitHub
+## Email, sign-in, updates, GitHub
 
 | Variable                     | Default   |                                                                        |
 | ---------------------------- | --------- | ---------------------------------------------------------------------- |
 | `GANGWAY_SMTP_URL`           | _(Admin)_ | `smtp://user:pass@host:587` or `smtps://…:465`, for invites and resets |
 | `GANGWAY_MAIL_FROM`          | _(Admin)_ | The sender address                                                     |
+| `GANGWAY_OIDC_ISSUER`        | _(Admin)_ | An OpenID Connect issuer URL, for [single sign-on](/docs/setup/sso/)   |
+| `GANGWAY_OIDC_CLIENT_ID`     | _(Admin)_ | The client id gangway has at that provider                             |
+| `GANGWAY_OIDC_CLIENT_SECRET` | _(Admin)_ | Its client secret                                                      |
+| `GANGWAY_OIDC_LABEL`         | _(Admin)_ | The sign-in button's text; `Sign in with SSO` by default               |
+| `GANGWAY_PASSWORD_LOGIN`     | on        | `false` leaves only single sign-on, once the provider is set up        |
 | `GANGWAY_UPDATE_CHECK`       | on        | `false` stops the daily check for a new release                        |
 | `GANGWAY_GITHUB_APP_ID` etc. | _(Admin)_ | The GitHub App, if not created from **Admin → GitHub**                 |
 

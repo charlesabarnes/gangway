@@ -128,6 +128,13 @@ services:
       # smtp://user:password@smtp.example.com:587, or smtps://…:465.
       GANGWAY_SMTP_URL: ${GANGWAY_SMTP_URL:-}
       GANGWAY_MAIL_FROM: ${GANGWAY_MAIL_FROM:-}
+      # Sign-in through an OpenID Connect provider. Empty leaves it to Admin > Server.
+      GANGWAY_OIDC_ISSUER: ${GANGWAY_OIDC_ISSUER:-}
+      GANGWAY_OIDC_CLIENT_ID: ${GANGWAY_OIDC_CLIENT_ID:-}
+      GANGWAY_OIDC_CLIENT_SECRET: ${GANGWAY_OIDC_CLIENT_SECRET:-}
+      GANGWAY_OIDC_LABEL: ${GANGWAY_OIDC_LABEL:-}
+      # false allows only the provider to sign people in (ignored until the provider is set up).
+      GANGWAY_PASSWORD_LOGIN: ${GANGWAY_PASSWORD_LOGIN:-}
       # Public share links (Cloudflare quick tunnels): on by default only for a local-only
       # install. true or false pins them.
       GANGWAY_SHARE: ${GANGWAY_SHARE:-}

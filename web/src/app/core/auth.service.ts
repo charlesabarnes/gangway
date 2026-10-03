@@ -18,6 +18,16 @@ export class AuthService {
     const i = this.#info();
     return i?.authenticated === false && i.passwordReset === true;
   });
+  /** The identity provider's button text, when one is set up. */
+  readonly oidc = computed(() => {
+    const i = this.#info();
+    return i?.authenticated === false ? (i.oidc?.label ?? null) : null;
+  });
+  /** Password sign-in is on (the default); off leaves only the identity provider. */
+  readonly passwords = computed(() => {
+    const i = this.#info();
+    return i?.authenticated !== false || i.passwords !== false;
+  });
   readonly user = computed<SessionUser | null>(() => {
     const i = this.#info();
     return i?.authenticated ? (i.user ?? null) : null;

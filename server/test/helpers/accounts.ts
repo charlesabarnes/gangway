@@ -9,6 +9,7 @@ import {
   RolesRepo,
   SessionsRepo,
   TokensRepo,
+  UserIdentitiesRepo,
   UserLinksRepo,
   UsersRepo,
 } from "../../src/db/repos/index.ts";
@@ -34,9 +35,11 @@ export function setupAccounts() {
   const passwords = new Passwords({ ln: 10 });
   const limiter = new LoginLimiter({}, now);
   const userLinks = new UserLinksRepo(db, now);
+  const identities = new UserIdentitiesRepo(db, now);
   const accounts = new Accounts({
     db,
     users,
+    identities,
     roles: rolesRepo,
     sessions,
     passwords,
@@ -66,6 +69,7 @@ export function setupAccounts() {
     passwords,
     limiter,
     userLinks,
+    identities,
     accounts,
     actions,
     tokensRepo: new TokensRepo(db, now),

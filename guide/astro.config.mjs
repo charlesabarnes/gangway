@@ -86,7 +86,7 @@ export default defineConfig({
         },
         {
           label: "Set up",
-          items: ["setup/reverse-proxy", "setup/configuration", "setup/upgrades"],
+          items: ["setup/reverse-proxy", "setup/configuration", "setup/sso", "setup/upgrades"],
         },
         {
           label: "Alternatives",
