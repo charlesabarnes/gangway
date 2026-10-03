@@ -76,10 +76,7 @@ const SHARED_CACHE_HEADERS = [
   "surrogate-control",
 ];
 
-/**
- * cache-control that lets only the visitor's own browser keep a response: `public` and `private="…"`
- * become `private`, and `s-maxage` (for shared caches only) goes. `no-store` is left as it is.
- */
+/** cache-control that only the visitor's own browser may act on; `no-store` is left as it is. */
 export function privateCacheControl(value: string | null): string {
   const kept = (value ?? "")
     .split(",")
