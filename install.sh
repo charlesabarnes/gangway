@@ -407,7 +407,7 @@ if [ "$UPGRADE" = 0 ]; then
         ! port_busy "$p" || die "port $p is already in use; with --tls acme gangway needs 443 and 80 (or use --tls proxy)"
       done
       if [ -n "$ACME_DNS_URL" ]; then
-        # gangway checks the CNAME before each order and names the record if it is missing.
+        # gangway checks the CNAME before the CA validates, and names the record if it is missing.
         say "DNS-01 through acme-dns at $ACME_DNS_URL"
         say "_acme-challenge.$DOMAIN must be a CNAME to $ACME_DNS_SUBDOMAIN.<the acme-dns domain>"
       else

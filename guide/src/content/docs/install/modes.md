@@ -31,7 +31,7 @@ certificate, so this works on a LAN-only server too.
 If your DNS is somewhere else, use an [acme-dns](https://github.com/joohoi/acme-dns) server
 instead. Register an account on it, add one CNAME record from `_acme-challenge.<your domain>` to
 the account's `<subdomain>.<acme-dns domain>`, and install with `--acme-dns-url`,
-`--acme-dns-user`, `--acme-dns-key` and `--acme-dns-subdomain`. Before each order, gangway checks
+`--acme-dns-user`, `--acme-dns-key` and `--acme-dns-subdomain`. Before the CA checks a challenge, gangway checks
 that the CNAME is there and names the record if it is not. To use custom domains as well, also point
 `*.acme.<your domain>` at the same subdomain with a CNAME.
 
