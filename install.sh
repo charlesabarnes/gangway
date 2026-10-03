@@ -255,7 +255,8 @@ fi
 
 conf_get() { # conf_get <key>: the value this install runs with, from wherever its manager keeps it
   case "$MANAGER" in
-    compose) [ -f "$CONF/.env" ] && sed -n "s/^$1=//p" "$CONF/.env" | tail -n 1 ;;
+    # Compose drops one pair of quotes around a value; so does this.
+    compose) [ -f "$CONF/.env" ] && sed -n "s/^$1=//p" "$CONF/.env" | tail -n 1 | sed "s/^\"\(.*\)\"\$/\1/; s/^'\(.*\)'\$/\1/" ;;
     *) docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$NAME" 2>/dev/null | sed -n "s/^$1=//p" | tail -n 1 ;;
   esac
   return 0
