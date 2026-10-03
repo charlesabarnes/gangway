@@ -2,7 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { dispatch, type DispatchDeps } from "../../src/net/dispatch.ts";
 import { DEFAULT_LIMITS } from "../../src/net/limits.ts";
-import { forMark, MARK_PATH, markScript, stamp, wantsMark } from "../../src/net/watermark.ts";
+import {
+  forMark,
+  MARK_PATH,
+  markScript,
+  stamp,
+  underDomains,
+  wantsMark,
+  type MarkMode,
+} from "../../src/net/watermark.ts";
 import type { Actor } from "../../src/auth/actor.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
 import { previewPasswordApi } from "../helpers/preview-password.ts";
@@ -92,6 +100,62 @@ describe("stamping a page", () => {
   });
 });
 
+describe("the report link", () => {
+  test("is there only with a report URL, and drops the query and hash", () => {
+    expect(markScript("https://gangway.sh")).not.toContain('class=\\"report');
+    const js = markScript("https://gangway.sh", "https://cloud.example.com/report");
+    expect(js).toContain('class=\\"report');
+    expect(js).toContain('aria-label=\\"Report this page');
+    expect(js).toContain(
+      '"https://cloud.example.com/report?url="+encodeURIComponent(location.origin+location.pathname)',
+    );
+    expect(js).not.toContain("location.href");
+    expect(js).not.toContain("location.search");
+    expect(markScript("", "https://x.example.com/r?src=mark")).toContain(
+      '"https://x.example.com/r?src=mark&url="',
+    );
+  });
+
+  test("a report-only chip has no branding", () => {
+    const js = markScript("https://gangway.sh", "https://cloud.example.com/report", "report");
+    expect(js).toContain('class=\\"chip only');
+    expect(js).not.toContain("gangway</span>");
+    expect(js).not.toContain('href=\\"https://gangway.sh');
+  });
+
+  test("domains match exactly or as a parent, never as a bare suffix", () => {
+    const list = ["gway.app"];
+    expect(underDomains("gway.app", list)).toBe(true);
+    expect(underDomains("shop.acme.gway.app", list)).toBe(true);
+    expect(underDomains("SHOP.Acme.GWAY.app.", list)).toBe(true);
+    expect(underDomains("evilgway.app", list)).toBe(false);
+    expect(underDomains("gway.app.evil.com", list)).toBe(false);
+    expect(underDomains("shop.example.com", [])).toBe(false);
+  });
+
+  test("a report-mode page gets the report script tag and its own validator", async () => {
+    const res = stamp(page("<body>x</body>", { etag: '"abc"' }), nav(), "report");
+    expect(await res.text()).toBe(
+      `<body>x<script src="${MARK_PATH}?report" async data-gangway-mark></script></body>`,
+    );
+    expect(res.headers.get("etag")).toBe('W/"abc-gwr"');
+    const again = forMark(nav({ "if-none-match": 'W/"abc-gwr"' }));
+    expect(again.headers.get("if-none-match")).toBe('W/"abc"');
+  });
+
+  test("dispatch stamps by the mode it is given and answers the report script", async () => {
+    const res = await dispatch(nav(), deps("report"));
+    expect(await res.text()).toBe(
+      `<body>app<script src="${MARK_PATH}?report" async data-gangway-mark></script></body>`,
+    );
+    const js = await dispatch(
+      new Request(`https://${HOST}${MARK_PATH}?report`, { headers: { host: HOST } }),
+      deps(false),
+    );
+    expect(await js.text()).toBe("/* report */");
+  });
+});
+
 describe("the mark script", () => {
   test("skips frames, draws in a closed shadow root and links where the setting says", () => {
     const js = markScript("https://gangway.sh");
@@ -125,7 +189,9 @@ function entry(over: Partial<RouteEntry> = {}): RouteEntry {
   };
 }
 
-function deps(on: boolean, seen: Request[] = []): DispatchDeps {
+function deps(on: boolean | MarkMode, seen: Request[] = []): DispatchDeps {
+  const modes = { true: "mark", false: null } as const;
+  const mode: MarkMode | null = typeof on === "boolean" ? modes[`${on}`] : on;
   const e = entry();
   return {
     baseDomain: () => "preview.example.com",
@@ -143,7 +209,7 @@ function deps(on: boolean, seen: Request[] = []): DispatchDeps {
     surfaceEnabled: () => true,
     handlers: {},
     clientIpFor: () => "10.0.0.1",
-    watermark: { on: () => on, script: () => "/* mark */" },
+    watermark: { mode: () => mode, script: (m) => `/* ${m} */` },
   };
 }
 

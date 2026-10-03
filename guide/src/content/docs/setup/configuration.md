@@ -68,17 +68,19 @@ which upgrades leave alone.
 
 ## Email, sign-in, updates, GitHub
 
-| Variable                     | Default   |                                                                                                               |
-| ---------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
-| `GANGWAY_SMTP_URL`           | _(Admin)_ | `smtp://user:pass@host:587` or `smtps://…:465`, for invites and resets; or an `https://` endpoint (see below) |
-| `GANGWAY_MAIL_FROM`          | _(Admin)_ | The sender address                                                                                            |
-| `GANGWAY_OIDC_ISSUER`        | _(Admin)_ | An OpenID Connect issuer URL, for [single sign-on](/docs/setup/sso/)                                          |
-| `GANGWAY_OIDC_CLIENT_ID`     | _(Admin)_ | The client id gangway has at that provider                                                                    |
-| `GANGWAY_OIDC_CLIENT_SECRET` | _(Admin)_ | Its client secret                                                                                             |
-| `GANGWAY_OIDC_LABEL`         | _(Admin)_ | The sign-in button's text; `Sign in with SSO` by default                                                      |
-| `GANGWAY_PASSWORD_LOGIN`     | on        | `false` leaves only single sign-on, once the provider is set up                                               |
-| `GANGWAY_UPDATE_CHECK`       | on        | `false` stops the daily check for a new release                                                               |
-| `GANGWAY_GITHUB_APP_ID` etc. | _(Admin)_ | The GitHub App, if not created from **Admin → GitHub**                                                        |
+| Variable                       | Default   |                                                                                                               |
+| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------- |
+| `GANGWAY_SMTP_URL`             | _(Admin)_ | `smtp://user:pass@host:587` or `smtps://…:465`, for invites and resets; or an `https://` endpoint (see below) |
+| `GANGWAY_MAIL_FROM`            | _(Admin)_ | The sender address                                                                                            |
+| `GANGWAY_OIDC_ISSUER`          | _(Admin)_ | An OpenID Connect issuer URL, for [single sign-on](/docs/setup/sso/)                                          |
+| `GANGWAY_OIDC_CLIENT_ID`       | _(Admin)_ | The client id gangway has at that provider                                                                    |
+| `GANGWAY_OIDC_CLIENT_SECRET`   | _(Admin)_ | Its client secret                                                                                             |
+| `GANGWAY_OIDC_LABEL`           | _(Admin)_ | The sign-in button's text; `Sign in with SSO` by default                                                      |
+| `GANGWAY_PASSWORD_LOGIN`       | on        | `false` leaves only single sign-on, once the provider is set up                                               |
+| `GANGWAY_UPDATE_CHECK`         | on        | `false` stops the daily check for a new release                                                               |
+| `GANGWAY_WATERMARK_REPORT_URL` | _(Admin)_ | An `https://` page the watermark's **Report** link opens ([below](#report-link))                              |
+| `GANGWAY_REPORT_DOMAINS`       | _(Admin)_ | Comma-separated domains whose previews always show the Report link                                            |
+| `GANGWAY_GITHUB_APP_ID` etc.   | _(Admin)_ | The GitHub App, if not created from **Admin → GitHub**                                                        |
 
 With an `https://` URL, gangway sends no mail itself. It posts each message as JSON to that URL, and
 your service sends it, with its own templates if you like. The URL's password (or its user name, if
@@ -105,3 +107,15 @@ Any 2xx answer counts as sent.
 | `GANGWAY_STATE_DIR`   | `/state`      | Database, logs, uploads and backups           |
 | `GANGWAY_LOG_LEVEL`   | `info`        | `debug`, `info`, `warn` or `error`            |
 | `GANGWAY_CLOUDFLARED` | `cloudflared` | The binary share links run; the image has one |
+
+## Report link
+
+The watermark can carry a **Report** link, so anyone viewing a preview can report it. Set the page it
+opens in **Admin → Settings → Watermark**, or with `GANGWAY_WATERMARK_REPORT_URL`. gangway adds the
+preview's address as `?url=` (or `&url=` when the page already has a query), with the origin and path
+only: a query string or fragment can hold a secret, so neither is sent.
+
+Previews under the domains in `GANGWAY_REPORT_DOMAINS` always keep the link. With the watermark on, it
+sits beside the mark; with the watermark off, a small chip shows the Report link alone, with no gangway
+branding. A domain matches itself and every name under it: `example.com` covers `shop.example.com`, but
+not `myexample.com`. Set by environment variable, both settings are locked in Admin.
