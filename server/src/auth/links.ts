@@ -135,9 +135,11 @@ export class EmailLinks {
     const origin = this.#d.appOrigin();
     const url = `${origin}/set-password#${secret}`;
     const inviter = by?.kind === "user" ? this.#d.users.get(by.userId)?.email : undefined;
-    await this.#d.mailer.send(
-      message(purpose, user.email, { url, host: new URL(origin).host, inviter }),
-    );
+    await this.#d.mailer.send({
+      ...message(purpose, user.email, { url, host: new URL(origin).host, inviter }),
+      purpose,
+      link: url,
+    });
   }
 }
 

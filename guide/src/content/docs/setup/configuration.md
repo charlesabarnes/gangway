@@ -68,12 +68,30 @@ which upgrades leave alone.
 
 ## Email, updates, GitHub
 
-| Variable                     | Default   |                                                                        |
-| ---------------------------- | --------- | ---------------------------------------------------------------------- |
-| `GANGWAY_SMTP_URL`           | _(Admin)_ | `smtp://user:pass@host:587` or `smtps://…:465`, for invites and resets |
-| `GANGWAY_MAIL_FROM`          | _(Admin)_ | The sender address                                                     |
-| `GANGWAY_UPDATE_CHECK`       | on        | `false` stops the daily check for a new release                        |
-| `GANGWAY_GITHUB_APP_ID` etc. | _(Admin)_ | The GitHub App, if not created from **Admin → GitHub**                 |
+| Variable                     | Default   |                                                                                                               |
+| ---------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| `GANGWAY_SMTP_URL`           | _(Admin)_ | `smtp://user:pass@host:587` or `smtps://…:465`, for invites and resets; or an `https://` endpoint (see below) |
+| `GANGWAY_MAIL_FROM`          | _(Admin)_ | The sender address                                                                                            |
+| `GANGWAY_UPDATE_CHECK`       | on        | `false` stops the daily check for a new release                                                               |
+| `GANGWAY_GITHUB_APP_ID` etc. | _(Admin)_ | The GitHub App, if not created from **Admin → GitHub**                                                        |
+
+With an `https://` URL, gangway sends no mail itself. It posts each message as JSON to that URL, and
+your service sends it, with its own templates if you like. The URL's password (or its user name, if
+there is no password) goes as `Authorization: Bearer <token>`, and never in the request URL:
+
+```json
+{
+  "from": "gangway <noreply@example.com>",
+  "to": "ana@example.com",
+  "subject": "Reset your gangway password",
+  "text": "…",
+  "purpose": "reset",
+  "link": "https://app.example.com/set-password#…"
+}
+```
+
+`purpose` is `invite`, `reset` or `test`; `link` is the one-use link in `text`, or `null` for a test.
+Any 2xx answer counts as sent.
 
 ## Paths and logging
 

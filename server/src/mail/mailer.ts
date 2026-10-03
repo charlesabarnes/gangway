@@ -1,14 +1,35 @@
 import nodemailer from "nodemailer";
 import { conflict, errorMessage, unprocessable } from "../errors.ts";
 
-export type Mail = { to: string; subject: string; text: string };
+export type MailPurpose = "invite" | "reset" | "test";
+
+/** `purpose` and `link` let an HTTPS endpoint render its own message; SMTP sends `text`. */
+export type Mail = {
+  to: string;
+  subject: string;
+  text: string;
+  purpose?: MailPurpose;
+  link?: string;
+};
 export type Send = (m: Mail & { from: string }) => Promise<void>;
+export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
 export type MailerDeps = {
   url: () => string;
   from: () => string;
   transport?: (url: string) => Send;
+  fetch?: FetchLike;
 };
+
+const HTTPS_TIMEOUT_MS = 20_000;
+
+export function httpsCredential(url: URL): string | null {
+  try {
+    return decodeURIComponent(url.password || url.username);
+  } catch {
+    return null;
+  }
+}
 
 // A dead relay must fail a request in seconds, not hang it on the OS's TCP timeout.
 function smtp(url: string): Send {
@@ -24,6 +45,40 @@ function smtp(url: string): Send {
   };
 }
 
+// One JSON POST per message; the URL's password (or user name) goes as a bearer token instead.
+export function https(url: string, fetchImpl: FetchLike = (u, init) => fetch(u, init)): Send {
+  const target = new URL(url);
+  const credential = httpsCredential(target) ?? "";
+  target.username = "";
+  target.password = "";
+  const endpoint = target.toString();
+  return async (m) => {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (credential !== "") {
+      headers.authorization = `Bearer ${credential}`;
+    }
+    const res = await fetchImpl(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        from: m.from,
+        to: m.to,
+        subject: m.subject,
+        text: m.text,
+        purpose: m.purpose ?? null,
+        link: m.link ?? null,
+      }),
+      redirect: "error",
+      signal: AbortSignal.timeout(HTTPS_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      // Status only: an endpoint may echo the bearer token or the one-use link back.
+      await res.body?.cancel().catch(() => undefined);
+      throw new Error(`the endpoint answered HTTP ${res.status}`);
+    }
+  };
+}
+
 export class Mailer {
   readonly #d: MailerDeps;
   readonly #transport: (url: string) => Send;
@@ -31,7 +86,8 @@ export class Mailer {
 
   constructor(d: MailerDeps) {
     this.#d = d;
-    this.#transport = d.transport ?? smtp;
+    this.#transport =
+      d.transport ?? ((url) => (url.startsWith("https://") ? https(url, d.fetch) : smtp(url)));
   }
 
   get configured(): boolean {

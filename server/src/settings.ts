@@ -43,9 +43,22 @@ const smtpUrl = z
   .string()
   .trim()
   .refine(
-    (v) => v === "" || (/^smtps?:\/\/[^/]/.test(v) && URL.canParse(v)),
-    "an smtp:// or smtps:// URL, like smtp://user:password@smtp.example.com:587",
+    (v) => v === "" || (/^(?:smtps?|https):\/\/[^/]/.test(v) && URL.canParse(v) && decodes(v)),
+    "an smtp://, smtps:// or https:// URL, like smtp://user:password@smtp.example.com:587",
   );
+
+const RFC6750_BEARER_TOKEN = /^(?:[\w.~+/-]+=*)?$/;
+
+function decodes(v: string): boolean {
+  const u = new URL(v);
+  try {
+    const username = decodeURIComponent(u.username);
+    const password = decodeURIComponent(u.password);
+    return u.protocol !== "https:" || RFC6750_BEARER_TOKEN.test(password || username);
+  } catch {
+    return false;
+  }
+}
 
 const mailFrom = z
   .string()
