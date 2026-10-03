@@ -25,8 +25,8 @@ const PASSWORDS = 'auth.passwords';
         <h2 class="gw-h2">Single sign-on</h2>
         <p class="gw-section-note">
           People sign in through an OpenID Connect provider: Authentik, Keycloak, Google Workspace
-          or another. Only accounts you add under Admin → Users get in; the provider
-          proves who they are. Register this redirect URI with the provider:
+          or another. Only accounts you add under Admin → Users get in; the provider proves who they
+          are. Register this redirect URI with the provider:
           <span class="font-mono text-sm break-all" data-testid="redirect-uri">{{ redirect }}</span>
         </p>
       </div>
