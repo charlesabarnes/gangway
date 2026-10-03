@@ -92,15 +92,18 @@ export function userRoutes(
     return c.json({ user });
   });
 
-  emailLinkRoute(api, accounts, links, () => (passwordsOn() ? null : ssoLabel()));
+  emailLinkRoute(api, accounts, links, (id) =>
+    passwordsOn() && !accounts.isSsoOnly(id) ? null : ssoLabel(),
+  );
 }
 
-// An admin's resend. With passwords off (ssoOnly names the provider) it says where to sign in.
+// An admin's resend. For someone who signs in only with SSO (ssoOnly names the provider), the
+// email says where to sign in.
 function emailLinkRoute(
   api: Hono<AppEnv>,
   accounts: Accounts,
   links: EmailLinks | undefined,
-  ssoOnly: () => string | null,
+  ssoOnly: (userId: string) => string | null,
 ): void {
   api.post("/users/:id/email-link", requirePermission("users.manage"), async (c) => {
     if (!links?.available) {
@@ -111,7 +114,7 @@ function emailLinkRoute(
     if (!user) {
       throw notFound(`no such user: ${id}`);
     }
-    const label = ssoOnly();
+    const label = ssoOnly(user.id);
     if (label !== null) {
       await links.sendSsoNotice(c.get("actor"), user, label);
       return c.json({ sent: "sso" });

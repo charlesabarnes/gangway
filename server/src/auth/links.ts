@@ -63,7 +63,8 @@ export class EmailLinks {
     limiter.fail(meta.ip, email);
 
     const user = users.getByEmail(email);
-    if (!user || user.disabled) {
+    // An SSO-only account has no password to reset; the answer looks the same either way.
+    if (!user || user.disabled || users.isSsoOnly(user.id)) {
       audit.record(null, "auth.reset.requested", email, { new: { ip: meta.ip, sent: false } });
       return;
     }
@@ -79,6 +80,9 @@ export class EmailLinks {
   async sendFor(actor: Actor, user: User): Promise<LinkPurpose> {
     if (user.disabled) {
       throw conflict("the account is disabled; enable it first");
+    }
+    if (this.#d.users.isSsoOnly(user.id)) {
+      throw conflict("the account signs in only with single sign-on; it has no password to set");
     }
     const purpose: LinkPurpose = user.invited ? "invite" : "reset";
     await this.#send(user, purpose, actor);

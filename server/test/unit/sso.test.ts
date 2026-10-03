@@ -337,6 +337,14 @@ describe("sign-in through an OpenID Connect provider", () => {
     );
   });
 
+  test("an email match never takes an account linked to another subject there", async () => {
+    const t = await withBo();
+    expect(t.sessionCookie(await t.signIn())).toBeDefined();
+    t.p.state.nonce = "";
+    t.p.state.claims = { sub: "someone-else" };
+    expect((await t.signIn()).headers.get("location")).toBe("/login?sso=no-account");
+  });
+
   test("an invited account that signs in through the provider is no longer waiting", async () => {
     const t = make();
     const { user } = await t.s.admin();
@@ -450,5 +458,20 @@ describe("sso users", () => {
         })
       ).status,
     ).toBe(422);
+  });
+});
+
+describe("sso-only accounts and passwords", () => {
+  test("an admin-set password ends an account's sso-only state", async () => {
+    const t = await withBo();
+    const bo = t.s.users.getByEmail("bo@example.com")!;
+    expect(t.s.users.isSsoOnly(bo.id)).toBe(true);
+    const res = await t.req(`/v1/users/${bo.id}`, {
+      method: "PATCH",
+      headers: t.admin,
+      json: { password: PASSWORD },
+    });
+    expect(res.status).toBe(200);
+    expect(t.s.users.isSsoOnly(bo.id)).toBe(false);
   });
 });

@@ -172,6 +172,23 @@ describe("password reset", () => {
     expect(t.sent).toEqual([]);
   });
 
+  test("an sso-only account gets no reset link, from the form or an admin", async () => {
+    const t = setup();
+    await t.admin();
+    const actor = t.sessions.resolve(
+      (await t.accounts.login("ada@example.com", PASSWORD, META)).secret,
+    )!.actor;
+    const cy = await t.accounts.createUser(actor, {
+      email: "cy@example.com",
+      roleId: "member",
+      sso: true,
+    });
+    expect(t.links.requestReset("cy@example.com", META)).toBeUndefined();
+    await t.flush();
+    expect(t.sent).toEqual([]);
+    expect(t.links.sendFor(actor, cy)).rejects.toMatchObject({ status: 409 });
+  });
+
   test("asking again straight away is refused, and only the newest link works", async () => {
     const t = setup();
     await withBob(t);

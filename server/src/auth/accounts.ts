@@ -104,10 +104,7 @@ export class Accounts {
     return { user, secret };
   }
 
-  /**
-   * Signs in someone the identity provider vouched for. Never makes an account: it must exist,
-   * found by the provider's (issuer, subject) or, the first time, by the verified email.
-   */
+  /** Signs in someone the provider vouched for: by (issuer, subject), else by verified email. */
   ssoLogin(identity: SsoIdentity, meta: RequestMeta): LoggedIn {
     const { users, identities, limiter, audit, sessions, db } = this.#d;
     if (!identities) {
@@ -124,6 +121,10 @@ export class Accounts {
       const found = linked === undefined ? users.getByEmail(identity.email) : users.get(linked);
       if (!found || found.disabled) {
         return { refused: found ? ("disabled" as const) : ("unknown" as const) };
+      }
+      // Linked to another subject here: the email moved to someone else at the provider.
+      if (linked === undefined && identities.hasIssuer(found.id, identity.issuer)) {
+        return { refused: "subject-mismatch" as const };
       }
       identities.link(identity.issuer, identity.subject, found.id);
       if (found.invited) {
@@ -196,6 +197,10 @@ export class Accounts {
     return this.#d.users.get(id);
   }
 
+  isSsoOnly(id: string): boolean {
+    return this.#d.users.isSsoOnly(id);
+  }
+
   /**
    * Without a password the account is invited: nobody can log in until its link is used. With
    * `sso`, it signs in only through the identity provider and is not waiting on anything.
@@ -220,6 +225,7 @@ export class Accounts {
         email: input.email,
         roleId: input.roleId,
         invited,
+        ssoOnly: input.sso === true,
         ...credentials,
       });
     });

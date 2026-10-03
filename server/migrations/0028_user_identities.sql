@@ -11,3 +11,6 @@ CREATE TABLE user_identities (
   PRIMARY KEY (issuer, subject)
 );
 CREATE INDEX user_identities_user_idx ON user_identities(user_id);
+
+-- An account an admin added for single sign-on only: no emailed link may give it a password.
+ALTER TABLE users ADD COLUMN sso_only INTEGER NOT NULL DEFAULT 0 CHECK (sso_only IN (0,1));

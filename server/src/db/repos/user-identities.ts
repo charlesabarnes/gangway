@@ -18,6 +18,16 @@ export class UserIdentitiesRepo {
     return r?.user_id;
   }
 
+  /** True when the account already signs in as some subject at this issuer. */
+  hasIssuer(userId: string, issuer: string): boolean {
+    return (
+      this.#db.get(
+        "SELECT 1 AS one FROM user_identities WHERE user_id = $userId AND issuer = $issuer",
+        { userId, issuer },
+      ) !== undefined
+    );
+  }
+
   link(issuer: string, subject: string, userId: string): void {
     const now = this.#now();
     this.#db.run(
