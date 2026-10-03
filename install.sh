@@ -37,6 +37,7 @@ COMPOSE_FILE_SRC=
 ASSUME_YES=0
 SKIP_PULL=0
 ROLLBACK=0
+UPGRADE_ONLY=0
 
 usage() {
   cat <<'EOF'
@@ -55,6 +56,7 @@ Usage: install.sh [options]
   --acme-email <email>    contact address for Let's Encrypt (acme only, optional)
   --version <v>           image tag to run, e.g. 0.1.0 or edge (default latest)
   --rollback              put back the version and database from before the last upgrade
+  --upgrade               only upgrade: fail if gangway is not installed here, for scripts
   --platform <p>          skip detection: linux, unraid, truenas, casaos, synology, desktop
   --dir <path>            where gangway's files live (default depends on the platform)
   --name <name>           container name, for a second gangway on one host (default gangway)
@@ -88,6 +90,7 @@ while [ $# -gt 0 ]; do
     --acme-email) ACME_EMAIL=${2:?--acme-email needs a value}; shift ;;
     --version) VERSION=${2:?--version needs a value}; shift ;;
     --rollback) ROLLBACK=1 ;;
+    --upgrade) UPGRADE_ONLY=1 ;;
     --platform) PLATFORM=${2:?--platform needs a value}; shift ;;
     --dir) DIR=${2:?--dir needs a value}; shift ;;
     --name) NAME=${2:?--name needs a value}; shift ;;
@@ -252,7 +255,8 @@ fi
 
 conf_get() { # conf_get <key>: the value this install runs with, from wherever its manager keeps it
   case "$MANAGER" in
-    compose) [ -f "$CONF/.env" ] && sed -n "s/^$1=//p" "$CONF/.env" | tail -n 1 ;;
+    # Compose drops one pair of quotes around a value; so does this.
+    compose) [ -f "$CONF/.env" ] && sed -n "s/^$1=//p" "$CONF/.env" | tail -n 1 | sed "s/^\"\(.*\)\"\$/\1/; s/^'\(.*\)'\$/\1/" ;;
     *) docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$NAME" 2>/dev/null | sed -n "s/^$1=//p" | tail -n 1 ;;
   esac
   return 0
@@ -264,8 +268,16 @@ case "$MANAGER" in
   truenas) midclt call app.get_instance "$NAME" >/dev/null 2>&1 && UPGRADE=1 || UPGRADE=0 ;;
 esac
 [ "$ROLLBACK" = 0 ] || [ "$UPGRADE" = 1 ] || die "there is no gangway installed here to roll back"
+[ "$UPGRADE_ONLY" = 0 ] || [ "$UPGRADE" = 1 ] || die "there is no gangway installed in $CONF to upgrade"
 
 if [ "$UPGRADE" = 1 ]; then
+  # The state directory the install runs with, where gangway keeps its pre-migration backups.
+  if [ "$MANAGER" = compose ]; then
+    state_path=$(conf_get GANGWAY_STATE_PATH)
+    # Compose reads a relative bind path from the project directory, so this does too.
+    case "$state_path" in /* | "") ;; *) state_path=$CONF/${state_path#./} ;; esac
+    STATE=${state_path:-$STATE}
+  fi
   DOMAIN=$(conf_get GANGWAY_BASE_DOMAIN)
   case "$DOMAIN" in
     localhost | *.localhost) TLS=local ;;

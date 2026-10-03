@@ -53,6 +53,7 @@ curl -fsSL gangway.sh/install | sh -s -- --domain preview.example.com --tls acme
 | `--dir <path>`              | where gangway's files live                                              |
 | `--platform <p>`            | skip detection: `linux`, `unraid`, `truenas`, `casaos`, `synology`, …   |
 | `--rollback`                | put back the version and database from before the last upgrade          |
+| `--upgrade`                 | only upgrade: fail if gangway is not installed there, for scripts       |
 | `-y`, `--yes`               | do not ask; fail if something required is missing                       |
 
 With `--yes` and no domain, it stops and asks for `--domain` or `--lan`: a reverse proxy is the

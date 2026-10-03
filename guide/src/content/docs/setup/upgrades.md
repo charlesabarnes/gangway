@@ -19,8 +19,10 @@ last upgrade by hand:
 curl -fsSL gangway.sh/install | sh -s -- --rollback
 ```
 
-`--version 0.3.3` pins a version instead of `latest`. gangway checks GitHub once a day for a newer
-release and shows it in the dashboard; `GANGWAY_UPDATE_CHECK=false` stops that.
+`--version 0.3.3` pins a version instead of `latest`. In a script, add `--yes --upgrade`: the
+installer then fails if gangway is not installed where it looks, rather than starting a new
+install. gangway checks GitHub once a day for a newer release and shows it in the dashboard;
+`GANGWAY_UPDATE_CHECK=false` stops that.
 
 On Unraid, **Update** in the Docker tab upgrades the `gangway` template. For **gangway-inabox**,
 **Restart** (or **Update**) the container: it runs the installer inside the VM. See
