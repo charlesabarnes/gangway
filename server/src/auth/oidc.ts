@@ -6,6 +6,7 @@ import {
   type KeyObject,
 } from "node:crypto";
 import type { Logger } from "../logger.ts";
+import { workflowActor, type TokenVerifier } from "./actor.ts";
 
 export const GITHUB_ACTIONS_ISSUER = "https://token.actions.githubusercontent.com";
 
@@ -154,4 +155,16 @@ export class GitHubOidc {
     })();
     return this.#inflight;
   }
+}
+
+/** A run acts in the org of the project its repository is connected to, or not at all. */
+export function workflowVerifier(
+  verify: (token: string) => Promise<WorkflowClaims | null>,
+  projectOf: (repository: string) => { orgId: string } | undefined,
+): TokenVerifier {
+  return async (presented) => {
+    const claims = await verify(presented);
+    const project = claims && projectOf(claims.repository);
+    return project ? workflowActor(claims, project.orgId) : null;
+  };
 }

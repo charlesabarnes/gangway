@@ -8,9 +8,9 @@ import type { AppEnv } from "../app/env.ts";
 import { McpSurface } from "../app/mcp-surface.ts";
 import type { AuthDeps } from "../app/middleware/auth.ts";
 import { oauthRootRoutes } from "../app/routes/oauth.ts";
-import { chainVerifiers, staticTokenVerifier, workflowActor } from "../auth/actor.ts";
+import { chainVerifiers, staticTokenVerifier } from "../auth/actor.ts";
 import { LoginLimiter } from "../auth/limiter.ts";
-import { GitHubOidc } from "../auth/oidc.ts";
+import { GitHubOidc, workflowVerifier } from "../auth/oidc.ts";
 import { Tools } from "../mcp/tools.ts";
 import { SecretUploads } from "../mcp/secret-uploads.ts";
 import { Uploads } from "../mcp/uploads.ts";
@@ -93,12 +93,10 @@ function createAuth({ identity, adminToken, origin, ctx, logger, repos }: HttpDe
     verifyToken: chainVerifiers(
       identity.tokens.verify,
       staticTokenVerifier(adminToken, repos.orgs.home().id),
-      async (presented) => {
-        const claims = await oidc.verify(presented);
-        // A run acts in the org of the project its repository is connected to, or not at all.
-        const project = claims && repos.projects.getByFullName("github", claims.repository);
-        return project ? workflowActor(claims, project.orgId) : null;
-      },
+      workflowVerifier(
+        (t) => oidc.verify(t),
+        (repository) => repos.projects.getByFullName("github", repository),
+      ),
     ),
     resolveSession: (secret: string) => identity.sessions.resolve(secret)?.actor ?? null,
     // From the public scheme and port, not the listener's: behind a reverse proxy they differ.

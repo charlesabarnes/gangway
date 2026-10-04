@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSign, generateKeyPairSync, type KeyObject } from "node:crypto";
-import { GITHUB_ACTIONS_ISSUER, GitHubOidc } from "../../src/auth/oidc.ts";
+import { GITHUB_ACTIONS_ISSUER, GitHubOidc, workflowVerifier } from "../../src/auth/oidc.ts";
 import { workflowActor } from "../../src/auth/actor.ts";
 import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
@@ -157,5 +157,31 @@ describe("GitHubOidc", () => {
         HOME_ORG_ID,
       ),
     ).toMatchObject({ pull: null });
+  });
+});
+
+describe("which org a workflow run acts in", () => {
+  const claims = {
+    repository: "acme/web",
+    repositoryId: "1",
+    eventName: "pull_request",
+    ref: "refs/pull/7/merge",
+    sha: "abc",
+    runId: "42",
+    actor: "dev",
+  };
+  const verify = workflowVerifier(
+    async (t) => (t === "good" ? claims : null),
+    (repository) => (repository === "acme/web" ? { orgId: "o2" } : undefined),
+  );
+
+  test("its repository's project's org; a bad token or an unconnected repository, none", async () => {
+    expect(await verify("good")).toMatchObject({ kind: "workflow", orgId: "o2", pull: 7 });
+    expect(await verify("bad")).toBeNull();
+    const nowhere = workflowVerifier(
+      async () => claims,
+      () => undefined,
+    );
+    expect(await nowhere("good")).toBeNull();
   });
 });
