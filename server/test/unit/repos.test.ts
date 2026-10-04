@@ -13,6 +13,7 @@ import {
 } from "../../src/db/repos/index.ts";
 import { SETTINGS, Settings } from "../../src/settings.ts";
 import { tempDb } from "../helpers/db.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const DRIVERS: [string, (o: OpenOptions) => { db: Db }][] = [
   ["bun", openBun],
@@ -90,6 +91,7 @@ for (const [name, open] of DRIVERS) {
       const { previews } = seeded();
       const p = previews.create({
         id: "p1",
+        orgId: HOME_ORG_ID,
         project: "gw-acme-pr-1",
         hostId: "local",
         state: "building",
@@ -105,6 +107,7 @@ for (const [name, open] of DRIVERS) {
       const { previews } = seeded();
       previews.create({
         id: "p1",
+        orgId: HOME_ORG_ID,
         project: "gw-1",
         hostId: "local",
         state: "awake",
@@ -123,6 +126,7 @@ for (const [name, open] of DRIVERS) {
       const { previews } = seeded();
       previews.create({
         id: "p1",
+        orgId: HOME_ORG_ID,
         project: "gw-1",
         hostId: "local",
         state: "building",
@@ -140,6 +144,7 @@ for (const [name, open] of DRIVERS) {
       const { previews } = seeded();
       previews.create({
         id: "live",
+        orgId: HOME_ORG_ID,
         project: "gw-a",
         hostId: "local",
         state: "awake",
@@ -149,6 +154,7 @@ for (const [name, open] of DRIVERS) {
       });
       previews.create({
         id: "gone",
+        orgId: HOME_ORG_ID,
         project: "gw-b",
         hostId: "local",
         state: "awake",
@@ -159,6 +165,7 @@ for (const [name, open] of DRIVERS) {
       previews.setState("gone", "destroyed");
       previews.create({
         id: "future",
+        orgId: HOME_ORG_ID,
         project: "gw-c",
         hostId: "local",
         state: "awake",
@@ -173,6 +180,7 @@ for (const [name, open] of DRIVERS) {
       const { previews } = seeded();
       previews.create({
         id: "never",
+        orgId: HOME_ORG_ID,
         project: "gw-a",
         hostId: "local",
         state: "awake",
@@ -181,6 +189,7 @@ for (const [name, open] of DRIVERS) {
       });
       previews.create({
         id: "recent",
+        orgId: HOME_ORG_ID,
         project: "gw-b",
         hostId: "local",
         state: "awake",
@@ -196,6 +205,7 @@ for (const [name, open] of DRIVERS) {
       const { previews, routes } = seeded();
       previews.create({
         id: "p1",
+        orgId: HOME_ORG_ID,
         project: "gw-1",
         hostId: "local",
         state: "building",
@@ -247,6 +257,7 @@ for (const [name, open] of DRIVERS) {
       const { previews, routes } = seeded();
       previews.create({
         id: "p1",
+        orgId: HOME_ORG_ID,
         project: "gw-1",
         hostId: "local",
         state: "awake",
@@ -268,6 +279,7 @@ for (const [name, open] of DRIVERS) {
       const { previews, routes } = seeded();
       previews.create({
         id: "p1",
+        orgId: HOME_ORG_ID,
         project: "gw-1",
         hostId: "local",
         state: "awake",
@@ -289,6 +301,7 @@ for (const [name, open] of DRIVERS) {
       const { previews, events } = seeded();
       previews.create({
         id: "p1",
+        orgId: HOME_ORG_ID,
         project: "gw-1",
         hostId: "local",
         state: "building",
@@ -345,6 +358,7 @@ for (const [name, open] of DRIVERS) {
     test("projects are found by id, slug or full name, and the slug is one namespace", () => {
       const { repos } = seeded();
       const p = repos.create({
+        orgId: HOME_ORG_ID,
         id: "p1",
         name: "Web app",
         slug: "web-app",
@@ -369,17 +383,27 @@ for (const [name, open] of DRIVERS) {
       expect(repos.find("web-app")?.id).toBe("p1");
       expect(repos.find("nope")).toBeUndefined();
 
-      const bare = repos.create({ id: "p2", name: "whoami", slug: "whoami" });
+      const bare = repos.create({ orgId: HOME_ORG_ID, id: "p2", name: "whoami", slug: "whoami" });
       expect(bare).toMatchObject({ forge: null, fullName: null, installationId: "" });
-      expect(() => repos.create({ id: "p3", name: "x", slug: "web-app" })).toThrow();
       expect(() =>
-        repos.create({ id: "p4", name: "x", slug: "x", forge: "github", fullName: "acme/web-app" }),
+        repos.create({ orgId: HOME_ORG_ID, id: "p3", name: "x", slug: "web-app" }),
+      ).toThrow();
+      expect(() =>
+        repos.create({
+          orgId: HOME_ORG_ID,
+          id: "p4",
+          name: "x",
+          slug: "x",
+          forge: "github",
+          fullName: "acme/web-app",
+        }),
       ).toThrow();
     });
 
     test("updates and re-links a project; deleting it leaves its previews unowned", () => {
       const { repos, previews } = seeded();
       repos.create({
+        orgId: HOME_ORG_ID,
         id: "p1",
         name: "Web app",
         slug: "web-app",
@@ -387,7 +411,7 @@ for (const [name, open] of DRIVERS) {
         fullName: "acme/web-app",
         installationId: "4242",
       });
-      repos.create({ id: "p2", name: "whoami", slug: "whoami" });
+      repos.create({ orgId: HOME_ORG_ID, id: "p2", name: "whoami", slug: "whoami" });
       clock += 1000;
       const patched = repos.update("p1", {
         visibility: "public",
@@ -418,6 +442,7 @@ for (const [name, open] of DRIVERS) {
 
       const pv = previews.create({
         id: "01J0000000000000000000000Q",
+        orgId: HOME_ORG_ID,
         project: "gw-y",
         hostId: "local",
         state: "awake",
@@ -436,6 +461,7 @@ for (const [name, open] of DRIVERS) {
       const { previews } = seeded();
       const p = previews.create({
         id: "01J0000000000000000000000P",
+        orgId: HOME_ORG_ID,
         project: "gw-x",
         hostId: "local",
         state: "building",

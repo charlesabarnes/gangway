@@ -7,6 +7,7 @@ import { fixedPolicy } from "../../src/previews/policy.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { tempDb } from "../helpers/db.ts";
 import { ghRepo, pull, fakeForge, fakePreviews } from "../helpers/forge.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 /** `project: false`: acme/web-app is no project yet. Otherwise it is one, taking pull requests by webhook. */
 function make(o: Parameters<typeof fakeForge>[0] & { project?: false } = {}) {
@@ -14,6 +15,7 @@ function make(o: Parameters<typeof fakeForge>[0] & { project?: false } = {}) {
   const repos = new ProjectsRepo(db);
   if (o.project !== false) {
     repos.create({
+      orgId: HOME_ORG_ID,
       id: "PRJ",
       name: "web-app",
       slug: "web-app",

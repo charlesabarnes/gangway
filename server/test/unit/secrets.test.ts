@@ -10,6 +10,7 @@ import { SecretBox, loadOrCreateSecretsKey } from "../../src/secrets/box.ts";
 import { Secrets, dotenvLine } from "../../src/secrets/secrets.ts";
 import { MemorySettingsStore } from "../../src/settings.ts";
 import { tempDir } from "../helpers/db.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 describe("SecretBox", () => {
   test("seals and opens; a different key or a flipped byte fails closed", () => {
@@ -45,6 +46,7 @@ describe("Secrets: two scopes, one shape", () => {
     migrate(db, join(import.meta.dir, "../../migrations"));
     const repos = new ProjectsRepo(db);
     const repo = repos.create({
+      orgId: HOME_ORG_ID,
       id: "r1",
       name: "web",
       forge: "github",

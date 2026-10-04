@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { can, type Actor, type Permission, type TokenVerifier } from "../../auth/actor.ts";
 import { forbidden, unauthorized } from "../../errors.ts";
+import { beforeOrg, withOrg } from "../../tenancy/scope.ts";
 import type { AppEnv } from "../env.ts";
 import { problemResponse } from "../problem.ts";
 
@@ -54,22 +55,25 @@ export async function resolveActor(c: Context<AppEnv>, d: AuthDeps): Promise<Act
   return actor;
 }
 
+// Everything after this runs as the credential's org; until then, org data is refused.
 export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
-  return async (c, next) => {
-    const actor = await resolveActor(c, d);
-    if (!actor) {
-      // Missing and wrong credentials get the same 401; a workflow token is only valid on its one route.
-      return problemResponse(c, unauthorized(), { "www-authenticate": 'Bearer realm="gangway"' });
-    }
-    if (actor.kind === "workflow" && !WORKFLOW_PATH.test(c.req.path)) {
-      return problemResponse(
-        c,
-        forbidden("a workflow token may only deploy and tear down its own project's pull requests"),
-      );
-    }
-    c.set("actor", actor);
-    return next();
-  };
+  return (c, next) => beforeOrg(() => authenticated(c, next, d));
+}
+
+async function authenticated(c: Context<AppEnv>, next: () => Promise<void>, d: AuthDeps) {
+  const actor = await resolveActor(c, d);
+  if (!actor) {
+    // Missing and wrong credentials get the same 401; a workflow token is only valid on its one route.
+    return problemResponse(c, unauthorized(), { "www-authenticate": 'Bearer realm="gangway"' });
+  }
+  if (actor.kind === "workflow" && !WORKFLOW_PATH.test(c.req.path)) {
+    return problemResponse(
+      c,
+      forbidden("a workflow token may only deploy and tear down its own project's pull requests"),
+    );
+  }
+  c.set("actor", actor);
+  return withOrg(actor.orgId, next);
 }
 
 const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;

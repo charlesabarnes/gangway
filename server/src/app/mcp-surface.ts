@@ -12,6 +12,7 @@ import { ulid } from "../util/ulid.ts";
 import type { Tools } from "../mcp/tools.ts";
 import type { SecretUploads } from "../mcp/secret-uploads.ts";
 import type { Uploads } from "../mcp/uploads.ts";
+import { withOrg } from "../tenancy/scope.ts";
 
 const BEARER = /^Bearer\s+(\S+)$/i;
 
@@ -224,14 +225,16 @@ export class McpSurface {
     this.#live.add(live);
     let res: Response;
     try {
-      res = await this.#mcp.fetch(req, {
-        authInfo: {
-          token: "[redacted]",
-          clientId: "gangway",
-          scopes: [],
-          extra: { actor, signal: live.abort.signal },
-        },
-      });
+      res = await withOrg(actor.orgId, () =>
+        this.#mcp.fetch(req, {
+          authInfo: {
+            token: "[redacted]",
+            clientId: "gangway",
+            scopes: [],
+            extra: { actor, signal: live.abort.signal },
+          },
+        }),
+      );
     } catch (err) {
       this.#live.delete(live);
       throw err;

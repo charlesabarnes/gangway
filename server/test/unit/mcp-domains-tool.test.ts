@@ -31,7 +31,7 @@ describe("the domains tool", () => {
   test("choosing production drops the preview's TTL, and destroy then refuses it", async () => {
     const s = setupTools();
     const p = await s.deployed("shop");
-    s.projects.create({ id: "p1", name: "web", slug: "web" });
+    s.projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     s.db.run("UPDATE previews SET project_id = 'p1' WHERE id = $id", { id: p.id });
     const out = await s.tools.domains(s.scope(), {
       target: { project: "web" },
@@ -44,7 +44,7 @@ describe("the domains tool", () => {
 
   test("a claim answers with the records to set, and check makes it active", async () => {
     const s = setupTools();
-    s.projects.create({ id: "p1", name: "web", slug: "web" });
+    s.projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     const out = await s.tools.domains(s.scope(), {
       target: { project: "web" },
       claim: "*.previews.client.com",

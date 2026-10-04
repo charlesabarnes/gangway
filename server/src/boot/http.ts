@@ -23,6 +23,7 @@ import type { ForgeWiring } from "./forge.ts";
 import type { Identity } from "./identity.ts";
 import { publicRoutes, v1Routes } from "./routes.ts";
 import { claimDeps } from "./domains.ts";
+import { acrossOrgs } from "../tenancy/scope.ts";
 
 export type HttpParts = PreviewWiring &
   Pick<ForgeWiring, "githubApp" | "pulls"> & {
@@ -94,7 +95,8 @@ function createAuth({ identity, adminToken, origin, ctx, logger, repos }: HttpDe
       identity.tokens.verify,
       staticTokenVerifier(adminToken, repos.orgs.home().id),
       workflowVerifier((t) => oidc.verify(t), {
-        byName: (repository) => repos.projects.getByFullName("github", repository),
+        byName: (repository) =>
+          acrossOrgs(() => repos.projects.getByFullName("github", repository)),
         sameRepository: (id, repositoryId) => repos.projects.sameRepository(id, repositoryId),
       }),
     ),

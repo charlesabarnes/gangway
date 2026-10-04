@@ -176,6 +176,7 @@ describe("/v1/templates", () => {
     });
 
     const repo = repos.create({
+      orgId: HOME_ORG_ID,
       id: "r1",
       name: "web",
       forge: "github",
@@ -223,6 +224,7 @@ describe("/v1/templates", () => {
     );
     const bob = await login("bob@example.com");
     const repo = repos.create({
+      orgId: HOME_ORG_ID,
       id: "r1",
       name: "web",
       forge: "github",

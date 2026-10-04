@@ -148,7 +148,7 @@ describe("the secrets tool", () => {
   test("an own-previews credential may not touch another's preview, a project or the org", async () => {
     const s = setupTools();
     await deployApp(s, agent(DEFAULT_SECRET_TARGETS, "t-other"));
-    s.projects.create({ id: "P1", name: "shop", slug: "shop" });
+    s.projects.create({ orgId: HOME_ORG_ID, id: "P1", name: "shop", slug: "shop" });
     const me = agent();
     expect(() => s.tools.secrets(s.scope(me), { target: { org: true }, set: { A: "b" } })).toThrow(
       "may not set org-wide secrets",

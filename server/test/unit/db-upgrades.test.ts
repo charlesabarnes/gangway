@@ -462,7 +462,7 @@ for (const [name, open] of DRIVERS) {
     test("the first id a run shows sticks, and changing the repository forgets it", () => {
       const db = migrated();
       const projects = new ProjectsRepo(db);
-      projects.create({ id: "p1", name: "web", slug: "web" });
+      projects.create({ id: "p1", orgId: HOME_ORG_ID, name: "web", slug: "web" });
       projects.setRepository("p1", "github", "acme/web");
       expect(projects.sameRepository("p1", "100")).toBe(true);
       expect(projects.sameRepository("p1", "100")).toBe(true);

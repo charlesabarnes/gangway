@@ -66,6 +66,7 @@ function createPreview(
     secretLevel: c.secretLevel,
     templateId: template.id,
     projectId: owner?.id ?? null,
+    orgId: c.input.actor.orgId,
     owner: principalOf(c.input.actor),
     credential: credentialOf(c.input.actor),
     password: c.password.stored,

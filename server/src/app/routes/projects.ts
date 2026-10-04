@@ -30,6 +30,7 @@ import { parseDuration } from "../../util/duration.ts";
 import type { DomainRegistry } from "../../domains/registry.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
+import { acrossOrgs } from "../../tenancy/scope.ts";
 
 export type ProjectRouteDeps = {
   projects: ProjectsRepo;
@@ -124,10 +125,14 @@ function checkPatch(
       d.domains?.assertAvailable(patch.domain, before.id);
     }
   }
-  if (patch.slug !== undefined && patch.slug !== before.slug) {
-    const taken = d.projects.getBySlug(patch.slug);
+  const slug = patch.slug;
+  if (slug !== undefined && slug !== before.slug) {
+    const taken = acrossOrgs(() => d.projects.getBySlug(slug));
+    if (taken && !d.projects.get(taken.id)) {
+      throw conflict(`slug "${slug}" is taken`, { slug });
+    }
     if (taken) {
-      throw conflict(`slug "${patch.slug}" is taken by project "${taken.name}"`, {
+      throw conflict(`slug "${slug}" is taken by project "${taken.name}"`, {
         takenBy: taken.slug,
       });
     }

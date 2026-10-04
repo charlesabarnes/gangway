@@ -8,11 +8,13 @@ import type {
   RepoProject,
   Visibility,
 } from "@gangway/shared/domain";
+import { orgFilter, orgScope } from "../../tenancy/scope.ts";
 import type { Db, Params } from "../types.ts";
 import { num, rowToProject, type ProjectRow } from "./mappers.ts";
 
 export type CreateProject = {
   id: string;
+  orgId: string;
   name: string;
   slug: string;
   forge?: ForgeId | null | undefined;
@@ -72,12 +74,17 @@ export class ProjectsRepo {
   }
 
   create(p: CreateProject): Project {
+    const s = orgScope();
+    if (s !== "fleet" && s.org !== p.orgId) {
+      throw new Error("a project may only be created in the request's own org");
+    }
     const now = this.#now();
     this.#db.run(
-      `INSERT INTO projects (id, name, slug, forge, full_name, installation_id, pr_trigger, enabled, disabled_reason, template_id, created_at, updated_at)
-       VALUES ($id, $name, $slug, $forge, $fullName, $installationId, $prTrigger, $enabled, $reason, $templateId, $now, $now)`,
+      `INSERT INTO projects (id, org_id, name, slug, forge, full_name, installation_id, pr_trigger, enabled, disabled_reason, template_id, created_at, updated_at)
+       VALUES ($id, $org, $name, $slug, $forge, $fullName, $installationId, $prTrigger, $enabled, $reason, $templateId, $now, $now)`,
       {
         id: p.id,
+        org: p.orgId,
         name: p.name,
         slug: p.slug,
         forge: p.forge ?? null,
@@ -94,8 +101,11 @@ export class ProjectsRepo {
   }
 
   get(id: string): Project | undefined {
-    const r = this.#db.get("SELECT * FROM projects WHERE id = $id", { id }) as
-      ProjectRow | undefined;
+    const o = orgFilter();
+    const r = this.#db.get(`SELECT * FROM projects WHERE id = $id AND ${o.sql}`, {
+      id,
+      ...o.params,
+    }) as ProjectRow | undefined;
     return r ? rowToProject(r) : undefined;
   }
 
@@ -105,22 +115,29 @@ export class ProjectsRepo {
 
   getByFullName(forge: ForgeId, fullName: string): RepoProject | undefined {
     // NOCASE because GitHub repository names are case-insensitive.
+    const o = orgFilter();
     const r = this.#db.get(
-      "SELECT * FROM projects WHERE forge = $forge AND full_name = $fullName COLLATE NOCASE",
-      { forge, fullName },
+      `SELECT * FROM projects WHERE forge = $forge AND full_name = $fullName COLLATE NOCASE AND ${o.sql}`,
+      { forge, fullName, ...o.params },
     ) as ProjectRow | undefined;
     return r ? (rowToProject(r) as RepoProject) : undefined;
   }
 
   getBySlug(slug: string): Project | undefined {
-    const r = this.#db.get("SELECT * FROM projects WHERE slug = $slug", { slug }) as
-      ProjectRow | undefined;
+    const o = orgFilter();
+    const r = this.#db.get(`SELECT * FROM projects WHERE slug = $slug AND ${o.sql}`, {
+      slug,
+      ...o.params,
+    }) as ProjectRow | undefined;
     return r ? rowToProject(r) : undefined;
   }
 
   list(): Project[] {
     return (
-      this.#db.query("SELECT * FROM projects ORDER BY name COLLATE NOCASE") as ProjectRow[]
+      this.#db.query(
+        `SELECT * FROM projects WHERE ${orgFilter().sql} ORDER BY name COLLATE NOCASE`,
+        orgFilter().params,
+      ) as ProjectRow[]
     ).map(rowToProject);
   }
 

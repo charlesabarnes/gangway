@@ -11,6 +11,7 @@ import { diff, isMutating, type Action, type ScannedContainer } from "./diff.ts"
 import type { ReconcileReport, ReconcilerDeps } from "./reconciler-types.ts";
 import { coveredHostnames, isBusy, rescueInterrupted, wakeReturned } from "./recover.ts";
 import { scanHost, toScanned } from "./scan.ts";
+import { HOME_ORG_ID } from "../db/repos/orgs.ts";
 
 type Found = { summary: ContainerSummary; host: Host };
 type Of<K extends Action["kind"]> = Extract<Action, { kind: K }>;
@@ -244,8 +245,10 @@ export class Reconciler {
     }
     const ttlText = ctx.policy.default().ttl;
     const ttl = ttlText === null ? null : parseDuration(ttlText);
+    // A container with no row has lost its org; the operator's home org takes it.
     const preview = ctx.previews.create({
       id: a.previewId,
+      orgId: HOME_ORG_ID,
       project,
       hostId: host.id,
       state: "awake",

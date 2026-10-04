@@ -2,6 +2,7 @@ import type { Clearance, RepoProject, Preview } from "@gangway/shared/domain";
 import { slugify } from "@gangway/shared/hostname";
 import { forgeActor, type Actor } from "../auth/actor.ts";
 import { AppError } from "../errors.ts";
+import { withOrg } from "../tenancy/scope.ts";
 import { trimEndChar } from "../util/text.ts";
 import type { DeployResult, DeploySource } from "../previews/deploy-types.ts";
 import { commentBody, postComment, refusalBody } from "./pr-comment.ts";
@@ -32,10 +33,18 @@ export class PrPreviews {
     this.#d = d;
   }
 
+  // The event acts in the org of the project its repository is connected to.
   async handle(event: ForgeEvent): Promise<Outcome> {
+    if (event.type === "ignored") {
+      return { action: "ignored", reason: event.reason };
+    }
+    const fr = event.type === "pr.command" ? event.repo : event.pr.repo;
+    const project = this.#d.repos.getByFullName(fr.forge, fr.fullName);
+    return project ? withOrg(project.orgId, () => this.#route(event)) : this.#route(event);
+  }
+
+  async #route(event: Exclude<ForgeEvent, { type: "ignored" }>): Promise<Outcome> {
     switch (event.type) {
-      case "ignored":
-        return { action: "ignored", reason: event.reason };
       case "pr.updated":
         return this.#onUpdated(event.pr);
       case "pr.closed":

@@ -60,7 +60,7 @@ function setup() {
     dns: fake.dns,
     now: () => clock.now,
   };
-  projects.create({ id: "p1", name: "web", slug: "web" });
+  projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
   return { ...s, deps, registry, domains, projects, fake, clock };
 }
 
