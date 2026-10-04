@@ -59,6 +59,7 @@ describe('the /v1 wire contract', () => {
     const keys = (o: object) => Object.keys(o).sort();
     const PREVIEW_KEYS: (keyof Preview)[] = [
       'id',
+      'orgId',
       'project',
       'title',
       'icon',
@@ -101,6 +102,7 @@ describe('the /v1 wire contract', () => {
     expect(keys(token)).toEqual([...TOKEN_KEYS].sort());
     const REPO_KEYS: (keyof Project)[] = [
       'id',
+      'orgId',
       'name',
       'forge',
       'fullName',
