@@ -64,11 +64,12 @@ export class TokensRepo {
       `SELECT ${TOKEN_COLUMNS.split(", ")
         .map((c) => `t.${c}`)
         .join(", ")},
-              t.org_id AS org_id, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
+              t.org_id AS org_id, u.id AS u_id, u.email AS u_email, m.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
          FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id
+         LEFT JOIN memberships m ON m.user_id = t.user_id AND m.org_id = t.org_id
         WHERE t.token_hash = $hash AND t.revoked_at IS NULL
           AND (t.expires_at IS NULL OR t.expires_at > $now)
-          AND (t.user_id IS NULL OR u.disabled = 0)`,
+          AND (t.user_id IS NULL OR (u.disabled = 0 AND m.role_id IS NOT NULL))`,
       { hash: tokenHash, now },
     ) as
       | (TokenRow & {

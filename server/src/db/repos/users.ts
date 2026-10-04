@@ -59,6 +59,11 @@ export class UsersRepo {
         now: this.#now(),
       },
     );
+    this.#db.run(
+      `INSERT INTO memberships (org_id, user_id, role_id, created_at)
+       VALUES ((SELECT id FROM orgs WHERE home = 1), $id, $role, $now)`,
+      { id: u.id, role: u.roleId, now: this.#now() },
+    );
     return must(this.get(u.id), "the user just saved");
   }
 
@@ -98,6 +103,10 @@ export class UsersRepo {
   update(id: string, patch: { roleId?: string; disabled?: boolean }): User | undefined {
     if (patch.roleId !== undefined) {
       this.#db.run("UPDATE users SET role_id = $r WHERE id = $id", { id, r: patch.roleId });
+      this.#db.run(
+        "UPDATE memberships SET role_id = $r WHERE user_id = $id AND org_id = (SELECT id FROM orgs WHERE home = 1)",
+        { id, r: patch.roleId },
+      );
     }
     if (patch.disabled !== undefined) {
       this.#db.run("UPDATE users SET disabled = $d WHERE id = $id", { id, d: num(patch.disabled) });

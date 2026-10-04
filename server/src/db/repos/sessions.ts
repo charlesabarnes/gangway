@@ -35,8 +35,10 @@ export class SessionsRepo {
 
   findActive(id: string, now: number = this.#now()): { session: Session; user: User } | undefined {
     const r = this.#db.get(
-      `SELECT s.*, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
+      `SELECT s.*, u.id AS u_id, u.email AS u_email, m.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
          FROM sessions s JOIN users u ON u.id = s.user_id
+         JOIN memberships m ON m.user_id = s.user_id
+          AND m.org_id = COALESCE(s.org_id, (SELECT id FROM orgs WHERE home = 1))
         WHERE s.id = $id AND s.expires_at > $now AND u.disabled = 0`,
       { id, now },
     ) as

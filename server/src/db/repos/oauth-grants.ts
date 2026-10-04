@@ -78,8 +78,9 @@ type Joined = GrantRow & {
   u_invited: number;
   u_created_at: number;
 };
-const JOIN = `SELECT ${cols("g")}, g.org_id AS org_id, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
-                FROM oauth_grants g JOIN users u ON u.id = g.user_id`;
+const JOIN = `SELECT ${cols("g")}, g.org_id AS org_id, u.id AS u_id, u.email AS u_email, m.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
+                FROM oauth_grants g JOIN users u ON u.id = g.user_id
+                JOIN memberships m ON m.user_id = g.user_id AND m.org_id = g.org_id`;
 
 const toRecord = (r: Joined): GrantRecord => {
   const owner: UserRow = {
