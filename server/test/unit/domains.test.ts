@@ -39,7 +39,14 @@ function claimed(
   kind: "wildcard" | "exact",
   owner: { projectId?: string; previewId?: string } = {},
 ) {
-  const d = domains.create({ id: `d-${name}`, name, kind, claimId: `c-${name}`, ...owner });
+  const d = domains.create({
+    orgId: HOME_ORG_ID,
+    id: `d-${name}`,
+    name,
+    kind,
+    claimId: `c-${name}`,
+    ...owner,
+  });
   domains.recordCheck(d.id, { status: "active", routingOk: true, lastError: null });
   return d;
 }
@@ -73,7 +80,13 @@ describe("the registry", () => {
     projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     claimed(domains, "org.test", "wildcard");
     claimed(domains, "mine.test", "wildcard", { projectId: "p1" });
-    domains.create({ id: "pending", name: "later.test", kind: "wildcard", claimId: "c" });
+    domains.create({
+      orgId: HOME_ORG_ID,
+      id: "pending",
+      name: "later.test",
+      kind: "wildcard",
+      claimId: "c",
+    });
     r.refresh();
     expect(r.availableTo(null)).toEqual([DEFAULT, "alt.test", "org.test"]);
     expect(r.availableTo("p1")).toEqual([DEFAULT, "alt.test", "org.test", "mine.test"]);
@@ -307,6 +320,7 @@ describe("urls and destroy", () => {
     r.projects.update("p1", { productionPreviewId: p.id });
     claimed(r.domains, "www.shop.example", "exact", { previewId: p.id });
     const waiting = r.domains.create({
+      orgId: HOME_ORG_ID,
       id: "d2",
       name: "shop.example",
       kind: "exact",

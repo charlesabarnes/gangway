@@ -1,5 +1,7 @@
 import type { GangwayEvent } from "@gangway/shared/domain";
+import { HOME_ORG_ID } from "../db/repos/orgs.ts";
 import type { EventsRepo } from "../db/repos/events.ts";
+import { orgScope } from "../tenancy/scope.ts";
 
 export type EventListener = (e: GangwayEvent) => void;
 
@@ -56,7 +58,13 @@ export class EventBus {
     let cursor = afterSeq;
     let replaying = true;
     const buffered: GangwayEvent[] = [];
-    const wanted = (e: GangwayEvent) => previewId === undefined || e.previewId === previewId;
+    // Captured now: a live event arrives in the publisher's context, not the follower's.
+    const s = orgScope();
+    const org = s === "fleet" ? null : s.org;
+    const ours = (e: GangwayEvent) =>
+      org === null || e.orgId === org || (e.orgId === null && org === HOME_ORG_ID);
+    const wanted = (e: GangwayEvent) =>
+      ours(e) && (previewId === undefined || e.previewId === previewId);
     const emit = (e: GangwayEvent) => {
       if (e.seq <= cursor || !wanted(e)) {
         return;
@@ -79,13 +87,14 @@ export class EventBus {
         emit({
           seq,
           previewId: previewId ?? null,
+          orgId: org,
           type: "reset",
           payload: { reason: "backlog" },
           createdAt: new Date(),
         });
         break;
       }
-      const page = this.#repo.since(cursor, PAGE, previewId);
+      const page = this.#repo.since(cursor, PAGE, previewId, org);
       for (const e of page) {
         emit(e);
       }

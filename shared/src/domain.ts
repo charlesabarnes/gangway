@@ -101,6 +101,7 @@ export type DomainStatus = "pending" | "active" | "failed";
 /** A claimed name: a wildcard for previews, or one exact hostname; org-owned with neither id. */
 export type Domain = {
   id: string;
+  orgId: string;
   name: string;
   kind: DomainKind;
   projectId: string | null;
@@ -198,6 +199,8 @@ export type Route = {
 export type GangwayEvent = {
   seq: number;
   previewId: string | null;
+  /** null: the server's own, seen only by the home org. */
+  orgId: string | null;
   type: string;
   payload: Record<string, unknown>;
   createdAt: Date;

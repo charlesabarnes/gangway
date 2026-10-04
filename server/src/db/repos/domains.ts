@@ -1,10 +1,12 @@
 import { must } from "@gangway/shared/must";
 import type { Domain, DomainKind, DomainStatus } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
-import { rowToDomain, type DomainRow } from "./mappers.ts";
+import { bool, toDate } from "./mappers.ts";
+import { orgFilter } from "../../tenancy/scope.ts";
 
 export type CreateDomain = {
   id: string;
+  orgId: string;
   name: string;
   kind: DomainKind;
   projectId?: string | null | undefined;
@@ -31,10 +33,11 @@ export class DomainsRepo {
   create(d: CreateDomain): Domain {
     const now = this.#now();
     this.#db.run(
-      `INSERT INTO domains (id, name, kind, project_id, preview_id, claim_id, created_by, created_at, updated_at)
-       VALUES ($id, $name, $kind, $projectId, $previewId, $claimId, $createdBy, $now, $now)`,
+      `INSERT INTO domains (id, org_id, name, kind, project_id, preview_id, claim_id, created_by, created_at, updated_at)
+       VALUES ($id, $org, $name, $kind, $projectId, $previewId, $claimId, $createdBy, $now, $now)`,
       {
         id: d.id,
+        org: d.orgId,
         name: d.name,
         kind: d.kind,
         projectId: d.projectId ?? null,
@@ -48,10 +51,15 @@ export class DomainsRepo {
   }
 
   get(id: string): Domain | undefined {
-    const r = this.#db.get("SELECT * FROM domains WHERE id = $id", { id }) as DomainRow | undefined;
+    const o = orgFilter();
+    const r = this.#db.get(`SELECT * FROM domains WHERE id = $id AND ${o.sql}`, {
+      id,
+      ...o.params,
+    }) as DomainRow | undefined;
     return r ? rowToDomain(r) : undefined;
   }
 
+  /** Across every org: a name is claimed once on the whole server. */
   byName(name: string): Domain | undefined {
     const r = this.#db.get("SELECT * FROM domains WHERE name = $name", { name }) as
       DomainRow | undefined;
@@ -59,22 +67,33 @@ export class DomainsRepo {
   }
 
   all(): Domain[] {
-    return (this.#db.query("SELECT * FROM domains ORDER BY name") as DomainRow[]).map(rowToDomain);
+    const o = orgFilter();
+    return (
+      this.#db.query(`SELECT * FROM domains WHERE ${o.sql} ORDER BY name`, o.params) as DomainRow[]
+    ).map(rowToDomain);
   }
 
   forProject(projectId: string): Domain[] {
     return (
-      this.#db.query("SELECT * FROM domains WHERE project_id = $p ORDER BY name", {
-        p: projectId,
-      }) as DomainRow[]
+      this.#db.query(
+        `SELECT * FROM domains WHERE project_id = $p AND ${orgFilter().sql} ORDER BY name`,
+        {
+          p: projectId,
+          ...orgFilter().params,
+        },
+      ) as DomainRow[]
     ).map(rowToDomain);
   }
 
   forPreview(previewId: string): Domain[] {
     return (
-      this.#db.query("SELECT * FROM domains WHERE preview_id = $p ORDER BY name", {
-        p: previewId,
-      }) as DomainRow[]
+      this.#db.query(
+        `SELECT * FROM domains WHERE preview_id = $p AND ${orgFilter().sql} ORDER BY name`,
+        {
+          p: previewId,
+          ...orgFilter().params,
+        },
+      ) as DomainRow[]
     ).map(rowToDomain);
   }
 
@@ -122,3 +141,39 @@ export class DomainsRepo {
     });
   }
 }
+
+type DomainRow = {
+  id: string;
+  org_id: string;
+  name: string;
+  kind: string;
+  project_id: string | null;
+  preview_id: string | null;
+  status: string;
+  claim_id: string;
+  routing_ok: number;
+  last_error: string | null;
+  checked_at: number | null;
+  verified_at: number | null;
+  created_by: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+const rowToDomain = (r: DomainRow): Domain => ({
+  id: r.id,
+  orgId: r.org_id,
+  name: r.name,
+  kind: r.kind as Domain["kind"],
+  projectId: r.project_id,
+  previewId: r.preview_id,
+  status: r.status as Domain["status"],
+  claimId: r.claim_id,
+  routingOk: bool(r.routing_ok),
+  lastError: r.last_error,
+  checkedAt: toDate(r.checked_at),
+  verifiedAt: toDate(r.verified_at),
+  createdBy: r.created_by,
+  createdAt: new Date(r.created_at),
+  updatedAt: new Date(r.updated_at),
+});

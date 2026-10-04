@@ -4,7 +4,6 @@ import type {
   AuditActorType,
   AuditEntry,
   Certificate,
-  Domain,
   Clearance,
   ForgeId,
   ForkPolicy,
@@ -24,7 +23,7 @@ import type {
 import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import { HOME_ORG_ID } from "./orgs.ts";
 
-const toDate = (n: number | null | undefined): Date | null =>
+export const toDate = (n: number | null | undefined): Date | null =>
   n === null || n === undefined ? null : new Date(n);
 export const fromDate = (d: Date | null | undefined): number | null =>
   d === null || d === undefined ? null : d.getTime();
@@ -173,6 +172,7 @@ export function rowToRoute(r: RouteRow): Route {
 }
 
 export type EventRow = {
+  org_id: string | null;
   seq: number;
   preview_id: string | null;
   type: string;
@@ -184,6 +184,7 @@ export function rowToEvent(r: EventRow): GangwayEvent {
   return {
     seq: r.seq,
     previewId: r.preview_id,
+    orgId: r.org_id,
     type: r.type,
     payload: JSON.parse(r.payload_json) as Record<string, unknown>,
     createdAt: new Date(r.created_at),
@@ -391,40 +392,6 @@ export const rowToTemplate = (r: TemplateRow): Template => ({
   idleAfter: r.idle_after,
   clearance: r.clearance as Clearance,
   hostId: r.host_id,
-  createdAt: new Date(r.created_at),
-  updatedAt: new Date(r.updated_at),
-});
-
-export type DomainRow = {
-  id: string;
-  name: string;
-  kind: string;
-  project_id: string | null;
-  preview_id: string | null;
-  status: string;
-  claim_id: string;
-  routing_ok: number;
-  last_error: string | null;
-  checked_at: number | null;
-  verified_at: number | null;
-  created_by: string | null;
-  created_at: number;
-  updated_at: number;
-};
-
-export const rowToDomain = (r: DomainRow): Domain => ({
-  id: r.id,
-  name: r.name,
-  kind: r.kind as Domain["kind"],
-  projectId: r.project_id,
-  previewId: r.preview_id,
-  status: r.status as Domain["status"],
-  claimId: r.claim_id,
-  routingOk: bool(r.routing_ok),
-  lastError: r.last_error,
-  checkedAt: toDate(r.checked_at),
-  verifiedAt: toDate(r.verified_at),
-  createdBy: r.created_by,
   createdAt: new Date(r.created_at),
   updatedAt: new Date(r.updated_at),
 });

@@ -69,3 +69,35 @@ test("an org cannot list, read or destroy another org's previews or projects", a
   expect(await ids(await home("/v1/previews"))).not.toContain(theirs.id);
   expect((await home(`/v1/previews/${theirs.id}`)).status).toBe(404);
 });
+
+test("tokens, audit entries and domains stay with their org", async () => {
+  const { home, other } = await twoOrgs();
+  const claimed = await home(
+    "/v1/domains",
+    post({ name: "previews.example.com", kind: "wildcard" }),
+  );
+  expect(claimed.status).toBe(201);
+  const { domain } = (await claimed.json()) as { domain: { id: string } };
+
+  const tokens = (await (await other("/v1/tokens?all=true")).json()) as {
+    tokens: { name: string }[];
+  };
+  expect(tokens.tokens.map((t) => t.name)).toEqual(["other-org"]);
+  const audit = (await (await other("/v1/audit")).json()) as { entries: { action: string }[] };
+  expect(audit.entries.map((e) => e.action)).not.toContain("domain.claimed");
+  const domains = (await (await other("/v1/domains")).json()) as {
+    available: string[];
+    domains: { id: string }[];
+  };
+  expect(domains.domains).toEqual([]);
+  expect(domains.available).not.toContain("previews.example.com");
+  expect((await other(`/v1/domains/${domain.id}`, { method: "DELETE" })).status).toBe(404);
+  const again = await other(
+    "/v1/domains",
+    post({ name: "previews.example.com", kind: "wildcard" }),
+  );
+  expect(again.status).toBe(409);
+
+  const own = (await (await home("/v1/audit")).json()) as { entries: { action: string }[] };
+  expect(own.entries.map((e) => e.action)).toContain("domain.claimed");
+});

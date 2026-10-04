@@ -7,6 +7,7 @@ import { SETTINGS, type Settings } from "../settings.ts";
 import type { CertUnit } from "../tls/types.ts";
 import { challengeTarget } from "./claims.ts";
 import { compareCodeUnits } from "../util/compare.ts";
+import { acrossOrgs, orgScope } from "../tenancy/scope.ts";
 
 export type RegistryDeps = {
   settings: Settings;
@@ -18,7 +19,8 @@ export type RegistryDeps = {
 
 type Snapshot = {
   rows: Domain[];
-  org: string[];
+  /** Each org's own wildcards, for its previews and projects alone. */
+  org: Map<string, string[]>;
   byProject: Map<string, string[]>;
   aliases: Map<string, string>;
   routable: Set<string>;
@@ -62,16 +64,23 @@ export class DomainRegistry {
     const s = this.#snapshot();
     const defaultDomain = this.defaultDomain();
     if (s.all?.defaultDomain !== defaultDomain) {
-      const list = [...this.pinned(), ...s.org, ...[...s.byProject.values()].flat()];
+      const list = [
+        ...this.pinned(),
+        ...[...s.org.values()].flat(),
+        ...[...s.byProject.values()].flat(),
+      ];
       s.all = { defaultDomain, list: [...new Set(list)] };
     }
     return s.all.list;
   }
 
+  /** For the current org: across every org only in background work. */
   availableTo(projectId: string | null): string[] {
     const s = this.#snapshot();
+    const scope = orgScope();
+    const org = scope === "fleet" ? [...s.org.values()].flat() : (s.org.get(scope.org) ?? []);
     const own = projectId === null ? [] : (s.byProject.get(projectId) ?? []);
-    return [...new Set([...this.pinned(), ...s.org, ...own])];
+    return [...new Set([...this.pinned(), ...org, ...own])];
   }
 
   assertAvailable(name: string, projectId: string | null): void {
@@ -190,8 +199,10 @@ export class DomainRegistry {
 
   /** The preview an exact hostname points at: its own, else its project's production preview. */
   #targetOf(r: Domain): string | null | undefined {
+    const projectId = r.projectId;
     return (
-      r.previewId ?? (r.projectId ? this.#d.projects.get(r.projectId)?.productionPreviewId : null)
+      r.previewId ??
+      (projectId ? acrossOrgs(() => this.#d.projects.get(projectId))?.productionPreviewId : null)
     );
   }
 
@@ -199,8 +210,8 @@ export class DomainRegistry {
     if (this.#snap) {
       return this.#snap;
     }
-    const rows = this.#d.domains.all();
-    const org: string[] = [];
+    const rows = acrossOrgs(() => this.#d.domains.all());
+    const org = new Map<string, string[]>();
     const byProject = new Map<string, string[]>();
     const aliases = new Map<string, string>();
     const routable = new Set<string>();
@@ -210,7 +221,7 @@ export class DomainRegistry {
       }
       if (r.kind === "wildcard") {
         if (r.projectId === null) {
-          org.push(r.name);
+          org.set(r.orgId, [...(org.get(r.orgId) ?? []), r.name]);
         } else {
           byProject.set(r.projectId, [...(byProject.get(r.projectId) ?? []), r.name]);
         }

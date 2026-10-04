@@ -1,4 +1,5 @@
 import type { AuditActorType, AuditEntry } from "@gangway/shared/domain";
+import { orgScope } from "../../tenancy/scope.ts";
 import type { Db } from "../types.ts";
 import { rowToAuditEntry, type AuditRow } from "./mappers.ts";
 
@@ -8,6 +9,8 @@ export type AppendAudit = {
   actorName?: string | null;
   action: string;
   target: string | null;
+  /** null: the server's own, read only by the home org. */
+  orgId: string | null;
   old?: unknown;
   new?: unknown;
 };
@@ -24,14 +27,15 @@ export class AuditRepo {
   append(e: AppendAudit): number {
     const json = (v: unknown) => (v === undefined || v === null ? null : JSON.stringify(v));
     return this.#db.run(
-      `INSERT INTO audit (actor_type, actor_id, actor_name, action, target, old_json, new_json, created_at)
-       VALUES ($type, $id, $name, $action, $target, $old, $new, $now)`,
+      `INSERT INTO audit (actor_type, actor_id, actor_name, action, target, org_id, old_json, new_json, created_at)
+       VALUES ($type, $id, $name, $action, $target, $org, $old, $new, $now)`,
       {
         type: e.actorType,
         id: e.actorId,
         name: e.actorName ?? null,
         action: e.action,
         target: e.target,
+        org: e.orgId,
         old: json(e.old),
         new: json(e.new),
         now: this.#now(),
@@ -47,11 +51,19 @@ export class AuditRepo {
     entries: AuditEntry[];
     nextBefore: number | null;
   } {
+    const s = orgScope();
     const rows = this.#db.query(
       `SELECT * FROM audit
         WHERE seq < $before AND ($action IS NULL OR action = $action)
+          AND ($org IS NULL OR org_id = $org
+               OR (org_id IS NULL AND $org = (SELECT id FROM orgs WHERE home = 1)))
         ORDER BY seq DESC LIMIT $limit`,
-      { before: q.before ?? Number.MAX_SAFE_INTEGER, action: q.action ?? null, limit: q.limit + 1 },
+      {
+        before: q.before ?? Number.MAX_SAFE_INTEGER,
+        action: q.action ?? null,
+        limit: q.limit + 1,
+        org: s === "fleet" ? null : s.org,
+      },
     ) as AuditRow[];
     const entries = rows.slice(0, q.limit).map(rowToAuditEntry);
     const last = entries.at(-1);

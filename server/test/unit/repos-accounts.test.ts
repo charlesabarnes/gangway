@@ -304,6 +304,17 @@ for (const [name, open] of DRIVERS) {
         expect(s.tokens.hasActiveAdmin()).toBe(true);
         s.users.update("u-ada", { roleId: "member" });
         expect(s.tokens.hasActiveAdmin()).toBe(false);
+        // Any role that may turn the surfaces back on counts, not the admin role by name.
+        s.db.run(
+          "INSERT INTO role_permissions (role_id, permission_id) VALUES ('member', 'surfaces.manage')",
+        );
+        expect(s.tokens.hasActiveAdmin()).toBe(true);
+        s.db.run("DELETE FROM role_permissions WHERE permission_id = 'surfaces.manage'");
+        s.db.run(
+          "INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('o2', 'two', 'Two', 1, 1)",
+        );
+        mint(s, { id: "t4", tokenHash: "hash-4", scopes: ["admin"], userId: null, orgId: "o2" });
+        expect(s.tokens.hasActiveAdmin()).toBe(false);
         mint(s, { id: "t3", tokenHash: "hash-3", scopes: ["admin"], userId: null });
         expect(s.tokens.hasActiveAdmin()).toBe(true);
         s.tokens.revoke("t3");
@@ -319,6 +330,7 @@ for (const [name, open] of DRIVERS) {
           audit.append({
             actorType: "user",
             actorId: "u-ada",
+            orgId: null,
             action: i % 2 ? "auth.login" : "preview.deploy",
             target: `t${i}`,
             new: { i },
@@ -347,7 +359,13 @@ for (const [name, open] of DRIVERS) {
       test("an actor type the schema does not know is refused", () => {
         const { audit } = setup();
         expect(() =>
-          audit.append({ actorType: "martian" as never, actorId: null, action: "x", target: null }),
+          audit.append({
+            actorType: "martian" as never,
+            actorId: null,
+            action: "x",
+            target: null,
+            orgId: null,
+          }),
         ).toThrow();
       });
     });
