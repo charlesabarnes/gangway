@@ -5,6 +5,7 @@ import { API, WHOAMI } from "../helpers/boot-e2e.ts";
 import { tempDir } from "../helpers/db.ts";
 import { bootWithFakeDaemon, client } from "../helpers/fake-daemon.ts";
 import { freePort } from "../helpers/free-port.ts";
+import { tarball } from "../helpers/runtimes-fixtures.ts";
 
 const post = (body: unknown): RequestInit => ({
   method: "POST",
@@ -154,4 +155,40 @@ test("another org's previews end in --slug; the home org's names stay as they we
   expect((await home(`/v1/previews/${mine.id}`, { method: "DELETE" })).status).toBe(200);
   const theirs = await hostOf(await other("/v1/previews?wait=true", body));
   expect(theirs.host.split(".")[0]).toBe("site--other");
+});
+
+test("an org's plan holds it to static sites, a count, a size and a lifetime", async () => {
+  const { home, other, otherId } = await twoOrgs();
+  const limits = { containers: false, maxSites: 1, storageBytes: 2_000, maxLifetimeMs: 86_400_000 };
+  const set = await home(`/v1/operator/orgs/${otherId}/limits`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ planLabel: "Free", limits }),
+  });
+  expect(set.status).toBe(200);
+  expect(((await set.json()) as { limits: { planLabel: string } }).limits.planLabel).toBe("Free");
+
+  const app = await other("/v1/previews?wait=true", post({ name: "app", source: WHOAMI }));
+  expect(app.status).toBe(403);
+  const site = async (name: string, html: string) =>
+    other(`/v1/previews?wait=true&runtime=auto&visibility=public&name=${name}&ttl=30d`, {
+      method: "POST",
+      headers: { "content-type": "application/gzip" },
+      body: await tarball({ "index.html": html }),
+    });
+  const big = await site("big", "x".repeat(3_000));
+  expect(big.status).toBe(409);
+  const first = await site("first", "<h1>hi</h1>");
+  expect(first.status).toBe(201);
+  const { preview } = (await first.json()) as { preview: { id: string; ttlExpiresAt: string } };
+  expect(Date.parse(preview.ttlExpiresAt) - Date.now()).toBeLessThanOrEqual(86_400_000);
+  const kept = await other(`/v1/previews/${preview.id}/ttl`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ extend: "none" }),
+  });
+  const after = ((await kept.json()) as { preview: { ttlExpiresAt: string | null } }).preview;
+  expect(after.ttlExpiresAt).not.toBeNull();
+  expect(Date.parse(after.ttlExpiresAt!) - Date.now()).toBeLessThanOrEqual(86_400_000);
+  expect((await site("second", "<h1>again</h1>")).status).toBe(409);
 });

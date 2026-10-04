@@ -25,6 +25,7 @@ import type { PreviewQuota } from "./quota.ts";
 import type { DomainRegistry } from "../domains/registry.ts";
 import type { Shares } from "../share/shares.ts";
 import type { Slots } from "../util/async.ts";
+import type { OrgLimits } from "@gangway/shared/orgs-api";
 
 export type PreviewTimings = {
   startTimeoutMs: number;
@@ -86,6 +87,7 @@ export type PreviewContext = {
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
   orgSuffix?: ((orgId: string) => string | null) | undefined;
+  orgLimits?: ((orgId: string) => OrgLimits | undefined) | undefined;
 };
 
 export type PlanningContext = Pick<

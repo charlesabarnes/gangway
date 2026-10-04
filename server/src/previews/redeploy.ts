@@ -279,12 +279,13 @@ async function runSite(
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
   try {
-    const { files, withheld } = await must(ctx.sites, "the site store").publish(
+    const { files, bytes, withheld } = await must(ctx.sites, "the site store").publish(
       id,
       r.wd.srcDir,
       plan,
     );
     r.signal.throwIfAborted();
+    ctx.previews.setBytes(id, bytes);
     await r.keep("deployed", moving ? { serve: "gangway" } : {});
     ctx.table.setSite(id, true);
     markServing(ctx, id);

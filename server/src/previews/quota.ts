@@ -2,6 +2,7 @@ import { servedByGangway, type Preview } from "@gangway/shared/domain";
 import { principalOf, type Actor } from "../auth/actor.ts";
 import { conflict } from "../errors.ts";
 import type { PreviewContext } from "./context.ts";
+import { acrossOrgs } from "../tenancy/scope.ts";
 
 export type PreviewQuota = { active: number; perUser: number };
 
@@ -15,7 +16,7 @@ export function checkQuota(ctx: Pick<PreviewContext, "previews" | "quota">, acto
     return;
   }
   if (q.active > 0) {
-    const all = ctx.previews.list().filter(running).length;
+    const all = acrossOrgs(() => ctx.previews.list()).filter(running).length;
     if (all >= q.active) {
       throw conflict(
         `this server already runs ${all} previews, its limit (previews.limits.active); destroy one first`,

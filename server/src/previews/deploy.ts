@@ -5,6 +5,7 @@ import { actorId, can } from "../auth/actor.ts";
 import { forbidden, unprocessable } from "../errors.ts";
 import { place } from "../scheduler/placement.ts";
 import { parseDuration } from "../util/duration.ts";
+import { admitDeploy, lifetimeCap } from "../tenancy/limits.ts";
 import { ulid } from "../util/ulid.ts";
 import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
@@ -30,7 +31,7 @@ import {
 } from "./pipeline.ts";
 import type { ResolvedPolicy } from "./policy.ts";
 import { checkQuota } from "./quota.ts";
-import { markServing, servesHere, siteModel, withheldLine } from "./site.ts";
+import { dirBytes, markServing, servesHere, siteModel, withheldLine } from "./site.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { readModel, writeStack, type Planned } from "./stack-file.ts";
 import { releaseFor, seedFor } from "./steps.ts";
@@ -126,6 +127,24 @@ function visibilityFor(
   return visibility;
 }
 
+// The org's plan may cap a life: the deploy goes ahead with the cap, and the log says so.
+function cappedTtl(
+  ctx: Pick<PreviewContext, "orgLimits" | "logs" | "now">,
+  id: string,
+  orgId: string,
+  ttlMs: number | null,
+): number | null {
+  const cap = lifetimeCap(ctx, orgId, ctx.now());
+  if (cap === undefined || (ttlMs !== null && ctx.now() + ttlMs <= cap)) {
+    return ttlMs;
+  }
+  const most = cap - ctx.now();
+  const hours = Math.round(most / 3_600_000);
+  const span = hours % 24 === 0 ? `${hours / 24}d` : `${hours}h`;
+  ctx.logs.append(id, "system", `lives ${span} at most, the longest this org's plan allows`);
+  return most;
+}
+
 function ttlFor(
   input: DeployInput,
   { template, project: owner }: ResolvedPolicy,
@@ -186,12 +205,15 @@ async function prepare(
   const { model } = planned;
   const exposed = selectExposed(model);
   const visibility = visibilityFor(ctx, input, policy, model);
-  const ttlMs = ttlFor(input, policy, model);
+  const ttlMs = cappedTtl(ctx, id, input.actor.orgId, ttlFor(input, policy, model));
   const password = await resolvePassword(ctx.passwords, input.password);
+  const bytes = site ? await dirBytes(wd.srcDir) : 0;
   // No await between the count and the row it adds, so two deploys cannot both pass.
   if (site === null) {
     checkQuota(ctx, input.actor);
   }
+  const org = input.actor.orgId;
+  admitDeploy(ctx, org, { site: site !== null, bytes, used: ctx.previews.bytesUsed(org) });
   const { preview, routes } = claimPreview(ctx, {
     id,
     input,
@@ -314,12 +336,13 @@ async function publishSite(
 ): Promise<Preview> {
   const id = r.preview.id;
   try {
-    const { files, withheld } = await must(ctx.sites, "the site store").publish(
+    const { files, bytes, withheld } = await must(ctx.sites, "the site store").publish(
       id,
       r.wd.srcDir,
       plan,
     );
     r.signal.throwIfAborted();
+    ctx.previews.setBytes(id, bytes);
     const left = withheldLine(withheld);
     if (left) {
       ctx.logs.append(id, "system", left);

@@ -121,7 +121,7 @@ export function siteModel(plan: AppPlan, port: number | undefined): Planned {
 }
 
 /** `withheld`: what was left out as sensitive (sensitive.ts), for the deploy's log. */
-export type Copied = { files: number; withheld: string[] };
+export type Copied = { files: number; bytes: number; withheld: string[] };
 
 const WITHHELD_SHOWN = 10;
 
@@ -136,8 +136,22 @@ export function withheldLine(withheld: readonly string[]): string | null {
   return `not published, as they may hold secrets: ${shown}${more} (use gangway secrets instead)`;
 }
 
+/** The bytes of the regular files under `dir`, links not followed. */
+export async function dirBytes(dir: string): Promise<number> {
+  let total = 0;
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    const at = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      total += await dirBytes(at);
+    } else if (e.isFile()) {
+      total += Bun.file(at).size;
+    }
+  }
+  return total;
+}
+
 async function copyFiles(from: string, to: string, rel = ""): Promise<Copied> {
-  const out: Copied = { files: 0, withheld: [] };
+  const out: Copied = { files: 0, bytes: 0, withheld: [] };
   await mkdir(to, { recursive: true, mode: DIR_MODE });
   for (const e of await readdir(from, { withFileTypes: true })) {
     if (SKIPPED.has(e.name)) {
@@ -153,10 +167,12 @@ async function copyFiles(from: string, to: string, rel = ""): Promise<Copied> {
     if (e.isDirectory()) {
       const sub = await copyFiles(src, dest, at);
       out.files += sub.files;
+      out.bytes += sub.bytes;
       out.withheld.push(...sub.withheld);
     } else if (e.isFile()) {
       await copyFile(src, dest);
       out.files++;
+      out.bytes += Bun.file(dest).size;
     }
   }
   return out;

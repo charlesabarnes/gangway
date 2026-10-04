@@ -167,6 +167,19 @@ export class PreviewsRepo {
     });
   }
 
+  setBytes(id: string, bytes: number): void {
+    this.#db.run("UPDATE previews SET bytes = $bytes WHERE id = $id", { id, bytes });
+  }
+
+  /** The bytes the org's live sites keep on disk. */
+  bytesUsed(orgId: string): number {
+    const r = this.#db.get(
+      "SELECT COALESCE(SUM(bytes), 0) AS n FROM previews WHERE org_id = $orgId AND state != 'destroyed'",
+      { orgId },
+    ) as { n: number } | undefined;
+    return r?.n ?? 0;
+  }
+
   setTitle(id: string, title: string | null): void {
     this.#db.run("UPDATE previews SET title = $title, updated_at = $now WHERE id = $id", {
       id,

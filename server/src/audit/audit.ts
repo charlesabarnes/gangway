@@ -45,6 +45,7 @@ export type AuditAction =
   | "secrets.changed"
   | "project.created"
   | "org.created"
+  | "org.limits"
   | "project.updated"
   | "project.deleted"
   | "project.env.changed"
