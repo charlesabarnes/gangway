@@ -95,6 +95,7 @@ export class Audit implements AuditSink {
         actorName: ("name" in who ? who.name : undefined) ?? null,
         action,
         target,
+        orgId: actor?.orgId ?? null,
         old: change.old === undefined ? undefined : redact(change.old),
         new: change.new === undefined ? undefined : redact(change.new),
       });

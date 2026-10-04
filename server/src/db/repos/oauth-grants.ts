@@ -4,6 +4,7 @@ import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { parseTargets } from "./mappers.ts";
 import { rowToUser, type UserRow } from "./users.ts";
+import { orgFilter } from "../../tenancy/scope.ts";
 
 type GrantRow = {
   id: string;
@@ -135,8 +136,11 @@ export class OAuthGrantsRepo {
   }
 
   get(id: string): OAuthGrant | undefined {
-    const r = this.#db.get(`SELECT ${COLUMNS} FROM oauth_grants WHERE id = $id`, { id }) as
-      GrantRow | undefined;
+    const o = orgFilter();
+    const r = this.#db.get(`SELECT ${COLUMNS} FROM oauth_grants WHERE id = $id AND ${o.sql}`, {
+      id,
+      ...o.params,
+    }) as GrantRow | undefined;
     return r ? toGrant(r) : undefined;
   }
 
@@ -202,8 +206,8 @@ export class OAuthGrantsRepo {
   listForUser(userId: string): OAuthGrant[] {
     return (
       this.#db.query(
-        `SELECT ${COLUMNS} FROM oauth_grants WHERE user_id = $u AND revoked_at IS NULL ORDER BY created_at DESC, id`,
-        { u: userId },
+        `SELECT ${COLUMNS} FROM oauth_grants WHERE user_id = $u AND revoked_at IS NULL AND ${orgFilter().sql} ORDER BY created_at DESC, id`,
+        { u: userId, ...orgFilter().params },
       ) as GrantRow[]
     ).map(toGrant);
   }
@@ -211,7 +215,8 @@ export class OAuthGrantsRepo {
   listAll(): OAuthGrant[] {
     return (
       this.#db.query(
-        `SELECT ${COLUMNS} FROM oauth_grants WHERE revoked_at IS NULL ORDER BY created_at DESC, id`,
+        `SELECT ${COLUMNS} FROM oauth_grants WHERE revoked_at IS NULL AND ${orgFilter().sql} ORDER BY created_at DESC, id`,
+        orgFilter().params,
       ) as GrantRow[]
     ).map(toGrant);
   }

@@ -319,6 +319,7 @@ for (const [name, open] of DRIVERS) {
           audit.append({
             actorType: "user",
             actorId: "u-ada",
+            orgId: null,
             action: i % 2 ? "auth.login" : "preview.deploy",
             target: `t${i}`,
             new: { i },
@@ -347,7 +348,13 @@ for (const [name, open] of DRIVERS) {
       test("an actor type the schema does not know is refused", () => {
         const { audit } = setup();
         expect(() =>
-          audit.append({ actorType: "martian" as never, actorId: null, action: "x", target: null }),
+          audit.append({
+            actorType: "martian" as never,
+            actorId: null,
+            action: "x",
+            target: null,
+            orgId: null,
+          }),
         ).toThrow();
       });
     });

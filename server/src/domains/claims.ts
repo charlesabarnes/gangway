@@ -11,6 +11,7 @@ import type { EventBus } from "../events/bus.ts";
 import { ulid } from "../util/ulid.ts";
 import type { ClaimDns } from "./dns-check.ts";
 import type { DomainRegistry } from "./registry.ts";
+import { acrossOrgs } from "../tenancy/scope.ts";
 
 /** Who a domain belongs to: the org (the whole server), a project, or one preview. */
 export type DomainTarget =
@@ -106,7 +107,7 @@ function claimProblem(deps: ClaimDeps, name: string, kind: DomainKind): string |
   if (isWithin(name, control)) {
     return `${name} is under gangway's own domain ${control}; name previews with a label instead`;
   }
-  const rows = deps.domains.all();
+  const rows = acrossOrgs(() => deps.domains.all());
   const wildcards = [
     ...new Set([
       ...deps.registry.pinned(),
@@ -144,7 +145,7 @@ export function claimDomain(
   if (target.kind === "org" && req.kind === "exact") {
     throw unprocessable("a hostname answers for one site: claim it on a project or a preview");
   }
-  const taken = deps.domains.byName(req.name);
+  const taken = acrossOrgs(() => deps.domains.byName(req.name));
   if (taken) {
     throw conflict(`${req.name} is already claimed`, { domain: req.name });
   }
@@ -155,6 +156,7 @@ export function claimDomain(
 
   const d = deps.domains.create({
     id: ulid(deps.now()),
+    orgId: actor.orgId,
     name: req.name,
     kind: req.kind,
     projectId: target.kind === "project" ? target.project.id : null,

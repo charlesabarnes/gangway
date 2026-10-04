@@ -210,9 +210,9 @@ describe("GET /v1/events, for someone who may read only their own previews", () 
     const theirs = "01HBBBBBBBBBBBBBBBBBBBBBBB";
     const at = new Date(0);
     const backlog: GangwayEvent[] = [
-      { seq: 1, type: "preview.state", previewId: theirs, payload: {}, createdAt: at },
-      { seq: 2, type: "preview.state", previewId: mine, payload: {}, createdAt: at },
-      { seq: 3, type: "host.state", previewId: null, payload: {}, createdAt: at },
+      { seq: 1, type: "preview.state", previewId: theirs, orgId: null, payload: {}, createdAt: at },
+      { seq: 2, type: "preview.state", previewId: mine, orgId: null, payload: {}, createdAt: at },
+      { seq: 3, type: "host.state", previewId: null, orgId: null, payload: {}, createdAt: at },
     ];
     const bus = {
       follow: (_after: number, deliver: (e: GangwayEvent) => void) => {
