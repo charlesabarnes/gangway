@@ -36,6 +36,8 @@ export type Claim = {
   password: ResolvedPassword;
   /** Served by gangway from its files, not proxied to a container. */
   site?: boolean;
+  /** What a site will keep, held against the org's storage from the claim on. */
+  bytes?: number;
 };
 
 // Another org's names end in "--" and its slug: slugify never makes "--", so no name can clash.
@@ -69,6 +71,7 @@ function createPreview(
     templateId: template.id,
     projectId: owner?.id ?? null,
     orgId: c.input.actor.orgId,
+    bytes: c.bytes ?? 0,
     owner: principalOf(c.input.actor),
     credential: credentialOf(c.input.actor),
     password: c.password.stored,

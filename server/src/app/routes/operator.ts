@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
-import { OrgCreateSchema } from "@gangway/shared/orgs-api";
+import { OrgCreateSchema, OrgLimitsChangeSchema } from "@gangway/shared/orgs-api";
+import { actorId } from "../../auth/actor.ts";
 import { notFound } from "../../errors.ts";
 import { createOrg, type OrgDeps } from "../../tenancy/orgs.ts";
 import type { AppEnv } from "../env.ts";
@@ -17,11 +18,29 @@ export function operatorRoutes(api: Hono<AppEnv>, d: OrgDeps): void {
     return c.json({ org: createOrg(d, c.get("actor"), req) }, 201);
   });
 
-  api.get("/operator/orgs/:id", requirePermission("instance.orgs"), (c) => {
-    const org = d.orgs.get(c.req.param("id"));
+  const orgOf = (id: string) => {
+    const org = d.orgs.get(id);
     if (!org) {
-      throw notFound(`no such org: ${c.req.param("id")}`);
+      throw notFound(`no such org: ${id}`);
     }
+    return org;
+  };
+
+  api.get("/operator/orgs/:id", requirePermission("instance.orgs"), (c) => {
+    const org = orgOf(c.req.param("id"));
     return c.json({ org, limits: d.orgs.limitsOf(org.id) ?? null });
+  });
+
+  // What a billing system calls when a plan changes; the same call twice changes nothing more.
+  api.put("/operator/orgs/:id/limits", requirePermission("instance.orgs"), async (c) => {
+    const org = orgOf(c.req.param("id"));
+    const req = OrgLimitsChangeSchema.parse(await readJson(c));
+    const actor = c.get("actor");
+    const before = d.orgs.limitsOf(org.id) ?? null;
+    const label = req.planLabel === undefined ? (before?.planLabel ?? null) : req.planLabel;
+    d.orgs.setLimits(org.id, label, req.limits, actorId(actor));
+    const after = d.orgs.limitsOf(org.id) ?? null;
+    d.audit.record(actor, "org.limits", org.id, { old: before, new: after });
+    return c.json({ org, limits: after });
   });
 }

@@ -24,6 +24,11 @@ export const OrgCreateSchema = z.strictObject({
 });
 export type OrgCreateRequest = z.infer<typeof OrgCreateSchema>;
 
+export const OrgLimitsChangeSchema = z.strictObject({
+  planLabel: z.string().trim().min(1).max(64).nullable().optional(),
+  limits: OrgLimitsSchema,
+});
+
 export type Org = {
   id: string;
   slug: string;

@@ -36,11 +36,12 @@ import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import { releaseStack } from "./destroy.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
-import { markServing, withheldLine } from "./site.ts";
+import { markServing, plannedBytes, withheldLine } from "./site.ts";
 import type { SourceStore } from "./source/store.ts";
 import { dropProjectNetwork, writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
+import { checkStorage } from "../tenancy/limits.ts";
 
 export { checkEditPath, type SourceEdits } from "./source-edits.ts";
 export type { RedeployOutcome } from "./rebuild-failure.ts";
@@ -271,19 +272,27 @@ async function startAddons(ctx: BuildingContext, p: Pipeline, r: RebuildRun): Pr
 }
 
 async function runSite(
-  ctx: StaticContext & BuildingContext & Pick<PreviewContext, "table" | "bus">,
+  ctx: StaticContext & BuildingContext & Pick<PreviewContext, "table" | "bus" | "orgLimits">,
   r: RebuildRun,
   plan: AppPlan,
 ): Promise<RedeployOutcome> {
   const id = r.preview.id;
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
+  const before = ctx.previews.bytesUsed(was.orgId) - ctx.previews.bytesUsed(was.orgId, id);
+  let swapped = false;
   try {
-    const { files, withheld } = await must(ctx.sites, "the site store").publish(
+    // Checked and held with no await between, so a deploy meanwhile counts the larger size.
+    const planned = await plannedBytes(r.wd.srcDir, plan);
+    checkStorage(ctx, was.orgId, ctx.previews.bytesUsed(was.orgId, id) + planned);
+    ctx.previews.setBytes(id, Math.max(before, planned));
+    const { files, bytes, withheld } = await must(ctx.sites, "the site store").publish(
       id,
       r.wd.srcDir,
       plan,
     );
+    swapped = true;
+    ctx.previews.setBytes(id, bytes);
     r.signal.throwIfAborted();
     await r.keep("deployed", moving ? { serve: "gangway" } : {});
     ctx.table.setSite(id, true);
@@ -305,6 +314,10 @@ async function runSite(
     }
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
+    // Once the new site is swapped in, its measured size stands, whatever fails after.
+    if (!swapped) {
+      ctx.previews.setBytes(id, before);
+    }
     if (r.signal.aborted) {
       return {
         preview: ctx.previews.get(id) ?? r.preview,

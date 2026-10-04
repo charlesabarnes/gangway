@@ -4,6 +4,7 @@ import { parseDuration } from "@gangway/shared/duration";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { conflict, forbidden, unprocessable } from "../errors.ts";
 import type { PreviewContext } from "./context.ts";
+import { lifetimeCap } from "../tenancy/limits.ts";
 
 export const EXTEND_FOREVER = "none";
 
@@ -26,7 +27,7 @@ export function keepForProduction(
 
 // Adds `by` to what is left (or to now, if lapsed), or keeps it forever; never shortens a life.
 export function extendPreview(
-  ctx: Pick<PreviewContext, "previews" | "audit" | "now">,
+  ctx: Pick<PreviewContext, "previews" | "audit" | "now" | "orgLimits">,
   actor: Actor,
   previewId: string,
   by: string,
@@ -50,9 +51,12 @@ export function extendPreview(
   }
 
   const old = p.ttlExpiresAt;
-  const next = ms === null ? null : new Date(Math.max(old?.getTime() ?? 0, ctx.now()) + ms);
-  // Already kept forever: adding time would make it expire.
-  if (old === null) {
+  const asked = ms === null ? null : Math.max(old?.getTime() ?? 0, ctx.now()) + ms;
+  const cap = lifetimeCap(ctx, p.orgId, p.createdAt.getTime());
+  const until = cap === undefined ? asked : Math.min(asked ?? cap, cap);
+  const next = until === null ? null : new Date(until);
+  // Kept forever, or at the plan's cap, counted from its start ("none" under a cap is the cap).
+  if (old === null || (next !== null && next.getTime() <= old.getTime())) {
     return p;
   }
   ctx.previews.setTtlExpiresAt(previewId, next);

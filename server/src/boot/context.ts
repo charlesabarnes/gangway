@@ -126,15 +126,18 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     addonSecret: addonSecretFrom(secretsKey),
     secretsFor: (repoId, clearance) => secrets.valuesFor(repoId, clearance),
     secrets,
-    orgSuffix: orgSuffixFrom(repos),
+    ...orgPartsFrom(repos),
   };
   return { ctx, policy, secrets, previewPasswords, triggerDefault };
 }
 
-function orgSuffixFrom(repos: Repos): (orgId: string) => string | null {
-  return (orgId) => {
-    const org = repos.orgs.get(orgId);
-    return org && !org.home ? org.slug : null;
+function orgPartsFrom(repos: Repos): Pick<PreviewContext, "orgSuffix" | "orgLimits"> {
+  return {
+    orgSuffix: (orgId) => {
+      const org = repos.orgs.get(orgId);
+      return org && !org.home ? org.slug : null;
+    },
+    orgLimits: (orgId) => repos.orgs.limitsOf(orgId)?.limits,
   };
 }
 

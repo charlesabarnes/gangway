@@ -16,7 +16,7 @@ export const DRIVERS: [string, Open][] = [
 
 export const ALL_VERSIONS = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-  28, 29, 30, 31, 32, 33,
+  28, 29, 30, 31, 32, 33, 34,
 ];
 
 /** A directory holding the real migrations up to and including `version`. */
@@ -57,3 +57,6 @@ export function migrationFiles(files: Record<string, string>): string {
   }
   return d;
 }
+
+/** Every migration from `n` on: what upgrading a database at n - 1 applies. */
+export const versionsFrom = (n: number) => ALL_VERSIONS.filter((v) => v >= n);

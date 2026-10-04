@@ -24,6 +24,8 @@ const choiceColumns = (p: CreatePreview) => ({
   domain: p.domain ?? null,
 });
 
+const orgColumns = (p: CreatePreview) => ({ org: orgOf(p), bytes: p.bytes ?? 0 });
+
 function orgOf(p: CreatePreview): string {
   const s = orgScope();
   if (s !== "fleet" && s.org !== p.orgId) {
@@ -51,15 +53,15 @@ export class PreviewsRepo {
     const now = this.#now();
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
-      `INSERT INTO previews (id, org_id, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
+      `INSERT INTO previews (id, org_id, bytes, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, credential,
                              password_mode, password_hash, password_salt, password_login, signed_in_only, watermark, domain, created_at, updated_at)
-       VALUES ($id, $org, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
+       VALUES ($id, $org, $bytes, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $credential,
                $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $watermark, $domain, $now, $now)`,
       {
         id: p.id,
-        org: orgOf(p),
+        ...orgColumns(p),
         project: p.project,
         ...labelColumns(p),
         host_id: p.hostId,
@@ -165,6 +167,19 @@ export class PreviewsRepo {
       v: sealed,
       now: this.#now(),
     });
+  }
+
+  setBytes(id: string, bytes: number): void {
+    this.#db.run("UPDATE previews SET bytes = $bytes WHERE id = $id", { id, bytes });
+  }
+
+  /** The bytes the org's live sites keep on disk, all but `except`'s if given. */
+  bytesUsed(orgId: string, except = ""): number {
+    const r = this.#db.get(
+      "SELECT COALESCE(SUM(bytes), 0) AS n FROM previews WHERE org_id = $orgId AND state != 'destroyed' AND id != $except",
+      { orgId, except },
+    ) as { n: number } | undefined;
+    return r?.n ?? 0;
   }
 
   setTitle(id: string, title: string | null): void {
