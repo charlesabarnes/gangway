@@ -4,6 +4,7 @@ import { pack } from "tar-stream";
 import { gzipSync } from "node:zlib";
 import { deploy } from "../../src/previews/deploy.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
+import { containedIn } from "../../src/previews/source/types.ts";
 import { Slots } from "../../src/util/async.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 
@@ -356,7 +357,13 @@ describe("the seed hook", () => {
 describe("repository secrets become .env while compose reads the file", () => {
   // The fake `config` returns the compose file as-is; what matters is what is on disk when it runs.
   const dotenvAt = (s: ReturnType<typeof setupPreviewContext>) => {
-    const seen = { config: null as string | null, build: null as string | null, compose: "" };
+    const seen = {
+      config: null as string | null,
+      build: null as string | null,
+      compose: "",
+      composePath: "",
+      context: "",
+    };
     let dir = "";
     const read = () =>
       Bun.file(`${dir}/.env`)
@@ -369,7 +376,9 @@ describe("repository secrets become .env while compose reads the file", () => {
         if (argv.includes("config")) {
           dir = argv[argv.indexOf("--project-directory") + 1]!;
           seen.config = await read();
-          seen.compose = await Bun.file(argv[argv.indexOf("--file") + 1]!).text();
+          seen.composePath = argv[argv.indexOf("--file") + 1]!;
+          seen.context = dir;
+          seen.compose = await Bun.file(seen.composePath).text();
         }
         return inner.capture(argv, host, o);
       },
@@ -421,6 +430,8 @@ describe("repository secrets become .env while compose reads the file", () => {
     expect((await res.done).state).toBe("awake");
     expect(seen.config).toBeNull();
     expect(JSON.parse(seen.compose).services.web.environment).toEqual({ API_KEY: "sk-$$live" });
+    // The file holding the secret sits outside the build context, so COPY . . cannot bake it in.
+    expect(containedIn(seen.context, seen.composePath)).toBe(false);
     expect(s.ctx.logs.tail(res.preview.id).join("\n")).toContain(
       "passing 1 secret(s) to the container as environment",
     );

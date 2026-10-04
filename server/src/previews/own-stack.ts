@@ -1,5 +1,5 @@
 import { lstat, mkdir, readdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { unprocessable } from "../errors.ts";
 import { dotenvLine } from "../secrets/secrets.ts";
@@ -13,6 +13,7 @@ import { GENERATED_DIR } from "./source/store.ts";
 import { DIR_MODE, FILE_MODE } from "./source/types.ts";
 
 export const COMPOSE_FILE = "compose.yaml";
+const GENERATED_COMPOSE_FILE = "dockerfile.compose.yaml";
 
 /** Secrets as `.env` only while `compose config` reads them; the build must not see them. */
 export async function withDotenv<T>(
@@ -73,13 +74,15 @@ async function requireDockerfilePort(
 export type StackInput = {
   logId: string;
   srcDir: string;
+  /** Outside the build context: a generated compose file holds the secrets. */
+  stackDir: string;
   env: Record<string, string> | undefined;
   port: number | undefined;
 };
 
 export async function ownStack(
   ctx: Pick<PreviewContext, "logs">,
-  { logId: id, srcDir, env, port: askedPort }: StackInput,
+  { logId: id, srcDir, stackDir, env, port: askedPort }: StackInput,
   plan: AppPlan | null,
   sidecars?: RenderedAddons,
 ): Promise<OwnStack> {
@@ -108,8 +111,9 @@ export async function ownStack(
   if (n > 0) {
     ctx.logs.append(id, "system", `passing ${n} secret(s) to the container as environment`);
   }
+  const composePath = join(stackDir, GENERATED_COMPOSE_FILE);
   await writeFile(
-    join(srcDir, COMPOSE_FILE),
+    composePath,
     composeForDockerfile({
       port,
       env: appEnv,
@@ -119,5 +123,5 @@ export async function ownStack(
     }),
     { mode: 0o600 },
   );
-  return { composeFile: COMPOSE_FILE };
+  return { composeFile: relative(srcDir, composePath) };
 }

@@ -81,10 +81,10 @@ async function logsOf(id: string): Promise<string> {
   }
 }
 
-async function deploy(files: Record<string, string>): Promise<Deployed> {
+async function deploy(files: Record<string, string>, extra = ""): Promise<Deployed> {
   const name = `it-${++deploys}`;
   trace(`deploying ${name}`);
-  const query = `wait=true&visibility=public&runtime=own&name=${name}`;
+  const query = `wait=true&visibility=public&runtime=own&name=${name}${extra}`;
   const res = await call(API, `/v1/previews?${query}`, {
     method: "POST",
     headers: { "content-type": "application/gzip" },
@@ -239,6 +239,21 @@ describe.skipIf(!enabled)("against real Docker", () => {
     const image = (await docker("inspect", "--format", "{{.Image}}", c)).stdout;
     const history = await docker("history", "--no-trunc", image);
     expect(history.stdout).not.toContain(SECRET);
+  }, 240_000);
+
+  test("a Dockerfile with no compose file gets the secret at runtime, never in its image", async () => {
+    const bare = await deploy(
+      {
+        Dockerfile:
+          'FROM busybox:1.36\nCOPY . /ctx\nCMD ["sh", "-c", "echo ok > /tmp/index.html && exec httpd -f -p 8080 -h /tmp"]\n',
+      },
+      "&port=8080",
+    );
+    expectAwake(bare);
+    const c = await containerOf(bare.id);
+    expect((await docker("exec", c, "env")).stdout).toContain(`GW_IT_TOKEN=${SECRET}`);
+    const copied = await docker("exec", c, "grep", "-rl", SECRET, "/ctx");
+    expect(copied.stdout).toBe("");
   }, 240_000);
 
   test("destroying every preview leaves no container or volume behind", async () => {

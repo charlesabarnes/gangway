@@ -168,7 +168,12 @@ export async function prepareUpload(
       ctx.logs.append(logId, "system", "detected the upload's own compose file / Dockerfile");
     }
     return {
-      ...(await ownStack(ctx, { logId, srcDir: wd.srcDir, env, port }, plan, sidecars)),
+      ...(await ownStack(
+        ctx,
+        { logId, srcDir: wd.srcDir, stackDir: wd.dir, env, port },
+        plan,
+        sidecars,
+      )),
       runtime: null,
       pristine,
       plan,
