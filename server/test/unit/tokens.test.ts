@@ -138,6 +138,9 @@ describe("the org a credential acts in", () => {
     t.db.run(
       `INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('${OTHER}', 'other', 'Other', 1, 1)`,
     );
+    t.db.run(
+      `INSERT INTO memberships (org_id, user_id, role_id, created_at) VALUES ('${OTHER}', '${t.ada.id}', 'admin', 1)`,
+    );
     const home = t.tokens.mint(t.adaActor, { name: "home", scopes: ["read"] });
     const away = t.tokens.mint({ ...t.adaActor, orgId: OTHER }, { name: "away", scopes: ["read"] });
     expect((await t.tokens.verify(home.secret))!.orgId).toBe(HOME_ORG_ID);
@@ -153,6 +156,9 @@ describe("the org a credential acts in", () => {
     t.db.run(
       `INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('${OTHER}', 'other', 'Other', 1, 1)`,
     );
+    t.db.run(
+      `INSERT INTO memberships (org_id, user_id, role_id, created_at) VALUES ('${OTHER}', '${t.ada.id}', 'admin', 1)`,
+    );
     const theirs = confinedToOrg({ ...t.adaActor, orgId: OTHER }, HOME_ORG_ID);
     expect(can(theirs, "settings.write")).toBe(false);
     const { secret } = t.tokens.mint(theirs, { name: "ci", scopes: ["admin"] });
@@ -160,6 +166,19 @@ describe("the org a credential acts in", () => {
     expect(can(used, "previews.destroy")).toBe(true);
     expect(can(used, "settings.write")).toBe(false);
     expect(can(used, "users.manage")).toBe(false);
+  });
+
+  test("a person's token or session in an org they do not belong to opens nothing", async () => {
+    const t = await make();
+    t.db.run(
+      `INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('${OTHER}', 'other', 'Other', 1, 1)`,
+    );
+    const { secret } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["read"] });
+    t.db.run("UPDATE api_tokens SET org_id = $o", { o: OTHER });
+    expect(await t.tokens.verify(secret)).toBeNull();
+    const login = await t.accounts.login("ada@example.com", PASSWORD, META);
+    t.db.run("UPDATE sessions SET org_id = $o", { o: OTHER });
+    expect(t.sessions.resolve(login.secret)).toBeNull();
   });
 
   test("the env admin token is the home org's", async () => {
