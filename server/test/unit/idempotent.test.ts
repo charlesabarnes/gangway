@@ -8,6 +8,7 @@ import {
   requestHash,
 } from "../../src/previews/idempotent.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 function setup() {
   const s = setupPreviewContext();
@@ -24,7 +25,7 @@ describe("requestHash", () => {
         source: a.source,
         visibility: a.visibility,
         name: a.name,
-        actor: tokenActor("other", ["admin"]),
+        actor: tokenActor("other", ["admin"], HOME_ORG_ID),
       }),
     );
     expect(requestHash(a)).not.toBe(requestHash({ ...a, ttl: "1h" }));
@@ -112,7 +113,7 @@ describe("IdempotentDeploys", () => {
 
   test("keys are scoped per token: another agent's identical key is a different key", async () => {
     const s = setup();
-    const other = tokenActor("someone-else", ["admin"]);
+    const other = tokenActor("someone-else", ["admin"], HOME_ORG_ID);
     const mine = await s.deploys.deploy(s.request("mine"), "shared");
     const theirs = await s.deploys.deploy({ ...s.request("theirs"), actor: other }, "shared");
     expect(theirs.replayed).toBe(false);
@@ -125,6 +126,7 @@ describe("IdempotentDeploys", () => {
     const raw = actorId(ACTOR);
     const user: Actor = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: raw,
       roleId: "member",
       permissions: ACTOR.permissions,

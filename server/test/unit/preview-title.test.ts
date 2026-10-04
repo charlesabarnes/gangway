@@ -3,6 +3,7 @@ import { deploy } from "../../src/previews/deploy.ts";
 import type { Actor } from "../../src/auth/actor.ts";
 import { previewPasswordApi } from "../helpers/preview-password.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const image = { kind: "image" as const, image: "traefik/whoami:v1.10", port: 80 };
 
@@ -58,6 +59,7 @@ describe("PUT /v1/previews/:id/title", () => {
   test("someone else's preview needs previews.update", async () => {
     const member: Actor = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: "u-bob",
       roleId: "member",
       permissions: new Set(["previews.update_own"]),

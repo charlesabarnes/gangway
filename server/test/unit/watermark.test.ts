@@ -14,6 +14,7 @@ import {
 import type { Actor } from "../../src/auth/actor.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
 import { previewPasswordApi } from "../helpers/preview-password.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const TAG = `<script src="${MARK_PATH}" async data-gangway-mark></script>`;
 const HOST = "shop.preview.example.com";
@@ -294,6 +295,7 @@ describe("PUT /v1/previews/:id/watermark", () => {
   test("needs previews.watermark as well as the right to change the preview", async () => {
     const member: Actor = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: "u-ada",
       roleId: "member",
       permissions: new Set(["previews.update"]),

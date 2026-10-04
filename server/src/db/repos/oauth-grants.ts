@@ -48,6 +48,7 @@ export type GrantRecord = {
   accessExpiresAt: number;
   refreshExpiresAt: number;
   owner: User;
+  orgId: string;
 };
 
 export type CreateGrant = {
@@ -64,9 +65,11 @@ export type CreateGrant = {
   refreshHash: string;
   refreshExpiresAt: number;
   absoluteExpiresAt: number;
+  orgId: string;
 };
 
 type Joined = GrantRow & {
+  org_id: string;
   u_id: string;
   u_email: string;
   u_role_id: string;
@@ -74,7 +77,7 @@ type Joined = GrantRow & {
   u_invited: number;
   u_created_at: number;
 };
-const JOIN = `SELECT ${cols("g")}, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
+const JOIN = `SELECT ${cols("g")}, g.org_id AS org_id, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
                 FROM oauth_grants g JOIN users u ON u.id = g.user_id`;
 
 const toRecord = (r: Joined): GrantRecord => {
@@ -92,6 +95,7 @@ const toRecord = (r: Joined): GrantRecord => {
     accessExpiresAt: r.access_expires_at,
     refreshExpiresAt: r.refresh_expires_at,
     owner: rowToUser(owner),
+    orgId: r.org_id,
   };
 };
 
@@ -107,8 +111,8 @@ export class OAuthGrantsRepo {
   create(g: CreateGrant): OAuthGrant {
     this.#db.run(
       `INSERT INTO oauth_grants (id, user_id, client_id, client_name, redirect_uri, scopes, secret_targets, resource, access_hash, access_expires_at,
-                                 refresh_hash, refresh_expires_at, absolute_expires_at, created_at)
-       VALUES ($id, $user, $client, $name, $redirect, $scopes, $targets, $resource, $ah, $aexp, $rh, $rexp, $abs, $now)`,
+                                 refresh_hash, refresh_expires_at, absolute_expires_at, created_at, org_id)
+       VALUES ($id, $user, $client, $name, $redirect, $scopes, $targets, $resource, $ah, $aexp, $rh, $rexp, $abs, $now, $org)`,
       {
         id: g.id,
         user: g.userId,
@@ -124,6 +128,7 @@ export class OAuthGrantsRepo {
         rexp: g.refreshExpiresAt,
         abs: g.absoluteExpiresAt,
         now: this.#now(),
+        org: g.orgId,
       },
     );
     return must(this.get(g.id), "the grant just saved");

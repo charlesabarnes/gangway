@@ -16,6 +16,7 @@ import { openDatabase as openBun } from "../../src/db/sqlite.ts";
 import { openDatabase as openNode } from "../../src/db/sqlite.node.ts";
 import type { Db, OpenOptions } from "../../src/db/types.ts";
 import { tempDb } from "../helpers/db.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const DRIVERS: [string, (o: OpenOptions) => { db: Db }][] = [
   ["bun", openBun],
@@ -224,6 +225,7 @@ for (const [name, open] of DRIVERS) {
           scopes: ["deploy"],
           userId: "u-ada",
           expiresAt: null,
+          orgId: HOME_ORG_ID,
           ...over,
         });
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Actor } from "../../src/auth/actor.ts";
 import { SETTINGS } from "../../src/settings.ts";
 import { passwords, previewPasswordApi, settingsPasswordApi } from "../helpers/preview-password.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 describe("PUT /v1/previews/:id/password", () => {
   test("set, generate and none take effect on the route at once, audited by mode only", async () => {
@@ -40,6 +41,7 @@ describe("PUT /v1/previews/:id/password", () => {
 
     const member: Actor = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: "u-bob",
       roleId: "member",
       permissions: new Set(["previews.update_own"]),

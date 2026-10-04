@@ -18,6 +18,7 @@ import { DomainRegistry } from "../../src/domains/registry.ts";
 import { MemorySettingsStore, Settings } from "../../src/settings.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const CONTROL = "gw.test";
 const HERE = "203.0.113.7";
@@ -64,7 +65,13 @@ function setup() {
 }
 
 const actorWith = (...permissions: string[]): Actor =>
-  ({ kind: "token", tokenId: "t", scopes: [], permissions: new Set(permissions) }) as Actor;
+  ({
+    kind: "token",
+    tokenId: "t",
+    scopes: [],
+    permissions: new Set(permissions),
+    orgId: HOME_ORG_ID,
+  }) as Actor;
 const ORG = { kind: "org" } as const;
 
 describe("claiming", () => {

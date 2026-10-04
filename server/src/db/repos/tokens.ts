@@ -14,6 +14,7 @@ export type CreateToken = {
   secretTargets?: SecretTargets | null | undefined;
   userId: string | null;
   expiresAt: number | null;
+  orgId: string;
 };
 
 export class TokensRepo {
@@ -27,8 +28,8 @@ export class TokensRepo {
 
   create(t: CreateToken): ApiToken {
     this.#db.run(
-      `INSERT INTO api_tokens (id, name, prefix, token_hash, scopes, secret_targets, user_id, expires_at, created_at)
-       VALUES ($id, $name, $prefix, $hash, $scopes, $targets, $user, $exp, $now)`,
+      `INSERT INTO api_tokens (id, name, prefix, token_hash, scopes, secret_targets, user_id, expires_at, created_at, org_id)
+       VALUES ($id, $name, $prefix, $hash, $scopes, $targets, $user, $exp, $now, $org)`,
       {
         id: t.id,
         name: t.name,
@@ -39,6 +40,7 @@ export class TokensRepo {
         user: t.userId,
         exp: t.expiresAt,
         now: this.#now(),
+        org: t.orgId,
       },
     );
     return must(this.get(t.id), "the token just saved");
@@ -54,12 +56,12 @@ export class TokensRepo {
   findActiveByHash(
     tokenHash: string,
     now: number = this.#now(),
-  ): { token: ApiToken; owner: User | null } | undefined {
+  ): { token: ApiToken; owner: User | null; orgId: string } | undefined {
     const r = this.#db.get(
       `SELECT ${TOKEN_COLUMNS.split(", ")
         .map((c) => `t.${c}`)
         .join(", ")},
-              u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
+              t.org_id AS org_id, u.id AS u_id, u.email AS u_email, u.role_id AS u_role_id, u.disabled AS u_disabled, u.invited AS u_invited, u.created_at AS u_created_at
          FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id
         WHERE t.token_hash = $hash AND t.revoked_at IS NULL
           AND (t.expires_at IS NULL OR t.expires_at > $now)
@@ -67,6 +69,7 @@ export class TokensRepo {
       { hash: tokenHash, now },
     ) as
       | (TokenRow & {
+          org_id: string;
           u_id: string | null;
           u_email: string | null;
           u_role_id: string | null;
@@ -89,7 +92,7 @@ export class TokensRepo {
             invited: must(r.u_invited, "the token owner's invited flag"),
             created_at: must(r.u_created_at, "the token owner's creation time"),
           };
-    return { token: rowToToken(r), owner: owner ? rowToUser(owner) : null };
+    return { token: rowToToken(r), owner: owner ? rowToUser(owner) : null, orgId: r.org_id };
   }
 
   touch(id: string, staleBefore: number, now: number = this.#now()): boolean {

@@ -4,11 +4,13 @@ import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
 import { DAY } from "../helpers/preview-context.ts";
 import { previewPasswordApi } from "../helpers/preview-password.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 type Wire = { preview: { ttlExpiresAt: string | null } };
 
 const member = (permissions: string[]): Actor => ({
   kind: "user",
+  orgId: HOME_ORG_ID,
   userId: "u-bob",
   roleId: "member",
   permissions: new Set(permissions) as Actor["permissions"],
@@ -102,9 +104,12 @@ describe("the extend tool", () => {
       visibility: "public",
     });
     expect(() =>
-      s.tools.extend(s.scope(tokenActor("t-read", ["read"])), { preview: "theirs", by: "1d" }),
+      s.tools.extend(s.scope(tokenActor("t-read", ["read"], HOME_ORG_ID)), {
+        preview: "theirs",
+        by: "1d",
+      }),
     ).toThrow('"previews.extend"');
-    const bob = { ...tokenActor("t-bob", ["deploy"]), userId: "bob" } as Actor;
+    const bob = { ...tokenActor("t-bob", ["deploy"], HOME_ORG_ID), userId: "bob" } as Actor;
     expect(() => s.tools.extend(s.scope(bob), { preview: "theirs", by: "1d" })).toThrow(
       "deployed by someone else",
     );

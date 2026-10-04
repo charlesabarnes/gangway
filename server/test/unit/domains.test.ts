@@ -13,6 +13,7 @@ import { tempDb } from "../helpers/db.ts";
 import { seededHosts } from "../helpers/hosts.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { edit, setupRuntimes, tarball } from "../helpers/runtimes-fixtures.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const CONTROL = "gw.test";
 const DEFAULT = "preview.test";
@@ -57,7 +58,13 @@ function withProject(
 }
 
 const actorWith = (...permissions: string[]): Actor =>
-  ({ kind: "token", tokenId: "t", scopes: [], permissions: new Set(permissions) }) as Actor;
+  ({
+    kind: "token",
+    tokenId: "t",
+    scopes: [],
+    permissions: new Set(permissions),
+    orgId: HOME_ORG_ID,
+  }) as Actor;
 
 describe("the registry", () => {
   test("the default, pinned and org domains are open to every project", () => {

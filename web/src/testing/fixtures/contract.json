@@ -2,6 +2,7 @@
   "_": "The /v1 wire contract, pinned from both sides. server/test/unit/web-contract.test.ts asserts the server's real output has exactly this SHAPE and these literals; web/src/app/core/api.types.spec.ts asserts this file satisfies the UI's types. Values are examples; shapes and lists are the contract.",
   "preview": {
     "id": "01M32T8NBMWNSVJZT7XYX2MRZY",
+    "orgId": "00000000000000000000000000",
     "project": "gw-contract",
     "title": null,
     "icon": null,
@@ -311,6 +312,7 @@
   },
   "project": {
     "id": "01M32T8NBMWNSVJZT7XYX2MRZZ",
+    "orgId": "00000000000000000000000000",
     "name": "web-app",
     "slug": "web-app",
     "forge": "github",

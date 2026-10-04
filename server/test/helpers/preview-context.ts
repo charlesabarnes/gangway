@@ -35,8 +35,9 @@ export const ISOLATED_NETWORK = JSON.stringify([
 ]);
 import { seededHosts } from "./hosts.ts";
 import { silentLogger } from "./logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
-export const ACTOR = staticTokenVerifier("x")("x") as Actor;
+export const ACTOR = staticTokenVerifier("x", HOME_ORG_ID)("x") as Actor;
 export const DAY = 86_400_000;
 
 export function setupPreviewContext() {

@@ -22,6 +22,7 @@ import type {
   Visibility,
 } from "@gangway/shared/domain";
 import type { Scope, SecretTargets } from "@gangway/shared/permissions";
+import { HOME_ORG_ID } from "./orgs.ts";
 
 const toDate = (n: number | null | undefined): Date | null =>
   n === null || n === undefined ? null : new Date(n);
@@ -71,6 +72,7 @@ export function rowToHost(r: HostRow): Host {
 
 export type PreviewRow = {
   id: string;
+  org_id: string;
   project: string;
   host_id: string;
   kind: string;
@@ -114,6 +116,7 @@ function rowSource(kind: string, json: string): PreviewSource {
 export function rowToPreview(r: PreviewRow): Preview {
   return {
     id: r.id,
+    orgId: r.org_id,
     project: r.project,
     title: r.title ?? null,
     icon: r.icon ? rowIcon(r.icon, r.icon_color) : null,
@@ -232,6 +235,7 @@ export const rowToRole = (r: RoleRow): Role => ({
 export type SessionRow = {
   id: string;
   user_id: string;
+  org_id: string | null;
   created_at: number;
   expires_at: number;
   last_seen_at: number | null;
@@ -243,6 +247,7 @@ export function rowToSession(r: SessionRow): Session {
   return {
     id: r.id,
     userId: r.user_id,
+    orgId: r.org_id ?? HOME_ORG_ID,
     createdAt: new Date(r.created_at),
     expiresAt: new Date(r.expires_at),
     lastSeenAt: toDate(r.last_seen_at),
@@ -314,6 +319,7 @@ export function rowToAuditEntry(r: AuditRow): AuditEntry {
 
 export type ProjectRow = {
   id: string;
+  org_id: string;
   name: string;
   slug: string;
   forge: string | null;
@@ -338,6 +344,7 @@ export type ProjectRow = {
 
 export const rowToProject = (r: ProjectRow): Project => ({
   id: r.id,
+  orgId: r.org_id,
   name: r.name,
   slug: r.slug,
   forge: r.forge as ForgeId | null,

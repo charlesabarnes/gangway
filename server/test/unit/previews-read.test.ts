@@ -8,6 +8,7 @@ import { type PreviewLogs } from "../../src/previews/logs.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 function make(actor: Actor = ACTOR, maxQueue?: number) {
   const s = setupPreviewContext();
@@ -155,7 +156,7 @@ describe("GET /v1/previews/:id/events and /builds", () => {
   });
 
   test("a read-scoped token may read all of it; none of it without the permission", async () => {
-    const reader = make(tokenActor("ro", ["read"]));
+    const reader = make(tokenActor("ro", ["read"], HOME_ORG_ID));
     const p = await reader.deployed("x");
     for (const path of [
       "/previews",
@@ -169,6 +170,7 @@ describe("GET /v1/previews/:id/events and /builds", () => {
 
     const nobody = make({
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: "u",
       roleId: "empty",
       permissions: new Set(),

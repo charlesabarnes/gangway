@@ -8,9 +8,9 @@ import type { AppEnv } from "../app/env.ts";
 import { McpSurface } from "../app/mcp-surface.ts";
 import type { AuthDeps } from "../app/middleware/auth.ts";
 import { oauthRootRoutes } from "../app/routes/oauth.ts";
-import { chainVerifiers, staticTokenVerifier, workflowActor } from "../auth/actor.ts";
+import { chainVerifiers, staticTokenVerifier } from "../auth/actor.ts";
 import { LoginLimiter } from "../auth/limiter.ts";
-import { GitHubOidc } from "../auth/oidc.ts";
+import { GitHubOidc, workflowVerifier } from "../auth/oidc.ts";
 import { Tools } from "../mcp/tools.ts";
 import { SecretUploads } from "../mcp/secret-uploads.ts";
 import { Uploads } from "../mcp/uploads.ts";
@@ -84,7 +84,7 @@ function createGate({ repos, settings, previewPasswords, origin, logger }: HttpD
   });
 }
 
-function createAuth({ identity, adminToken, origin, ctx, logger }: HttpDeps): AuthDeps {
+function createAuth({ identity, adminToken, origin, ctx, logger, repos }: HttpDeps): AuthDeps {
   const oidc = new GitHubOidc({
     audience: () => origin("api"),
     logger: logger.child({ mod: "oidc" }),
@@ -92,11 +92,11 @@ function createAuth({ identity, adminToken, origin, ctx, logger }: HttpDeps): Au
   return {
     verifyToken: chainVerifiers(
       identity.tokens.verify,
-      staticTokenVerifier(adminToken),
-      async (presented) => {
-        const claims = await oidc.verify(presented);
-        return claims ? workflowActor(claims) : null;
-      },
+      staticTokenVerifier(adminToken, repos.orgs.home().id),
+      workflowVerifier((t) => oidc.verify(t), {
+        byName: (repository) => repos.projects.getByFullName("github", repository),
+        sameRepository: (id, repositoryId) => repos.projects.sameRepository(id, repositoryId),
+      }),
     ),
     resolveSession: (secret: string) => identity.sessions.resolve(secret)?.actor ?? null,
     // From the public scheme and port, not the listener's: behind a reverse proxy they differ.
@@ -133,7 +133,7 @@ function createMcp(d: HttpDeps): McpSurface {
     // OAuth access tokens are accepted only here; the /v1 chain does not know them.
     verifyToken: chainVerifiers(
       identity.tokens.verify,
-      staticTokenVerifier(d.adminToken),
+      staticTokenVerifier(d.adminToken, d.repos.orgs.home().id),
       identity.oauth.verify,
     ),
     logger: logger.child({ mod: "mcp" }),

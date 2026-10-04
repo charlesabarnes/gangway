@@ -18,6 +18,7 @@ import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { ACTOR } from "../helpers/preview-context.ts";
 import { deployFiles, setupServed } from "../helpers/runtimes-fixtures.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const TOKENS = { light: { ink: "#112233", flag: "oklch(0.7 0.2 30)" }, dark: { paper: "#000" } };
 
@@ -240,6 +241,7 @@ describe("the artifacts API", () => {
   test("only artifacts.manage may make themes and templates", async () => {
     const reader: Actor = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: "u",
       roleId: "viewer",
       permissions: new Set(["previews.read"]),

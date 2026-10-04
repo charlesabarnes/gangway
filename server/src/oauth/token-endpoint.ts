@@ -228,6 +228,7 @@ export class TokenEndpoint {
       refreshHash: sha256(t.refresh, "hex"),
       refreshExpiresAt: t.refreshExpiresAt,
       absoluteExpiresAt: now + GRANT_ABSOLUTE_MS,
+      orgId: c.actor.orgId,
     });
   }
 

@@ -11,6 +11,7 @@ import { Mailer, type Mail } from "../../src/mail/mailer.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { META, PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const HOUR = 3_600_000;
 const NEW_PASSWORD = "a brand new passphrase";
@@ -328,7 +329,7 @@ describe("over HTTP", () => {
   function http(o: { configured?: boolean; fail?: string } = {}) {
     const t = setup(o);
     const auth = {
-      verifyToken: staticTokenVerifier(TOKEN),
+      verifyToken: staticTokenVerifier(TOKEN, HOME_ORG_ID),
       resolveSession: (secret: string) => t.sessions.resolve(secret)?.actor ?? null,
       originFor: (host: string) => `https://${host}`,
     };

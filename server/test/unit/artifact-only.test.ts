@@ -11,9 +11,10 @@ import { SiteStore } from "../../src/previews/site.ts";
 import { tempDir } from "../helpers/db.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const as = (tokenId: string, scopes: Parameters<typeof tokenActor>[1], userId = "ada") =>
-  ({ ...tokenActor(tokenId, scopes), userId }) as Actor;
+  ({ ...tokenActor(tokenId, scopes, HOME_ORG_ID), userId }) as Actor;
 
 function served() {
   const s = setupTools();

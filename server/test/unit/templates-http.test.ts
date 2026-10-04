@@ -7,6 +7,7 @@ import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { TRIGGERS } from "@gangway/shared/domain";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { signedInApp } from "../helpers/http.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const ENV_TOKEN = "gw_templates_env_token_0123456789abcd";
 
@@ -213,6 +214,7 @@ describe("/v1/templates", () => {
     await s.accounts.createUser(
       {
         kind: "token",
+        orgId: HOME_ORG_ID,
         tokenId: "system:test",
         scopes: ["admin"],
         permissions: new Set(["users.manage"]),

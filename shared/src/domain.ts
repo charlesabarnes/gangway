@@ -70,6 +70,7 @@ export const PR_TRIGGERS: readonly PrTrigger[] = ["workflow", "webhook"];
 
 export type Project = {
   id: string;
+  orgId: string;
   name: string;
   slug: string;
   forge: ForgeId | null;
@@ -158,6 +159,7 @@ export function pullRequestOf(s: PreviewSource): PullRequestRef | null {
 
 export type Preview = {
   id: string;
+  orgId: string;
   project: string;
   title: string | null;
   icon: PreviewIcon | null;
@@ -234,6 +236,7 @@ export type User = {
 export type Session = {
   id: string;
   userId: string;
+  orgId: string;
   createdAt: Date;
   expiresAt: Date;
   lastSeenAt: Date | null;

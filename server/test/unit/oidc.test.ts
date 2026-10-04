@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { createSign, generateKeyPairSync, type KeyObject } from "node:crypto";
-import { GITHUB_ACTIONS_ISSUER, GitHubOidc } from "../../src/auth/oidc.ts";
+import { GITHUB_ACTIONS_ISSUER, GitHubOidc, workflowVerifier } from "../../src/auth/oidc.ts";
 import { workflowActor } from "../../src/auth/actor.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const AUD = "https://api.preview.example.com";
 const NOW = 1_800_000_000_000;
@@ -133,22 +134,66 @@ describe("GitHubOidc", () => {
 
   test("workflowActor takes the PR number from the ref, and a push has none", () => {
     expect(
-      workflowActor({
-        repository: "acme/web-app",
-        runId: "1",
-        actor: "dev",
-        eventName: "pull_request",
-        ref: "refs/pull/7/merge",
-      }),
+      workflowActor(
+        {
+          repository: "acme/web-app",
+          runId: "1",
+          actor: "dev",
+          eventName: "pull_request",
+          ref: "refs/pull/7/merge",
+        },
+        HOME_ORG_ID,
+      ),
     ).toMatchObject({ kind: "workflow", pull: 7 });
     expect(
-      workflowActor({
-        repository: "acme/web-app",
-        runId: "1",
-        actor: "dev",
-        eventName: "push",
-        ref: "refs/heads/main",
-      }),
+      workflowActor(
+        {
+          repository: "acme/web-app",
+          runId: "1",
+          actor: "dev",
+          eventName: "push",
+          ref: "refs/heads/main",
+        },
+        HOME_ORG_ID,
+      ),
     ).toMatchObject({ pull: null });
+  });
+});
+
+describe("which org a workflow run acts in", () => {
+  const claims = {
+    repository: "acme/web",
+    repositoryId: "1",
+    eventName: "pull_request",
+    ref: "refs/pull/7/merge",
+    sha: "abc",
+    runId: "42",
+    actor: "dev",
+  };
+  const pinned = new Map<string, string>();
+  const projects = {
+    byName: (repository: string) =>
+      repository === "acme/web" ? { id: "p1", orgId: "o2" } : undefined,
+    sameRepository: (id: string, repositoryId: string) => {
+      pinned.set(id, pinned.get(id) ?? repositoryId);
+      return pinned.get(id) === repositoryId;
+    },
+  };
+  const verify = workflowVerifier(async (t) => (t === "good" ? claims : null), projects);
+
+  test("its repository's project's org; a bad token or an unconnected repository, none", async () => {
+    expect(await verify("good")).toMatchObject({ kind: "workflow", orgId: "o2", pull: 7 });
+    expect(await verify("bad")).toBeNull();
+    const nowhere = workflowVerifier(
+      async () => ({ ...claims, repository: "acme/other" }),
+      projects,
+    );
+    expect(await nowhere("good")).toBeNull();
+  });
+
+  test("a new repository under a name the project already knows is refused", async () => {
+    expect(await verify("good")).not.toBeNull();
+    const reused = workflowVerifier(async () => ({ ...claims, repositoryId: "999" }), projects);
+    expect(await reused("good")).toBeNull();
   });
 });

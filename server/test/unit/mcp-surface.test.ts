@@ -10,6 +10,7 @@ import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { WORKFLOW_PATH_IN_REPO } from "../../src/projects/workflow.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const TOKEN = "gw_mcp_test_token_0123456789abcdefghijk";
 const MODERN = "2026-07-28";
@@ -25,7 +26,7 @@ function surface() {
   const s = setupTools();
   const mcp = new McpSurface({
     tools: s.tools,
-    verifyToken: staticTokenVerifier(TOKEN),
+    verifyToken: staticTokenVerifier(TOKEN, HOME_ORG_ID),
     logger: silentLogger(),
   });
   const h = mcp.handler();

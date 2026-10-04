@@ -11,7 +11,8 @@ import { sha256 } from "../util/hash.ts";
 
 export type { Permission, Scope };
 
-export type Actor =
+/** Every actor acts within one org, taken from its credential and never from the request. */
+export type Actor = { orgId: string } & (
   | {
       kind: "token";
       tokenId: string;
@@ -39,7 +40,8 @@ export type Actor =
       eventName: string;
       pull: number | null;
       permissions: ReadonlySet<Permission>;
-    };
+    }
+);
 
 export function permissionsForScopes(scopes: readonly Scope[]): ReadonlySet<Permission> {
   return new Set(scopes.flatMap((s) => SCOPE_PERMISSIONS[s]));
@@ -53,14 +55,16 @@ export function credentialPermissions(
   return new Set([...permissionsForScopes(scopes), ...targetPermissions(scopes, targets)]);
 }
 
-export const tokenActor = (tokenId: string, scopes: readonly Scope[]): Actor => ({
+export const tokenActor = (tokenId: string, scopes: readonly Scope[], orgId: string): Actor => ({
   kind: "token",
   tokenId,
   scopes,
   permissions: permissionsForScopes(scopes),
+  orgId,
 });
 
-export const systemActor = (job: string): Actor => tokenActor(`system:${job}`, ["admin"]);
+export const systemActor = (job: string, orgId: string): Actor =>
+  tokenActor(`system:${job}`, ["admin"], orgId);
 
 const FORGE_PERMISSIONS: readonly Permission[] = [
   "previews.deploy",
@@ -69,11 +73,12 @@ const FORGE_PERMISSIONS: readonly Permission[] = [
   "logs.read",
 ];
 
-export const forgeActor = (forge: ForgeId, login: string): Actor => ({
+export const forgeActor = (forge: ForgeId, login: string, orgId: string): Actor => ({
   kind: "forge",
   forge,
   login,
   permissions: new Set(FORGE_PERMISSIONS),
+  orgId,
 });
 
 const WORKFLOW_PERMISSIONS: readonly Permission[] = [
@@ -82,13 +87,16 @@ const WORKFLOW_PERMISSIONS: readonly Permission[] = [
   "previews.read",
 ];
 
-export function workflowActor(c: {
-  repository: string;
-  runId: string;
-  actor: string;
-  eventName: string;
-  ref: string;
-}): Actor {
+export function workflowActor(
+  c: {
+    repository: string;
+    runId: string;
+    actor: string;
+    eventName: string;
+    ref: string;
+  },
+  orgId: string,
+): Actor {
   const m = /^refs\/pull\/(\d+)\/(?:merge|head)$/.exec(c.ref);
   return {
     kind: "workflow",
@@ -98,6 +106,7 @@ export function workflowActor(c: {
     eventName: c.eventName,
     pull: m ? Number(m[1]) : null,
     permissions: new Set(WORKFLOW_PERMISSIONS),
+    orgId,
   };
 }
 
@@ -224,8 +233,8 @@ export function chainVerifiers(...verifiers: TokenVerifier[]): TokenVerifier {
 export const ENV_ADMIN_TOKEN_ID = "env:admin";
 
 // Digests are compared because timingSafeEqual throws on a length mismatch, which would leak the length.
-export function staticTokenVerifier(adminToken: string): TokenVerifier {
+export function staticTokenVerifier(adminToken: string, homeOrgId: string): TokenVerifier {
   const expected = sha256(adminToken);
-  const actor = tokenActor(ENV_ADMIN_TOKEN_ID, ["admin"]);
+  const actor = tokenActor(ENV_ADMIN_TOKEN_ID, ["admin"], homeOrgId);
   return (presented) => (timingSafeEqual(sha256(presented), expected) ? actor : null);
 }

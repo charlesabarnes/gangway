@@ -6,6 +6,7 @@ import { actorId, staticTokenVerifier } from "../../src/auth/actor.ts";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const TOKEN = "gw_http_test_admin_token_0123456789";
 const APP = "https://app.preview.localhost:8443";
@@ -15,7 +16,7 @@ function make() {
   const s = setupAccounts();
   const bootstrap = new Bootstrap(() => s.users.count());
   const auth = {
-    verifyToken: staticTokenVerifier(TOKEN),
+    verifyToken: staticTokenVerifier(TOKEN, HOME_ORG_ID),
     resolveSession: (secret: string) => s.sessions.resolve(secret)?.actor ?? null,
     originFor: (host: string) => `https://${host}`,
   };

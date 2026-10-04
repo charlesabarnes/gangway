@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { deploy } from "../../src/previews/deploy.ts";
 import { tokenActor } from "../../src/auth/actor.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
-const OTHER = tokenActor("tok_other", ["admin"]);
+const OTHER = tokenActor("tok_other", ["admin"], HOME_ORG_ID);
 
 describe("how many previews may run at once", () => {
   test("past the per-user limit a deploy is refused; someone else may still deploy", async () => {

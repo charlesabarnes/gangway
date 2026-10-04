@@ -18,7 +18,6 @@ export async function sweepExpired(
 ): Promise<SweepReport> {
   const expired = ctx.previews.expired(ctx.now());
   const report: SweepReport = { expired: expired.length, destroyed: [], skipped: [], failed: [] };
-  const actor = systemActor("ttl-sweep");
   for (const p of expired) {
     if (signal?.aborted) {
       break;
@@ -29,7 +28,7 @@ export async function sweepExpired(
     }
     try {
       ctx.logs.append(p.id, "system", `ttl expired at ${p.ttlExpiresAt?.toISOString() ?? "?"}`);
-      await destroy(ctx, p.id, actor);
+      await destroy(ctx, p.id, systemActor("ttl-sweep", p.orgId));
       report.destroyed.push(p.id);
     } catch (err) {
       report.failed.push(p.id);

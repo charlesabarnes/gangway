@@ -3,6 +3,7 @@ import { ALL_PERMISSIONS } from "@gangway/shared/permissions";
 import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Logger } from "../../src/logger.ts";
 import { META, PASSWORD, setupAccounts as setup } from "../helpers/accounts.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const MIN = 60_000,
   DAY = 86_400_000;
@@ -337,7 +338,7 @@ describe("changing your own password", () => {
     const { tokenActor } = await import("../../src/auth/actor.ts");
     await expect(
       s.accounts.changeOwnPassword(
-        tokenActor("env:admin", ["admin"]),
+        tokenActor("env:admin", ["admin"], HOME_ORG_ID),
         "x",
         "a brand new password",
         META,

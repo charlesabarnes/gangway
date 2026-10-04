@@ -8,6 +8,7 @@ import { parseDotenv } from "../../src/mcp/secret-uploads.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 type Setup = ReturnType<typeof setupTools>;
 
@@ -39,6 +40,7 @@ function stackAtConfig(s: Setup) {
 
 const agent = (targets: SecretTargets = DEFAULT_SECRET_TARGETS, id = "t-agent"): Actor => ({
   kind: "token",
+  orgId: HOME_ORG_ID,
   tokenId: id,
   scopes: ["read", "deploy", "secrets"],
   permissions: credentialPermissions(["read", "deploy", "secrets"], targets),
@@ -118,7 +120,7 @@ describe("deploy-time secrets", () => {
 
   test("a deploy-scope credential cannot send secrets", async () => {
     const s = setupTools();
-    const deployOnly = tokenActor("t-deploy", ["read", "deploy"]);
+    const deployOnly = tokenActor("t-deploy", ["read", "deploy"], HOME_ORG_ID);
     await expect(
       s.tools.deploy(s.scope(deployOnly), { files: APP, secrets: { A: "b" } }),
     ).rejects.toThrow(MissingPermission);
@@ -218,7 +220,7 @@ describe("secret targets", () => {
   });
 
   test("minting checks the maker's role and needs the secrets scope", () => {
-    const member = tokenActor("m", ["read", "deploy", "secrets"]);
+    const member = tokenActor("m", ["read", "deploy", "secrets"], HOME_ORG_ID);
     expect(grantedTargets(member, ["secrets"], undefined)).toEqual(DEFAULT_SECRET_TARGETS);
     expect(() =>
       grantedTargets(member, ["secrets"], { previews: "own", projects: [], org: true }),

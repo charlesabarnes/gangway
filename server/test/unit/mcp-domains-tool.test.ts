@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { tokenActor } from "../../src/auth/actor.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 describe("the domains tool", () => {
   test("lists what a preview uses and may use", async () => {
@@ -61,7 +62,7 @@ describe("the domains tool", () => {
 
   test("a deploy agent may choose a preview's domain, not claim the server's", async () => {
     const s = setupTools();
-    const agent = tokenActor("t-deploy", ["deploy"]);
+    const agent = tokenActor("t-deploy", ["deploy"], HOME_ORG_ID);
     const out = await s.tools
       .domains(s.scope(agent), { target: { org: true }, claim: "x.example" })
       .catch((e: Error) => e.message);

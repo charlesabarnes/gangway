@@ -3,6 +3,7 @@ import { surfaceRoutes } from "../../src/app/routes/surfaces.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { signedInApp } from "../helpers/http.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const ENV_TOKEN = "gw_surfaces_env_token_0123456789abcdef";
 const PHRASE = "disable the UI";
@@ -27,6 +28,7 @@ async function make(pins: Record<string, unknown> = {}) {
   });
   const adaActor = {
     kind: "user",
+    orgId: HOME_ORG_ID,
     userId: admin.id,
     roleId: "admin",
     sessionId: "x",
@@ -136,6 +138,7 @@ describe("/v1/surfaces", () => {
     await s.accounts.createUser(
       {
         kind: "token",
+        orgId: HOME_ORG_ID,
         tokenId: "system:test",
         scopes: ["admin"],
         permissions: new Set(["users.manage"]),
