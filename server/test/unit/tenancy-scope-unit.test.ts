@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import type { GangwayEvent } from "@gangway/shared/domain";
-import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 import { EventsRepo } from "../../src/db/repos/events.ts";
 import { AuditRepo } from "../../src/db/repos/audit.ts";
 import { Audit } from "../../src/audit/audit.ts";
@@ -8,6 +7,13 @@ import { silentLogger } from "../helpers/logger.ts";
 import { EventBus } from "../../src/events/bus.ts";
 import { acrossOrgs, beforeOrg, orgFilter, orgScope, withOrg } from "../../src/tenancy/scope.ts";
 import { tempDb } from "../helpers/db.ts";
+import { ALL_PERMISSIONS } from "@gangway/shared/permissions";
+import { RolePermissions } from "../../src/auth/roles.ts";
+import { HOME_ORG_ID, OrgsRepo } from "../../src/db/repos/orgs.ts";
+import { RolesRepo } from "../../src/db/repos/roles.ts";
+import { TemplatesRepo } from "../../src/db/repos/templates.ts";
+import { tokenActor } from "../../src/auth/actor.ts";
+import { createOrg } from "../../src/tenancy/orgs.ts";
 
 describe("the org a piece of work runs as", () => {
   test("background work spans every org; a request runs as the org it named", async () => {
@@ -64,4 +70,31 @@ test("an entry with no actor belongs to the org its work runs as, else to the se
     { action: "settings.changed", org_id: null },
     { action: "auth.login.failed", org_id: null },
   ]);
+});
+
+test("a new org's builtin roles copy home's; its admin holds everything", () => {
+  const { db } = tempDb();
+  const roles = new RolesRepo(db);
+  const permissions = new RolePermissions(roles);
+  const audit = new Audit(new AuditRepo(db), silentLogger());
+  const deps = {
+    db,
+    orgs: new OrgsRepo(db),
+    roles,
+    templates: new TemplatesRepo(db),
+    permissions,
+    audit,
+  };
+  const org = createOrg(deps, tokenActor("env:admin", ["admin"], HOME_ORG_ID), {
+    slug: "two",
+    name: "Two",
+  });
+  const copies = db.query("SELECT id, kind FROM roles WHERE org_id = $o ORDER BY kind", {
+    o: org.id,
+  }) as { id: string; kind: string }[];
+  expect(copies.map((r) => r.kind)).toEqual(["admin", "member", "viewer"]);
+  const [admin, member] = copies;
+  expect(permissions.for(admin!.id).size).toBe(ALL_PERMISSIONS.length);
+  expect([...permissions.for(member!.id)].sort()).toEqual([...permissions.for("member")].sort());
+  expect(withOrg(org.id, () => deps.templates.default().id)).toBe(`d${org.id.toLowerCase()}`);
 });

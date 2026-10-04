@@ -226,7 +226,8 @@
     "artifacts.manage",
     "apps.read",
     "apps.install",
-    "jobs.claim"
+    "jobs.claim",
+    "instance.orgs"
   ],
   "scopePermissions": {
     "read": ["previews.read", "logs.read", "events.read", "hosts.read"],
@@ -297,7 +298,8 @@
       "artifacts.manage",
       "apps.read",
       "apps.install",
-      "jobs.claim"
+      "jobs.claim",
+      "instance.orgs"
     ]
   },
   "githubStatus": {

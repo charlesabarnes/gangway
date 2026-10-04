@@ -9,6 +9,7 @@ import { readJson } from "../problem.ts";
 import { parseDuration } from "../../util/duration.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
+import { acrossOrgs } from "../../tenancy/scope.ts";
 
 export type TemplateRouteDeps = {
   templates: TemplatesRepo;
@@ -34,7 +35,8 @@ export function templateRoutes(api: Hono<AppEnv>, d: TemplateRouteDeps): void {
     const body = await readJson(c);
     const req = TemplateCreateSchema.parse(body);
     check(req, d.hosts);
-    if (d.templates.get(req.id)) {
+    // Ids are unique on the whole server; another org's is not named.
+    if (acrossOrgs(() => d.templates.get(req.id))) {
       throw conflict(`template "${req.id}" already exists`, { id: req.id });
     }
     const t = d.templates.create(req);

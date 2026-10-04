@@ -1,5 +1,5 @@
 import type { Role } from "@gangway/shared/domain";
-import { ADMIN_ROLE_ID, isPermission, type Permission } from "@gangway/shared/permissions";
+import { isPermission, type Permission } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { rowToRole, type RoleRow } from "./mappers.ts";
 
@@ -19,6 +19,38 @@ export class RolesRepo {
   get(id: string): Role | undefined {
     const r = this.#db.get("SELECT * FROM roles WHERE id = $id", { id }) as RoleRow | undefined;
     return r ? rowToRole(r) : undefined;
+  }
+
+  /** Every org's admin role: admin is known by its kind, not its id. */
+  adminIds(): Set<string> {
+    return new Set(
+      (this.#db.query("SELECT id FROM roles WHERE kind = 'admin'") as { id: string }[]).map(
+        (r) => r.id,
+      ),
+    );
+  }
+
+  /** Gives a new org the home org's builtin roles, with their grants; their ids by kind. */
+  copyBuiltins(orgId: string, newId: () => string, now: number): Record<string, string> {
+    const ids: Record<string, string> = {};
+    const builtins = this.#db.query(
+      "SELECT * FROM roles WHERE kind IS NOT NULL AND org_id = (SELECT id FROM orgs WHERE home = 1)",
+    ) as (RoleRow & { kind: string })[];
+    for (const r of builtins) {
+      const id = newId();
+      ids[r.kind] = id;
+      this.#db.run(
+        `INSERT INTO roles (id, org_id, name, description, builtin, kind, created_at)
+         VALUES ($id, $org, $name, $description, 1, $kind, $now)`,
+        { id, org: orgId, name: r.name, description: r.description, kind: r.kind, now },
+      );
+      this.#db.run(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT $id, permission_id FROM role_permissions WHERE role_id = $from`,
+        { id, from: r.id },
+      );
+    }
+    return ids;
   }
 
   grants(): Map<string, Permission[]> {
@@ -67,8 +99,9 @@ export class RolesRepo {
           { id: p.id, feature: p.feature, description: p.description },
         );
         this.#db.run(
-          "INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES ($r, $p)",
-          { r: ADMIN_ROLE_ID, p: p.id },
+          `INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+           SELECT id, $p FROM roles WHERE kind = 'admin'`,
+          { p: p.id },
         );
       }
     });

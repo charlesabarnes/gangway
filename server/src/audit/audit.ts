@@ -44,6 +44,7 @@ export type AuditAction =
   | "repo.env.changed"
   | "secrets.changed"
   | "project.created"
+  | "org.created"
   | "project.updated"
   | "project.deleted"
   | "project.env.changed"

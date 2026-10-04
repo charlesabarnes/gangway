@@ -8,6 +8,7 @@ import type { AuthDeps } from "../app/middleware/auth.ts";
 import { addonRoutes } from "../app/routes/addons.ts";
 import { artifactRoutes } from "../app/routes/artifacts.ts";
 import { auditRoutes } from "../app/routes/audit.ts";
+import { operatorRoutes } from "../app/routes/operator.ts";
 import { authRoutes } from "../app/routes/auth.ts";
 import { domainRoutes } from "../app/routes/domains.ts";
 import { eventRoutes } from "../app/routes/events.ts";
@@ -42,7 +43,16 @@ import type { Identity } from "./identity.ts";
 
 export type ApiRouteDeps = Pick<
   Core,
-  "repos" | "bus" | "audit" | "settings" | "origin" | "baseDomain" | "updates" | "domains" | "table"
+  | "db"
+  | "repos"
+  | "bus"
+  | "audit"
+  | "settings"
+  | "origin"
+  | "baseDomain"
+  | "updates"
+  | "domains"
+  | "table"
 > & {
   ctx: PreviewContext;
   deploys: IdempotentDeploys;
@@ -77,6 +87,14 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     passwords: identity.passwords,
   });
   roleRoutes(api, identity.roles);
+  operatorRoutes(api, {
+    db: d.db,
+    orgs: repos.orgs,
+    roles: repos.roles,
+    templates: repos.templates,
+    permissions: identity.roles,
+    audit,
+  });
   serverSettingRoutes(api, d);
   projectRoutes(api, {
     projects: repos.projects,
