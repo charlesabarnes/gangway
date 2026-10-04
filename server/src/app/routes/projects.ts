@@ -125,18 +125,21 @@ function checkPatch(
       d.domains?.assertAvailable(patch.domain, before.id);
     }
   }
-  const slug = patch.slug;
-  if (slug !== undefined && slug !== before.slug) {
-    const taken = acrossOrgs(() => d.projects.getBySlug(slug));
-    if (taken && !d.projects.get(taken.id)) {
-      throw conflict(`slug "${slug}" is taken`, { slug });
-    }
-    if (taken) {
-      throw conflict(`slug "${slug}" is taken by project "${taken.name}"`, {
-        takenBy: taken.slug,
-      });
-    }
+  if (patch.slug !== undefined && patch.slug !== before.slug) {
+    checkSlugFree(d.projects, patch.slug);
   }
+}
+
+// Slugs are unique on the whole server; another org's project is not named.
+function checkSlugFree(projects: ProjectsRepo, slug: string): void {
+  const taken = acrossOrgs(() => projects.getBySlug(slug));
+  if (!taken) {
+    return;
+  }
+  if (!projects.get(taken.id)) {
+    throw conflict(`slug "${slug}" is taken`, { slug });
+  }
+  throw conflict(`slug "${slug}" is taken by project "${taken.name}"`, { takenBy: taken.slug });
 }
 
 function findProject(projects: ProjectsRepo, ref: string): Project {
