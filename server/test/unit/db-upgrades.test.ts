@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { DEFAULT_ROLE_PERMISSIONS, isPermission } from "@gangway/shared/permissions";
 import { migrate } from "../../src/db/migrate.ts";
+import { HOME_ORG_ID, OrgsRepo } from "../../src/db/repos/orgs.ts";
 import type { Db } from "../../src/db/types.ts";
 import { MIGRATIONS, tempDir } from "../helpers/db.ts";
 import { DRIVERS, databaseAt, migrationsUpTo } from "../helpers/db-migrations.ts";
@@ -91,7 +92,7 @@ for (const [name, open] of DRIVERS) {
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
         3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-        28,
+        28, 29,
       ]);
       expect(
         db.get("SELECT id, email, role_id, disabled, created_at FROM users") as
@@ -218,7 +219,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
       ]);
       expect(
         db.get(
@@ -274,7 +275,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
       ]);
       const holders = (
         db.query(
@@ -310,7 +311,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
       ]);
       const rows = db.query("SELECT id, watermark, source_json FROM previews ORDER BY id") as {
         id: string;
@@ -338,7 +339,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, created_at, updated_at) VALUES ('acme', 'Acme', '', '{\"light\":{},\"dark\":{}}', '{}', 1, 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([22, 23, 24, 25, 26, 27, 28]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([22, 23, 24, 25, 26, 27, 28, 29]);
       expect(db.query("SELECT id, style_json FROM artifact_themes")).toEqual([
         { id: "acme", style_json: "{}" },
       ]);
@@ -353,7 +354,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([23, 24, 25, 26, 27, 28]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([23, 24, 25, 26, 27, 28, 29]);
       expect(db.query("SELECT id, invited FROM users")).toEqual([{ id: "u1", invited: 0 }]);
       expect(db.query("SELECT * FROM user_links")).toEqual([]);
       db.close();
@@ -373,7 +374,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO role_permissions (role_id, permission_id) VALUES ('looker', 'previews.read'), ('fixer', 'previews.update')",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([26, 27, 28]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([26, 27, 28, 29]);
       expect(grants(db, "member")).toContain("previews.extend");
       expect(grants(db, "admin")).toContain("previews.extend");
       expect(grants(db, "fixer")).toContain("previews.extend");
@@ -399,13 +400,58 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO audit (actor_type, actor_id, action, created_at) VALUES ('token', 'oauth:g1', 'preview.deploy', 1), ('token', 't1', 'preview.deploy', 2), ('token', 'oauth:gone', 'preview.deploy', 3), ('user', 'u1', 'auth.login', 4)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([25, 26, 27, 28]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([25, 26, 27, 28, 29]);
       expect(db.query("SELECT actor_id, actor_name FROM audit ORDER BY seq")).toEqual([
         { actor_id: "oauth:g1", actor_name: "Claude Code" },
         { actor_id: "t1", actor_name: "ci" },
         { actor_id: "oauth:gone", actor_name: null },
         { actor_id: "u1", actor_name: null },
       ]);
+      db.close();
+    });
+  });
+
+  describe(`0029 orgs on ${name}`, () => {
+    test("an existing install becomes one home org, and there can be only one", () => {
+      const at = databaseAt(open, 28);
+      at.db.run(
+        "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual([29]);
+      const orgs = new OrgsRepo(db);
+      expect(orgs.list().map((o) => [o.id, o.slug, o.home, o.state])).toEqual([
+        [HOME_ORG_ID, "default", true, "active"],
+      ]);
+      const org = (id: string, slug: string, home: number) =>
+        db.run(
+          `INSERT INTO orgs (id, slug, name, home, created_at, updated_at) VALUES ('${id}', '${slug}', 'x', ${home}, 1, 1)`,
+        );
+      expect(() => org("o2", "second", 1)).toThrow();
+      expect(() => org("o2", "a-b", 0)).toThrow();
+      expect(() => org("o2", "Caps", 0)).toThrow();
+      org("o2", "acme2", 0);
+      expect(orgs.home().id).toBe(HOME_ORG_ID);
+      db.close();
+    });
+
+    test("limits replace as a whole, and an org with none has no limit", () => {
+      const db = migrated();
+      const orgs = new OrgsRepo(db, () => 5);
+      expect(orgs.limitsOf(HOME_ORG_ID)).toBeUndefined();
+      orgs.setLimits(
+        HOME_ORG_ID,
+        "Pro",
+        { storageBytes: 5e9, maxAwake: 2, containers: true },
+        "t1",
+      );
+      orgs.setLimits(HOME_ORG_ID, "Free", { storageBytes: 25e7, containers: false }, "t1");
+      expect(orgs.limitsOf(HOME_ORG_ID)).toEqual({
+        planLabel: "Free",
+        limits: { storageBytes: 25e7, containers: false },
+        updatedAt: 5,
+      });
+      expect(() => orgs.setLimits(HOME_ORG_ID, null, { maxAwake: -1 }, "t1")).toThrow();
       db.close();
     });
   });

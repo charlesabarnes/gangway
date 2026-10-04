@@ -24,3 +24,4 @@ export { OAuthGrantsRepo, type CreateGrant, type GrantRecord } from "./oauth-gra
 export { OAuthClientsRepo, type RegisteredClient } from "./oauth-clients.ts";
 export { ArtifactTemplatesRepo, ArtifactThemesRepo } from "./artifacts.ts";
 export { DomainsRepo, type CreateDomain, type DomainCheck } from "./domains.ts";
+export { OrgsRepo, HOME_ORG_ID, type OrgLimitsRecord } from "./orgs.ts";
