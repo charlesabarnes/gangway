@@ -77,6 +77,7 @@ describe("PolicyResolver", () => {
     expect(policy.resolve({ source: IMAGE, actor: ACTOR }).template.id).toBe("ci");
     expect(policy.resolve({ source: IMAGE, actor: USER as never }).template.id).toBe("default");
     const repo = repos.create({
+      orgId: HOME_ORG_ID,
       id: "r1",
       name: "web",
       forge: "github",
@@ -105,6 +106,7 @@ describe("PolicyResolver", () => {
   test("a project named by id or slug wins over the source's; an unknown one is a 422", () => {
     const { policy, repos } = setup();
     repos.create({
+      orgId: HOME_ORG_ID,
       id: "r1",
       name: "web",
       forge: "github",
@@ -112,7 +114,13 @@ describe("PolicyResolver", () => {
       slug: "web",
       templateId: "staging",
     });
-    repos.create({ id: "r2", name: "ci box", slug: "ci-box", templateId: "ci" });
+    repos.create({
+      orgId: HOME_ORG_ID,
+      id: "r2",
+      name: "ci box",
+      slug: "ci-box",
+      templateId: "ci",
+    });
     expect(policy.resolve({ source: IMAGE, actor: ACTOR, projectId: "ci-box" })).toMatchObject({
       project: { id: "r2" },
       template: { id: "ci" },
@@ -189,6 +197,7 @@ describe("deploy follows the template", () => {
     const s = setupPreviewContext();
     new ProjectsRepo(s.db).create({
       id: "r1",
+      orgId: HOME_ORG_ID,
       name: "web",
       slug: "web",
       forge: "github",

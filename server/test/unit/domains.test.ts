@@ -70,7 +70,7 @@ describe("the registry", () => {
   test("the default, pinned and org domains are open to every project", () => {
     const { db } = tempDb();
     const { registry: r, domains, projects } = registry(db);
-    projects.create({ id: "p1", name: "web", slug: "web" });
+    projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     claimed(domains, "org.test", "wildcard");
     claimed(domains, "mine.test", "wildcard", { projectId: "p1" });
     domains.create({ id: "pending", name: "later.test", kind: "wildcard", claimId: "c" });
@@ -105,7 +105,7 @@ describe("the registry", () => {
     const { db } = tempDb();
     seededHosts(db);
     const { registry: r, domains, projects } = registry(db);
-    projects.create({ id: "p1", name: "web", slug: "web" });
+    projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     db.run(
       "INSERT INTO previews (id, project, host_id, state, source_kind, source_json, visibility, created_at, updated_at) VALUES ('v1', 'gw-v1', 'local', 'awake', 'image', '{}', 'public', 1, 1), ('v2', 'gw-v2', 'local', 'awake', 'image', '{}', 'public', 1, 1)",
     );
@@ -132,7 +132,7 @@ describe("deploying under a domain", () => {
 
   test("a preview is named under its choice, else its project's, else the default", async () => {
     const s = setup();
-    s.projects.create({ id: "p1", name: "web", slug: "web" });
+    s.projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     claimed(s.domains, "org.test", "wildcard");
     s.projects.update("p1", { domain: "org.test" });
     s.registry.refresh();
@@ -303,7 +303,7 @@ describe("urls and destroy", () => {
     const r = registry(s.db);
     s.ctx.domains = r.registry;
     const p = await s.deployed("shop");
-    r.projects.create({ id: "p1", name: "web", slug: "web" });
+    r.projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     r.projects.update("p1", { productionPreviewId: p.id });
     claimed(r.domains, "www.shop.example", "exact", { previewId: p.id });
     const waiting = r.domains.create({
@@ -336,7 +336,7 @@ describe("urls and destroy", () => {
     const p = await s.deployed("shop");
     const lapsed = s.ctx.now() + 8 * 86_400_000;
     expect(s.ctx.previews.expired(lapsed).map((v) => v.id)).toEqual([p.id]);
-    r.projects.create({ id: "p1", name: "web", slug: "web" });
+    r.projects.create({ orgId: HOME_ORG_ID, id: "p1", name: "web", slug: "web" });
     r.projects.update("p1", { productionPreviewId: p.id });
     expect(s.ctx.previews.expired(lapsed)).toEqual([]);
     expect(s.ctx.previews.productionOf(p.id)).toBe("web");

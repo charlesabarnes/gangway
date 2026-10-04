@@ -39,6 +39,7 @@ describe("the project tool", () => {
   test("a repository the GitHub App previews needs no workflow", () => {
     const s = setupTools();
     s.projects.create({
+      orgId: HOME_ORG_ID,
       id: "p1",
       name: "shop",
       slug: "shop",
@@ -54,6 +55,7 @@ describe("the project tool", () => {
   test("a disabled project says so alongside the workflow", () => {
     const s = setupTools();
     s.projects.create({
+      orgId: HOME_ORG_ID,
       id: "p1",
       name: "shop",
       slug: "shop",

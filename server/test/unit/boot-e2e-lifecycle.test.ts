@@ -5,6 +5,7 @@ import { tempDir } from "../helpers/db.ts";
 import { bootWithFakeDaemon, client } from "../helpers/fake-daemon.ts";
 import { freePort } from "../helpers/free-port.ts";
 import { API, bootE2e, deployPreview, WHOAMI } from "../helpers/boot-e2e.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 test("deploys an image over REST, serves its URL, and destroys it", async () => {
   const { running, call } = await bootE2e();
@@ -67,6 +68,7 @@ test("a restart serves existing routes at once and fails interrupted pipelines",
   // A row stuck in `building` stands in for dying mid-pipeline.
   one.ctx.previews.create({
     id: "01J00000000000000000000000",
+    orgId: HOME_ORG_ID,
     project: "gw-stuck",
     hostId: "local",
     state: "building",

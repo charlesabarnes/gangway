@@ -9,6 +9,7 @@ import type {
   WatermarkChoice,
 } from "@gangway/shared/domain";
 import type { Provenance } from "../../auth/actor.ts";
+import { orgFilter, orgScope } from "../../tenancy/scope.ts";
 import type { Db, Params } from "../types.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 import type { CreatePreview, PreviewFilter, StoredPreviewPassword } from "./preview-inputs.ts";
@@ -22,6 +23,14 @@ const choiceColumns = (p: CreatePreview) => ({
   watermark: watermarkColumn(p.watermark),
   domain: p.domain ?? null,
 });
+
+function orgOf(p: CreatePreview): string {
+  const s = orgScope();
+  if (s !== "fleet" && s.org !== p.orgId) {
+    throw new Error("a preview may only be created in the request's own org");
+  }
+  return p.orgId;
+}
 
 const labelColumns = (p: CreatePreview) => ({
   title: p.title ?? null,
@@ -42,14 +51,15 @@ export class PreviewsRepo {
     const now = this.#now();
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
-      `INSERT INTO previews (id, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
+      `INSERT INTO previews (id, org_id, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, credential,
                              password_mode, password_hash, password_salt, password_login, signed_in_only, watermark, domain, created_at, updated_at)
-       VALUES ($id, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
+       VALUES ($id, $org, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $credential,
                $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $watermark, $domain, $now, $now)`,
       {
         id: p.id,
+        org: orgOf(p),
         project: p.project,
         ...labelColumns(p),
         host_id: p.hostId,
@@ -79,8 +89,11 @@ export class PreviewsRepo {
   }
 
   get(id: string): Preview | undefined {
-    const r = this.#db.get("SELECT * FROM previews WHERE id = $id", { id }) as
-      PreviewRow | undefined;
+    const o = orgFilter();
+    const r = this.#db.get(`SELECT * FROM previews WHERE id = $id AND ${o.sql}`, {
+      id,
+      ...o.params,
+    }) as PreviewRow | undefined;
     return r ? rowToPreview(r) : undefined;
   }
 
@@ -95,7 +108,11 @@ export class PreviewsRepo {
   }
 
   provenances(): Map<string, Provenance> {
-    const rows = this.#db.query("SELECT id, owner, credential FROM previews") as {
+    const o = orgFilter();
+    const rows = this.#db.query(
+      `SELECT id, owner, credential FROM previews WHERE ${o.sql}`,
+      o.params,
+    ) as {
       id: string;
       owner: string | null;
       credential: string | null;
@@ -237,6 +254,7 @@ export class PreviewsRepo {
     }
   }
 
+  /** Across every org: the compose project name is unique on the whole server. */
   getByProject(project: string): Preview | undefined {
     const r = this.#db.get("SELECT * FROM previews WHERE project = $p", { p: project }) as
       PreviewRow | undefined;
@@ -244,8 +262,9 @@ export class PreviewsRepo {
   }
 
   list(f: PreviewFilter = {}): Preview[] {
-    const where: string[] = [];
-    const params: Record<string, string | number> = {};
+    const o = orgFilter();
+    const where: string[] = [o.sql];
+    const params: Record<string, string | number> = { ...o.params };
 
     if (f.state) {
       const states = Array.isArray(f.state) ? f.state : [f.state];
@@ -284,7 +303,7 @@ export class PreviewsRepo {
       params["limit"] = f.limit;
     }
 
-    const whereClause = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+    const whereClause = ` WHERE ${where.join(" AND ")}`;
     const sql = `SELECT * FROM previews${whereClause} ORDER BY id DESC${f.limit !== undefined ? " LIMIT $limit" : ""}`;
     return this.#previews(sql, Object.keys(params).length ? params : undefined);
   }
@@ -376,13 +395,14 @@ export class PreviewsRepo {
 
   // By source, not name: an unlisted preview's name changes across deploys.
   findPullRequest(repo: string, number: number): Preview | undefined {
+    const o = orgFilter();
     const r = this.#db.get(
       `SELECT * FROM previews
         WHERE ((source_kind = 'pr' AND json_extract(source_json, '$.repo') = $repo AND json_extract(source_json, '$.number') = $number)
             OR (source_kind = 'tarball' AND json_extract(source_json, '$.pr.repo') = $repo AND json_extract(source_json, '$.pr.number') = $number))
-          AND state != 'destroyed'
+          AND state != 'destroyed' AND ${o.sql}
         ORDER BY id DESC LIMIT 1`,
-      { repo, number },
+      { repo, number, ...o.params },
     ) as PreviewRow | undefined;
     return r ? rowToPreview(r) : undefined;
   }

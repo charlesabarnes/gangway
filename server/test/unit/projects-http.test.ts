@@ -188,6 +188,7 @@ describe("/v1/projects", () => {
   ])("refuses to create a project with %s", async (_, json, status) => {
     const t = make();
     t.projects.create({
+      orgId: HOME_ORG_ID,
       id: "P1",
       name: "Web App",
       slug: "web-app",
@@ -200,6 +201,7 @@ describe("/v1/projects", () => {
   test("edits by id or slug, changes or removes the repository, and deletes", async () => {
     const t = make();
     const p = t.projects.create({
+      orgId: HOME_ORG_ID,
       id: "P1",
       name: "web",
       slug: "web",
@@ -241,6 +243,7 @@ describe("/v1/projects", () => {
   test("the workflow file names the project and API and keeps GitHub's `${{ }}`", async () => {
     const t = make();
     t.projects.create({
+      orgId: HOME_ORG_ID,
       id: "P1",
       name: "Web app",
       slug: "web-app",
@@ -265,6 +268,7 @@ describe("/v1/projects/:ref/pulls/:n", () => {
   const setup = () => {
     const t = make();
     t.projects.create({
+      orgId: HOME_ORG_ID,
       id: "P1",
       name: "web-app",
       slug: "web-app",
@@ -462,7 +466,7 @@ describe("/v1/projects/:ref/pulls/:n", () => {
     const { preview } = (await res.json()) as any;
     await t.s.ctx.inflight.get(preview.id)?.done;
     expect(t.s.fake.upLogins[0]).toEqual({ env: undefined, config: null });
-    t.projects.create({ id: "P2", name: "bare", slug: "bare" });
+    t.projects.create({ orgId: HOME_ORG_ID, id: "P2", name: "bare", slug: "bare" });
     expect(
       (await t.call("/v1/projects/bare/pulls/3", { method: "PUT", json: t.body() })).status,
     ).toBe(422);

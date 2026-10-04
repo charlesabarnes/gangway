@@ -9,6 +9,7 @@ import type { TemplatesRepo } from "../db/repos/templates.ts";
 import { conflict, unprocessable } from "../errors.ts";
 import { trimEndChar } from "../util/text.ts";
 import { ulid } from "../util/ulid.ts";
+import { acrossOrgs } from "../tenancy/scope.ts";
 
 export const MAX_SLUG = 24;
 
@@ -24,11 +25,16 @@ export function checkTemplate(d: CreateProjectDeps, id: string | null | undefine
   }
 }
 
+// A repository belongs to one project on the whole server; another org's is not named.
 export function checkRepository(projects: ProjectsRepo, full: string, self?: string): void {
-  const taken = projects.getByFullName("github", full);
-  if (taken && taken.id !== self) {
-    throw conflict(`${full} is already project "${taken.slug}"`, { takenBy: taken.slug });
+  const taken = acrossOrgs(() => projects.getByFullName("github", full));
+  if (!taken || taken.id === self) {
+    return;
   }
+  if (!projects.get(taken.id)) {
+    throw conflict(`${full} is already connected to another gangway org`);
+  }
+  throw conflict(`${full} is already project "${taken.slug}"`, { takenBy: taken.slug });
 }
 
 export function createProject(
@@ -41,7 +47,7 @@ export function createProject(
   if (!slug) {
     throw unprocessable("the name has no usable characters for a slug; give one");
   }
-  if (projects.getBySlug(slug)) {
+  if (acrossOrgs(() => projects.getBySlug(slug))) {
     throw conflict(`slug "${slug}" is taken`, { slug });
   }
   if (req.repository) {
@@ -50,6 +56,7 @@ export function createProject(
   checkTemplate(d, req.templateId);
   const project = projects.create({
     id: ulid(),
+    orgId: actor.orgId,
     name: req.name,
     slug,
     ...(req.repository ? { forge: "github" as const, fullName: req.repository } : {}),

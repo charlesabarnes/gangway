@@ -9,6 +9,7 @@ import {
   PortExhausted,
 } from "../../src/routing/ports.ts";
 import { tempDb } from "../helpers/db.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const RANGE = { rangeStart: 31000, rangeEnd: 31004 };
 
@@ -65,6 +66,7 @@ describe("RouteTable", () => {
     const previews = new PreviewsRepo(db, now);
     previews.create({
       id: "p1",
+      orgId: HOME_ORG_ID,
       project: "gw-1",
       hostId: "local",
       state: "building",

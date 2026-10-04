@@ -12,6 +12,8 @@ import type {
 
 export type CreatePreview = {
   id: string;
+  /** The deploying actor's; inside a request it must be the request's org. */
+  orgId: string;
   project: string;
   title?: string | null;
   icon?: PreviewIcon | null;

@@ -327,6 +327,7 @@ describe("github wire shapes", () => {
     settings.set(SETTINGS.githubWebhookSecret, "s");
     const repos = new ProjectsRepo(s.db, s.now);
     repos.create({
+      orgId: HOME_ORG_ID,
       id: "r1",
       name: "web",
       forge: "github",
@@ -363,7 +364,7 @@ describe("github wire shapes", () => {
     );
     const { project } = (await (await app.request("/projects/r1")).json()) as { project: unknown };
     expect(shapeOf(project)).toEqual(shapeOf(contract["project"]));
-    repos.create({ id: "r2", name: "whoami", slug: "whoami" });
+    repos.create({ orgId: HOME_ORG_ID, id: "r2", name: "whoami", slug: "whoami" });
     const bare = (
       (await (await app.request("/projects/whoami")).json()) as { project: Record<string, unknown> }
     ).project;

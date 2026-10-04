@@ -30,6 +30,7 @@ import { parseDuration } from "../../util/duration.ts";
 import type { DomainRegistry } from "../../domains/registry.ts";
 import type { AppEnv } from "../env.ts";
 import { requirePermission } from "../middleware/auth.ts";
+import { acrossOrgs } from "../../tenancy/scope.ts";
 
 export type ProjectRouteDeps = {
   projects: ProjectsRepo;
@@ -125,13 +126,20 @@ function checkPatch(
     }
   }
   if (patch.slug !== undefined && patch.slug !== before.slug) {
-    const taken = d.projects.getBySlug(patch.slug);
-    if (taken) {
-      throw conflict(`slug "${patch.slug}" is taken by project "${taken.name}"`, {
-        takenBy: taken.slug,
-      });
-    }
+    checkSlugFree(d.projects, patch.slug);
   }
+}
+
+// Slugs are unique on the whole server; another org's project is not named.
+function checkSlugFree(projects: ProjectsRepo, slug: string): void {
+  const taken = acrossOrgs(() => projects.getBySlug(slug));
+  if (!taken) {
+    return;
+  }
+  if (!projects.get(taken.id)) {
+    throw conflict(`slug "${slug}" is taken`, { slug });
+  }
+  throw conflict(`slug "${slug}" is taken by project "${taken.name}"`, { takenBy: taken.slug });
 }
 
 function findProject(projects: ProjectsRepo, ref: string): Project {
