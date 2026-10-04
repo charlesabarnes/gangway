@@ -173,11 +173,11 @@ export class PreviewsRepo {
     this.#db.run("UPDATE previews SET bytes = $bytes WHERE id = $id", { id, bytes });
   }
 
-  /** The bytes the org's live sites keep on disk. */
-  bytesUsed(orgId: string): number {
+  /** The bytes the org's live sites keep on disk, all but `except`'s if given. */
+  bytesUsed(orgId: string, except = ""): number {
     const r = this.#db.get(
-      "SELECT COALESCE(SUM(bytes), 0) AS n FROM previews WHERE org_id = $orgId AND state != 'destroyed'",
-      { orgId },
+      "SELECT COALESCE(SUM(bytes), 0) AS n FROM previews WHERE org_id = $orgId AND state != 'destroyed' AND id != $except",
+      { orgId, except },
     ) as { n: number } | undefined;
     return r?.n ?? 0;
   }

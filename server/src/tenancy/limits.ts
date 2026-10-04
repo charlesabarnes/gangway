@@ -32,9 +32,19 @@ export function admitDeploy(
       `this org already has ${count} ${what}, the most its plan allows; destroy one first`,
     );
   }
-  if (l.storageBytes !== undefined && o.used + o.bytes > l.storageBytes) {
+  checkStorage(ctx, orgId, o.used + o.bytes);
+}
+
+/** Refuses when the org's sites would keep `total` bytes, past what its plan allows. */
+export function checkStorage(
+  ctx: Pick<LimitsContext, "orgLimits">,
+  orgId: string,
+  total: number,
+): void {
+  const cap = ctx.orgLimits?.(orgId)?.storageBytes;
+  if (cap !== undefined && total > cap) {
     throw conflict(
-      `this would keep ${mb(o.used + o.bytes)} of sites, past the ${mb(l.storageBytes)} the org's plan allows; destroy one first`,
+      `this would keep ${mb(total)} of sites, past the ${mb(cap)} the org's plan allows; destroy one first`,
     );
   }
 }

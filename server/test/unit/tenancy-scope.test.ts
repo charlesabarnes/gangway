@@ -198,3 +198,27 @@ test("an org's plan holds it to static sites, a count, a size and a lifetime", a
   expect(Date.parse(after.ttlExpiresAt!) - Date.now()).toBeLessThanOrEqual(86_400_000);
   expect((await site("second", "<h1>again</h1>")).status).toBe(409);
 });
+
+test("a site that fits the estimate but not the cap once published fails", async () => {
+  const { home, other, otherId } = await twoOrgs();
+  await home(`/v1/operator/orgs/${otherId}/limits`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ limits: { storageBytes: 120 } }),
+  });
+  const res = await other("/v1/previews?wait=true&runtime=auto&visibility=public&name=tight", {
+    method: "POST",
+    headers: { "content-type": "application/gzip" },
+    body: await tarball({ "index.html": "x".repeat(100) }),
+  });
+  const { preview } = (await res.json()) as { preview: { id: string; state: string } };
+  expect(preview.state).toBe("failed");
+  // The fake host has one upstream port.
+  expect((await other(`/v1/previews/${preview.id}`, { method: "DELETE" })).status).toBe(200);
+  const fits = await other("/v1/previews?wait=true&runtime=auto&visibility=public&name=fits", {
+    method: "POST",
+    headers: { "content-type": "application/gzip" },
+    body: await tarball({ "index.html": "ok" }),
+  });
+  expect(((await fits.json()) as { preview: { state: string } }).preview.state).toBe("awake");
+});

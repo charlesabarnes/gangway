@@ -5,7 +5,7 @@ import { actorId, can } from "../auth/actor.ts";
 import { forbidden, unprocessable } from "../errors.ts";
 import { place } from "../scheduler/placement.ts";
 import { parseDuration } from "../util/duration.ts";
-import { admitDeploy, lifetimeCap } from "../tenancy/limits.ts";
+import { admitDeploy, checkStorage, lifetimeCap } from "../tenancy/limits.ts";
 import { ulid } from "../util/ulid.ts";
 import type { ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
@@ -331,7 +331,7 @@ export async function deploy(ctx: PreviewContext, input: DeployInput): Promise<D
 type DeployRun = RunPlan & { dockerConfig?: string | undefined };
 
 async function publishSite(
-  ctx: StaticContext & BuildingContext,
+  ctx: StaticContext & BuildingContext & Pick<PreviewContext, "orgLimits">,
   r: DeployRun,
   plan: AppPlan,
 ): Promise<Preview> {
@@ -344,6 +344,9 @@ async function publishSite(
     );
     r.signal.throwIfAborted();
     ctx.previews.setBytes(id, bytes);
+    // The estimate could not see the encoded copies; the measured size is held to the cap too.
+    const org = r.preview.orgId;
+    checkStorage(ctx, org, ctx.previews.bytesUsed(org));
     const left = withheldLine(withheld);
     if (left) {
       ctx.logs.append(id, "system", left);
@@ -357,6 +360,7 @@ async function publishSite(
       return ctx.previews.get(id) ?? r.preview;
     }
     ctx.previews.setBytes(id, 0);
+    await ctx.sites?.remove(id).catch(() => undefined);
     return await failStack(ctx, r, failureMessage(ctx, id, e, "site publish error"), false);
   } finally {
     await r.wd.cleanup();

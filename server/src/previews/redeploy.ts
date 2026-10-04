@@ -36,11 +36,12 @@ import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import { releaseStack } from "./destroy.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
-import { markServing, withheldLine } from "./site.ts";
+import { markServing, plannedBytes, withheldLine } from "./site.ts";
 import type { SourceStore } from "./source/store.ts";
 import { dropProjectNetwork, writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
+import { checkStorage } from "../tenancy/limits.ts";
 
 export { checkEditPath, type SourceEdits } from "./source-edits.ts";
 export type { RedeployOutcome } from "./rebuild-failure.ts";
@@ -271,7 +272,7 @@ async function startAddons(ctx: BuildingContext, p: Pipeline, r: RebuildRun): Pr
 }
 
 async function runSite(
-  ctx: StaticContext & BuildingContext & Pick<PreviewContext, "table" | "bus">,
+  ctx: StaticContext & BuildingContext & Pick<PreviewContext, "table" | "bus" | "orgLimits">,
   r: RebuildRun,
   plan: AppPlan,
 ): Promise<RedeployOutcome> {
@@ -279,6 +280,9 @@ async function runSite(
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
   try {
+    // Before anything is swapped in: the org's sites, with this one at its new size.
+    const others = ctx.previews.bytesUsed(was.orgId, id);
+    checkStorage(ctx, was.orgId, others + (await plannedBytes(r.wd.srcDir, plan)));
     const { files, bytes, withheld } = await must(ctx.sites, "the site store").publish(
       id,
       r.wd.srcDir,
