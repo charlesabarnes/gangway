@@ -138,13 +138,14 @@ export class TokensRepo {
   hasActiveAdmin(now: number = this.#now()): boolean {
     const row = this.#db.get(
       `SELECT COUNT(*) AS n
-       FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id, json_each(t.scopes) s
+       FROM api_tokens t LEFT JOIN users u ON u.id = t.user_id
+       LEFT JOIN memberships m ON m.user_id = t.user_id AND m.org_id = t.org_id, json_each(t.scopes) s
       WHERE s.value = 'admin' AND t.revoked_at IS NULL
         AND t.org_id = (SELECT id FROM orgs WHERE home = 1)
         AND (t.expires_at IS NULL OR t.expires_at > $now)
-        AND (t.user_id IS NULL OR (u.disabled = 0 AND (u.role_id = $admin OR EXISTS (
+        AND (t.user_id IS NULL OR (u.disabled = 0 AND (m.role_id = $admin OR EXISTS (
               SELECT 1 FROM role_permissions rp
-               WHERE rp.role_id = u.role_id AND rp.permission_id = 'surfaces.manage'))))`,
+               WHERE rp.role_id = m.role_id AND rp.permission_id = 'surfaces.manage'))))`,
       { now, admin: ADMIN_ROLE_ID },
     ) as { n: number } | undefined;
     return must(row, "a count row").n > 0;

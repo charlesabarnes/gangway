@@ -45,6 +45,13 @@ export class UsersRepo {
   }
 
   create(u: CreateUser): User {
+    this.#db.transaction(() => {
+      this.#insert(u);
+    });
+    return must(this.get(u.id), "the user just saved");
+  }
+
+  #insert(u: CreateUser): void {
     this.#db.run(
       `INSERT INTO users (id, email, password_hash, password_salt, role_id, disabled, invited, sso_only, created_at)
        VALUES ($id, $email, $hash, $salt, $role, 0, $invited, $ssoOnly, $now)`,
@@ -64,7 +71,6 @@ export class UsersRepo {
        VALUES ((SELECT id FROM orgs WHERE home = 1), $id, $role, $now)`,
       { id: u.id, role: u.roleId, now: this.#now() },
     );
-    return must(this.get(u.id), "the user just saved");
   }
 
   get(id: string): User | undefined {
@@ -101,12 +107,16 @@ export class UsersRepo {
   }
 
   update(id: string, patch: { roleId?: string; disabled?: boolean }): User | undefined {
-    if (patch.roleId !== undefined) {
-      this.#db.run("UPDATE users SET role_id = $r WHERE id = $id", { id, r: patch.roleId });
-      this.#db.run(
-        "UPDATE memberships SET role_id = $r WHERE user_id = $id AND org_id = (SELECT id FROM orgs WHERE home = 1)",
-        { id, r: patch.roleId },
-      );
+    const roleId = patch.roleId;
+    if (roleId !== undefined) {
+      // users.role_id mirrors the home membership; both change together or neither does.
+      this.#db.transaction(() => {
+        this.#db.run("UPDATE users SET role_id = $r WHERE id = $id", { id, r: roleId });
+        this.#db.run(
+          "UPDATE memberships SET role_id = $r WHERE user_id = $id AND org_id = (SELECT id FROM orgs WHERE home = 1)",
+          { id, r: roleId },
+        );
+      });
     }
     if (patch.disabled !== undefined) {
       this.#db.run("UPDATE users SET disabled = $d WHERE id = $id", { id, d: num(patch.disabled) });

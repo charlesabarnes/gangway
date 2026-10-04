@@ -302,6 +302,12 @@ for (const [name, open] of DRIVERS) {
         expect(s.tokens.hasActiveAdmin()).toBe(false);
         mint(s, { id: "t2", tokenHash: "hash-2", scopes: ["read", "admin"] });
         expect(s.tokens.hasActiveAdmin()).toBe(true);
+        s.db.run("DELETE FROM memberships WHERE user_id = 'u-ada'");
+        expect(s.tokens.hasActiveAdmin()).toBe(false);
+        s.db.run(
+          "INSERT INTO memberships (org_id, user_id, role_id, created_at) SELECT id, 'u-ada', 'admin', 1 FROM orgs WHERE home = 1",
+        );
+        expect(s.tokens.hasActiveAdmin()).toBe(true);
         s.users.update("u-ada", { roleId: "member" });
         expect(s.tokens.hasActiveAdmin()).toBe(false);
         // Any role that may turn the surfaces back on counts, not the admin role by name.
