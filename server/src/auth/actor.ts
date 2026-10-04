@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { ForgeId } from "@gangway/shared/domain";
 import {
+  INSTANCE_PERMISSIONS,
   SCOPE_PERMISSIONS,
   targetPermissions,
   type Permission,
@@ -238,3 +239,21 @@ export function staticTokenVerifier(adminToken: string, homeOrgId: string): Toke
   const actor = tokenActor(ENV_ADMIN_TOKEN_ID, ["admin"], homeOrgId);
   return (presented) => (timingSafeEqual(sha256(presented), expected) ? actor : null);
 }
+
+/** An actor outside the home org, without what acts on the whole server. */
+export function confinedToOrg(a: Actor, homeOrgId: string): Actor {
+  if (a.orgId === homeOrgId) {
+    return a;
+  }
+  return {
+    ...a,
+    permissions: new Set([...a.permissions].filter((p) => !INSTANCE_PERMISSIONS.has(p))),
+  };
+}
+
+export const orgBound =
+  (verify: TokenVerifier, homeOrgId: string): TokenVerifier =>
+  async (presented) => {
+    const a = await verify(presented);
+    return a && confinedToOrg(a, homeOrgId);
+  };

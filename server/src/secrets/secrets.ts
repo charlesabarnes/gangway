@@ -3,10 +3,12 @@ import type { AuditAction, AuditSink } from "../audit/audit.ts";
 import type { Actor } from "../auth/actor.ts";
 import type { PreviewsRepo } from "../db/repos/previews.ts";
 import type { ProjectsRepo } from "../db/repos/projects.ts";
-import { unprocessable } from "../errors.ts";
+import { forbidden, unprocessable } from "../errors.ts";
 import type { SettingsStore } from "../settings.ts";
 import type { SecretBox } from "./box.ts";
 import { compareCodeUnits } from "../util/compare.ts";
+import { HOME_ORG_ID } from "../db/repos/orgs.ts";
+import { orgScope } from "../tenancy/scope.ts";
 
 export const ENV_NAME_RE = /^[A-Za-z_]\w*$/;
 const MAX_ENV_ENTRIES = 100;
@@ -159,14 +161,20 @@ export class Secrets {
     this.#previews = previews;
   }
 
+  // One server setting for now, so it belongs to the home org: another org has none.
   global(): SecretMap {
+    const scope = orgScope();
+    const home = scope === "fleet" || scope.org === HOME_ORG_ID;
     return new SecretMap(
       {
         read: () => {
-          const v = this.#store.get(GLOBAL_KEY);
+          const v = home ? this.#store.get(GLOBAL_KEY) : null;
           return typeof v === "string" && v !== "" ? v : null;
         },
         write: (s) => {
+          if (!home) {
+            throw forbidden("org-wide secrets are not available to this org yet");
+          }
           this.#store.set(GLOBAL_KEY, s ?? "");
         },
       },

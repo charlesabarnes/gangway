@@ -101,3 +101,20 @@ test("tokens, audit entries and domains stay with their org", async () => {
   const own = (await (await home("/v1/audit")).json()) as { entries: { action: string }[] };
   expect(own.entries.map((e) => e.action)).toContain("domain.claimed");
 });
+
+test("another org holds nothing that acts on the whole server", async () => {
+  const { home, other } = await twoOrgs();
+  const patch = (body: unknown): RequestInit => ({
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  expect((await home("/v1/secrets", patch({ set: { HOME_ONLY: "1" } }))).status).toBe(200);
+  for (const path of ["/v1/settings", "/v1/hosts", "/v1/users", "/v1/roles"]) {
+    expect({ path, status: (await other(path)).status }).toEqual({ path, status: 403 });
+    expect({ path, status: (await home(path)).status }).toEqual({ path, status: 200 });
+  }
+  const secrets = (await (await other("/v1/secrets")).json()) as { secrets: unknown };
+  expect(JSON.stringify(secrets)).not.toContain("HOME_ONLY");
+  expect((await other("/v1/secrets", patch({ set: { THEIRS: "1" } }))).status).toBe(403);
+});

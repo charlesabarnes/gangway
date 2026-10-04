@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { ApiToken } from "@gangway/shared/domain";
 import {
+  INSTANCE_PERMISSIONS,
   SCOPE_PERMISSIONS,
   type Permission,
   type Scope,
@@ -21,6 +22,7 @@ import {
 } from "./actor.ts";
 import type { RolePermissions } from "./roles.ts";
 import { sha256 } from "../util/hash.ts";
+import { HOME_ORG_ID } from "../db/repos/orgs.ts";
 
 const SHAPE = /^gw_[A-Za-z0-9_-]{43}$/;
 const PREFIX_LEN = 11;
@@ -103,7 +105,10 @@ export class Tokens {
 
     const scopes = [...new Set(input.scopes)];
     for (const scope of scopes) {
-      const missing = SCOPE_PERMISSIONS[scope].filter((p) => !can(actor, p));
+      // Outside the home org the server-wide part is dropped when the token is used, so skip it here.
+      const missing = SCOPE_PERMISSIONS[scope].filter(
+        (p) => !can(actor, p) && !(actor.orgId !== HOME_ORG_ID && INSTANCE_PERMISSIONS.has(p)),
+      );
       if (missing.length > 0) {
         throw unprocessable(`your role does not cover the "${scope}" scope`, { scope, missing });
       }

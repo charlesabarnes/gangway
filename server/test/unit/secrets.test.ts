@@ -11,6 +11,7 @@ import { Secrets, dotenvLine } from "../../src/secrets/secrets.ts";
 import { MemorySettingsStore } from "../../src/settings.ts";
 import { tempDir } from "../helpers/db.ts";
 import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
+import { withOrg } from "../../src/tenancy/scope.ts";
 
 describe("SecretBox", () => {
   test("seals and opens; a different key or a flipped byte fails closed", () => {
@@ -136,6 +137,18 @@ describe("Secrets: two scopes, one shape", () => {
     expect(secrets.valuesFor(null, "none")).toEqual({});
     expect(secrets.global().update(null, { unset: ["SHARED", "ONLY_GLOBAL", "TOP"] })).toEqual([]);
     expect(secrets.valuesFor(repo.id, "high")).toEqual({ SHARED: "repo" });
+  });
+
+  test("org-wide secrets are the home org's: another org neither gets nor sets them", () => {
+    const { secrets } = setup();
+    secrets.global().update(null, { set: { SHARED: "home" } });
+    withOrg("01JORG0THER00000000000000A", () => {
+      expect(secrets.valuesFor(null, "high")).toEqual({});
+      expect(() => secrets.global().update(null, { set: { THEIRS: "x" } })).toThrow(
+        "not available",
+      );
+    });
+    expect(withOrg(HOME_ORG_ID, () => secrets.valuesFor(null, "high"))).toEqual({ SHARED: "home" });
   });
 
   test("a bare string per name, the first shape, reads as `standard`", () => {
