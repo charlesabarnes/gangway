@@ -1,6 +1,7 @@
 import { auditActor, type Actor } from "../auth/actor.ts";
 import type { AuditRepo } from "../db/repos/audit.ts";
 import { redact, type Logger } from "../logger.ts";
+import { currentOrg } from "../tenancy/scope.ts";
 
 export type AuditAction =
   | "preview.deploy"
@@ -95,7 +96,7 @@ export class Audit implements AuditSink {
         actorName: ("name" in who ? who.name : undefined) ?? null,
         action,
         target,
-        orgId: actor?.orgId ?? null,
+        orgId: actor?.orgId ?? currentOrg(),
         old: change.old === undefined ? undefined : redact(change.old),
         new: change.new === undefined ? undefined : redact(change.new),
       });

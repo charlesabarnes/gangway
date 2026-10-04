@@ -25,6 +25,10 @@ export function orgScope(): OrgScope {
   return { org: s.orgId };
 }
 
+export function currentOrg(): string | null {
+  return current.getStore()?.orgId ?? null;
+}
+
 export function orgFilter(column = "org_id"): { sql: string; params: { org?: string } } {
   const s = orgScope();
   return s === "fleet"
