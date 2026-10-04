@@ -5,7 +5,10 @@ import type { AppEnv } from "../../src/app/env.ts";
 import { errorHandler } from "../../src/app/problem.ts";
 import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import {
+  can,
   chainVerifiers,
+  confinedToOrg,
+  orgBound,
   staticTokenVerifier,
   tokenActor,
   type Actor,
@@ -143,6 +146,20 @@ describe("the org a credential acts in", () => {
     const { secret } = await t.accounts.login("ada@example.com", PASSWORD, META);
     t.db.run("UPDATE sessions SET org_id = $o", { o: OTHER });
     expect(t.sessions.resolve(secret)!.actor.orgId).toBe(OTHER);
+  });
+
+  test("another org's admin mints an admin token, which never acts on the whole server", async () => {
+    const t = await make();
+    t.db.run(
+      `INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('${OTHER}', 'other', 'Other', 1, 1)`,
+    );
+    const theirs = confinedToOrg({ ...t.adaActor, orgId: OTHER }, HOME_ORG_ID);
+    expect(can(theirs, "settings.write")).toBe(false);
+    const { secret } = t.tokens.mint(theirs, { name: "ci", scopes: ["admin"] });
+    const used = (await orgBound(t.tokens.verify, HOME_ORG_ID)(secret))!;
+    expect(can(used, "previews.destroy")).toBe(true);
+    expect(can(used, "settings.write")).toBe(false);
+    expect(can(used, "users.manage")).toBe(false);
   });
 
   test("the env admin token is the home org's", async () => {

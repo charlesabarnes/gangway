@@ -164,6 +164,25 @@ export type Permission = (typeof PERMISSIONS)[number]["id"];
 export const ALL_PERMISSIONS: readonly Permission[] = PERMISSIONS.map((p) => p.id);
 
 const KNOWN: ReadonlySet<string> = new Set(ALL_PERMISSIONS);
+
+/** What acts on the whole server, so only the home org may hold it, whatever a role grants. */
+export const INSTANCE_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
+  "hosts.read",
+  "hosts.manage",
+  "users.read",
+  "users.manage",
+  "roles.read",
+  "roles.manage",
+  "settings.read",
+  "settings.write",
+  "surfaces.manage",
+  "github.manage",
+  "templates.manage",
+  "artifacts.manage",
+  "apps.read",
+  "apps.install",
+  "jobs.claim",
+]);
 export const isPermission = (s: string): s is Permission => KNOWN.has(s);
 
 export const SCOPES = [

@@ -8,7 +8,7 @@ import type { AppEnv } from "../app/env.ts";
 import { McpSurface } from "../app/mcp-surface.ts";
 import type { AuthDeps } from "../app/middleware/auth.ts";
 import { oauthRootRoutes } from "../app/routes/oauth.ts";
-import { chainVerifiers, staticTokenVerifier } from "../auth/actor.ts";
+import { chainVerifiers, confinedToOrg, orgBound, staticTokenVerifier } from "../auth/actor.ts";
 import { LoginLimiter } from "../auth/limiter.ts";
 import { GitHubOidc, workflowVerifier } from "../auth/oidc.ts";
 import { Tools } from "../mcp/tools.ts";
@@ -86,21 +86,28 @@ function createGate({ repos, settings, previewPasswords, origin, logger }: HttpD
 }
 
 function createAuth({ identity, adminToken, origin, ctx, logger, repos }: HttpDeps): AuthDeps {
+  const home = repos.orgs.home().id;
   const oidc = new GitHubOidc({
     audience: () => origin("api"),
     logger: logger.child({ mod: "oidc" }),
   });
   return {
-    verifyToken: chainVerifiers(
-      identity.tokens.verify,
-      staticTokenVerifier(adminToken, repos.orgs.home().id),
-      workflowVerifier((t) => oidc.verify(t), {
-        byName: (repository) =>
-          acrossOrgs(() => repos.projects.getByFullName("github", repository)),
-        sameRepository: (id, repositoryId) => repos.projects.sameRepository(id, repositoryId),
-      }),
+    verifyToken: orgBound(
+      chainVerifiers(
+        identity.tokens.verify,
+        staticTokenVerifier(adminToken, home),
+        workflowVerifier((t) => oidc.verify(t), {
+          byName: (repository) =>
+            acrossOrgs(() => repos.projects.getByFullName("github", repository)),
+          sameRepository: (id, repositoryId) => repos.projects.sameRepository(id, repositoryId),
+        }),
+      ),
+      home,
     ),
-    resolveSession: (secret: string) => identity.sessions.resolve(secret)?.actor ?? null,
+    resolveSession: (secret: string) => {
+      const actor = identity.sessions.resolve(secret)?.actor;
+      return actor ? confinedToOrg(actor, home) : null;
+    },
     // From the public scheme and port, not the listener's: behind a reverse proxy they differ.
     originFor: (host: string) => publicOriginFor(normalizeHost(host) ?? "", ctx.origin),
   };
@@ -133,10 +140,13 @@ function createMcp(d: HttpDeps): McpSurface {
     uploads,
     secretUploads,
     // OAuth access tokens are accepted only here; the /v1 chain does not know them.
-    verifyToken: chainVerifiers(
-      identity.tokens.verify,
-      staticTokenVerifier(d.adminToken, d.repos.orgs.home().id),
-      identity.oauth.verify,
+    verifyToken: orgBound(
+      chainVerifiers(
+        identity.tokens.verify,
+        staticTokenVerifier(d.adminToken, d.repos.orgs.home().id),
+        identity.oauth.verify,
+      ),
+      d.repos.orgs.home().id,
     ),
     logger: logger.child({ mod: "mcp" }),
     oauth: {
