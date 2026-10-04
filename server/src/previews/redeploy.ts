@@ -279,10 +279,12 @@ async function runSite(
   const id = r.preview.id;
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
+  const before = ctx.previews.bytesUsed(was.orgId) - ctx.previews.bytesUsed(was.orgId, id);
   try {
-    // Before anything is swapped in: the org's sites, with this one at its new size.
-    const others = ctx.previews.bytesUsed(was.orgId, id);
-    checkStorage(ctx, was.orgId, others + (await plannedBytes(r.wd.srcDir, plan)));
+    // Checked and held with no await between, so a deploy meanwhile counts the larger size.
+    const planned = await plannedBytes(r.wd.srcDir, plan);
+    checkStorage(ctx, was.orgId, ctx.previews.bytesUsed(was.orgId, id) + planned);
+    ctx.previews.setBytes(id, Math.max(before, planned));
     const { files, bytes, withheld } = await must(ctx.sites, "the site store").publish(
       id,
       r.wd.srcDir,
@@ -310,6 +312,7 @@ async function runSite(
     }
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
+    ctx.previews.setBytes(id, before);
     if (r.signal.aborted) {
       return {
         preview: ctx.previews.get(id) ?? r.preview,
