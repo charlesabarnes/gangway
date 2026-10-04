@@ -136,6 +136,12 @@ describe("buildLabel", () => {
     ],
     ["the slug scheme", { kind: "slug", slug: "My App" }, { service: "web" }, "my-app-web"],
     [
+      "another org's slug, after its --",
+      { kind: "slug", slug: "My App--other" },
+      { service: "web" },
+      "my-app--other-web",
+    ],
+    [
       "a single-service stack",
       { kind: "pr", repo: "acme", number: 1 },
       { service: "web", isSingleService: true },

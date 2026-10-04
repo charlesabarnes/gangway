@@ -38,12 +38,14 @@ export type Claim = {
   site?: boolean;
 };
 
-function slugFor(c: Claim): string {
+// Another org's names end in "--" and its slug: slugify never makes "--", so no name can clash.
+function slugFor(c: Claim, org: string | null): string {
   const stem = slugify(c.input.name ?? c.input.title ?? defaultName(c.input.source, c.runtime));
   if (stem === "") {
     throw unprocessable("name has no usable characters");
   }
-  return c.visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
+  const name = c.visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
+  return org === null ? name : `${name}--${org}`;
 }
 
 function createPreview(
@@ -108,11 +110,11 @@ function claimRoutes(
 export function claimPreview(
   ctx: Pick<
     PreviewContext,
-    "instance" | "previews" | "domains" | "previewDomain" | "table" | "logs" | "now"
+    "instance" | "previews" | "domains" | "previewDomain" | "table" | "logs" | "now" | "orgSuffix"
   >,
   c: Claim,
 ): { preview: Preview; routes: PlannedRoute[] } {
-  const slug = slugFor(c);
+  const slug = slugFor(c, ctx.orgSuffix?.(c.input.actor.orgId) ?? null);
   const project = projectNameFor(ctx.instance, slug);
   const existing = ctx.previews.getByProject(project);
   if (existing && existing.state !== "destroyed") {

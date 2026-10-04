@@ -17,9 +17,9 @@ export type OrgLimits = z.infer<typeof OrgLimitsSchema>;
 
 export type OrgState = "active" | "suspended";
 
-/** Lowercase letters and digits only, so `<name>-<org>` hostnames cannot collide. */
+/** It ends every preview hostname in the org, so short, and plain enough never to collide. */
 export const OrgCreateSchema = z.strictObject({
-  slug: z.string().regex(/^[a-z0-9]{1,32}$/, "lowercase letters and digits, at most 32"),
+  slug: z.string().regex(/^[a-z0-9]{1,20}$/, "lowercase letters and digits, at most 20"),
   name: z.string().trim().min(1).max(64),
 });
 export type OrgCreateRequest = z.infer<typeof OrgCreateSchema>;

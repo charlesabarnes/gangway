@@ -207,7 +207,9 @@ export function buildLabel(
   opts: { service?: string; isPrimary?: boolean; isSingleService?: boolean } = {},
 ): { ok: true; label: string } | { ok: false; reason: LabelRejection; message: string } {
   const stem =
-    source.kind === "pr" ? `${slugify(source.repo)}-pr-${source.number}` : slugify(source.slug);
+    source.kind === "pr"
+      ? `${slugify(source.repo)}-pr-${source.number}`
+      : source.slug.split("--").map(slugify).join("--");
 
   const dropService = opts.isPrimary === true || opts.isSingleService === true || !opts.service;
   const service = dropService ? undefined : opts.service;
