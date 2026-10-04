@@ -140,7 +140,11 @@ async function clonedSource(
       ? await cloneGit(ctx, id, source, wd)
       : await clonePr(ctx, id, source, wd);
   await assertNoEscapingSymlinks(wd.srcDir);
-  const stack = await ownStack(ctx, { logId: id, srcDir: wd.srcDir, env, port: source.port }, null);
+  const stack = await ownStack(
+    ctx,
+    { logId: id, srcDir: wd.srcDir, stackDir: wd.dir, env, port: source.port },
+    null,
+  );
   return { source: recorded, ...stack };
 }
 
