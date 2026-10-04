@@ -1,10 +1,5 @@
 import type { Role } from "@gangway/shared/domain";
-import {
-  ADMIN_ROLE_ID,
-  ALL_PERMISSIONS,
-  PERMISSIONS,
-  type Permission,
-} from "@gangway/shared/permissions";
+import { ALL_PERMISSIONS, PERMISSIONS, type Permission } from "@gangway/shared/permissions";
 import type { AuditSink } from "../audit/audit.ts";
 import type { RolesRepo } from "../db/repos/roles.ts";
 import { conflict, notFound } from "../errors.ts";
@@ -18,6 +13,7 @@ export class RolePermissions {
   readonly #repo: RolesRepo;
   readonly #audit: AuditSink | undefined;
   #matrix = new Map<string, ReadonlySet<Permission>>();
+  #admins = new Set<string>();
 
   constructor(repo: RolesRepo, audit?: AuditSink) {
     this.#repo = repo;
@@ -28,11 +24,12 @@ export class RolePermissions {
 
   reload(): void {
     this.#matrix = new Map([...this.#repo.grants()].map(([role, ps]) => [role, new Set(ps)]));
+    this.#admins = this.#repo.adminIds();
   }
 
   for(roleId: string): ReadonlySet<Permission> {
     // Admin is answered from code so no edit to the table can lock everyone out.
-    if (roleId === ADMIN_ROLE_ID) {
+    if (this.#admins.has(roleId)) {
       return EVERYTHING;
     }
     return this.#matrix.get(roleId) ?? NOTHING;
@@ -42,7 +39,7 @@ export class RolePermissions {
     return this.#repo.list().map((r) => ({
       ...r,
       permissions: [...this.for(r.id)].sort(compareCodeUnits),
-      editable: r.id !== ADMIN_ROLE_ID,
+      editable: !this.#admins.has(r.id),
     }));
   }
 
@@ -54,7 +51,7 @@ export class RolePermissions {
     if (!this.#repo.get(roleId)) {
       throw notFound(`no such role: ${roleId}`);
     }
-    if (roleId === ADMIN_ROLE_ID) {
+    if (this.#admins.has(roleId)) {
       throw conflict("the admin role always holds every permission and cannot be edited");
     }
     const old = [...this.for(roleId)].sort(compareCodeUnits);

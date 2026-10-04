@@ -1,6 +1,6 @@
 import { must } from "@gangway/shared/must";
 import type { ApiToken, User } from "@gangway/shared/domain";
-import { ADMIN_ROLE_ID, type Scope, type SecretTargets } from "@gangway/shared/permissions";
+import type { Scope, SecretTargets } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { TOKEN_COLUMNS, rowToToken, type TokenRow } from "./mappers.ts";
 import { rowToUser, type UserRow } from "./users.ts";
@@ -143,10 +143,10 @@ export class TokensRepo {
       WHERE s.value = 'admin' AND t.revoked_at IS NULL
         AND t.org_id = (SELECT id FROM orgs WHERE home = 1)
         AND (t.expires_at IS NULL OR t.expires_at > $now)
-        AND (t.user_id IS NULL OR (u.disabled = 0 AND (m.role_id = $admin OR EXISTS (
+        AND (t.user_id IS NULL OR (u.disabled = 0 AND (m.role_id IN (SELECT id FROM roles WHERE kind = 'admin') OR EXISTS (
               SELECT 1 FROM role_permissions rp
                WHERE rp.role_id = m.role_id AND rp.permission_id = 'surfaces.manage'))))`,
-      { now, admin: ADMIN_ROLE_ID },
+      { now },
     ) as { n: number } | undefined;
     return must(row, "a count row").n > 0;
   }

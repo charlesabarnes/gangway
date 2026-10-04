@@ -6,8 +6,6 @@ import { tempDir } from "../helpers/db.ts";
 import { bootWithFakeDaemon, client } from "../helpers/fake-daemon.ts";
 import { freePort } from "../helpers/free-port.ts";
 
-const OTHER = "01JORG0THER00000000000000A";
-
 const post = (body: unknown): RequestInit => ({
   method: "POST",
   headers: { "content-type": "application/json" },
@@ -19,20 +17,21 @@ async function twoOrgs() {
   const running = await bootWithFakeDaemon(dir, await freePort());
   const admin = client(running);
   const home = (path: string, init?: RequestInit) => admin(API, path, init);
+  const made = await home("/v1/operator/orgs", post({ slug: "other", name: "Other" }));
+  expect(made.status).toBe(201);
+  const otherId = ((await made.json()) as { org: { id: string } }).org.id;
+  // No way in yet for a person of another org, so an ownerless token is moved there.
   const minted = await home("/v1/tokens", post({ name: "other-org", scopes: ["admin"] }));
   const { secret } = (await minted.json()) as { secret: string };
   const db = new Database(join(dir, "gangway.db"));
-  db.run(
-    `INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('${OTHER}', 'other', 'Other', 1, 1)`,
-  );
-  db.run(`UPDATE api_tokens SET org_id = '${OTHER}' WHERE name = 'other-org'`);
+  db.query("UPDATE api_tokens SET org_id = ? WHERE name = 'other-org'").run(otherId);
   db.close();
   const other = (path: string, init?: RequestInit) =>
     admin(API, path, {
       ...init,
       headers: { ...(init?.headers as Record<string, string>), authorization: `Bearer ${secret}` },
     });
-  return { home, other };
+  return { home, other, otherId };
 }
 
 const deploy = async (as: (p: string, i?: RequestInit) => Promise<Response>, name: string) => {
@@ -48,7 +47,7 @@ const ids = async (res: Response) =>
   ((await res.json()) as { previews: { id: string }[] }).previews.map((p) => p.id);
 
 test("an org cannot list, read or destroy another org's previews or projects", async () => {
-  const { home, other } = await twoOrgs();
+  const { home, other, otherId } = await twoOrgs();
   const mine = await deploy(home, "home-site");
   expect((await home("/v1/projects", post({ name: "home-web" }))).status).toBe(201);
 
@@ -65,7 +64,7 @@ test("an org cannot list, read or destroy another org's previews or projects", a
   expect((await home(`/v1/previews/${mine.id}`, { method: "DELETE" })).status).toBe(200);
 
   const theirs = await deploy(other, "other-site");
-  expect(theirs.orgId).toBe(OTHER);
+  expect(theirs.orgId).toBe(otherId);
   expect(await ids(await home("/v1/previews"))).not.toContain(theirs.id);
   expect((await home(`/v1/previews/${theirs.id}`)).status).toBe(404);
 });
@@ -117,4 +116,25 @@ test("another org holds nothing that acts on the whole server", async () => {
   const secrets = (await (await other("/v1/secrets")).json()) as { secrets: unknown };
   expect(JSON.stringify(secrets)).not.toContain("HOME_ONLY");
   expect((await other("/v1/secrets", patch({ set: { THEIRS: "1" } }))).status).toBe(403);
+});
+
+test("a new org gets its own default template, and only the home org makes orgs", async () => {
+  const { home, other, otherId } = await twoOrgs();
+  expect((await home("/v1/operator/orgs", post({ slug: "other", name: "Again" }))).status).toBe(
+    409,
+  );
+  expect((await home("/v1/operator/orgs", post({ slug: "a-b", name: "Bad" }))).status).toBe(422);
+  expect((await other("/v1/operator/orgs", post({ slug: "third", name: "Third" }))).status).toBe(
+    403,
+  );
+  const listed = (await (await home("/v1/operator/orgs")).json()) as { orgs: { slug: string }[] };
+  expect(listed.orgs.map((o) => o.slug)).toEqual(["default", "other"]);
+
+  type Templates = { templates: { id: string; builtin: boolean }[] };
+  const theirs = (await (await other("/v1/templates")).json()) as Templates;
+  const ours = (await (await home("/v1/templates")).json()) as Templates;
+  expect(theirs.templates.map((t) => [t.id, t.builtin])).toEqual([
+    [`d${otherId.toLowerCase()}`, true],
+  ]);
+  expect(ours.templates.map((t) => t.id)).toEqual(["default"]);
 });

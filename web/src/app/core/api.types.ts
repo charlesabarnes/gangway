@@ -188,6 +188,7 @@ export const PERMISSIONS = [
   'apps.read',
   'apps.install',
   'jobs.claim',
+  'instance.orgs',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

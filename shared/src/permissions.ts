@@ -157,6 +157,7 @@ export const PERMISSIONS = [
   },
   { id: "apps.install", feature: "apps", description: "Install and uninstall system apps" },
   { id: "jobs.claim", feature: "jobs", description: "Create and claim ephemeral jobs" },
+  { id: "instance.orgs", feature: "orgs", description: "Create orgs and see them all" },
 ] as const satisfies readonly { id: string; feature: string; description: string }[];
 
 export type Permission = (typeof PERMISSIONS)[number]["id"];
@@ -182,6 +183,7 @@ export const INSTANCE_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>
   "apps.read",
   "apps.install",
   "jobs.claim",
+  "instance.orgs",
 ]);
 export const isPermission = (s: string): s is Permission => KNOWN.has(s);
 
