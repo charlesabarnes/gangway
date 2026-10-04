@@ -97,4 +97,11 @@ test("a new org's builtin roles copy home's; its admin holds everything", () => 
   expect(permissions.for(admin!.id).size).toBe(ALL_PERMISSIONS.length);
   expect([...permissions.for(member!.id)].sort()).toEqual([...permissions.for("member")].sort());
   expect(withOrg(org.id, () => deps.templates.default().id)).toBe(`d${org.id.toLowerCase()}`);
+  expect(withOrg(org.id, () => roles.list().map((r) => r.id))).toEqual(
+    expect.arrayContaining([admin!.id, member!.id]),
+  );
+  expect(withOrg(org.id, () => roles.list())).toHaveLength(3);
+  expect(withOrg(HOME_ORG_ID, () => roles.get(member!.id))).toBeUndefined();
+  withOrg(HOME_ORG_ID, () => permissions.set("viewer", ["previews.read"]));
+  expect([...permissions.for(member!.id)].sort()).toEqual([...permissions.for("member")].sort());
 });

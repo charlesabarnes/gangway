@@ -1,5 +1,6 @@
 import type { Role } from "@gangway/shared/domain";
 import { isPermission, type Permission } from "@gangway/shared/permissions";
+import { orgFilter } from "../../tenancy/scope.ts";
 import type { Db } from "../types.ts";
 import { rowToRole, type RoleRow } from "./mappers.ts";
 
@@ -11,13 +12,21 @@ export class RolesRepo {
   }
 
   list(): Role[] {
-    return (this.#db.query("SELECT * FROM roles ORDER BY builtin DESC, name") as RoleRow[]).map(
-      rowToRole,
-    );
+    const o = orgFilter();
+    return (
+      this.#db.query(
+        `SELECT * FROM roles WHERE ${o.sql} ORDER BY builtin DESC, name`,
+        o.params,
+      ) as RoleRow[]
+    ).map(rowToRole);
   }
 
   get(id: string): Role | undefined {
-    const r = this.#db.get("SELECT * FROM roles WHERE id = $id", { id }) as RoleRow | undefined;
+    const o = orgFilter();
+    const r = this.#db.get(`SELECT * FROM roles WHERE id = $id AND ${o.sql}`, {
+      id,
+      ...o.params,
+    }) as RoleRow | undefined;
     return r ? rowToRole(r) : undefined;
   }
 
@@ -54,9 +63,10 @@ export class RolesRepo {
   }
 
   grants(): Map<string, Permission[]> {
+    // Every org's, whoever asks: one matrix answers for all.
     const out = new Map<string, Permission[]>();
-    for (const role of this.list()) {
-      out.set(role.id, []);
+    for (const r of this.#db.query("SELECT id FROM roles") as { id: string }[]) {
+      out.set(r.id, []);
     }
     for (const r of this.#db.query(
       "SELECT role_id, permission_id FROM role_permissions ORDER BY role_id, permission_id",
