@@ -146,10 +146,21 @@ export class ProjectsRepo {
 
   setRepository(id: string, forge: ForgeId | null, fullName: string | null): Project | undefined {
     this.#db.run(
-      "UPDATE projects SET forge = $forge, full_name = $fullName, updated_at = $now WHERE id = $id",
+      "UPDATE projects SET forge = $forge, full_name = $fullName, repository_id = NULL, updated_at = $now WHERE id = $id",
       { id, forge, fullName, now: this.#now() },
     );
     return this.get(id);
+  }
+
+  /** Keeps the first repository id a verified run shows; true while runs show that same one. */
+  sameRepository(id: string, repositoryId: string): boolean {
+    this.#db.run(
+      "UPDATE projects SET repository_id = $r WHERE id = $id AND repository_id IS NULL",
+      { id, r: repositoryId },
+    );
+    const row = this.#db.get("SELECT repository_id FROM projects WHERE id = $id", { id }) as
+      { repository_id: string | null } | undefined;
+    return row?.repository_id === repositoryId;
   }
 
   envCiphertext(id: string): string | null {

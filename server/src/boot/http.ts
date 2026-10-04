@@ -93,10 +93,10 @@ function createAuth({ identity, adminToken, origin, ctx, logger, repos }: HttpDe
     verifyToken: chainVerifiers(
       identity.tokens.verify,
       staticTokenVerifier(adminToken, repos.orgs.home().id),
-      workflowVerifier(
-        (t) => oidc.verify(t),
-        (repository) => repos.projects.getByFullName("github", repository),
-      ),
+      workflowVerifier((t) => oidc.verify(t), {
+        byName: (repository) => repos.projects.getByFullName("github", repository),
+        sameRepository: (id, repositoryId) => repos.projects.sameRepository(id, repositoryId),
+      }),
     ),
     resolveSession: (secret: string) => identity.sessions.resolve(secret)?.actor ?? null,
     // From the public scheme and port, not the listener's: behind a reverse proxy they differ.

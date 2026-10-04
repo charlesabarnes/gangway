@@ -170,18 +170,30 @@ describe("which org a workflow run acts in", () => {
     runId: "42",
     actor: "dev",
   };
-  const verify = workflowVerifier(
-    async (t) => (t === "good" ? claims : null),
-    (repository) => (repository === "acme/web" ? { orgId: "o2" } : undefined),
-  );
+  const pinned = new Map<string, string>();
+  const projects = {
+    byName: (repository: string) =>
+      repository === "acme/web" ? { id: "p1", orgId: "o2" } : undefined,
+    sameRepository: (id: string, repositoryId: string) => {
+      pinned.set(id, pinned.get(id) ?? repositoryId);
+      return pinned.get(id) === repositoryId;
+    },
+  };
+  const verify = workflowVerifier(async (t) => (t === "good" ? claims : null), projects);
 
   test("its repository's project's org; a bad token or an unconnected repository, none", async () => {
     expect(await verify("good")).toMatchObject({ kind: "workflow", orgId: "o2", pull: 7 });
     expect(await verify("bad")).toBeNull();
     const nowhere = workflowVerifier(
-      async () => claims,
-      () => undefined,
+      async () => ({ ...claims, repository: "acme/other" }),
+      projects,
     );
     expect(await nowhere("good")).toBeNull();
+  });
+
+  test("a new repository under a name the project already knows is refused", async () => {
+    expect(await verify("good")).not.toBeNull();
+    const reused = workflowVerifier(async () => ({ ...claims, repositoryId: "999" }), projects);
+    expect(await reused("good")).toBeNull();
   });
 });
