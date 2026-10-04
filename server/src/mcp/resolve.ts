@@ -9,7 +9,7 @@ export function nameOf(ctx: Pick<PreviewContext, "instance" | "orgSuffix">, p: P
   const prefix = projectNameFor(ctx.instance, "");
   const name = p.project.startsWith(prefix) ? p.project.slice(prefix.length) : p.project;
   const org = ctx.orgSuffix?.(p.orgId);
-  return org && name.endsWith(`-${org}`) ? name.slice(0, -org.length - 1) : name;
+  return org && name.endsWith(`--${org}`) ? name.slice(0, -org.length - 2) : name;
 }
 
 const isLive = (p: Preview | undefined): p is Preview => p !== undefined && p.state !== "destroyed";

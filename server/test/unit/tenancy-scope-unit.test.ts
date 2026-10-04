@@ -110,7 +110,8 @@ test("a new org's builtin roles copy home's; its admin holds everything", () => 
 test("an org calls its previews by their plain names, without its own suffix", () => {
   const ctx = { instance: "t", orgSuffix: (id: string) => (id === "o2" ? "two" : null) };
   const named = (orgId: string, project: string) => nameOf(ctx, { orgId, project } as Preview);
-  expect(named("o2", "gw-t-web-two")).toBe("web");
-  expect(named("o2", "gw-t-web-abcdefghij-two")).toBe("web-abcdefghij");
+  expect(named("o2", "gw-t-web--two")).toBe("web");
+  expect(named("o2", "gw-t-web-two")).toBe("web-two");
+  expect(named("o2", "gw-t-web-abcdefghij--two")).toBe("web-abcdefghij");
   expect(named(HOME_ORG_ID, "gw-t-web-two")).toBe("web-two");
 });

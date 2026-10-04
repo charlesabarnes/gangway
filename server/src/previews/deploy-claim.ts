@@ -38,14 +38,14 @@ export type Claim = {
   site?: boolean;
 };
 
-// Another org's names end in its slug, so two orgs never want the same hostname.
+// Another org's names end in "--" and its slug: slugify never makes "--", so no name can clash.
 function slugFor(c: Claim, org: string | null): string {
   const stem = slugify(c.input.name ?? c.input.title ?? defaultName(c.input.source, c.runtime));
   if (stem === "") {
     throw unprocessable("name has no usable characters");
   }
   const name = c.visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
-  return org === null ? name : `${name}-${org}`;
+  return org === null ? name : `${name}--${org}`;
 }
 
 function createPreview(
