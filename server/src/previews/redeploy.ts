@@ -280,6 +280,7 @@ async function runSite(
   const was = ctx.previews.get(id) ?? r.preview;
   const moving = !servedByGangway(was);
   const before = ctx.previews.bytesUsed(was.orgId) - ctx.previews.bytesUsed(was.orgId, id);
+  let swapped = false;
   try {
     // Checked and held with no await between, so a deploy meanwhile counts the larger size.
     const planned = await plannedBytes(r.wd.srcDir, plan);
@@ -290,8 +291,9 @@ async function runSite(
       r.wd.srcDir,
       plan,
     );
-    r.signal.throwIfAborted();
+    swapped = true;
     ctx.previews.setBytes(id, bytes);
+    r.signal.throwIfAborted();
     await r.keep("deployed", moving ? { serve: "gangway" } : {});
     ctx.table.setSite(id, true);
     markServing(ctx, id);
@@ -312,7 +314,10 @@ async function runSite(
     }
     return outcomeOf(ctx, r, "succeeded");
   } catch (e) {
-    ctx.previews.setBytes(id, before);
+    // Once the new site is swapped in, its measured size stands, whatever fails after.
+    if (!swapped) {
+      ctx.previews.setBytes(id, before);
+    }
     if (r.signal.aborted) {
       return {
         preview: ctx.previews.get(id) ?? r.preview,
