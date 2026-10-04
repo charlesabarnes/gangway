@@ -252,8 +252,14 @@ describe.skipIf(!enabled)("against real Docker", () => {
     expectAwake(bare);
     const c = await containerOf(bare.id);
     expect((await docker("exec", c, "env")).stdout).toContain(`GW_IT_TOKEN=${SECRET}`);
+    expect((await docker("exec", c, "test", "-f", "/ctx/Dockerfile")).code).toBe(0);
+    // grep answers 1 for no match; 2 would mean it could not read /ctx at all.
     const copied = await docker("exec", c, "grep", "-rl", SECRET, "/ctx");
-    expect(copied.stdout).toBe("");
+    expect({ code: copied.code, out: copied.stdout, err: copied.stderr }).toEqual({
+      code: 1,
+      out: "",
+      err: "",
+    });
   }, 240_000);
 
   test("destroying every preview leaves no container or volume behind", async () => {
