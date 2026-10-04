@@ -39,12 +39,12 @@ export function admitDeploy(
   }
 }
 
-/** The latest a preview of this org may live to from `now`, or undefined when the plan has no cap. */
+/** The latest a preview of this org that started at `start` may live to; undefined: no cap. */
 export function lifetimeCap(
   ctx: Pick<LimitsContext, "orgLimits">,
   orgId: string,
-  now: number,
+  start: number,
 ): number | undefined {
   const max = ctx.orgLimits?.(orgId)?.maxLifetimeMs;
-  return max === undefined ? undefined : now + max;
+  return max === undefined ? undefined : start + max;
 }

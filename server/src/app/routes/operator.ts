@@ -37,7 +37,8 @@ export function operatorRoutes(api: Hono<AppEnv>, d: OrgDeps): void {
     const req = OrgLimitsChangeSchema.parse(await readJson(c));
     const actor = c.get("actor");
     const before = d.orgs.limitsOf(org.id) ?? null;
-    d.orgs.setLimits(org.id, req.planLabel ?? null, req.limits, actorId(actor));
+    const label = req.planLabel === undefined ? (before?.planLabel ?? null) : req.planLabel;
+    d.orgs.setLimits(org.id, label, req.limits, actorId(actor));
     const after = d.orgs.limitsOf(org.id) ?? null;
     d.audit.record(actor, "org.limits", org.id, { old: before, new: after });
     return c.json({ org, limits: after });

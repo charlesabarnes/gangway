@@ -52,10 +52,10 @@ export function extendPreview(
 
   const old = p.ttlExpiresAt;
   const asked = ms === null ? null : Math.max(old?.getTime() ?? 0, ctx.now()) + ms;
-  const cap = lifetimeCap(ctx, p.orgId, ctx.now());
+  const cap = lifetimeCap(ctx, p.orgId, p.createdAt.getTime());
   const until = cap === undefined ? asked : Math.min(asked ?? cap, cap);
   const next = until === null ? null : new Date(until);
-  // Kept forever, or at the plan's cap already ("none" under a cap means the cap).
+  // Kept forever, or at the plan's cap, counted from its start ("none" under a cap is the cap).
   if (old === null || (next !== null && next.getTime() <= old.getTime())) {
     return p;
   }

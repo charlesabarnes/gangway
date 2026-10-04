@@ -167,6 +167,12 @@ test("an org's plan holds it to static sites, a count, a size and a lifetime", a
   });
   expect(set.status).toBe(200);
   expect(((await set.json()) as { limits: { planLabel: string } }).limits.planLabel).toBe("Free");
+  const again = await home(`/v1/operator/orgs/${otherId}/limits`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ limits }),
+  });
+  expect(((await again.json()) as { limits: { planLabel: string } }).limits.planLabel).toBe("Free");
 
   const app = await other("/v1/previews?wait=true", post({ name: "app", source: WHOAMI }));
   expect(app.status).toBe(403);

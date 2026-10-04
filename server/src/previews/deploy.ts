@@ -31,7 +31,7 @@ import {
 } from "./pipeline.ts";
 import type { ResolvedPolicy } from "./policy.ts";
 import { checkQuota } from "./quota.ts";
-import { dirBytes, markServing, servesHere, siteModel, withheldLine } from "./site.ts";
+import { markServing, plannedBytes, servesHere, siteModel, withheldLine } from "./site.ts";
 import type { Workdir } from "./source/workdir.ts";
 import { readModel, writeStack, type Planned } from "./stack-file.ts";
 import { releaseFor, seedFor } from "./steps.ts";
@@ -207,7 +207,7 @@ async function prepare(
   const visibility = visibilityFor(ctx, input, policy, model);
   const ttlMs = cappedTtl(ctx, id, input.actor.orgId, ttlFor(input, policy, model));
   const password = await resolvePassword(ctx.passwords, input.password);
-  const bytes = site ? await dirBytes(wd.srcDir) : 0;
+  const bytes = site ? await plannedBytes(wd.srcDir, site) : 0;
   // No await between the count and the row it adds, so two deploys cannot both pass.
   if (site === null) {
     checkQuota(ctx, input.actor);
@@ -227,6 +227,7 @@ async function prepare(
     ttlMs,
     secretLevel,
     password,
+    bytes,
     site: site !== null,
   });
   keepSecrets(ctx, input, preview.id);
@@ -355,6 +356,7 @@ async function publishSite(
     if (r.signal.aborted) {
       return ctx.previews.get(id) ?? r.preview;
     }
+    ctx.previews.setBytes(id, 0);
     return await failStack(ctx, r, failureMessage(ctx, id, e, "site publish error"), false);
   } finally {
     await r.wd.cleanup();

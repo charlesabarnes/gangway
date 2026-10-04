@@ -18,6 +18,20 @@ const member = (permissions: string[]): Actor => ({
 });
 
 describe("PUT /v1/previews/:id/ttl", () => {
+  test("a plan's lifetime counts from the start; extending later gains nothing", async () => {
+    const t = previewPasswordApi();
+    const p = await t.deployed("capped");
+    const start = t.previews.get(p.id)!.createdAt.getTime();
+    t.ctx.orgLimits = () => ({ maxLifetimeMs: 3 * DAY });
+    t.ctx.now = () => start + 2 * DAY;
+    t.previews.setTtlExpiresAt(p.id, new Date(start + DAY));
+    await t.putTtl(p.id, { extend: "7d" });
+    expect(t.previews.get(p.id)!.ttlExpiresAt!.getTime()).toBe(start + 3 * DAY);
+    t.ctx.now = () => start + 3 * DAY - 1;
+    await t.putTtl(p.id, { extend: "none" });
+    expect(t.previews.get(p.id)!.ttlExpiresAt!.getTime()).toBe(start + 3 * DAY);
+  });
+
   test("adds to what is left, or to now once it has lapsed, and is audited", async () => {
     const t = previewPasswordApi();
     const p = await t.deployed("live");
