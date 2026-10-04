@@ -138,3 +138,20 @@ test("a new org gets its own default template, and only the home org makes orgs"
   ]);
   expect(ours.templates.map((t) => t.id)).toEqual(["default"]);
 });
+
+test("another org's previews end in its slug; the home org's names stay as they were", async () => {
+  const { home, other } = await twoOrgs();
+  type Made = { preview: { id: string; urls: { url: string }[] } };
+  const hostOf = async (res: Response) => {
+    expect(res.status).toBe(201);
+    const { preview } = (await res.json()) as Made;
+    return { id: preview.id, host: new URL(preview.urls[0]!.url).hostname };
+  };
+  const body = post({ name: "site", visibility: "public", source: WHOAMI });
+  const mine = await hostOf(await home("/v1/previews?wait=true", body));
+  expect(mine.host.split(".")[0]).toBe("site");
+  // The fake host has one upstream port.
+  expect((await home(`/v1/previews/${mine.id}`, { method: "DELETE" })).status).toBe(200);
+  const theirs = await hostOf(await other("/v1/previews?wait=true", body));
+  expect(theirs.host.split(".")[0]).toBe("site-other");
+});

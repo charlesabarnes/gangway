@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { GangwayEvent } from "@gangway/shared/domain";
+import type { GangwayEvent, Preview } from "@gangway/shared/domain";
 import { EventsRepo } from "../../src/db/repos/events.ts";
 import { AuditRepo } from "../../src/db/repos/audit.ts";
 import { Audit } from "../../src/audit/audit.ts";
@@ -14,6 +14,7 @@ import { RolesRepo } from "../../src/db/repos/roles.ts";
 import { TemplatesRepo } from "../../src/db/repos/templates.ts";
 import { tokenActor } from "../../src/auth/actor.ts";
 import { createOrg } from "../../src/tenancy/orgs.ts";
+import { nameOf } from "../../src/mcp/resolve.ts";
 
 describe("the org a piece of work runs as", () => {
   test("background work spans every org; a request runs as the org it named", async () => {
@@ -104,4 +105,12 @@ test("a new org's builtin roles copy home's; its admin holds everything", () => 
   expect(withOrg(HOME_ORG_ID, () => roles.get(member!.id))).toBeUndefined();
   withOrg(HOME_ORG_ID, () => permissions.set("viewer", ["previews.read"]));
   expect([...permissions.for(member!.id)].sort()).toEqual([...permissions.for("member")].sort());
+});
+
+test("an org calls its previews by their plain names, without its own suffix", () => {
+  const ctx = { instance: "t", orgSuffix: (id: string) => (id === "o2" ? "two" : null) };
+  const named = (orgId: string, project: string) => nameOf(ctx, { orgId, project } as Preview);
+  expect(named("o2", "gw-t-web-two")).toBe("web");
+  expect(named("o2", "gw-t-web-abcdefghij-two")).toBe("web-abcdefghij");
+  expect(named(HOME_ORG_ID, "gw-t-web-two")).toBe("web-two");
 });

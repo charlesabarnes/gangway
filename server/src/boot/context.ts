@@ -126,8 +126,16 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     addonSecret: addonSecretFrom(secretsKey),
     secretsFor: (repoId, clearance) => secrets.valuesFor(repoId, clearance),
     secrets,
+    orgSuffix: orgSuffixFrom(repos),
   };
   return { ctx, policy, secrets, previewPasswords, triggerDefault };
+}
+
+function orgSuffixFrom(repos: Repos): (orgId: string) => string | null {
+  return (orgId) => {
+    const org = repos.orgs.get(orgId);
+    return org && !org.home ? org.slug : null;
+  };
 }
 
 function composeFor(dockerClients: DockerClients, repos: Repos): ComposeRunner {

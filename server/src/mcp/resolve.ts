@@ -4,9 +4,12 @@ import { notFound, unprocessable } from "../errors.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { isUlid } from "../util/ulid.ts";
 
-export function nameOf(ctx: Pick<PreviewContext, "instance">, p: Preview): string {
+/** What its org calls it: without the instance prefix or the org's own suffix. */
+export function nameOf(ctx: Pick<PreviewContext, "instance" | "orgSuffix">, p: Preview): string {
   const prefix = projectNameFor(ctx.instance, "");
-  return p.project.startsWith(prefix) ? p.project.slice(prefix.length) : p.project;
+  const name = p.project.startsWith(prefix) ? p.project.slice(prefix.length) : p.project;
+  const org = ctx.orgSuffix?.(p.orgId);
+  return org && name.endsWith(`-${org}`) ? name.slice(0, -org.length - 1) : name;
 }
 
 const isLive = (p: Preview | undefined): p is Preview => p !== undefined && p.state !== "destroyed";

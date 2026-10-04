@@ -85,6 +85,7 @@ export type PreviewContext = {
   buildRoom?: ((host: Host) => Promise<string | null>) | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
+  orgSuffix?: ((orgId: string) => string | null) | undefined;
 };
 
 export type PlanningContext = Pick<
