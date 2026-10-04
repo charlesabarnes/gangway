@@ -148,6 +148,7 @@ export class EmailLinks {
         roleId: user.roleId,
         permissions: new Set(),
         sessionId: s.id,
+        orgId: s.orgId,
       },
       purpose === "invite" ? "auth.invite.accepted" : "auth.password.reset",
       user.id,

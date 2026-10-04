@@ -13,6 +13,7 @@ import { ulid } from "../../src/util/ulid.ts";
 import type { GangwayEvent, Host } from "@gangway/shared/domain";
 import { silentLogger } from "../helpers/logger.ts";
 import { tempDb } from "../helpers/db.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const TOKEN = "gw_test_admin_token_0123456789";
 
@@ -23,7 +24,7 @@ function setup() {
   const bus = new EventBus(events);
   const app = createApp({
     logger: silentLogger(),
-    verifyToken: staticTokenVerifier(TOKEN),
+    verifyToken: staticTokenVerifier(TOKEN, HOME_ORG_ID),
     v1: (api) => {
       eventRoutes(
         api,
@@ -224,6 +225,7 @@ describe("GET /v1/events, for someone who may read only their own previews", () 
       tokenId: "tok_1",
       scopes: [],
       permissions: new Set(["previews.read_own", "events.read"] as const),
+      orgId: HOME_ORG_ID,
     };
     const app = createApp({
       logger: silentLogger(),

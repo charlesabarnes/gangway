@@ -15,6 +15,7 @@ import { IdempotentDeploys } from "../../src/previews/idempotent.ts";
 import { PASSWORD, setupAccounts } from "./accounts.ts";
 import { silentLogger } from "./logger.ts";
 import { setupPreviewContext } from "./preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 export const CLAUDE = "https://claude.ai/oauth/claude-code-client-metadata";
 export const CONNECTOR = "https://claude.ai/api/mcp/auth_callback";
@@ -52,6 +53,7 @@ export async function setupOAuth() {
   });
   const ada = {
     kind: "user",
+    orgId: HOME_ORG_ID,
     userId: user.id,
     roleId: "admin",
     sessionId: "s",
@@ -138,7 +140,7 @@ export async function oauthOverHttp() {
   const auth = {
     verifyToken: chainVerifiers(
       tokens.verify,
-      staticTokenVerifier("gw_http_env_token_0123456789abcdefghij"),
+      staticTokenVerifier("gw_http_env_token_0123456789abcdefghij", HOME_ORG_ID),
     ),
     resolveSession: (secret: string) => s.sessions.resolve(secret)?.actor ?? null,
     originFor: (host: string) => `https://${host}`,

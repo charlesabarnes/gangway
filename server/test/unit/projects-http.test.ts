@@ -29,6 +29,7 @@ import { IdempotencyRepo } from "../../src/db/repos/idempotency.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { tarball } from "../helpers/runtimes-fixtures.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const ADMIN = "gw_projects_env_token_0123456789abcd";
 const HOST = "api.preview.localhost:8443";
@@ -77,18 +78,13 @@ function make() {
   });
   const verifyWorkflow = (presented: string): Actor | null => {
     const m = /^wf:([^:]+):([^:]+):(.+)$/.exec(presented);
+    const run = { runId: "42", actor: "dev" };
     return m
-      ? workflowActor({
-          repository: m[1]!,
-          eventName: m[2]!,
-          ref: m[3]!,
-          runId: "42",
-          actor: "dev",
-        })
+      ? workflowActor({ ...run, repository: m[1]!, eventName: m[2]!, ref: m[3]! }, HOME_ORG_ID)
       : null;
   };
   const auth = {
-    verifyToken: chainVerifiers(staticTokenVerifier(ADMIN), verifyWorkflow),
+    verifyToken: chainVerifiers(staticTokenVerifier(ADMIN, HOME_ORG_ID), verifyWorkflow),
     originFor: (h: string) => `https://${h}`,
   };
   const hono = createApp({

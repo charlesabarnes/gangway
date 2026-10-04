@@ -11,6 +11,7 @@ import { destroy } from "../../src/previews/destroy.ts";
 import { sweepExpired } from "../../src/scheduler/jobs.ts";
 import { ACTOR, setupPreviewContext as setup } from "../helpers/preview-context.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const quiet = silentLogger();
 const all = (repo: AuditRepo) => repo.page({ limit: 200 }).entries;
@@ -49,6 +50,7 @@ describe("the audit log is written by the service layer", () => {
     const preview = await s.deployed("doomed");
     const user: Actor = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: "u-ada",
       roleId: "member",
       permissions: new Set(["previews.destroy"]),
@@ -130,6 +132,7 @@ describe("Audit.record", () => {
     const s = setup();
     const agent: Actor = {
       kind: "token",
+      orgId: HOME_ORG_ID,
       tokenId: "oauth:g1",
       name: "Claude Code",
       scopes: ["deploy"],
@@ -151,7 +154,9 @@ describe("Audit.record", () => {
       },
     } as unknown as AuditRepo;
     const audit = new Audit(broken, new Logger("error", {}, (l) => lines.push(l)));
-    expect(() => audit.record(systemActor("x"), "preview.destroy", "p1")).not.toThrow();
+    expect(() =>
+      audit.record(systemActor("x", HOME_ORG_ID), "preview.destroy", "p1"),
+    ).not.toThrow();
     expect(lines.join("\n")).toContain("audit write failed");
     expect(lines.join("\n")).toContain("disk full");
   });
@@ -172,7 +177,9 @@ describe("GET /v1/audit", () => {
 
   test("needs audit.read: a deploy-scoped token is refused", async () => {
     const s = setup();
-    expect((await app(s.audit, tokenActor("ci", ["deploy"]))("/audit")).status).toBe(403);
+    expect((await app(s.audit, tokenActor("ci", ["deploy"], HOME_ORG_ID))("/audit")).status).toBe(
+      403,
+    );
     expect((await app(s.audit, ACTOR)("/audit")).status).toBe(200);
   });
 

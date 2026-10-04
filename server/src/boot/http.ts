@@ -84,7 +84,7 @@ function createGate({ repos, settings, previewPasswords, origin, logger }: HttpD
   });
 }
 
-function createAuth({ identity, adminToken, origin, ctx, logger }: HttpDeps): AuthDeps {
+function createAuth({ identity, adminToken, origin, ctx, logger, repos }: HttpDeps): AuthDeps {
   const oidc = new GitHubOidc({
     audience: () => origin("api"),
     logger: logger.child({ mod: "oidc" }),
@@ -92,10 +92,12 @@ function createAuth({ identity, adminToken, origin, ctx, logger }: HttpDeps): Au
   return {
     verifyToken: chainVerifiers(
       identity.tokens.verify,
-      staticTokenVerifier(adminToken),
+      staticTokenVerifier(adminToken, repos.orgs.home().id),
       async (presented) => {
         const claims = await oidc.verify(presented);
-        return claims ? workflowActor(claims) : null;
+        // A run acts in the org of the project its repository is connected to, or not at all.
+        const project = claims && repos.projects.getByFullName("github", claims.repository);
+        return project ? workflowActor(claims, project.orgId) : null;
       },
     ),
     resolveSession: (secret: string) => identity.sessions.resolve(secret)?.actor ?? null,
@@ -133,7 +135,7 @@ function createMcp(d: HttpDeps): McpSurface {
     // OAuth access tokens are accepted only here; the /v1 chain does not know them.
     verifyToken: chainVerifiers(
       identity.tokens.verify,
-      staticTokenVerifier(d.adminToken),
+      staticTokenVerifier(d.adminToken, d.repos.orgs.home().id),
       identity.oauth.verify,
     ),
     logger: logger.child({ mod: "mcp" }),

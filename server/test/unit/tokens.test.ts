@@ -13,9 +13,10 @@ import {
 import { Tokens } from "../../src/auth/tokens.ts";
 import { META, PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const DAY = 86_400_000;
-const ENV = tokenActor("env:admin", ["admin"]);
+const ENV = tokenActor("env:admin", ["admin"], HOME_ORG_ID);
 
 async function make() {
   const s = setupAccounts();
@@ -125,6 +126,31 @@ describe("minting", () => {
   });
 });
 
+describe("the org a credential acts in", () => {
+  const OTHER = "01JORG0THER00000000000000A";
+
+  test("a token acts in the org of whoever minted it, and a session in its own org", async () => {
+    const t = await make();
+    expect(t.adaActor.orgId).toBe(HOME_ORG_ID);
+    t.db.run(
+      `INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('${OTHER}', 'other', 'Other', 1, 1)`,
+    );
+    const home = t.tokens.mint(t.adaActor, { name: "home", scopes: ["read"] });
+    const away = t.tokens.mint({ ...t.adaActor, orgId: OTHER }, { name: "away", scopes: ["read"] });
+    expect((await t.tokens.verify(home.secret))!.orgId).toBe(HOME_ORG_ID);
+    expect((await t.tokens.verify(away.secret))!.orgId).toBe(OTHER);
+
+    const { secret } = await t.accounts.login("ada@example.com", PASSWORD, META);
+    t.db.run("UPDATE sessions SET org_id = $o", { o: OTHER });
+    expect(t.sessions.resolve(secret)!.actor.orgId).toBe(OTHER);
+  });
+
+  test("the env admin token is the home org's", async () => {
+    const verify = staticTokenVerifier("gw_env_admin_token_0123456789abcdef", HOME_ORG_ID);
+    expect((await verify("gw_env_admin_token_0123456789abcdef"))!.orgId).toBe(HOME_ORG_ID);
+  });
+});
+
 describe("verifying", () => {
   test("a token does what its scopes say, and the actor knows who owns it", async () => {
     const t = await make();
@@ -224,7 +250,7 @@ describe("verifying", () => {
     const { secret, token } = t.tokens.mint(t.adaActor, { name: "ci", scopes: ["read"] });
     const verify = chainVerifiers(
       t.tokens.verify,
-      staticTokenVerifier("gw_env_admin_token_0123456789abcdef"),
+      staticTokenVerifier("gw_env_admin_token_0123456789abcdef", HOME_ORG_ID),
     );
     expect(await verify(secret)).toMatchObject({ tokenId: token.id });
     expect(await verify("gw_env_admin_token_0123456789abcdef")).toMatchObject({

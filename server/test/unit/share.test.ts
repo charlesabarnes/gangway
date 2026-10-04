@@ -21,6 +21,7 @@ import { tempDb } from "../helpers/db.ts";
 import { seededHosts } from "../helpers/hosts.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 /** A process whose stderr is fed by hand and which ends when killed. */
 function fakeProcess() {
@@ -382,6 +383,7 @@ describe("sharing a preview", () => {
     const user = (permissions: string[]): Actor =>
       ({
         kind: "user",
+        orgId: HOME_ORG_ID,
         userId: "u-ada",
         roleId: "member",
         permissions: new Set(permissions),

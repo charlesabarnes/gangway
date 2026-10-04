@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
 import { CONNECTOR, ISSUER, setupOAuth } from "../helpers/oauth.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const requestIdOf = (out: unknown) => (out as { requestId: string }).requestId;
 
@@ -87,7 +88,7 @@ describe("consent", () => {
   test("only a person can consent; not even the env admin token can", async () => {
     const s = await setupOAuth();
     const id = requestIdOf(await s.oauth.authorize(s.authorizeQuery()));
-    const env = staticTokenVerifier("gw_env")("gw_env") as Actor;
+    const env = staticTokenVerifier("gw_env", HOME_ORG_ID)("gw_env") as Actor;
     expect(() => s.oauth.view(env, id)).toThrow("only a person");
     expect(() => s.oauth.decide(env, id, { approve: true })).toThrow("only a person");
   });
@@ -96,6 +97,7 @@ describe("consent", () => {
     const s = await setupOAuth();
     const viewer = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: s.user.id,
       roleId: "viewer",
       sessionId: "s",

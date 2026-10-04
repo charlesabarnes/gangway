@@ -6,6 +6,7 @@ import { packFiles } from "../../src/mcp/pack.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const TOKEN = "gw_uploads_test_token_0123456789abcdef";
 
@@ -15,7 +16,7 @@ function setup(o: { maxBytes?: number } = {}) {
   const mcp = new McpSurface({
     tools: s.tools,
     uploads: s.uploads!,
-    verifyToken: staticTokenVerifier(TOKEN),
+    verifyToken: staticTokenVerifier(TOKEN, HOME_ORG_ID),
     logger: silentLogger(),
   }).handler();
   const put = (url: string, body: Uint8Array | null, headers: Record<string, string> = {}) =>
@@ -90,7 +91,7 @@ describe("upload by reference", () => {
       s.tools.deploy(s.scope(), { upload: s.idOf(offer), name: "early" }),
     ).rejects.toThrow("nothing has been sent");
     await s.put(s.urlOf(offer), (await packFiles({ "index.html": "x" })).archive);
-    const stranger = tokenActor("t-other", ["deploy"]);
+    const stranger = tokenActor("t-other", ["deploy"], HOME_ORG_ID);
     await expect(
       s.tools.deploy(s.scope(stranger), { upload: s.idOf(offer), name: "stolen" }),
     ).rejects.toMatchObject({ code: "not_found" });
@@ -124,7 +125,7 @@ describe("upload by reference", () => {
   test("a read credential cannot ask for an upload", async () => {
     const s = setup();
     await expect(
-      s.tools.deploy(s.scope(tokenActor("t-r", ["read"])), { upload: "new" }),
+      s.tools.deploy(s.scope(tokenActor("t-r", ["read"], HOME_ORG_ID)), { upload: "new" }),
     ).rejects.toThrow('"previews.deploy"');
   });
 

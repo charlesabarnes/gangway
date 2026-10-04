@@ -83,6 +83,7 @@ export class Sessions {
         roleId: user.roleId,
         permissions: this.#roles.for(user.roleId),
         sessionId: id,
+        orgId: session.orgId,
       },
       user,
       session,

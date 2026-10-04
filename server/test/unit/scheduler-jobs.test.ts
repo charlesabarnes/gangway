@@ -6,10 +6,11 @@ import { AuditRepo, EventsRepo } from "../../src/db/repos/index.ts";
 import { destroy } from "../../src/previews/destroy.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { ACTOR, DAY, setupPreviewContext as setup } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 describe("systemActor", () => {
   test("is an admin whose id cannot be mistaken for a real token's", () => {
-    const a = systemActor("ttl-sweep");
+    const a = systemActor("ttl-sweep", HOME_ORG_ID);
     expect(actorId(a)).toBe("system:ttl-sweep");
     expect(can(a, "previews.destroy")).toBe(true);
   });

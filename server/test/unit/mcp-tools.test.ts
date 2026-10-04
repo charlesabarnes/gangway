@@ -10,6 +10,7 @@ import { SiteStore } from "../../src/previews/site.ts";
 import { READ_ONLY, setupTools } from "../helpers/mcp-tools.ts";
 import { tempDir } from "../helpers/db.ts";
 import { ACTOR } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const sha12 = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 12);
 
@@ -210,7 +211,7 @@ describe("the tools", () => {
       "index.html",
     ]);
 
-    const deployOnly = tokenActor("t-deploy", ["deploy"]);
+    const deployOnly = tokenActor("t-deploy", ["deploy"], HOME_ORG_ID);
     await expect(
       s.tools.deploy(s.scope(deployOnly), { preview: "site", files: { "x.html": "" } }),
     ).rejects.toThrow('lacks the "previews.update" permission');
@@ -219,7 +220,7 @@ describe("the tools", () => {
   test("the deploy scope rebuilds only what its person deployed, via any credential", async () => {
     const s = setupTools();
     const own = (tokenId: string, userId: string) =>
-      ({ ...tokenActor(tokenId, ["deploy"]), userId }) as Actor;
+      ({ ...tokenActor(tokenId, ["deploy"], HOME_ORG_ID), userId }) as Actor;
     const adaCi = own("t-ci", "ada");
     const adaAgent = own("oauth:g1", "ada");
     const bob = own("t-bob", "bob");
@@ -256,7 +257,7 @@ describe("the tools", () => {
     const id = resolvePreview(s.ctx, "old").id;
     // As a PR preview or a row from before 0010 would be.
     s.db.run("UPDATE previews SET owner = NULL WHERE id = $id", { id });
-    const ada = { ...tokenActor("t-ada", ["deploy"]), userId: "ada" } as Actor;
+    const ada = { ...tokenActor("t-ada", ["deploy"], HOME_ORG_ID), userId: "ada" } as Actor;
     await expect(
       s.tools.deploy(s.scope(ada), { preview: "old", files: { "a.html": "" } }),
     ).rejects.toThrow("someone else");

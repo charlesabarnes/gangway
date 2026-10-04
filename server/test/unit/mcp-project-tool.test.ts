@@ -3,8 +3,9 @@ import { SCOPE_PERMISSIONS } from "@gangway/shared/permissions";
 import { tokenActor } from "../../src/auth/actor.ts";
 import { MissingPermission } from "../../src/mcp/tool-access.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
-const CONNECTOR = tokenActor("t-projects", ["read", "deploy", "projects"]);
+const CONNECTOR = tokenActor("t-projects", ["read", "deploy", "projects"], HOME_ORG_ID);
 
 describe("the project tool", () => {
   test("the projects scope is what connecting a repository needs, and no more", () => {
@@ -68,7 +69,7 @@ describe("the project tool", () => {
 
   test("a deploy-scope connection is refused, and told which scope to grant", () => {
     const s = setupTools();
-    const deployOnly = tokenActor("t-deploy", ["read", "deploy"]);
+    const deployOnly = tokenActor("t-deploy", ["read", "deploy"], HOME_ORG_ID);
     expect(() => s.tools.project(s.scope(deployOnly), { repository: "acme/shop" })).toThrow(
       MissingPermission,
     );

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { ACCESS_TTL_MS, REFRESH_IDLE_MS, REFRESH_REUSE_GRACE_MS } from "../../src/oauth/server.ts";
 import { CLAUDE, CONNECTOR, setupOAuth } from "../helpers/oauth.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 describe("tokens", () => {
   test("a code becomes tokens that act as the user, clamped to the granted scopes", async () => {
@@ -14,7 +15,12 @@ describe("tokens", () => {
     expect(t.access_token).toMatch(/^gwa_/);
     expect(t.refresh_token).toMatch(/^gwr_/);
     const actor = (await s.oauth.verify(t.access_token))!;
-    expect(actor).toMatchObject({ kind: "token", userId: s.user.id, scopes: ["read"] });
+    expect(actor).toMatchObject({
+      kind: "token",
+      userId: s.user.id,
+      scopes: ["read"],
+      orgId: HOME_ORG_ID,
+    });
     expect(actor.permissions.has("previews.read")).toBe(true);
     expect(actor.permissions.has("previews.deploy")).toBe(false);
     expect(s.actions()).toContain("oauth.grant.created");

@@ -7,6 +7,7 @@ import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Tokens } from "../../src/auth/tokens.ts";
 import { PASSWORD, type setupAccounts } from "./accounts.ts";
 import { silentLogger } from "./logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const HOST = "app.preview.localhost:8443";
 
@@ -17,7 +18,7 @@ export async function signedInApp(
 ) {
   const tokens = new Tokens(s.tokensRepo, s.roles, s.audit, s.now);
   const auth = {
-    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(o.envToken)),
+    verifyToken: chainVerifiers(tokens.verify, staticTokenVerifier(o.envToken, HOME_ORG_ID)),
     resolveSession: (secret: string) => s.sessions.resolve(secret)?.actor ?? null,
     originFor: (host: string) => `https://${host}`,
   };

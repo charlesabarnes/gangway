@@ -9,6 +9,7 @@ import { Bootstrap } from "../../src/auth/bootstrap.ts";
 import { Sso, type SsoConfig } from "../../src/auth/sso.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const ISSUER = "https://id.example.test";
 const CLIENT = "gangway-client";
@@ -117,7 +118,7 @@ function make(o: { config?: SsoConfig | null; passwordsOff?: boolean; keys?: Key
   });
   const passwords = () => !(o.passwordsOff === true && sso.configured);
   const auth = {
-    verifyToken: staticTokenVerifier(TOKEN),
+    verifyToken: staticTokenVerifier(TOKEN, HOME_ORG_ID),
     resolveSession: (secret: string) => s.sessions.resolve(secret)?.actor ?? null,
     originFor: (host: string) => `https://${host}`,
   };
@@ -368,6 +369,7 @@ describe("sign-in through an OpenID Connect provider", () => {
       roleId: user.roleId,
       permissions: new Set<never>(),
       sessionId: "s",
+      orgId: HOME_ORG_ID,
     };
     await t.s.accounts.createUser(actor, { email: "bo@example.com", roleId: ADMIN_ROLE_ID });
     expect(t.s.users.getByEmail("bo@example.com")!.invited).toBe(true);

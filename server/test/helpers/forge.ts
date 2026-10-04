@@ -2,6 +2,7 @@ import type { Preview } from "@gangway/shared/domain";
 import type { Actor } from "../../src/auth/actor.ts";
 import type { DeploymentState, Forge, ForgeRepo, PullRequest } from "../../src/forge/forge.ts";
 import type { DeployInput, DeployResult, PreviewUrl } from "../../src/previews/deploy-types.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 export const ghRepo = (over: Partial<ForgeRepo> = {}): ForgeRepo => ({
   forge: "github",
@@ -103,6 +104,7 @@ export function fakePreviews(instance = "test") {
       const s = input.source;
       const preview: Preview = {
         id,
+        orgId: HOME_ORG_ID,
         project: `gw-${instance}-${slug}`,
         watermark: "inherit",
         domain: null,

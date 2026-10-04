@@ -16,8 +16,9 @@ import { MemorySettingsStore, Settings } from "../../src/settings.ts";
 import { tempDir } from "./db.ts";
 import { silentLogger } from "./logger.ts";
 import { ACTOR, setupPreviewContext } from "./preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
-export const READ_ONLY = tokenActor("t-read", ["read"]);
+export const READ_ONLY = tokenActor("t-read", ["read"], HOME_ORG_ID);
 
 /**
  * The MCP tools over a real PreviewContext with only compose faked, and a kept-source store.

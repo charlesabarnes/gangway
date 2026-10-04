@@ -7,9 +7,11 @@ import { TemplatesRepo } from "../../src/db/repos/templates.ts";
 import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import type { Project, Template } from "@gangway/shared/domain";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const USER = {
   kind: "user",
+  orgId: HOME_ORG_ID,
   userId: "u1",
   roleId: "admin",
   permissions: new Set(),
@@ -129,6 +131,7 @@ describe("deploy follows the template", () => {
     const base = fixedPolicy(fields);
     const full: Project | undefined = repo && {
       id: "r1",
+      orgId: HOME_ORG_ID,
       name: "web",
       forge: "github",
       fullName: "acme/web",

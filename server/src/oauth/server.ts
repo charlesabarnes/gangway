@@ -342,6 +342,7 @@ export class OAuthServer {
       scopes,
       permissions,
       userId: rec.owner.id,
+      orgId: rec.orgId,
       ...(secretTargets ? { secretTargets } : {}),
     };
   };

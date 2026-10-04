@@ -96,7 +96,7 @@ export class PrPreviews {
         };
       }
     }
-    return this.#deploy(repo, pr, forgeActor(pr.repo.forge, pr.author));
+    return this.#deploy(repo, pr, forgeActor(pr.repo.forge, pr.author, repo.orgId));
   }
 
   async #onClosed(pr: PullRequest): Promise<Outcome> {
@@ -109,7 +109,7 @@ export class PrPreviews {
       return { action: "ignored", reason: `#${pr.number} has no preview` };
     }
     return this.#destroy(repo, pr, existing, {
-      actor: forgeActor(pr.repo.forge, pr.author),
+      actor: forgeActor(pr.repo.forge, pr.author, repo.orgId),
       why: "closed",
     });
   }
@@ -126,7 +126,7 @@ export class PrPreviews {
     if (typeof repo === "string") {
       return { action: "ignored", reason: repo };
     }
-    const actor = forgeActor(ev.repo.forge, ev.author);
+    const actor = forgeActor(ev.repo.forge, ev.author, repo.orgId);
     switch (ev.command) {
       case "status":
         return this.#onStatus(ev, repo);

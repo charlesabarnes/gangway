@@ -62,6 +62,7 @@ export type DefaultPasswordMode = 'off' | 'shared' | 'generated';
 
 export type Preview = {
   id: string;
+  orgId: string;
   project: string;
   title: string | null;
   icon: PreviewIcon | null;
@@ -267,6 +268,7 @@ export const PR_TRIGGERS: readonly PrTrigger[] = ['workflow', 'webhook'];
 
 export type Project = {
   id: string;
+  orgId: string;
   name: string;
   slug: string;
   forge: 'github' | null;

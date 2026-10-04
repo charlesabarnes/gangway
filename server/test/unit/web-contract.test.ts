@@ -34,6 +34,7 @@ import { LOG_STREAMS } from "../../src/previews/logs.ts";
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const contract = JSON.parse(
   readFileSync(join(import.meta.dir, "../../../web/src/testing/fixtures/contract.json"), "utf8"),
@@ -132,7 +133,7 @@ describe("account wire shapes", () => {
     const s = setupAccounts();
     const tokens = new Tokens(s.tokensRepo, s.roles, s.audit, s.now);
     const auth = {
-      verifyToken: staticTokenVerifier("gw_contract_env_token_0123456789abcd"),
+      verifyToken: staticTokenVerifier("gw_contract_env_token_0123456789abcd", HOME_ORG_ID),
       resolveSession: (x: string) => s.sessions.resolve(x)?.actor ?? null,
       originFor: (h: string) => `https://${h}`,
     };
@@ -269,6 +270,7 @@ describe("oauth wire shapes", () => {
       roleId: "admin",
       sessionId: "s",
       permissions: s.roles.for("admin"),
+      orgId: HOME_ORG_ID,
     } as const;
     const api = new Hono<AppEnv>();
     api.onError(errorHandler(quiet));

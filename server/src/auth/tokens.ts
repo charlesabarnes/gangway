@@ -57,7 +57,7 @@ export class Tokens {
     }
     this.#repo.touch(found.token.id, now - TOUCH_EVERY_MS, now);
 
-    const { token, owner } = found;
+    const { token, owner, orgId } = found;
     const bundle = credentialPermissions(token.scopes, token.secretTargets);
     const targets = token.secretTargets ? { secretTargets: token.secretTargets } : {};
     if (!owner) {
@@ -67,6 +67,7 @@ export class Tokens {
         name: token.name,
         scopes: token.scopes,
         permissions: bundle,
+        orgId,
         ...targets,
       };
     }
@@ -79,6 +80,7 @@ export class Tokens {
       scopes: token.scopes,
       permissions,
       userId: owner.id,
+      orgId,
       ...targets,
     };
   };
@@ -129,6 +131,7 @@ export class Tokens {
       scopes,
       secretTargets,
       userId: owner,
+      orgId: actor.orgId,
       expiresAt,
     });
     this.#audit.record(actor, "token.created", token.id, {

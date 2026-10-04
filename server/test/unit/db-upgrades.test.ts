@@ -92,7 +92,7 @@ for (const [name, open] of DRIVERS) {
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
         3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-        28, 29,
+        28, 29, 30,
       ]);
       expect(
         db.get("SELECT id, email, role_id, disabled, created_at FROM users") as
@@ -219,7 +219,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
       ]);
       expect(
         db.get(
@@ -275,7 +275,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
       ]);
       const holders = (
         db.query(
@@ -311,7 +311,7 @@ for (const [name, open] of DRIVERS) {
 
       const db = at.reopen();
       expect(migrate(db, MIGRATIONS).applied).toEqual([
-        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
       ]);
       const rows = db.query("SELECT id, watermark, source_json FROM previews ORDER BY id") as {
         id: string;
@@ -339,7 +339,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO artifact_themes (id, name, description, tokens_json, fonts_json, created_at, updated_at) VALUES ('acme', 'Acme', '', '{\"light\":{},\"dark\":{}}', '{}', 1, 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([22, 23, 24, 25, 26, 27, 28, 29]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([22, 23, 24, 25, 26, 27, 28, 29, 30]);
       expect(db.query("SELECT id, style_json FROM artifact_themes")).toEqual([
         { id: "acme", style_json: "{}" },
       ]);
@@ -354,7 +354,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([23, 24, 25, 26, 27, 28, 29]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([23, 24, 25, 26, 27, 28, 29, 30]);
       expect(db.query("SELECT id, invited FROM users")).toEqual([{ id: "u1", invited: 0 }]);
       expect(db.query("SELECT * FROM user_links")).toEqual([]);
       db.close();
@@ -374,7 +374,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO role_permissions (role_id, permission_id) VALUES ('looker', 'previews.read'), ('fixer', 'previews.update')",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([26, 27, 28, 29]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([26, 27, 28, 29, 30]);
       expect(grants(db, "member")).toContain("previews.extend");
       expect(grants(db, "admin")).toContain("previews.extend");
       expect(grants(db, "fixer")).toContain("previews.extend");
@@ -400,7 +400,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO audit (actor_type, actor_id, action, created_at) VALUES ('token', 'oauth:g1', 'preview.deploy', 1), ('token', 't1', 'preview.deploy', 2), ('token', 'oauth:gone', 'preview.deploy', 3), ('user', 'u1', 'auth.login', 4)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([25, 26, 27, 28, 29]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([25, 26, 27, 28, 29, 30]);
       expect(db.query("SELECT actor_id, actor_name FROM audit ORDER BY seq")).toEqual([
         { actor_id: "oauth:g1", actor_name: "Claude Code" },
         { actor_id: "t1", actor_name: "ci" },
@@ -418,7 +418,7 @@ for (const [name, open] of DRIVERS) {
         "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
       );
       const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual([29]);
+      expect(migrate(db, MIGRATIONS).applied).toEqual([29, 30]);
       const orgs = new OrgsRepo(db);
       expect(orgs.list().map((o) => [o.id, o.slug, o.home, o.state])).toEqual([
         [HOME_ORG_ID, "default", true, "active"],

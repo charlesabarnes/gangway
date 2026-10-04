@@ -7,6 +7,7 @@ import {
   type ScannedContainer,
   type ScannedLabels,
 } from "../../src/reconcile/diff.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 export const NOW = 1_700_000_000_000;
 export const HOST = "h1";
@@ -17,6 +18,7 @@ export const mkPreview = (
   over: Partial<Preview> = {},
 ): Preview => ({
   id,
+  orgId: HOME_ORG_ID,
   project: `gw-${id}`,
   watermark: "inherit",
   domain: null,

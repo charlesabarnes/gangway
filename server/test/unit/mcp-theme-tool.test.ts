@@ -9,8 +9,9 @@ import { MissingPermission } from "../../src/mcp/tool-access.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
-const DESIGNER = tokenActor("t-themes", ["read", "deploy", "themes"]);
+const DESIGNER = tokenActor("t-themes", ["read", "deploy", "themes"], HOME_ORG_ID);
 const TOKENS = {
   light: { paper: "#ffffff", ink: "#111827", primary: "#e11d48" },
   dark: { paper: "#0b0b0f", ink: "#f3f4f6", primary: "#fb7185" },
@@ -116,7 +117,7 @@ describe("the theme tool", () => {
 
   test("a connection without the themes scope is refused, and told which to grant", () => {
     const s = setup();
-    const deployOnly = tokenActor("t-deploy", ["read", "deploy"]);
+    const deployOnly = tokenActor("t-deploy", ["read", "deploy"], HOME_ORG_ID);
     expect(() =>
       s.tools.theme(s.scope(deployOnly), { id: "acme", name: "Acme", tokens: TOKENS }),
     ).toThrow(MissingPermission);

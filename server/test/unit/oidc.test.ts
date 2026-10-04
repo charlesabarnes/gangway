@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createSign, generateKeyPairSync, type KeyObject } from "node:crypto";
 import { GITHUB_ACTIONS_ISSUER, GitHubOidc } from "../../src/auth/oidc.ts";
 import { workflowActor } from "../../src/auth/actor.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const AUD = "https://api.preview.example.com";
 const NOW = 1_800_000_000_000;
@@ -133,22 +134,28 @@ describe("GitHubOidc", () => {
 
   test("workflowActor takes the PR number from the ref, and a push has none", () => {
     expect(
-      workflowActor({
-        repository: "acme/web-app",
-        runId: "1",
-        actor: "dev",
-        eventName: "pull_request",
-        ref: "refs/pull/7/merge",
-      }),
+      workflowActor(
+        {
+          repository: "acme/web-app",
+          runId: "1",
+          actor: "dev",
+          eventName: "pull_request",
+          ref: "refs/pull/7/merge",
+        },
+        HOME_ORG_ID,
+      ),
     ).toMatchObject({ kind: "workflow", pull: 7 });
     expect(
-      workflowActor({
-        repository: "acme/web-app",
-        runId: "1",
-        actor: "dev",
-        eventName: "push",
-        ref: "refs/heads/main",
-      }),
+      workflowActor(
+        {
+          repository: "acme/web-app",
+          runId: "1",
+          actor: "dev",
+          eventName: "push",
+          ref: "refs/heads/main",
+        },
+        HOME_ORG_ID,
+      ),
     ).toMatchObject({ pull: null });
   });
 });

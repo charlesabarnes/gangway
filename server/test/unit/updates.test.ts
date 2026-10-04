@@ -6,6 +6,7 @@ import { LATEST_RELEASE_URL, UpdateCheck, isNewer, parseVersion } from "../../sr
 import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { signedInApp } from "../helpers/http.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const RELEASE = {
   tag_name: "v0.2.0",
@@ -172,6 +173,7 @@ describe("GET /v1/updates", () => {
     await s.accounts.createUser(
       {
         kind: "token",
+        orgId: HOME_ORG_ID,
         tokenId: "system:test",
         scopes: ["admin"],
         permissions: new Set(["users.manage"]),

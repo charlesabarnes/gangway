@@ -21,6 +21,7 @@ import { ALL_PERMISSIONS, SCOPE_PERMISSIONS } from "@gangway/shared/permissions"
 import { conflict, rateLimited } from "../../src/errors.ts";
 import { Logger } from "../../src/logger.ts";
 import { ULID_RE } from "../../src/util/ulid.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
 
 const TOKEN = "gw_test_admin_token_0123456789";
 const root = mkdtempSync(join(tmpdir(), "gangway-static-"));
@@ -37,8 +38,8 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 function make(over: Partial<AppDeps> = {}) {
   const lines: string[] = [];
   const logger = new Logger("debug", {}, (l) => lines.push(l));
-  const readOnly = tokenActor("ro", ["read"]);
-  const admin = staticTokenVerifier(TOKEN);
+  const readOnly = tokenActor("ro", ["read"], HOME_ORG_ID);
+  const admin = staticTokenVerifier(TOKEN, HOME_ORG_ID);
   const app = createApp({
     logger,
     verifyToken: (t) => (t === "gw_readonly_token_0123456789" ? readOnly : admin(t)),
@@ -218,25 +219,30 @@ describe("auth", () => {
   test("actorId: a user can never be mistaken for a token, even with the same raw id", () => {
     const user: Actor = {
       kind: "user",
+      orgId: HOME_ORG_ID,
       userId: "env:admin",
       roleId: "viewer",
       permissions: new Set(),
       sessionId: "s",
     };
     expect(actorId(user)).toBe("user:env:admin");
-    expect(actorId(tokenActor("env:admin", ["admin"]))).toBe("env:admin");
+    expect(actorId(tokenActor("env:admin", ["admin"], HOME_ORG_ID))).toBe("env:admin");
     expect(can(user, "previews.read")).toBe(false);
   });
 
   test("auditActor maps onto the audit table's actor_type", () => {
-    expect(auditActor(systemActor("ttl-sweep"))).toEqual({ type: "system", id: "ttl-sweep" });
-    expect(auditActor(tokenActor("env:admin", ["admin"]))).toEqual({
+    expect(auditActor(systemActor("ttl-sweep", HOME_ORG_ID))).toEqual({
+      type: "system",
+      id: "ttl-sweep",
+    });
+    expect(auditActor(tokenActor("env:admin", ["admin"], HOME_ORG_ID))).toEqual({
       type: "token",
       id: "env:admin",
     });
     expect(
       auditActor({
         kind: "user",
+        orgId: HOME_ORG_ID,
         userId: "u1",
         roleId: "member",
         permissions: new Set(),
