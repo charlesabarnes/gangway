@@ -140,6 +140,26 @@ describe("/v1/projects/:ref/branch", () => {
     expect(t.projects.get("P1")!.productionPreviewId).toBe(first);
   });
 
+  test("a queued push is checked again when its turn comes", async () => {
+    const t = setup();
+    t.s.fake.buildHang = true;
+    const send = async (sha: string) =>
+      t.call(`/v1/projects/web-app/branch?sha=${sha}`, {
+        method: "PUT",
+        as: push(),
+        tar: await tarball(files(sha)),
+      });
+    const a = await send(SHA);
+    expect(a.status).toBe(202);
+    const queued = send(B);
+    await Bun.sleep(50);
+    t.projects.update("P1", { deployBranch: "release" });
+    t.s.fake.buildHang = false;
+    const { id } = ((await a.json()) as any).preview;
+    expect((await t.call(`/v1/previews/${id}`, { method: "DELETE" })).status).toBe(200);
+    expect((await queued).status).toBe(403);
+  });
+
   test("a production preview chosen by hand is not taken over", async () => {
     const t = setup();
     const other = await t.call("/v1/projects/web-app/pulls/7?wait=true", {

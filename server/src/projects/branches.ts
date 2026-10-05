@@ -87,18 +87,16 @@ export class Branches {
   }
 
   async deploy(ref: string, req: BranchDeployRequest, actor: Actor): Promise<BranchOutcome> {
-    const project = this.authorize(ref, actor);
-    if (!project.enabled) {
-      const reason = project.disabledReason ? `: ${project.disabledReason}` : "";
-      throw conflict(`project "${project.slug}" is disabled${reason}`);
-    }
-    const commit: BranchRef = {
-      repo: project.fullName,
-      branch: project.deployBranch,
-      sha: req.sha,
-    };
-    const push: Push = { project, req, commit, actor };
-    return this.#serial(project.id, async () => {
+    const { id } = this.#ready(ref, actor);
+    // Checked again once its turn comes: the project may have changed while it waited.
+    return this.#serial(id, async () => {
+      const project = this.#ready(id, actor);
+      const commit: BranchRef = {
+        repo: project.fullName,
+        branch: project.deployBranch,
+        sha: req.sha,
+      };
+      const push: Push = { project, req, commit, actor };
       const { target, production } = this.#target(project.id);
       const was = target?.source.kind === "tarball" ? target.source.branch : undefined;
       if (
@@ -115,6 +113,15 @@ export class Branches {
       }
       return this.#fresh(push, target);
     });
+  }
+
+  #ready(ref: string, actor: Actor): BranchProject {
+    const project = this.authorize(ref, actor);
+    if (!project.enabled) {
+      const reason = project.disabledReason ? `: ${project.disabledReason}` : "";
+      throw conflict(`project "${project.slug}" is disabled${reason}`);
+    }
+    return project;
   }
 
   /** The preview a push rebuilds: production, else the last branch deploy, not yet or no longer it. */
