@@ -30,7 +30,8 @@
     "tunnel": "./scripts/dev-tunnel.sh",
     "build:render": "bun --cwd render build.ts && bun scripts/precompress.ts render/dist",
     "precompress": "bun scripts/precompress.ts web/dist/browser render/dist",
-    "build:site": "bun scripts/build-site.ts"
+    "build:site": "bun scripts/build-site.ts",
+    "build:badges": "bun scripts/build-badges.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -40,6 +41,7 @@
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
+    "opentype.js": "^2.0.0",
     "prettier": "^3.9.9",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.70.1",

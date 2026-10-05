@@ -31,3 +31,12 @@ ssh $DOCKER_HOST_SSH 'docker stop gw-acme-pebble gw-acme-challtestsrv'
   is needed for this script only.
 - Pebble rejects about 5% of nonces on purpose, so a passing run also exercises the `badNonce`
   retry path.
+
+## build-badges.ts
+
+`bun run build:badges` writes the "Deployed on gangway" README badges into `site/badges/`, and
+Pages serves them at `gangway.sh/badges/`. `site/badges.html` shows each badge with its snippet.
+
+The text is drawn as outlines from the IBM Plex files in `@fontsource`. A README shows an SVG as
+an image, and an image cannot load web fonts, so `<text>` would fall back to Arial. Commit the
+SVGs after you run it.

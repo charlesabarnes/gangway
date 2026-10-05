@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Readme Badges — Deployed on gangway</title>
+    <meta
+      name="description"
+      content="Badges for a repository’s README that show the app is deployed on gangway. Static SVGs, light and dark."
+    />
+    <link rel="canonical" href="https://gangway.sh/badges.html" />
+    <meta name="theme-color" content="#0b2648" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="gangway" />
+    <meta property="og:url" content="https://gangway.sh/badges.html" />
+    <meta property="og:title" content="Readme Badges — Deployed on gangway" />
+    <meta
+      property="og:description"
+      content="Badges for a repository’s README that show the app is deployed on gangway. Static SVGs, light and dark."
+    />
+    <meta property="og:image" content="https://gangway.sh/assets/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="gangway, open source under Apache 2.0: full-stack artifacts on your domain, beside a list of decks, dashboards and tools and their states."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Fonts load without blocking the first paint; display=swap shows the fallback meanwhile. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+      media="print"
+      onload="this.media = 'all'"
+    />
+    <noscript
+      ><link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    /></noscript>
+    <script>
+      // Before first paint, so the page never flashes the wrong theme (js/theme.js keeps it after).
+      try {
+        var t = localStorage.getItem("gw-theme");
+        if (t !== "light" && t !== "dark")
+          t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="css/tokens/colors.css" />
+    <link rel="stylesheet" href="css/tokens/typography.css" />
+    <link rel="stylesheet" href="css/tokens/spacing.css" />
+    <link rel="stylesheet" href="css/tokens/effects.css" />
+    <link rel="stylesheet" href="css/tokens/base.css" />
+    <link rel="stylesheet" href="css/site.css" />
+    <link rel="stylesheet" href="css/cloud.css" />
+    <link rel="stylesheet" href="css/badges.css" />
+    <script src="js/menu.js" defer></script>
+    <script src="js/theme.js" defer></script>
+    <script src="js/visit.js" defer></script>
+    <script
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "4b58efc5afe54d91965ad56830fe54ad"}'
+    ></script>
+    <script src="js/badges.js" defer></script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="site-header">
+        <a class="home" href="./" aria-label="gangway home">
+          <span class="lockup">
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+              <rect class="mark-red" x="4" y="14" width="11" height="6" />
+              <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+              <path
+                class="mark-ribs"
+                d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+              />
+              <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+            </svg>
+            gangway
+          </span>
+        </a>
+        <button
+          class="menu-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="site-menu"
+          hidden
+        >
+          Menu
+        </button>
+        <div class="header-menu" id="site-menu">
+          <nav class="site-nav">
+            <a href="./#how">How it works</a>
+            <a href="./#install">Install</a>
+            <a href="docs/">Docs</a>
+            <a href="cloud.html">Gangway cloud</a>
+          </nav>
+          <div class="header-end">
+            <button class="theme-toggle" type="button" data-theme-toggle hidden>
+              <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"
+                />
+              </svg>
+              <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+                />
+              </svg>
+            </button>
+            <span class="mono">Apache 2.0</span>
+            <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+          </div>
+        </div>
+      </header>
+
+      <main class="cloud badges">
+        <div class="page-head">
+          <h1>Readme badges</h1>
+          <p>
+            Add one to a repository’s README to show the app is deployed on gangway. Each badge is a
+            static SVG: link to it here, or commit a copy to the repo.
+          </p>
+        </div>
+        <section class="badge-section">
+          <div class="badge-aside">
+            <h2>Small, follows theme</h2>
+            <p>
+              20px tall, sits in a row with other shields. Swaps light and dark with the reader’s
+              GitHub theme.
+            </p>
+          </div>
+          <div class="badge-body">
+            <div class="badge-grounds">
+              <div class="badge-ground badge-ground--light">
+                <img src="badges/deployed-on-gangway-light.svg" alt="Deployed on gangway" />
+                <span>GitHub light</span>
+              </div>
+              <div class="badge-ground badge-ground--dark">
+                <img src="badges/deployed-on-gangway-dark.svg" alt="Deployed on gangway" />
+                <span>GitHub dark</span>
+              </div>
+            </div>
+            <div class="snippet">
+              <!-- prettier-ignore -->
+              <pre><code data-snippet>&lt;a href="https://github.com/charlesabarnes/gangway"&gt;
+  &lt;picture&gt;
+    &lt;source media="(prefers-color-scheme: dark)" srcset="https://gangway.sh/badges/deployed-on-gangway-dark.svg"&gt;
+    &lt;img alt="Deployed on gangway" src="https://gangway.sh/badges/deployed-on-gangway-light.svg"&gt;
+  &lt;/picture&gt;
+&lt;/a&gt;</code></pre>
+              <button class="command-copy" type="button" data-copy hidden>Copy</button>
+            </div>
+          </div>
+        </section>
+        <section class="badge-section">
+          <div class="badge-aside">
+            <h2>Small, flag</h2>
+            <p>One file that reads on both themes.</p>
+          </div>
+          <div class="badge-body">
+            <div class="badge-grounds">
+              <div class="badge-ground badge-ground--light">
+                <img src="badges/deployed-on-gangway-flag.svg" alt="Deployed on gangway" />
+                <span>GitHub light</span>
+              </div>
+              <div class="badge-ground badge-ground--dark">
+                <img src="badges/deployed-on-gangway-flag.svg" alt="Deployed on gangway" />
+                <span>GitHub dark</span>
+              </div>
+            </div>
+            <div class="snippet">
+              <!-- prettier-ignore -->
+              <pre><code data-snippet>[![Deployed on gangway](https://gangway.sh/badges/deployed-on-gangway-flag.svg)](https://github.com/charlesabarnes/gangway)</code></pre>
+              <button class="command-copy" type="button" data-copy hidden>Copy</button>
+            </div>
+          </div>
+        </section>
+        <section class="badge-section">
+          <div class="badge-aside">
+            <h2>Large, follows theme</h2>
+            <p>36px with a neatline frame. For a README header, not a shield row.</p>
+          </div>
+          <div class="badge-body">
+            <div class="badge-grounds">
+              <div class="badge-ground badge-ground--light">
+                <img src="badges/deployed-on-gangway-large-light.svg" alt="Deployed on gangway" />
+                <span>GitHub light</span>
+              </div>
+              <div class="badge-ground badge-ground--dark">
+                <img src="badges/deployed-on-gangway-large-dark.svg" alt="Deployed on gangway" />
+                <span>GitHub dark</span>
+              </div>
+            </div>
+            <div class="snippet">
+              <!-- prettier-ignore -->
+              <pre><code data-snippet>&lt;a href="https://github.com/charlesabarnes/gangway"&gt;
+  &lt;picture&gt;
+    &lt;source media="(prefers-color-scheme: dark)" srcset="https://gangway.sh/badges/deployed-on-gangway-large-dark.svg"&gt;
+    &lt;img alt="Deployed on gangway" src="https://gangway.sh/badges/deployed-on-gangway-large-light.svg"&gt;
+  &lt;/picture&gt;
+&lt;/a&gt;</code></pre>
+              <button class="command-copy" type="button" data-copy hidden>Copy</button>
+            </div>
+          </div>
+        </section>
+        <section class="badge-section">
+          <div class="badge-aside">
+            <h2>Large, flag</h2>
+            <p>Neatline frame with the name on flag yellow. One file for both themes.</p>
+          </div>
+          <div class="badge-body">
+            <div class="badge-grounds">
+              <div class="badge-ground badge-ground--light">
+                <img src="badges/deployed-on-gangway-large-flag.svg" alt="Deployed on gangway" />
+                <span>GitHub light</span>
+              </div>
+              <div class="badge-ground badge-ground--dark">
+                <img src="badges/deployed-on-gangway-large-flag.svg" alt="Deployed on gangway" />
+                <span>GitHub dark</span>
+              </div>
+            </div>
+            <div class="snippet">
+              <!-- prettier-ignore -->
+              <pre><code data-snippet>[![Deployed on gangway](https://gangway.sh/badges/deployed-on-gangway-large-flag.svg)](https://github.com/charlesabarnes/gangway)</code></pre>
+              <button class="command-copy" type="button" data-copy hidden>Copy</button>
+            </div>
+          </div>
+        </section>
+        <section class="badge-section">
+          <div class="badge-aside">
+            <h2>Files</h2>
+            <p>To serve a badge from the repo, commit the file and point the snippet at it.</p>
+          </div>
+          <div class="badge-body badge-files">
+            <a href="badges/deployed-on-gangway-light.svg" download
+              >deployed-on-gangway-light.svg</a
+            >
+            <a href="badges/deployed-on-gangway-dark.svg" download>deployed-on-gangway-dark.svg</a>
+            <a href="badges/deployed-on-gangway-flag.svg" download>deployed-on-gangway-flag.svg</a>
+            <a href="badges/deployed-on-gangway-large-light.svg" download
+              >deployed-on-gangway-large-light.svg</a
+            >
+            <a href="badges/deployed-on-gangway-large-dark.svg" download
+              >deployed-on-gangway-large-dark.svg</a
+            >
+            <a href="badges/deployed-on-gangway-large-flag.svg" download
+              >deployed-on-gangway-large-flag.svg</a
+            >
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div class="wrap">
+          <span class="lockup lockup--sm">
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <rect class="mark-flag" x="10.5" y="6" width="11" height="6" />
+              <rect class="mark-red" x="4" y="14" width="11" height="6" />
+              <rect class="mark-ink" x="17" y="14" width="11" height="6" />
+              <path
+                class="mark-ribs"
+                d="M13.5 7.5v3M16 7.5v3M18.5 7.5v3M7 15.5v3M9.5 15.5v3M12 15.5v3M20 15.5v3M22.5 15.5v3M25 15.5v3"
+              />
+              <polygon class="mark-ink" points="2,22 30,22 26,28 6,28" />
+            </svg>
+            gangway
+          </span>
+          <div class="footer-links">
+            <img src="assets/stl-flag.svg" alt="Flag of St. Louis" title="Made in St. Louis" />
+            <span>Apache 2.0 license</span>
+            <a href="https://github.com/charlesabarnes/gangway">GitHub ↗</a>
+            <a href="docs/">Docs</a>
+            <a href="badges.html">Badges</a>
+            <a href="llms.txt">llms.txt</a>
+            <a href="mailto:ahoy@gangway.sh">ahoy@gangway.sh</a>
+            <a href="./">Home</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
