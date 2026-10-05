@@ -46,7 +46,7 @@ const REBUILDABLE = new Set(["awake", "asleep"]);
 
 export class Branches {
   readonly #d: BranchesDeps;
-  // One deploy per project at a time, so two quick pushes cannot race a rebuild.
+  // One deploy per project at a time, held until it settles: the next push waits its turn.
   readonly #queues = new Map<string, Promise<unknown>>();
 
   constructor(d: BranchesDeps) {
@@ -205,13 +205,14 @@ export class Branches {
     this.#d.refreshDomains();
   }
 
-  #serial<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  #serial(key: string, fn: () => Promise<BranchOutcome>): Promise<BranchOutcome> {
     const prev = this.#queues.get(key) ?? Promise.resolve();
     const next = prev.catch(() => {}).then(fn);
-    this.#queues.set(key, next);
-    void next
+    const held = next.then((o) => (o.action === "deployed" ? o.done : undefined));
+    this.#queues.set(key, held);
+    void held
       .finally(() => {
-        if (this.#queues.get(key) === next) {
+        if (this.#queues.get(key) === held) {
           this.#queues.delete(key);
         }
       })

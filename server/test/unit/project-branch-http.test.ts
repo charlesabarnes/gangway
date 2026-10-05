@@ -120,6 +120,26 @@ describe("/v1/projects/:ref/branch", () => {
     expect(t.projects.get("P1")!.productionPreviewId).toBeNull();
   });
 
+  test("a push during the first build waits for it, then rebuilds it", async () => {
+    const t = setup();
+    const send = async (sha: string, v: string) =>
+      t.call(`/v1/projects/web-app/branch?sha=${sha}`, {
+        method: "PUT",
+        as: push(),
+        tar: await tarball(files(v)),
+      });
+    const [a, b] = await Promise.all([send(SHA, "v1"), send(B, "v2")]);
+    expect([a.status, b.status]).toEqual([202, 202]);
+    const first = ((await a.json()) as any).preview.id;
+    expect(((await b.json()) as any).preview.id).toBe(first);
+    await t.s.ctx.inflight.get(first)?.done;
+    expect(t.s.previews.get(first)).toMatchObject({
+      state: "awake",
+      source: { branch: { sha: B } },
+    });
+    expect(t.projects.get("P1")!.productionPreviewId).toBe(first);
+  });
+
   test("a production preview chosen by hand is not taken over", async () => {
     const t = setup();
     const other = await t.call("/v1/projects/web-app/pulls/7?wait=true", {
