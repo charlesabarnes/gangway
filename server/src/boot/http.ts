@@ -26,7 +26,7 @@ import { claimDeps } from "./domains.ts";
 import { acrossOrgs } from "../tenancy/scope.ts";
 
 export type HttpParts = PreviewWiring &
-  Pick<ForgeWiring, "githubApp" | "pulls"> & {
+  Pick<ForgeWiring, "githubApp" | "pulls" | "branches"> & {
     deploys: IdempotentDeploys;
     identity: Identity;
     adminToken: string;

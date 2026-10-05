@@ -186,6 +186,7 @@ async function rollBack(
         runtime: was.runtime ?? "own",
         addons: undefined,
         network: undefined,
+        branch: undefined,
       },
     });
     if (old.site) {

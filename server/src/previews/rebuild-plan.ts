@@ -61,6 +61,8 @@ function assertSameExposure(routes: PlannedRoute[], model: ComposeModel): void {
   }
 }
 
+const branchField = (branch: TarballPreviewSource["branch"]) => (branch ? { branch } : {});
+
 function nextSource(
   b: Rebuild,
   source: TarballPreviewSource,
@@ -70,6 +72,7 @@ function nextSource(
     kind: "tarball",
     uploadId: source.uploadId,
     ...(source.pr ? { pr: source.pr } : {}),
+    ...branchField(b.input.branch ?? source.branch),
     ...(up.runtime ? { runtime: up.runtime } : {}),
     ...(up.plan.addons.length ? { addons: up.plan.addons } : {}),
     ...networkField(b.input.network ?? source.network),

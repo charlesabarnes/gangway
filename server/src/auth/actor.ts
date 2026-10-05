@@ -39,6 +39,8 @@ export type Actor = { orgId: string } & (
       runId: string;
       login: string;
       eventName: string;
+      /** The run's git ref, refs/heads/<branch> for a push. */
+      ref: string;
       pull: number | null;
       permissions: ReadonlySet<Permission>;
     }
@@ -105,6 +107,7 @@ export function workflowActor(
     runId: c.runId,
     login: c.actor,
     eventName: c.eventName,
+    ref: c.ref,
     pull: m ? Number(m[1]) : null,
     permissions: new Set(WORKFLOW_PERMISSIONS),
     orgId,

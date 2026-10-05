@@ -22,8 +22,14 @@ import {
 import { readJson } from "../problem.ts";
 import { isTarballRequest } from "./previews.ts";
 import type { PreviewUrl } from "../../previews/deploy-types.ts";
+import type { Branches } from "../../projects/branches.ts";
 import type { PullDeployRequest, Pulls } from "../../projects/pulls.ts";
-import { WORKFLOW_PATH_IN_REPO, workflowFor } from "../../projects/workflow.ts";
+import {
+  pushWorkflowFor,
+  WORKFLOW_PATH_IN_REPO,
+  PUSH_WORKFLOW_PATH_IN_REPO,
+  workflowFor,
+} from "../../projects/workflow.ts";
 import { changeSecrets, listSecrets, type SecretChangeDeps } from "../../secrets/change.ts";
 import type { Secrets } from "../../secrets/secrets.ts";
 import { parseDuration } from "../../util/duration.ts";
@@ -39,6 +45,7 @@ export type ProjectRouteDeps = {
   previews?: SecretChangeDeps["previews"] | undefined;
   templates?: Pick<TemplatesRepo, "get"> | undefined;
   pulls?: Pulls | undefined;
+  branches?: Branches | undefined;
   wire?: ((p: Preview) => Preview & { urls: PreviewUrl[] }) | undefined;
   apiOrigin?: (() => string) | undefined;
   domains?: DomainRegistry | undefined;
@@ -125,6 +132,10 @@ function checkPatch(
       d.domains?.assertAvailable(patch.domain, before.id);
     }
   }
+  // A deploy branch hands the project's production preview to its pushes.
+  if (patch.deployBranch !== undefined && !can(actor, "repos.domains")) {
+    throw forbidden('choosing the branch a repository deploys as production needs "repos.domains"');
+  }
   if (patch.slug !== undefined && patch.slug !== before.slug) {
     checkSlugFree(d.projects, patch.slug);
   }
@@ -172,7 +183,7 @@ function projectSecretRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   });
 }
 
-function uploadRequest(c: Context<AppEnv>): PullDeployRequest {
+function uploadRequest(c: Context<AppEnv>): Extract<PullDeployRequest, { archive: unknown }> {
   const { sha, port } = PullUploadQuerySchema.parse(c.req.query());
   const archive = c.req.raw.body;
   if (!archive) {
@@ -188,9 +199,42 @@ function projectPullRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       throw unprocessable("port must be 1-65535");
     }
+    const on = c.req.query("on") ?? "pull_request";
+    if (on !== "pull_request" && on !== "push") {
+      throw unprocessable('on is "pull_request" or "push"');
+    }
     c.header("content-type", "text/yaml; charset=utf-8");
+    if (on === "push") {
+      if (project.deployBranch === null) {
+        throw conflict(`project "${project.slug}" has no deploy branch; choose one first`);
+      }
+      c.header("x-gangway-path", PUSH_WORKFLOW_PATH_IN_REPO);
+      return c.body(
+        pushWorkflowFor({ ...project, deployBranch: project.deployBranch }, d.apiOrigin?.() ?? ""),
+      );
+    }
     c.header("x-gangway-path", WORKFLOW_PATH_IN_REPO);
     return c.body(workflowFor(project, d.apiOrigin?.() ?? "", port));
+  });
+
+  api.put("/projects/:ref/branch", requirePermission("previews.deploy"), async (c) => {
+    if (!d.branches || !d.wire) {
+      throw notFound("branch deploys are not available on this server");
+    }
+    if (!isTarballRequest(c)) {
+      throw unprocessable(
+        "a branch deploy is rebuilt in place from its source: send the branch's files as a tar or tar.gz body",
+      );
+    }
+    const out = await d.branches.deploy(c.req.param("ref"), uploadRequest(c), c.get("actor"));
+    if (out.action === "unchanged") {
+      return c.json({ preview: d.wire(out.preview), unchanged: true });
+    }
+    if (c.req.query("wait") === "true") {
+      const { preview, ok } = await out.done;
+      return c.json({ preview: d.wire(preview) }, ok ? 201 : 502);
+    }
+    return c.json({ preview: d.wire(out.preview) }, 202);
   });
 
   api.put("/projects/:ref/pulls/:n", requirePermission("previews.deploy"), async (c) => {

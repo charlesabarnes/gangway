@@ -339,6 +339,7 @@ export type ProjectRow = {
   watermark?: string | null;
   domain?: string | null;
   production_preview_id?: string | null;
+  deploy_branch?: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -364,6 +365,7 @@ export const rowToProject = (r: ProjectRow): Project => ({
   watermark: (r.watermark ?? null) as Project["watermark"],
   domain: r.domain ?? null,
   productionPreviewId: r.production_preview_id ?? null,
+  deployBranch: r.deploy_branch ?? null,
   createdAt: new Date(r.created_at),
   updatedAt: new Date(r.updated_at),
 });

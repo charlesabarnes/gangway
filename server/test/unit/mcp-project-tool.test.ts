@@ -27,6 +27,20 @@ describe("the project tool", () => {
     expect(s.audit.page({ limit: 10, action: "project.created" }).entries).toHaveLength(1);
   });
 
+  test("with a branch it sets the deploy branch and returns the push workflow", () => {
+    const s = setupTools();
+    const out = s.tools.project(s.scope(CONNECTOR), { repository: "acme/shop", branch: "main" });
+    expect(out).toContain("every push to main deploys as its production preview");
+    expect(out).toContain("--- .github/workflows/gangway-deploy.yml\n# gangway deploy for shop");
+    expect(out).toContain("branches: [main]");
+    expect(out).not.toContain("gangway-preview.yml");
+    expect(s.projects.getByFullName("github", "acme/shop")!.deployBranch).toBe("main");
+    const updates = s.audit.page({ limit: 10, action: "project.updated" }).entries;
+    expect(updates).toHaveLength(1);
+    s.tools.project(s.scope(CONNECTOR), { repository: "acme/shop", branch: "main" });
+    expect(s.audit.page({ limit: 10, action: "project.updated" }).entries).toHaveLength(1);
+  });
+
   test("a second call finds the same project and makes nothing new", () => {
     const s = setupTools();
     s.tools.project(s.scope(CONNECTOR), { repository: "acme/shop", slug: "storefront" });

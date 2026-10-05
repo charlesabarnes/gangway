@@ -128,6 +128,21 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
                 </select>
                 <span class="text-xs text-muted">{{ triggerHelp[d.prTrigger].help }}</span></label
               >
+              <label class="flex flex-col gap-1"
+                ><span class="gw-label">Deploy branch</span
+                ><input
+                  [class]="field + ' font-mono !text-sm'"
+                  [value]="d.deployBranch ?? ''"
+                  [disabled]="!canDeployBranch()"
+                  placeholder="blank for none"
+                  (input)="edit('deployBranch', $any($event.target).value.trim() || null)"
+                  data-testid="deploy-branch"
+                /><span class="text-xs text-muted">{{
+                  d.deployBranch
+                    ? 'each push to ' + d.deployBranch + ' rebuilds production in place'
+                    : 'no push deploys'
+                }}</span></label
+              >
             }
           </div>
           @if (d.repository && d.prTrigger === 'webhook') {
@@ -311,6 +326,7 @@ export class ProjectSettings {
   protected readonly visibilities = VISIBILITIES;
   protected readonly watermarks = WATERMARKS;
   protected readonly canWatermark = computed(() => this.#auth.can('previews.watermark'));
+  protected readonly canDeployBranch = computed(() => this.#auth.can('repos.domains'));
 
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);

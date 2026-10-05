@@ -81,4 +81,5 @@ export const auditFields = (p: Project) => ({
   prClearance: p.prClearance,
   forkClearance: p.forkClearance,
   watermark: p.watermark,
+  deployBranch: p.deployBranch,
 });
