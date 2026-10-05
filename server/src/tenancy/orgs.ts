@@ -21,17 +21,24 @@ export type OrgDeps = {
 
 /** A new org, with its own builtin roles and default template copied from the home org's. */
 export function createOrg(d: OrgDeps, actor: Actor, req: OrgCreateRequest): Org {
-  if (d.orgs.bySlug(req.slug)) {
-    throw conflict(`an org called "${req.slug}" already exists`, { slug: req.slug });
-  }
   const now = (d.now ?? Date.now)();
-  const org = d.db.transaction(() => {
-    const made = d.orgs.create({ id: ulid(now), slug: req.slug, name: req.name });
-    d.roles.copyBuiltins(made.id, () => ulid(now), now);
-    d.templates.copyDefault(made.id, `d${made.id.toLowerCase()}`, now);
-    return made;
-  });
+  const { org } = d.db.transaction(() => insertOrg(d, req, now));
   d.permissions.reload();
   d.audit.record(actor, "org.created", org.id, { new: { slug: org.slug, name: org.name } });
   return org;
+}
+
+/** The rows of a new org; call it inside a transaction, then reload the role permissions. */
+export function insertOrg(
+  d: Pick<OrgDeps, "orgs" | "roles" | "templates">,
+  req: OrgCreateRequest,
+  now: number,
+): { org: Org; roles: Record<string, string> } {
+  if (d.orgs.bySlug(req.slug)) {
+    throw conflict(`an org called "${req.slug}" already exists`, { slug: req.slug });
+  }
+  const org = d.orgs.create({ id: ulid(now), slug: req.slug, name: req.name });
+  const roles = d.roles.copyBuiltins(org.id, () => ulid(now), now);
+  d.templates.copyDefault(org.id, `d${org.id.toLowerCase()}`, now);
+  return { org, roles };
 }

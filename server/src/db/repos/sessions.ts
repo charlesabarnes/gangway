@@ -10,6 +10,8 @@ export type CreateSession = {
   expiresAt: number;
   ip: string | null;
   userAgent: string | null;
+  /** The org it acts in; null is the home org. */
+  orgId?: string | null;
 };
 
 export class SessionsRepo {
@@ -24,9 +26,17 @@ export class SessionsRepo {
   create(s: CreateSession): Session {
     const now = this.#now();
     this.#db.run(
-      `INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent)
-       VALUES ($id, $user, $now, $exp, $now, $ip, $ua)`,
-      { id: s.id, user: s.userId, now, exp: s.expiresAt, ip: s.ip, ua: s.userAgent },
+      `INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, org_id)
+       VALUES ($id, $user, $now, $exp, $now, $ip, $ua, $org)`,
+      {
+        id: s.id,
+        user: s.userId,
+        now,
+        exp: s.expiresAt,
+        ip: s.ip,
+        ua: s.userAgent,
+        org: s.orgId ?? null,
+      },
     );
     const row = this.#db.get("SELECT * FROM sessions WHERE id = $id", { id: s.id }) as
       SessionRow | undefined;

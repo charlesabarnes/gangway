@@ -44,6 +44,7 @@ export class Sessions {
   issue(
     userId: string,
     meta: { ip: string | null; userAgent: string | null },
+    orgId: string | null = null,
   ): { secret: string; session: Session } {
     const secret = randomBytes(32).toString("base64url");
     const session = this.#repo.create({
@@ -52,6 +53,7 @@ export class Sessions {
       expiresAt: this.#now() + Math.min(this.timings.idleMs, this.timings.absoluteMs),
       ip: meta.ip,
       userAgent: meta.userAgent?.slice(0, 512) ?? null,
+      orgId,
     });
     return { secret, session };
   }

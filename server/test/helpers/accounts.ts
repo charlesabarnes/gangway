@@ -4,6 +4,9 @@ import { LoginLimiter } from "../../src/auth/limiter.ts";
 import { Passwords } from "../../src/auth/password.ts";
 import { RolePermissions } from "../../src/auth/roles.ts";
 import { Sessions } from "../../src/auth/sessions.ts";
+import { OrgsRepo } from "../../src/db/repos/orgs.ts";
+import { TemplatesRepo } from "../../src/db/repos/templates.ts";
+import { Signup, type SignupPolicy } from "../../src/tenancy/signup.ts";
 import {
   AuditRepo,
   RolesRepo,
@@ -20,7 +23,7 @@ export const META = { ip: "203.0.113.7", userAgent: "test-agent" };
 export const PASSWORD = "correct horse battery staple";
 
 /** Real SQLite, real services, a clock you can move, and scrypt cheap enough to run hundreds of times. */
-export function setupAccounts() {
+export function setupAccounts(o: { signup?: SignupPolicy | null } = {}) {
   const { db } = tempDb();
 
   const clock = { t: 1_700_000_000_000 };
@@ -48,6 +51,17 @@ export function setupAccounts() {
     now,
     // As boot wires it: a new password or a disabled account ends any emailed link.
     onCredentialsRevoked: (id) => userLinks.deleteForUser(id),
+    signup: new Signup({
+      policy: () => o.signup ?? null,
+      orgs: new OrgsRepo(db, now),
+      roles: rolesRepo,
+      templates: new TemplatesRepo(db, now),
+      users,
+      identities,
+      permissions: roles,
+      audit,
+      now,
+    }),
   });
   const actions = () =>
     auditRepo

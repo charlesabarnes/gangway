@@ -140,7 +140,7 @@ export class EmailLinks {
 
     sessions.revokeAllFor(user.id);
     this.#d.onCredentialsRevoked?.(user.id);
-    const { secret: session, session: s } = sessions.issue(user.id, meta);
+    const { secret: session, session: s } = sessions.issue(user.id, meta, users.orgsOf(user.id)[0]);
     audit.record(
       {
         kind: "user",

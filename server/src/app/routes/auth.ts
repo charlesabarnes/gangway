@@ -372,7 +372,7 @@ function ssoRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     }
     let secret: string;
     try {
-      ({ secret } = d.accounts.ssoLogin(identity, m));
+      ({ secret } = await d.accounts.ssoLogin(identity, m));
     } catch (e) {
       if (e instanceof AppError && e.status === 429) {
         return back(c, "rate-limited");
