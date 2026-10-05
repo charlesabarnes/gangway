@@ -7,7 +7,6 @@ import type { RedeployInput } from "../previews/redeploy-input.ts";
 import type { RedeployResult } from "../previews/redeploy.ts";
 import type { TarballSource } from "../previews/source/tarball.ts";
 
-/** The deploy branch's files at one commit, uploaded as a tarball by its push workflow. */
 export type BranchDeployRequest = {
   archive: TarballSource;
   sha: string;
@@ -29,7 +28,6 @@ export type BranchesDeps = {
     sealedSecrets?(id: string): string | null;
   };
   audit: AuditSink;
-  /** Call after a project's production preview changes, so its hostnames follow. */
   refreshDomains(): void;
 };
 
@@ -41,7 +39,6 @@ export type BranchOutcome =
   | { action: "unchanged"; preview: Preview };
 
 type BranchProject = Project & { fullName: string; deployBranch: string };
-/** One push to deploy: its project, its files, the commit they are, and the run that sent them. */
 type Push = { project: BranchProject; req: BranchDeployRequest; commit: BranchRef; actor: Actor };
 
 const LIVE = new Set(["building", "starting", "awake", "asleep"]);
