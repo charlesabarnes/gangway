@@ -377,7 +377,7 @@ describe("a private control plane", () => {
     expect((await dispatch(at(BASE, "/v1/previews"), stranger)).status).toBe(404);
   });
 
-  test("only a workflow's OIDC deploy or teardown call gets past the list", async () => {
+  test("only a workflow's OIDC deploy, branch or teardown call gets past the list", async () => {
     const stranger = d("203.0.113.9");
     const call = (method: string, path: string, authorization?: string) =>
       new Request(`https://api.${BASE}${path}`, {
@@ -390,7 +390,12 @@ describe("a private control plane", () => {
         (await dispatch(call(method, "/v1/projects/site/pulls/12", jwt), stranger)).status,
       ).toBe(200);
     }
+    expect((await dispatch(call("PUT", "/v1/projects/site/branch", jwt), stranger)).status).toBe(
+      200,
+    );
     for (const [method, path, auth] of [
+      ["PUT", "/v1/projects/site/branch", "Bearer gw_notajwt"],
+      ["DELETE", "/v1/projects/site/branch", jwt],
       ["PUT", "/v1/projects/site/pulls/12", "Bearer gw_notajwt"],
       ["PUT", "/v1/projects/site/pulls/12", undefined],
       ["GET", "/v1/projects/site/pulls/12", jwt],
