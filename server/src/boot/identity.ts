@@ -9,6 +9,7 @@ import { Sessions } from "../auth/sessions.ts";
 import { Sso } from "../auth/sso.ts";
 import { Tokens } from "../auth/tokens.ts";
 import { Mailer } from "../mail/mailer.ts";
+import { Signup } from "../tenancy/signup.ts";
 import { SETTINGS } from "../settings.ts";
 import { ClientMetadataStore } from "../oauth/client-metadata.ts";
 import { ClientRegistry, clientResolver } from "../oauth/client-registration.ts";
@@ -58,6 +59,7 @@ export function createIdentity({ db, repos, audit, origin, settings, logger }: C
     passwords,
     limiter: new LoginLimiter(),
     onCredentialsRevoked,
+    signup: signupFor({ repos, audit, settings }, roles),
   });
   const mailer = new Mailer({
     url: () => settings.get(SETTINGS.mailSmtpUrl),
@@ -104,6 +106,29 @@ export function createIdentity({ db, repos, audit, origin, settings, logger }: C
     sso,
     passwords: passwordLogin,
   };
+}
+
+/** Hosted only: who the provider may sign up, each into an org of their own. */
+function signupFor(
+  { repos, audit, settings }: Pick<Core, "repos" | "audit" | "settings">,
+  roles: RolePermissions,
+): Signup {
+  return new Signup({
+    policy: () =>
+      settings.get(SETTINGS.ssoSignup)
+        ? {
+            issuer: settings.get(SETTINGS.ssoSignupIssuer),
+            limits: settings.get(SETTINGS.ssoSignupLimits),
+          }
+        : null,
+    orgs: repos.orgs,
+    roles: repos.roles,
+    templates: repos.templates,
+    users: repos.users,
+    identities: repos.userIdentities,
+    permissions: roles,
+    audit,
+  });
 }
 
 export function resolveAdminToken(

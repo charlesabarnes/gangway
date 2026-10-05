@@ -32,6 +32,8 @@ export type CreateUser = {
   roleId: string;
   invited?: boolean;
   ssoOnly?: boolean;
+  /** The org the person belongs to, with roleId as their role there; the home org if absent. */
+  orgId?: string;
 } & UserCredentials;
 
 // Emails arrive trimmed and lowercased; the UNIQUE column has no NOCASE collation.
@@ -68,8 +70,8 @@ export class UsersRepo {
     );
     this.#db.run(
       `INSERT INTO memberships (org_id, user_id, role_id, created_at)
-       VALUES ((SELECT id FROM orgs WHERE home = 1), $id, $role, $now)`,
-      { id: u.id, role: u.roleId, now: this.#now() },
+       VALUES (COALESCE($org, (SELECT id FROM orgs WHERE home = 1)), $id, $role, $now)`,
+      { id: u.id, role: u.roleId, org: u.orgId ?? null, now: this.#now() },
     );
   }
 
@@ -93,10 +95,25 @@ export class UsersRepo {
     return r ? { hash: r.password_hash, salt: r.password_salt } : undefined;
   }
 
+  /** The home org's people; someone who signed up into an org of their own is not one. */
   list(): User[] {
     return (
-      this.#db.query(`SELECT ${USER_COLUMNS} FROM users ORDER BY created_at, id`) as UserRow[]
+      this.#db.query(
+        `SELECT ${USER_COLUMNS} FROM users
+          WHERE id IN (SELECT user_id FROM memberships WHERE org_id = (SELECT id FROM orgs WHERE home = 1))
+          ORDER BY created_at, id`,
+      ) as UserRow[]
     ).map(rowToUser);
+  }
+
+  orgsOf(id: string): string[] {
+    return (
+      this.#db.query(
+        `SELECT m.org_id FROM memberships m JOIN orgs o ON o.id = m.org_id
+          WHERE m.user_id = $id ORDER BY o.home DESC, m.created_at, m.org_id`,
+        { id },
+      ) as { org_id: string }[]
+    ).map((r) => r.org_id);
   }
 
   count(): number {

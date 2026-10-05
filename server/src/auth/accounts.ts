@@ -22,6 +22,7 @@ import type { LoginLimiter } from "./limiter.ts";
 import type { Passwords } from "./password.ts";
 import type { Sessions } from "./sessions.ts";
 import type { SsoIdentity } from "./sso.ts";
+import type { Signup } from "../tenancy/signup.ts";
 
 export type RequestMeta = { ip: string; userAgent: string | null };
 export type LoggedIn = { user: User; secret: string };
@@ -37,6 +38,8 @@ export type AccountsDeps = {
   limiter: LoginLimiter;
   audit: AuditSink;
   onCredentialsRevoked?: ((userId: string) => void) | undefined;
+  /** Hosted: someone new the provider vouches for gets an org of their own. */
+  signup?: Signup | undefined;
   now?: () => number;
 };
 
@@ -88,7 +91,7 @@ export class Accounts {
     if (passwords.needsRehash(usable.hash)) {
       users.setPassword(user.id, await passwords.hash(password));
     }
-    const { secret, session } = sessions.issue(user.id, meta);
+    const { secret, session } = sessions.issue(user.id, meta, users.orgsOf(user.id)[0]);
     audit.record(
       {
         kind: "user",
@@ -106,8 +109,8 @@ export class Accounts {
   }
 
   /** Signs in someone the provider vouched for: by (issuer, subject), else by verified email. */
-  ssoLogin(identity: SsoIdentity, meta: RequestMeta): LoggedIn {
-    const { users, identities, limiter, audit, sessions, db } = this.#d;
+  async ssoLogin(identity: SsoIdentity, meta: RequestMeta): Promise<LoggedIn> {
+    const { users, identities, limiter, audit, sessions, db, signup } = this.#d;
     if (!identities) {
       throw new AppError("internal", "identity provider sign-in is not wired");
     }
@@ -117,9 +120,23 @@ export class Accounts {
     if (!verdict.ok) {
       throw rateLimited(verdict.retryAfterSec, "too many failed sign-ins; try again later");
     }
-    const user = db.transaction(() => {
+    const known = () => {
       const linked = identities.userFor(identity.issuer, identity.subject);
-      const found = linked === undefined ? users.getByEmail(identity.email) : users.get(linked);
+      return {
+        linked,
+        found: linked === undefined ? users.getByEmail(identity.email) : users.get(linked),
+      };
+    };
+    // Hashed before the transaction, which cannot await: a password nobody knows.
+    const credentials =
+      signup?.allows(identity.issuer) && !known().found
+        ? await this.#d.passwords.hash(randomBytes(32).toString("base64"))
+        : null;
+    const user = db.transaction(() => {
+      const { linked, found } = known();
+      if (!found && credentials && signup) {
+        return { signedUp: signup.create(identity, credentials) };
+      }
       if (!found || found.disabled) {
         return { refused: found ? ("disabled" as const) : ("unknown" as const) };
       }
@@ -140,22 +157,26 @@ export class Accounts {
       });
       throw forbidden(NO_ACCOUNT);
     }
+    if ("signedUp" in user) {
+      signup?.created(user.signedUp);
+    }
+    const person = "signedUp" in user ? user.signedUp.user : user.user;
     limiter.succeed(key);
-    const { secret, session } = sessions.issue(user.user.id, meta);
+    const { secret, session } = sessions.issue(person.id, meta, users.orgsOf(person.id)[0]);
     audit.record(
       {
         kind: "user",
-        userId: user.user.id,
-        roleId: user.user.roleId,
+        userId: person.id,
+        roleId: person.roleId,
         permissions: new Set(),
         sessionId: session.id,
         orgId: session.orgId,
       },
       "auth.login",
-      user.user.id,
-      { new: { ip: meta.ip, method: "sso" } },
+      person.id,
+      { new: { ip: meta.ip, method: "sso", ...("signedUp" in user ? { signup: true } : {}) } },
     );
-    return { user: user.user, secret };
+    return { user: person, secret };
   }
 
   /** Before a callback is checked: a source with too many failures waits. */
@@ -184,7 +205,7 @@ export class Accounts {
       }
       return users.create({ id: ulid(this.#now()), email, roleId: ADMIN_ROLE_ID, ...credentials });
     });
-    const { secret } = sessions.issue(user.id, meta);
+    const { secret } = sessions.issue(user.id, meta, users.orgsOf(user.id)[0]);
     audit.record(null, "auth.setup", user.id, {
       new: { email, roleId: ADMIN_ROLE_ID, ip: meta.ip },
     });

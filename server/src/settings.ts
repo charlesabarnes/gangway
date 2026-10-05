@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseDuration } from "@gangway/shared/duration";
+import { OrgLimitsSchema } from "@gangway/shared/orgs-api";
 import { parseBytes } from "./util/bytes.ts";
 
 export type SettingSource = "config" | "database" | "default";
@@ -69,6 +70,18 @@ const reportDomains = z.preprocess(
 );
 
 const RFC6750_BEARER_TOKEN = /^(?:[\w.~+/-]+=*)?$/;
+
+// An env var or the settings form sends JSON as text.
+function jsonText(v: unknown): unknown {
+  if (typeof v !== "string") {
+    return v;
+  }
+  try {
+    return JSON.parse(v) as unknown;
+  } catch {
+    return v;
+  }
+}
 
 function decodes(v: string): boolean {
   const u = new URL(v);
@@ -204,6 +217,10 @@ export const SETTINGS = {
   oidcClientSecret: def("auth.oidc.clientSecret", z.string().max(1024), "", { secret: true }),
   oidcLabel: def("auth.oidc.label", z.string().trim().min(1).max(60), "Sign in with SSO"),
   passwordLogin: def("auth.passwords", z.boolean(), true),
+  // Hosted: someone new this issuer vouches for gets an account and an org of their own.
+  ssoSignup: def("auth.sso.signup", z.boolean(), false),
+  ssoSignupIssuer: def("auth.sso.signupIssuer", oidcIssuer, ""),
+  ssoSignupLimits: def("auth.sso.signupLimits", z.preprocess(jsonText, OrgLimitsSchema), {}),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
   acmeDnsUrl: def("acme.acmeDns.url", z.url({ protocol: /^https$/ }).or(z.literal("")), ""),
