@@ -146,7 +146,7 @@ export class Branches {
     const done = res.done.then((o) => {
       const ok = o.outcome === "succeeded";
       if (ok) {
-        this.#promote(project.id, o.preview.id, actor);
+        this.#promote(project.id, commit.branch, { previewId: o.preview.id, actor });
       }
       return { preview: o.preview, ok };
     });
@@ -180,21 +180,28 @@ export class Branches {
     const done = result.done.then((p) => {
       const ok = p.state === "awake";
       if (ok) {
-        this.#promote(project.id, p.id, actor);
+        this.#promote(project.id, commit.branch, { previewId: p.id, actor });
       }
       return { preview: p, ok };
     });
     return { action: "deployed", preview: result.preview, done };
   }
 
-  /** A branch deploy that serves becomes production, unless someone chose another meanwhile. */
-  #promote(projectId: string, previewId: string, actor: Actor): void {
+  /** A branch deploy that serves becomes production, unless that changed while it built. */
+  #promote(
+    projectId: string,
+    branch: string,
+    { previewId, actor }: { previewId: string; actor: Actor },
+  ): void {
     const project = this.#d.projects.find(projectId);
-    if (project?.productionPreviewId !== null) {
+    if (project?.productionPreviewId !== null || project.deployBranch !== branch) {
       return;
     }
-    this.#d.projects.update(projectId, { productionPreviewId: previewId });
-    this.#d.audit.record(actor, "project.production", projectId, { old: null, new: previewId });
+    if (this.#d.previews.get(previewId)?.state !== "awake") {
+      return;
+    }
+    this.#d.projects.update(project.id, { productionPreviewId: previewId });
+    this.#d.audit.record(actor, "project.production", project.id, { old: null, new: previewId });
     this.#d.refreshDomains();
   }
 

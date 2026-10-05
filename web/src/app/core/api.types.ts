@@ -39,6 +39,8 @@ export type PreviewSource =
       serve?: 'gangway';
       /** The pull request whose workflow uploaded it. */
       pr?: { repo: string; number: number; sha: string };
+      /** The deploy branch push whose workflow uploaded it. */
+      branch?: { repo: string; branch: string; sha: string };
     }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];

@@ -105,6 +105,21 @@ describe("/v1/projects/:ref/branch", () => {
     expect(t.projects.get("P1")!.productionPreviewId).toBe(live.id);
   });
 
+  test("a deploy branch changed during the build does not take production", async () => {
+    const t = setup();
+    const res = await t.call(`/v1/projects/web-app/branch?sha=${SHA}`, {
+      method: "PUT",
+      as: push(),
+      tar: await tarball(files("v1")),
+    });
+    expect(res.status).toBe(202);
+    const { id } = ((await res.json()) as any).preview;
+    t.projects.update("P1", { deployBranch: "release" });
+    await t.s.ctx.inflight.get(id)?.done;
+    expect(t.s.previews.get(id)!.state).toBe("awake");
+    expect(t.projects.get("P1")!.productionPreviewId).toBeNull();
+  });
+
   test("a production preview chosen by hand is not taken over", async () => {
     const t = setup();
     const other = await t.call("/v1/projects/web-app/pulls/7?wait=true", {

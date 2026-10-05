@@ -133,7 +133,9 @@ function checkPatch(
     }
   }
   // A deploy branch hands the project's production preview to its pushes.
-  if (patch.deployBranch !== undefined && !can(actor, "repos.domains")) {
+  const branchChanges =
+    patch.deployBranch !== undefined && patch.deployBranch !== before.deployBranch;
+  if (branchChanges && !can(actor, "repos.domains")) {
     throw forbidden('choosing the branch a repository deploys as production needs "repos.domains"');
   }
   if (patch.slug !== undefined && patch.slug !== before.slug) {
