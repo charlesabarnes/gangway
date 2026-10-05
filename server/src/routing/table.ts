@@ -185,6 +185,28 @@ export class RouteTable {
       }
       moves.set(e.hostname, to);
     }
+    return this.#rename(previewId, moves);
+  }
+
+  /** Names a preview's hostnames with a new stem, as `moveToDomain` moves them to a new domain. */
+  relabel(previewId: string, from: string, to: string): Map<string, string> {
+    const moves = new Map<string, string>();
+    for (const e of this.forPreview(previewId)) {
+      const [label = "", ...rest] = e.hostname.split(".");
+      if (label !== from && !label.startsWith(`${from}-`)) {
+        continue;
+      }
+      const next = [to + label.slice(from.length), ...rest].join(".");
+      const taken = this.#byHostname.get(next);
+      if (taken && taken.previewId !== previewId) {
+        throw new Error(`${next} is already another preview's hostname`);
+      }
+      moves.set(e.hostname, next);
+    }
+    return this.#rename(previewId, moves);
+  }
+
+  #rename(previewId: string, moves: Map<string, string>): Map<string, string> {
     if (moves.size === 0) {
       return moves;
     }

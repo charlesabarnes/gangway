@@ -28,6 +28,8 @@ export type BranchesDeps = {
     sealedSecrets?(id: string): string | null;
   };
   audit: AuditSink;
+  /** The label its branch deploy is named with: the project's deploy host, else its slug. */
+  labelFor(project: Project): string;
   refreshDomains(): void;
 };
 
@@ -180,7 +182,8 @@ export class Branches {
     }
     const result = await this.#d.previews.deploy({
       actor,
-      name: project.slug,
+      name: this.#d.labelFor(project),
+      fixedName: true,
       projectId: project.id,
       ttl: null,
       ...(stale?.secretLevel ? { secretLevel: stale.secretLevel } : {}),

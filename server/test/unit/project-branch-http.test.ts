@@ -53,9 +53,8 @@ describe("/v1/projects/:ref/branch", () => {
       ttlExpiresAt: null,
       source: { kind: "tarball", branch: { repo: "acme/web-app", branch: "main", sha: SHA } },
     });
-    expect(preview.urls[0].url).toMatch(
-      /^https:\/\/web-app(-[a-z0-9]+)?\.preview\.localhost:8443\/$/,
-    );
+    expect(preview.visibility).toBe("unlisted");
+    expect(preview.urls[0].url).toBe("https://web-app.preview.localhost:8443/");
     expect(t.projects.get("P1")!.productionPreviewId).toBe(preview.id);
     expect(t.refreshes()).toBe(1);
     const promoted = t.s.audit
@@ -101,7 +100,8 @@ describe("/v1/projects/:ref/branch", () => {
     expect(res.status).toBe(201);
     const live = ((await res.json()) as any).preview;
     expect(live.id).not.toBe(dead.id);
-    expect(t.s.previews.get(dead.id)!.state).toBe("destroyed");
+    // The new one takes the same fixed name, which clears the destroyed row that held it.
+    expect(t.s.previews.get(dead.id)).toBeUndefined();
     expect(t.projects.get("P1")!.productionPreviewId).toBe(live.id);
   });
 
@@ -258,5 +258,48 @@ describe("/v1/projects/:ref/branch", () => {
     expect(pushWorkflowFor({ name: "x", slug: "x", deployBranch: "main" }, "https://a")).toContain(
       "branches: [main]",
     );
+  });
+
+  test("a deploy host names the first deploy, and renames a live one in place", async () => {
+    const t = setup();
+    t.projects.update("P1", { deployHost: "shop" });
+    const first = ((await (await t.put(SHA)).json()) as any).preview;
+    expect(first.urls[0].url).toBe("https://shop.preview.localhost:8443/");
+    const patch = (deployHost: string) =>
+      t.call("/v1/projects/web-app", { method: "PATCH", json: { deployHost } });
+    const res = await patch("duck.preview.localhost");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).renamed).toEqual({
+      "shop.preview.localhost": "duck.preview.localhost",
+    });
+    expect(t.s.ctx.table.forPreview(first.id).map((e) => e.hostname)).toEqual([
+      "duck.preview.localhost",
+    ]);
+    expect(t.s.ctx.logs.read(first.id).map((l) => l.line)).toContain(
+      "renamed shop.preview.localhost to duck.preview.localhost",
+    );
+    const next = ((await (await t.put(B, "v2")).json()) as any).preview;
+    expect(next).toMatchObject({ id: first.id });
+    expect(next.urls[0].url).toBe("https://duck.preview.localhost:8443/");
+  });
+
+  test("a name another preview holds is refused, and a full hostname is claimed", async () => {
+    const t = setup();
+    await t.put(SHA);
+    await t.call("/v1/previews?wait=true", {
+      method: "POST",
+      json: {
+        name: "taken",
+        visibility: "public",
+        source: { kind: "image", image: "x", port: 80 },
+      },
+    });
+    const patch = (deployHost: string) =>
+      t.call("/v1/projects/web-app", { method: "PATCH", json: { deployHost } });
+    expect((await patch("taken")).status).toBe(409);
+    expect(t.projects.get("P1")!.deployHost).toBeNull();
+    expect((await patch("a--b")).status).toBe(422);
+    expect((await patch("duck.example.com")).status).toBe(409);
+    expect(t.claims).toEqual(["duck.example.com"]);
   });
 });

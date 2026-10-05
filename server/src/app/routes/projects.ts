@@ -23,6 +23,7 @@ import { readJson } from "../problem.ts";
 import { isTarballRequest } from "./previews.ts";
 import type { PreviewUrl } from "../../previews/deploy-types.ts";
 import type { Branches } from "../../projects/branches.ts";
+import { applyDeployHost, type DeployHostDeps } from "../../projects/deploy-host.ts";
 import type { PullDeployRequest, Pulls } from "../../projects/pulls.ts";
 import {
   pushWorkflowFor,
@@ -46,6 +47,7 @@ export type ProjectRouteDeps = {
   templates?: Pick<TemplatesRepo, "get"> | undefined;
   pulls?: Pulls | undefined;
   branches?: Branches | undefined;
+  deployHost?: DeployHostDeps | undefined;
   wire?: ((p: Preview) => Preview & { urls: PreviewUrl[] }) | undefined;
   apiOrigin?: (() => string) | undefined;
   domains?: DomainRegistry | undefined;
@@ -71,6 +73,14 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     const before = findProject(projects, c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
     checkPatch(d, c.get("actor"), before, patch);
+    const hostChanges = patch.deployHost !== undefined && patch.deployHost !== before.deployHost;
+    const applied =
+      hostChanges && d.deployHost
+        ? applyDeployHost(d.deployHost, c.get("actor"), {
+            ...before,
+            deployHost: patch.deployHost ?? null,
+          })
+        : null;
     if (repository !== undefined && repository !== before.fullName) {
       if (repository !== null) {
         checkRepository(projects, repository, before.id);
@@ -94,7 +104,11 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
         new: after.domain,
       });
     }
-    return c.json({ project: after });
+    return c.json({
+      project: after,
+      ...(applied && Object.keys(applied.renamed).length > 0 ? { renamed: applied.renamed } : {}),
+      ...(applied?.claimed ? { domain: applied.claimed } : {}),
+    });
   });
 
   api.delete("/projects/:ref", requirePermission("repos.manage"), (c) => {
@@ -134,9 +148,12 @@ function checkPatch(
   }
   // A deploy branch hands the project's production preview to its pushes.
   const branchChanges =
-    patch.deployBranch !== undefined && patch.deployBranch !== before.deployBranch;
+    (patch.deployBranch !== undefined && patch.deployBranch !== before.deployBranch) ||
+    (patch.deployHost !== undefined && patch.deployHost !== before.deployHost);
   if (branchChanges && !can(actor, "repos.domains")) {
-    throw forbidden('choosing the branch a repository deploys as production needs "repos.domains"');
+    throw forbidden(
+      'choosing the branch a repository deploys as production, or its address, needs "repos.domains"',
+    );
   }
   if (patch.slug !== undefined && patch.slug !== before.slug) {
     checkSlugFree(d.projects, patch.slug);

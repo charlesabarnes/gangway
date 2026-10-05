@@ -92,6 +92,7 @@ export type Project = {
   domain: string | null;
   productionPreviewId: string | null;
   deployBranch: string | null;
+  deployHost: string | null;
   createdAt: Date;
   updatedAt: Date;
 };

@@ -159,6 +159,7 @@ describe("deploy follows the template", () => {
       domain: null,
       productionPreviewId: null,
       deployBranch: null,
+      deployHost: null,
       createdAt: new Date(0),
       updatedAt: new Date(0),
       ...repo,

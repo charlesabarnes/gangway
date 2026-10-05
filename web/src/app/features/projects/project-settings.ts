@@ -143,6 +143,23 @@ const savedView = (p: Project): Record<string, unknown> => ({ ...p, repository: 
                     : 'no push deploys'
                 }}</span></label
               >
+              @if (d.deployBranch) {
+                <label class="flex flex-col gap-1"
+                  ><span class="gw-label">Deploy address</span
+                  ><input
+                    [class]="field + ' font-mono !text-sm'"
+                    [value]="d.deployHost ?? ''"
+                    [disabled]="!canDeployBranch()"
+                    [placeholder]="d.slug"
+                    (input)="edit('deployHost', $any($event.target).value.trim() || null)"
+                    data-testid="deploy-host"
+                  /><span class="text-xs text-muted">{{
+                    (d.deployHost ?? '').includes('.')
+                      ? 'a full hostname: add its DNS records under Domains'
+                      : 'a name under this server, renamed in place'
+                  }}</span></label
+                >
+              }
             }
           </div>
           @if (d.repository && d.prTrigger === 'webhook') {
@@ -354,11 +371,18 @@ export class ProjectSettings {
     this.saving.set(true);
     this.saveError.set(null);
     try {
-      const { project } = await firstValueFrom(
-        this.#http.patch<{ project: Project }>(`/v1/projects/${p.id}`, this.#patch()),
+      const { project, domain } = await firstValueFrom(
+        this.#http.patch<{ project: Project; domain?: { name: string } }>(
+          `/v1/projects/${p.id}`,
+          this.#patch(),
+        ),
       );
       this.saved.emit(project);
-      this.#toasts.info(`Saved ${project.name}`);
+      this.#toasts.info(
+        domain
+          ? `Saved ${project.name}: add the DNS records for ${domain.name} under Domains`
+          : `Saved ${project.name}`,
+      );
       if (project.slug !== p.slug)
         await this.#router.navigate(['/repositories', project.slug], {
           queryParams: { tab: 'settings' },

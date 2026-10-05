@@ -340,6 +340,7 @@ export type ProjectRow = {
   domain?: string | null;
   production_preview_id?: string | null;
   deploy_branch?: string | null;
+  deploy_host?: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -366,6 +367,7 @@ export const rowToProject = (r: ProjectRow): Project => ({
   domain: r.domain ?? null,
   productionPreviewId: r.production_preview_id ?? null,
   deployBranch: r.deploy_branch ?? null,
+  deployHost: r.deploy_host ?? null,
   createdAt: new Date(r.created_at),
   updatedAt: new Date(r.updated_at),
 });

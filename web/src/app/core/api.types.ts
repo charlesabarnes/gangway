@@ -293,6 +293,8 @@ export type Project = {
   productionPreviewId: string | null;
   /** The branch a push workflow deploys as production; null for none. */
   deployBranch: string | null;
+  /** A label under the server's domain, or a full hostname claimed for its production. */
+  deployHost: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -313,6 +315,7 @@ export type ProjectPatch = Partial<
     | 'watermark'
     | 'domain'
     | 'deployBranch'
+    | 'deployHost'
   >
 > & { repository?: string | null };
 export type ProjectCreate = {

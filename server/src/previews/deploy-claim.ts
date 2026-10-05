@@ -46,7 +46,8 @@ function slugFor(c: Claim, org: string | null): string {
   if (stem === "") {
     throw unprocessable("name has no usable characters");
   }
-  const name = c.visibility === "unlisted" ? `${stem}-${unguessable()}` : stem;
+  const name =
+    c.visibility === "unlisted" && c.input.fixedName !== true ? `${stem}-${unguessable()}` : stem;
   return org === null ? name : `${name}--${org}`;
 }
 
