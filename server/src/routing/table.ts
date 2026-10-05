@@ -197,6 +197,9 @@ export class RouteTable {
         continue;
       }
       const next = [to + label.slice(from.length), ...rest].join(".");
+      if (next === e.hostname) {
+        continue;
+      }
       const taken = this.#byHostname.get(next);
       if (taken && taken.previewId !== previewId) {
         throw new Error(`${next} is already another preview's hostname`);

@@ -73,18 +73,19 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     const before = findProject(projects, c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
     checkPatch(d, c.get("actor"), before, patch);
-    const hostChanges = patch.deployHost !== undefined && patch.deployHost !== before.deployHost;
-    const applied =
-      hostChanges && d.deployHost
-        ? applyDeployHost(d.deployHost, c.get("actor"), {
-            ...before,
-            deployHost: patch.deployHost ?? null,
-          })
-        : null;
-    if (repository !== undefined && repository !== before.fullName) {
-      if (repository !== null) {
-        checkRepository(projects, repository, before.id);
-      }
+    const repoChanges = repository !== undefined && repository !== before.fullName;
+    if (repoChanges && repository !== null) {
+      checkRepository(projects, repository, before.id);
+    }
+    // Last before the writes: everything else in the patch has passed.
+    const applied = d.deployHost
+      ? applyDeployHost(d.deployHost, c.get("actor"), before, {
+          ...before,
+          slug: patch.slug ?? before.slug,
+          deployHost: patch.deployHost === undefined ? before.deployHost : patch.deployHost,
+        })
+      : null;
+    if (repoChanges) {
       projects.setRepository(before.id, repository === null ? null : "github", repository);
     }
     const after = projects.update(before.id, {

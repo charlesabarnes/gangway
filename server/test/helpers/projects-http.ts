@@ -91,6 +91,9 @@ export function make() {
     },
     audit: s.ctx.audit,
     labelFor: (project) => deployHostOf(project, s.ctx.previewDomain()).label,
+    relabel: (id, label) => {
+      relabelPreview(s.ctx, id, label);
+    },
     refreshDomains: () => {
       refreshes++;
     },

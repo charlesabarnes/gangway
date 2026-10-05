@@ -30,6 +30,7 @@ export type BranchesDeps = {
   audit: AuditSink;
   /** The label its branch deploy is named with: the project's deploy host, else its slug. */
   labelFor(project: Project): string;
+  relabel(previewId: string, label: string): void;
   refreshDomains(): void;
 };
 
@@ -215,6 +216,12 @@ export class Branches {
     const project = this.#d.projects.find(projectId);
     if (project?.productionPreviewId !== null || project.deployBranch !== branch) {
       return;
+    }
+    // The address may have changed while it built; a name taken meanwhile keeps the one it has.
+    try {
+      this.#d.relabel(previewId, this.#d.labelFor(project));
+    } catch {
+      // Renamed later from the project's settings.
     }
     if (this.#d.previews.get(previewId)?.state !== "awake") {
       return;

@@ -302,4 +302,46 @@ describe("/v1/projects/:ref/branch", () => {
     expect((await patch("duck.example.com")).status).toBe(409);
     expect(t.claims).toEqual(["duck.example.com"]);
   });
+
+  test("a slug change renames it, a failed patch renames nothing", async () => {
+    const t = setup();
+    const { id } = ((await (await t.put(SHA)).json()) as any).preview;
+    const hosts = () => t.s.ctx.table.forPreview(id).map((e) => e.hostname);
+    t.projects.create({
+      orgId: HOME_ORG_ID,
+      id: "P2",
+      name: "other",
+      slug: "other",
+      forge: "github",
+      fullName: "acme/other",
+    });
+    const refused = await t.call("/v1/projects/web-app", {
+      method: "PATCH",
+      json: { repository: "acme/other", deployHost: "duck" },
+    });
+    expect(refused.status).toBe(409);
+    expect(hosts()).toEqual(["web-app.preview.localhost"]);
+    const renamed = await t.call("/v1/projects/web-app", {
+      method: "PATCH",
+      json: { slug: "shop" },
+    });
+    expect(((await renamed.json()) as any).renamed).toEqual({
+      "web-app.preview.localhost": "shop.preview.localhost",
+    });
+  });
+
+  test("an address changed while the first deploy builds is its name once it serves", async () => {
+    const t = setup();
+    const res = await t.call(`/v1/projects/web-app/branch?sha=${SHA}`, {
+      method: "PUT",
+      as: push(),
+      tar: await tarball(files("v1")),
+    });
+    const { id } = ((await res.json()) as any).preview;
+    t.projects.update("P1", { deployHost: "duck" });
+    await t.s.ctx.inflight.get(id)?.done;
+    await Bun.sleep(10);
+    expect(t.projects.get("P1")!.productionPreviewId).toBe(id);
+    expect(t.s.ctx.table.forPreview(id).map((e) => e.hostname)).toEqual(["duck.preview.localhost"]);
+  });
 });

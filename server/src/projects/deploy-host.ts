@@ -33,9 +33,15 @@ export type DeployHostDeps = {
 export function applyDeployHost(
   d: DeployHostDeps,
   actor: Actor,
+  before: Project,
   next: Project,
-): { renamed: Record<string, string>; claimed: DomainView | null } {
-  const { label, custom } = deployHostOf(next, d.domainOf(next));
+): { renamed: Record<string, string>; claimed: DomainView | null } | null {
+  const domain = d.domainOf(next);
+  const was = deployHostOf(before, domain);
+  const { label, custom } = deployHostOf(next, domain);
+  if (was.label === label && was.custom === custom) {
+    return null;
+  }
   const claimed = custom !== null && !d.holds(next, custom) ? d.claim(actor, next, custom) : null;
   const prod = next.productionPreviewId === null ? undefined : d.preview(next.productionPreviewId);
   const built = prod?.source.kind === "tarball" && prod.source.branch !== undefined;
