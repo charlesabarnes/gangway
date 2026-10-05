@@ -91,6 +91,7 @@ export type Project = {
   /** The wildcard domain its previews are named under; null follows the setting. */
   domain: string | null;
   productionPreviewId: string | null;
+  deployBranch: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -127,6 +128,7 @@ export const WATERMARK_CHOICES = ["inherit", "on", "off"] as const;
 export type WatermarkChoice = (typeof WATERMARK_CHOICES)[number];
 
 export type PullRequestRef = { repo: string; number: number; sha: string };
+export type BranchRef = { repo: string; branch: string; sha: string };
 
 export type PreviewSource =
   | { kind: "pr"; repo: string; number: number; sha: string; image?: string }
@@ -143,6 +145,7 @@ export type PreviewSource =
       serve?: "gangway";
       /** The pull request whose workflow uploaded it. */
       pr?: PullRequestRef;
+      branch?: BranchRef;
     }
   | { kind: "git"; repo: string; ref: string };
 

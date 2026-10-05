@@ -121,6 +121,7 @@ describe('the /v1 wire contract', () => {
       'watermark',
       'domain',
       'productionPreviewId',
+      'deployBranch',
       'createdAt',
       'updatedAt',
     ];

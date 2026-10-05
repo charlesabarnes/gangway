@@ -63,20 +63,22 @@ export function authenticate(d: AuthDeps): MiddlewareHandler<AppEnv> {
 async function authenticated(c: Context<AppEnv>, next: () => Promise<void>, d: AuthDeps) {
   const actor = await resolveActor(c, d);
   if (!actor) {
-    // Missing and wrong credentials get the same 401; a workflow token is only valid on its one route.
+    // Missing and wrong credentials get the same 401; a workflow token is only valid on its own routes.
     return problemResponse(c, unauthorized(), { "www-authenticate": 'Bearer realm="gangway"' });
   }
   if (actor.kind === "workflow" && !WORKFLOW_PATH.test(c.req.path)) {
     return problemResponse(
       c,
-      forbidden("a workflow token may only deploy and tear down its own project's pull requests"),
+      forbidden(
+        "a workflow token may only deploy its own project's pull requests and deploy branch",
+      ),
     );
   }
   c.set("actor", actor);
   return withOrg(actor.orgId, next);
 }
 
-const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
+const WORKFLOW_PATH = /^\/v1\/projects\/[^/]+\/(?:pulls\/\d+|branch)$/;
 
 export const PERMISSION_GUARD = Symbol("gangway.permission");
 

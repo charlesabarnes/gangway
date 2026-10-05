@@ -1,6 +1,6 @@
 // The specs of the tools that set things up rather than deploy: projects, themes and secrets.
 import { z } from "zod";
-import { ProjectSlugSchema, RepositorySchema } from "@gangway/shared/api";
+import { BranchNameSchema, ProjectSlugSchema, RepositorySchema } from "@gangway/shared/api";
 import {
   THEME_FONTS,
   THEME_TOKENS,
@@ -36,13 +36,16 @@ export const ProjectArgs = z.object({
   slug: ProjectSlugSchema.optional().describe(
     "The hostname stem of its previews (<slug>-pr-<n>) when it is new; derived from the name.",
   ),
+  branch: BranchNameSchema.optional().describe(
+    "Deploy this branch (e.g. main) on every push instead of previewing pull requests: gangway rebuilds the project's production preview in place, keeping its URL, volumes and secrets. Returns the push workflow. Needs repos.domains.",
+  ),
 });
 export type ProjectArgs = z.infer<typeof ProjectArgs>;
 
 export const PROJECT_TOOL = {
   title: "Connect a repository for PR previews",
   description:
-    "Set up pull-request previews for a GitHub repository: finds or creates its gangway project and returns the GitHub Actions workflow to commit at .github/workflows/gangway-preview.yml. Every pull request then builds the repository's Dockerfile on GitHub's runners and gets a preview URL in a comment. Call it only when the user asks for gangway PR previews on a repository. Needs the projects scope.",
+    "Set up pull-request previews for a GitHub repository: finds or creates its gangway project and returns the GitHub Actions workflow to commit at .github/workflows/gangway-preview.yml. Every pull request then builds the repository's Dockerfile on GitHub's runners and gets a preview URL in a comment. With branch, it instead returns .github/workflows/gangway-deploy.yml, which deploys that branch on every push as the project's production. Call it only when the user asks for gangway PR previews or branch deploys on a repository. Needs the projects scope.",
   inputSchema: plain(ProjectArgs),
   annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
 };

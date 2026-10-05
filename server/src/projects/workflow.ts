@@ -4,8 +4,10 @@ import { join } from "node:path";
 import type { Project } from "@gangway/shared/domain";
 
 const TEMPLATE = readFileSync(join(import.meta.dir, "workflow.template.yaml"), "utf8");
+const PUSH_TEMPLATE = readFileSync(join(import.meta.dir, "workflow-push.template.yaml"), "utf8");
 
 export const WORKFLOW_PATH_IN_REPO = ".github/workflows/gangway-preview.yml";
+export const PUSH_WORKFLOW_PATH_IN_REPO = ".github/workflows/gangway-deploy.yml";
 
 export function workflowFor(
   project: Pick<Project, "name" | "slug">,
@@ -16,4 +18,14 @@ export function workflowFor(
     .replaceAll("__API__", apiOrigin)
     .replaceAll("__SLUG__", project.slug)
     .replaceAll("__PORT__", String(port));
+}
+
+export function pushWorkflowFor(
+  project: Pick<Project, "name" | "slug"> & { deployBranch: string },
+  apiOrigin: string,
+): string {
+  return PUSH_TEMPLATE.replaceAll("__NAME__", project.name)
+    .replaceAll("__API__", apiOrigin)
+    .replaceAll("__SLUG__", project.slug)
+    .replaceAll("__BRANCH__", project.deployBranch);
 }

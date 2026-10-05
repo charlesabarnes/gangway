@@ -39,6 +39,8 @@ export type PreviewSource =
       serve?: 'gangway';
       /** The pull request whose workflow uploaded it. */
       pr?: { repo: string; number: number; sha: string };
+      /** The deploy branch push whose workflow uploaded it. */
+      branch?: { repo: string; branch: string; sha: string };
     }
   | { kind: 'git'; repo: string; ref: string };
 export type SourceKind = PreviewSource['kind'];
@@ -289,6 +291,8 @@ export type Project = {
   watermark: 'on' | 'off' | null;
   domain: string | null;
   productionPreviewId: string | null;
+  /** The branch a push workflow deploys as production; null for none. */
+  deployBranch: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -308,6 +312,7 @@ export type ProjectPatch = Partial<
     | 'forkClearance'
     | 'watermark'
     | 'domain'
+    | 'deployBranch'
   >
 > & { repository?: string | null };
 export type ProjectCreate = {

@@ -43,6 +43,7 @@ export type ProjectPatch = {
   watermark?: "on" | "off" | null | undefined;
   domain?: string | null | undefined;
   productionPreviewId?: string | null | undefined;
+  deployBranch?: string | null | undefined;
 };
 
 const COLUMNS: Record<keyof ProjectPatch, string> = {
@@ -62,6 +63,7 @@ const COLUMNS: Record<keyof ProjectPatch, string> = {
   watermark: "watermark",
   domain: "domain",
   productionPreviewId: "production_preview_id",
+  deployBranch: "deploy_branch",
 };
 
 export class ProjectsRepo {

@@ -300,6 +300,19 @@ export const PullUploadQuerySchema = z.object({
   port: z.coerce.number().int().min(1).max(65535).optional(),
 });
 
+/** A git branch name, as it follows refs/heads/ in a push's ref. */
+export const BranchNameSchema = z
+  .string()
+  .max(200)
+  .regex(
+    /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/,
+    "a branch name like main",
+  )
+  .refine(
+    (b) => !b.includes("..") && !b.endsWith(".lock") && !b.endsWith("."),
+    "a branch name like main",
+  );
+
 export const ProjectPatchSchema = z.strictObject({
   name: z.string().trim().min(1).max(64).optional(),
   repository: RepositorySchema.nullable().optional(),
@@ -315,6 +328,7 @@ export const ProjectPatchSchema = z.strictObject({
   forkClearance: z.enum(["none", "low", "standard", "high"]).optional(),
   watermark: z.enum(["on", "off"]).nullable().optional(),
   domain: DomainNameSchema.nullable().optional(),
+  deployBranch: BranchNameSchema.nullable().optional(),
 });
 export type ProjectPatchRequest = z.infer<typeof ProjectPatchSchema>;
 

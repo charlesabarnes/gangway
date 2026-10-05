@@ -5,12 +5,14 @@ import { PrPreviews } from "../forge/pr-previews.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { deploy, urlsFor } from "../previews/deploy.ts";
 import { destroy } from "../previews/destroy.ts";
+import { redeploy } from "../previews/redeploy.ts";
+import { Branches } from "../projects/branches.ts";
 import { Pulls, type PullsDeps } from "../projects/pulls.ts";
 import { SETTINGS } from "../settings.ts";
 import type { PreviewWiring } from "./context.ts";
 import type { Core } from "./core.ts";
 
-export type ForgeWiring = { githubApp: GitHubApp; hooks: Hooks; pulls: Pulls };
+export type ForgeWiring = { githubApp: GitHubApp; hooks: Hooks; pulls: Pulls; branches: Branches };
 
 export function createForge(
   core: Core,
@@ -49,7 +51,20 @@ export function createForge(
   });
   const hooks = new Hooks({ forge, service: prPreviews, logger: logger.child({ mod: "hooks" }) });
   const pulls = new Pulls({ projects: repos.projects, previews: actions });
-  return { githubApp, hooks, pulls };
+  const branches = new Branches({
+    projects: repos.projects,
+    previews: {
+      ...actions,
+      get: (id) => ctx.previews.get(id),
+      list: (f) => ctx.previews.list(f),
+      redeploy: (input) => redeploy(ctx, input),
+    },
+    audit: ctx.audit,
+    refreshDomains: () => {
+      core.domains.refresh();
+    },
+  });
+  return { githubApp, hooks, pulls, branches };
 }
 
 function previewActions(ctx: PreviewContext): PullsDeps["previews"] {

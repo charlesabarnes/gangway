@@ -35,6 +35,7 @@ import { DataBrowser } from "../previews/data/service.ts";
 import { urlsFor } from "../previews/deploy.ts";
 import type { IdempotentDeploys } from "../previews/idempotent.ts";
 import { previewAccess } from "../previews/password.ts";
+import type { Branches } from "../projects/branches.ts";
 import type { Pulls } from "../projects/pulls.ts";
 import type { Secrets } from "../secrets/secrets.ts";
 import type { Core } from "./core.ts";
@@ -62,6 +63,7 @@ export type ApiRouteDeps = Pick<
   identity: Identity;
   githubApp: GitHubApp;
   pulls: Pulls;
+  branches: Branches;
   mcp: McpSurface;
   mcpOn: () => boolean;
   signal: AbortSignal;
@@ -103,6 +105,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     previews: ctx.previews,
     templates: repos.templates,
     pulls: d.pulls,
+    branches: d.branches,
     apiOrigin,
     domains: ctx.domains,
     wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),
