@@ -1,5 +1,6 @@
 import type { Preview, Project } from "@gangway/shared/domain";
-import type { Actor } from "../auth/actor.ts";
+import { can, type Actor } from "../auth/actor.ts";
+import { forbidden } from "../errors.ts";
 import type { DomainView } from "../domains/claims.ts";
 
 /** The label a deploy branch is named with under `domain`, and a custom hostname to claim, if any. */
@@ -42,9 +43,13 @@ export function applyDeployHost(
   if (was.label === label && was.custom === custom) {
     return null;
   }
-  const claimed = custom !== null && !d.holds(next, custom) ? d.claim(actor, next, custom) : null;
+  const claiming = custom !== null && !d.holds(next, custom);
   const prod = next.productionPreviewId === null ? undefined : d.preview(next.productionPreviewId);
-  const built = prod?.source.kind === "tarball" && prod.source.branch !== undefined;
-  const renamed = prod && built ? d.relabel(prod.id, label) : new Map<string, string>();
+  const live = prod?.source.kind === "tarball" && prod.source.branch !== undefined ? prod : null;
+  if ((claiming || live) && !can(actor, "repos.domains")) {
+    throw forbidden('changing a repository\'s production address needs "repos.domains"');
+  }
+  const claimed = claiming ? d.claim(actor, next, custom) : null;
+  const renamed = live ? d.relabel(live.id, label) : new Map<string, string>();
   return { renamed: Object.fromEntries(renamed), claimed };
 }

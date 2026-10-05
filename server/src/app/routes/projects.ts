@@ -82,6 +82,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
       ? applyDeployHost(d.deployHost, c.get("actor"), before, {
           ...before,
           slug: patch.slug ?? before.slug,
+          domain: patch.domain === undefined ? before.domain : patch.domain,
           deployHost: patch.deployHost === undefined ? before.deployHost : patch.deployHost,
         })
       : null;
