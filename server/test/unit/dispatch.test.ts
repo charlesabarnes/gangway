@@ -385,10 +385,12 @@ describe("a private control plane", () => {
         headers: { host: `api.${BASE}`, ...(authorization ? { authorization } : {}) },
       });
     const jwt = "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJyZXBvIn0.c2ln";
-    for (const method of ["PUT", "DELETE"]) {
-      expect(
-        (await dispatch(call(method, "/v1/projects/site/pulls/12", jwt), stranger)).status,
-      ).toBe(200);
+    for (const [method, path] of [
+      ["PUT", "/v1/projects/site/pulls/12"],
+      ["DELETE", "/v1/projects/site/pulls/12"],
+      ["PUT", "/v1/projects/site/branch"],
+    ] as const) {
+      expect((await dispatch(call(method, path, jwt), stranger)).status).toBe(200);
     }
     for (const [method, path, auth] of [
       ["PUT", "/v1/projects/site/pulls/12", "Bearer gw_notajwt"],
@@ -396,6 +398,10 @@ describe("a private control plane", () => {
       ["GET", "/v1/projects/site/pulls/12", jwt],
       ["PUT", "/v1/projects/site", jwt],
       ["PUT", "/v1/projects/site/pulls/12/x", jwt],
+      ["PUT", "/v1/projects/site/branch", "Bearer gw_notajwt"],
+      ["GET", "/v1/projects/site/branch", jwt],
+      ["DELETE", "/v1/projects/site/branch", jwt],
+      ["PUT", "/v1/projects/site/branch/x", jwt],
       ["POST", "/v1/previews", jwt],
     ] as const) {
       expect((await dispatch(call(method, path, auth), stranger)).status).toBe(404);
