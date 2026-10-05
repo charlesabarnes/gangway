@@ -97,7 +97,7 @@ export class Branches {
         sha: req.sha,
       };
       const push: Push = { project, req, commit, actor };
-      const { target, production } = this.#target(project.id);
+      const { target, production } = this.#target(project.id, commit);
       const was = target?.source.kind === "tarball" ? target.source.branch : undefined;
       if (
         target &&
@@ -125,7 +125,10 @@ export class Branches {
   }
 
   /** The preview a push rebuilds: production, else the last branch deploy, not yet or no longer it. */
-  #target(projectId: string): { target: Preview | undefined; production: boolean } {
+  #target(
+    projectId: string,
+    commit: BranchRef,
+  ): { target: Preview | undefined; production: boolean } {
     const current = this.#d.projects.find(projectId);
     const prodId = current?.productionPreviewId ?? null;
     const prod = prodId === null ? undefined : this.#d.previews.get(prodId);
@@ -135,9 +138,15 @@ export class Branches {
         .find((p) => p.source.kind === "tarball" && p.source.branch);
       return { target: last, production: false };
     }
-    if (prod.source.kind !== "tarball" || !prod.source.branch) {
+    const built = prod.source.kind === "tarball" ? prod.source.branch : undefined;
+    if (!built) {
       throw conflict(
         `project "${current?.slug ?? projectId}"'s production is preview ${prod.id}, chosen by hand; choose none, and the next push becomes production`,
+      );
+    }
+    if (built.repo.toLowerCase() !== commit.repo.toLowerCase() || built.branch !== commit.branch) {
+      throw conflict(
+        `project "${current?.slug ?? projectId}"'s production is preview ${prod.id}, built from ${built.repo}@${built.branch}; choose none, and the next push rebuilds it from ${commit.branch}`,
       );
     }
     return { target: prod, production: true };

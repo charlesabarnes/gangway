@@ -160,6 +160,23 @@ describe("/v1/projects/:ref/branch", () => {
     expect((await queued).status).toBe(403);
   });
 
+  test("production built from another branch waits until it is unset", async () => {
+    const t = setup();
+    const first = ((await (await t.put(SHA)).json()) as any).preview;
+    t.projects.update("P1", { deployBranch: "release" });
+    const refused = await t.put(B, "v2", push("refs/heads/release"));
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as any).detail).toContain("built from acme/web-app@main");
+    t.projects.update("P1", { productionPreviewId: null });
+    const res = await t.put(B, "v2", push("refs/heads/release"));
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as any).preview).toMatchObject({
+      id: first.id,
+      source: { branch: { branch: "release", sha: B } },
+    });
+    expect(t.projects.get("P1")!.productionPreviewId).toBe(first.id);
+  });
+
   test("a production preview chosen by hand is not taken over", async () => {
     const t = setup();
     const other = await t.call("/v1/projects/web-app/pulls/7?wait=true", {
