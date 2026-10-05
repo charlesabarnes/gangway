@@ -1,0 +1,105 @@
+.badges {
+  display: flex;
+  flex-direction: column;
+}
+.badge-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  padding: 32px 0;
+  border-bottom: 1px dotted var(--rule);
+}
+.badge-section:last-child {
+  border-bottom: 0;
+}
+.badge-aside {
+  flex: 0 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.badge-aside h2 {
+  margin: 0;
+  font: italic 400 22px/1.15 var(--font-serif);
+}
+.badge-aside p {
+  margin: 0;
+  font: 400 14px/1.45 var(--font-sans);
+  color: var(--ink-muted);
+}
+.badge-body {
+  flex: 1 1 480px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.badge-grounds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 1px;
+  background: var(--rule);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+/* The grounds are GitHub's own page colours, so they stay fixed in both themes. */
+.badge-ground {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 28px 24px;
+}
+.badge-ground span {
+  font: 600 11px/1 var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.badge-ground--light {
+  background: #ffffff;
+  color: #57606a;
+}
+.badge-ground--dark {
+  background: #0d1117;
+  color: #8b949e;
+}
+.snippet {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--log-bg);
+  color: var(--log-stdout);
+}
+.snippet pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-color: var(--log-build) transparent;
+}
+.snippet code {
+  font: 400 13px/1.6 var(--font-mono);
+}
+.command-copy {
+  flex-shrink: 0;
+  border: 0;
+  cursor: pointer;
+  padding: 3px 10px;
+  background: var(--flag);
+  color: var(--on-flag);
+  font: 600 11px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.badge-files {
+  gap: 8px;
+  font: 400 13px/1.5 var(--font-mono);
+}
+.badge-files a {
+  color: var(--ink);
+  text-underline-offset: 2px;
+  text-decoration: none;
+}
+.badge-files a:hover {
+  text-decoration: underline;
+}
