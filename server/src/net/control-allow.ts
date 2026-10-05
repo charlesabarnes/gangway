@@ -18,18 +18,17 @@ export function isPublicControlPath(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname) || pathname.startsWith(FONT_PATH);
 }
 
-// A PR workflow calls from GitHub's runners with an OIDC JWT; gangway's own tokens are not JWTs.
+// A PR or push workflow calls from GitHub's runners with an OIDC JWT; gangway's own tokens are not JWTs.
 const PULL_PREVIEW_PATH = /^\/v1\/projects\/[^/]+\/pulls\/\d+$/;
+const BRANCH_PATH = /^\/v1\/projects\/[^/]+\/branch$/;
 const JWT_BEARER = /^Bearer\s+[\w-]+\.[\w-]+\.[\w-]+$/i;
 
 export function isWorkflowPreviewCall(req: Request): boolean {
-  if (req.method !== "PUT" && req.method !== "DELETE") {
-    return false;
-  }
-  if (!PULL_PREVIEW_PATH.test(new URL(req.url).pathname)) {
-    return false;
-  }
-  return JWT_BEARER.test(req.headers.get("authorization") ?? "");
+  const path = new URL(req.url).pathname;
+  const route =
+    ((req.method === "PUT" || req.method === "DELETE") && PULL_PREVIEW_PATH.test(path)) ||
+    (req.method === "PUT" && BRANCH_PATH.test(path));
+  return route && JWT_BEARER.test(req.headers.get("authorization") ?? "");
 }
 
 // Behind a proxy, a client gangway cannot see past looks like the proxy itself.
