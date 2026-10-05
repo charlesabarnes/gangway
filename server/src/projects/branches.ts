@@ -28,7 +28,6 @@ export type BranchesDeps = {
     sealedSecrets?(id: string): string | null;
   };
   audit: AuditSink;
-  /** The label its branch deploy is named with: the project's deploy host, else its slug. */
   labelFor(project: Project): string;
   relabel(previewId: string, label: string): void;
   refreshDomains(): void;
