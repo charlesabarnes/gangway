@@ -313,6 +313,15 @@ export const BranchNameSchema = z
     "a branch name like main",
   );
 
+/** A label under the server's domain (no "--": another org's names end in it), or a hostname. */
+export const DeployHostSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/, "a label like codeducky")
+  .refine((v) => !v.includes("--"), "a label without --")
+  .or(DomainNameSchema);
+
 export const ProjectPatchSchema = z.strictObject({
   name: z.string().trim().min(1).max(64).optional(),
   repository: RepositorySchema.nullable().optional(),
@@ -329,6 +338,7 @@ export const ProjectPatchSchema = z.strictObject({
   watermark: z.enum(["on", "off"]).nullable().optional(),
   domain: DomainNameSchema.nullable().optional(),
   deployBranch: BranchNameSchema.nullable().optional(),
+  deployHost: DeployHostSchema.nullable().optional(),
 });
 export type ProjectPatchRequest = z.infer<typeof ProjectPatchSchema>;
 

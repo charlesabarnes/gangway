@@ -23,6 +23,7 @@ import { readJson } from "../problem.ts";
 import { isTarballRequest } from "./previews.ts";
 import type { PreviewUrl } from "../../previews/deploy-types.ts";
 import type { Branches } from "../../projects/branches.ts";
+import { applyDeployHost, type DeployHostDeps } from "../../projects/deploy-host.ts";
 import type { PullDeployRequest, Pulls } from "../../projects/pulls.ts";
 import {
   pushWorkflowFor,
@@ -46,6 +47,7 @@ export type ProjectRouteDeps = {
   templates?: Pick<TemplatesRepo, "get"> | undefined;
   pulls?: Pulls | undefined;
   branches?: Branches | undefined;
+  deployHost?: DeployHostDeps | undefined;
   wire?: ((p: Preview) => Preview & { urls: PreviewUrl[] }) | undefined;
   apiOrigin?: (() => string) | undefined;
   domains?: DomainRegistry | undefined;
@@ -70,11 +72,17 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
     const before = findProject(projects, c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
-    checkPatch(d, c.get("actor"), before, patch);
-    if (repository !== undefined && repository !== before.fullName) {
-      if (repository !== null) {
-        checkRepository(projects, repository, before.id);
-      }
+    const actor = c.get("actor");
+    checkPatch(d, actor, before, patch);
+    const repoChanges = repository !== undefined && repository !== before.fullName;
+    if (repoChanges && repository !== null) {
+      checkRepository(projects, repository, before.id);
+    }
+    // Last before the writes: everything else in the patch has passed.
+    const applied = d.deployHost
+      ? applyDeployHost(d.deployHost, actor, before, patched(before, patch))
+      : null;
+    if (repoChanges) {
       projects.setRepository(before.id, repository === null ? null : "github", repository);
     }
     const after = projects.update(before.id, {
@@ -84,17 +92,12 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (!after) {
       throw notFound(`no such project: ${before.slug}`);
     }
-    audit.record(c.get("actor"), "project.updated", before.id, {
-      old: auditFields(before),
-      new: auditFields(after),
+    recordPatch(audit, actor, before, after);
+    return c.json({
+      project: after,
+      ...(applied && Object.keys(applied.renamed).length > 0 ? { renamed: applied.renamed } : {}),
+      ...(applied?.claimed ? { domain: applied.claimed } : {}),
     });
-    if (after.domain !== before.domain) {
-      audit.record(c.get("actor"), "project.domain", before.id, {
-        old: before.domain,
-        new: after.domain,
-      });
-    }
-    return c.json({ project: after });
   });
 
   api.delete("/projects/:ref", requirePermission("repos.manage"), (c) => {
@@ -109,6 +112,26 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
   projectSecretRoutes(api, d);
   projectPullRoutes(api, d);
+}
+
+/** The fields that decide its addresses, as the patch would leave them. */
+function patched(before: Project, patch: Omit<ProjectPatchRequest, "repository">): Project {
+  return {
+    ...before,
+    slug: patch.slug ?? before.slug,
+    domain: patch.domain === undefined ? before.domain : patch.domain,
+    deployHost: patch.deployHost === undefined ? before.deployHost : patch.deployHost,
+  };
+}
+
+function recordPatch(audit: AuditSink, actor: Actor, before: Project, after: Project): void {
+  audit.record(actor, "project.updated", before.id, {
+    old: auditFields(before),
+    new: auditFields(after),
+  });
+  if (after.domain !== before.domain) {
+    audit.record(actor, "project.domain", before.id, { old: before.domain, new: after.domain });
+  }
 }
 
 function checkPatch(
@@ -134,9 +157,12 @@ function checkPatch(
   }
   // A deploy branch hands the project's production preview to its pushes.
   const branchChanges =
-    patch.deployBranch !== undefined && patch.deployBranch !== before.deployBranch;
+    (patch.deployBranch !== undefined && patch.deployBranch !== before.deployBranch) ||
+    (patch.deployHost !== undefined && patch.deployHost !== before.deployHost);
   if (branchChanges && !can(actor, "repos.domains")) {
-    throw forbidden('choosing the branch a repository deploys as production needs "repos.domains"');
+    throw forbidden(
+      'choosing the branch a repository deploys as production, or its address, needs "repos.domains"',
+    );
   }
   if (patch.slug !== undefined && patch.slug !== before.slug) {
     checkSlugFree(d.projects, patch.slug);

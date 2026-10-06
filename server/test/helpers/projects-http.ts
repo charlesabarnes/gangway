@@ -21,6 +21,9 @@ import { PolicyResolver } from "../../src/previews/policy.ts";
 import { SiteStore } from "../../src/previews/site.ts";
 import { SourceStore } from "../../src/previews/source/store.ts";
 import { Branches } from "../../src/projects/branches.ts";
+import { deployHostOf } from "../../src/projects/deploy-host.ts";
+import { relabelPreview } from "../../src/previews/relabel.ts";
+import { conflict } from "../../src/errors.ts";
 import { Pulls } from "../../src/projects/pulls.ts";
 import { redeploy } from "../../src/previews/redeploy.ts";
 import { SecretBox } from "../../src/secrets/box.ts";
@@ -87,11 +90,16 @@ export function make() {
       sealedSecrets: (id) => s.ctx.previews.envCiphertext(id),
     },
     audit: s.ctx.audit,
+    labelFor: (project) => deployHostOf(project, s.ctx.previewDomain()).label,
+    relabel: (id, label) => {
+      relabelPreview(s.ctx, id, label);
+    },
     refreshDomains: () => {
       refreshes++;
     },
   });
   let refreshes = 0;
+  const claims: string[] = [];
   const verifyWorkflow = (presented: string): Actor | null => {
     const m = /^wf:([^:]+):([^:]+):(.+)$/.exec(presented);
     const run = { runId: "42", actor: "dev" };
@@ -116,6 +124,16 @@ export function make() {
         templates,
         pulls,
         branches,
+        deployHost: {
+          domainOf: () => s.ctx.previewDomain(),
+          preview: (id) => s.ctx.previews.get(id),
+          relabel: (id, label) => relabelPreview(s.ctx, id, label),
+          holds: () => false,
+          claim: (_actor, _project, name) => {
+            claims.push(name);
+            throw conflict(`claimed ${name} in a test`);
+          },
+        },
         apiOrigin: () => "https://api.preview.localhost:8443",
         wire: (p) => ({ ...p, urls: urlsFor(s.ctx, p.id) }),
       });
@@ -166,5 +184,5 @@ export function make() {
     registry: { username: "dev", password: "ghs_registry_token_value" },
     ...over,
   });
-  return { s, projects, secrets, call, body, refreshes: () => refreshes };
+  return { s, projects, secrets, call, body, refreshes: () => refreshes, claims };
 }

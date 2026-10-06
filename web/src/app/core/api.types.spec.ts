@@ -122,6 +122,7 @@ describe('the /v1 wire contract', () => {
       'domain',
       'productionPreviewId',
       'deployBranch',
+      'deployHost',
       'createdAt',
       'updatedAt',
     ];

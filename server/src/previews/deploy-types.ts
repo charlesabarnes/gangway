@@ -64,6 +64,7 @@ export type DeployInput = {
   carrySecrets?: string | null | undefined;
   secretLevel?: Clearance | undefined;
   name?: string | undefined;
+  fixedName?: boolean | undefined;
   title?: string | undefined;
   icon?: PreviewIcon | undefined;
   visibility?: Visibility | undefined;

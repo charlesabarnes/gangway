@@ -40,6 +40,9 @@ import type { Pulls } from "../projects/pulls.ts";
 import type { Secrets } from "../secrets/secrets.ts";
 import type { Core } from "./core.ts";
 import { claimDeps } from "./domains.ts";
+import { claimDomain } from "../domains/claims.ts";
+import { relabelPreview } from "../previews/relabel.ts";
+import type { DeployHostDeps } from "../projects/deploy-host.ts";
 import type { Identity } from "./identity.ts";
 
 export type ApiRouteDeps = Pick<
@@ -68,6 +71,18 @@ export type ApiRouteDeps = Pick<
   mcpOn: () => boolean;
   signal: AbortSignal;
 };
+
+function deployHostDeps(d: ApiRouteDeps): DeployHostDeps {
+  const { ctx, repos } = d;
+  return {
+    domainOf: (project) => ctx.domains?.resolve({ project }) ?? ctx.previewDomain(),
+    preview: (id) => ctx.previews.get(id),
+    relabel: (id, label) => relabelPreview(ctx, id, label),
+    holds: (project, name) => repos.domains.byName(name)?.projectId === project.id,
+    claim: (actor, project, name) =>
+      claimDomain(claimDeps(d), actor, { kind: "project", project }, { name, kind: "exact" }),
+  };
+}
 
 export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   const { ctx, repos, audit, settings, identity } = d;
@@ -106,6 +121,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     templates: repos.templates,
     pulls: d.pulls,
     branches: d.branches,
+    deployHost: deployHostDeps(d),
     apiOrigin,
     domains: ctx.domains,
     wire: (p) => ({ ...p, access: previewAccess(ctx.passwords, p), urls: urlsFor(ctx, p.id) }),

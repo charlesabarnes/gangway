@@ -28,6 +28,8 @@ export type BranchesDeps = {
     sealedSecrets?(id: string): string | null;
   };
   audit: AuditSink;
+  labelFor(project: Project): string;
+  relabel(previewId: string, label: string): void;
   refreshDomains(): void;
 };
 
@@ -180,7 +182,8 @@ export class Branches {
     }
     const result = await this.#d.previews.deploy({
       actor,
-      name: project.slug,
+      name: this.#d.labelFor(project),
+      fixedName: true,
       projectId: project.id,
       ttl: null,
       ...(stale?.secretLevel ? { secretLevel: stale.secretLevel } : {}),
@@ -212,6 +215,12 @@ export class Branches {
     const project = this.#d.projects.find(projectId);
     if (project?.productionPreviewId !== null || project.deployBranch !== branch) {
       return;
+    }
+    // The address may have changed while it built; a name taken meanwhile keeps the one it has.
+    try {
+      this.#d.relabel(previewId, this.#d.labelFor(project));
+    } catch {
+      // Renamed later from the project's settings.
     }
     if (this.#d.previews.get(previewId)?.state !== "awake") {
       return;

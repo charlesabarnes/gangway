@@ -7,6 +7,8 @@ import { deploy, urlsFor } from "../previews/deploy.ts";
 import { destroy } from "../previews/destroy.ts";
 import { redeploy } from "../previews/redeploy.ts";
 import { Branches } from "../projects/branches.ts";
+import { deployHostOf } from "../projects/deploy-host.ts";
+import { relabelPreview } from "../previews/relabel.ts";
 import { Pulls, type PullsDeps } from "../projects/pulls.ts";
 import { SETTINGS } from "../settings.ts";
 import type { PreviewWiring } from "./context.ts";
@@ -60,6 +62,10 @@ export function createForge(
       redeploy: (input) => redeploy(ctx, input),
     },
     audit: ctx.audit,
+    relabel: (id, label) => {
+      relabelPreview(ctx, id, label);
+    },
+    labelFor: (project) => deployHostOf(project, core.domains.resolve({ project })).label,
     refreshDomains: () => {
       core.domains.refresh();
     },

@@ -44,6 +44,7 @@ export type ProjectPatch = {
   domain?: string | null | undefined;
   productionPreviewId?: string | null | undefined;
   deployBranch?: string | null | undefined;
+  deployHost?: string | null | undefined;
 };
 
 const COLUMNS: Record<keyof ProjectPatch, string> = {
@@ -64,6 +65,7 @@ const COLUMNS: Record<keyof ProjectPatch, string> = {
   domain: "domain",
   productionPreviewId: "production_preview_id",
   deployBranch: "deploy_branch",
+  deployHost: "deploy_host",
 };
 
 export class ProjectsRepo {
