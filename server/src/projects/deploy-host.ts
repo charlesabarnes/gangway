@@ -37,11 +37,12 @@ export function applyDeployHost(
   before: Project,
   next: Project,
 ): { renamed: Record<string, string>; claimed: DomainView | null } | null {
-  const fields = (p: Project) => [p.slug, p.domain, p.deployHost].join("\n");
-  if (fields(before) === fields(next)) {
+  const was = deployHostOf(before, d.domainOf(before));
+  const { label, custom } = deployHostOf(next, d.domainOf(next));
+  const same = was.label === label && was.custom === custom;
+  if (same && before.deployHost === next.deployHost) {
     return null;
   }
-  const { label, custom } = deployHostOf(next, d.domainOf(next));
   const claiming = custom !== null && !d.holds(next, custom);
   const prod = next.productionPreviewId === null ? undefined : d.preview(next.productionPreviewId);
   const live = prod?.source.kind === "tarball" && prod.source.branch !== undefined ? prod : null;
