@@ -30,7 +30,7 @@ export type DeployHostDeps = {
   claim(actor: Actor, project: Project, name: string): DomainView;
 };
 
-/** Before saving: claim a custom hostname, and rename a live branch deploy in place. */
+/** Before saving: claim a custom hostname, and rename a live branch deploy from its own name. */
 export function applyDeployHost(
   d: DeployHostDeps,
   actor: Actor,
@@ -41,7 +41,6 @@ export function applyDeployHost(
   if (fields(before) === fields(next)) {
     return null;
   }
-  // Against the live deploy's own name, which may predate the setting: relabel skips a no-op.
   const { label, custom } = deployHostOf(next, d.domainOf(next));
   const claiming = custom !== null && !d.holds(next, custom);
   const prod = next.productionPreviewId === null ? undefined : d.preview(next.productionPreviewId);
