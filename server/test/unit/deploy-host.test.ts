@@ -57,5 +57,7 @@ describe("applyDeployHost", () => {
     expect(applyDeployHost(deps(renames), admin, project, next)).not.toBeNull();
     expect(renames).toEqual(["p1:shop"]);
     expect(applyDeployHost(deps(renames), managerOnly, project, project)).toBeNull();
+    const named = { ...project, deployHost: "duck" };
+    expect(applyDeployHost(deps(renames), managerOnly, named, { ...named, slug: "x" })).toBeNull();
   });
 });

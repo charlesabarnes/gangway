@@ -30,17 +30,17 @@ export type DeployHostDeps = {
   claim(actor: Actor, project: Project, name: string): DomainView;
 };
 
-/** Before saving: claim a custom hostname, and rename a live branch deploy in place. */
+/** Before saving: claim a custom hostname, and rename a live branch deploy from its own name. */
 export function applyDeployHost(
   d: DeployHostDeps,
   actor: Actor,
   before: Project,
   next: Project,
 ): { renamed: Record<string, string>; claimed: DomainView | null } | null {
-  const domain = d.domainOf(next);
-  const was = deployHostOf(before, domain);
-  const { label, custom } = deployHostOf(next, domain);
-  if (was.label === label && was.custom === custom) {
+  const was = deployHostOf(before, d.domainOf(before));
+  const { label, custom } = deployHostOf(next, d.domainOf(next));
+  const same = was.label === label && was.custom === custom;
+  if (same && before.deployHost === next.deployHost) {
     return null;
   }
   const claiming = custom !== null && !d.holds(next, custom);

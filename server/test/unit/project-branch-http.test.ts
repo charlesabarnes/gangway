@@ -344,4 +344,17 @@ describe("/v1/projects/:ref/branch", () => {
     expect(t.projects.get("P1")!.productionPreviewId).toBe(id);
     expect(t.s.ctx.table.forPreview(id).map((e) => e.hostname)).toEqual(["duck.preview.localhost"]);
   });
+
+  test("setting the address renames a deploy named before fixed names, even to its slug", async () => {
+    const t = setup();
+    const { id } = ((await (await t.put(SHA)).json()) as any).preview;
+    t.s.ctx.table.relabel(id, "web-app", "web-app-82wk0nfpxc");
+    const res = await t.call("/v1/projects/web-app", {
+      method: "PATCH",
+      json: { deployHost: "web-app" },
+    });
+    expect(((await res.json()) as any).renamed).toEqual({
+      "web-app-82wk0nfpxc.preview.localhost": "web-app.preview.localhost",
+    });
+  });
 });
