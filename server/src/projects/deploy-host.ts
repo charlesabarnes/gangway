@@ -37,12 +37,12 @@ export function applyDeployHost(
   before: Project,
   next: Project,
 ): { renamed: Record<string, string>; claimed: DomainView | null } | null {
-  const domain = d.domainOf(next);
-  const was = deployHostOf(before, domain);
-  const { label, custom } = deployHostOf(next, domain);
-  if (was.label === label && was.custom === custom) {
+  const fields = (p: Project) => [p.slug, p.domain, p.deployHost].join("\n");
+  if (fields(before) === fields(next)) {
     return null;
   }
+  // Against the live deploy's own name, which may predate the setting: relabel skips a no-op.
+  const { label, custom } = deployHostOf(next, d.domainOf(next));
   const claiming = custom !== null && !d.holds(next, custom);
   const prod = next.productionPreviewId === null ? undefined : d.preview(next.productionPreviewId);
   const live = prod?.source.kind === "tarball" && prod.source.branch !== undefined ? prod : null;
