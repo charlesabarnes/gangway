@@ -72,19 +72,15 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
   api.patch("/projects/:ref", requirePermission("repos.manage"), async (c) => {
     const before = findProject(projects, c.req.param("ref"));
     const { repository, ...patch } = ProjectPatchSchema.parse(await readJson(c));
-    checkPatch(d, c.get("actor"), before, patch);
+    const actor = c.get("actor");
+    checkPatch(d, actor, before, patch);
     const repoChanges = repository !== undefined && repository !== before.fullName;
     if (repoChanges && repository !== null) {
       checkRepository(projects, repository, before.id);
     }
     // Last before the writes: everything else in the patch has passed.
     const applied = d.deployHost
-      ? applyDeployHost(d.deployHost, c.get("actor"), before, {
-          ...before,
-          slug: patch.slug ?? before.slug,
-          domain: patch.domain === undefined ? before.domain : patch.domain,
-          deployHost: patch.deployHost === undefined ? before.deployHost : patch.deployHost,
-        })
+      ? applyDeployHost(d.deployHost, actor, before, patched(before, patch))
       : null;
     if (repoChanges) {
       projects.setRepository(before.id, repository === null ? null : "github", repository);
@@ -96,16 +92,7 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
     if (!after) {
       throw notFound(`no such project: ${before.slug}`);
     }
-    audit.record(c.get("actor"), "project.updated", before.id, {
-      old: auditFields(before),
-      new: auditFields(after),
-    });
-    if (after.domain !== before.domain) {
-      audit.record(c.get("actor"), "project.domain", before.id, {
-        old: before.domain,
-        new: after.domain,
-      });
-    }
+    recordPatch(audit, actor, before, after);
     return c.json({
       project: after,
       ...(applied && Object.keys(applied.renamed).length > 0 ? { renamed: applied.renamed } : {}),
@@ -125,6 +112,26 @@ export function projectRoutes(api: Hono<AppEnv>, d: ProjectRouteDeps): void {
 
   projectSecretRoutes(api, d);
   projectPullRoutes(api, d);
+}
+
+/** The fields that decide its addresses, as the patch would leave them. */
+function patched(before: Project, patch: Omit<ProjectPatchRequest, "repository">): Project {
+  return {
+    ...before,
+    slug: patch.slug ?? before.slug,
+    domain: patch.domain === undefined ? before.domain : patch.domain,
+    deployHost: patch.deployHost === undefined ? before.deployHost : patch.deployHost,
+  };
+}
+
+function recordPatch(audit: AuditSink, actor: Actor, before: Project, after: Project): void {
+  audit.record(actor, "project.updated", before.id, {
+    old: auditFields(before),
+    new: auditFields(after),
+  });
+  if (after.domain !== before.domain) {
+    audit.record(actor, "project.domain", before.id, { old: before.domain, new: after.domain });
+  }
 }
 
 function checkPatch(
