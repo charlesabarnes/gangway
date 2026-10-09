@@ -33,6 +33,7 @@ export class Uploads {
   readonly #url: (id: string) => string;
   readonly #now: () => number;
   readonly #maxBytes: number;
+  readonly #admit: (actor: Actor) => void;
   readonly #slots = new Map<string, Slot>();
 
   constructor(o: {
@@ -40,11 +41,14 @@ export class Uploads {
     url: (id: string) => string;
     now?: () => number;
     maxBytes?: number;
+    /** Throws when the actor may not upload at all, such as for a suspended org. */
+    admit?: (actor: Actor) => void;
   }) {
     this.#dir = o.dir;
     this.#url = o.url;
     this.#now = o.now ?? Date.now;
     this.#maxBytes = o.maxBytes ?? MAX_UPLOAD_BYTES;
+    this.#admit = o.admit ?? (() => {});
     mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
     for (const f of readdirSync(this.#dir)) {
       rmSync(join(this.#dir, f), { force: true, recursive: true });
@@ -66,6 +70,7 @@ export class Uploads {
   }
 
   issue(actor: Actor): Issued {
+    this.#admit(actor);
     this.#sweep();
     const owner = actorId(actor);
     const mine = [...this.#slots.values()].filter(

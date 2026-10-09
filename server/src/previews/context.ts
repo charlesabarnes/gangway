@@ -26,6 +26,7 @@ import type { DomainRegistry } from "../domains/registry.ts";
 import type { Shares } from "../share/shares.ts";
 import type { Slots } from "../util/async.ts";
 import type { OrgLimits } from "@gangway/shared/orgs-api";
+import type { Blocks } from "../tenancy/blocks.ts";
 
 export type PreviewTimings = {
   startTimeoutMs: number;
@@ -88,6 +89,8 @@ export type PreviewContext = {
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
   orgSuffix?: ((orgId: string) => string | null) | undefined;
   orgLimits?: ((orgId: string) => OrgLimits | undefined) | undefined;
+  /** Suspended orgs and taken-down hostnames: changes refused, and 410 where served. */
+  blocks?: Blocks | undefined;
 };
 
 export type PlanningContext = Pick<

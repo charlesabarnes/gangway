@@ -5,6 +5,7 @@ import {
   buildingPage,
   busyPage,
   failedPage,
+  gonePage,
   misdirectedPage,
   payloadTooLargePage,
   tooManyPage,
@@ -60,6 +61,7 @@ export type DispatchDeps = {
   ) => Response | Promise<Response> | null;
   /** Whether a preview asks for a sign-in or a password; its responses are then kept from shared caches. */
   restricted?: (entry: RouteEntry) => boolean;
+  gone?: (host: string, previewId?: string) => boolean;
   logTailFor?: (previewId: string) => string[];
   logUrlFor?: (previewId: string) => string | undefined;
   clientIpFor: (req: Request) => string;
@@ -215,6 +217,9 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
   }
 
   const entry = d.table.lookup(host);
+  if (d.gone?.(host, entry?.previewId)) {
+    return gonePage(host);
+  }
   if (!entry) {
     return unknownPage(host);
   }

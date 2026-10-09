@@ -19,6 +19,8 @@ import { SecretBox, loadOrCreateSecretsKey } from "../secrets/box.ts";
 import { Secrets } from "../secrets/secrets.ts";
 import { SETTINGS } from "../settings.ts";
 import { noRoomForBuild } from "../previews/build-room.ts";
+import { Blocks } from "../tenancy/blocks.ts";
+import { withOrg } from "../tenancy/scope.ts";
 import { Slots } from "../util/async.ts";
 import { parseBytes } from "../util/bytes.ts";
 import { idleMs } from "../util/duration.ts";
@@ -131,14 +133,30 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
   return { ctx, policy, secrets, previewPasswords, triggerDefault };
 }
 
-function orgPartsFrom(repos: Repos): Pick<PreviewContext, "orgSuffix" | "orgLimits"> {
+function orgPartsFrom(repos: Repos): Pick<PreviewContext, "orgSuffix" | "orgLimits" | "blocks"> {
   return {
+    blocks: blocksFrom(repos),
     orgSuffix: (orgId) => {
       const org = repos.orgs.get(orgId);
       return org && !org.home ? org.slug : null;
     },
     orgLimits: (orgId) => repos.orgs.limitsOf(orgId)?.limits,
   };
+}
+
+// What the operator stopped before this boot, read back so serving answers 410 again.
+function blocksFrom(repos: Repos): Blocks {
+  const blocks = new Blocks();
+  for (const orgId of repos.orgs.suspendedIds()) {
+    blocks.suspend(
+      orgId,
+      withOrg(orgId, () => repos.previews.list()).map((p) => p.id),
+    );
+  }
+  for (const t of repos.takedowns.list()) {
+    blocks.takeDown(t.previewId, [t.hostname]);
+  }
+  return blocks;
 }
 
 function composeFor(dockerClients: DockerClients, repos: Repos): ComposeRunner {
