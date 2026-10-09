@@ -54,6 +54,7 @@ only the hostnames change. A name that another preview already holds is refused.
   push answers 409. Clear the project's production, and the next push rebuilds it as the branch
   deploy.
 - **A project with no deploy branch.** The push answers 409. Choose one in the project's settings.
+- **A disabled project.** The push answers 409. Enable the project first.
 - **A push from another branch or repository.** The push answers 403: the token says where the
   run came from.
 
