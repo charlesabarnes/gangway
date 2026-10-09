@@ -73,7 +73,8 @@ export class OrgsRepo {
 
   setState(id: string, state: OrgState): void {
     this.#db.run(
-      "UPDATE orgs SET state = $state, updated_at = $now WHERE id = $id AND state <> $state",
+      `UPDATE orgs SET state = $state, updated_at = max(updated_at + 1, $now)
+        WHERE id = $id AND state <> $state`,
       { id, state, now: this.#now() },
     );
   }

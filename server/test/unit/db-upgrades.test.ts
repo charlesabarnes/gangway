@@ -512,9 +512,11 @@ for (const [name, open] of DRIVERS) {
         `INSERT INTO memberships (org_id, user_id, role_id, created_at) VALUES ('${HOME_ORG_ID}', 'u1', 'admin', 1)`,
       );
       expect(updated()).toBeGreaterThan(1);
-      db.run("UPDATE orgs SET updated_at = 1");
+      // Ahead of the clock, as a second change in the same millisecond would be: it still moves.
+      const ahead = Date.now() + 60_000;
+      db.run(`UPDATE orgs SET updated_at = ${ahead}`);
       db.run("DELETE FROM users WHERE id = 'u1'");
-      expect(updated()).toBeGreaterThan(1);
+      expect(updated()).toBe(ahead + 1);
       db.close();
     });
   });
