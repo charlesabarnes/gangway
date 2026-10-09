@@ -142,6 +142,7 @@ const SETTING_ENV_MAP = {
   GANGWAY_SSO_SIGNUP: "auth.sso.signup",
   GANGWAY_SSO_SIGNUP_ISSUER: "auth.sso.signupIssuer",
   GANGWAY_SSO_SIGNUP_LIMITS: "auth.sso.signupLimits",
+  GANGWAY_BILLING_URL: "instance.billingUrl",
   GANGWAY_PREVIEW_MEMORY: "previews.limits.memory",
   GANGWAY_PREVIEW_CPUS: "previews.limits.cpus",
   GANGWAY_PREVIEW_PIDS: "previews.limits.pids",

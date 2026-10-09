@@ -9,6 +9,7 @@ import { addonRoutes } from "../app/routes/addons.ts";
 import { artifactRoutes } from "../app/routes/artifacts.ts";
 import { auditRoutes } from "../app/routes/audit.ts";
 import { operatorRoutes } from "../app/routes/operator.ts";
+import { orgRoutes, type OrgRouteDeps } from "../app/routes/org.ts";
 import { authRoutes } from "../app/routes/auth.ts";
 import { domainRoutes } from "../app/routes/domains.ts";
 import { eventRoutes } from "../app/routes/events.ts";
@@ -38,6 +39,7 @@ import { previewAccess } from "../previews/password.ts";
 import type { Branches } from "../projects/branches.ts";
 import type { Pulls } from "../projects/pulls.ts";
 import type { Secrets } from "../secrets/secrets.ts";
+import { SETTINGS } from "../settings.ts";
 import type { Core } from "./core.ts";
 import { claimDeps } from "./domains.ts";
 import { claimDomain } from "../domains/claims.ts";
@@ -84,6 +86,16 @@ function deployHostDeps(d: ApiRouteDeps): DeployHostDeps {
   };
 }
 
+function orgRouteDeps({ ctx, repos, settings }: ApiRouteDeps): OrgRouteDeps {
+  return {
+    orgs: repos.orgs,
+    users: repos.users,
+    previews: ctx.previews,
+    bytesUsed: (orgId) => repos.previews.bytesUsed(orgId),
+    billingUrl: () => settings.get(SETTINGS.billingUrl),
+  };
+}
+
 export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   const { ctx, repos, audit, settings, identity } = d;
   const apiOrigin = () => d.origin("api");
@@ -112,6 +124,7 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     permissions: identity.roles,
     audit,
   });
+  orgRoutes(api, orgRouteDeps(d));
   serverSettingRoutes(api, d);
   projectRoutes(api, {
     projects: repos.projects,

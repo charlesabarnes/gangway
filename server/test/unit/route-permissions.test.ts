@@ -22,6 +22,7 @@ import { tokenRoutes } from "../../src/app/routes/tokens.ts";
 import { updateRoutes } from "../../src/app/routes/updates.ts";
 import { userRoutes } from "../../src/app/routes/users.ts";
 import { operatorRoutes } from "../../src/app/routes/operator.ts";
+import { orgRoutes } from "../../src/app/routes/org.ts";
 
 const none = {} as never;
 
@@ -35,6 +36,7 @@ export function registerAuthenticated(api: Hono<AppEnv>): void {
   userRoutes(api, none);
   roleRoutes(api, none);
   operatorRoutes(api, none);
+  orgRoutes(api, none);
   settingsRoutes(api, none, none);
   mailSettingsRoutes(api, none, none);
   updateRoutes(api, none);
