@@ -1,5 +1,6 @@
 import { must } from "@gangway/shared/must";
 import type { User } from "@gangway/shared/domain";
+import type { OrgState } from "@gangway/shared/orgs-api";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { bool, num } from "./mappers.ts";
@@ -25,6 +26,21 @@ export const rowToUser = (r: UserRow): User => ({
 });
 
 export type UserCredentials = { hash: string; salt: string };
+
+export type Membership = {
+  org: { id: string; slug: string; name: string; home: boolean; state: OrgState };
+  role: { id: string; name: string };
+};
+
+type MembershipRow = {
+  id: string;
+  slug: string;
+  name: string;
+  home: number;
+  state: OrgState;
+  role_id: string;
+  role_name: string | null;
+};
 
 export type CreateUser = {
   id: string;
@@ -114,6 +130,22 @@ export class UsersRepo {
         { id },
       ) as { org_id: string }[]
     ).map((r) => r.org_id);
+  }
+
+  /** The orgs someone belongs to, home first, with their role in each. */
+  memberships(id: string): Membership[] {
+    return (
+      this.#db.query(
+        `SELECT o.id, o.slug, o.name, o.home, o.state, m.role_id, r.name AS role_name
+           FROM memberships m JOIN orgs o ON o.id = m.org_id
+           LEFT JOIN roles r ON r.id = m.role_id
+          WHERE m.user_id = $id ORDER BY o.home DESC, m.created_at, m.org_id`,
+        { id },
+      ) as MembershipRow[]
+    ).map((r) => ({
+      org: { id: r.id, slug: r.slug, name: r.name, home: r.home === 1, state: r.state },
+      role: { id: r.role_id, name: r.role_name ?? r.role_id },
+    }));
   }
 
   count(): number {

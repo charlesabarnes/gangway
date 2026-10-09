@@ -206,6 +206,7 @@ export function publicRoutes(pub: Hono<AppEnv>, { ctx, auth, identity, gate }: P
     accounts: identity.accounts,
     bootstrap: identity.bootstrap,
     links: identity.links,
+    orgs: identity.orgs,
     roles: identity.roles,
     sessionMaxAgeSec: Math.floor(identity.sessions.timings.absoluteMs / 1000),
     sso: identity.sso,

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { Accounts } from "../auth/accounts.ts";
+import { OrgSwitch } from "../auth/org-switch.ts";
 import { Bootstrap } from "../auth/bootstrap.ts";
 import { EmailLinks } from "../auth/links.ts";
 import { LoginLimiter } from "../auth/limiter.ts";
@@ -25,6 +26,7 @@ export type Identity = {
   bootstrap: Bootstrap;
   mailer: Mailer;
   links: EmailLinks;
+  orgs: OrgSwitch;
   sso: Sso;
   /** False only while an identity provider is set up and password sign-in is turned off. */
   passwords: () => boolean;
@@ -103,6 +105,7 @@ export function createIdentity({ db, repos, audit, origin, settings, logger }: C
     bootstrap,
     mailer,
     links,
+    orgs: new OrgSwitch({ users: repos.users, sessions, audit }),
     sso,
     passwords: passwordLogin,
   };
