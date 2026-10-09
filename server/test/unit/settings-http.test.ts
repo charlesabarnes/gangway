@@ -143,6 +143,7 @@ describe("/v1/settings", () => {
     const view = (await (await call("/v1/settings", { as: bob })).json()) as {
       settings: { key: string; scope: string }[];
     };
+    expect(view.settings.map((v) => v.key)).toContain("previews.watermark");
     expect(view.settings.every((v) => v.scope === "org")).toBe(true);
     const put = await call("/v1/settings", {
       method: "PUT",
