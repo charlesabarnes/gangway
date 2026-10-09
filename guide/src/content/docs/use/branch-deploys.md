@@ -50,9 +50,12 @@ only the hostnames change. A name that another preview already holds is refused.
 
 - **A pushed image.** Only an uploaded source can be rebuilt in place, so the push workflow
   sends files, not an image.
-- **Taking over a production preview someone chose by hand.** The push answers 409. Clear the
-  project's production, and the next push rebuilds it as the branch deploy.
-- **A push from another branch or repository.** The token says where the run came from.
+- **Taking over a production preview someone chose by hand, or one from another branch.** The
+  push answers 409. Clear the project's production, and the next push rebuilds it as the branch
+  deploy.
+- **A project with no deploy branch.** The push answers 409. Choose one in the project's settings.
+- **A push from another branch or repository.** The push answers 403: the token says where the
+  run came from.
 
 A push of a commit that is already live answers "unchanged" and rebuilds nothing. A broken build
 answers 502, and the workflow run fails while the previous version serves.
