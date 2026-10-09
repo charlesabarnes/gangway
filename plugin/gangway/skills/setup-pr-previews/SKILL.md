@@ -1,6 +1,6 @@
 ---
 name: setup-pr-previews
-description: Set up gangway pull-request previews for the GitHub repository in the current directory, so every PR gets its own URL on the user's gangway server. Connects the repo to gangway with the MCP project tool, adds a Dockerfile if the repo has none, commits the generated GitHub Actions workflow on a branch and opens a PR that proves it works. Use when the user asks for PR previews, preview deployments or review apps on gangway for a repo.
+description: Set up gangway pull-request previews for the GitHub repository in the current directory, so every PR gets its own URL on the user's gangway server. Connects the repo to gangway with the MCP project tool, adds a Dockerfile if the repo has none, commits the generated GitHub Actions workflow on a branch and opens a PR that proves it works. Also sets up a branch deploy, where every push to a branch such as main rebuilds the project's production in place at one fixed address. Use when the user asks for PR previews, preview deployments, review apps, or deploying a branch on push to gangway for a repo.
 argument-hint: "[port, or anything to know about the app]"
 ---
 
@@ -11,6 +11,8 @@ Notes from the user: $ARGUMENTS (if empty or unexpanded, there are none)
 The result: a pull request in this repository that adds `.github/workflows/gangway-preview.yml` (and a `Dockerfile` if needed). Its own run deploys the first preview. Once it is merged, every pull request gets a preview at `<slug>-pr-<n>` and a comment with the URL, torn down when the PR closes.
 
 How it works, so you can explain it: the workflow builds the repository's `Dockerfile` on GitHub's runners and pushes the image to `ghcr.io`. It then asks gangway to run it, authenticated by GitHub's OIDC token for that run. No secret is stored in the repository.
+
+**The user wants a branch deployed on every push instead** (e.g. "deploy main to gangway on push", "keep main live"): follow "Branch deploy" at the end, not steps 2 to 6.
 
 ## 1. Check the repository
 
@@ -90,3 +92,20 @@ The PR runs its own new workflow: GitHub runs `pull_request` workflows from the 
 - Forks' pull requests are skipped: GitHub gives their runs no OIDC token.
 - Build-time secrets go in the repository's GitHub secrets (the workflow shows where). Runtime secrets are the project's: the `secrets` tool, or its Secrets page in gangway. Name the ones you set; never their values.
 - What you did not check, e.g. "the app starts, but has no database in the preview".
+
+## Branch deploy
+
+Every push to one branch (usually the default branch) deploys as the project's production preview. The first push that serves becomes production, with no expiry. Each later push rebuilds it in place: the URL, volumes and secrets stay, and a version that fails its checks leaves the previous one serving. A project can have PR previews and a branch deploy both.
+
+1. Check the repository as in step 1. No Dockerfile is needed: the workflow sends the branch's files, and gangway builds them as it builds an upload (a `compose.yaml`, a `Dockerfile`, or a runtime it detects). A compose stack with a database on a named volume works, and its data survives pushes.
+2. Call the `project` tool with `repository` and `branch` (e.g. `"main"`). It answers with the workflow after `--- .github/workflows/gangway-deploy.yml`. Write it **verbatim** to that path.
+   - **"needs repos.domains":** choosing the branch hands production to its pushes. The connection lacks the `projects` scope (ask the user to reconnect with `/mcp`), or the user's role lacks the permission; a gangway admin sets the Deploy branch on the project's settings page.
+3. Secrets: as in step 3b, with `target: {project: "<slug>"}`.
+4. The address is the project's slug under the server's domain, with no random suffix. To name it otherwise, the user sets **Deploy address** on the project's settings page: a bare label, or a full hostname, which is claimed as a custom domain (step 3c lists the DNS records). Changing it renames the live deploy in place.
+5. The push that adds the file to the branch is the first deploy. If the branch is protected, commit on a new branch and open a pull request into it, as in step 4, and tell the user the first deploy runs when it is merged. Otherwise ask the user before you push to their branch.
+6. `gh run watch` on the `gangway deploy` run. It prints gangway's answer: `state` and `url`. Open the URL with `curl -sI`.
+   - **502:** the build or its checks failed; the previous version keeps serving. Use MCP `logs` with the preview name and `source: "runtime"`, or the run's output.
+   - **409:** the project's production preview was chosen by hand, or belongs to another branch. The user clears it in gangway, then the next push takes over. A 409 that says "no deploy branch" means the branch was cleared: call the `project` tool with `branch` again. One that says "is disabled" means the user must enable the project in gangway; nothing needs clearing.
+   - **403:** the run is not a push to the deploy branch of this repository. Check the branch in the workflow matches the project's.
+   - **422 about an image:** a branch deploy sends files, never an image. Use the file the tool gave you.
+7. Hand over: the URL, the branch that deploys, and that each push rebuilds in place.

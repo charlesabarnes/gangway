@@ -1,6 +1,6 @@
 {
   "name": "gangway",
-  "version": "0.2.9",
+  "version": "0.2.11",
   "description": "Charts, diagrams, documents, decks and canvases on a real HTTPS URL on your own gangway server, in place of built-in artifacts; a quick place to put up new apps, with a database if they need one; and previews of every pull request in a GitHub repository.",
   "author": {
     "name": "Charles Barnes"
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "gangway",
     "shortDescription": "Charts, diagrams, docs and decks at a real URL",
-    "longDescription": "The generate-artifact skill: whenever you would draw a chart or a diagram, or make a document, a deck or a canvas, build it from gangway's templates at a real URL on your own server; and offer a URL for a new app once it runs. setup-pr-previews connects a GitHub repository so every pull request gets a preview; deploy-once puts the current app on a URL; create-theme turns a brand or a website into a theme. Connect the MCP server separately: codex mcp add gangway --url https://mcp.<your base>/ then codex mcp login gangway.",
+    "longDescription": "The generate-artifact skill: whenever you would draw a chart or a diagram, or make a document, a deck or a canvas, build it from gangway's templates at a real URL on your own server; and offer a URL for a new app once it runs. setup-pr-previews connects a GitHub repository so every pull request gets a preview, or so every push to a branch rebuilds its production in place; deploy-once puts the current app on a URL; create-theme turns a brand or a website into a theme. Connect the MCP server separately: codex mcp add gangway --url https://mcp.<your base>/ then codex mcp login gangway.",
     "developerName": "Charles Barnes",
     "category": "Coding",
     "capabilities": ["Interactive", "Write"],

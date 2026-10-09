@@ -66,9 +66,10 @@ It judges the client address, so behind a proxy `GANGWAY_TRUSTED_PROXIES` must b
 list must not include the proxy itself. Signing in to connect an agent, and "signed in" previews,
 then work only from those networks.
 
-One API call is let through from anywhere: a pull-request workflow deploying or tearing down its
-own preview, which proves itself with the OIDC token GitHub signs for that run and may do nothing
-else. gangway's own tokens still need a listed network.
+Two API calls are let through from anywhere: a pull-request workflow deploying or tearing down its
+own preview, and a push workflow deploying its project's [branch](/docs/use/branch-deploys/). Each
+proves itself with the OIDC token GitHub signs for that run and may do nothing else. gangway's own
+tokens still need a listed network.
 
 ## Previews on their own domain
 
