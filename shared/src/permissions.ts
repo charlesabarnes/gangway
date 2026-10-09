@@ -158,6 +158,11 @@ export const PERMISSIONS = [
   { id: "apps.install", feature: "apps", description: "Install and uninstall system apps" },
   { id: "jobs.claim", feature: "jobs", description: "Create and claim ephemeral jobs" },
   { id: "instance.orgs", feature: "orgs", description: "Create orgs and see them all" },
+  {
+    id: "org.read",
+    feature: "orgs",
+    description: "See your own org: its members, plan, limits and usage",
+  },
 ] as const satisfies readonly { id: string; feature: string; description: string }[];
 
 export type Permission = (typeof PERMISSIONS)[number]["id"];

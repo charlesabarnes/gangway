@@ -1,6 +1,6 @@
 import { must } from "@gangway/shared/must";
 import type { User } from "@gangway/shared/domain";
-import type { OrgState } from "@gangway/shared/orgs-api";
+import type { OrgMember, OrgState } from "@gangway/shared/orgs-api";
 import { ADMIN_ROLE_ID } from "@gangway/shared/permissions";
 import type { Db } from "../types.ts";
 import { bool, num } from "./mappers.ts";
@@ -30,6 +30,16 @@ export type UserCredentials = { hash: string; salt: string };
 export type Membership = {
   org: { id: string; slug: string; name: string; home: boolean; state: OrgState };
   role: { id: string; name: string };
+};
+
+type MemberRow = {
+  id: string;
+  email: string;
+  disabled: number;
+  invited: number;
+  role_id: string;
+  role_name: string | null;
+  created_at: number;
 };
 
 type MembershipRow = {
@@ -130,6 +140,26 @@ export class UsersRepo {
         { id },
       ) as { org_id: string }[]
     ).map((r) => r.org_id);
+  }
+
+  /** An org's people, each with their role there rather than in the home org. */
+  membersOf(orgId: string): OrgMember[] {
+    return (
+      this.#db.query(
+        `SELECT u.id, u.email, u.disabled, u.invited, m.role_id, r.name AS role_name, m.created_at
+           FROM memberships m JOIN users u ON u.id = m.user_id
+           LEFT JOIN roles r ON r.id = m.role_id
+          WHERE m.org_id = $orgId ORDER BY m.created_at, u.id`,
+        { orgId },
+      ) as MemberRow[]
+    ).map((r) => ({
+      id: r.id,
+      email: r.email,
+      role: { id: r.role_id, name: r.role_name ?? r.role_id },
+      disabled: r.disabled === 1,
+      invited: r.invited === 1,
+      joinedAt: r.created_at,
+    }));
   }
 
   /** The orgs someone belongs to, home first, with their role in each. */

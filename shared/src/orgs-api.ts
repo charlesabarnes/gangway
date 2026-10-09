@@ -50,3 +50,21 @@ export type MyOrg = {
 };
 
 export const SwitchOrgSchema = z.strictObject({ orgId: z.string().min(1).max(64) });
+
+export type OrgMember = {
+  id: string;
+  email: string;
+  role: { id: string; name: string };
+  disabled: boolean;
+  invited: boolean;
+  joinedAt: number;
+};
+
+/** The current org as its own people see it: what the plan allows next to what is in use. */
+export type OrgOverview = {
+  org: Pick<Org, "id" | "slug" | "name" | "home" | "state">;
+  planLabel: string | null;
+  limits: OrgLimits | null;
+  usage: { sites: number; apps: number; storageBytes: number; members: number };
+  billingUrl: string | null;
+};
