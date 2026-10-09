@@ -80,6 +80,7 @@ export default defineConfig({
             "use/chatgpt",
             "use/mcp-clients",
             "use/pull-requests",
+            "use/branch-deploys",
             "use/sharing",
             "use/domains",
           ],
