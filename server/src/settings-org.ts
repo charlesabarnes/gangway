@@ -19,10 +19,9 @@ export class MemoryOrgSettingsStore implements OrgSettingsStore {
   }
 }
 
-/** Where org-scoped settings live. The home org has no rows: it reads and writes the server's. */
+/** Where org-scoped settings live, and which org a preview is in. The home org has no rows. */
 export type OrgSettings = {
   store: OrgSettingsStore;
   home: string;
-  /** The org a preview belongs to, for serving and sweeps, which span every org. */
   ofPreview?: (previewId: string) => string | null;
 };
