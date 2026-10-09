@@ -221,6 +221,7 @@ export const SETTINGS = {
   ssoSignup: def("auth.sso.signup", z.boolean(), false),
   ssoSignupIssuer: def("auth.sso.signupIssuer", oidcIssuer, ""),
   ssoSignupLimits: def("auth.sso.signupLimits", z.preprocess(jsonText, OrgLimitsSchema), {}),
+  billingUrl: def("instance.billingUrl", z.url({ protocol: /^https$/ }).or(z.literal("")), ""),
   cloudflareApiToken: def("acme.cloudflare.apiToken", z.string(), "", { secret: true }),
   cloudflareZoneId: def("acme.cloudflare.zoneId", z.string(), ""),
   acmeDnsUrl: def("acme.acmeDns.url", z.url({ protocol: /^https$/ }).or(z.literal("")), ""),

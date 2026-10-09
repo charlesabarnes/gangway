@@ -222,3 +222,48 @@ test("a site that fits the estimate but not the cap once published fails", async
   });
   expect(((await fits.json()) as { preview: { state: string } }).preview.state).toBe("awake");
 });
+
+test("each org sees its own plan, usage and people, and nothing of the other's", async () => {
+  const { home, other, otherId } = await twoOrgs();
+  await home(`/v1/operator/orgs/${otherId}/limits`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ planLabel: "Free", limits: { maxSites: 3, containers: false } }),
+  });
+  // The fake host has one upstream port, so one preview in all.
+  const site = await other("/v1/previews?wait=true&runtime=auto&visibility=public&name=theirs", {
+    method: "POST",
+    headers: { "content-type": "application/gzip" },
+    body: await tarball({ "index.html": "<h1>hi</h1>" }),
+  });
+  expect(site.status).toBe(201);
+  type Overview = {
+    org: { id: string; home: boolean };
+    planLabel: string | null;
+    limits: { maxSites?: number } | null;
+    usage: { sites: number; apps: number; storageBytes: number; members: number };
+    billingUrl: string | null;
+  };
+  const theirs = (await (await other("/v1/org")).json()) as Overview;
+  expect(theirs.org).toMatchObject({ id: otherId, home: false });
+  expect(theirs.planLabel).toBe("Free");
+  expect(theirs.limits?.maxSites).toBe(3);
+  expect(theirs.usage).toMatchObject({ sites: 1, apps: 0, members: 0 });
+  expect(theirs.usage.storageBytes).toBeGreaterThan(0);
+  expect(theirs.billingUrl).toBeNull();
+
+  const ours = (await (await home("/v1/org")).json()) as Overview;
+  expect(ours.org.home).toBe(true);
+  expect(ours.limits).toBeNull();
+  expect(ours.usage).toMatchObject({ sites: 0, apps: 0, storageBytes: 0 });
+
+  const people = async (as: typeof home) =>
+    ((await (await as("/v1/org/members")).json()) as { members: { email: string }[] }).members;
+  const added = await home(
+    "/v1/users",
+    post({ email: "bea@example.com", roleId: "member", password: "correct horse battery staple" }),
+  );
+  expect(added.status).toBe(201);
+  expect((await people(home)).map((m) => m.email)).toEqual(["bea@example.com"]);
+  expect(await people(other)).toEqual([]);
+});
