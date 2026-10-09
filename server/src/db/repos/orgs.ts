@@ -61,6 +61,13 @@ export class OrgsRepo {
     return r ? toOrg(r) : undefined;
   }
 
+  /** The org a preview belongs to, for work across every org that reads that org's settings. */
+  ofPreview(previewId: string): string | null {
+    const r = this.#db.get("SELECT org_id FROM previews WHERE id = $previewId", { previewId }) as
+      { org_id: string } | undefined;
+    return r?.org_id ?? null;
+  }
+
   list(): Org[] {
     return (this.#db.query("SELECT * FROM orgs ORDER BY created_at, id") as OrgRow[]).map(toOrg);
   }

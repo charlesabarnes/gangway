@@ -87,7 +87,7 @@ export class ArtifactsPage {
     { id: 'gallery' as Tab, label: 'Gallery' },
     { id: 'templates' as Tab, label: 'Templates' },
     { id: 'themes' as Tab, label: 'Themes' },
-    ...(this.#auth.can('artifacts.manage') || this.#auth.can('settings.write')
+    ...(this.#auth.can('artifacts.manage') || this.#auth.canWriteOrgSettings()
       ? [{ id: 'settings' as Tab, label: 'Settings' }]
       : []),
   ]);

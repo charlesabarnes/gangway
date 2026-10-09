@@ -11,7 +11,7 @@ import { ArtifactsService } from './artifacts.service';
 
 const CSS = 'artifacts.customCss';
 
-/** Server-wide choices for artifacts: the default theme, and whether an artifact may bring CSS. */
+/** Choices for artifacts: the default theme, and whether an artifact may bring CSS. */
 @Component({
   selector: 'app-artifact-settings-tab',
   imports: [RouterLink],
@@ -81,7 +81,7 @@ export class ArtifactSettingsTab {
   readonly #toasts = inject(ToastService);
   protected readonly field = FIELD;
   protected readonly canManage = computed(() => this.#auth.can('artifacts.manage'));
-  protected readonly canWriteSettings = computed(() => this.#auth.can('settings.write'));
+  protected readonly canWriteSettings = computed(() => this.#auth.canWriteOrgSettings());
   protected readonly themes = computed(() => this.#svc.themes()?.themes ?? []);
   protected readonly customCss = signal(true);
   protected readonly watermark = signal(true);
@@ -90,7 +90,7 @@ export class ArtifactSettingsTab {
 
   constructor() {
     void this.#svc.loadThemes().catch(() => undefined);
-    if (this.#auth.can('settings.read'))
+    if (this.#auth.canReadOrgSettings())
       firstValueFrom(this.#http.get<{ settings: SettingView[] }>('/v1/settings')).then(
         ({ settings }) => {
           this.customCss.set(settings.find((s) => s.key === CSS)?.value !== false);

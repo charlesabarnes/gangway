@@ -9,9 +9,9 @@ export const ADMIN_TABS: readonly { id: AdminTab; label: string; any: readonly P
   {
     id: 'previews',
     label: 'Previews',
-    any: ['settings.read', 'templates.manage', 'repos.secrets'],
+    any: ['settings.read', 'settings.org_read', 'templates.manage', 'repos.secrets'],
   },
-  { id: 'domains', label: 'Domains & traffic', any: ['settings.read'] },
+  { id: 'domains', label: 'Domains & traffic', any: ['settings.read', 'settings.org_read'] },
   { id: 'github', label: 'GitHub', any: ['github.manage'] },
   { id: 'server', label: 'Server', any: ['settings.read', 'surfaces.manage'] },
   { id: 'audit', label: 'Audit log', any: ['audit.read'] },

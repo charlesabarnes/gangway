@@ -60,52 +60,54 @@ const DOMAINS = 'previews.report.domains';
             </button>
           }
         </form>
-        <form
-          class="flex flex-wrap items-end gap-4"
-          (submit)="$event.preventDefault(); saveReport()"
-        >
-          <label class="gw-label min-w-72 flex-1"
-            >Where its Report link goes
-            <input
-              [class]="field"
-              name="report"
-              type="url"
-              placeholder="No Report link"
-              [value]="report()"
-              (input)="report.set($any($event.target).value)"
-              [disabled]="!canWrite() || managed(report$) || saving() !== null"
-              data-testid="watermark-report"
-          /></label>
-          <label class="gw-label min-w-72 flex-1"
-            >Domains that always show it
-            <input
-              [class]="field"
-              name="domains"
-              placeholder="example.com, other.example.com"
-              [value]="domains()"
-              (input)="domains.set($any($event.target).value)"
-              [disabled]="!canWrite() || managed(domains$) || saving() !== null"
-              data-testid="watermark-report-domains"
-          /></label>
-          @if (canWrite() && !(managed(report$) && managed(domains$))) {
-            <button
-              appBtn
-              type="submit"
-              [disabled]="
-                saving() !== null || (report() === savedReport() && domains() === savedDomains())
-              "
-            >
-              {{ saving() === report$ ? 'Saving…' : 'Save' }}
-            </button>
-          }
-        </form>
-        <p class="gw-section-note -mt-2">
-          With a Report link set, anyone viewing a preview can report it. Previews under the listed
-          domains keep the link even with the watermark off.
-          @if (managed(report$) || managed(domains$)) {
-            <span class="text-xs text-muted">managed by config</span>
-          }
-        </p>
+        @if (serverWide()) {
+          <form
+            class="flex flex-wrap items-end gap-4"
+            (submit)="$event.preventDefault(); saveReport()"
+          >
+            <label class="gw-label min-w-72 flex-1"
+              >Where its Report link goes
+              <input
+                [class]="field"
+                name="report"
+                type="url"
+                placeholder="No Report link"
+                [value]="report()"
+                (input)="report.set($any($event.target).value)"
+                [disabled]="!canWriteServer() || managed(report$) || saving() !== null"
+                data-testid="watermark-report"
+            /></label>
+            <label class="gw-label min-w-72 flex-1"
+              >Domains that always show it
+              <input
+                [class]="field"
+                name="domains"
+                placeholder="example.com, other.example.com"
+                [value]="domains()"
+                (input)="domains.set($any($event.target).value)"
+                [disabled]="!canWriteServer() || managed(domains$) || saving() !== null"
+                data-testid="watermark-report-domains"
+            /></label>
+            @if (canWriteServer() && !(managed(report$) && managed(domains$))) {
+              <button
+                appBtn
+                type="submit"
+                [disabled]="
+                  saving() !== null || (report() === savedReport() && domains() === savedDomains())
+                "
+              >
+                {{ saving() === report$ ? 'Saving…' : 'Save' }}
+              </button>
+            }
+          </form>
+          <p class="gw-section-note -mt-2">
+            With a Report link set, anyone viewing a preview can report it. Previews under the
+            listed domains keep the link even with the watermark off.
+            @if (managed(report$) || managed(domains$)) {
+              <span class="text-xs text-muted">managed by config</span>
+            }
+          </p>
+        }
       </div>
     </div>
   `,
@@ -121,7 +123,10 @@ export class WatermarkSettings {
   protected readonly field = FIELD;
   protected readonly on$ = ON;
   protected readonly link$ = LINK;
-  protected readonly canWrite = computed(() => this.#auth.can('settings.write'));
+  protected readonly canWrite = computed(() => this.#auth.canWriteOrgSettings());
+  // The Report link is where abuse reports go: the server's, never one org's.
+  protected readonly serverWide = computed(() => this.#auth.can('settings.read'));
+  protected readonly canWriteServer = computed(() => this.#auth.can('settings.write'));
   readonly #row = (key: string) => this.settings().find((s) => s.key === key);
   protected readonly on = linkedSignal(() => this.#row(ON)?.value !== false);
   protected readonly savedLink = linkedSignal(() => String(this.#row(LINK)?.value ?? ''));
