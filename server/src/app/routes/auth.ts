@@ -28,6 +28,8 @@ import { compareCodeUnits } from "../../util/compare.ts";
 
 export type GateDeps = {
   lookup(host: string): { hostname: string; previewId: string; visibility: string } | undefined;
+  /** The org a preview belongs to: only that org's credentials count at its gate. */
+  orgOf(previewId: string): string | undefined;
   gateable?(host: string): { private: boolean; passwordSkippable: boolean };
   issueTicket(
     entry: { hostname: string; previewId: string },
@@ -161,7 +163,12 @@ function gateRoute(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     c.header("cache-control", "no-store");
     const dest = { gate, entry, to };
 
-    const actor = await resolveActor(c, d.auth).catch(() => null);
+    const found = await resolveActor(c, d.auth).catch(() => null);
+    // Another org's credential opens nothing here, and its private previews do not exist for it.
+    const actor = found && gate.orgOf(entry.previewId) === found.orgId ? found : null;
+    if (found && !actor && kind.private) {
+      throw notFound("no such private preview");
+    }
     const skipPassword =
       kind.passwordSkippable && actor?.permissions.has("previews.skip_password") === true;
     if (!kind.private) {
