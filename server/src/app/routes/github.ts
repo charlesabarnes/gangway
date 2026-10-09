@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
 import { ManifestExchangeSchema } from "@gangway/shared/api";
 import type { AuditSink } from "../../audit/audit.ts";
-import { conflict, unprocessable } from "../../errors.ts";
+import { conflict, forbidden, unprocessable } from "../../errors.ts";
+import { HOME_ORG_ID } from "../../db/repos/orgs.ts";
 import { readJson } from "../problem.ts";
 import type { GitHubApp } from "../../forge/github/app.ts";
 import { buildManifest, type ManifestStates } from "../../forge/github/manifest.ts";
@@ -27,34 +28,38 @@ const GITHUB_KEYS = [
   SETTINGS.githubWebhookSecret,
 ];
 
-export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
-  const status = () => {
-    const appId = d.settings.get(SETTINGS.githubAppId);
-    const slug = d.settings.get(SETTINGS.githubAppSlug);
-    const hasKey = d.settings.get(SETTINGS.githubPrivateKey) !== "";
-    const hasSecret = d.settings.get(SETTINGS.githubWebhookSecret) !== "";
-    return {
-      configured: appId !== "" && hasKey && hasSecret,
-      appId,
-      appSlug: slug,
-      appUrl: slug === "" ? null : `https://github.com/apps/${encodeURIComponent(slug)}`,
-      installUrl:
-        slug === ""
-          ? null
-          : `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`,
-      webhookUrl: `${d.originFor("hooks")}/github`,
-      missing: [
-        ...(appId === "" ? ["github.appId"] : []),
-        ...(hasKey ? [] : ["github.privateKey"]),
-        ...(hasSecret ? [] : ["github.webhookSecret"]),
-      ],
-      managedByConfig: GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key)),
-    };
+function appStatus(d: GitHubRouteDeps) {
+  const appId = d.settings.get(SETTINGS.githubAppId);
+  const slug = d.settings.get(SETTINGS.githubAppSlug);
+  const hasKey = d.settings.get(SETTINGS.githubPrivateKey) !== "";
+  const hasSecret = d.settings.get(SETTINGS.githubWebhookSecret) !== "";
+  return {
+    configured: appId !== "" && hasKey && hasSecret,
+    appId,
+    appSlug: slug,
+    appUrl: slug === "" ? null : `https://github.com/apps/${encodeURIComponent(slug)}`,
+    installUrl:
+      slug === "" ? null : `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`,
+    webhookUrl: `${d.originFor("hooks")}/github`,
+    missing: [
+      ...(appId === "" ? ["github.appId"] : []),
+      ...(hasKey ? [] : ["github.privateKey"]),
+      ...(hasSecret ? [] : ["github.webhookSecret"]),
+    ],
+    managedByConfig: GITHUB_KEYS.some((k) => d.settings.isManagedByConfig(k.key)),
   };
+}
+
+export function githubRoutes(api: Hono<AppEnv>, d: GitHubRouteDeps): void {
+  const status = () => appStatus(d);
 
   api.get("/github", requirePermission("github.manage"), (c) => c.json(status()));
 
   api.get("/github/repositories", requirePermission("repos.manage"), async (c) => {
+    // The App is the server's, installed by the home org: its repositories are that org's to list.
+    if (c.get("actor").orgId !== HOME_ORG_ID) {
+      throw forbidden("the server's GitHub App belongs to its home org");
+    }
     if (!status().configured) {
       return c.json({ repositories: [] });
     }
