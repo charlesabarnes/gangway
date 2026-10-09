@@ -10,6 +10,7 @@ import {
   SETTINGS,
   SETTINGS_BY_KEY,
   type SettingDef,
+  type SettingScope,
   type Settings,
   type SettingView,
 } from "../../settings.ts";
@@ -86,6 +87,7 @@ function previewPasswordRoute(
   // Whoever may change the server's settings, or only their org's own: these are an org's.
   const write = requirePermission("settings.write", "settings.org_write");
   api.put("/settings/preview-password", write, async (c) => {
+    assertMayWrite(c.get("actor"), settings, "org", SETTINGS.previewPasswordMode.key);
     const body = await readJson(c);
     const { mode, value, login } = DefaultPasswordSchema.parse(body);
     for (const d of [
@@ -175,6 +177,15 @@ function viewFor(actor: Actor, settings: Settings): SettingView[] {
   return can(actor, "settings.read") ? all : all.filter((v) => v.scope === "org");
 }
 
+// settings.write is home-only, so this keeps every other org to its own settings. The home org's
+// own are the server's, the fallback every other org follows, so they need settings.write too.
+function assertMayWrite(actor: Actor, settings: Settings, scope: SettingScope, key: string): void {
+  const serverWide = scope === "instance" || !settings.isOtherOrg(actor.orgId);
+  if (serverWide && !can(actor, "settings.write")) {
+    throw forbidden(`"${key}" is the server's setting: changing it needs "settings.write"`);
+  }
+}
+
 function validateWrite(
   {
     actor,
@@ -188,10 +199,7 @@ function validateWrite(
   if (!def) {
     throw unprocessable(`"${key}" is not a setting`, { key });
   }
-  // settings.write is home-only, so this keeps every other org to its own settings.
-  if (def.scope === "instance" && !can(actor, "settings.write")) {
-    throw forbidden(`"${key}" is the server's setting: changing it needs "settings.write"`);
-  }
+  assertMayWrite(actor, settings, def.scope, key);
   // The lockout guard lives on /v1/surfaces; this route must not bypass it.
   if (key.startsWith("surfaces.")) {
     throw conflict(`"${key}" is changed through PUT /v1/surfaces`, { key });

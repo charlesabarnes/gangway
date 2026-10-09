@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { settingsRoutes } from "../../src/app/routes/settings.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
-import { setupAccounts } from "../helpers/accounts.ts";
+import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
+import { PASSWORD, setupAccounts } from "../helpers/accounts.ts";
 import { signedInApp } from "../helpers/http.ts";
 
 const ENV_TOKEN = "gw_settings_env_token_0123456789abcdef";
@@ -123,5 +124,39 @@ describe("/v1/settings", () => {
     expect((await put({ "auth.oidc.clientSecret": "" })).status).toBe(422);
     expect((await put({ "auth.oidc.clientSecret": "", "auth.passwords": false })).status).toBe(422);
     expect(settings.get(SETTINGS.oidcClientSecret)).toBe("s3cret-value");
+  });
+
+  test("in the home org, an org's own settings are the server's and need settings.write", async () => {
+    const { call, s, login, settings } = await make();
+    s.roles.set("member", ["settings.org_read", "settings.org_write"], null);
+    await s.accounts.createUser(
+      {
+        kind: "token",
+        orgId: HOME_ORG_ID,
+        tokenId: "system:test",
+        scopes: ["admin"],
+        permissions: new Set(["users.manage"]),
+      } as never,
+      { email: "bob@example.com", password: PASSWORD, roleId: "member" },
+    );
+    const bob = await login("bob@example.com");
+    const view = (await (await call("/v1/settings", { as: bob })).json()) as {
+      settings: { key: string; scope: string }[];
+    };
+    expect(view.settings.every((v) => v.scope === "org")).toBe(true);
+    const put = await call("/v1/settings", {
+      method: "PUT",
+      as: bob,
+      json: { values: { "previews.watermark": false } },
+    });
+    expect(put.status).toBe(403);
+    const password = await call("/v1/settings/preview-password", {
+      method: "PUT",
+      as: bob,
+      json: { mode: "generated" },
+    });
+    expect(password.status).toBe(403);
+    expect(settings.get(SETTINGS.previewWatermark)).toBe(true);
+    expect(settings.get(SETTINGS.previewPasswordMode)).toBe("off");
   });
 });
