@@ -40,6 +40,15 @@ export class AuthService {
     return this.permissions().has(permission);
   }
 
+  /** The settings an org keeps for itself: whoever holds the server's settings, or the org's own. */
+  canReadOrgSettings(): boolean {
+    return this.can('settings.read') || this.can('settings.org_read');
+  }
+
+  canWriteOrgSettings(): boolean {
+    return this.can('settings.write') || this.can('settings.org_write');
+  }
+
   ensureLoaded(): Promise<void> {
     if (this.loaded()) return Promise.resolve();
     this.#loading ??= this.refresh().finally(() => {

@@ -67,13 +67,17 @@ function createGate({ repos, settings, previewPasswords, origin, logger }: HttpD
   return new PreviewGate({
     key: loadOrCreateGateKey(repos.settings),
     appOrigin: () => origin("app"),
-    sharedPassword: () =>
-      settings.get(SETTINGS.previewPasswordMode) === "shared"
-        ? settings.get(SETTINGS.previewPasswordShared)
-        : null,
+    // Serving spans every org: each preview's own org says which password defaults apply.
+    sharedPassword: (entry) => {
+      const org = settings.orgOfPreview(entry.previewId);
+      return settings.get(SETTINGS.previewPasswordMode, org) === "shared"
+        ? settings.get(SETTINGS.previewPasswordShared, org)
+        : null;
+    },
     passwords: previewPasswords,
     limiter: new LoginLimiter({ emailFree: 10 }),
-    loginDefault: () => settings.get(SETTINGS.previewPasswordLogin),
+    loginDefault: (entry) =>
+      settings.get(SETTINGS.previewPasswordLogin, settings.orgOfPreview(entry.previewId)),
     onPasswordFailure: (entry, clientIp, reason) => {
       logger.warn("preview password refused", {
         previewId: entry.previewId,

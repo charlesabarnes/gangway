@@ -496,4 +496,29 @@ for (const [name, open] of DRIVERS) {
       db.close();
     });
   });
+
+  describe(`0038 org settings on ${name}`, () => {
+    test("server settings stay put; who held them gets an org's own", () => {
+      const at = databaseAt(open, 36);
+      at.db.run(
+        `INSERT INTO settings (key, value_json, updated_at) VALUES ('previews.watermark', 'false', 1)`,
+      );
+      at.db.run("INSERT INTO roles (id, org_id, name, created_at) VALUES ('ops', $o, 'ops', 1)", {
+        o: HOME_ORG_ID,
+      });
+      at.db.run(
+        "INSERT INTO role_permissions (role_id, permission_id) VALUES ('ops', 'settings.read')",
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(38));
+      expect(db.query("SELECT key, value_json FROM settings")).toEqual([
+        { key: "previews.watermark", value_json: "false" },
+      ]);
+      expect(db.query("SELECT * FROM org_settings")).toEqual([]);
+      expect(grants(db, "ops")).toEqual(["settings.org_read", "settings.read"]);
+      expect(grants(db, "admin")).toContain("settings.org_write");
+      expect(grants(db, "member")).not.toContain("settings.org_read");
+      db.close();
+    });
+  });
 }

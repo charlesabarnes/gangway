@@ -2,10 +2,18 @@ import type { Hono } from "hono";
 import { DefaultPasswordSchema, SetSettingsSchema } from "@gangway/shared/api";
 import { MailTestSchema } from "@gangway/shared/mail-api";
 import type { AuditSink } from "../../audit/audit.ts";
-import { conflict, unprocessable } from "../../errors.ts";
+import { can, type Actor } from "../../auth/actor.ts";
+import { conflict, forbidden, unprocessable } from "../../errors.ts";
 import { readJson } from "../problem.ts";
 import type { TemplatesRepo } from "../../db/repos/templates.ts";
-import { SETTINGS, SETTINGS_BY_KEY, type SettingDef, type Settings } from "../../settings.ts";
+import {
+  SETTINGS,
+  SETTINGS_BY_KEY,
+  type SettingDef,
+  type SettingScope,
+  type Settings,
+  type SettingView,
+} from "../../settings.ts";
 import type { DomainRegistry } from "../../domains/registry.ts";
 import type { Mailer } from "../../mail/mailer.ts";
 import type { AppEnv } from "../env.ts";
@@ -28,17 +36,17 @@ export function settingsRoutes(
     buildSlots?: Pick<Slots, "refresh"> | undefined;
   } = {},
 ): void {
-  api.get("/settings", requirePermission("settings.read"), (c) =>
-    c.json({ settings: settings.view() }),
+  api.get("/settings", requirePermission("settings.read", "settings.org_read"), (c) =>
+    c.json({ settings: viewFor(c.get("actor"), settings) }),
   );
 
-  api.put("/settings", requirePermission("settings.write"), async (c) => {
+  api.put("/settings", requirePermission("settings.write", "settings.org_write"), async (c) => {
     const body = await readJson(c);
     const { values } = SetSettingsSchema.parse(body);
     const actor = c.get("actor");
 
     const writes = Object.entries(values).map(([key, raw]) =>
-      validateWrite(settings, templates, key, raw),
+      validateWrite({ actor, settings, templates }, key, raw),
     );
     const next = (key: string, now: string) =>
       (writes.find((w) => w.key === key)?.value as string | undefined) ?? now;
@@ -64,7 +72,7 @@ export function settingsRoutes(
       old: Object.fromEntries(writes.map((w) => [w.key, shown(w, w.old)])),
       new: Object.fromEntries(writes.map((w) => [w.key, shown(w, w.value)])),
     });
-    return c.json({ settings: settings.view() });
+    return c.json({ settings: viewFor(c.get("actor"), settings) });
   });
 
   previewPasswordRoute(api, settings, audit, hashPassword);
@@ -76,7 +84,10 @@ function previewPasswordRoute(
   audit: AuditSink,
   hashPassword: ((plain: string) => Promise<{ hash: string; salt: string }>) | undefined,
 ): void {
-  api.put("/settings/preview-password", requirePermission("settings.write"), async (c) => {
+  // Whoever may change the server's settings, or only their org's own: these are an org's.
+  const write = requirePermission("settings.write", "settings.org_write");
+  api.put("/settings/preview-password", write, async (c) => {
+    assertMayWrite(c.get("actor"), settings, "org", SETTINGS.previewPasswordMode.key);
     const body = await readJson(c);
     const { mode, value, login } = DefaultPasswordSchema.parse(body);
     for (const d of [
@@ -124,7 +135,7 @@ function previewPasswordRoute(
         [SETTINGS.previewPasswordShared.key]: value !== undefined ? "[changed]" : hadShown,
       },
     });
-    return c.json({ settings: settings.view() });
+    return c.json({ settings: viewFor(c.get("actor"), settings) });
   });
 }
 
@@ -160,9 +171,27 @@ type SettingWrite = {
   old: unknown;
 };
 
+/** All of them to who may see the server's settings; to anyone else, their org's own. */
+function viewFor(actor: Actor, settings: Settings): SettingView[] {
+  const all = settings.view();
+  return can(actor, "settings.read") ? all : all.filter((v) => v.scope === "org");
+}
+
+// settings.write is home-only, so this keeps every other org to its own settings. The home org's
+// own are the server's, the fallback every other org follows, so they need settings.write too.
+function assertMayWrite(actor: Actor, settings: Settings, scope: SettingScope, key: string): void {
+  const serverWide = scope === "instance" || !settings.isOtherOrg(actor.orgId);
+  if (serverWide && !can(actor, "settings.write")) {
+    throw forbidden(`"${key}" is the server's setting: changing it needs "settings.write"`);
+  }
+}
+
 function validateWrite(
-  settings: Settings,
-  templates: Pick<TemplatesRepo, "get"> | undefined,
+  {
+    actor,
+    settings,
+    templates,
+  }: { actor: Actor; settings: Settings; templates: Pick<TemplatesRepo, "get"> | undefined },
   key: string,
   raw: unknown,
 ): SettingWrite {
@@ -170,6 +199,7 @@ function validateWrite(
   if (!def) {
     throw unprocessable(`"${key}" is not a setting`, { key });
   }
+  assertMayWrite(actor, settings, def.scope, key);
   // The lockout guard lives on /v1/surfaces; this route must not bypass it.
   if (key.startsWith("surfaces.")) {
     throw conflict(`"${key}" is changed through PUT /v1/surfaces`, { key });

@@ -52,7 +52,11 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
 
   const { db, repos } = openStorage(config.databasePath ?? join(stateDir, "gangway.db"), logger);
-  const settings = new Settings(config.overrides, repos.settings);
+  const settings = new Settings(config.overrides, repos.settings, {
+    store: repos.orgSettings,
+    home: repos.orgs.home().id,
+    ofPreview: (id) => repos.orgs.ofPreview(id),
+  });
   const baseDomain = () => settings.get(SETTINGS.baseDomain);
   // Throws at boot on a nested pair or a malformed GANGWAY_PREVIEW_DOMAINS.
   const domains = new DomainRegistry({
@@ -109,7 +113,11 @@ function sharesFor(config: Config, settings: Settings, bus: EventBus, logger: Lo
   return new Shares({
     provider: new QuickTunnels({ binary: config.cloudflaredPath }),
     origin: listenerOrigin(config.listenAddress, config.listenPort),
-    enabled: () => settings.get(SETTINGS.previewsShare),
+    enabled: (previewId) =>
+      settings.get(
+        SETTINGS.previewsShare,
+        previewId === undefined ? undefined : settings.orgOfPreview(previewId),
+      ),
     maxTtlMs: () => parseDuration(settings.get(SETTINGS.previewsShareMaxTtl)) ?? DAY_MS,
     logger: logger.child({ mod: "share" }),
     onChange: (share, end) =>

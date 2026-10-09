@@ -19,7 +19,9 @@ import { NodeHttpUpstream, PerHostUpstream } from "../net/upstream.ts";
 import { renderDist } from "../previews/artifact-render.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { Waker } from "../previews/sleep.ts";
-import { SETTINGS, type Settings } from "../settings.ts";
+import type { RouteEntry } from "../routing/table.ts";
+import { SETTINGS, type SettingDef, type Settings } from "../settings.ts";
+import { withOrg } from "../tenancy/scope.ts";
 import { CertStore } from "../tls/certstore.ts";
 import type { CertBundle } from "../tls/types.ts";
 import { sleep } from "../util/async.ts";
@@ -174,10 +176,14 @@ export function watermarkFor({
   settings,
 }: NetworkDeps): NonNullable<DispatchDeps["watermark"]> {
   const cached = new Map<string, string>();
+  // Serving spans every org, so each preview's own org says which watermark settings apply.
+  const ofOrg = <T>(d: SettingDef<T>, entry: RouteEntry) =>
+    settings.get(d, settings.orgOfPreview(entry.previewId));
+  const linkOf = (entry: RouteEntry) => ofOrg(SETTINGS.previewWatermarkLink, entry);
   return {
     // With the mark off, a page under a report domain still carries the report link.
     mode: (entry) => {
-      if (ctx.previews.watermarkOf(entry.previewId) ?? settings.get(SETTINGS.previewWatermark)) {
+      if (ctx.previews.watermarkOf(entry.previewId) ?? ofOrg(SETTINGS.previewWatermark, entry)) {
         return "mark";
       }
       const report = settings.get(SETTINGS.previewWatermarkReport);
@@ -185,13 +191,13 @@ export function watermarkFor({
         ? "report"
         : null;
     },
-    version: () => {
-      const link = settings.get(SETTINGS.previewWatermarkLink);
+    version: (entry) => {
+      const link = linkOf(entry);
       const report = settings.get(SETTINGS.previewWatermarkReport);
       return Bun.hash(`${link}\n${report}`).toString(36).slice(0, 8);
     },
-    script: (mode: MarkMode) => {
-      const link = settings.get(SETTINGS.previewWatermarkLink);
+    script: (mode: MarkMode, entry: RouteEntry) => {
+      const link = linkOf(entry);
       const report = settings.get(SETTINGS.previewWatermarkReport);
       const key = JSON.stringify([link, report, mode]);
       let script = cached.get(key);
@@ -221,20 +227,23 @@ function waker({ ctx, config, logger }: NetworkDeps): NonNullable<DispatchDeps["
   };
 }
 
-function siteFor({ ctx }: NetworkDeps): NonNullable<DispatchDeps["site"]> {
+function siteFor({ ctx, settings }: NetworkDeps): NonNullable<DispatchDeps["site"]> {
   return async (req, entry) => {
     const site = await ctx.sites?.open(entry.previewId);
     if (!site) {
       return failedPage(entry.hostname, ["this preview's files are missing: redeploy it"]);
     }
     const lib = ctx.artifacts;
+    // An artifact that names no theme gets its own org's default.
+    const org = settings.orgOfPreview(entry.previewId);
+    const asOrg = <T>(fn: () => T): T => (org === null ? fn() : withOrg(org, fn));
     return serveSite(req, site, {
       unlisted: entry.visibility === "unlisted",
       kitDir: renderDist(),
       ...(lib
         ? {
-            themeCss: (id: string | null) => lib.themeCss(id, THEME_LOGO_PATH),
-            themeLogo: (id: string | null) => lib.themeLogo(id),
+            themeCss: (id: string | null) => asOrg(() => lib.themeCss(id, THEME_LOGO_PATH)),
+            themeLogo: (id: string | null) => asOrg(() => lib.themeLogo(id)),
           }
         : {}),
     });

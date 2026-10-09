@@ -15,7 +15,8 @@ export type ShareEnd = "stopped" | "expired" | "disabled" | "destroyed" | "dropp
 export type SharesOptions = {
   provider: ShareProvider;
   origin: string;
-  enabled: () => boolean;
+  /** Whether sharing is on: for the request's org, or for the org of the preview named. */
+  enabled: (previewId?: string) => boolean;
   maxTtlMs: () => number;
   logger: Logger;
   now?: () => number;
@@ -118,12 +119,12 @@ export class Shares {
     return view(live);
   }
 
-  /** Ends shares past their time, or every share once sharing is switched off; returns how many. */
+  /** Ends shares past their time, or once sharing is switched off for their org; returns how many. */
   expire(): number {
     const now = this.#now();
-    const on = this.#o.enabled();
     let n = 0;
     for (const live of [...this.#byPreview.values()]) {
+      const on = this.#o.enabled(live.previewId);
       if (on && live.expiresAt > now) {
         continue;
       }

@@ -58,20 +58,22 @@ export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
       @if (show('github') && canManage()) {
         <app-github-settings />
       }
-      @if (show('previews') && (canReadSettings() || canManagePolicies())) {
+      @if (show('previews') && (canReadOrgSettings() || canManagePolicies())) {
         <app-preview-policies
           [(templates)]="templates"
           [settings]="settings()"
           [(saving)]="saving"
         />
       }
-      @if (show('previews') && canReadSettings()) {
+      @if (show('previews') && canReadOrgSettings()) {
         <app-preview-passwords [settings]="settings()" [(saving)]="saving" />
         <app-watermark-settings [settings]="settings()" [(saving)]="saving" />
       }
       @if (show('domains') && canReadSettings()) {
         <app-domain-settings [settings]="settings()" [(saving)]="saving" />
         <app-limit-settings [settings]="settings()" [(saving)]="saving" />
+      }
+      @if (show('domains') && canReadOrgSettings()) {
         <app-share-settings [settings]="settings()" [(saving)]="saving" />
       }
       @if (show('previews') && canSecrets()) {
@@ -91,6 +93,8 @@ export class SettingsSections {
   protected readonly canManage = computed(() => this.#auth.can('github.manage'));
   protected readonly canSecrets = computed(() => this.#auth.can('repos.secrets'));
   protected readonly canReadSettings = computed(() => this.#auth.can('settings.read'));
+  // Another org's people see only the settings their org keeps for itself.
+  protected readonly canReadOrgSettings = computed(() => this.#auth.canReadOrgSettings());
   protected readonly canManagePolicies = computed(() => this.#auth.can('templates.manage'));
   protected readonly templates = signal<Template[]>([]);
   protected readonly settings = signal<SettingView[]>([]);
@@ -100,7 +104,7 @@ export class SettingsSections {
 
   constructor() {
     effect(() => {
-      const read = this.canReadSettings();
+      const read = this.canReadOrgSettings();
       const policies = this.show('previews') && (read || this.canManagePolicies());
       if (read || policies) untracked(() => void this.#load(read, policies));
       else this.ready.set(true);

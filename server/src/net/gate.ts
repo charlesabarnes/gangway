@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { sourceKey, type LoginLimiter } from "../auth/limiter.ts";
 import type { Passwords } from "../auth/password.ts";
-import type { EntryPassword, RouteEntry } from "../routing/table.ts";
+import type { RouteEntry } from "../routing/table.ts";
 import {
   PASSWORD_PATH,
   passwordPage,
@@ -23,11 +23,12 @@ export type GateOptions = {
   ticketTtlMs?: number;
   cookieTtlMs?: number;
   passwordCookieTtlMs?: number;
-  sharedPassword?: () => { hash: string; salt: string } | null;
+  /** The shared password of the preview's org, for a preview that inherits it. */
+  sharedPassword?: (entry: RouteEntry) => { hash: string; salt: string } | null;
   passwords?: Pick<Passwords, "verify">;
   limiter?: Pick<LoginLimiter, "check" | "fail" | "succeed">;
   onPasswordFailure?: (entry: RouteEntry, clientIp: string, reason: "wrong" | "throttled") => void;
-  loginDefault?: () => boolean;
+  loginDefault?: (entry: RouteEntry) => boolean;
 };
 
 type ResolvedOptions = Required<Omit<GateOptions, "passwords" | "limiter" | "onPasswordFailure">> &
@@ -107,7 +108,7 @@ export class PreviewGate {
 
   #loginSkips(entry: RouteEntry): boolean {
     const login = entry.passwordLogin;
-    return login === "on" || (login === "inherit" && this.#o.loginDefault());
+    return login === "on" || (login === "inherit" && this.#o.loginDefault(entry));
   }
 
   /** Whether a visitor must sign in or give a password before the preview answers. */
@@ -121,12 +122,13 @@ export class PreviewGate {
     };
   }
 
-  #passwordOf(pw: EntryPassword) {
+  #passwordOf(entry: RouteEntry) {
+    const pw = entry.password;
     switch (pw.mode) {
       case "own":
         return pw;
       case "inherit":
-        return this.#o.sharedPassword();
+        return this.#o.sharedPassword(entry);
       case "none":
         return null;
     }
@@ -136,7 +138,7 @@ export class PreviewGate {
     if (entry.passwordLogin === "only") {
       return null;
     }
-    const raw = this.#passwordOf(entry.password);
+    const raw = this.#passwordOf(entry);
     if (!raw) {
       return null;
     }

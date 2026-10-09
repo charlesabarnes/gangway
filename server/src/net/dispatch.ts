@@ -68,9 +68,9 @@ export type DispatchDeps = {
   watermark?:
     | {
         mode: (entry: RouteEntry) => MarkMode | null;
-        script: (mode: MarkMode) => string;
+        script: (mode: MarkMode, entry: RouteEntry) => string;
         /** Changes with the settings the script draws, so browsers fetch the new one. */
-        version: () => string;
+        version: (entry: RouteEntry) => string;
       }
     | undefined;
 };
@@ -225,7 +225,7 @@ async function route(req: Request, d: DispatchDeps): Promise<Response> {
   if (d.watermark && req.url.includes(MARK_PATH)) {
     const url = new URL(req.url);
     if (url.pathname === MARK_PATH) {
-      return markResponse(req, d.watermark.script(markModeOf(url)));
+      return markResponse(req, d.watermark.script(markModeOf(url), entry));
     }
   }
 
@@ -250,7 +250,7 @@ async function respond(req: Request, visit: Visit, entry: RouteEntry): Promise<R
   const { d } = visit;
   const mode = d.watermark && wantsMark(req) ? d.watermark.mode(entry) : null;
   const s: Stamp | null =
-    d.watermark && mode !== null ? { mode, version: d.watermark.version() } : null;
+    d.watermark && mode !== null ? { mode, version: d.watermark.version(entry) } : null;
   const res =
     s === null
       ? await answer(req, visit, entry)
