@@ -7,11 +7,13 @@ import {
   RedeemEmailLinkSchema,
 } from "@gangway/shared/mail-api";
 import type { User } from "@gangway/shared/domain";
+import { SwitchOrgSchema } from "@gangway/shared/orgs-api";
 import type { Accounts, RequestMeta } from "../../auth/accounts.ts";
 import type { Actor } from "../../auth/actor.ts";
 import type { Bootstrap } from "../../auth/bootstrap.ts";
 import { WindowLimiter } from "../../auth/limiter.ts";
 import type { EmailLinks } from "../../auth/links.ts";
+import type { OrgSwitch } from "../../auth/org-switch.ts";
 import type { RolePermissions } from "../../auth/roles.ts";
 import type { Sso } from "../../auth/sso.ts";
 import { AppError, forbidden, notFound, unauthorized } from "../../errors.ts";
@@ -43,6 +45,8 @@ export type AuthRouteDeps = {
   accounts: Accounts;
   bootstrap: Bootstrap;
   links?: EmailLinks | undefined;
+  /** Absent: no org switching, as in a test that wires only sign-in. */
+  orgs?: OrgSwitch | undefined;
   roles: RolePermissions;
   sessionMaxAgeSec: number;
   sso?: Sso | undefined;
@@ -307,6 +311,39 @@ export function authRoutes(pub: Hono<AppEnv>, d: AuthRouteDeps): void {
     const { current, next } = ChangePasswordSchema.parse(await readJson(c));
     await d.accounts.changeOwnPassword(actor, current, next, meta(c));
     return c.body(null, 204);
+  });
+
+  orgRoutes(pub, d, required);
+}
+
+// A person's own orgs, and moving their session to another one. Not behind a permission: anyone
+// signed in may see where they belong, and membership is the check for moving.
+function orgRoutes(
+  pub: Hono<AppEnv>,
+  d: AuthRouteDeps,
+  required: (c: Context<AppEnv>) => Promise<Actor>,
+): void {
+  const orgs = () => {
+    if (!d.orgs) {
+      throw notFound("no such resource");
+    }
+    return d.orgs;
+  };
+
+  pub.get("/me/orgs", async (c) => {
+    const actor = await required(c);
+    c.header("cache-control", "no-store");
+    return c.json({ orgs: orgs().list(actor) });
+  });
+
+  pub.put("/session/org", async (c) => {
+    appOnly(c);
+    const actor = await required(c);
+    const { orgId } = SwitchOrgSchema.parse(await readJson(c));
+    const { org, secret } = orgs().switchTo(actor, orgId, meta(c));
+    setSessionCookie(c, secret, d.sessionMaxAgeSec);
+    c.header("cache-control", "no-store");
+    return c.json({ org });
   });
 }
 

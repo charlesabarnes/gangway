@@ -27,6 +27,7 @@ export type AuditAction =
   | "auth.login.failed"
   | "auth.login.blocked"
   | "auth.logout"
+  | "auth.org.switched"
   | "auth.password.changed"
   | "auth.password.reset"
   | "auth.reset.requested"
