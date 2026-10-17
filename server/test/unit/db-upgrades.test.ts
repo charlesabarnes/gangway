@@ -497,9 +497,33 @@ for (const [name, open] of DRIVERS) {
     });
   });
 
+  describe(`0037 takedowns on ${name}`, () => {
+    test("joining or leaving an org, by a deleted account too, moves its updated_at", () => {
+      const at = databaseAt(open, 36);
+      at.db.run("UPDATE orgs SET updated_at = 1");
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(37));
+      const updated = () =>
+        (db.get("SELECT updated_at FROM orgs WHERE home = 1") as { updated_at: number }).updated_at;
+      db.run(
+        "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
+      );
+      db.run(
+        `INSERT INTO memberships (org_id, user_id, role_id, created_at) VALUES ('${HOME_ORG_ID}', 'u1', 'admin', 1)`,
+      );
+      expect(updated()).toBeGreaterThan(1);
+      // Ahead of the clock, as a second change in the same millisecond would be: it still moves.
+      const ahead = Date.now() + 60_000;
+      db.run(`UPDATE orgs SET updated_at = ${ahead}`);
+      db.run("DELETE FROM users WHERE id = 'u1'");
+      expect(updated()).toBe(ahead + 1);
+      db.close();
+    });
+  });
+
   describe(`0038 org settings on ${name}`, () => {
     test("server settings stay put; who held them gets an org's own", () => {
-      const at = databaseAt(open, 36);
+      const at = databaseAt(open, 37);
       at.db.run(
         `INSERT INTO settings (key, value_json, updated_at) VALUES ('previews.watermark', 'false', 1)`,
       );

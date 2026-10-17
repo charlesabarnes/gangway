@@ -1,14 +1,22 @@
 import { servedByGangway, type Preview } from "@gangway/shared/domain";
 import type { OrgLimits } from "@gangway/shared/orgs-api";
 import { conflict, forbidden } from "../errors.ts";
+import type { Blocks } from "./blocks.ts";
 
 export type LimitsContext = {
   previews: { list(): Preview[] };
   orgLimits?: ((orgId: string) => OrgLimits | undefined) | undefined;
+  blocks?: Blocks | undefined;
 };
 
 const live = (p: Preview) => !["failed", "destroying", "destroyed"].includes(p.state);
 const mb = (bytes: number) => `${Math.ceil(bytes / 1_000_000)} MB`;
+
+export function admitChange(ctx: Pick<LimitsContext, "blocks">, orgId: string): void {
+  if (ctx.blocks?.suspended(orgId)) {
+    throw forbidden("this org is suspended: its previews cannot be deployed, rebuilt or extended");
+  }
+}
 
 /** What the org's plan allows of one more preview; a limit left out does not limit. */
 export function admitDeploy(
@@ -16,6 +24,7 @@ export function admitDeploy(
   orgId: string,
   o: { site: boolean; bytes: number; used: number },
 ): void {
+  admitChange(ctx, orgId);
   const l = ctx.orgLimits?.(orgId);
   if (!l) {
     return;
