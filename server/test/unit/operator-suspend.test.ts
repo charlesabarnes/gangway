@@ -164,5 +164,16 @@ test("changedSince lists the orgs whose people or state changed, with how many p
   const changed = (await (await home(`/v1/operator/orgs?changedSince=${since}`)).json()) as Seats;
   expect(changed.orgs.map((o) => [o.id, o.members])).toEqual([[otherId, 1]]);
 
+  // Suspending is a change too, even with nobody joining or leaving.
+  const beforeSuspend = Date.now();
+  await Bun.sleep(5);
+  expect(
+    (await home(`/v1/operator/orgs/${otherId}/suspend`, send("POST", { reason: "spam" }))).status,
+  ).toBe(200);
+  const suspended = (await (
+    await home(`/v1/operator/orgs?changedSince=${beforeSuspend}`)
+  ).json()) as Seats;
+  expect(suspended.orgs.map((o) => o.id)).toEqual([otherId]);
+
   expect((await home("/v1/operator/orgs?changedSince=soon")).status).toBe(400);
 });
