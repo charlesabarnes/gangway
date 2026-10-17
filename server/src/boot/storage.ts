@@ -19,6 +19,7 @@ import {
   RoutesRepo,
   TemplatesRepo,
   SessionsRepo,
+  SqliteOrgSettingsStore,
   SqliteSettingsStore,
   TokensRepo,
   UserLinksRepo,
@@ -55,6 +56,7 @@ export type Repos = {
   oauthClients: OAuthClientsRepo;
   orgs: OrgsRepo;
   takedowns: TakedownsRepo;
+  orgSettings: SqliteOrgSettingsStore;
   previews: PreviewsRepo;
   projects: ProjectsRepo;
   roles: RolesRepo;
@@ -96,6 +98,7 @@ function openRepos(db: Db): Repos {
     oauthClients: new OAuthClientsRepo(db),
     orgs: new OrgsRepo(db),
     takedowns: new TakedownsRepo(db),
+    orgSettings: new SqliteOrgSettingsStore(db),
     previews: new PreviewsRepo(db),
     projects: new ProjectsRepo(db),
     roles: new RolesRepo(db),

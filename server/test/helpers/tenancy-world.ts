@@ -266,6 +266,7 @@ const ORG_TABLES = [
   "oauth_grants",
   "roles",
   "memberships",
+  "org_settings",
 ];
 
 // What a reconciler pass or a credential's own use may move; nothing an attacker could.

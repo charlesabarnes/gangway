@@ -2,18 +2,23 @@ import { describe, expect, test } from "bun:test";
 import { watermarkFor, type NetworkDeps } from "../../src/boot/network.ts";
 import { loadConfig } from "../../src/config.ts";
 import { MemorySettingsStore, SETTINGS, Settings } from "../../src/settings.ts";
+import { MemoryOrgSettingsStore } from "../../src/settings-org.ts";
 import type { RouteEntry } from "../../src/routing/table.ts";
 
 const REPORT = "https://cloud.example.com/report";
 
-function watermark(o: { overrides?: Record<string, unknown>; choice?: boolean | null }) {
-  const settings = new Settings(o.overrides ?? {}, new MemorySettingsStore());
+function watermark(o: {
+  overrides?: Record<string, unknown>;
+  choice?: boolean | null;
+  settings?: Settings;
+}) {
+  const settings = o.settings ?? new Settings(o.overrides ?? {}, new MemorySettingsStore());
   const ctx = {
     previews: { watermarkOf: () => o.choice ?? null },
   } as unknown as NetworkDeps["ctx"];
   return watermarkFor({ ctx, settings } as unknown as NetworkDeps);
 }
-const at = (hostname: string) => ({ hostname, previewId: "p1" }) as RouteEntry;
+const at = (hostname: string, previewId = "p1") => ({ hostname, previewId }) as RouteEntry;
 
 describe("what a preview's pages carry", () => {
   test("the mark when it is on, wherever the preview lives", () => {
@@ -41,15 +46,39 @@ describe("what a preview's pages carry", () => {
       overrides: { "previews.report.domains": ["acme.gway.app"] },
     });
     expect(w.mode(at("shop.acme.gway.app"))).toBeNull();
-    expect(w.script("mark")).not.toContain(String.raw`class=\"report`);
+    expect(w.script("mark", at("shop.acme.gway.app"))).not.toContain(String.raw`class=\"report`);
   });
 
   test("the script carries the report link once a URL is set", () => {
     const w = watermark({ overrides: { "previews.watermark.report": REPORT } });
-    expect(w.script("mark")).toContain(`${REPORT}?url=`);
-    expect(w.script("report")).toContain("chip only");
+    expect(w.script("mark", at("x.example.com"))).toContain(`${REPORT}?url=`);
+    expect(w.script("report", at("x.example.com"))).toContain("chip only");
     // A new report URL is a new script URL, so browsers drop the cached one.
-    expect(w.version()).not.toBe(watermark({}).version());
+    expect(w.version(at("x.example.com"))).not.toBe(watermark({}).version(at("x.example.com")));
+  });
+
+  test("each org's previews carry its own mark and link, and the server's report link", () => {
+    const settings = new Settings(
+      { "previews.watermark.report": REPORT },
+      new MemorySettingsStore(),
+      {
+        store: new MemoryOrgSettingsStore(),
+        home: "home",
+        ofPreview: (id) => (id === "pb" ? "orgb" : "home"),
+      },
+    );
+    settings.set(SETTINGS.previewWatermark, false, "orgb");
+    settings.set(SETTINGS.previewWatermarkLink, "https://b.example.com", "orgb");
+    const w = watermark({ settings });
+    const a = at("a.example.com", "pa");
+    const b = at("b.example.com", "pb");
+    expect(w.mode(a)).toBe("mark");
+    expect(w.mode(b)).toBeNull();
+    expect(w.script("mark", a)).toContain("https://gangway.sh");
+    const bs = w.script("mark", b);
+    expect(bs).toContain("https://b.example.com");
+    expect(bs).toContain(`${REPORT}?url=`);
+    expect(w.version(a)).not.toBe(w.version(b));
   });
 });
 

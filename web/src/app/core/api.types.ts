@@ -179,6 +179,8 @@ export const PERMISSIONS = [
   'audit.read',
   'settings.read',
   'settings.write',
+  'settings.org_read',
+  'settings.org_write',
   'surfaces.manage',
   'github.manage',
   'repos.manage',
