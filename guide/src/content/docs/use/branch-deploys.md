@@ -19,8 +19,10 @@ the previous one keeps serving.
    generates it for the project:
 
    ```sh
+   mkdir -p .github/workflows
    curl -fsS "$GANGWAY_API/v1/projects/<project>/workflow?on=push" \
-     -H "Authorization: Bearer $GANGWAY_TOKEN"
+     -H "Authorization: Bearer $GANGWAY_TOKEN" \
+     -o .github/workflows/gangway-deploy.yml
    ```
 
    The push that adds it is the first deploy.
