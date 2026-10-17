@@ -283,7 +283,9 @@ export function snapshot(dir: string, org: Org): string {
   }
   const ids = org.holds.previews;
   const marks = ids.map(() => "?").join(",");
-  out["routes"] = db.query(`SELECT * FROM routes WHERE preview_id IN (${marks})`).all(...ids);
+  out["routes"] = ids.length
+    ? db.query(`SELECT * FROM routes WHERE preview_id IN (${marks})`).all(...ids)
+    : [];
   out["secrets"] = db.query("SELECT * FROM settings WHERE key LIKE 'secrets%'").all();
   for (const t of ["audit", "events"]) {
     out[t] = db.query(`SELECT count(*) AS n FROM ${t} WHERE org_id = ?`).get(org.id);
