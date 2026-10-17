@@ -39,6 +39,26 @@ export type Org = {
   updatedAt: number;
 };
 
+export type OrgSeats = Org & { members: number };
+
+export const SuspendSchema = z.strictObject({
+  reason: z.string().trim().min(1).max(500),
+});
+
+export const TakedownSchema = z.strictObject({
+  reason: z.string().trim().min(1).max(500),
+});
+
+/** A hostname the operator took down: it answers 410 until lifted. */
+export type Takedown = {
+  hostname: string;
+  previewId: string;
+  orgId: string;
+  reason: string;
+  createdBy: string;
+  createdAt: number;
+};
+
 export type MyOrg = {
   id: string;
   slug: string;

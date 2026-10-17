@@ -143,6 +143,7 @@ function dispatchDeps(
       hooks: d.hooks.handler(),
       mcp: http.mcp.handler(),
     },
+    gone: (host, previewId) => ctx.blocks?.gone(host, previewId) ?? false,
     logTailFor: (id) => ctx.logs.tail(id, 50),
     clientIpFor: clientIpFor(d, resolveClientIp),
     onProxied: (entry) => {

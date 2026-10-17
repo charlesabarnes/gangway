@@ -101,6 +101,18 @@ export function unknownPage(hostname: string): Response {
   });
 }
 
+export function gonePage(hostname: string): Response {
+  return page({
+    hostname,
+    status: 410,
+    title: "Unavailable",
+    heading: "Gone",
+    label: "Gone",
+    body: `<h1>No longer available</h1>
+<p>The server's operator has stopped serving ${escapeHtml(hostname)}.</p>`,
+  });
+}
+
 export function upstreamTimeoutPage(hostname: string): Response {
   return page({
     hostname,

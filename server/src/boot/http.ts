@@ -24,6 +24,7 @@ import type { Identity } from "./identity.ts";
 import { publicRoutes, v1Routes } from "./routes.ts";
 import { claimDeps } from "./domains.ts";
 import { acrossOrgs } from "../tenancy/scope.ts";
+import { admitChange } from "../tenancy/limits.ts";
 
 export type HttpParts = PreviewWiring &
   Pick<ForgeWiring, "githubApp" | "pulls" | "branches"> & {
@@ -119,6 +120,9 @@ function createMcp(d: HttpDeps): McpSurface {
   const uploads = new Uploads({
     dir: join(d.stateDir, "uploads"),
     url: (id) => `${mcpOrigin()}/uploads/${id}`,
+    admit: (actor) => {
+      admitChange(d.ctx, actor.orgId);
+    },
   });
   const secretUploads = new SecretUploads({ url: (id) => `${mcpOrigin()}/secret-uploads/${id}` });
   return new McpSurface({

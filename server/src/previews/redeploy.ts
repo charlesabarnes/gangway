@@ -41,7 +41,7 @@ import type { SourceStore } from "./source/store.ts";
 import { dropProjectNetwork, writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
-import { checkStorage } from "../tenancy/limits.ts";
+import { admitChange, checkStorage } from "../tenancy/limits.ts";
 
 export { checkEditPath, type SourceEdits } from "./source-edits.ts";
 export type { RedeployOutcome } from "./rebuild-failure.ts";
@@ -81,7 +81,7 @@ function moveToChosenDomain(
 }
 
 async function checkRebuildable(
-  ctx: Pick<PreviewContext, "previews" | "sources" | "hosts">,
+  ctx: Pick<PreviewContext, "previews" | "sources" | "hosts" | "blocks">,
   input: RedeployInput,
 ): Promise<{ host: Host; sources: SourceStore }> {
   const id = input.previewId;
@@ -89,6 +89,7 @@ async function checkRebuildable(
   if (!current || current.state === "destroyed") {
     throw notFound(`no such preview: ${id}`);
   }
+  admitChange(ctx, current.orgId);
   if (!mayRebuild(input.actor, ctx.previews.provenanceOf(id))) {
     throw forbidden(REBUILD_REFUSAL);
   }
