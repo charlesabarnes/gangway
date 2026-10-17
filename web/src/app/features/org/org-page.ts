@@ -16,6 +16,13 @@ export function formatSize(n: number): string {
   return `${Math.round(n / 100) / 10} kB`;
 }
 
+// A limit of 0 allows nothing, so it reads as full.
+function fill(used: number, max: number | undefined): number | null {
+  if (max === undefined) return null;
+  if (max === 0) return 1;
+  return Math.min(1, used / max);
+}
+
 const meter = (
   id: string,
   label: string,
@@ -27,7 +34,7 @@ const meter = (
   label,
   used: fmt(used),
   max: max === undefined ? null : fmt(max),
-  ratio: max === undefined ? null : max === 0 ? 1 : Math.min(1, used / max),
+  ratio: fill(used, max),
 });
 
 /** The current org as its own people see it: the plan, what it allows next to what is in use, and who is in it. */
