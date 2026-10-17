@@ -79,6 +79,12 @@ export const ROUTES: Record<string, Rule> = {
   "POST /v1/auth/logout": pub(SIGN_IN),
   "POST /v1/auth/password": pub(SIGN_IN),
   "GET /v1/schema/gangway.yml": pub("the gangway.yml JSON schema"),
+  "GET /v1/me/orgs": list(),
+  "PUT /v1/session/org": own(
+    "a session moves only to an org its person belongs to",
+    (v) => ({ orgId: v.id }),
+    true,
+  ),
 
   "GET /v1/hosts": instance(SERVER),
   "GET /v1/events": { kind: "stream" },

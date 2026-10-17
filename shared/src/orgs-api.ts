@@ -58,3 +58,15 @@ export type Takedown = {
   createdBy: string;
   createdAt: number;
 };
+
+export type MyOrg = {
+  id: string;
+  slug: string;
+  name: string;
+  home: boolean;
+  state: OrgState;
+  role: { id: string; name: string };
+  current: boolean;
+};
+
+export const SwitchOrgSchema = z.strictObject({ orgId: z.string().min(1).max(64) });
