@@ -7,7 +7,7 @@ import { McpSurface } from "../../src/app/mcp-surface.ts";
 import { staticTokenVerifier } from "../../src/auth/actor.ts";
 import { artifactPrompt, INSTRUCTIONS } from "../../src/mcp/guide.ts";
 import { resolvePreview } from "../../src/mcp/resolve.ts";
-import { WORKFLOW_PATH_IN_REPO } from "../../src/projects/workflow.ts";
+import { PUSH_WORKFLOW_PATH_IN_REPO, WORKFLOW_PATH_IN_REPO } from "../../src/projects/workflow.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
 import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
@@ -230,6 +230,7 @@ describe("the mcp surface", () => {
     );
     expect(skill).toContain("MCP `project` tool");
     expect(skill).toContain(WORKFLOW_PATH_IN_REPO);
+    expect(skill).toContain(PUSH_WORKFLOW_PATH_IN_REPO);
     expect(skill).toContain("<!-- gangway-preview -->");
     expect(
       readFileSync(join(import.meta.dir, "../../src/projects/workflow.template.yaml"), "utf8"),
