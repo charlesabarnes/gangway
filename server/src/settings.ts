@@ -2,6 +2,8 @@ import { z } from "zod";
 import { parseDuration } from "@gangway/shared/duration";
 import { OrgLimitsSchema } from "@gangway/shared/orgs-api";
 import { parseBytes } from "./util/bytes.ts";
+import type { OrgSettings } from "./settings-org.ts";
+import { currentOrg } from "./tenancy/scope.ts";
 
 export type SettingSource = "config" | "database" | "default";
 
@@ -12,13 +14,23 @@ export type Effective<T> = {
   managedByConfig: boolean;
 };
 
-export type SettingDef<T> = { key: string; schema: z.ZodType<T>; fallback: T; secret: boolean };
+/** Whose a setting is: the whole server's, or each org's, which falls back to the server's value. */
+export type SettingScope = "instance" | "org";
+
+export type SettingDef<T> = {
+  key: string;
+  schema: z.ZodType<T>;
+  fallback: T;
+  secret: boolean;
+  scope: SettingScope;
+};
 
 export type SettingView = {
   key: string;
   source: SettingSource;
   managedByConfig: boolean;
   secret: boolean;
+  scope: SettingScope;
   value: unknown;
   set: boolean;
 };
@@ -27,10 +39,12 @@ function def<T>(
   key: string,
   schema: z.ZodType<T>,
   fallback: T,
-  o: { secret?: boolean } = {},
+  o: { secret?: boolean; scope?: SettingScope } = {},
 ): SettingDef<T> {
-  return { key, schema, fallback, secret: o.secret === true };
+  return { key, schema, fallback, secret: o.secret === true, scope: o.scope ?? "instance" };
 }
+
+const ORG = { scope: "org" } as const;
 
 const templateRef = z
   .string()
@@ -125,23 +139,30 @@ export const SETTINGS = {
   previewDomain: def("previewDomain", z.string(), ""),
   surfacesUi: def("surfaces.ui", z.boolean(), true),
   surfacesMcp: def("surfaces.mcp", z.boolean(), false),
-  templatePr: def("templates.default.pr", templateRef, "default"),
-  templateApi: def("templates.default.api", templateRef, "default"),
-  templateManual: def("templates.default.manual", templateRef, "default"),
-  previewPasswordMode: def("previews.password.mode", z.enum(["off", "shared", "generated"]), "off"),
-  previewPasswordLogin: def("previews.password.login", z.boolean(), false),
+  templatePr: def("templates.default.pr", templateRef, "default", ORG),
+  templateApi: def("templates.default.api", templateRef, "default", ORG),
+  templateManual: def("templates.default.manual", templateRef, "default", ORG),
+  previewPasswordMode: def(
+    "previews.password.mode",
+    z.enum(["off", "shared", "generated"]),
+    "off",
+    ORG,
+  ),
+  previewPasswordLogin: def("previews.password.login", z.boolean(), false, ORG),
   previewPasswordShared: def(
     "previews.password.shared",
     z.object({ hash: z.string().min(1), salt: z.string().min(1) }).nullable(),
     null,
-    { secret: true },
+    { secret: true, scope: "org" },
   ),
-  previewWatermark: def("previews.watermark", z.boolean(), true),
+  previewWatermark: def("previews.watermark", z.boolean(), true, ORG),
   previewWatermarkLink: def(
     "previews.watermark.link",
     z.url().or(z.literal("")),
     "https://gangway.sh",
+    ORG,
   ),
+  // The server's, never an org's: it is where reports of abuse go.
   previewWatermarkReport: def("previews.watermark.report", reportUrl, ""),
   // Previews under these domains always carry the report link, even with the mark off.
   previewReportDomains: def("previews.report.domains", reportDomains, []),
@@ -150,15 +171,17 @@ export const SETTINGS = {
     "artifacts.theme",
     z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/),
     "chart",
+    ORG,
   ),
-  artifactCustomCss: def("artifacts.customCss", z.boolean(), true),
+  artifactCustomCss: def("artifacts.customCss", z.boolean(), true, ORG),
   // Off puts static sites and artifacts back in nginx containers.
   previewsServeStatic: def("previews.serveStatic", z.boolean(), true),
-  previewsShare: def("previews.share.enabled", z.boolean(), false),
+  previewsShare: def("previews.share.enabled", z.boolean(), false, ORG),
   previewsShareMaxTtl: def(
     "previews.share.maxTtl",
     z.string().refine((v) => parseDuration(v) !== null, "a duration like 30m, 24h or 7d"),
     "24h",
+    ORG,
   ),
   // Per container. Memory and processes are what take a host down; 0 turns a limit off.
   previewsMemory: def(
@@ -171,7 +194,12 @@ export const SETTINGS = {
   // Per preview, replicas counted; container previews at once, served sites not counted.
   previewsContainers: def("previews.limits.containers", z.coerce.number().int().min(0), 10),
   previewsActive: def("previews.limits.active", z.coerce.number().int().min(0), 50),
-  previewsActivePerUser: def("previews.limits.activePerUser", z.coerce.number().int().min(0), 20),
+  previewsActivePerUser: def(
+    "previews.limits.activePerUser",
+    z.coerce.number().int().min(0),
+    20,
+    ORG,
+  ),
   // Builds run outside every preview's limits, so a burst of them would take the whole host.
   previewsBuilds: def("previews.limits.builds", z.coerce.number().int().min(0), 2),
   previewsBuildQueue: def("previews.limits.buildQueue", z.coerce.number().int().min(0), 10),
@@ -264,13 +292,15 @@ export class MemorySettingsStore implements SettingsStore {
 export class Settings {
   readonly #overrides: Record<string, unknown>;
   readonly #store: SettingsStore;
+  readonly #orgs: OrgSettings | null;
   readonly #parsed = new Map<string, Effective<unknown>>();
   #parsedAt = -1;
   readonly #defaults = new Map<string, () => unknown>();
 
-  constructor(overrides: Record<string, unknown>, store: SettingsStore) {
+  constructor(overrides: Record<string, unknown>, store: SettingsStore, orgs?: OrgSettings) {
     this.#overrides = overrides;
     this.#store = store;
+    this.#orgs = orgs ?? null;
   }
 
   defaultTo<T>(d: SettingDef<T>, fallback: () => T): void {
@@ -282,25 +312,54 @@ export class Settings {
     return Object.hasOwn(this.#overrides, key);
   }
 
-  effective<T>(d: SettingDef<T>): Effective<T> {
-    const version = this.#store.version?.();
+  // The org whose own value applies, the one named else the request's; null reads the server's.
+  #orgFor(d: Pick<SettingDef<unknown>, "scope">, org: string | null | undefined): string | null {
+    if (d.scope !== "org" || !this.#orgs) {
+      return null;
+    }
+    const o = org === undefined ? currentOrg() : org;
+    return o === null || o === this.#orgs.home ? null : o;
+  }
+
+  orgOfPreview(previewId: string): string | null {
+    return this.#orgs?.ofPreview?.(previewId) ?? null;
+  }
+
+  isOtherOrg(org?: string | null): boolean {
+    const o = org === undefined ? currentOrg() : org;
+    return this.#orgs !== null && o !== null && o !== this.#orgs.home;
+  }
+
+  #version(): number | undefined {
+    const a = this.#store.version?.();
+    if (a === undefined || !this.#orgs) {
+      return a;
+    }
+    const b = this.#orgs.store.version?.();
+    return b === undefined ? undefined : a + b;
+  }
+
+  effective<T>(d: SettingDef<T>, org?: string | null): Effective<T> {
+    const o = this.#orgFor(d, org);
+    const version = this.#version();
     if (version === undefined) {
-      return this.#resolve(d);
+      return this.#resolve(d, o);
     }
     if (version !== this.#parsedAt) {
       this.#parsed.clear();
       this.#parsedAt = version;
     }
-    const hit = this.#parsed.get(d.key) as Effective<T> | undefined;
+    const at = o === null ? d.key : `${o}\n${d.key}`;
+    const hit = this.#parsed.get(at) as Effective<T> | undefined;
     if (hit) {
       return hit;
     }
-    const e = this.#resolve(d);
-    this.#parsed.set(d.key, e);
+    const e = this.#resolve(d, o);
+    this.#parsed.set(at, e);
     return e;
   }
 
-  #resolve<T>(d: SettingDef<T>): Effective<T> {
+  #resolve<T>(d: SettingDef<T>, org: string | null): Effective<T> {
     const managedByConfig = this.isManagedByConfig(d.key);
 
     if (managedByConfig) {
@@ -314,11 +373,23 @@ export class Settings {
       return { key: d.key, value: parsed.data, source: "config", managedByConfig: true };
     }
 
+    if (org !== null) {
+      const own = this.#orgs?.store.get(org, d.key);
+      if (own !== undefined) {
+        const parsed = d.schema.safeParse(own);
+        if (parsed.success) {
+          return { key: d.key, value: parsed.data, source: "database", managedByConfig: false };
+        }
+      }
+    }
+
     const stored = this.#store.get(d.key);
     if (stored !== undefined) {
       const parsed = d.schema.safeParse(stored);
       if (parsed.success) {
-        return { key: d.key, value: parsed.data, source: "database", managedByConfig: false };
+        // To another org, the server's value is its default until it sets its own.
+        const source = org === null ? "database" : "default";
+        return { key: d.key, value: parsed.data, source, managedByConfig: false };
       }
     }
 
@@ -327,35 +398,48 @@ export class Settings {
     return { key: d.key, value, source: "default", managedByConfig: false };
   }
 
-  get<T>(d: SettingDef<T>): T {
-    return this.effective(d).value;
+  get<T>(d: SettingDef<T>, org?: string | null): T {
+    return this.effective(d, org).value;
   }
 
-  set<T>(d: SettingDef<T>, value: T): void {
+  set<T>(d: SettingDef<T>, value: T, org?: string | null): void {
     if (this.isManagedByConfig(d.key)) {
       throw new Error(`"${d.key}" is managed by config and cannot be changed at runtime`);
     }
-    this.#store.set(d.key, d.schema.parse(value));
+    if (d.scope === "instance" && this.isOtherOrg(org)) {
+      throw new Error(`"${d.key}" is the server's setting, and only the home org may change it`);
+    }
+    const parsed = d.schema.parse(value);
+    const o = this.#orgFor(d, org);
+    if (o === null) {
+      this.#store.set(d.key, parsed);
+    } else {
+      this.#orgs?.store.set(o, d.key, parsed);
+    }
   }
 
   snapshot(): Effective<unknown>[] {
     return Object.values(SETTINGS).map((d) => this.effective(d as SettingDef<unknown>));
   }
 
-  view(): SettingView[] {
-    return Object.values(SETTINGS).map((d) => {
-      // TypeScript 7 needs the widening; the TypeScript 6 that ESLint runs does not.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-      const e = this.effective(d as SettingDef<unknown>);
-      const set = e.value !== "" && e.value !== null && e.value !== undefined;
-      return {
-        key: e.key,
-        source: e.source,
-        managedByConfig: e.managedByConfig,
-        secret: d.secret,
-        value: d.secret ? null : e.value,
-        set,
-      };
-    });
+  view(org?: string | null): SettingView[] {
+    const other = this.isOtherOrg(org);
+    return Object.values(SETTINGS)
+      .filter((d) => !other || d.scope === "org")
+      .map((d) => {
+        // TypeScript 7 needs the widening; the TypeScript 6 that ESLint runs does not.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        const e = this.effective(d as SettingDef<unknown>, org);
+        const set = e.value !== "" && e.value !== null && e.value !== undefined;
+        return {
+          key: e.key,
+          source: e.source,
+          managedByConfig: e.managedByConfig,
+          secret: d.secret,
+          scope: d.scope,
+          value: d.secret ? null : e.value,
+          set,
+        };
+      });
   }
 }

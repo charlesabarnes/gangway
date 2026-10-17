@@ -74,7 +74,7 @@ export class ShareSettings {
   protected readonly field = FIELD;
   protected readonly on$ = ON;
   protected readonly max$ = MAX;
-  protected readonly canWrite = computed(() => this.#auth.can('settings.write'));
+  protected readonly canWrite = computed(() => this.#auth.canWriteOrgSettings());
   readonly #row = (key: string) => this.settings().find((s) => s.key === key);
   protected readonly on = linkedSignal(() => this.#row(ON)?.value === true);
   protected readonly savedMax = linkedSignal(() => String(this.#row(MAX)?.value ?? '24h'));

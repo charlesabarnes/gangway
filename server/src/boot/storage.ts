@@ -19,6 +19,7 @@ import {
   RoutesRepo,
   TemplatesRepo,
   SessionsRepo,
+  SqliteOrgSettingsStore,
   SqliteSettingsStore,
   TokensRepo,
   UserLinksRepo,
@@ -27,6 +28,7 @@ import {
 } from "../db/repos/index.ts";
 import { OAuthClientsRepo } from "../db/repos/oauth-clients.ts";
 import { OrgsRepo } from "../db/repos/orgs.ts";
+import { TakedownsRepo } from "../db/repos/takedowns.ts";
 import { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { openDatabase } from "../db/sqlite.ts";
 import type { Db } from "../db/types.ts";
@@ -53,6 +55,8 @@ export type Repos = {
   oauthGrants: OAuthGrantsRepo;
   oauthClients: OAuthClientsRepo;
   orgs: OrgsRepo;
+  takedowns: TakedownsRepo;
+  orgSettings: SqliteOrgSettingsStore;
   previews: PreviewsRepo;
   projects: ProjectsRepo;
   roles: RolesRepo;
@@ -93,6 +97,8 @@ function openRepos(db: Db): Repos {
     oauthGrants: new OAuthGrantsRepo(db),
     oauthClients: new OAuthClientsRepo(db),
     orgs: new OrgsRepo(db),
+    takedowns: new TakedownsRepo(db),
+    orgSettings: new SqliteOrgSettingsStore(db),
     previews: new PreviewsRepo(db),
     projects: new ProjectsRepo(db),
     roles: new RolesRepo(db),

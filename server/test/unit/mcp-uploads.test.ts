@@ -7,6 +7,10 @@ import { resolvePreview } from "../../src/mcp/resolve.ts";
 import { silentLogger } from "../helpers/logger.ts";
 import { setupTools } from "../helpers/mcp-tools.ts";
 import { HOME_ORG_ID } from "../../src/db/repos/orgs.ts";
+import { forbidden } from "../../src/errors.ts";
+import { Uploads } from "../../src/mcp/uploads.ts";
+import { tempDir } from "../helpers/db.ts";
+import { join } from "node:path";
 
 const TOKEN = "gw_uploads_test_token_0123456789abcdef";
 
@@ -146,5 +150,19 @@ describe("upload by reference", () => {
     await expect(s.tools.deploy(s.scope(), { upload: "new" })).rejects.toThrow(
       "send files instead",
     );
+  });
+
+  test("a slot is refused when the actor may not upload at all", () => {
+    const uploads = new Uploads({
+      dir: join(tempDir(), "uploads"),
+      url: (id) => `https://mcp.example.test/uploads/${id}`,
+      admit: (actor) => {
+        if (actor.orgId === "suspended") {
+          throw forbidden("this org is suspended");
+        }
+      },
+    });
+    expect(() => uploads.issue(tokenActor("t1", ["deploy"], "suspended"))).toThrow(/suspended/);
+    expect(uploads.issue(tokenActor("t1", ["deploy"], HOME_ORG_ID)).id).toBeString();
   });
 });

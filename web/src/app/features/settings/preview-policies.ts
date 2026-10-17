@@ -257,7 +257,7 @@ export class PreviewPolicies {
   protected readonly clearanceHelp = CLEARANCE_HELP;
 
   protected readonly canManage = computed(() => this.auth.can('templates.manage'));
-  protected readonly canReadSettings = computed(() => this.auth.can('settings.read'));
+  protected readonly canReadSettings = computed(() => this.auth.canReadOrgSettings());
   readonly templates = model.required<Template[]>();
   readonly settings = input.required<SettingView[]>();
   readonly saving = model.required<string | null>();

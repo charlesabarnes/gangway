@@ -41,6 +41,8 @@ export type Running = {
   reconciler: Reconciler;
   scheduler: Scheduler;
   reconciled: Promise<ReconcileReport | null>;
+  /** Every method and path the app answers, middleware included: what the tenancy contract walks. */
+  routes: () => { method: string; path: string }[];
   stop(o?: { graceMs?: number }): Promise<void>;
 };
 
@@ -109,6 +111,7 @@ export async function boot(config: Config, o: BootOverrides = {}): Promise<Runni
     reconciler,
     scheduler,
     reconciled,
+    routes: () => http.app.routes.map(({ method, path }) => ({ method, path })),
     stop: (o = {}) => (stopped ??= stop(o.graceMs ?? config.shutdownGraceMs)),
   };
 }

@@ -3,9 +3,13 @@ import { isLocalDomain } from "@gangway/shared/hostname";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { AppError, conflict, errorMessage, forbidden, unprocessable } from "../errors.ts";
 import type { Share } from "../share/shares.ts";
+import { admitChange } from "../tenancy/limits.ts";
 import type { PreviewContext } from "./context.ts";
 
-type ShareCtx = Pick<PreviewContext, "shares" | "previews" | "table" | "audit" | "domains">;
+type ShareCtx = Pick<
+  PreviewContext,
+  "shares" | "previews" | "table" | "audit" | "domains" | "blocks"
+>;
 
 export type ShareStatus = {
   /** Whether this server can share at all: switched on, and cloudflared is installed. */
@@ -50,6 +54,7 @@ export async function startShare(
   ttl?: string,
 ): Promise<Share> {
   checkMayShare(ctx, actor, previewId);
+  admitChange(ctx, actor.orgId);
   const shares = ctx.shares;
   if (!shares?.available()) {
     throw new AppError(

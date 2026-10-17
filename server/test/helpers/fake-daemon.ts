@@ -10,10 +10,12 @@ import { silentLogger } from "./logger.ts";
 
 export async function bootWithFakeDaemon(
   stateDir: string,
-  upstreamPort: number,
+  /** One upstream port, or a run of them from `from` of which only the first was checked free. */
+  upstream: number | { from: number; count: number },
   seed?: ContainerSummary[],
   env: Record<string, string> = {},
 ) {
+  const { from, count } = typeof upstream === "number" ? { from: upstream, count: 1 } : upstream;
   const fixtures = new Map<string, ReturnType<typeof Bun.serve>>();
   /** What the fake daemon would list: one "container" per `up`, labelled as the stack file said. */
   const containers = new Map<string, ContainerSummary>();
@@ -123,7 +125,7 @@ export async function bootWithFakeDaemon(
       GANGWAY_ADMIN_TOKEN: "gw_e2e_admin_token_0123456789abcdef",
       ...env,
     },
-    { hosts: [{ portRangeStart: upstreamPort, portRangeEnd: upstreamPort }] },
+    { hosts: [{ portRangeStart: from, portRangeEnd: from + count - 1 }] },
   );
   config.publicPort = config.listenPort;
 

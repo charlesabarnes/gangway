@@ -110,7 +110,8 @@ test("another org holds nothing that acts on the whole server", async () => {
     body: JSON.stringify(body),
   });
   expect((await home("/v1/secrets", patch({ set: { HOME_ONLY: "1" } }))).status).toBe(200);
-  for (const path of ["/v1/settings", "/v1/hosts", "/v1/users", "/v1/roles"]) {
+  // /v1/settings answers with the org's own settings only: see the test below.
+  for (const path of ["/v1/hosts", "/v1/users", "/v1/roles"]) {
     expect({ path, status: (await other(path)).status }).toEqual({ path, status: 403 });
     expect({ path, status: (await home(path)).status }).toEqual({ path, status: 200 });
   }
@@ -221,4 +222,27 @@ test("a site that fits the estimate but not the cap once published fails", async
     body: await tarball({ "index.html": "ok" }),
   });
   expect(((await fits.json()) as { preview: { state: string } }).preview.state).toBe("awake");
+});
+
+test("an org sees and changes only its own settings, and they never reach another org", async () => {
+  const { home, other } = await twoOrgs();
+  const put = (values: Record<string, unknown>): RequestInit => ({
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ values }),
+  });
+  type View = { key: string; value: unknown; scope: string }[];
+  const read = async (as: typeof home) =>
+    ((await (await as("/v1/settings")).json()) as { settings: View }).settings;
+  const value = (view: View, key: string) => view.find((s) => s.key === key)?.value;
+
+  const theirs = await read(other);
+  expect(theirs.every((s) => s.scope === "org")).toBe(true);
+  expect(theirs.map((s) => s.key)).not.toContain("baseDomain");
+  expect((await other("/v1/settings", put({ baseDomain: "evil.example.com" }))).status).toBe(403);
+  expect((await other("/v1/settings", put({ "previews.watermark": false }))).status).toBe(200);
+
+  expect(value(await read(other), "previews.watermark")).toBe(false);
+  expect(value(await read(home), "previews.watermark")).toBe(true);
+  expect(value(await read(home), "baseDomain")).not.toBe("evil.example.com");
 });
