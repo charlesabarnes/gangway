@@ -1,4 +1,10 @@
-import { OrgLimitsSchema, type Org, type OrgLimits, type OrgState } from "@gangway/shared/orgs-api";
+import {
+  OrgLimitsSchema,
+  type Org,
+  type OrgLimits,
+  type OrgSeats,
+  type OrgState,
+} from "@gangway/shared/orgs-api";
 import type { Db } from "../types.ts";
 
 export const HOME_ORG_ID = "00000000000000000000000000";
@@ -61,8 +67,40 @@ export class OrgsRepo {
     return r ? toOrg(r) : undefined;
   }
 
+  /** The org a preview belongs to, for work across every org that reads that org's settings. */
+  ofPreview(previewId: string): string | null {
+    const r = this.#db.get("SELECT org_id FROM previews WHERE id = $previewId", { previewId }) as
+      { org_id: string } | undefined;
+    return r?.org_id ?? null;
+  }
+
   list(): Org[] {
     return (this.#db.query("SELECT * FROM orgs ORDER BY created_at, id") as OrgRow[]).map(toOrg);
+  }
+
+  setState(id: string, state: OrgState): void {
+    this.#db.run(
+      `UPDATE orgs SET state = $state, updated_at = max(updated_at + 1, $now)
+        WHERE id = $id AND state <> $state`,
+      { id, state, now: this.#now() },
+    );
+  }
+
+  suspendedIds(): string[] {
+    return (
+      this.#db.query("SELECT id FROM orgs WHERE state = 'suspended'") as { id: string }[]
+    ).map((r) => r.id);
+  }
+
+  /** Orgs changed after `since` (all of them without it), each with how many people it has. */
+  seats(since?: number): OrgSeats[] {
+    const rows = this.#db.query(
+      `SELECT o.*, (SELECT count(*) FROM memberships m WHERE m.org_id = o.id) AS members
+         FROM orgs o WHERE $since IS NULL OR o.updated_at > $since
+        ORDER BY o.updated_at, o.id`,
+      { since: since ?? null },
+    ) as (OrgRow & { members: number })[];
+    return rows.map((r) => ({ ...toOrg(r), members: r.members }));
   }
 
   limitsOf(orgId: string): OrgLimitsRecord | undefined {

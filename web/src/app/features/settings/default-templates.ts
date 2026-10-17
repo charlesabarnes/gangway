@@ -69,7 +69,7 @@ export class DefaultTemplates {
   readonly #http = inject(HttpClient);
   readonly #toasts = inject(ToastService);
   readonly #auth = inject(AuthService);
-  protected readonly canWrite = computed(() => this.#auth.can('settings.write'));
+  protected readonly canWrite = computed(() => this.#auth.canWriteOrgSettings());
 
   protected readonly field = FIELD;
   protected readonly triggers = TRIGGERS;

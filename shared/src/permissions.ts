@@ -114,6 +114,17 @@ export const PERMISSIONS = [
   { id: "settings.read", feature: "settings", description: "See server settings" },
   { id: "settings.write", feature: "settings", description: "Change server settings" },
   {
+    id: "settings.org_read",
+    feature: "settings",
+    description: "See this org's own settings: default templates, preview passwords, the watermark",
+  },
+  {
+    id: "settings.org_write",
+    feature: "settings",
+    description:
+      "Change this org's own settings: default templates, preview passwords, the watermark",
+  },
+  {
     id: "surfaces.manage",
     feature: "settings",
     description: "Enable and disable the UI and MCP surfaces",

@@ -55,6 +55,7 @@ const pub = (why: string): Rule => ({ kind: "public", why });
 const SERVER = "the server's own configuration";
 const CATALOGUE = "artifact themes and templates are one catalogue for the server, home-edited";
 const SIGN_IN = "signing in comes before any org";
+const ORG_SETTINGS = "an org reads and writes its own settings; the server's stay home-only";
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const PROJECT_OF = (v: Org) => v.holds.project?.slug ?? "none";
 const PREVIEW_OF = (v: Org) => v.holds.previews[0] ?? "none";
@@ -143,9 +144,14 @@ export const ROUTES: Record<string, Rule> = {
   "POST /v1/operator/orgs": { kind: "operator" },
   "GET /v1/operator/orgs/:id": { kind: "operator" },
   "PUT /v1/operator/orgs/:id/limits": { kind: "operator" },
-  "GET /v1/settings": instance(SERVER),
-  "PUT /v1/settings": instance(SERVER, { values: {} }),
-  "PUT /v1/settings/preview-password": instance(SERVER, { mode: "off" }),
+  "POST /v1/operator/orgs/:id/suspend": { kind: "operator" },
+  "POST /v1/operator/orgs/:id/resume": { kind: "operator" },
+  "POST /v1/operator/previews/:id/takedown": { kind: "operator" },
+  "GET /v1/operator/takedowns": { kind: "operator" },
+  "DELETE /v1/operator/takedowns/:hostname": { kind: "operator" },
+  "GET /v1/settings": own(ORG_SETTINGS),
+  "PUT /v1/settings": own(ORG_SETTINGS, { values: {} }),
+  "PUT /v1/settings/preview-password": own(ORG_SETTINGS, { mode: "off" }),
   "POST /v1/settings/mail/test": instance(SERVER, { to: "x@example.com" }),
   "GET /v1/updates": instance(SERVER),
   "GET /v1/oauth/requests/:id": own("a pending consent of the caller's own, by its secret id"),

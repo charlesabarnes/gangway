@@ -124,6 +124,8 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
     templates: repos.templates,
     permissions: identity.roles,
     audit,
+    ctx,
+    takedowns: repos.takedowns,
   });
   orgRoutes(api, orgRouteDeps(d));
   serverSettingRoutes(api, d);

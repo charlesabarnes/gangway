@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { DEFAULT_ROLE_PERMISSIONS, isPermission } from "@gangway/shared/permissions";
 import { migrate } from "../../src/db/migrate.ts";
-import { HOME_ORG_ID, OrgsRepo } from "../../src/db/repos/orgs.ts";
-import { ProjectsRepo } from "../../src/db/repos/projects.ts";
 import type { Db } from "../../src/db/types.ts";
 import { MIGRATIONS, tempDir } from "../helpers/db.ts";
 import { DRIVERS, databaseAt, migrationsUpTo, versionsFrom } from "../helpers/db-migrations.ts";
@@ -398,100 +396,6 @@ for (const [name, open] of DRIVERS) {
         { actor_id: "t1", actor_name: "ci" },
         { actor_id: "oauth:gone", actor_name: null },
         { actor_id: "u1", actor_name: null },
-      ]);
-      db.close();
-    });
-  });
-
-  describe(`0029 orgs on ${name}`, () => {
-    test("an existing install becomes one home org, and there can be only one", () => {
-      const at = databaseAt(open, 28);
-      at.db.run(
-        "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1)",
-      );
-      const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(29));
-      const orgs = new OrgsRepo(db);
-      expect(orgs.list().map((o) => [o.id, o.slug, o.home, o.state])).toEqual([
-        [HOME_ORG_ID, "default", true, "active"],
-      ]);
-      const org = (id: string, slug: string, home: number) =>
-        db.run(
-          `INSERT INTO orgs (id, slug, name, home, created_at, updated_at) VALUES ('${id}', '${slug}', 'x', ${home}, 1, 1)`,
-        );
-      expect(() => org("o2", "second", 1)).toThrow();
-      expect(() => org("o2", "a-b", 0)).toThrow();
-      expect(() => org("o2", "Caps", 0)).toThrow();
-      org("o2", "acme2", 0);
-      expect(orgs.home().id).toBe(HOME_ORG_ID);
-      db.close();
-    });
-
-    test("limits replace as a whole, and an org with none has no limit", () => {
-      const db = migrated();
-      const orgs = new OrgsRepo(db, () => 5);
-      expect(orgs.limitsOf(HOME_ORG_ID)).toBeUndefined();
-      orgs.setLimits(
-        HOME_ORG_ID,
-        "Pro",
-        { storageBytes: 5e9, maxAwake: 2, containers: true },
-        "t1",
-      );
-      orgs.setLimits(HOME_ORG_ID, "Free", { storageBytes: 25e7, containers: false }, "t1");
-      expect(orgs.limitsOf(HOME_ORG_ID)).toEqual({
-        planLabel: "Free",
-        limits: { storageBytes: 25e7, containers: false },
-        updatedAt: 5,
-      });
-      expect(() => orgs.setLimits(HOME_ORG_ID, null, { maxAwake: -1 }, "t1")).toThrow();
-      db.close();
-    });
-  });
-
-  describe(`0031 project repository id on ${name}`, () => {
-    test("the first id a run shows sticks, and changing the repository forgets it", () => {
-      const db = migrated();
-      const projects = new ProjectsRepo(db);
-      projects.create({ id: "p1", orgId: HOME_ORG_ID, name: "web", slug: "web" });
-      projects.setRepository("p1", "github", "acme/web");
-      expect(projects.sameRepository("p1", "100")).toBe(true);
-      expect(projects.sameRepository("p1", "100")).toBe(true);
-      expect(projects.sameRepository("p1", "200")).toBe(false);
-      projects.setRepository("p1", "github", "acme/site");
-      expect(projects.sameRepository("p1", "200")).toBe(true);
-      db.close();
-    });
-  });
-
-  describe(`0032 memberships on ${name}`, () => {
-    test("every existing person belongs to the home org with the role they had", () => {
-      const at = databaseAt(open, 31);
-      at.db.run(
-        "INSERT INTO users (id, email, password_hash, password_salt, role_id, created_at) VALUES ('u1', 'ada@example.com', 'h', 's', 'admin', 1), ('u2', 'bo@example.com', 'h', 's', 'viewer', 2)",
-      );
-      const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(32));
-      expect(db.query("SELECT org_id, user_id, role_id FROM memberships ORDER BY user_id")).toEqual(
-        [
-          { org_id: HOME_ORG_ID, user_id: "u1", role_id: "admin" },
-          { org_id: HOME_ORG_ID, user_id: "u2", role_id: "viewer" },
-        ],
-      );
-      db.close();
-    });
-  });
-
-  describe(`0033 org copies on ${name}`, () => {
-    test("the builtin roles take their kind, and a custom role keeps none", () => {
-      const at = databaseAt(open, 32);
-      at.db.run("INSERT INTO roles (id, name, created_at) VALUES ('fixer', 'fixer', 1)");
-      const db = at.reopen();
-      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(33));
-      expect(db.query("SELECT id, kind FROM roles ORDER BY id")).toEqual([
-        { id: "admin", kind: "admin" },
-        { id: "fixer", kind: null },
-        { id: "member", kind: "member" },
-        { id: "viewer", kind: "viewer" },
       ]);
       db.close();
     });

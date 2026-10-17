@@ -4,7 +4,7 @@ import { parseDuration } from "@gangway/shared/duration";
 import { can, mayRebuild, type Actor } from "../auth/actor.ts";
 import { conflict, forbidden, unprocessable } from "../errors.ts";
 import type { PreviewContext } from "./context.ts";
-import { lifetimeCap } from "../tenancy/limits.ts";
+import { admitChange, lifetimeCap } from "../tenancy/limits.ts";
 
 export const EXTEND_FOREVER = "none";
 
@@ -27,11 +27,12 @@ export function keepForProduction(
 
 // Adds `by` to what is left (or to now, if lapsed), or keeps it forever; never shortens a life.
 export function extendPreview(
-  ctx: Pick<PreviewContext, "previews" | "audit" | "now" | "orgLimits">,
+  ctx: Pick<PreviewContext, "previews" | "audit" | "now" | "orgLimits" | "blocks">,
   actor: Actor,
   previewId: string,
   by: string,
 ): Preview {
+  admitChange(ctx, actor.orgId);
   if (!can(actor, "previews.extend")) {
     throw forbidden('extending how long a preview lives needs "previews.extend"');
   }

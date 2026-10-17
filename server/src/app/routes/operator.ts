@@ -1,16 +1,42 @@
 import type { Hono } from "hono";
-import { OrgCreateSchema, OrgLimitsChangeSchema } from "@gangway/shared/orgs-api";
+import {
+  OrgCreateSchema,
+  OrgLimitsChangeSchema,
+  SuspendSchema,
+  TakedownSchema,
+} from "@gangway/shared/orgs-api";
 import { actorId } from "../../auth/actor.ts";
-import { notFound } from "../../errors.ts";
+import { badRequest, notFound } from "../../errors.ts";
 import { createOrg, type OrgDeps } from "../../tenancy/orgs.ts";
+import {
+  liftTakedown,
+  resumeOrg,
+  suspendOrg,
+  takeDown,
+  type SuspendDeps,
+} from "../../tenancy/suspend.ts";
 import type { AppEnv } from "../env.ts";
 import { readJson } from "../problem.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
+export type OperatorDeps = OrgDeps & Omit<SuspendDeps, "orgs" | "audit">;
+
+const sinceOf = (raw: string | undefined): number | undefined => {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const since = Number(raw);
+  if (!Number.isSafeInteger(since) || since < 0) {
+    throw badRequest("changedSince is a time in milliseconds since 1970", { changedSince: raw });
+  }
+  return since;
+};
+
 /** The server's operator acting on orgs by id: never a tenant's route. */
-export function operatorRoutes(api: Hono<AppEnv>, d: OrgDeps): void {
+export function operatorRoutes(api: Hono<AppEnv>, d: OperatorDeps): void {
+  // With changedSince, only the orgs whose people or state changed after it: what seat billing reads.
   api.get("/operator/orgs", requirePermission("instance.orgs"), (c) =>
-    c.json({ orgs: d.orgs.list() }),
+    c.json({ orgs: d.orgs.seats(sinceOf(c.req.query("changedSince"))) }),
   );
 
   api.post("/operator/orgs", requirePermission("instance.orgs"), async (c) => {
@@ -43,4 +69,26 @@ export function operatorRoutes(api: Hono<AppEnv>, d: OrgDeps): void {
     d.audit.record(actor, "org.limits", org.id, { old: before, new: after });
     return c.json({ org, limits: after });
   });
+
+  api.post("/operator/orgs/:id/suspend", requirePermission("instance.orgs"), async (c) => {
+    const { reason } = SuspendSchema.parse(await readJson(c));
+    return c.json(await suspendOrg(d, c.get("actor"), c.req.param("id"), reason));
+  });
+
+  api.post("/operator/orgs/:id/resume", requirePermission("instance.orgs"), (c) =>
+    c.json({ org: resumeOrg(d, c.get("actor"), c.req.param("id")) }),
+  );
+
+  api.post("/operator/previews/:id/takedown", requirePermission("instance.orgs"), async (c) => {
+    const { reason } = TakedownSchema.parse(await readJson(c));
+    return c.json(await takeDown(d, c.get("actor"), c.req.param("id"), reason));
+  });
+
+  api.get("/operator/takedowns", requirePermission("instance.orgs"), (c) =>
+    c.json({ takedowns: d.takedowns.list() }),
+  );
+
+  api.delete("/operator/takedowns/:hostname", requirePermission("instance.orgs"), (c) =>
+    c.json({ takedown: liftTakedown(d, c.get("actor"), c.req.param("hostname")) }),
+  );
 }
