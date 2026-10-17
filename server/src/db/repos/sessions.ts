@@ -12,6 +12,8 @@ export type CreateSession = {
   userAgent: string | null;
   /** The org it acts in; null is the home org. */
   orgId?: string | null;
+  /** Kept from the session it replaces, so moving org never stretches the absolute lifetime. */
+  createdAt?: number;
 };
 
 export class SessionsRepo {
@@ -27,10 +29,11 @@ export class SessionsRepo {
     const now = this.#now();
     this.#db.run(
       `INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, org_id)
-       VALUES ($id, $user, $now, $exp, $now, $ip, $ua, $org)`,
+       VALUES ($id, $user, $created, $exp, $now, $ip, $ua, $org)`,
       {
         id: s.id,
         user: s.userId,
+        created: s.createdAt ?? now,
         now,
         exp: s.expiresAt,
         ip: s.ip,
