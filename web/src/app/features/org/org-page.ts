@@ -9,11 +9,13 @@ import { Skeleton } from '../../ui/skeleton';
 
 type Meter = { label: string; used: string; max: string | null; ratio: number | null; id: string };
 
-// Decimal, as the server counts a plan's storage in its refusals.
+// Decimal, as the server counts a plan's storage in its refusals. A size that rounds to 1000 of
+// one unit reads as 1 of the next.
 export function formatSize(n: number): string {
-  if (n >= 1e9) return `${Math.round(n / 1e8) / 10} GB`;
-  if (n >= 1e6) return `${Math.round(n / 1e5) / 10} MB`;
-  return `${Math.round(n / 100) / 10} kB`;
+  const tenths = (unit: number) => Math.round(n / (unit / 10)) / 10;
+  if (tenths(1e6) >= 1000) return `${tenths(1e9)} GB`;
+  if (tenths(1e3) >= 1000) return `${tenths(1e6)} MB`;
+  return `${tenths(1e3)} kB`;
 }
 
 // A limit of 0 allows nothing, so it reads as full.

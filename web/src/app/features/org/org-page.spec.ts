@@ -69,5 +69,8 @@ describe('the org page', () => {
     expect(formatSize(999)).toBe('1 kB');
     expect(formatSize(2_000_000)).toBe('2 MB');
     expect(formatSize(5_000_000_000)).toBe('5 GB');
+    expect(formatSize(999_949)).toBe('999.9 kB');
+    expect(formatSize(999_999)).toBe('1 MB');
+    expect(formatSize(999_999_999)).toBe('1 GB');
   });
 });

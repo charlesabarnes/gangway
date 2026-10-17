@@ -142,6 +142,15 @@ export class UsersRepo {
     ).map((r) => r.org_id);
   }
 
+  /** How many people are in an org. */
+  memberCount(orgId: string): number {
+    return (
+      this.#db.get("SELECT count(*) AS n FROM memberships WHERE org_id = $orgId", { orgId }) as {
+        n: number;
+      }
+    ).n;
+  }
+
   /** An org's people, each with their role there rather than in the home org. */
   membersOf(orgId: string): OrgMember[] {
     return (

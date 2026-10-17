@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { servedByGangway, type Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Preview, type PreviewState } from "@gangway/shared/domain";
 import type { OrgOverview } from "@gangway/shared/orgs-api";
 import type { OrgsRepo } from "../../db/repos/orgs.ts";
 import type { UsersRepo } from "../../db/repos/users.ts";
@@ -9,13 +9,13 @@ import { requirePermission } from "../middleware/auth.ts";
 
 export type OrgRouteDeps = {
   orgs: Pick<OrgsRepo, "get" | "limitsOf">;
-  users: Pick<UsersRepo, "membersOf">;
-  previews: { list(): Preview[] };
+  users: Pick<UsersRepo, "membersOf" | "memberCount">;
+  previews: { list(f: { state: PreviewState[] }): Preview[] };
   bytesUsed: (orgId: string) => number;
   billingUrl: () => string;
 };
 
-const live = (p: Preview) => !["failed", "destroying", "destroyed"].includes(p.state);
+const LIVE: PreviewState[] = ["building", "starting", "awake", "asleep"];
 
 /** The credential's own org, never one named in the URL: no id to guess. */
 export function orgRoutes(api: Hono<AppEnv>, d: OrgRouteDeps): void {
@@ -25,7 +25,8 @@ export function orgRoutes(api: Hono<AppEnv>, d: OrgRouteDeps): void {
     if (!org) {
       throw notFound("no such org");
     }
-    const mine = d.previews.list().filter((p) => p.orgId === orgId && live(p));
+    // Already the actor's org alone: a request's scope narrows the query.
+    const mine = d.previews.list({ state: LIVE });
     const sites = mine.filter(servedByGangway).length;
     const limits = d.orgs.limitsOf(orgId);
     const body: OrgOverview = {
@@ -36,7 +37,7 @@ export function orgRoutes(api: Hono<AppEnv>, d: OrgRouteDeps): void {
         sites,
         apps: mine.length - sites,
         storageBytes: d.bytesUsed(orgId),
-        members: d.users.membersOf(orgId).length,
+        members: d.users.memberCount(orgId),
       },
       billingUrl: d.billingUrl() || null,
     };
