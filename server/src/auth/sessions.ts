@@ -92,6 +92,35 @@ export class Sessions {
     };
   }
 
+  /**
+   * The same person's session moved to another org: a new secret, the old one gone. It keeps the
+   * old session's start, so switching cannot outlive the absolute lifetime.
+   */
+  rotate(
+    sessionId: string,
+    orgId: string,
+    meta: { ip: string | null; userAgent: string | null },
+  ): { secret: string; session: Session } | null {
+    const now = this.#now();
+    const found = this.#repo.findActive(sessionId, now);
+    if (!found) {
+      return null;
+    }
+    const createdAt = found.session.createdAt.getTime();
+    const secret = randomBytes(32).toString("base64url");
+    const session = this.#repo.create({
+      id: idFor(secret),
+      userId: found.user.id,
+      expiresAt: Math.min(now + this.timings.idleMs, createdAt + this.timings.absoluteMs),
+      ip: meta.ip,
+      userAgent: meta.userAgent?.slice(0, 512) ?? null,
+      orgId,
+      createdAt,
+    });
+    this.#repo.delete(sessionId);
+    return { secret, session };
+  }
+
   revoke(sessionId: string): boolean {
     return this.#repo.delete(sessionId);
   }

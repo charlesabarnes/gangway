@@ -44,6 +44,7 @@ import { claimDomain } from "../domains/claims.ts";
 import { relabelPreview } from "../previews/relabel.ts";
 import type { DeployHostDeps } from "../projects/deploy-host.ts";
 import type { Identity } from "./identity.ts";
+import { acrossOrgs } from "../tenancy/scope.ts";
 
 export type ApiRouteDeps = Pick<
   Core,
@@ -206,12 +207,14 @@ export function publicRoutes(pub: Hono<AppEnv>, { ctx, auth, identity, gate }: P
     accounts: identity.accounts,
     bootstrap: identity.bootstrap,
     links: identity.links,
+    orgs: identity.orgs,
     roles: identity.roles,
     sessionMaxAgeSec: Math.floor(identity.sessions.timings.absoluteMs / 1000),
     sso: identity.sso,
     passwords: identity.passwords,
     gate: {
       lookup: (host) => table.lookup(host),
+      orgOf: (previewId) => acrossOrgs(() => ctx.previews.get(previewId))?.orgId,
       issueTicket: (e, o) => gate.issueTicket(e, o),
       gateable: (host) => {
         const e = table.lookup(host);
