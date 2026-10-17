@@ -55,8 +55,9 @@ only the hostnames change. A name that another preview already holds is refused.
   deploy.
 - **A project with no deploy branch.** The push answers 409. Choose one in the project's settings.
 - **A disabled project.** The push answers 409. Enable the project first.
-- **A push from another branch or repository.** The push answers 403: the token says where the
-  run came from.
+- **A push from another branch.** The push answers 403: the token says where the run came from.
+- **A push from a repository with no connected project.** The push answers 401: gangway does not
+  know the run. Connect the repository to the project first.
 
 A push of a commit that is already live answers "unchanged" and rebuilds nothing. A broken build
 answers 502, and the workflow run fails while the previous version serves.

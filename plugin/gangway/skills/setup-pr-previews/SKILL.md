@@ -107,5 +107,6 @@ Every push to one branch (usually the default branch) deploys as the project's p
    - **502:** the build or its checks failed; the previous version keeps serving. Use MCP `logs` with the preview name and `source: "runtime"`, or the run's output.
    - **409:** the project's production preview was chosen by hand, or belongs to another branch. The user clears it in gangway, then the next push takes over. A 409 that says "no deploy branch" means the branch was cleared: call the `project` tool with `branch` again. One that says "is disabled" means the user must enable the project in gangway; nothing needs clearing.
    - **403:** the run is not a push to the deploy branch of this repository. Check the branch in the workflow matches the project's.
+   - **401:** gangway does not know the repository: no project is connected to it. Connect it with the `project` tool, then push again.
    - **422 about an image:** a branch deploy sends files, never an image. Use the file the tool gave you.
 7. Hand over: the URL, the branch that deploys, and that each push rebuilds in place.
