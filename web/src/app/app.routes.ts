@@ -52,6 +52,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/account/account').then((m) => m.Account),
   },
   {
+    path: 'org',
+    title: 'Organisation · gangway',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/org/org-page').then((m) => m.OrgPage),
+  },
+  {
     path: 'repositories',
     title: 'Repositories · gangway',
     canActivate: [authGuard],
