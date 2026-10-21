@@ -15,7 +15,7 @@ COPY web/ ./
 RUN npm run build
 
 # The artifact renderer (render/): one JS bundle, its CSS and fonts, copied into artifact previews.
-FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-alpine AS render
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.3-alpine AS render
 WORKDIR /src
 COPY package.json bun.lock bunfig.toml tsconfig.base.json ./
 COPY server/package.json server/
@@ -34,7 +34,7 @@ COPY scripts/precompress.ts scripts/
 COPY --from=web /web/dist/browser web/dist/browser
 RUN bun scripts/precompress.ts web/dist/browser render/dist
 
-FROM oven/bun:1.4.2-alpine
+FROM oven/bun:1.4.3-alpine
 
 # The base image trails Alpine's security fixes (openssl CVE-2026-14456): take them at build time.
 RUN apk upgrade --no-cache && apk add --no-cache docker-cli docker-cli-compose git openssh-client tini
