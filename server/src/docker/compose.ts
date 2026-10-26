@@ -212,7 +212,9 @@ const bunSpawner: Spawner = (argv, opts) => {
       proc.kill();
     },
     get signalCode() {
-      return proc.signalCode;
+      // Bun may report a signal it has no name for as its number.
+      const code = proc.signalCode;
+      return typeof code === "number" ? String(code) : code;
     },
   };
 };
