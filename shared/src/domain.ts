@@ -128,11 +128,12 @@ export type PreviewNetwork = Exclude<NetworkChoice, "auto">;
 export const WATERMARK_CHOICES = ["inherit", "on", "off"] as const;
 export type WatermarkChoice = (typeof WATERMARK_CHOICES)[number];
 
-export type PullRequestRef = { repo: string; number: number; sha: string };
+/** headRef is the PR's branch, when a workflow sent it: a merged PR's close run names only that. */
+export type PullRequestRef = { repo: string; number: number; sha: string; headRef?: string };
 export type BranchRef = { repo: string; branch: string; sha: string };
 
 export type PreviewSource =
-  | { kind: "pr"; repo: string; number: number; sha: string; image?: string }
+  | { kind: "pr"; repo: string; number: number; sha: string; headRef?: string; image?: string }
   | { kind: "manual"; userId: string }
   | { kind: "agent"; tokenId: string; idempotencyKey: string }
   | { kind: "image"; image: string; network?: PreviewNetwork }

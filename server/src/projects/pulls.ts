@@ -82,7 +82,14 @@ export class Pulls {
     this.#d = d;
   }
 
-  authorize(ref: string, number: number, actor: Actor): Project & { fullName: string } {
+  // closing: a merged PR's close run has the base branch as its ref, so no number; close() then
+  // holds it to the branch the PR's preview was deployed from.
+  authorize(
+    ref: string,
+    number: number,
+    actor: Actor,
+    closing = false,
+  ): Project & { fullName: string } {
     const project = this.#d.projects.find(ref);
     if (!project) {
       throw notFound(`no such project: ${ref}`);
@@ -107,7 +114,8 @@ export class Pulls {
           `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
         );
       }
-      if (actor.pull !== number) {
+      const mergedClose = closing && actor.pull === null && actor.headRef !== "";
+      if (actor.pull !== number && !mergedClose) {
         const run = actor.pull === null ? "no pull request" : `#${actor.pull}`;
         throw forbidden(`this run is for ${run}, not #${number}`);
       }
@@ -144,16 +152,27 @@ export class Pulls {
         projectId: project.id,
         ...(existing?.secretLevel ? { secretLevel: existing.secretLevel } : {}),
         carrySecrets,
-        source: sourceOf(req, { repo: project.fullName, number, sha: req.sha }),
+        source: sourceOf(req, {
+          repo: project.fullName,
+          number,
+          sha: req.sha,
+          ...(actor.kind === "workflow" && actor.headRef ? { headRef: actor.headRef } : {}),
+        }),
       });
       return { action: "deployed", result };
     });
   }
 
   async close(ref: string, number: number, actor: Actor): Promise<Preview | null> {
-    const project = this.authorize(ref, number, actor);
+    const project = this.authorize(ref, number, actor, true);
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
+      if (existing && actor.kind === "workflow" && actor.pull === null) {
+        const branch = pullRequestOf(existing.source)?.headRef;
+        if (branch !== actor.headRef) {
+          throw forbidden(`this run is for branch ${actor.headRef}, not #${number}'s`);
+        }
+      }
       return existing ? this.#d.previews.destroy(existing.id, actor) : null;
     });
   }
