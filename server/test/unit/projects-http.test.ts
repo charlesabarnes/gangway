@@ -270,6 +270,23 @@ describe("/v1/projects/:ref/pulls/:n", () => {
     expect(t.s.previews.get(preview.id)!.state).toBe("destroyed");
   });
 
+  test("a PR moved to another base gets its preview again from the same head", async () => {
+    const t = setup();
+    const put = async (base: string) =>
+      (await (
+        await t.call("/v1/projects/web-app/pulls/7?wait=true", {
+          method: "PUT",
+          as: wf("acme/web-app", "refs/pull/7/merge", "pull_request", { head: "feature", base }),
+          json: t.body(),
+        })
+      ).json()) as any;
+    const first = await put("main");
+    const moved = await put("release");
+    expect(moved.unchanged).toBeUndefined();
+    expect(moved.preview.source).toMatchObject({ headRef: "feature", baseRef: "release" });
+    expect(t.s.previews.get(first.preview.id)!.state).toBe("destroyed");
+  });
+
   test.each([
     ["another repository", wf("evil/web-app")],
     ["another pull request", wf("acme/web-app", "refs/pull/8/merge")],

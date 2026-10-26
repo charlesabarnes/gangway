@@ -49,12 +49,23 @@ export function registryOf(image: string): string {
     : "docker.io";
 }
 
-function sameHead(p: Preview, req: PullDeployRequest): boolean {
-  if ("image" in req) {
-    return p.source.kind === "pr" && p.source.sha === req.sha && p.source.image === req.image;
+// Branches count as the head too: a merged close run is held to them, and a PR's base can change.
+function sameHead(p: Preview, req: PullDeployRequest, branches: Branches): boolean {
+  const pr = pullRequestOf(p.source);
+  if (pr?.sha !== req.sha || pr.headRef !== branches.headRef || pr.baseRef !== branches.baseRef) {
+    return false;
   }
-  return p.source.kind === "tarball" && pullRequestOf(p.source)?.sha === req.sha;
+  return "image" in req
+    ? p.source.kind === "pr" && p.source.image === req.image
+    : p.source.kind === "tarball";
 }
+
+type Branches = { headRef?: string; baseRef?: string };
+
+const branchesOf = (actor: Actor): Branches =>
+  actor.kind === "workflow" && actor.headRef && actor.baseRef
+    ? { headRef: actor.headRef, baseRef: actor.baseRef }
+    : {};
 
 function sourceOf(req: PullDeployRequest, pr: PullRequestRef) {
   if ("archive" in req) {
@@ -138,7 +149,8 @@ export class Pulls {
     }
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
-      if (existing && sameHead(existing, req) && LIVE.has(existing.state)) {
+      const branches = branchesOf(actor);
+      if (existing && sameHead(existing, req, branches) && LIVE.has(existing.state)) {
         return { action: "unchanged", preview: existing };
       }
       // The PR's own secrets outlive its head: read them before the old preview goes.
@@ -158,9 +170,7 @@ export class Pulls {
           repo: project.fullName,
           number,
           sha: req.sha,
-          ...(actor.kind === "workflow" && actor.headRef && actor.baseRef
-            ? { headRef: actor.headRef, baseRef: actor.baseRef }
-            : {}),
+          ...branches,
         }),
       });
       return { action: "deployed", result };
