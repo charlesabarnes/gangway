@@ -76,31 +76,62 @@ export const CASES: readonly Case[] = [
     },
   ],
   [
-    "a renamed route never takes another service's container or one whose hostname is routed",
+    "a renamed route never takes another service's container",
     mkInput({
-      dbRoutes: [
-        mkRoute("new.example.com", "p1", 40000),
-        mkRoute("api.example.com", "p1", 40001, { service: "api", primary: false }),
-      ],
+      dbRoutes: [mkRoute("new.example.com", "p1", 40000)],
       previews: [mkPreview("p1")],
       containers: [
         mkContainer("c1", fullLabels("p1", "old.example.com", { service: "worker" }), {
-          publishedPort: 40002,
-        }),
-        mkContainer("c2", fullLabels("p1", "api.example.com", { service: "api" }), {
-          publishedPort: 40001,
+          publishedPort: 40000,
         }),
       ],
     }),
+    (a) => expect(a).toContainEqual({ kind: "MarkAsleep", at: NOW, previewId: "p1" }),
+  ],
+  [
+    "a renamed route never takes a container whose hostname another route holds",
+    mkInput({
+      dbRoutes: [
+        mkRoute("new.example.com", "p1", 40000),
+        mkRoute("zzz.example.com", "p1", 40001, { primary: false }),
+      ],
+      previews: [mkPreview("p1")],
+      containers: [
+        mkContainer("c2", fullLabels("p1", "zzz.example.com"), { publishedPort: 40001 }),
+      ],
+    }),
     (a) => {
+      expect(a).toContainEqual({ kind: "MarkAsleep", at: NOW, previewId: "p1" });
       expect(a).toContainEqual(
         expect.objectContaining({
           reason: "in-sync",
-          hostname: "api.example.com",
+          hostname: "zzz.example.com",
           containerId: "c2",
         }),
       );
+      expect(a).not.toContainEqual(
+        expect.objectContaining({ hostname: "new.example.com", containerId: "c2" }),
+      );
+    },
+  ],
+  [
+    "a renamed route never takes a container a newer gangway labelled",
+    mkInput({
+      dbRoutes: [mkRoute("new.example.com", "p1", 40000)],
+      previews: [mkPreview("p1")],
+      containers: [
+        mkContainer(
+          "c1",
+          fullLabels("p1", "old.example.com", { version: GANGWAY_LABEL_VERSION + 1 }),
+          { publishedPort: 40000 },
+        ),
+      ],
+    }),
+    (a) => {
       expect(a).toContainEqual({ kind: "MarkAsleep", at: NOW, previewId: "p1" });
+      expect(a).toContainEqual(
+        expect.objectContaining({ reason: "newer-gangway", containerId: "c1" }),
+      );
     },
   ],
   [

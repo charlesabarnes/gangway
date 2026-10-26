@@ -258,6 +258,7 @@ function renamedFrom(p: Pass, route: Route): ScannedContainer | undefined {
     (c) =>
       c.state === "running" &&
       !p.matched.has(c.id) &&
+      (c.labels.version ?? GANGWAY_LABEL_VERSION) <= GANGWAY_LABEL_VERSION &&
       c.labels.service === route.service &&
       c.labels.hostname !== undefined &&
       !p.routesByHostname.has(c.labels.hostname),
