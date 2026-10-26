@@ -56,6 +56,54 @@ export const CASES: readonly Case[] = [
     },
   ],
   [
+    "a renamed route keeps the container still labelled with its old hostname",
+    mkInput({
+      dbRoutes: [mkRoute("new.example.com", "p1", 40000)],
+      previews: [mkPreview("p1")],
+      containers: [
+        mkContainer("c1", fullLabels("p1", "old.example.com"), { publishedPort: 40000 }),
+      ],
+    }),
+    (a) => {
+      expect(a).toEqual([
+        expect.objectContaining({
+          kind: "LeaveAlone",
+          reason: "in-sync",
+          hostname: "new.example.com",
+          containerId: "c1",
+        }),
+      ]);
+    },
+  ],
+  [
+    "a renamed route never takes another service's container or one whose hostname is routed",
+    mkInput({
+      dbRoutes: [
+        mkRoute("new.example.com", "p1", 40000),
+        mkRoute("api.example.com", "p1", 40001, { service: "api", primary: false }),
+      ],
+      previews: [mkPreview("p1")],
+      containers: [
+        mkContainer("c1", fullLabels("p1", "old.example.com", { service: "worker" }), {
+          publishedPort: 40002,
+        }),
+        mkContainer("c2", fullLabels("p1", "api.example.com", { service: "api" }), {
+          publishedPort: 40001,
+        }),
+      ],
+    }),
+    (a) => {
+      expect(a).toContainEqual(
+        expect.objectContaining({
+          reason: "in-sync",
+          hostname: "api.example.com",
+          containerId: "c2",
+        }),
+      );
+      expect(a).toContainEqual({ kind: "MarkAsleep", at: NOW, previewId: "p1" });
+    },
+  ],
+  [
     "a route with no container is marked asleep, never started",
     mkInput({
       dbRoutes: [mkRoute("a.example.com", "p1", 40000)],

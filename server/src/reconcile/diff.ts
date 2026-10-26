@@ -142,6 +142,7 @@ type Pass = {
   previewsById: ReadonlyMap<string, Preview>;
   routesByHostname: ReadonlyMap<string, Route>;
   containersByHostname: ReadonlyMap<string, ScannedContainer[]>;
+  containersByPreview: ReadonlyMap<string, ScannedContainer[]>;
   claimed: Set<string>;
   matched: Set<string>;
   settled: Set<string>;
@@ -156,7 +157,8 @@ export const diff = (input: DiffInput): Action[] => {
     reachable: reachabilityOf(input.hostReachable),
     previewsById: new Map<string, Preview>(input.previews.map((p) => [p.id, p])),
     routesByHostname: new Map<string, Route>(input.dbRoutes.map((r) => [r.hostname, r])),
-    containersByHostname: byHostname(containers),
+    containersByHostname: groupBy(containers, (c) => c.labels.hostname),
+    containersByPreview: groupBy(containers, (c) => c.labels.previewId),
     claimed: new Set<string>(),
     matched: new Set<string>(),
     settled: new Set<string>(),
@@ -185,10 +187,13 @@ function byString(a: string, b: string): number {
   return a > b ? 1 : 0;
 }
 
-function byHostname(containers: readonly ScannedContainer[]): Map<string, ScannedContainer[]> {
+function groupBy(
+  containers: readonly ScannedContainer[],
+  key: (c: ScannedContainer) => string | undefined,
+): Map<string, ScannedContainer[]> {
   const out = new Map<string, ScannedContainer[]>();
   for (const c of containers) {
-    const h = c.labels.hostname;
+    const h = key(c);
     if (h === undefined) {
       continue;
     }
@@ -231,9 +236,10 @@ function routeAction(p: Pass, route: Route): Action | null {
   }
 
   // Same hostname under a different preview is a collision, not a match.
-  const candidate = (p.containersByHostname.get(route.hostname) ?? []).find(
-    (c) => c.state === "running" && c.labels.previewId === route.previewId,
-  );
+  const candidate =
+    (p.containersByHostname.get(route.hostname) ?? []).find(
+      (c) => c.state === "running" && c.labels.previewId === route.previewId,
+    ) ?? renamedFrom(p, route);
   if (candidate) {
     p.matched.add(candidate.id);
     return upstreamAction(p.now, route, candidate);
@@ -243,6 +249,19 @@ function routeAction(p: Pass, route: Route): Action | null {
     return null;
   }
   return missingContainerAction(p, route, preview);
+}
+
+// Renaming a branch deploy moves its route but leaves the container labelled with the old
+// hostname until the next rebuild: its own service's container, under a hostname no route holds.
+function renamedFrom(p: Pass, route: Route): ScannedContainer | undefined {
+  return (p.containersByPreview.get(route.previewId) ?? []).find(
+    (c) =>
+      c.state === "running" &&
+      !p.matched.has(c.id) &&
+      c.labels.service === route.service &&
+      c.labels.hostname !== undefined &&
+      !p.routesByHostname.has(c.labels.hostname),
+  );
 }
 
 // No container to find: a container still labelled with this hostname is stopped as a conflict.
