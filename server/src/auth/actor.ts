@@ -41,8 +41,9 @@ export type Actor = { orgId: string } & (
       eventName: string;
       /** The run's git ref, refs/heads/<branch> for a push. */
       ref: string;
-      /** The PR's branch on a pull_request run, empty otherwise. */
+      /** The PR's head and base branches on a pull_request run, empty otherwise. */
       headRef: string;
+      baseRef: string;
       pull: number | null;
       permissions: ReadonlySet<Permission>;
     }
@@ -100,6 +101,7 @@ export function workflowActor(
     eventName: string;
     ref: string;
     headRef?: string;
+    baseRef?: string;
   },
   orgId: string,
 ): Actor {
@@ -112,6 +114,7 @@ export function workflowActor(
     eventName: c.eventName,
     ref: c.ref,
     headRef: c.headRef ?? "",
+    baseRef: c.baseRef ?? "",
     pull: m ? Number(m[1]) : null,
     permissions: new Set(WORKFLOW_PERMISSIONS),
     orgId,

@@ -83,7 +83,8 @@ export class Pulls {
   }
 
   // closing: a merged PR's close run has the base branch as its ref, so no number; close() then
-  // holds it to the branch the PR's preview was deployed from.
+  // holds it to the head and base branches the PR's preview was deployed from. GitHub allows one
+  // open pull request per pair.
   authorize(
     ref: string,
     number: number,
@@ -114,7 +115,8 @@ export class Pulls {
           `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
         );
       }
-      const mergedClose = closing && actor.pull === null && actor.headRef !== "";
+      const mergedClose =
+        closing && actor.pull === null && actor.headRef !== "" && actor.baseRef !== "";
       if (actor.pull !== number && !mergedClose) {
         const run = actor.pull === null ? "no pull request" : `#${actor.pull}`;
         throw forbidden(`this run is for ${run}, not #${number}`);
@@ -156,7 +158,9 @@ export class Pulls {
           repo: project.fullName,
           number,
           sha: req.sha,
-          ...(actor.kind === "workflow" && actor.headRef ? { headRef: actor.headRef } : {}),
+          ...(actor.kind === "workflow" && actor.headRef && actor.baseRef
+            ? { headRef: actor.headRef, baseRef: actor.baseRef }
+            : {}),
         }),
       });
       return { action: "deployed", result };
@@ -168,9 +172,11 @@ export class Pulls {
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
       if (existing && actor.kind === "workflow" && actor.pull === null) {
-        const branch = pullRequestOf(existing.source)?.headRef;
-        if (branch !== actor.headRef) {
-          throw forbidden(`this run is for branch ${actor.headRef}, not #${number}'s`);
+        const pr = pullRequestOf(existing.source);
+        if (pr?.headRef !== actor.headRef || pr.baseRef !== actor.baseRef) {
+          throw forbidden(
+            `this run is for ${actor.headRef} into ${actor.baseRef}, not #${number}'s branches`,
+          );
         }
       }
       return existing ? this.#d.previews.destroy(existing.id, actor) : null;

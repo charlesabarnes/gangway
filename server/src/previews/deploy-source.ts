@@ -81,6 +81,7 @@ async function pushedSource(
       number: source.pr.number,
       sha: source.pr.sha,
       ...(source.pr.headRef ? { headRef: source.pr.headRef } : {}),
+      ...(source.pr.baseRef ? { baseRef: source.pr.baseRef } : {}),
       image: source.image,
     },
     composeFile: COMPOSE_FILE,

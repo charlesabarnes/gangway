@@ -239,7 +239,7 @@ describe("/v1/projects/:ref/pulls/:n", () => {
     expect(t.s.previews.get(next.preview.id)!.state).toBe("destroyed");
   });
 
-  test("a merged PR's close run tears down the preview of its own branch only", async () => {
+  test("a merged PR's close run tears down the preview of its own branches only", async () => {
     const t = setup();
     const { preview } = (await (
       await t.call("/v1/projects/web-app/pulls/7?wait=true", {
@@ -248,13 +248,15 @@ describe("/v1/projects/:ref/pulls/:n", () => {
         json: t.body(),
       })
     ).json()) as any;
-    expect(preview.source).toMatchObject({ kind: "pr", number: 7, headRef: "feature" });
+    expect(preview.source).toMatchObject({ number: 7, headRef: "feature", baseRef: "main" });
     // A merge leaves the run with the base branch as its ref, so it names no pull request.
-    const merged = (branch: string) =>
-      wf("acme/web-app", "refs/heads/main", "pull_request", branch);
+    const merged = (head: string, base = "main") =>
+      wf("acme/web-app", "refs/heads/main", "pull_request", { head, base });
     const del = (as: string) => t.call("/v1/projects/web-app/pulls/7", { method: "DELETE", as });
 
     expect((await del(merged("other"))).status).toBe(403);
+    // Another open PR from the same branch must have another base.
+    expect(await del(merged("feature", "release"))).toHaveProperty("status", 403);
     expect((await del(merged(""))).status).toBe(403);
     const put = await t.call("/v1/projects/web-app/pulls/7", {
       method: "PUT",
