@@ -3,3 +3,8 @@
 # not shrink what a compromise reaches. Dropping root needs the socket's group id from the host and
 # a change of owner on existing state directories; revisit it with a socket proxy.
 DS-0002
+
+# CVE-2026-63209, klauspost/compress 1.18.0 inside cloudflared: the latest cloudflared (2026.10.3)
+# still builds with it, so there is no fixed binary to take. cloudflared only runs for Share links.
+# The entry expires so the scan fails again once a fixed release has had time to land.
+CVE-2026-63209 exp:2026-11-30
