@@ -84,6 +84,34 @@ function sourceOf(req: PullDeployRequest, pr: PullRequestRef) {
   return { kind: "pushed", image: req.image, port: req.port, pr, registry } satisfies DeploySource;
 }
 
+// A workflow run may act only for its own repository's pull_request events and its own PR.
+function checkRun(
+  project: Project & { fullName: string },
+  number: number,
+  actor: Extract<Actor, { kind: "workflow" }>,
+  closing: boolean,
+): void {
+  if (actor.repository.toLowerCase() !== project.fullName.toLowerCase()) {
+    throw forbidden(`this run belongs to ${actor.repository}, not to ${project.fullName}`);
+  }
+  if (project.prTrigger !== "workflow") {
+    throw conflict(
+      `project "${project.slug}" takes pull requests from the GitHub App, not from a workflow; switch it in the project's settings`,
+    );
+  }
+  if (actor.eventName !== "pull_request") {
+    throw forbidden(
+      `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
+    );
+  }
+  const mergedClose =
+    closing && actor.pull === null && actor.headRef !== "" && actor.baseRef !== "";
+  if (actor.pull !== number && !mergedClose) {
+    const run = actor.pull === null ? "no pull request" : `#${actor.pull}`;
+    throw forbidden(`this run is for ${run}, not #${number}`);
+  }
+}
+
 export class Pulls {
   readonly #d: PullsDeps;
   // One operation per pull request at a time, so two quick pushes cannot race a teardown.
@@ -113,25 +141,7 @@ export class Pulls {
       );
     }
     if (actor.kind === "workflow") {
-      if (actor.repository.toLowerCase() !== project.fullName.toLowerCase()) {
-        throw forbidden(`this run belongs to ${actor.repository}, not to ${project.fullName}`);
-      }
-      if (project.prTrigger !== "workflow") {
-        throw conflict(
-          `project "${project.slug}" takes pull requests from the GitHub App, not from a workflow; switch it in the project's settings`,
-        );
-      }
-      if (actor.eventName !== "pull_request") {
-        throw forbidden(
-          `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
-        );
-      }
-      const mergedClose =
-        closing && actor.pull === null && actor.headRef !== "" && actor.baseRef !== "";
-      if (actor.pull !== number && !mergedClose) {
-        const run = actor.pull === null ? "no pull request" : `#${actor.pull}`;
-        throw forbidden(`this run is for ${run}, not #${number}`);
-      }
+      checkRun(project, number, actor, closing);
     }
     return project;
   }
