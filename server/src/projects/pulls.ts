@@ -62,10 +62,15 @@ function sameHead(p: Preview, req: PullDeployRequest, branches: Branches): boole
 
 type Branches = { headRef?: string; baseRef?: string };
 
-const branchesOf = (actor: Actor): Branches =>
-  actor.kind === "workflow" && actor.headRef && actor.baseRef
-    ? { headRef: actor.headRef, baseRef: actor.baseRef }
-    : {};
+// A caller with no branches of its own (an admin's token) keeps the ones the preview has, so a
+// later merged close run still finds them.
+function branchesOf(actor: Actor, existing: Preview | undefined): Branches {
+  if (actor.kind === "workflow" && actor.headRef && actor.baseRef) {
+    return { headRef: actor.headRef, baseRef: actor.baseRef };
+  }
+  const pr = existing && pullRequestOf(existing.source);
+  return pr?.headRef && pr.baseRef ? { headRef: pr.headRef, baseRef: pr.baseRef } : {};
+}
 
 function sourceOf(req: PullDeployRequest, pr: PullRequestRef) {
   if ("archive" in req) {
@@ -159,7 +164,7 @@ export class Pulls {
     }
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
-      const branches = branchesOf(actor);
+      const branches = branchesOf(actor, existing);
       if (existing && sameHead(existing, req, branches) && LIVE.has(existing.state)) {
         return { action: "unchanged", preview: existing };
       }

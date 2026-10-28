@@ -270,6 +270,29 @@ describe("/v1/projects/:ref/pulls/:n", () => {
     expect(t.s.previews.get(preview.id)!.state).toBe("destroyed");
   });
 
+  test("a hand deploy keeps the branches, so the merged close run still tears it down", async () => {
+    const t = setup();
+    const put = async (as?: string, sha?: string) =>
+      (await (
+        await t.call("/v1/projects/web-app/pulls/7?wait=true", {
+          method: "PUT",
+          ...(as ? { as } : {}),
+          json: t.body({ ...(sha ? { sha } : {}) }),
+        })
+      ).json()) as any;
+    const first = await put(wf());
+    expect((await put()).unchanged).toBe(true);
+    const redeployed = await put(undefined, "b".repeat(40));
+    expect(redeployed.preview.id).not.toBe(first.preview.id);
+    expect(redeployed.preview.source).toMatchObject({ headRef: "feature", baseRef: "main" });
+    const merged = wf("acme/web-app", "refs/heads/main", "pull_request", {
+      head: "feature",
+      base: "main",
+    });
+    const del = await t.call("/v1/projects/web-app/pulls/7", { method: "DELETE", as: merged });
+    expect(del.status).toBe(204);
+  });
+
   test("a PR moved to another base gets its preview again from the same head", async () => {
     const t = setup();
     const put = async (base: string) =>
