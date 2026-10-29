@@ -7,16 +7,18 @@ const host = (egress: "open" | "restricted") => ({
   egress,
 });
 
-function guard(code = 0) {
+function guard(exit = 0) {
   const calls: { argv: string[]; dockerHost: string }[] = [];
+  const state = { exit };
   const g = new EgressGuard({
     image: () => "ghcr.io/charlesabarnes/gangway:0.6.0",
     run: async (argv, dockerHost) => {
       calls.push({ argv, dockerHost });
+      const code = state.exit;
       return { code, stdout: "", stderr: code === 0 ? "" : "nft: permission denied", signal: null };
     },
   });
-  return { g, calls };
+  return { g, calls, state };
 }
 
 describe("egress rules", () => {
@@ -63,6 +65,18 @@ describe("egress rules", () => {
     expect(calls).toHaveLength(2);
     const rules = calls[1]!.argv.find((a) => a.startsWith("GW_RULES="));
     expect(rules).toBe("GW_RULES=table inet gangway_egress\ndelete table inet gangway_egress\n");
+  });
+
+  test("a removal that fails is tried again on the next pass, after the scan forgets", async () => {
+    const { g, calls, state } = guard();
+    await g.apply(host("restricted"));
+    state.exit = 1;
+    await expect(g.apply(host("open"))).rejects.toMatchObject({ reason: "egress-unapplied" });
+    g.forget("pool-1");
+    state.exit = 0;
+    await g.apply(host("open"));
+    await g.apply(host("open"));
+    expect(calls).toHaveLength(3);
   });
 
   test("an open host is left alone", async () => {

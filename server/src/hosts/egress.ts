@@ -63,6 +63,7 @@ const run: Run = (argv, dockerHost) =>
 /** Keeps the table on restricted hosts from a short-lived container in the host's network. */
 export class EgressGuard {
   readonly #applied = new Set<string>();
+  readonly #toRemove = new Set<string>();
   readonly #image: () => string;
   readonly #docker: string;
   readonly #run: Run;
@@ -81,20 +82,18 @@ export class EgressGuard {
 
   /** Every reconcile: a reboot drops them with the rest of nftables. */
   async apply(host: Target): Promise<void> {
-    const had = this.#applied.delete(host.id);
+    if (this.#applied.delete(host.id)) {
+      this.#toRemove.add(host.id);
+    }
     if (host.egress !== "restricted") {
-      if (had) {
-        await this.#nft(
-          host,
-          `table inet ${EGRESS_TABLE}\ndelete table inet ${EGRESS_TABLE}\n`,
-        ).catch((e: unknown) => {
-          this.#applied.add(host.id);
-          throw e;
-        });
+      if (this.#toRemove.has(host.id)) {
+        await this.#nft(host, `table inet ${EGRESS_TABLE}\ndelete table inet ${EGRESS_TABLE}\n`);
+        this.#toRemove.delete(host.id);
       }
       return;
     }
     await this.#nft(host, egressRuleset());
+    this.#toRemove.delete(host.id);
     this.#applied.add(host.id);
   }
 
