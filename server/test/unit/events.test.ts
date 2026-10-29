@@ -22,6 +22,7 @@ function setup() {
   const events = new EventsRepo(db);
   const hosts = new HostsRepo(db);
   const bus = new EventBus(events);
+  const audit = { record: () => {} };
   const app = createApp({
     logger: silentLogger(),
     verifyToken: staticTokenVerifier(TOKEN, HOME_ORG_ID),
@@ -34,7 +35,12 @@ function setup() {
           heartbeatMs: 40,
         },
       );
-      hostRoutes(api, hosts);
+      hostRoutes(api, {
+        hosts,
+        orgs: { get: () => undefined },
+        previews: { list: () => [] },
+        audit,
+      });
     },
   });
   const h = surfaceHandler(app, "api");
@@ -287,6 +293,10 @@ describe("hosts", () => {
     publishBind: "127.0.0.1",
     upstream: { dial: "direct", address: "127.0.0.1", proxy: null },
     ports: { rangeStart: 1, rangeEnd: 2 },
+    managedBy: "config",
+    orgId: null,
+    capacity: { memoryBytes: null, maxPreviews: null },
+    draining: false,
     state,
     lastError: null,
     lastSeenAt: null,

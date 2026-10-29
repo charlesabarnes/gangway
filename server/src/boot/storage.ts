@@ -32,7 +32,7 @@ import { TakedownsRepo } from "../db/repos/takedowns.ts";
 import { OAuthGrantsRepo } from "../db/repos/oauth-grants.ts";
 import { openDatabase } from "../db/sqlite.ts";
 import type { Db } from "../db/types.ts";
-import { seedHosts } from "../hosts/seed.ts";
+import { retireUnlisted, seedHosts } from "../hosts/seed.ts";
 import type { Logger } from "../logger.ts";
 import { entryPassword } from "../previews/password.ts";
 import { SiteStore } from "../previews/site.ts";
@@ -117,8 +117,17 @@ export function seedConfiguredHosts(
   configured: readonly HostConfig[],
   hosts: HostsRepo,
   logger: Logger,
+  inUse: (hostId: string) => boolean,
 ): Host[] {
-  const seeded = seedHosts(configured, hosts);
+  const seeded = seedHosts(configured, hosts, (hostId) => {
+    logger.error("a config host uses the id of a host registered through the API; skipped", {
+      hostId,
+    });
+  });
+  const retired = retireUnlisted(configured, hosts, inUse);
+  if (retired.removed.length + retired.draining.length > 0) {
+    logger.warn("hosts no longer in the config file were retired", retired);
+  }
   for (const h of seeded) {
     if (h.capabilities.includes("preview") && h.capabilities.includes("runner")) {
       logger.warn(

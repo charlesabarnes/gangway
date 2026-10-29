@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { containersOn } from "../scheduler/placement.ts";
 import { join, resolve } from "node:path";
 import type { Host } from "@gangway/shared/domain";
 import { publicOriginFor, type PublicOrigin } from "@gangway/shared/url";
@@ -97,7 +98,12 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
       logger: logger.child({ mod: "updates" }),
     }),
   };
-  const seeded = seedConfiguredHosts(config.hosts, repos.hosts, logger);
+  const seeded = seedConfiguredHosts(
+    config.hosts,
+    repos.hosts,
+    logger,
+    (hostId) => containersOn(repos.previews.list({ hostId })) > 0,
+  );
   const { workdirs, sources, sites } = await restoreState({
     stateDir,
     repos,
