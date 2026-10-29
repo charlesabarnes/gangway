@@ -225,7 +225,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
     .then(
       (o) => {
-        // The serving version keeps its reservation until the new one has replaced it.
         if (o.outcome === "succeeded") {
           ctx.previews.setReservedBytes(id, reserve);
         }
