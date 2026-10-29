@@ -121,7 +121,6 @@ export function assertHostDaemon(
   }
 }
 
-// A container started without the host's runtime would run outside its sandbox.
 function assertRuntime(info: DockerInfo, runtime: string | null): void {
   if (runtime !== null && !Object.hasOwn(info.Runtimes ?? {}, runtime)) {
     throw new DockerGuardError(
