@@ -90,6 +90,10 @@ export const ROUTES: Record<string, Rule> = {
   ),
 
   "GET /v1/hosts": instance(SERVER),
+  "PUT /v1/hosts/:id": instance(SERVER),
+  "POST /v1/hosts/:id/drain": instance(SERVER),
+  "DELETE /v1/hosts/:id/drain": instance(SERVER),
+  "DELETE /v1/hosts/:id": instance(SERVER),
   "GET /v1/events": { kind: "stream" },
   "POST /v1/previews": own(
     "a deploy into another org's project is refused",

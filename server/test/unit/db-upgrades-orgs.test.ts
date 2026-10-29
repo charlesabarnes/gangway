@@ -166,4 +166,31 @@ for (const [name, open] of DRIVERS) {
       db.close();
     });
   });
+
+  describe(`0039 pool hosts on ${name}`, () => {
+    test("a host from before is the config file's, shared, uncapped and in service", () => {
+      const at = databaseAt(open, 38);
+      at.db.run(
+        `INSERT INTO hosts (id, name, docker_host, state, created_at)
+         VALUES ('local', 'local', 'unix:///var/run/docker.sock', 'ready', 1)`,
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(39));
+      expect(
+        db.get(
+          "SELECT managed_by, org_id, memory_bytes, max_previews, draining, removed_at, state FROM hosts",
+        ),
+      ).toEqual({
+        managed_by: "config",
+        org_id: null,
+        memory_bytes: null,
+        max_previews: null,
+        draining: 0,
+        removed_at: null,
+        state: "ready",
+      });
+      expect(() => db.run("UPDATE hosts SET org_id = 'nope'")).toThrow();
+      db.close();
+    });
+  });
 }

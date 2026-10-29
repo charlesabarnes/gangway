@@ -42,6 +42,12 @@ export type HostRow = {
   upstream_proxy: string | null;
   port_range_start: number;
   port_range_end: number;
+  managed_by: string;
+  org_id: string | null;
+  memory_bytes: number | null;
+  max_previews: number | null;
+  draining: number;
+  removed_at: number | null;
   state: string;
   last_error: string | null;
   last_seen_at: number | null;
@@ -62,6 +68,10 @@ export function rowToHost(r: HostRow): Host {
       proxy: r.upstream_proxy,
     },
     ports: { rangeStart: r.port_range_start, rangeEnd: r.port_range_end },
+    managedBy: r.managed_by as Host["managedBy"],
+    orgId: r.org_id,
+    capacity: { memoryBytes: r.memory_bytes, maxPreviews: r.max_previews },
+    draining: r.draining === 1,
     state: r.state as Host["state"],
     lastError: r.last_error,
     lastSeenAt: toDate(r.last_seen_at),

@@ -17,6 +17,9 @@ export function seedHosts(configured: readonly HostConfig[], repo: HostsRepo): H
         proxy: h.upstreamProxy ?? null,
       },
       ports: { rangeStart: h.portRangeStart, rangeEnd: h.portRangeEnd },
+      managedBy: "config",
+      orgId: null,
+      capacity: { memoryBytes: null, maxPreviews: null },
     }),
   );
 }

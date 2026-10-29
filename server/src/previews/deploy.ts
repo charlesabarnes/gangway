@@ -60,7 +60,7 @@ function resolveHost(
     );
     wantedHost = undefined;
   }
-  return place({ capability: "preview", hostId: wantedHost }, allHosts);
+  return place({ capability: "preview", hostId: wantedHost, orgId: input.actor.orgId }, allHosts);
 }
 
 /**

@@ -100,7 +100,7 @@ function orgRouteDeps({ ctx, repos, settings }: ApiRouteDeps): OrgRouteDeps {
 export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   const { ctx, repos, audit, settings, identity } = d;
   const apiOrigin = () => d.origin("api");
-  hostRoutes(api, repos.hosts);
+  hostRoutes(api, { ...repos, audit });
   eventRoutes(
     api,
     d.bus,
