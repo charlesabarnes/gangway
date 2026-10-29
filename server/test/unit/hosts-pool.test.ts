@@ -182,6 +182,7 @@ describe("hosts in use", () => {
     );
     expect((await call("PUT", "/hosts/pool-1", pool({ orgId: "org-b" }))).status).toBe(409);
     expect((await call("PUT", "/hosts/pool-1", pool({ expectName: "other" }))).status).toBe(409);
+    expect((await call("PUT", "/hosts/pool-1", pool({ runtime: "runsc" }))).status).toBe(409);
     expect((await call("PUT", "/hosts/pool-1", pool({ name: "pool-one" }))).status).toBe(200);
     running.delete("pool-1");
     expect((await call("PUT", "/hosts/pool-1", pool({ dockerHost: "ssh://x@h2" }))).status).toBe(

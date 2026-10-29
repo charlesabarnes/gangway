@@ -21,11 +21,19 @@ const IDLE: HostLoad = { previews: 0, awakeBytes: 0 };
 
 type Endpoint = Pick<
   Host,
-  "dockerHost" | "expectName" | "publishBind" | "upstream" | "ports" | "orgId"
+  "dockerHost" | "expectName" | "publishBind" | "upstream" | "ports" | "orgId" | "runtime"
 >;
 
 export const endpointOf = (h: Endpoint) =>
-  JSON.stringify([h.dockerHost, h.expectName, h.publishBind, h.upstream, h.ports, h.orgId]);
+  JSON.stringify([
+    h.dockerHost,
+    h.expectName,
+    h.publishBind,
+    h.upstream,
+    h.ports,
+    h.orgId,
+    h.runtime,
+  ]);
 
 /** At claim, with no await before it: the host chosen earlier must still be in service, unmoved. */
 export function checkStillThere(hosts: readonly Host[], chosen: Host): void {

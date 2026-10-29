@@ -220,7 +220,10 @@ describe("the actual accident", () => {
     }
     expect(err?.reason).toBe("runtime-missing");
     expect(err?.message).toContain("host pool-1");
-    const withRunsc = { ...REMOTE_HOST, Runtimes: { runc: {}, runsc: {} } };
+    const plain = { ...REMOTE_HOST, Runtimes: { runc: {}, runsc: { path: "/usr/bin/runsc" } } };
+    expect(() => assertHostDaemon(host, plain, EMPTY)).toThrow(/--network=host/);
+    const runsc = { path: "/usr/bin/runsc", runtimeArgs: ["--network=host"] };
+    const withRunsc = { ...REMOTE_HOST, Runtimes: { runc: {}, runsc } };
     expect(assertHostDaemon(host, withRunsc, EMPTY).ok).toBe(true);
   });
 

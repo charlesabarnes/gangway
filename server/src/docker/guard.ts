@@ -21,7 +21,7 @@ export function daemonEngine(info: DockerInfo): DaemonEngine {
     : "docker";
 }
 
-export type GuardReason = "docker-desktop" | "name-mismatch" | "runtime-missing";
+export type GuardReason = "docker-desktop" | "name-mismatch" | "runtime-missing" | "runtime-args";
 
 export class DockerGuardError extends AppError {
   readonly reason: GuardReason;
@@ -121,12 +121,28 @@ export function assertHostDaemon(
   }
 }
 
+// gVisor's own network stack cannot reach Docker's embedded DNS: compose service names would fail.
+const REQUIRED_ARGS: Record<string, string> = { runsc: "--network=host" };
+
 function assertRuntime(info: DockerInfo, runtime: string | null): void {
-  if (runtime !== null && !Object.hasOwn(info.Runtimes ?? {}, runtime)) {
+  if (runtime === null) {
+    return;
+  }
+  const runtimes = info.Runtimes ?? {};
+  if (!Object.hasOwn(runtimes, runtime)) {
     throw new DockerGuardError(
       "runtime-missing",
       `the daemon has no ${JSON.stringify(runtime)} runtime, which this host record requires`,
-      { runtime, runtimes: Object.keys(info.Runtimes ?? {}) },
+      { runtime, runtimes: Object.keys(runtimes) },
+    );
+  }
+  const args = (runtimes[runtime] as { runtimeArgs?: unknown } | null)?.runtimeArgs;
+  const need = REQUIRED_ARGS[runtime];
+  if (need !== undefined && !(Array.isArray(args) && args.includes(need))) {
+    throw new DockerGuardError(
+      "runtime-args",
+      `the daemon's ${runtime} runtime needs runtimeArgs ["${need}"] in daemon.json, or compose service names do not resolve`,
+      { runtime, runtimeArgs: Array.isArray(args) ? args : [] },
     );
   }
 }
