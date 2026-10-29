@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import ts from "typescript";
+import { parseSync } from "oxc-parser";
 
 const ROOTS = ["server/src", "shared/src", "web/src", "render/src", "scripts"];
 const MAX_FILE_SHARE = 0.05;
@@ -8,25 +8,21 @@ const ALLOWED_PER_FILE = 2;
 const MAX_TOTAL_SHARE = 0.02;
 
 function commentLines(file: string, text: string): number {
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const lineOf = (pos: number) => text.slice(0, pos).split("\n").length - 1;
   const lines = new Set<number>();
-  const record = (range: ts.CommentRange) => {
-    const comment = text.slice(range.pos, range.end);
-    if (/^\/\/\s*(eslint-|@ts-|prettier-|codeql\[|NOSONAR)/.test(comment)) {
-      return;
+  const { comments, errors } = parseSync(file, text);
+  // A parse error stops oxc early, and the comments after it would go uncounted.
+  if (errors.length > 0) {
+    throw new Error(`${file}: ${errors[0]?.message ?? "does not parse"}`);
+  }
+  for (const { start, end } of comments) {
+    if (/^\/\/\s*(eslint-|@ts-|prettier-|codeql\[|NOSONAR)/.test(text.slice(start, end))) {
+      continue;
     }
-    const first = source.getLineAndCharacterOfPosition(range.pos).line;
-    const last = source.getLineAndCharacterOfPosition(range.end).line;
-    for (let line = first; line <= last; line++) {
+    for (let line = lineOf(start); line <= lineOf(end); line++) {
       lines.add(line);
     }
-  };
-  const visit = (node: ts.Node) => {
-    ts.getLeadingCommentRanges(text, node.getFullStart())?.forEach(record);
-    ts.getTrailingCommentRanges(text, node.getEnd())?.forEach(record);
-    node.getChildren(source).forEach(visit);
-  };
-  visit(source);
+  }
   return lines.size;
 }
 
