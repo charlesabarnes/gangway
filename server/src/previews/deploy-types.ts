@@ -48,7 +48,7 @@ export type DeploySource =
       kind: "pushed";
       image: string;
       port: number;
-      pr: { repo: string; number: number; sha: string };
+      pr: PullRequestRef;
       registry?: RegistryLogin | undefined;
     };
 

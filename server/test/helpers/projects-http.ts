@@ -40,8 +40,12 @@ export const IMAGE = "ghcr.io/acme/web-app/preview@sha256:" + "d".repeat(64);
 export const SHA = "a".repeat(40);
 
 // Stands in for a workflow run's OIDC token; verifyWorkflow below parses it.
-export const wf = (repo = "acme/web-app", ref = "refs/pull/7/merge", event = "pull_request") =>
-  `wf:${repo}:${event}:${ref}`;
+export const wf = (
+  repo = "acme/web-app",
+  ref = "refs/pull/7/merge",
+  event = "pull_request",
+  pr = { head: "feature", base: "main" },
+) => `wf:${repo}:${event}:${pr.head}:${pr.base}:${ref}`;
 
 export function make() {
   const s = setupPreviewContext();
@@ -101,10 +105,20 @@ export function make() {
   let refreshes = 0;
   const claims: string[] = [];
   const verifyWorkflow = (presented: string): Actor | null => {
-    const m = /^wf:([^:]+):([^:]+):(.+)$/.exec(presented);
+    const m = /^wf:([^:]+):([^:]+):([^:]*):([^:]*):(.+)$/.exec(presented);
     const run = { runId: "42", actor: "dev" };
     return m
-      ? workflowActor({ ...run, repository: m[1]!, eventName: m[2]!, ref: m[3]! }, HOME_ORG_ID)
+      ? workflowActor(
+          {
+            ...run,
+            repository: m[1]!,
+            eventName: m[2]!,
+            headRef: m[3]!,
+            baseRef: m[4]!,
+            ref: m[5]!,
+          },
+          HOME_ORG_ID,
+        )
       : null;
   };
   const auth = {

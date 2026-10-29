@@ -15,6 +15,9 @@ export type WorkflowClaims = {
   repositoryId: string;
   eventName: string;
   ref: string;
+  /** The PR's head and base branches on a pull_request run, empty otherwise. */
+  headRef: string;
+  baseRef: string;
   sha: string;
   runId: string;
   actor: string;
@@ -66,6 +69,8 @@ function workflowClaims(claims: Claims): WorkflowClaims | null {
     repositoryId: str("repository_id"),
     eventName: str("event_name"),
     ref: str("ref"),
+    headRef: str("head_ref"),
+    baseRef: str("base_ref"),
     sha: str("sha"),
     runId: str("run_id"),
     actor: str("actor"),

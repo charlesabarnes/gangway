@@ -49,11 +49,27 @@ export function registryOf(image: string): string {
     : "docker.io";
 }
 
-function sameHead(p: Preview, req: PullDeployRequest): boolean {
-  if ("image" in req) {
-    return p.source.kind === "pr" && p.source.sha === req.sha && p.source.image === req.image;
+// Branches count as the head too: a merged close run is held to them, and a PR's base can change.
+function sameHead(p: Preview, req: PullDeployRequest, branches: Branches): boolean {
+  const pr = pullRequestOf(p.source);
+  if (pr?.sha !== req.sha || pr.headRef !== branches.headRef || pr.baseRef !== branches.baseRef) {
+    return false;
   }
-  return p.source.kind === "tarball" && pullRequestOf(p.source)?.sha === req.sha;
+  return "image" in req
+    ? p.source.kind === "pr" && p.source.image === req.image
+    : p.source.kind === "tarball";
+}
+
+type Branches = { headRef?: string; baseRef?: string };
+
+// A caller with no branches of its own (an admin's token) keeps the ones the preview has, so a
+// later merged close run still finds them.
+function branchesOf(actor: Actor, existing: Preview | undefined): Branches {
+  if (actor.kind === "workflow" && actor.headRef && actor.baseRef) {
+    return { headRef: actor.headRef, baseRef: actor.baseRef };
+  }
+  const pr = existing && pullRequestOf(existing.source);
+  return pr?.headRef && pr.baseRef ? { headRef: pr.headRef, baseRef: pr.baseRef } : {};
 }
 
 function sourceOf(req: PullDeployRequest, pr: PullRequestRef) {
@@ -73,6 +89,34 @@ function sourceOf(req: PullDeployRequest, pr: PullRequestRef) {
   return { kind: "pushed", image: req.image, port: req.port, pr, registry } satisfies DeploySource;
 }
 
+// A workflow run may act only for its own repository's pull_request events and its own PR.
+function checkRun(
+  project: Project & { fullName: string },
+  number: number,
+  actor: Extract<Actor, { kind: "workflow" }>,
+  closing: boolean,
+): void {
+  if (actor.repository.toLowerCase() !== project.fullName.toLowerCase()) {
+    throw forbidden(`this run belongs to ${actor.repository}, not to ${project.fullName}`);
+  }
+  if (project.prTrigger !== "workflow") {
+    throw conflict(
+      `project "${project.slug}" takes pull requests from the GitHub App, not from a workflow; switch it in the project's settings`,
+    );
+  }
+  if (actor.eventName !== "pull_request") {
+    throw forbidden(
+      `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
+    );
+  }
+  const mergedClose =
+    closing && actor.pull === null && actor.headRef !== "" && actor.baseRef !== "";
+  if (actor.pull !== number && !mergedClose) {
+    const run = actor.pull === null ? "no pull request" : `#${actor.pull}`;
+    throw forbidden(`this run is for ${run}, not #${number}`);
+  }
+}
+
 export class Pulls {
   readonly #d: PullsDeps;
   // One operation per pull request at a time, so two quick pushes cannot race a teardown.
@@ -82,7 +126,15 @@ export class Pulls {
     this.#d = d;
   }
 
-  authorize(ref: string, number: number, actor: Actor): Project & { fullName: string } {
+  // closing: a merged PR's close run has the base branch as its ref, so no number; close() then
+  // holds it to the head and base branches the PR's preview was deployed from. GitHub allows one
+  // open pull request per pair.
+  authorize(
+    ref: string,
+    number: number,
+    actor: Actor,
+    closing = false,
+  ): Project & { fullName: string } {
     const project = this.#d.projects.find(ref);
     if (!project) {
       throw notFound(`no such project: ${ref}`);
@@ -94,23 +146,7 @@ export class Pulls {
       );
     }
     if (actor.kind === "workflow") {
-      if (actor.repository.toLowerCase() !== project.fullName.toLowerCase()) {
-        throw forbidden(`this run belongs to ${actor.repository}, not to ${project.fullName}`);
-      }
-      if (project.prTrigger !== "workflow") {
-        throw conflict(
-          `project "${project.slug}" takes pull requests from the GitHub App, not from a workflow; switch it in the project's settings`,
-        );
-      }
-      if (actor.eventName !== "pull_request") {
-        throw forbidden(
-          `a workflow may deploy previews from pull_request events only, not ${actor.eventName || "this event"}`,
-        );
-      }
-      if (actor.pull !== number) {
-        const run = actor.pull === null ? "no pull request" : `#${actor.pull}`;
-        throw forbidden(`this run is for ${run}, not #${number}`);
-      }
+      checkRun(project, number, actor, closing);
     }
     return project;
   }
@@ -128,7 +164,8 @@ export class Pulls {
     }
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
-      if (existing && sameHead(existing, req) && LIVE.has(existing.state)) {
+      const branches = branchesOf(actor, existing);
+      if (existing && sameHead(existing, req, branches) && LIVE.has(existing.state)) {
         return { action: "unchanged", preview: existing };
       }
       // The PR's own secrets outlive its head: read them before the old preview goes.
@@ -144,16 +181,29 @@ export class Pulls {
         projectId: project.id,
         ...(existing?.secretLevel ? { secretLevel: existing.secretLevel } : {}),
         carrySecrets,
-        source: sourceOf(req, { repo: project.fullName, number, sha: req.sha }),
+        source: sourceOf(req, {
+          repo: project.fullName,
+          number,
+          sha: req.sha,
+          ...branches,
+        }),
       });
       return { action: "deployed", result };
     });
   }
 
   async close(ref: string, number: number, actor: Actor): Promise<Preview | null> {
-    const project = this.authorize(ref, number, actor);
+    const project = this.authorize(ref, number, actor, true);
     return this.#serial(`${project.id}#${number}`, async () => {
       const existing = this.#d.previews.findPullRequest(project.fullName, number);
+      if (existing && actor.kind === "workflow" && actor.pull === null) {
+        const pr = pullRequestOf(existing.source);
+        if (pr?.headRef !== actor.headRef || pr.baseRef !== actor.baseRef) {
+          throw forbidden(
+            `this run is for ${actor.headRef} into ${actor.baseRef}, not #${number}'s branches`,
+          );
+        }
+      }
       return existing ? this.#d.previews.destroy(existing.id, actor) : null;
     });
   }

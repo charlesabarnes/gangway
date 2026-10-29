@@ -239,6 +239,77 @@ describe("/v1/projects/:ref/pulls/:n", () => {
     expect(t.s.previews.get(next.preview.id)!.state).toBe("destroyed");
   });
 
+  test("a merged PR's close run tears down the preview of its own branches only", async () => {
+    const t = setup();
+    const { preview } = (await (
+      await t.call("/v1/projects/web-app/pulls/7?wait=true", {
+        method: "PUT",
+        as: wf(),
+        json: t.body(),
+      })
+    ).json()) as any;
+    expect(preview.source).toMatchObject({ number: 7, headRef: "feature", baseRef: "main" });
+    // A merge leaves the run with the base branch as its ref, so it names no pull request.
+    const merged = (head: string, base = "main") =>
+      wf("acme/web-app", "refs/heads/main", "pull_request", { head, base });
+    const del = (as: string) => t.call("/v1/projects/web-app/pulls/7", { method: "DELETE", as });
+
+    expect((await del(merged("other"))).status).toBe(403);
+    // Another open PR from the same branch must have another base.
+    expect(await del(merged("feature", "release"))).toHaveProperty("status", 403);
+    expect((await del(merged(""))).status).toBe(403);
+    const put = await t.call("/v1/projects/web-app/pulls/7", {
+      method: "PUT",
+      as: merged("feature"),
+      json: t.body({ sha: "b".repeat(40) }),
+    });
+    expect(put.status).toBe(403);
+    expect(t.s.previews.get(preview.id)!.state).toBe("awake");
+
+    expect((await del(merged("feature"))).status).toBe(204);
+    expect(t.s.previews.get(preview.id)!.state).toBe("destroyed");
+  });
+
+  test("a hand deploy keeps the branches, so the merged close run still tears it down", async () => {
+    const t = setup();
+    const put = async (as?: string, sha?: string) =>
+      (await (
+        await t.call("/v1/projects/web-app/pulls/7?wait=true", {
+          method: "PUT",
+          ...(as ? { as } : {}),
+          json: t.body({ ...(sha ? { sha } : {}) }),
+        })
+      ).json()) as any;
+    const first = await put(wf());
+    expect((await put()).unchanged).toBe(true);
+    const redeployed = await put(undefined, "b".repeat(40));
+    expect(redeployed.preview.id).not.toBe(first.preview.id);
+    expect(redeployed.preview.source).toMatchObject({ headRef: "feature", baseRef: "main" });
+    const merged = wf("acme/web-app", "refs/heads/main", "pull_request", {
+      head: "feature",
+      base: "main",
+    });
+    const del = await t.call("/v1/projects/web-app/pulls/7", { method: "DELETE", as: merged });
+    expect(del.status).toBe(204);
+  });
+
+  test("a PR moved to another base gets its preview again from the same head", async () => {
+    const t = setup();
+    const put = async (base: string) =>
+      (await (
+        await t.call("/v1/projects/web-app/pulls/7?wait=true", {
+          method: "PUT",
+          as: wf("acme/web-app", "refs/pull/7/merge", "pull_request", { head: "feature", base }),
+          json: t.body(),
+        })
+      ).json()) as any;
+    const first = await put("main");
+    const moved = await put("release");
+    expect(moved.unchanged).toBeUndefined();
+    expect(moved.preview.source).toMatchObject({ headRef: "feature", baseRef: "release" });
+    expect(t.s.previews.get(first.preview.id)!.state).toBe("destroyed");
+  });
+
   test.each([
     ["another repository", wf("evil/web-app")],
     ["another pull request", wf("acme/web-app", "refs/pull/8/merge")],
