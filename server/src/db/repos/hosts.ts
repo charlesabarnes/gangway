@@ -25,7 +25,6 @@ export class HostsRepo {
     this.#now = now;
   }
 
-  /** The hosts in service; a removed one is left out. */
   list(): Host[] {
     return (
       this.#db.query("SELECT * FROM hosts WHERE removed_at IS NULL ORDER BY id") as HostRow[]
@@ -38,7 +37,6 @@ export class HostsRepo {
     return r ? rowToHost(r) : undefined;
   }
 
-  /** Names stay unique across removed hosts too. */
   named(name: string): Host | undefined {
     const r = this.#db.get("SELECT * FROM hosts WHERE name = $name", { name }) as
       HostRow | undefined;
@@ -108,7 +106,6 @@ export class HostsRepo {
     this.#db.run("UPDATE hosts SET draining = $d WHERE id = $id", { id, d: draining ? 1 : 0 });
   }
 
-  /** Out of service for good, until the same id is registered again. */
   remove(id: string): boolean {
     return (
       this.#db.run(

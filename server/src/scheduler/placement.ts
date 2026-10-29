@@ -4,14 +4,12 @@ import { AppError } from "../errors.ts";
 export type PlacementRequest = {
   capability: HostCapability;
   hostId?: string | undefined;
-  /** The org the preview is for: it may use shared hosts and its own, never another org's. */
   orgId?: string | undefined;
 };
 
 const usableBy = (h: Host, orgId: string | undefined) => h.orgId === null || h.orgId === orgId;
 
 export function place(req: PlacementRequest, hosts: readonly Host[]): Host {
-  // Another org's host is left out before anything is said about it, so a refusal names none.
   const capable = hosts.filter(
     (h) => usableBy(h, req.orgId) && h.capabilities.includes(req.capability),
   );

@@ -29,7 +29,6 @@ const idOf = (raw: string) => {
   return id.data;
 };
 
-/** The server's Docker hosts: config-file ones, and ones an operator or autoscaler registers. */
 export function hostRoutes(api: Hono<AppEnv>, d: HostRouteDeps): void {
   const { hosts } = d;
 
@@ -45,7 +44,6 @@ export function hostRoutes(api: Hono<AppEnv>, d: HostRouteDeps): void {
     return h;
   };
 
-  // Every preview's, whatever org it is in: what still runs there.
   const runningOn = (id: string) => acrossOrgs(() => d.previews.list({ hostId: id })).length;
 
   api.put("/hosts/:id", requirePermission("hosts.manage"), async (c) => {

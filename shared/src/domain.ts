@@ -6,7 +6,6 @@ import type { PreviewIcon } from "./preview-icon.ts";
 export type HostCapability = "preview" | "runner";
 export type UpstreamDial = "direct" | "socks5";
 export type HostState = "unknown" | "ready" | "unreachable" | "error";
-/** config: named in the config file, which wins on every boot; api: registered by an operator. */
 export type HostManagedBy = "config" | "api";
 
 export type Host = {
@@ -20,11 +19,8 @@ export type Host = {
   upstream: { dial: UpstreamDial; address: string; proxy: string | null };
   ports: { rangeStart: number; rangeEnd: number };
   managedBy: HostManagedBy;
-  /** The one org whose previews it takes; null is a host every org shares. */
   orgId: string | null;
-  /** What placement may put on it; null is no cap. */
   capacity: { memoryBytes: number | null; maxPreviews: number | null };
-  /** Takes no new previews; the ones it runs stay until they go. */
   draining: boolean;
   state: HostState;
   lastError: string | null;

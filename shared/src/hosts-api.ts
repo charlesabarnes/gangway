@@ -3,13 +3,9 @@ import { z } from "zod";
 const port = z.int().min(1).max(65535);
 const cap = z.int().min(1).nullable().default(null);
 
-/** The id in a host's URL: what an autoscaler names its machine, stable across re-registering. */
 export const HostIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, "a-z, 0-9, _ and -");
 
-/**
- * A host registered through the API, all of it each time: the same call twice changes nothing
- * more. Its state, and whether it drains, stay where they were.
- */
+/** All of a host, each time: the same PUT twice changes nothing more. */
 export const HostRegisterSchema = z
   .strictObject({
     name: z.string().trim().min(1).max(64),
