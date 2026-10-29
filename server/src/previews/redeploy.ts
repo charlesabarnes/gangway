@@ -247,10 +247,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
 }
 
-/**
- * A rebuild that needs more memory than its preview holds must fit in what the host has left, and
- * holds the larger amount from here, so another deploy or rebuild cannot count on it too.
- */
+/** A rebuild that grows must fit what the host has left, and holds the larger amount from then. */
 function admitRebuild(ctx: PreviewContext, preview: Preview, host: Host, reserve: number): void {
   const kept = ctx.previews.reservedBytes(preview.id);
   const held = preview.state === "asleep" ? 0 : kept;
