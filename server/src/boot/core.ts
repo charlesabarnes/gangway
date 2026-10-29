@@ -97,7 +97,12 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
       logger: logger.child({ mod: "updates" }),
     }),
   };
-  const seeded = seedConfiguredHosts(config.hosts, repos.hosts, logger);
+  const seeded = seedConfiguredHosts(
+    config.hosts,
+    repos.hosts,
+    logger,
+    (hostId) => repos.previews.list({ hostId }).length > 0,
+  );
   const { workdirs, sources, sites } = await restoreState({
     stateDir,
     repos,

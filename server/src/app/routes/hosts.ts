@@ -1,6 +1,10 @@
 import type { Hono } from "hono";
 import type { Host } from "@gangway/shared/domain";
-import { HostIdSchema, HostRegisterSchema } from "@gangway/shared/hosts-api";
+import {
+  HostIdSchema,
+  HostRegisterSchema,
+  type HostRegisterRequest,
+} from "@gangway/shared/hosts-api";
 import type { AuditSink } from "../../audit/audit.ts";
 import type { HostsRepo } from "../../db/repos/hosts.ts";
 import type { OrgsRepo } from "../../db/repos/orgs.ts";
@@ -20,6 +24,11 @@ export type HostRouteDeps = {
 };
 
 const toWire = (h: Host) => ({ ...h, dockerHost: redactString(h.dockerHost) });
+
+// What a running preview depends on: its containers, its published ports, its org.
+const moves = (h: Host, req: HostRegisterRequest) =>
+  JSON.stringify([h.dockerHost, h.publishBind, h.upstream, h.ports, h.orgId]) !==
+  JSON.stringify([req.dockerHost, req.publishBind, req.upstream, req.ports, req.orgId]);
 
 const idOf = (raw: string) => {
   const id = HostIdSchema.safeParse(raw);
@@ -55,6 +64,12 @@ export function hostRoutes(api: Hono<AppEnv>, d: HostRouteDeps): void {
     }
     if (req.orgId !== null && !d.orgs.get(req.orgId)) {
       throw unprocessable(`no such org: ${req.orgId}`, { orgId: req.orgId });
+    }
+    if (before && moves(before, req) && runningOn(id) > 0) {
+      throw conflict(
+        `host "${id}" still runs previews; drain it and wait before changing where it is or whose`,
+        { hostId: id },
+      );
     }
     const clash = hosts.named(req.name);
     if (clash && clash.id !== id) {

@@ -4,7 +4,12 @@ import { createApp, surfaceHandler } from "../../src/app/app.ts";
 import { hostRoutes } from "../../src/app/routes/hosts.ts";
 import { staticTokenVerifier } from "../../src/auth/actor.ts";
 import { HOME_ORG_ID, OrgsRepo } from "../../src/db/repos/orgs.ts";
+import { HostConfigSchema } from "../../src/config.ts";
+import { retireUnlisted, seedHosts } from "../../src/hosts/seed.ts";
+import { deploy } from "../../src/previews/deploy.ts";
+import { fixedPolicy } from "../../src/previews/policy.ts";
 import { place } from "../../src/scheduler/placement.ts";
+import { setupPreviewContext } from "../helpers/preview-context.ts";
 import { currentOrg } from "../../src/tenancy/scope.ts";
 import { seededHosts } from "../helpers/hosts.ts";
 import { silentLogger } from "../helpers/logger.ts";
@@ -138,6 +143,57 @@ describe("hosts API", () => {
     expect((await call("DELETE", "/hosts/local/drain")).body).toMatchObject({
       host: { draining: false },
     });
+  });
+});
+
+describe("hosts in use", () => {
+  test("a host running previews keeps where it is and whose, but may be renamed", async () => {
+    const { call, running } = setup();
+    await call("PUT", "/hosts/pool-1", pool());
+    running.set("pool-1", [{ id: "p1" } as Preview]);
+    expect((await call("PUT", "/hosts/pool-1", pool({ dockerHost: "ssh://x@h2" }))).status).toBe(
+      409,
+    );
+    expect((await call("PUT", "/hosts/pool-1", pool({ orgId: "org-b" }))).status).toBe(409);
+    expect((await call("PUT", "/hosts/pool-1", pool({ name: "pool-one" }))).status).toBe(200);
+    running.delete("pool-1");
+    expect((await call("PUT", "/hosts/pool-1", pool({ dockerHost: "ssh://x@h2" }))).status).toBe(
+      200,
+    );
+  });
+
+  test("a config id an API host holds is skipped, and unlisted config hosts retire", async () => {
+    const { call, hosts } = setup();
+    await call("PUT", "/hosts/pool-1", pool());
+    const clashes: string[] = [];
+    const cfg = (o: Record<string, unknown>) => HostConfigSchema.parse(o);
+    seedHosts([cfg({ id: "pool-1", name: "x" }), cfg({ id: "b", name: "b" })], hosts, (id) =>
+      clashes.push(id),
+    );
+    expect(clashes).toEqual(["pool-1"]);
+    expect(hosts.get("pool-1")).toMatchObject({
+      managedBy: "api",
+      dockerHost: "ssh://gangway@10.0.0.5",
+    });
+
+    const busy = new Set(["b"]);
+    expect(retireUnlisted([], hosts, (id) => busy.has(id))).toEqual({
+      removed: ["local"],
+      draining: ["b"],
+    });
+    busy.clear();
+    expect(retireUnlisted([], hosts, () => false)).toEqual({ removed: ["b"], draining: [] });
+    expect(hosts.list().map((h) => h.id)).toEqual(["pool-1"]);
+  });
+
+  test("a template's draining host falls back to the scheduler; an explicit pin does not", async () => {
+    const s = setupPreviewContext();
+    const local = s.hosts.get("local")!;
+    s.hosts.upsert({ ...local, id: "spare", name: "spare" });
+    s.hosts.setDraining("local", true);
+    s.ctx.policy = fixedPolicy({ hostId: "local" });
+    expect((await s.deployed("a")).hostId).toBe("spare");
+    await expect(deploy(s.ctx, { ...s.request("b"), hostId: "local" })).rejects.toThrow(/draining/);
   });
 });
 

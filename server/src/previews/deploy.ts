@@ -3,7 +3,7 @@ import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Clearance, Host, Preview, Visibility } from "@gangway/shared/domain";
 import { actorId, can } from "../auth/actor.ts";
 import { forbidden, unprocessable } from "../errors.ts";
-import { place } from "../scheduler/placement.ts";
+import { place, usableBy } from "../scheduler/placement.ts";
 import { parseDuration } from "../util/duration.ts";
 import { admitDeploy, checkStorage, lifetimeCap } from "../tenancy/limits.ts";
 import { ulid } from "../util/ulid.ts";
@@ -49,13 +49,12 @@ function resolveHost(
 ): Host {
   const allHosts = ctx.hosts.list();
   let wantedHost = input.hostId ?? template.hostId ?? undefined;
-  if (
-    input.hostId === undefined &&
-    template.hostId !== null &&
-    !allHosts.some((h) => h.id === template.hostId)
-  ) {
+  // A template's host is a preference: one this deploy cannot use falls back to the scheduler.
+  const pinned = allHosts.find((h) => h.id === template.hostId);
+  const takes = pinned && usableBy(pinned, input.actor.orgId) && !pinned.draining;
+  if (input.hostId === undefined && template.hostId !== null && !takes) {
     ctx.logger.warn(
-      "template names a host that does not exist; letting the scheduler place the preview",
+      "template names a host this deploy cannot use; letting the scheduler place the preview",
       { template: template.id, hostId: template.hostId },
     );
     wantedHost = undefined;

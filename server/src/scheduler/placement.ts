@@ -7,7 +7,8 @@ export type PlacementRequest = {
   orgId?: string | undefined;
 };
 
-const usableBy = (h: Host, orgId: string | undefined) => h.orgId === null || h.orgId === orgId;
+export const usableBy = (h: Host, orgId: string | undefined) =>
+  h.orgId === null || h.orgId === orgId;
 
 export function place(req: PlacementRequest, hosts: readonly Host[]): Host {
   const capable = hosts.filter(
