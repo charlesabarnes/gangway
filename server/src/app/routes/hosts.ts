@@ -24,8 +24,8 @@ export type HostRouteDeps = {
   audit: AuditSink;
 };
 
-// A user and password in a URL, however short, before the patterns redactString knows.
-const withoutLogin = (s: string) => redactString(s.replace(/\/\/[^/?#\s]+@/g, "//[redacted]@"));
+// Everything up to a URL's last @ may be a login, however short or oddly written.
+const withoutLogin = (s: string) => redactString(s.replace(/\/\/.*@/, "//[redacted]@"));
 
 const toWire = (h: Host) => ({
   ...h,

@@ -96,7 +96,11 @@ describe("hosts API", () => {
 
   test("a short login in the docker host or the proxy never comes back", async () => {
     const { call } = setup();
-    const upstream = { dial: "socks5", address: "10.0.0.5", proxy: "socks5://u:p@w@10.0.0.9:1080" };
+    const upstream = {
+      dial: "socks5",
+      address: "10.0.0.5",
+      proxy: "socks5://u:p?s#s@w@10.0.0.9:1080",
+    };
     const made = await call("PUT", "/hosts/p", pool({ dockerHost: "ssh://u:pw@h", upstream }));
     const listed = await call("GET", "/hosts");
     for (const text of [JSON.stringify(made.body), JSON.stringify(listed.body)]) {
