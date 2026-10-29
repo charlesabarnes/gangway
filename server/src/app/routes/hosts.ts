@@ -25,8 +25,14 @@ export type HostRouteDeps = {
 };
 
 // Everything up to a URL's last @ may be a login, however short or oddly written.
-const withoutLogin = (s: string) =>
-  redactString(/^(unix|npipe):/i.test(s) ? s : s.replace(/\/\/.*@/, "//[redacted]@"));
+const withoutLogin = (s: string) => {
+  const start = s.indexOf("//");
+  const at = s.lastIndexOf("@");
+  const path = /^(unix|npipe):/i.test(s);
+  return redactString(
+    path || start === -1 || at < start ? s : `${s.slice(0, start)}//[redacted]${s.slice(at)}`,
+  );
+};
 
 const toWire = (h: Host) => ({
   ...h,
