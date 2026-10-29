@@ -9,36 +9,14 @@ import type {
   WatermarkChoice,
 } from "@gangway/shared/domain";
 import type { Provenance } from "../../auth/actor.ts";
-import { orgFilter, orgScope } from "../../tenancy/scope.ts";
+import { orgFilter } from "../../tenancy/scope.ts";
 import type { Db, Params } from "../types.ts";
+import { hostLoads, type HostLoad } from "./host-loads.ts";
 import { fromDate, rowToPreview, sourceToColumns, type PreviewRow } from "./mappers.ts";
 import type { CreatePreview, PreviewFilter, StoredPreviewPassword } from "./preview-inputs.ts";
+import { choiceColumns, labelColumns, orgColumns, watermarkColumn } from "./preview-columns.ts";
 
 export type { CreatePreview, PreviewFilter, StoredPreviewPassword } from "./preview-inputs.ts";
-
-const watermarkColumn = (w: WatermarkChoice | undefined): string | null =>
-  w === "on" || w === "off" ? w : null;
-
-const choiceColumns = (p: CreatePreview) => ({
-  watermark: watermarkColumn(p.watermark),
-  domain: p.domain ?? null,
-});
-
-const orgColumns = (p: CreatePreview) => ({ org: orgOf(p), bytes: p.bytes ?? 0 });
-
-function orgOf(p: CreatePreview): string {
-  const s = orgScope();
-  if (s !== "fleet" && s.org !== p.orgId) {
-    throw new Error("a preview may only be created in the request's own org");
-  }
-  return p.orgId;
-}
-
-const labelColumns = (p: CreatePreview) => ({
-  title: p.title ?? null,
-  icon: p.icon?.name ?? null,
-  iconColor: p.icon?.color ?? null,
-});
 
 export class PreviewsRepo {
   readonly #db: Db;
@@ -53,10 +31,10 @@ export class PreviewsRepo {
     const now = this.#now();
     const { source_kind, source_json } = sourceToColumns(p.source);
     this.#db.run(
-      `INSERT INTO previews (id, org_id, bytes, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
+      `INSERT INTO previews (id, org_id, bytes, reserved_bytes, project, title, icon, icon_color, host_id, kind, state, source_kind, source_json,
                              visibility, ttl_expires_at, idle_after_ms, secret_level, template_id, project_id, owner, credential,
                              password_mode, password_hash, password_salt, password_login, signed_in_only, watermark, domain, created_at, updated_at)
-       VALUES ($id, $org, $bytes, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
+       VALUES ($id, $org, $bytes, $reserved, $project, $title, $icon, $iconColor, $host_id, $kind, $state, $source_kind, $source_json,
                $visibility, $ttl, $idle, $level, $template, $projectId, $owner, $credential,
                $pwMode, $pwHash, $pwSalt, $pwLogin, $only, $watermark, $domain, $now, $now)`,
       {
@@ -180,6 +158,14 @@ export class PreviewsRepo {
       { orgId, except },
     ) as { n: number } | undefined;
     return r?.n ?? 0;
+  }
+
+  setReservedBytes(id: string, bytes: number): void {
+    this.#db.run("UPDATE previews SET reserved_bytes = $bytes WHERE id = $id", { id, bytes });
+  }
+
+  hostLoads(): Map<string, HostLoad> {
+    return hostLoads(this.#db);
   }
 
   setTitle(id: string, title: string | null): void {

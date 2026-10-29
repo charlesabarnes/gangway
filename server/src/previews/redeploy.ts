@@ -34,6 +34,7 @@ import {
 } from "./rebuild-failure.ts";
 import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
+import { reservedBytes } from "./compose-model.ts";
 import { releaseStack } from "./destroy.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
 import { markServing, plannedBytes, withheldLine } from "./site.ts";
@@ -185,6 +186,10 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   try {
     plan = await planRebuild(ctx, b);
     checkContainerAllowed(input.actor, "the new source", plan.site === null);
+    ctx.previews.setReservedBytes(
+      id,
+      plan.site === null ? reservedBytes(ctx.limits?.(), plan.planned.model) : 0,
+    );
     previous =
       plan.site === null && preview.state !== "failed"
         ? await snapshot(ctx, { host, project: preview.project, cwd: wd.srcDir })
