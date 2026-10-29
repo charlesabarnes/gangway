@@ -160,6 +160,12 @@ export class PreviewsRepo {
     return r?.n ?? 0;
   }
 
+  reservedBytes(id: string): number {
+    const r = this.#db.get("SELECT reserved_bytes AS n FROM previews WHERE id = $id", { id }) as
+      { n: number } | undefined;
+    return r?.n ?? 0;
+  }
+
   setReservedBytes(id: string, bytes: number): void {
     this.#db.run("UPDATE previews SET reserved_bytes = $bytes WHERE id = $id", { id, bytes });
   }

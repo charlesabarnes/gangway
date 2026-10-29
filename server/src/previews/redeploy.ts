@@ -4,6 +4,7 @@ import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain
 import { actorId, mayRebuild } from "../auth/actor.ts";
 import { psArgv, upArgv } from "../docker/compose.ts";
 import { AppError, conflict, forbidden, notFound, errorMessage } from "../errors.ts";
+import { checkRoom } from "../scheduler/placement.ts";
 import { ulid } from "../util/ulid.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import { checkContainerAllowed } from "./container-access.ts";
@@ -183,13 +184,12 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const b: Rebuild = { input, sources, preview, host, wd, routes: routesOf(ctx, id) };
   let plan: RebuildPlan;
   let previous: string[] | null;
+  let reserve = 0;
   try {
     plan = await planRebuild(ctx, b);
     checkContainerAllowed(input.actor, "the new source", plan.site === null);
-    ctx.previews.setReservedBytes(
-      id,
-      plan.site === null ? reservedBytes(ctx.limits?.(), plan.planned.model) : 0,
-    );
+    reserve = plan.site === null ? reservedBytes(ctx.limits?.(), plan.planned.model) : 0;
+    admitRebuild(ctx, preview, host, reserve);
     previous =
       plan.site === null && preview.state !== "failed"
         ? await snapshot(ctx, { host, project: preview.project, cwd: wd.srcDir })
@@ -225,6 +225,10 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
     .then(
       (o) => {
+        // The serving version keeps its reservation until the new one has replaced it.
+        if (o.outcome === "succeeded") {
+          ctx.previews.setReservedBytes(id, reserve);
+        }
         settle(o);
       },
       (e: unknown) => {
@@ -241,6 +245,15 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     });
 
   return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
+}
+
+/** A rebuild that needs more memory than its preview holds must fit in what the host has left. */
+function admitRebuild(ctx: PreviewContext, preview: Preview, host: Host, reserve: number): void {
+  const held = preview.state === "asleep" ? 0 : ctx.previews.reservedBytes(preview.id);
+  if (reserve > held) {
+    const load = ctx.previews.hostLoads().get(host.id) ?? { previews: 1, awakeBytes: 0 };
+    checkRoom(host, { ...load, previews: load.previews - 1 }, reserve - held);
+  }
 }
 
 /** A rebuild that could not roll back is refused before it changes anything. */

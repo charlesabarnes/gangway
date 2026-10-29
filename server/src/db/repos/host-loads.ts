@@ -2,13 +2,13 @@ import type { Db } from "../types.ts";
 
 export type HostLoad = { previews: number; awakeBytes: number };
 
-/** What every org's previews hold on each host: the containers there, and the memory awake. */
+/** What every org's previews hold on each host; only an asleep one is sure to hold no memory. */
 export function hostLoads(db: Db): Map<string, HostLoad> {
   const rows = db.query(
     `SELECT host_id,
             COUNT(*) AS previews,
-            COALESCE(SUM(CASE WHEN state IN ('building','starting','awake')
-                              THEN reserved_bytes ELSE 0 END), 0) AS awake_bytes
+            COALESCE(SUM(CASE WHEN state != 'asleep' THEN reserved_bytes ELSE 0 END), 0)
+              AS awake_bytes
        FROM previews
       WHERE state != 'destroyed'
         AND NOT (source_kind = 'tarball' AND json_extract(source_json, '$.serve') IS 'gangway')

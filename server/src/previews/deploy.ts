@@ -229,10 +229,10 @@ async function prepare(
   const password = await resolvePassword(ctx.passwords, input.password);
   const bytes = site ? await plannedBytes(wd.srcDir, site) : 0;
   // No await between the counts and the row they add, so two deploys cannot both pass.
+  checkStillThere(ctx.hosts.list(), host);
   const reserved = site === null ? admitContainer(ctx, input, host, model) : 0;
   const org = input.actor.orgId;
   admitDeploy(ctx, org, { site: site !== null, bytes, used: ctx.previews.bytesUsed(org) });
-  checkStillThere(ctx.hosts.list(), host);
   const { preview, routes } = claimPreview(ctx, {
     id,
     input,

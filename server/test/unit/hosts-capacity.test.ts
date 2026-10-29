@@ -5,6 +5,7 @@ import { deploy } from "../../src/previews/deploy.ts";
 import { sleepPreview } from "../../src/previews/sleep.ts";
 import { place, type HostLoad } from "../../src/scheduler/placement.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
+import { deployFiles, edit, setupRuntimes } from "../helpers/runtimes-fixtures.ts";
 
 const MIB = 1024 * 1024;
 
@@ -48,6 +49,49 @@ describe("host capacity", () => {
     expect(s.previews.hostLoads().get("local")).toEqual({ previews: 2, awakeBytes: 1024 * MIB });
     s.previews.setState(a.id, "destroyed");
     expect(s.previews.hostLoads().get("local")).toEqual({ previews: 1, awakeBytes: 512 * MIB });
+  });
+});
+
+describe("a rebuild's reservation", () => {
+  async function serving(capacity: Host["capacity"]) {
+    const s = setupRuntimes();
+    s.hosts.upsert({ ...s.hosts.get("local")!, capacity });
+    const limit = (mib: number) => {
+      s.ctx.limits = () => ({ memoryBytes: mib * MIB, cpus: 0, pids: 0, containers: 0 });
+    };
+    limit(512);
+    const p = await (await deployFiles(s, { "index.ts": "v1" }, "bun", "grow")).done;
+    expect(reserved(s, p.id)).toBe(512 * MIB);
+    return { s, p, limit };
+  }
+
+  test("one that needs more than the host has left is refused and holds what it held", async () => {
+    const { s, p, limit } = await serving({ memoryBytes: 1024 * MIB, maxPreviews: 1 });
+    limit(2048);
+    await expect(edit(s, p.id, { "index.ts": "v2" })).rejects.toMatchObject({
+      code: "unavailable",
+    });
+    expect(reserved(s, p.id)).toBe(512 * MIB);
+    limit(1024);
+    expect(await edit(s, p.id, { "index.ts": "v3" })).toMatchObject({ outcome: "succeeded" });
+    expect(reserved(s, p.id)).toBe(1024 * MIB);
+  });
+
+  test("one that fails keeps the serving version's reservation", async () => {
+    const { s, p, limit } = await serving({ memoryBytes: null, maxPreviews: null });
+    limit(256);
+    const ups = s.fake.ups;
+    s.ctx.probe = async () => s.fake.ups !== ups + 1;
+    expect(await edit(s, p.id, { "index.ts": "broken" })).toMatchObject({ outcome: "failed" });
+    expect(reserved(s, p.id)).toBe(512 * MIB);
+  });
+
+  test("a preview being torn down holds its memory until it is gone", async () => {
+    const { s, p } = await serving({ memoryBytes: null, maxPreviews: null });
+    for (const state of ["destroying", "failed"] as const) {
+      s.previews.setState(p.id, state);
+      expect(s.previews.hostLoads().get("local")?.awakeBytes).toBe(512 * MIB);
+    }
   });
 });
 
