@@ -123,6 +123,7 @@ describe("placement by load", () => {
     capacity: { memoryBytes: 4096 * MIB, maxPreviews: 10 },
     draining: false,
     runtime: null,
+    egress: "open",
     state: "ready",
     lastError: null,
     lastSeenAt: null,

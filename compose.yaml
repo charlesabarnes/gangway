@@ -95,6 +95,8 @@ services:
       # More wildcard preview domains, comma-separated; each needs `*.<domain>` DNS to here.
       GANGWAY_PREVIEW_DOMAINS: ${GANGWAY_PREVIEW_DOMAINS:-}
       GANGWAY_INSTANCE: ${GANGWAY_INSTANCE:-main}
+      # The image egress rules are applied with on a restricted host: this one, which carries nft.
+      GANGWAY_HELPER_IMAGE: ${GANGWAY_IMAGE:-ghcr.io/charlesabarnes/gangway}:${GANGWAY_TAG:-latest}
       GANGWAY_LISTEN_ADDRESS: ${GANGWAY_LISTEN_ADDRESS:-172.17.0.1}
       GANGWAY_LISTEN_PORT: ${GANGWAY_LISTEN_PORT:-8443}
       # Empty = no plain-HTTP redirect listener; the proxy does the redirect.

@@ -8,6 +8,7 @@ export type UpstreamDial = "direct" | "socks5";
 export type HostState = "unknown" | "ready" | "unreachable" | "error";
 export type HostManagedBy = "config" | "api";
 export type HostRuntime = "runsc";
+export type HostEgress = "open" | "restricted";
 
 export type Host = {
   id: string;
@@ -24,6 +25,7 @@ export type Host = {
   capacity: { memoryBytes: number | null; maxPreviews: number | null };
   draining: boolean;
   runtime: HostRuntime | null;
+  egress: HostEgress;
   state: HostState;
   lastError: string | null;
   lastSeenAt: Date | null;

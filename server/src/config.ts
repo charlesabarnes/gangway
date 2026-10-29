@@ -15,6 +15,7 @@ export const HostConfigSchema = z.object({
   portRangeStart: port.default(31000),
   portRangeEnd: port.default(31499),
   runtime: z.enum(["runsc"]).optional(),
+  egress: z.enum(["open", "restricted"]).default("open"),
 });
 export type HostConfig = z.infer<typeof HostConfigSchema>;
 
@@ -85,6 +86,7 @@ const ConfigSchema = z.object({
 
   // Spawned for a preview's public share link; the image carries it, elsewhere it is on PATH.
   cloudflaredPath: z.string().min(1).default("cloudflared"),
+  helperImage: z.string().min(1).optional(),
 
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
@@ -124,6 +126,7 @@ const ENV_MAP = {
   GANGWAY_LOG_LEVEL: "logLevel",
   GANGWAY_VERSION: "version",
   GANGWAY_CLOUDFLARED: "cloudflaredPath",
+  GANGWAY_HELPER_IMAGE: "helperImage",
 } as const satisfies Record<string, keyof Config>;
 
 const SETTING_ENV_MAP = {

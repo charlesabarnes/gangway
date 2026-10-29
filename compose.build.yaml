@@ -7,3 +7,5 @@ services:
   gangway:
     image: gangway:${GANGWAY_TAG:-latest}
     build: .
+    environment:
+      GANGWAY_HELPER_IMAGE: gangway:${GANGWAY_TAG:-latest}

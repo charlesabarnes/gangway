@@ -298,6 +298,7 @@ describe("hosts", () => {
     capacity: { memoryBytes: null, maxPreviews: null },
     draining: false,
     runtime: null,
+    egress: "open",
     state,
     lastError: null,
     lastSeenAt: null,

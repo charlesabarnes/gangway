@@ -63,6 +63,7 @@ export async function scanHost(
   try {
     const client = clients.for(host);
     await verifyDaemon(client, host, env ?? process.env);
+    await ctx.egress?.apply(host);
     const listed = await client.listContainers({
       all: true,
       filters: {
@@ -82,6 +83,7 @@ export async function scanHost(
       summaries: ours,
     };
   } catch (e) {
+    ctx.egress?.forget(host.id);
     const message = redactString(errorMessage(e));
     ctx.hosts.setState(host.id, e instanceof DockerGuardError ? "error" : "unreachable", message);
     return {

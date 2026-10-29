@@ -1,4 +1,5 @@
 import { ArtifactLibrary } from "../artifacts/library.ts";
+import { EgressGuard } from "../hosts/egress.ts";
 import { createHmac } from "node:crypto";
 import type { Trigger } from "@gangway/shared/domain";
 import { Passwords } from "../auth/password.ts";
@@ -64,6 +65,7 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     previews: repos.previews,
   });
   const previewPasswords = new Passwords({ ln: 14 });
+  const egress = new EgressGuard({ image: () => helperImage(config) });
   const ctx: PreviewContext = {
     instance: config.instanceId,
     env: config.environment,
@@ -78,7 +80,8 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
     states: new PreviewStates(repos.previews, core.table, core.bus),
     bus: core.bus,
     workdirs: d.workdirs,
-    compose: o.compose ?? composeFor(d.dockerClients, repos),
+    compose: o.compose ?? composeFor(d.dockerClients, repos, egress),
+    egress,
     logs: new PreviewLogs(core.stateDir),
     probe: o.probe ?? httpProbe,
     logger: core.logger.child({ mod: "previews" }),
@@ -159,11 +162,22 @@ function blocksFrom(repos: Repos): Blocks {
   return blocks;
 }
 
-function composeFor(dockerClients: DockerClients, repos: Repos): ComposeRunner {
-  return createComposeRunner(dockerClients, (hostId, ok, err) => {
-    repos.hosts.setState(hostId, ok ? "ready" : "unreachable", err);
-  });
+function composeFor(
+  dockerClients: DockerClients,
+  repos: Repos,
+  egress: EgressGuard,
+): ComposeRunner {
+  return createComposeRunner(
+    dockerClients,
+    (hostId, ok, err) => {
+      repos.hosts.setState(hostId, ok ? "ready" : "unreachable", err);
+    },
+    egress,
+  );
 }
+
+const helperImage = (c: Core["config"]) =>
+  c.helperImage ?? `ghcr.io/charlesabarnes/gangway:${c.version === "dev" ? "latest" : c.version}`;
 
 function createPolicy(
   repos: Repos,

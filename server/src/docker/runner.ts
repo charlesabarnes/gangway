@@ -10,8 +10,9 @@ import {
   type ComposeResult,
 } from "./compose.ts";
 import { DockerGuardError, daemonEngine } from "./guard.ts";
+import type { EgressGuard } from "../hosts/egress.ts";
 
-export type ComposeTarget = Pick<Host, "id" | "dockerHost" | "expectName" | "runtime">;
+export type ComposeTarget = Pick<Host, "id" | "dockerHost" | "expectName" | "runtime" | "egress">;
 
 export type ComposeRunOpts = {
   cwd: string;
@@ -27,10 +28,12 @@ export type ComposeRunner = {
 export function createComposeRunner(
   clients: DockerClients,
   onHostState?: (hostId: string, ok: boolean, error: string | null) => void,
+  egress?: Pick<EgressGuard, "ensure">,
 ): ComposeRunner {
   const preflight = (host: ComposeTarget) => async () => {
     try {
       const { info } = await verifyDaemon(clients.for(host), host);
+      await egress?.ensure(host);
       onHostState?.(host.id, true, null);
       return engineEnv(daemonEngine(info));
     } catch (e) {
