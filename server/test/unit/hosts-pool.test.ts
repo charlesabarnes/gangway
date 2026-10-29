@@ -8,7 +8,7 @@ import { HostConfigSchema } from "../../src/config.ts";
 import { retireUnlisted, seedHosts } from "../../src/hosts/seed.ts";
 import { deploy } from "../../src/previews/deploy.ts";
 import { fixedPolicy } from "../../src/previews/policy.ts";
-import { place } from "../../src/scheduler/placement.ts";
+import { checkStillThere, place } from "../../src/scheduler/placement.ts";
 import { setupPreviewContext } from "../helpers/preview-context.ts";
 import { currentOrg } from "../../src/tenancy/scope.ts";
 import { seededHosts } from "../helpers/hosts.ts";
@@ -94,6 +94,17 @@ describe("hosts API", () => {
     expect(audited).toEqual(["host.registered", "host.registered"]);
   });
 
+  test("a short login in the docker host or the proxy never comes back", async () => {
+    const { call } = setup();
+    const upstream = { dial: "socks5", address: "10.0.0.5", proxy: "socks5://u:pw@10.0.0.9:1080" };
+    const made = await call("PUT", "/hosts/p", pool({ dockerHost: "ssh://u:pw@h", upstream }));
+    const listed = await call("GET", "/hosts");
+    for (const text of [JSON.stringify(made.body), JSON.stringify(listed.body)]) {
+      expect(text).not.toContain("u:pw");
+      expect(text).toContain("socks5://[redacted]@10.0.0.9:1080");
+    }
+  });
+
   test("a config host, an unknown org, a taken name and bad ports are refused", async () => {
     const { call } = setup();
     expect((await call("PUT", "/hosts/local", pool())).status).toBe(409);
@@ -155,6 +166,7 @@ describe("hosts in use", () => {
       409,
     );
     expect((await call("PUT", "/hosts/pool-1", pool({ orgId: "org-b" }))).status).toBe(409);
+    expect((await call("PUT", "/hosts/pool-1", pool({ expectName: "other" }))).status).toBe(409);
     expect((await call("PUT", "/hosts/pool-1", pool({ name: "pool-one" }))).status).toBe(200);
     running.delete("pool-1");
     expect((await call("PUT", "/hosts/pool-1", pool({ dockerHost: "ssh://x@h2" }))).status).toBe(
@@ -194,6 +206,19 @@ describe("hosts in use", () => {
     s.ctx.policy = fixedPolicy({ hostId: "local" });
     expect((await s.deployed("a")).hostId).toBe("spare");
     await expect(deploy(s.ctx, { ...s.request("b"), hostId: "local" })).rejects.toThrow(/draining/);
+  });
+});
+
+describe("a host chosen before the claim", () => {
+  test("must still be in service and unmoved when the preview is claimed", () => {
+    const { hosts } = setup();
+    const chosen = hosts.get("local")!;
+    expect(() => checkStillThere(hosts.list(), chosen)).not.toThrow();
+    hosts.setDraining("local", true);
+    expect(() => checkStillThere(hosts.list(), chosen)).not.toThrow();
+    hosts.upsert({ ...chosen, dockerHost: "ssh://elsewhere" });
+    expect(() => checkStillThere(hosts.list(), chosen)).toThrow(/changed/);
+    expect(() => checkStillThere([], chosen)).toThrow(/changed/);
   });
 });
 

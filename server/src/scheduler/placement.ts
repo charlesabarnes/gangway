@@ -7,6 +7,26 @@ export type PlacementRequest = {
   orgId?: string | undefined;
 };
 
+type Endpoint = Pick<
+  Host,
+  "dockerHost" | "expectName" | "publishBind" | "upstream" | "ports" | "orgId"
+>;
+
+/** What a preview on a host depends on: where its containers run and answer, and whose they are. */
+export const endpointOf = (h: Endpoint) =>
+  JSON.stringify([h.dockerHost, h.expectName, h.publishBind, h.upstream, h.ports, h.orgId]);
+
+/** At claim, with no await before it: the host chosen earlier must still be in service, unmoved. */
+export function checkStillThere(hosts: readonly Host[], chosen: Host): void {
+  const now = hosts.find((h) => h.id === chosen.id);
+  if (!now || endpointOf(now) !== endpointOf(chosen)) {
+    throw new AppError(
+      "unavailable",
+      `host "${chosen.id}" changed while the preview was being prepared; deploy it again`,
+    );
+  }
+}
+
 export const usableBy = (h: Host, orgId: string | undefined) =>
   h.orgId === null || h.orgId === orgId;
 

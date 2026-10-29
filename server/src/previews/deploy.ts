@@ -3,7 +3,7 @@ import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Clearance, Host, Preview, Visibility } from "@gangway/shared/domain";
 import { actorId, can } from "../auth/actor.ts";
 import { forbidden, unprocessable } from "../errors.ts";
-import { place, usableBy } from "../scheduler/placement.ts";
+import { checkStillThere, place, usableBy } from "../scheduler/placement.ts";
 import { parseDuration } from "../util/duration.ts";
 import { admitDeploy, checkStorage, lifetimeCap } from "../tenancy/limits.ts";
 import { ulid } from "../util/ulid.ts";
@@ -213,6 +213,7 @@ async function prepare(
   }
   const org = input.actor.orgId;
   admitDeploy(ctx, org, { site: site !== null, bytes, used: ctx.previews.bytesUsed(org) });
+  checkStillThere(ctx.hosts.list(), host);
   const { preview, routes } = claimPreview(ctx, {
     id,
     input,

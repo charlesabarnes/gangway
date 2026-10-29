@@ -11,6 +11,7 @@ import type { OrgsRepo } from "../../db/repos/orgs.ts";
 import type { PreviewsRepo } from "../../db/repos/previews.ts";
 import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
 import { redactString } from "../../logger.ts";
+import { endpointOf } from "../../scheduler/placement.ts";
 import { acrossOrgs } from "../../tenancy/scope.ts";
 import type { AppEnv } from "../env.ts";
 import { readJson } from "../problem.ts";
@@ -23,12 +24,16 @@ export type HostRouteDeps = {
   audit: AuditSink;
 };
 
-const toWire = (h: Host) => ({ ...h, dockerHost: redactString(h.dockerHost) });
+// A user and password in a URL, however short, before the patterns redactString knows.
+const withoutLogin = (s: string) => redactString(s.replace(/\/\/[^/@\s]+@/g, "//[redacted]@"));
 
-// What a running preview depends on: its containers, its published ports, its org.
-const moves = (h: Host, req: HostRegisterRequest) =>
-  JSON.stringify([h.dockerHost, h.publishBind, h.upstream, h.ports, h.orgId]) !==
-  JSON.stringify([req.dockerHost, req.publishBind, req.upstream, req.ports, req.orgId]);
+const toWire = (h: Host) => ({
+  ...h,
+  dockerHost: withoutLogin(h.dockerHost),
+  upstream: { ...h.upstream, proxy: h.upstream.proxy && withoutLogin(h.upstream.proxy) },
+});
+
+const moves = (h: Host, req: HostRegisterRequest) => endpointOf(h) !== endpointOf(req);
 
 const idOf = (raw: string) => {
   const id = HostIdSchema.safeParse(raw);
