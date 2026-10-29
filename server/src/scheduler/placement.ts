@@ -45,7 +45,6 @@ export const containersOn = (previews: readonly Preview[]) =>
 export const usableBy = (h: Host, orgId: string | undefined) =>
   h.orgId === null || h.orgId === orgId;
 
-/** Memory left on a host, or null when it sets no memory cap. */
 const freeBytes = (h: Host, load: HostLoad) =>
   h.capacity.memoryBytes === null ? null : h.capacity.memoryBytes - load.awakeBytes;
 
