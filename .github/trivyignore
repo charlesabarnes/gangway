@@ -4,7 +4,8 @@
 # a change of owner on existing state directories; revisit it with a socket proxy.
 DS-0002
 
-# CVE-2026-63209, klauspost/compress 1.18.0 inside cloudflared: the latest cloudflared (2026.10.3)
-# still builds with it, so there is no fixed binary to take. cloudflared only runs for Share links.
-# The entry expires so the scan fails again once a fixed release has had time to land.
-CVE-2026-63209 exp:2026-11-30
+# CVE-2026-116587, go-jose 4.1.4 inside cloudflared: the latest cloudflared (2026.10.5) still
+# builds with it, so there is no fixed binary to take. It is a denial of service on parsing JWKs,
+# which cloudflared does for Access tokens; gangway only runs it for Share quick tunnels. The entry
+# expires so the scan fails again once a fixed release has had time to land.
+CVE-2026-116587 exp:2026-11-30
