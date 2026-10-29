@@ -155,6 +155,12 @@ describe("placement by load", () => {
     expect(place({ capability: "preview", orgId: "a" }, hosts, loads).id).toBe("mine");
   });
 
+  test("a full host of the org's own overflows to a shared one with room", () => {
+    const hosts = [host("shared"), host("mine", { orgId: "a" })];
+    const loads = new Map([["mine", load(10, 0)]]);
+    expect(place({ capability: "preview", orgId: "a" }, hosts, loads).id).toBe("shared");
+  });
+
   test("with every host full it still names one, and the claim refuses", () => {
     const hosts = [host("a"), host("b")];
     const loads = new Map([

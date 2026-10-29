@@ -98,13 +98,13 @@ export function place(
   return chosen;
 }
 
-// The org's own host, then one with room, then a ready one, then the most memory free.
+// A host with room, the org's own first, then a ready one, then the most memory free.
 function rank(a: Host, b: Host, loads: ReadonlyMap<string, HostLoad>, bytes: number): number {
   const la = loads.get(a.id) ?? IDLE;
   const lb = loads.get(b.id) ?? IDLE;
   const keys = (h: Host, l: HostLoad) => [
-    h.orgId === null ? 1 : 0,
     roomFor(h, l, bytes) ? 0 : 1,
+    h.orgId === null ? 1 : 0,
     h.state === "ready" ? 0 : 1,
     -(freeBytes(h, l) ?? Number.MAX_SAFE_INTEGER),
   ];
