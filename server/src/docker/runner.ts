@@ -11,7 +11,7 @@ import {
 } from "./compose.ts";
 import { DockerGuardError, daemonEngine } from "./guard.ts";
 
-export type ComposeTarget = Pick<Host, "id" | "dockerHost" | "expectName">;
+export type ComposeTarget = Pick<Host, "id" | "dockerHost" | "expectName" | "runtime">;
 
 export type ComposeRunOpts = {
   cwd: string;

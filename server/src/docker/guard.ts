@@ -10,6 +10,7 @@ export type DockerInfo = {
   MemTotal?: number | undefined;
   // Podman's Docker-compatible /info adds this; Docker never sends it.
   BuildahVersion?: string | undefined;
+  Runtimes?: Record<string, unknown> | undefined;
 };
 
 export type DaemonEngine = "docker" | "podman";
@@ -20,7 +21,7 @@ export function daemonEngine(info: DockerInfo): DaemonEngine {
     : "docker";
 }
 
-export type GuardReason = "docker-desktop" | "name-mismatch";
+export type GuardReason = "docker-desktop" | "name-mismatch" | "runtime-missing";
 
 export class DockerGuardError extends AppError {
   readonly reason: GuardReason;
@@ -101,12 +102,14 @@ export function assertRemoteDaemon(
 }
 
 export function assertHostDaemon(
-  host: { id: string; expectName: string | null },
+  host: { id: string; expectName: string | null; runtime: string | null },
   info: DockerInfo,
   env: Env = process.env,
 ): GuardOk {
   try {
-    return assertRemoteDaemon(info, host.expectName, env);
+    const ok = assertRemoteDaemon(info, host.expectName, env);
+    assertRuntime(info, host.runtime);
+    return ok;
   } catch (err) {
     if (err instanceof DockerGuardError) {
       throw new DockerGuardError(err.reason, `host ${host.id}: ${err.message}`, {
@@ -115,6 +118,17 @@ export function assertHostDaemon(
       });
     }
     throw err;
+  }
+}
+
+// A container started without the host's runtime would run outside its sandbox.
+function assertRuntime(info: DockerInfo, runtime: string | null): void {
+  if (runtime !== null && !Object.hasOwn(info.Runtimes ?? {}, runtime)) {
+    throw new DockerGuardError(
+      "runtime-missing",
+      `the daemon has no ${JSON.stringify(runtime)} runtime, which this host record requires`,
+      { runtime, runtimes: Object.keys(info.Runtimes ?? {}) },
+    );
   }
 }
 

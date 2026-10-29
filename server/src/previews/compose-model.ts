@@ -128,6 +128,7 @@ export type StackInput = {
   extraEnv?: Record<string, string>;
   sharedNetwork?: string | null;
   limits?: PreviewLimits | undefined;
+  runtime?: string | null | undefined;
 };
 
 /** The operator's ceiling for every preview container, and how many of them; 0 leaves a limit off. */
@@ -355,6 +356,9 @@ export function buildStack(i: StackInput): string {
       ...(self ? { PUBLIC_URL: publicOriginFor(self.hostname, i.origin) } : {}),
     };
     confine(svc, i.limits ?? NO_LIMITS);
+    if (i.runtime) {
+      svc["runtime"] = i.runtime;
+    }
     services[name] = svc;
   }
   namespaceBuiltImages(services, i.ctx.project);

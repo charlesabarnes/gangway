@@ -112,6 +112,7 @@ export async function writeStack(
       origin: ctx.origin,
       sharedNetwork: network,
       limits: ctx.limits?.(),
+      runtime: s.host.runtime,
     }),
     { mode: 0o600 },
   );

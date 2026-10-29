@@ -83,6 +83,7 @@ describe("hosts API", () => {
       draining: false,
       capacity: { memoryBytes: null, maxPreviews: null },
       upstream: { dial: "direct", address: "10.0.0.5", proxy: null },
+      runtime: null,
     });
     const again = await call(
       "PUT",
@@ -125,6 +126,7 @@ describe("hosts API", () => {
     const ports = { rangeStart: 32000, rangeEnd: 31000 };
     expect((await call("PUT", "/hosts/p", pool({ ports }))).status).toBe(422);
     expect((await call("PUT", "/hosts/Bad.Id", pool())).status).toBe(400);
+    expect((await call("PUT", "/hosts/p", pool({ runtime: "runc" }))).status).toBe(422);
     const socks = { dial: "socks5", address: "10.0.0.5" };
     expect((await call("PUT", "/hosts/p", pool({ upstream: socks }))).status).toBe(422);
   });
@@ -252,6 +254,7 @@ describe("placement across orgs", () => {
     orgId: null,
     capacity: { memoryBytes: null, maxPreviews: null },
     draining: false,
+    runtime: null,
     state: "ready",
     lastError: null,
     lastSeenAt: null,

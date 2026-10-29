@@ -198,7 +198,11 @@ describe("policy: builds get no host network, no privilege and no entitlements",
 
 const LIMITS = { memoryBytes: 2 * 1024 ** 3, cpus: 2, pids: 1024, containers: 0 };
 
-const stackOf = (services: Record<string, unknown>, limits = LIMITS) => {
+const stackOf = (
+  services: Record<string, unknown>,
+  limits = LIMITS,
+  runtime: string | null = null,
+) => {
   const input = resolved(services);
   const m = parseComposeModel("gw-x", input);
   return JSON.parse(
@@ -212,9 +216,19 @@ const stackOf = (services: Record<string, unknown>, limits = LIMITS) => {
       publishBind: "127.0.0.1",
       origin: { scheme: "https", port: 8443 },
       limits,
+      runtime,
     }),
   );
 };
+
+describe("a sandboxed host", () => {
+  test("every service runs on its runtime; elsewhere the daemon's default", () => {
+    const services = { web: { image: "n" }, db: { image: "postgres:17" } };
+    const sandboxed = stackOf(services, LIMITS, "runsc").services;
+    expect([sandboxed.web.runtime, sandboxed.db.runtime]).toEqual(["runsc", "runsc"]);
+    expect(stackOf(services).services.web.runtime).toBeUndefined();
+  });
+});
 
 describe("policy: a preview runs a bounded number of containers", () => {
   const sized = (services: Record<string, unknown>, containers: number) =>

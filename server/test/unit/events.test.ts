@@ -297,6 +297,7 @@ describe("hosts", () => {
     orgId: null,
     capacity: { memoryBytes: null, maxPreviews: null },
     draining: false,
+    runtime: null,
     state,
     lastError: null,
     lastSeenAt: null,
