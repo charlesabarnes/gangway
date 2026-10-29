@@ -12,7 +12,6 @@ type Endpoint = Pick<
   "dockerHost" | "expectName" | "publishBind" | "upstream" | "ports" | "orgId"
 >;
 
-/** What a preview on a host depends on: where its containers run and answer, and whose they are. */
 export const endpointOf = (h: Endpoint) =>
   JSON.stringify([h.dockerHost, h.expectName, h.publishBind, h.upstream, h.ports, h.orgId]);
 
