@@ -25,7 +25,7 @@ export type HostRouteDeps = {
 };
 
 // A user and password in a URL, however short, before the patterns redactString knows.
-const withoutLogin = (s: string) => redactString(s.replace(/\/\/[^/@\s]+@/g, "//[redacted]@"));
+const withoutLogin = (s: string) => redactString(s.replace(/\/\/[^/?#\s]+@/g, "//[redacted]@"));
 
 const toWire = (h: Host) => ({
   ...h,
@@ -64,7 +64,7 @@ export function hostRoutes(api: Hono<AppEnv>, d: HostRouteDeps): void {
     const id = idOf(c.req.param("id"));
     const req = HostRegisterSchema.parse(await readJson(c));
     const before = hosts.get(id);
-    if (before?.managedBy === "config") {
+    if (before?.managedBy === "config" && hosts.list().some((h) => h.id === id)) {
       throw conflict(`host "${id}" is named in the config file; change it there`, { hostId: id });
     }
     if (req.orgId !== null && !d.orgs.get(req.orgId)) {

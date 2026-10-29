@@ -96,11 +96,12 @@ describe("hosts API", () => {
 
   test("a short login in the docker host or the proxy never comes back", async () => {
     const { call } = setup();
-    const upstream = { dial: "socks5", address: "10.0.0.5", proxy: "socks5://u:pw@10.0.0.9:1080" };
+    const upstream = { dial: "socks5", address: "10.0.0.5", proxy: "socks5://u:p@w@10.0.0.9:1080" };
     const made = await call("PUT", "/hosts/p", pool({ dockerHost: "ssh://u:pw@h", upstream }));
     const listed = await call("GET", "/hosts");
     for (const text of [JSON.stringify(made.body), JSON.stringify(listed.body)]) {
-      expect(text).not.toContain("u:pw");
+      expect(text).not.toContain("u:p");
+      expect(text).not.toContain("w@10");
       expect(text).toContain("socks5://[redacted]@10.0.0.9:1080");
     }
   });
@@ -196,6 +197,8 @@ describe("hosts in use", () => {
     busy.clear();
     expect(retireUnlisted([], hosts, () => false)).toEqual({ removed: ["b"], draining: [] });
     expect(hosts.list().map((h) => h.id)).toEqual(["pool-1"]);
+    // A retired config id may be registered through the API.
+    expect((await call("PUT", "/hosts/local", pool({ name: "local" }))).status).toBe(200);
   });
 
   test("a template's draining host falls back to the scheduler; an explicit pin does not", async () => {
