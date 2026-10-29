@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { containersOn } from "../scheduler/placement.ts";
 import { join, resolve } from "node:path";
 import type { Host } from "@gangway/shared/domain";
 import { publicOriginFor, type PublicOrigin } from "@gangway/shared/url";
@@ -101,7 +102,7 @@ export async function openCore(config: Config, logger: Logger): Promise<Opened> 
     config.hosts,
     repos.hosts,
     logger,
-    (hostId) => repos.previews.list({ hostId }).length > 0,
+    (hostId) => containersOn(repos.previews.list({ hostId })) > 0,
   );
   const { workdirs, sources, sites } = await restoreState({
     stateDir,

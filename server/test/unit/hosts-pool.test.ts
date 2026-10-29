@@ -110,6 +110,13 @@ describe("hosts API", () => {
     }
   });
 
+  test("a unix socket path with @ in it is left as it is", async () => {
+    const { call } = setup();
+    const dockerHost = "unix:///run/user/alice@example/docker.sock";
+    const made = await call("PUT", "/hosts/p", pool({ dockerHost }));
+    expect(made.body).toMatchObject({ host: { dockerHost } });
+  });
+
   test("a config host, an unknown org, a taken name and bad ports are refused", async () => {
     const { call } = setup();
     expect((await call("PUT", "/hosts/local", pool())).status).toBe(409);
@@ -125,7 +132,7 @@ describe("hosts API", () => {
   test("a host is removed only once no preview of any org runs on it", async () => {
     const { call, hosts, running, orgsSeen } = setup();
     await call("PUT", "/hosts/pool-1", pool({ orgId: "org-b" }));
-    running.set("pool-1", [{ id: "p1" } as Preview]);
+    running.set("pool-1", [{ id: "p1", source: { kind: "image" } } as Preview]);
 
     const drained = await call("POST", "/hosts/pool-1/drain");
     expect(drained.status).toBe(200);
@@ -134,7 +141,8 @@ describe("hosts API", () => {
     // Counted across every org, not the operator's own.
     expect(orgsSeen.every((o) => o === null)).toBe(true);
 
-    running.delete("pool-1");
+    // A site has no container, so it does not keep the host.
+    running.set("pool-1", [{ id: "s1", source: { kind: "tarball", serve: "gangway" } } as Preview]);
     expect((await call("DELETE", "/hosts/pool-1")).status).toBe(204);
     expect(hosts.list().map((h) => h.id)).toEqual(["local"]);
     expect(hosts.get("pool-1")).toBeDefined();
@@ -166,7 +174,7 @@ describe("hosts in use", () => {
   test("a host running previews keeps where it is and whose, but may be renamed", async () => {
     const { call, running } = setup();
     await call("PUT", "/hosts/pool-1", pool());
-    running.set("pool-1", [{ id: "p1" } as Preview]);
+    running.set("pool-1", [{ id: "p1", source: { kind: "image" } } as Preview]);
     expect((await call("PUT", "/hosts/pool-1", pool({ dockerHost: "ssh://x@h2" }))).status).toBe(
       409,
     );

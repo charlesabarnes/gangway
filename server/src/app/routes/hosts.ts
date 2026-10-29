@@ -11,7 +11,7 @@ import type { OrgsRepo } from "../../db/repos/orgs.ts";
 import type { PreviewsRepo } from "../../db/repos/previews.ts";
 import { badRequest, conflict, notFound, unprocessable } from "../../errors.ts";
 import { redactString } from "../../logger.ts";
-import { endpointOf } from "../../scheduler/placement.ts";
+import { containersOn, endpointOf } from "../../scheduler/placement.ts";
 import { acrossOrgs } from "../../tenancy/scope.ts";
 import type { AppEnv } from "../env.ts";
 import { readJson } from "../problem.ts";
@@ -25,7 +25,8 @@ export type HostRouteDeps = {
 };
 
 // Everything up to a URL's last @ may be a login, however short or oddly written.
-const withoutLogin = (s: string) => redactString(s.replace(/\/\/.*@/, "//[redacted]@"));
+const withoutLogin = (s: string) =>
+  redactString(/^(unix|npipe):/i.test(s) ? s : s.replace(/\/\/.*@/, "//[redacted]@"));
 
 const toWire = (h: Host) => ({
   ...h,
@@ -58,7 +59,7 @@ export function hostRoutes(api: Hono<AppEnv>, d: HostRouteDeps): void {
     return h;
   };
 
-  const runningOn = (id: string) => acrossOrgs(() => d.previews.list({ hostId: id })).length;
+  const runningOn = (id: string) => containersOn(acrossOrgs(() => d.previews.list({ hostId: id })));
 
   api.put("/hosts/:id", requirePermission("hosts.manage"), async (c) => {
     const id = idOf(c.req.param("id"));

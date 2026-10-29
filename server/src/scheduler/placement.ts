@@ -1,4 +1,9 @@
-import type { Host, HostCapability } from "@gangway/shared/domain";
+import {
+  servedByGangway,
+  type Host,
+  type HostCapability,
+  type Preview,
+} from "@gangway/shared/domain";
 import { AppError } from "../errors.ts";
 
 export type PlacementRequest = {
@@ -26,6 +31,10 @@ export function checkStillThere(hosts: readonly Host[], chosen: Host): void {
   }
 }
 
+// A site has no container, so it never keeps a host in service.
+export const containersOn = (previews: readonly Preview[]) =>
+  previews.filter((p) => !servedByGangway(p)).length;
+
 export const usableBy = (h: Host, orgId: string | undefined) =>
   h.orgId === null || h.orgId === orgId;
 
@@ -48,7 +57,6 @@ export function place(req: PlacementRequest, hosts: readonly Host[]): Host {
     return chosen;
   }
 
-  // unknown is placeable: a freshly seeded host has not been probed yet.
   const usable = capable.filter(
     (h) => !h.draining && (h.state === "ready" || h.state === "unknown"),
   );
