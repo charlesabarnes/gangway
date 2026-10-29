@@ -122,6 +122,7 @@ describe("placement by load", () => {
     orgId: null,
     capacity: { memoryBytes: 4096 * MIB, maxPreviews: 10 },
     draining: false,
+    runtime: null,
     state: "ready",
     lastError: null,
     lastSeenAt: null,

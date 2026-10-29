@@ -181,14 +181,18 @@ describe("expectName", () => {
 // DOCKER_HOST names docker-host, but DOCKER_CONTEXT=desktop-linux quietly wins.
 describe("the actual accident", () => {
   test("expectName catches it with no env set", () => {
-    const host = { id: "docker-host", expectName: "docker-host" };
+    const host = { id: "docker-host", expectName: "docker-host", runtime: null };
     expect(() => assertHostDaemon(host, DESKTOP_MAC, EMPTY)).toThrow(/wrong daemon/);
   });
 
   test("with the env set, the desktop reason is reported first", () => {
     let err: DockerGuardError | undefined;
     try {
-      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, DESKTOP_MAC, REFUSING);
+      assertHostDaemon(
+        { id: "docker-host", expectName: "docker-host", runtime: null },
+        DESKTOP_MAC,
+        REFUSING,
+      );
     } catch (e) {
       err = e as DockerGuardError;
     }
@@ -206,9 +210,30 @@ describe("the actual accident", () => {
     expect(r.error.toProblem()["detail"]).toContain("Docker Desktop");
   });
 
+  test("a host that needs runsc refuses a daemon without it, and passes one with it", () => {
+    const host = { id: "pool-1", expectName: null, runtime: "runsc" };
+    let err: DockerGuardError | undefined;
+    try {
+      assertHostDaemon(host, { ...REMOTE_HOST, Runtimes: { runc: {} } }, EMPTY);
+    } catch (e) {
+      err = e as DockerGuardError;
+    }
+    expect(err?.reason).toBe("runtime-missing");
+    expect(err?.message).toContain("host pool-1");
+    const plain = { ...REMOTE_HOST, Runtimes: { runc: {}, runsc: { path: "/usr/bin/runsc" } } };
+    expect(() => assertHostDaemon(host, plain, EMPTY)).toThrow(/--network=host/);
+    const runsc = { path: "/usr/bin/runsc", runtimeArgs: ["--network=host"] };
+    const withRunsc = { ...REMOTE_HOST, Runtimes: { runc: {}, runsc } };
+    expect(assertHostDaemon(host, withRunsc, EMPTY).ok).toBe(true);
+  });
+
   test("a correctly configured docker-host host passes cleanly", () => {
     expect(
-      assertHostDaemon({ id: "docker-host", expectName: "docker-host" }, REMOTE_HOST, REFUSING),
+      assertHostDaemon(
+        { id: "docker-host", expectName: "docker-host", runtime: null },
+        REMOTE_HOST,
+        REFUSING,
+      ),
     ).toEqual({ ok: true, name: "docker-host" });
   });
 });

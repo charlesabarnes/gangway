@@ -14,6 +14,7 @@ export const HostConfigSchema = z.object({
   upstreamProxy: z.string().optional(),
   portRangeStart: port.default(31000),
   portRangeEnd: port.default(31499),
+  runtime: z.enum(["runsc"]).optional(),
 });
 export type HostConfig = z.infer<typeof HostConfigSchema>;
 

@@ -7,6 +7,7 @@ export type HostCapability = "preview" | "runner";
 export type UpstreamDial = "direct" | "socks5";
 export type HostState = "unknown" | "ready" | "unreachable" | "error";
 export type HostManagedBy = "config" | "api";
+export type HostRuntime = "runsc";
 
 export type Host = {
   id: string;
@@ -22,6 +23,7 @@ export type Host = {
   orgId: string | null;
   capacity: { memoryBytes: number | null; maxPreviews: number | null };
   draining: boolean;
+  runtime: HostRuntime | null;
   state: HostState;
   lastError: string | null;
   lastSeenAt: Date | null;

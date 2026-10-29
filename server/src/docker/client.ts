@@ -131,7 +131,7 @@ class DockerodeClient implements DockerClient {
   }
 }
 
-export type HostConnection = Pick<Host, "id" | "dockerHost" | "expectName">;
+export type HostConnection = Pick<Host, "id" | "dockerHost" | "expectName" | "runtime">;
 
 function createDockerClient(
   host: Pick<Host, "id" | "dockerHost">,

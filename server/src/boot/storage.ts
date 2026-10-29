@@ -119,11 +119,22 @@ export function seedConfiguredHosts(
   logger: Logger,
   inUse: (hostId: string) => boolean,
 ): Host[] {
+  const runtimes = new Map(hosts.list().map((h) => [h.id, h.runtime]));
   const seeded = seedHosts(configured, hosts, (hostId) => {
     logger.error("a config host uses the id of a host registered through the API; skipped", {
       hostId,
     });
   });
+  for (const h of seeded) {
+    const was = runtimes.get(h.id);
+    if (was !== undefined && was !== h.runtime && inUse(h.id)) {
+      logger.warn("a host's runtime changed; the previews on it keep the old one until rebuilt", {
+        hostId: h.id,
+        from: was,
+        to: h.runtime,
+      });
+    }
+  }
   const retired = retireUnlisted(configured, hosts, inUse);
   if (retired.removed.length + retired.draining.length > 0) {
     logger.warn("hosts no longer in the config file were retired", retired);

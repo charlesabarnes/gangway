@@ -36,6 +36,7 @@ export function seedHosts(
         managedBy: "config",
         orgId: null,
         capacity: { memoryBytes: null, maxPreviews: null },
+        runtime: h.runtime ?? null,
       }),
     ];
   });

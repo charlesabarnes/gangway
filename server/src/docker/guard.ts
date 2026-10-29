@@ -10,6 +10,7 @@ export type DockerInfo = {
   MemTotal?: number | undefined;
   // Podman's Docker-compatible /info adds this; Docker never sends it.
   BuildahVersion?: string | undefined;
+  Runtimes?: Record<string, unknown> | undefined;
 };
 
 export type DaemonEngine = "docker" | "podman";
@@ -20,7 +21,7 @@ export function daemonEngine(info: DockerInfo): DaemonEngine {
     : "docker";
 }
 
-export type GuardReason = "docker-desktop" | "name-mismatch";
+export type GuardReason = "docker-desktop" | "name-mismatch" | "runtime-missing" | "runtime-args";
 
 export class DockerGuardError extends AppError {
   readonly reason: GuardReason;
@@ -101,12 +102,14 @@ export function assertRemoteDaemon(
 }
 
 export function assertHostDaemon(
-  host: { id: string; expectName: string | null },
+  host: { id: string; expectName: string | null; runtime: string | null },
   info: DockerInfo,
   env: Env = process.env,
 ): GuardOk {
   try {
-    return assertRemoteDaemon(info, host.expectName, env);
+    const ok = assertRemoteDaemon(info, host.expectName, env);
+    assertRuntime(info, host.runtime);
+    return ok;
   } catch (err) {
     if (err instanceof DockerGuardError) {
       throw new DockerGuardError(err.reason, `host ${host.id}: ${err.message}`, {
@@ -115,6 +118,32 @@ export function assertHostDaemon(
       });
     }
     throw err;
+  }
+}
+
+// gVisor's own network stack cannot reach Docker's embedded DNS: compose service names would fail.
+const REQUIRED_ARGS: Record<string, string> = { runsc: "--network=host" };
+
+function assertRuntime(info: DockerInfo, runtime: string | null): void {
+  if (runtime === null) {
+    return;
+  }
+  const runtimes = info.Runtimes ?? {};
+  if (!Object.hasOwn(runtimes, runtime)) {
+    throw new DockerGuardError(
+      "runtime-missing",
+      `the daemon has no ${JSON.stringify(runtime)} runtime, which this host record requires`,
+      { runtime, runtimes: Object.keys(runtimes) },
+    );
+  }
+  const args = (runtimes[runtime] as { runtimeArgs?: unknown } | null)?.runtimeArgs;
+  const need = REQUIRED_ARGS[runtime];
+  if (need !== undefined && !(Array.isArray(args) && args.includes(need))) {
+    throw new DockerGuardError(
+      "runtime-args",
+      `the daemon's ${runtime} runtime needs runtimeArgs ["${need}"] in daemon.json, or compose service names do not resolve`,
+      { runtime, runtimeArgs: Array.isArray(args) ? args : [] },
+    );
   }
 }
 

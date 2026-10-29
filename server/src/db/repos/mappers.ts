@@ -48,6 +48,7 @@ export type HostRow = {
   max_previews: number | null;
   draining: number;
   removed_at: number | null;
+  runtime: string | null;
   state: string;
   last_error: string | null;
   last_seen_at: number | null;
@@ -72,6 +73,7 @@ export function rowToHost(r: HostRow): Host {
     orgId: r.org_id,
     capacity: { memoryBytes: r.memory_bytes, maxPreviews: r.max_previews },
     draining: r.draining === 1,
+    runtime: r.runtime as Host["runtime"],
     state: r.state as Host["state"],
     lastError: r.last_error,
     lastSeenAt: toDate(r.last_seen_at),
