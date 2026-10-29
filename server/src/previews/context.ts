@@ -1,4 +1,5 @@
 import type { ArtifactLibrary } from "../artifacts/library.ts";
+import type { EgressGuard } from "../hosts/egress.ts";
 import type { AuditSink } from "../audit/audit.ts";
 import type { Secrets } from "../secrets/secrets.ts";
 import type { BuildsRepo } from "../db/repos/builds.ts";
@@ -81,6 +82,7 @@ export type PreviewContext = {
   artifacts?: ArtifactLibrary | undefined;
   artifactCss?: (() => boolean) | undefined;
   limits?: (() => PreviewLimits) | undefined;
+  egress?: Pick<EgressGuard, "apply" | "forget"> | undefined;
   quota?: (() => PreviewQuota) | undefined;
   buildSlots?: Slots | undefined;
   buildTimeoutMs?: (() => number) | undefined;

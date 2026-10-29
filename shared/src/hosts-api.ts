@@ -24,6 +24,7 @@ export const HostRegisterSchema = z
     ports: z.strictObject({ rangeStart: port, rangeEnd: port }),
     orgId: z.string().min(1).nullable().default(null),
     runtime: z.enum(["runsc"]).nullable().default(null),
+    egress: z.enum(["open", "restricted"]).default("open"),
     capacity: z
       .strictObject({ memoryBytes: cap, maxPreviews: cap })
       .default({ memoryBytes: null, maxPreviews: null }),

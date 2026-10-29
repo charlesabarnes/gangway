@@ -3,7 +3,7 @@ import type { Host, HostState } from "@gangway/shared/domain";
 import type { Db } from "../types.ts";
 import { rowToHost, type HostRow } from "./mappers.ts";
 
-type Defaulted = "managedBy" | "orgId" | "capacity" | "runtime";
+type Defaulted = "managedBy" | "orgId" | "capacity" | "runtime" | "egress";
 type ServerOwned = "createdAt" | "lastSeenAt" | "lastError" | "state" | "draining";
 
 export type HostInput = Omit<Host, ServerOwned | Defaulted> &
@@ -41,11 +41,11 @@ export class HostsRepo {
       `INSERT INTO hosts (id, name, docker_host, expect_name, capabilities, publish_bind,
                           upstream_dial, upstream_address, upstream_proxy,
                           port_range_start, port_range_end, managed_by, org_id,
-                          memory_bytes, max_previews, runtime, state, created_at)
+                          memory_bytes, max_previews, runtime, egress, state, created_at)
        VALUES ($id, $name, $docker_host, $expect_name, $capabilities, $publish_bind,
                $upstream_dial, $upstream_address, $upstream_proxy,
                $port_range_start, $port_range_end, $managed_by, $org_id,
-               $memory_bytes, $max_previews, $runtime, $state, $created_at)
+               $memory_bytes, $max_previews, $runtime, $egress, $state, $created_at)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
          docker_host = excluded.docker_host,
@@ -62,6 +62,7 @@ export class HostsRepo {
          memory_bytes = excluded.memory_bytes,
          max_previews = excluded.max_previews,
          runtime = excluded.runtime,
+         egress = excluded.egress,
          draining = CASE WHEN hosts.removed_at IS NULL THEN hosts.draining ELSE 0 END,
          removed_at = NULL`,
       {
@@ -81,6 +82,7 @@ export class HostsRepo {
         memory_bytes: h.capacity?.memoryBytes ?? null,
         max_previews: h.capacity?.maxPreviews ?? null,
         runtime: h.runtime ?? null,
+        egress: h.egress ?? "open",
         state: h.state ?? "unknown",
         created_at: this.#now(),
       },

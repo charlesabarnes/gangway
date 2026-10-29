@@ -37,6 +37,7 @@ export function seedHosts(
         orgId: null,
         capacity: { memoryBytes: null, maxPreviews: null },
         runtime: h.runtime ?? null,
+        egress: h.egress,
       }),
     ];
   });

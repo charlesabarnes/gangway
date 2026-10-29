@@ -227,4 +227,19 @@ for (const [name, open] of DRIVERS) {
       db.close();
     });
   });
+
+  describe(`0042 host egress on ${name}`, () => {
+    test("a host from before stays open; only open and restricted may be named", () => {
+      const at = databaseAt(open, 41);
+      at.db.run(
+        `INSERT INTO hosts (id, name, docker_host, created_at) VALUES ('local', 'local', 'x', 1)`,
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(42));
+      expect(db.get("SELECT egress FROM hosts")).toEqual({ egress: "open" });
+      expect(() => db.run("UPDATE hosts SET egress = 'closed'")).toThrow();
+      db.run("UPDATE hosts SET egress = 'restricted'");
+      db.close();
+    });
+  });
 }

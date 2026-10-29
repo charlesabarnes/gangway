@@ -49,6 +49,7 @@ export type HostRow = {
   draining: number;
   removed_at: number | null;
   runtime: string | null;
+  egress: string;
   state: string;
   last_error: string | null;
   last_seen_at: number | null;
@@ -74,6 +75,7 @@ export function rowToHost(r: HostRow): Host {
     capacity: { memoryBytes: r.memory_bytes, maxPreviews: r.max_previews },
     draining: r.draining === 1,
     runtime: r.runtime as Host["runtime"],
+    egress: r.egress as Host["egress"],
     state: r.state as Host["state"],
     lastError: r.last_error,
     lastSeenAt: toDate(r.last_seen_at),

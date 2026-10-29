@@ -21,7 +21,8 @@ export function daemonEngine(info: DockerInfo): DaemonEngine {
     : "docker";
 }
 
-export type GuardReason = "docker-desktop" | "name-mismatch" | "runtime-missing" | "runtime-args";
+export type GuardReason =
+  "docker-desktop" | "name-mismatch" | "runtime-missing" | "runtime-args" | "egress-unapplied";
 
 export class DockerGuardError extends AppError {
   readonly reason: GuardReason;

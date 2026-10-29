@@ -256,6 +256,7 @@ describe("placement across orgs", () => {
     capacity: { memoryBytes: null, maxPreviews: null },
     draining: false,
     runtime: null,
+    egress: "open",
     state: "ready",
     lastError: null,
     lastSeenAt: null,
