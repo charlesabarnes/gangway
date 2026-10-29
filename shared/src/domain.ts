@@ -23,7 +23,6 @@ export type Host = {
   orgId: string | null;
   capacity: { memoryBytes: number | null; maxPreviews: number | null };
   draining: boolean;
-  /** Forced on every container there; runsc is gVisor. */
   runtime: HostRuntime | null;
   state: HostState;
   lastError: string | null;
