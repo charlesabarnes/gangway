@@ -222,7 +222,8 @@ describe("a host chosen before the claim", () => {
     const chosen = hosts.get("local")!;
     expect(() => checkStillThere(hosts.list(), chosen)).not.toThrow();
     hosts.setDraining("local", true);
-    expect(() => checkStillThere(hosts.list(), chosen)).not.toThrow();
+    expect(() => checkStillThere(hosts.list(), chosen)).toThrow(/draining/);
+    hosts.setDraining("local", false);
     hosts.upsert({ ...chosen, dockerHost: "ssh://elsewhere" });
     expect(() => checkStillThere(hosts.list(), chosen)).toThrow(/changed/);
     expect(() => checkStillThere([], chosen)).toThrow(/changed/);

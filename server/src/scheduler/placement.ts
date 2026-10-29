@@ -18,10 +18,10 @@ export const endpointOf = (h: Endpoint) =>
 /** At claim, with no await before it: the host chosen earlier must still be in service, unmoved. */
 export function checkStillThere(hosts: readonly Host[], chosen: Host): void {
   const now = hosts.find((h) => h.id === chosen.id);
-  if (!now || endpointOf(now) !== endpointOf(chosen)) {
+  if (!now || now.draining || endpointOf(now) !== endpointOf(chosen)) {
     throw new AppError(
       "unavailable",
-      `host "${chosen.id}" changed while the preview was being prepared; deploy it again`,
+      `host "${chosen.id}" changed or began draining while the preview was being prepared; deploy it again`,
     );
   }
 }
