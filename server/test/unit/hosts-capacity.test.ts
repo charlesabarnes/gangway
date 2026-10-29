@@ -86,6 +86,19 @@ describe("a rebuild's reservation", () => {
     expect(reserved(s, p.id)).toBe(512 * MIB);
   });
 
+  test("a rebuild holds the larger amount while it runs", async () => {
+    const { s, p, limit } = await serving({ memoryBytes: 2048 * MIB, maxPreviews: null });
+    limit(1536);
+    let during = 0;
+    s.ctx.probe = async () => {
+      during = reserved(s, p.id);
+      return true;
+    };
+    expect(await edit(s, p.id, { "index.ts": "v2" })).toMatchObject({ outcome: "succeeded" });
+    expect(during).toBe(1536 * MIB);
+    expect(reserved(s, p.id)).toBe(1536 * MIB);
+  });
+
   test("a preview being torn down holds its memory until it is gone", async () => {
     const { s, p } = await serving({ memoryBytes: null, maxPreviews: null });
     for (const state of ["destroying", "failed"] as const) {

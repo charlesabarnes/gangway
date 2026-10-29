@@ -185,6 +185,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   let plan: RebuildPlan;
   let previous: string[] | null;
   let reserve = 0;
+  const kept = ctx.previews.reservedBytes(id);
   try {
     plan = await planRebuild(ctx, b);
     checkContainerAllowed(input.actor, "the new source", plan.site === null);
@@ -195,6 +196,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
         ? await snapshot(ctx, { host, project: preview.project, cwd: wd.srcDir })
         : null;
   } catch (e) {
+    ctx.previews.setReservedBytes(id, kept);
     await wd.cleanup();
     ctx.inflight.delete(id);
     settle({
@@ -225,12 +227,11 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
     .then(
       (o) => {
-        if (o.outcome === "succeeded") {
-          ctx.previews.setReservedBytes(id, reserve);
-        }
+        ctx.previews.setReservedBytes(id, o.outcome === "succeeded" ? reserve : kept);
         settle(o);
       },
       (e: unknown) => {
+        ctx.previews.setReservedBytes(id, kept);
         settle({
           preview: ctx.previews.get(id) ?? preview,
           buildId,
@@ -246,13 +247,18 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
 }
 
-/** A rebuild that needs more memory than its preview holds must fit in what the host has left. */
+/**
+ * A rebuild that needs more memory than its preview holds must fit in what the host has left, and
+ * holds the larger amount from here, so another deploy or rebuild cannot count on it too.
+ */
 function admitRebuild(ctx: PreviewContext, preview: Preview, host: Host, reserve: number): void {
-  const held = preview.state === "asleep" ? 0 : ctx.previews.reservedBytes(preview.id);
+  const kept = ctx.previews.reservedBytes(preview.id);
+  const held = preview.state === "asleep" ? 0 : kept;
   if (reserve > held) {
     const load = ctx.previews.hostLoads().get(host.id) ?? { previews: 1, awakeBytes: 0 };
     checkRoom(host, { ...load, previews: load.previews - 1 }, reserve - held);
   }
+  ctx.previews.setReservedBytes(preview.id, Math.max(kept, reserve));
 }
 
 /** A rebuild that could not roll back is refused before it changes anything. */
