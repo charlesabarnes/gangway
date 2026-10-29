@@ -135,6 +135,10 @@ export type PreviewLimits = { memoryBytes: number; cpus: number; pids: number; c
 
 export const NO_LIMITS: PreviewLimits = { memoryBytes: 0, cpus: 0, pids: 0, containers: 0 };
 
+/** What placement holds for a preview: each container may use up to the memory limit. */
+export const reservedBytes = (limits: PreviewLimits | undefined, model: ComposeModel) =>
+  (limits?.memoryBytes ?? 0) * model.services.length;
+
 const positive = (v: unknown): number | null => {
   const n = typeof v === "string" ? Number(v) : v;
   return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;

@@ -193,4 +193,23 @@ for (const [name, open] of DRIVERS) {
       db.close();
     });
   });
+
+  describe(`0040 preview reservations on ${name}`, () => {
+    test("a preview from before reserves nothing", () => {
+      const at = databaseAt(open, 39);
+      at.db.run(
+        `INSERT INTO hosts (id, name, docker_host, created_at) VALUES ('local', 'local', 'x', 1)`,
+      );
+      at.db.run(
+        `INSERT INTO previews (id, org_id, project, host_id, state, source_kind, source_json,
+                               visibility, created_at, updated_at)
+         VALUES ('p1', $o, 'p', 'local', 'awake', 'image', '{}', 'public', 1, 1)`,
+        { o: HOME_ORG_ID },
+      );
+      const db = at.reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(40));
+      expect(db.get("SELECT reserved_bytes FROM previews")).toEqual({ reserved_bytes: 0 });
+      db.close();
+    });
+  });
 }

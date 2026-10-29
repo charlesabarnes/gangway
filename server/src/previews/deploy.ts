@@ -3,11 +3,11 @@ import type { AppPlan } from "@gangway/shared/app-plan";
 import type { Clearance, Host, Preview, Visibility } from "@gangway/shared/domain";
 import { actorId, can } from "../auth/actor.ts";
 import { forbidden, unprocessable } from "../errors.ts";
-import { checkStillThere, place, usableBy } from "../scheduler/placement.ts";
+import { checkRoom, checkStillThere, place, usableBy } from "../scheduler/placement.ts";
 import { parseDuration } from "../util/duration.ts";
 import { admitDeploy, checkStorage, lifetimeCap } from "../tenancy/limits.ts";
 import { ulid } from "../util/ulid.ts";
-import type { ComposeModel } from "./compose-model.ts";
+import { reservedBytes, type ComposeModel } from "./compose-model.ts";
 import { selectExposed } from "./compose-routes.ts";
 import { checkContainerAllowed } from "./container-access.ts";
 import { checkWatermarkAllowed } from "./watermark.ts";
@@ -43,7 +43,7 @@ type Template = ResolvedPolicy["template"];
 type Owner = ResolvedPolicy["project"];
 
 function resolveHost(
-  ctx: Pick<PreviewContext, "hosts" | "logger">,
+  ctx: Pick<PreviewContext, "hosts" | "logger" | "previews" | "limits">,
   input: DeployInput,
   template: Template,
 ): Host {
@@ -59,7 +59,28 @@ function resolveHost(
     );
     wantedHost = undefined;
   }
-  return place({ capability: "preview", hostId: wantedHost, orgId: input.actor.orgId }, allHosts);
+  return place(
+    {
+      capability: "preview",
+      hostId: wantedHost,
+      orgId: input.actor.orgId,
+      reserveBytes: ctx.limits?.().memoryBytes,
+    },
+    allHosts,
+    ctx.previews.hostLoads(),
+  );
+}
+
+function admitContainer(
+  ctx: PreviewContext,
+  input: DeployInput,
+  host: Host,
+  model: ComposeModel,
+): number {
+  checkQuota(ctx, input.actor);
+  const reserved = reservedBytes(ctx.limits?.(), model);
+  checkRoom(host, ctx.previews.hostLoads().get(host.id), reserved);
+  return reserved;
 }
 
 /**
@@ -207,13 +228,11 @@ async function prepare(
   const ttlMs = cappedTtl(ctx, id, input.actor.orgId, ttlFor(input, policy, model));
   const password = await resolvePassword(ctx.passwords, input.password);
   const bytes = site ? await plannedBytes(wd.srcDir, site) : 0;
-  // No await between the count and the row it adds, so two deploys cannot both pass.
-  if (site === null) {
-    checkQuota(ctx, input.actor);
-  }
+  // No await between the counts and the row they add, so two deploys cannot both pass.
+  checkStillThere(ctx.hosts.list(), host);
+  const reserved = site === null ? admitContainer(ctx, input, host, model) : 0;
   const org = input.actor.orgId;
   admitDeploy(ctx, org, { site: site !== null, bytes, used: ctx.previews.bytesUsed(org) });
-  checkStillThere(ctx.hosts.list(), host);
   const { preview, routes } = claimPreview(ctx, {
     id,
     input,
@@ -228,6 +247,7 @@ async function prepare(
     secretLevel,
     password,
     bytes,
+    reservedBytes: reserved,
     site: site !== null,
   });
   keepSecrets(ctx, input, preview.id);

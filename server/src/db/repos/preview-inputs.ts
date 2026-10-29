@@ -15,6 +15,7 @@ export type CreatePreview = {
   /** The deploying actor's; inside a request it must be the request's org. */
   orgId: string;
   bytes?: number | undefined;
+  reservedBytes?: number | undefined;
   project: string;
   title?: string | null;
   icon?: PreviewIcon | null;
