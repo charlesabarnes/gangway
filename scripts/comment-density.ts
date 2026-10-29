@@ -10,7 +10,12 @@ const MAX_TOTAL_SHARE = 0.02;
 function commentLines(file: string, text: string): number {
   const lineOf = (pos: number) => text.slice(0, pos).split("\n").length - 1;
   const lines = new Set<number>();
-  for (const { start, end } of parseSync(file, text).comments) {
+  const { comments, errors } = parseSync(file, text);
+  // A parse error stops oxc early, and the comments after it would go uncounted.
+  if (errors.length > 0) {
+    throw new Error(`${file}: ${errors[0]?.message ?? "does not parse"}`);
+  }
+  for (const { start, end } of comments) {
     if (/^\/\/\s*(eslint-|@ts-|prettier-|codeql\[|NOSONAR)/.test(text.slice(start, end))) {
       continue;
     }
