@@ -41,10 +41,7 @@ export function seedHosts(
   });
 }
 
-/**
- * A host gone from the config file is removed, or drained while previews still run there; a
- * later boot removes it once they have gone.
- */
+/** A host gone from the config file is removed, or drained until its previews have gone. */
 export function retireUnlisted(
   configured: readonly HostConfig[],
   repo: HostsRepo,
