@@ -55,6 +55,16 @@ describe("egress rules", () => {
     expect(calls).toHaveLength(3);
   });
 
+  test("a host switched to open has the table taken off, once", async () => {
+    const { g, calls } = guard();
+    await g.apply(host("restricted"));
+    await g.apply(host("open"));
+    await g.apply(host("open"));
+    expect(calls).toHaveLength(2);
+    const rules = calls[1]!.argv.find((a) => a.startsWith("GW_RULES="));
+    expect(rules).toBe("GW_RULES=table inet gangway_egress\ndelete table inet gangway_egress\n");
+  });
+
   test("an open host is left alone", async () => {
     const { g, calls } = guard();
     await g.ensure(host("open"));

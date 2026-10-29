@@ -8,15 +8,20 @@ const BRIDGES = '{ "docker0", "br-*" }';
 
 const BLOCKED_V4 = [
   "0.0.0.0/8",
-  "10.0.0.0/8",
-  "100.64.0.0/10",
+  "10.0.0.0/8", // NOSONAR a special-use range this blocks
+  "100.64.0.0/10", // NOSONAR a special-use range this blocks
   "127.0.0.0/8",
-  "169.254.0.0/16",
-  "172.16.0.0/12",
-  "192.168.0.0/16",
-  "224.0.0.0/4",
+  "169.254.0.0/16", // NOSONAR a special-use range this blocks
+  "172.16.0.0/12", // NOSONAR a special-use range this blocks
+  "192.168.0.0/16", // NOSONAR a special-use range this blocks
+  "224.0.0.0/4", // NOSONAR a special-use range this blocks
 ];
-const BLOCKED_V6 = ["::1/128", "fc00::/7", "fe80::/10", "ff00::/8"];
+const BLOCKED_V6 = [
+  "::1/128",
+  "fc00::/7", // NOSONAR a special-use range this blocks
+  "fe80::/10", // NOSONAR a special-use range this blocks
+  "ff00::/8", // NOSONAR a special-use range this blocks
+];
 const MAIL_PORTS = "{ 25, 465, 587, 2525 }";
 
 /** Its own table, replaced whole: leaving the bridges for a private address, the host or mail drops. */
@@ -45,8 +50,15 @@ table inet ${EGRESS_TABLE} {
 type Target = Pick<Host, "id" | "dockerHost" | "egress">;
 type Run = (argv: string[], dockerHost: string) => Promise<ComposeResult>;
 
+// Long enough to pull the image the first time; a stalled daemon must not hold up the host's work.
+const HELPER_TIMEOUT_MS = 120_000;
+
 const run: Run = (argv, dockerHost) =>
-  composeCapture(argv, { dockerHost, env: composeEnv({ dockerHost }) });
+  composeCapture(argv, {
+    dockerHost,
+    env: composeEnv({ dockerHost }),
+    signal: AbortSignal.timeout(HELPER_TIMEOUT_MS),
+  });
 
 /** Keeps the table on restricted hosts from a short-lived container in the host's network. */
 export class EgressGuard {
@@ -69,10 +81,24 @@ export class EgressGuard {
 
   /** Every reconcile: a reboot drops them with the rest of nftables. */
   async apply(host: Target): Promise<void> {
-    this.#applied.delete(host.id);
+    const had = this.#applied.delete(host.id);
     if (host.egress !== "restricted") {
+      if (had) {
+        await this.#nft(
+          host,
+          `table inet ${EGRESS_TABLE}\ndelete table inet ${EGRESS_TABLE}\n`,
+        ).catch((e: unknown) => {
+          this.#applied.add(host.id);
+          throw e;
+        });
+      }
       return;
     }
+    await this.#nft(host, egressRuleset());
+    this.#applied.add(host.id);
+  }
+
+  async #nft(host: Target, rules: string): Promise<void> {
     const r = await this.#run(
       [
         this.#docker,
@@ -89,7 +115,7 @@ export class EgressGuard {
         "--security-opt",
         "no-new-privileges",
         "--env",
-        `GW_RULES=${egressRuleset()}`,
+        `GW_RULES=${rules}`,
         "--entrypoint",
         "sh",
         this.#image(),
@@ -105,7 +131,6 @@ export class EgressGuard {
         { hostId: host.id },
       );
     }
-    this.#applied.add(host.id);
   }
 
   forget(hostId: string): void {
