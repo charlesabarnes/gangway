@@ -8,7 +8,7 @@ import { AppError, unprocessable } from "../errors.ts";
 import { redactString } from "../logger.ts";
 import { obj } from "../util/json.ts";
 import { buildStack, parseComposeModel, type ComposeModel } from "./compose-model.ts";
-import { buildSecretViolations } from "./compose-policy.ts";
+import { buildSecretEnv, buildSecretViolations } from "./compose-policy.ts";
 import type { PlannedRoute } from "./planned-route.ts";
 import type { PlanningContext, PreviewContext } from "./context.ts";
 import { withDotenv, type OwnStack } from "./own-stack.ts";
@@ -17,7 +17,11 @@ import type { Workdir } from "./source/workdir.ts";
 export const PLAN_PROJECT = "gw-plan";
 export const STACK_FILE = "gangway.stack.yaml";
 
-export type Planned = { model: ComposeModel; resolved: unknown };
+export type Planned = {
+  model: ComposeModel;
+  resolved: unknown;
+  buildSecrets?: Record<string, string> | undefined;
+};
 
 export async function readModel(
   ctx: Pick<PreviewContext, "compose" | "docker" | "limits">,
@@ -53,14 +57,19 @@ export async function readModel(
     [wd.srcDir, await realpath(wd.srcDir)],
     ctx.limits?.(),
   );
+  const built = buildSecretEnv(obj(resolved), dotenv ?? {});
   const violations = [
     ...model.violations,
     ...buildSecretViolations(obj(resolved), obj(asked), dotenv ?? {}),
+    ...built.violations,
   ];
   if (violations.length > 0) {
     throw unprocessable("the compose file asks for things a preview may not have", { violations });
   }
-  return { model, resolved };
+  for (const [key, ours] of Object.entries(built.sources)) {
+    obj(obj(obj(resolved)["secrets"])[key])["environment"] = ours;
+  }
+  return { model, resolved, buildSecrets: built.env };
 }
 
 function configOutput(r: { code: number; stdout: string; stderr: string }): unknown {

@@ -20,8 +20,11 @@ work, run gangway [in a VM](/docs/install/vm/); on Unraid,
   limits.
 - Previews publish their ports on the host's `127.0.0.1` only, so gangway's visibility gate is the
   only way in.
-- Secrets never reach a build: a compose file that puts one in `build.args`, a label or an
-  inline Dockerfile is refused.
+- gangway keeps secrets out of images: a compose file that puts one in `build.args`, a label or an
+  inline Dockerfile is refused. A build that needs one (a private registry token, say) names it in
+  `build.secrets`, from a top-level secret with `environment:` set to the secret's name. BuildKit
+  mounts it only while the build's steps run (`RUN --mount=type=secret,id=...`), so it stays
+  out of the image unless a step copies it in.
 - Single-service previews share one network only where the engine stops its containers talking
   to each other. Anywhere else, each preview gets a network of its own.
 - At most `GANGWAY_PREVIEW_BUILDS` images build at once (2 by default). Builds run outside the
@@ -48,7 +51,8 @@ Some of these are checked further. `build` is limited to a context inside the up
 `deploy` to resources, replicas, labels and a restart policy. Volumes must be named volumes or
 tmpfs. `network_mode`, `volumes_from` and `links` may point only at the preview's own services.
 Networks use the bridge driver, volumes the local driver, and secrets and configs inline `content`
-only.
+only. The one exception is a secret a build reads through `environment:`, which must name one of
+the preview's own secrets.
 
 If your file needs a field that is not here, open an issue.
 

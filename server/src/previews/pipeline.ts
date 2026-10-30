@@ -91,26 +91,35 @@ async function buildSlot(ctx: BuildingContext, p: Pipeline, r: RunPlan) {
   }
 }
 
+// Builds run outside every container limit, so a build that never ends holds a slot for good.
+function buildLimit(ctx: BuildingContext, orgId: string) {
+  const timeoutMs = ctx.buildTimeoutMs?.() ?? 0;
+  const minutesMs = buildMsLeft(ctx, orgId) ?? 0;
+  const byMinutes = minutesMs > 0 && (timeoutMs === 0 || minutesMs < timeoutMs);
+  return { byMinutes, limitMs: byMinutes ? minutesMs : timeoutMs };
+}
+
 async function recordBuild(
   ctx: BuildingContext,
   p: Pipeline,
   r: RunPlan,
   { id, services }: { id: string; services: string[] },
 ): Promise<void> {
-  // Builds run outside every container limit, so a build that never ends holds a slot for good.
-  const timeoutMs = ctx.buildTimeoutMs?.() ?? 0;
-  const minutesMs = buildMsLeft(ctx, r.preview.orgId) ?? 0;
+  const secrets = Object.keys(r.buildSecrets ?? {}).length;
+  if (secrets > 0) {
+    p.log(`the build gets ${secrets} secret(s) as BuildKit secrets`);
+  }
+  const { byMinutes, limitMs } = buildLimit(ctx, r.preview.orgId);
   ctx.builds.start({ id, previewId: p.id, services });
-  const byMinutes = minutesMs > 0 && (timeoutMs === 0 || minutesMs < timeoutMs);
-  const limitMs = byMinutes ? minutesMs : timeoutMs;
   const deadline = limitMs > 0 ? AbortSignal.timeout(limitMs) : null;
   const signal = deadline ? AbortSignal.any([r.signal, deadline]) : r.signal;
   let builder: BuilderLease | null | undefined;
   try {
     builder = await ctx.builders?.acquire(r.host, r.preview.orgId, signal);
+    const env = { ...r.buildSecrets, ...builder?.env };
     await p.step("build", buildArgv(p.base, services, builder?.args), "build", {
       signal,
-      ...(builder ? { env: builder.env } : {}),
+      ...(Object.keys(env).length > 0 ? { env } : {}),
     });
     ctx.builds.finish(id, "succeeded", 0);
   } catch (e) {

@@ -85,6 +85,7 @@ const BUILD = new Set([
   "isolation",
   "provenance",
   "sbom",
+  "secrets",
 ]);
 
 const DEPLOY = new Set(["mode", "replicas", "labels", "resources", "restart_policy"]);

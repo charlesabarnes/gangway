@@ -146,10 +146,17 @@ const readsServer = (r: Json) =>
   r["environment"] !== undefined ||
   (r["external"] !== undefined && r["external"] !== false);
 
+const fromEnvironment = (kind: string, r: Json) =>
+  kind === "secrets" &&
+  typeof r["environment"] === "string" &&
+  r["content"] === undefined &&
+  r["file"] === undefined &&
+  (r["external"] === undefined || r["external"] === false);
+
 function inlineOnlyViolations(doc: Json): string[] {
   return (["secrets", "configs"] as const).flatMap((kind) =>
     Object.entries(obj(doc[kind]))
-      .filter(([, raw]) => readsServer(obj(raw)))
+      .filter(([, raw]) => readsServer(obj(raw)) && !fromEnvironment(kind, obj(raw)))
       .map(
         ([key]) =>
           `${kind.slice(0, -1)} "${key}": only inline \`content:\` is allowed (file, environment and external sources read the server, not the upload)`,
@@ -249,4 +256,43 @@ export function buildSecretViolations(
           `service "${name}": build uses the secret ${key} (secrets reach the running container only; read it at runtime)`,
       );
   });
+}
+
+const secretNames = (v: unknown): string[] =>
+  arr(v).flatMap((e) => {
+    const name = typeof e === "string" ? e : obj(e)["source"];
+    return typeof name === "string" ? [name] : [];
+  });
+
+/** Only builds read a preview secret from `environment:`, under a name gangway picks for the host. */
+export function buildSecretEnv(
+  resolved: Json,
+  secrets: Record<string, string>,
+): { env: Record<string, string>; sources: Record<string, string>; violations: string[] } {
+  const services = Object.values(obj(resolved["services"])).map(obj);
+  const atRuntime = new Set(services.flatMap((s) => secretNames(s["secrets"])));
+  const inBuilds = new Set(services.flatMap((s) => secretNames(obj(s["build"])["secrets"])));
+  const env: Record<string, string> = {};
+  const sources: Record<string, string> = {};
+  const violations: string[] = [];
+  for (const [key, raw] of Object.entries(obj(resolved["secrets"]))) {
+    const r = obj(raw);
+    const name = r["environment"];
+    if (!fromEnvironment("secrets", r) || typeof name !== "string") {
+      continue;
+    }
+    const value = Object.hasOwn(secrets, name) ? secrets[name] : undefined;
+    if (atRuntime.has(key)) {
+      violations.push(
+        `secret "${key}": an environment source is for builds; a service gets the preview's secrets as environment variables`,
+      );
+    } else if (value === undefined) {
+      violations.push(`secret "${key}": ${name} is not one of the preview's secrets`);
+    } else if (inBuilds.has(key)) {
+      const ours = `GANGWAY_BUILD_SECRET_${Object.keys(env).length}`;
+      env[ours] = value;
+      sources[key] = ours;
+    }
+  }
+  return { env, sources, violations };
 }

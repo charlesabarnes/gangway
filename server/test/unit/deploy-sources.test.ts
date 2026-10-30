@@ -456,7 +456,7 @@ describe("repository secrets become .env while compose reads the file", () => {
       'PORT=3000\nFONTAWESOME_TOKEN=placeholder\n# --- gangway: repository secrets ---\nFONTAWESOME_TOKEN="fa-real"\nAPI_KEY="k\\"1"\n',
     );
     expect(s.ctx.logs.tail(res.preview.id).join("\n")).toContain(
-      "compose reads 2 repository secrets as .env; the build does not see it",
+      "compose reads 2 repository secrets as .env; a build sees only those its BuildKit secrets name",
     );
     expect(s.ctx.logs.tail(res.preview.id).join("\n")).not.toContain("fa-real");
   });
