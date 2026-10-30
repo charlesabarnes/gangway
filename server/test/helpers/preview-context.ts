@@ -66,6 +66,7 @@ export function setupPreviewContext() {
     answering: true,
     /** What each `up` was given: its extra env, and the registry login it could read at that moment. */
     upLogins: [] as { env: Record<string, string> | undefined; config: string | null }[],
+    buildEnvs: [] as (Record<string, string> | undefined)[],
     downArgvs: [] as string[][],
     /** The stack file each `up` was given, parsed (add-on tests read the sidecars from it). */
     stacks: [] as Record<string, unknown>[],
@@ -159,6 +160,7 @@ export function setupPreviewContext() {
         : [];
       if (argv.includes("build")) {
         fake.builds++;
+        fake.buildEnvs.push(o.env);
         if (fake.buildExit === 0) {
           for (const [name, svc] of services) {
             if (svc.build !== undefined) {

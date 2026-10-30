@@ -1,6 +1,7 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Host, Preview } from "@gangway/shared/domain";
+import type { BuilderLease } from "../hosts/builder.ts";
 import { buildArgv, psArgv, runArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
 import { AppError, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
@@ -103,9 +104,13 @@ async function recordBuild(
   const byMinutes = minutesMs > 0 && (timeoutMs === 0 || minutesMs < timeoutMs);
   const limitMs = byMinutes ? minutesMs : timeoutMs;
   const deadline = limitMs > 0 ? AbortSignal.timeout(limitMs) : null;
+  const signal = deadline ? AbortSignal.any([r.signal, deadline]) : r.signal;
+  let builder: BuilderLease | null | undefined;
   try {
-    await p.step("build", buildArgv(p.base, services), "build", {
-      signal: deadline ? AbortSignal.any([r.signal, deadline]) : r.signal,
+    builder = await ctx.builders?.acquire(r.host, r.preview.orgId, signal);
+    await p.step("build", buildArgv(p.base, services, builder?.args), "build", {
+      signal,
+      ...(builder ? { env: builder.env } : {}),
     });
     ctx.builds.finish(id, "succeeded", 0);
   } catch (e) {
@@ -122,6 +127,8 @@ async function recordBuild(
       );
     }
     throw e;
+  } finally {
+    builder?.release();
   }
 }
 

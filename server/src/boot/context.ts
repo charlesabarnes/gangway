@@ -1,7 +1,8 @@
 import { ArtifactLibrary } from "../artifacts/library.ts";
+import { BUILDER_IMAGE, Builders } from "../hosts/builder.ts";
 import { EgressGuard } from "../hosts/egress.ts";
 import { createHmac } from "node:crypto";
-import type { Trigger } from "@gangway/shared/domain";
+import type { Host, Trigger } from "@gangway/shared/domain";
 import { Passwords } from "../auth/password.ts";
 import type { DockerClients } from "../docker/client.ts";
 import { createComposeRunner, type ComposeRunner } from "../docker/runner.ts";
@@ -110,16 +111,7 @@ export function createPreviewContext(core: Core, d: PreviewParts): PreviewWiring
       active: settings.get(SETTINGS.previewsActive),
       perUser: settings.get(SETTINGS.previewsActivePerUser),
     }),
-    buildSlots: new Slots(
-      () => settings.get(SETTINGS.previewsBuilds),
-      () => settings.get(SETTINGS.previewsBuildQueue),
-    ),
-    buildTimeoutMs: () => idleMs(settings.get(SETTINGS.previewsBuildTimeout)),
-    buildRoom: (host) =>
-      noRoomForBuild(host, core.stateDir, {
-        memoryBytes: parseBytes(settings.get(SETTINGS.previewsBuildMemory)) ?? 0,
-        diskBytes: parseBytes(settings.get(SETTINGS.previewsBuildDisk)) ?? 0,
-      }),
+    ...buildParts(core),
     privateAvailable: () => settings.get(SETTINGS.surfacesUi),
     // A separate semaphore, so a burst of preview password forms never queues an operator's login.
     passwords: {
@@ -174,6 +166,32 @@ function composeFor(
     },
     egress,
   );
+}
+
+function buildParts(core: Core) {
+  const { settings } = core;
+  const memoryBytes = () => parseBytes(settings.get(SETTINGS.previewsBuildMemory)) ?? 0;
+  return {
+    buildSlots: new Slots(
+      () => settings.get(SETTINGS.previewsBuilds),
+      () => settings.get(SETTINGS.previewsBuildQueue),
+    ),
+    buildTimeoutMs: () => idleMs(settings.get(SETTINGS.previewsBuildTimeout)),
+    buildRoom: (host: Host) =>
+      noRoomForBuild(host, core.stateDir, {
+        memoryBytes: memoryBytes(),
+        diskBytes: parseBytes(settings.get(SETTINGS.previewsBuildDisk)) ?? 0,
+      }),
+    builders: new Builders({
+      instance: core.config.instanceId,
+      stateDir: core.stateDir,
+      memoryBytes,
+      image: () => core.config.builderImage ?? BUILDER_IMAGE,
+      onStopFailed: (name, err) => {
+        core.logger.warn("could not stop a builder", { name, err });
+      },
+    }),
+  } satisfies Partial<PreviewContext>;
 }
 
 const helperImage = (c: Core["config"]) =>
