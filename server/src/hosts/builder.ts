@@ -211,7 +211,7 @@ export class Builders {
       "--label",
       `gangway.org=${c.orgId}`,
     ];
-    await this.#run(c, ["rm", "--force", c.name]);
+    await this.#run(c, ["rm", "--force", "--volumes", c.name]);
     const net = await this.#run(c, ["network", "create", ...labels, c.name]);
     if (net.code !== 0 && !net.stderr.includes("already exists")) {
       throw this.#failed(c.host, ["network", "create"], net);
