@@ -97,6 +97,10 @@ async function recordBuild(
   r: RunPlan,
   { id, services }: { id: string; services: string[] },
 ): Promise<void> {
+  const secrets = Object.keys(r.buildSecrets ?? {}).length;
+  if (secrets > 0) {
+    p.log(`the build gets ${secrets} secret(s) as BuildKit secrets`);
+  }
   // Builds run outside every container limit, so a build that never ends holds a slot for good.
   const timeoutMs = ctx.buildTimeoutMs?.() ?? 0;
   const minutesMs = buildMsLeft(ctx, r.preview.orgId) ?? 0;
@@ -108,9 +112,10 @@ async function recordBuild(
   let builder: BuilderLease | null | undefined;
   try {
     builder = await ctx.builders?.acquire(r.host, r.preview.orgId, signal);
+    const env = { ...r.buildSecrets, ...builder?.env };
     await p.step("build", buildArgv(p.base, services, builder?.args), "build", {
       signal,
-      ...(builder ? { env: builder.env } : {}),
+      ...(Object.keys(env).length > 0 ? { env } : {}),
     });
     ctx.builds.finish(id, "succeeded", 0);
   } catch (e) {

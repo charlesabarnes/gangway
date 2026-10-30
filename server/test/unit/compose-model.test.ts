@@ -425,21 +425,19 @@ describe("policy: builds and secrets read nothing from outside the upload", () =
     ).toContain("build.dockerfile");
   });
 
-  test("additional_contexts, build secrets and ssh forwarding are refused", () => {
+  test("additional_contexts and ssh forwarding are refused", () => {
     expect(
       violations({
         web: {
           build: {
             context: "/x",
             additional_contexts: { host: "/" },
-            secrets: [{ source: "s" }],
             ssh: ["default"],
           },
         },
       }),
     ).toEqual([
       'service "web": build.additional_contexts is not allowed',
-      'service "web": build.secrets is not allowed',
       'service "web": build.ssh is not allowed',
     ]);
   });
@@ -462,7 +460,7 @@ describe("policy: builds and secrets read nothing from outside the upload", () =
       {
         secrets: {
           f: { file: "/x/secret.txt" },
-          e: { environment: "GANGWAY_ADMIN_TOKEN" },
+          e: { environment: "GANGWAY_ADMIN_TOKEN", file: "/x" },
           x: { external: true },
         },
         configs: { f: { file: "/etc/shadow" } },

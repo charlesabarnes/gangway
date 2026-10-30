@@ -4,7 +4,7 @@ import {
   KEPT_CAPABILITIES,
   parseComposeModel,
 } from "../../src/previews/compose-model.ts";
-import { buildSecretViolations } from "../../src/previews/compose-policy.ts";
+import { buildSecretEnv, buildSecretViolations } from "../../src/previews/compose-policy.ts";
 
 /** Shaped like the parsed output of a real `docker compose config`. */
 const resolved = (services: Record<string, unknown>) => ({
@@ -326,6 +326,53 @@ describe("policy: secrets never reach a build", () => {
   test("runtime environment is fine", () => {
     const env = resolved({ web: { image: "x", environment: { KEY: "sk-live-0123456789" } } });
     expect(buildSecretViolations(env, none, secrets)).toEqual([]);
+  });
+});
+
+describe("policy: BuildKit secrets", () => {
+  const preview = { NPM_TOKEN: "npm_abc", OTHER: "x" };
+  const doc = (web: Record<string, unknown>, secrets: Record<string, unknown>) => ({
+    services: { web: { image: "x", ...web } },
+    secrets,
+  });
+  const env = { npm: { environment: "NPM_TOKEN" } };
+
+  test("a build gets the preview secret its environment source names, and no other", () => {
+    const asked = doc({ build: { context: "/src", secrets: [{ source: "npm" }] } }, env);
+    expect(buildSecretEnv(asked, preview)).toEqual({
+      env: { NPM_TOKEN: "npm_abc" },
+      violations: [],
+    });
+    expect(buildSecretEnv(doc({}, env), preview).env).toEqual({});
+  });
+
+  test("a variable that is not the preview's own secret is refused", () => {
+    const asked = doc(
+      { build: { context: "/src", secrets: ["host"] } },
+      { host: { environment: "AWS_KEY" } },
+    );
+    expect(buildSecretEnv(asked, preview)).toEqual({
+      env: {},
+      violations: ['secret "host": AWS_KEY is not one of the preview\'s secrets'],
+    });
+  });
+
+  test("a secret named like a variable the build host reads is refused", () => {
+    const own = { COMPOSE_ENV_FILES: "/etc/x", LD_PRELOAD: "/x.so", http_proxy: "h" };
+    const names = Object.keys(own);
+    const secrets = Object.fromEntries(names.map((n) => [n, { environment: n }]));
+    const asked = doc({ build: { context: "/src", secrets: names } }, secrets);
+    const got = buildSecretEnv(asked, own);
+    expect(got.env).toEqual({});
+    expect(got.violations).toEqual(
+      names.map((n) => `secret "${n}": ${n} is a name the build host reads; rename the secret`),
+    );
+  });
+
+  test("an environment source a service mounts at runtime is refused", () => {
+    const { env: got, violations } = buildSecretEnv(doc({ secrets: ["npm"] }, env), preview);
+    expect(got).toEqual({});
+    expect(violations).toEqual([expect.stringContaining('secret "npm": an environment source')]);
   });
 });
 

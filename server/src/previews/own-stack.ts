@@ -93,7 +93,7 @@ export async function ownStack(
       ctx.logs.append(
         id,
         "system",
-        `compose reads ${n} repository secret${n === 1 ? "" : "s"} as .env; the build does not see it`,
+        `compose reads ${n} repository secret${n === 1 ? "" : "s"} as .env; a build sees only those its BuildKit secrets name`,
       );
     }
     return { composeFile: found, ...(n > 0 ? { dotenv: env } : {}) };
