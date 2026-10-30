@@ -186,6 +186,10 @@ describe("policy: builds get no host network, no privilege and no entitlements",
     expect(build({ isolation: "process" })).toEqual([
       'service "web": build.isolation is not allowed',
     ]);
+    expect(build({ platforms: ["linux/amd64", "linux/arm64"] })).toEqual([
+      'service "web": build.platforms may name one platform (a preview runs one image)',
+    ]);
+    expect(build({ platforms: ["linux/amd64"] })).toEqual([]);
     // Any tag, not only gw-*: one named node:24-alpine would replace the base every build uses.
     const tagsRefused = [
       'service "web": build.tags is not allowed (gangway names the images a preview builds)',

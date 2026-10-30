@@ -37,7 +37,7 @@ RUN bun scripts/precompress.ts web/dist/browser render/dist
 FROM oven/bun:1.4.3-alpine
 
 # The base image trails Alpine's security fixes (openssl CVE-2026-14456): take them at build time.
-RUN apk upgrade --no-cache && apk add --no-cache docker-cli docker-cli-compose git nftables openssh-client tini
+RUN apk upgrade --no-cache && apk add --no-cache docker-cli docker-cli-buildx docker-cli-compose git nftables openssh-client tini
 
 ARG TARGETARCH
 ARG CLOUDFLARED_VERSION=2026.10.5

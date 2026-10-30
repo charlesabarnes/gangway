@@ -1,4 +1,5 @@
 import type { ArtifactLibrary } from "../artifacts/library.ts";
+import type { Builders } from "../hosts/builder.ts";
 import type { EgressGuard } from "../hosts/egress.ts";
 import type { AuditSink } from "../audit/audit.ts";
 import type { Secrets } from "../secrets/secrets.ts";
@@ -87,6 +88,7 @@ export type PreviewContext = {
   buildSlots?: Slots | undefined;
   buildTimeoutMs?: (() => number) | undefined;
   buildRoom?: ((host: Host) => Promise<string | null>) | undefined;
+  builders?: Pick<Builders, "acquire"> | undefined;
   passwords?: PreviewPasswordDeps | undefined;
   git?: Pick<CloneOptions, "gitPath" | "allowedHosts" | "timeoutMs"> | undefined;
   orgSuffix?: ((orgId: string) => string | null) | undefined;
@@ -113,6 +115,7 @@ export type BuildingContext = Pick<
   | "buildTimeoutMs"
   | "buildRoom"
   | "orgLimits"
+  | "builders"
   | "states"
   | "probe"
   | "timings"

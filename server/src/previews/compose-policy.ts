@@ -101,6 +101,9 @@ function buildViolations(at: string, s: Json, inSource: InSource): string[] {
   if (!unset(b["isolation"])) {
     out.push(`${at}: build.isolation is not allowed`);
   }
+  if (arr(b["platforms"]).length > 1) {
+    out.push(`${at}: build.platforms may name one platform (a preview runs one image)`);
+  }
   // `host` runs build steps in the machine's network: every port bound to its loopback.
   const net = b["network"];
   if (net !== undefined && net !== null && net !== "default" && net !== "none") {

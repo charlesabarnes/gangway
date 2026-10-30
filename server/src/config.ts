@@ -87,6 +87,7 @@ const ConfigSchema = z.object({
   // Spawned for a preview's public share link; the image carries it, elsewhere it is on PATH.
   cloudflaredPath: z.string().min(1).default("cloudflared"),
   helperImage: z.string().min(1).optional(),
+  builderImage: z.string().min(1).optional(),
 
   logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
@@ -127,6 +128,7 @@ const ENV_MAP = {
   GANGWAY_VERSION: "version",
   GANGWAY_CLOUDFLARED: "cloudflaredPath",
   GANGWAY_HELPER_IMAGE: "helperImage",
+  GANGWAY_BUILDER_IMAGE: "builderImage",
 } as const satisfies Record<string, keyof Config>;
 
 const SETTING_ENV_MAP = {
