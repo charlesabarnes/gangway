@@ -34,6 +34,17 @@ const toBuild = (r: Row): Build => ({
 
 const monthOf = (ms: number) => new Date(ms).toISOString().slice(0, 7);
 
+function monthSpans(start: number, to: number): [string, number][] {
+  const spans: [string, number][] = [];
+  for (let from = start; from < to;) {
+    const d = new Date(from);
+    const end = Math.min(to, Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+    spans.push([monthOf(from), end - from]);
+    from = end;
+  }
+  return spans;
+}
+
 export class BuildsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -57,13 +68,18 @@ export class BuildsRepo {
         "UPDATE builds SET state = $state, finished_at = $now, exit_code = $code WHERE id = $id AND state = 'running'",
         { id, state, code: exitCode, now },
       ).changes;
-      if (ended > 0) {
+      const row = this.#db.query(
+        "SELECT p.org_id, b.started_at FROM builds b JOIN previews p ON p.id = b.preview_id WHERE b.id = $id",
+        { id },
+      )[0] as { org_id: string; started_at: number } | undefined;
+      if (ended === 0 || !row) {
+        return;
+      }
+      for (const [month, ms] of monthSpans(row.started_at, now)) {
         this.#db.run(
-          `INSERT INTO org_build_usage (org_id, month, build_ms)
-             SELECT p.org_id, $month, MAX(0, $now - b.started_at) FROM builds b
-             JOIN previews p ON p.id = b.preview_id WHERE b.id = $id
+          `INSERT INTO org_build_usage (org_id, month, build_ms) VALUES ($o, $month, $ms)
            ON CONFLICT (org_id, month) DO UPDATE SET build_ms = build_ms + excluded.build_ms`,
-          { id, now, month: monthOf(now) },
+          { o: row.org_id, month, ms },
         );
       }
     });

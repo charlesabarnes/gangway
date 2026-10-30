@@ -96,10 +96,10 @@ async function recordBuild(
   r: RunPlan,
   { id, services }: { id: string; services: string[] },
 ): Promise<void> {
-  ctx.builds.start({ id, previewId: p.id, services });
   // Builds run outside every container limit, so a build that never ends holds a slot for good.
   const timeoutMs = ctx.buildTimeoutMs?.() ?? 0;
   const minutesMs = buildMsLeft(ctx, r.preview.orgId) ?? 0;
+  ctx.builds.start({ id, previewId: p.id, services });
   const byMinutes = minutesMs > 0 && (timeoutMs === 0 || minutesMs < timeoutMs);
   const limitMs = byMinutes ? minutesMs : timeoutMs;
   const deadline = limitMs > 0 ? AbortSignal.timeout(limitMs) : null;

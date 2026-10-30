@@ -25,19 +25,21 @@ function used(s: ReturnType<typeof setupPreviewContext>, orgId: string, ms: numb
 }
 
 describe("build minutes", () => {
-  test("a finished build adds its time to its org's month, once", async () => {
+  test("a finished build adds its time to its org's months, once", async () => {
     const s = setupPreviewContext();
     const res = await start(s);
     await res.done;
     const preview = res.preview;
-    let now = Date.parse("2026-10-31T23:59:00Z");
+    let now = Date.parse("2027-01-31T23:59:00Z");
     const builds = new BuildsRepo(s.db, () => now);
     builds.start({ id: "b1", previewId: preview.id, services: ["web"] });
     now += 2 * MIN;
     builds.finish("b1", "succeeded", 0);
     builds.finish("b1", "failed", 1);
-    expect(builds.usedThisMonth(preview.orgId)).toBe(2 * MIN);
-    now = Date.parse("2026-12-01T00:00:00Z");
+    expect(builds.usedThisMonth(preview.orgId)).toBe(MIN);
+    now = Date.parse("2027-01-31T12:00:00Z");
+    expect(builds.usedThisMonth(preview.orgId)).toBe(MIN);
+    now = Date.parse("2027-03-01T00:00:00Z");
     expect(builds.usedThisMonth(preview.orgId)).toBe(0);
   });
 
