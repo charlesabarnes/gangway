@@ -12,6 +12,21 @@ const settled = async <T>(p: Promise<T>) => {
 };
 
 describe("Slots", () => {
+  test("a freed slot goes to the waiting key that holds fewest, in order within a key", async () => {
+    const slots = new Slots(() => 2);
+    const a1 = await slots.acquire(undefined, undefined, "a");
+    await slots.acquire(undefined, undefined, "a");
+    const order: string[] = [];
+    const wait = (key: string, tag: string) =>
+      void slots.acquire(undefined, undefined, key).then(() => order.push(tag));
+    wait("a", "a3");
+    wait("a", "a4");
+    wait("b", "b1");
+    a1();
+    await Bun.sleep(0);
+    expect(order).toEqual(["b1"]);
+  });
+
   test("a full line turns newcomers away; 0 leaves it unbounded", async () => {
     const slots = new Slots(
       () => 1,

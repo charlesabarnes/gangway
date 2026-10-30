@@ -182,6 +182,7 @@ export class OrgPage {
     ];
     if (l.containers !== false) {
       all.splice(1, 0, meter('apps', 'App previews', o.usage.apps, l.maxActive));
+      all.push(meter('builds', 'Build minutes this month', o.usage.buildMinutes, l.buildMinutes));
     }
     return all;
   });

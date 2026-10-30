@@ -20,13 +20,20 @@ export type OrgLimits = {
   memoryBytes?: number;
   maxMembers?: number;
   containers?: boolean;
+  buildMinutes?: number;
 };
 
 export type OrgOverview = {
   org: { id: string; slug: string; name: string; home: boolean; state: OrgState };
   planLabel: string | null;
   limits: OrgLimits | null;
-  usage: { sites: number; apps: number; storageBytes: number; members: number };
+  usage: {
+    sites: number;
+    apps: number;
+    storageBytes: number;
+    members: number;
+    buildMinutes: number;
+  };
   billingUrl: string | null;
 };
 

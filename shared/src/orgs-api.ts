@@ -12,6 +12,7 @@ export const OrgLimitsSchema = z.strictObject({
   memoryBytes: count.optional(),
   maxMembers: count.optional(),
   containers: z.boolean().optional(),
+  buildMinutes: count.optional(),
 });
 export type OrgLimits = z.infer<typeof OrgLimitsSchema>;
 
@@ -85,6 +86,12 @@ export type OrgOverview = {
   org: Pick<Org, "id" | "slug" | "name" | "home" | "state">;
   planLabel: string | null;
   limits: OrgLimits | null;
-  usage: { sites: number; apps: number; storageBytes: number; members: number };
+  usage: {
+    sites: number;
+    apps: number;
+    storageBytes: number;
+    members: number;
+    buildMinutes: number;
+  };
   billingUrl: string | null;
 };

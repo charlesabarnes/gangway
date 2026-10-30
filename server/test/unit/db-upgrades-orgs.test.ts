@@ -242,4 +242,25 @@ for (const [name, open] of DRIVERS) {
       db.close();
     });
   });
+
+  describe(`0043 org build usage on ${name}`, () => {
+    test("starts empty, with one row per org and month and no negative time", () => {
+      const db = databaseAt(open, 42).reopen();
+      expect(migrate(db, MIGRATIONS).applied).toEqual(versionsFrom(43));
+      expect(db.query("SELECT * FROM org_build_usage")).toEqual([]);
+      const org = "00000000000000000000000000";
+      db.run(
+        `INSERT INTO org_build_usage (org_id, month, build_ms) VALUES ('${org}', '2026-10', 5)`,
+      );
+      expect(() =>
+        db.run(`INSERT INTO org_build_usage (org_id, month) VALUES ('${org}', '2026-10')`),
+      ).toThrow();
+      expect(() =>
+        db.run(
+          `INSERT INTO org_build_usage (org_id, month, build_ms) VALUES ('${org}', '2026-11', -1)`,
+        ),
+      ).toThrow();
+      db.close();
+    });
+  });
 }

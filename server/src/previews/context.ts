@@ -112,6 +112,7 @@ export type BuildingContext = Pick<
   | "buildSlots"
   | "buildTimeoutMs"
   | "buildRoom"
+  | "orgLimits"
   | "states"
   | "probe"
   | "timings"
