@@ -30,6 +30,12 @@ describe("egress rules", () => {
     }
     expect(rules).toContain('iifname { "docker0", "br-*" } oifname { "docker0", "br-*" } accept');
     expect(rules).toContain("tcp dport { 25, 465, 587, 2525 } drop");
+    const dns = rules.indexOf(
+      'iifname { "docker0", "br-*" } meta l4proto { udp, tcp } th dport 53 accept',
+    );
+    expect(dns).toBeGreaterThan(0);
+    expect(dns).toBeLessThan(rules.indexOf("@blocked4 drop"));
+    expect(dns).toBeLessThan(rules.indexOf("@blocked6 drop"));
     expect(rules).toContain('iifname { "docker0", "br-*" } drop');
   });
 

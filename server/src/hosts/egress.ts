@@ -34,6 +34,7 @@ table inet ${EGRESS_TABLE} {
   chain forward {
     type filter hook forward priority -10; policy accept;
     iifname ${BRIDGES} oifname ${BRIDGES} accept
+    iifname ${BRIDGES} meta l4proto { udp, tcp } th dport 53 accept comment "a cloud resolver is often private"
     iifname ${BRIDGES} ip daddr @blocked4 drop
     iifname ${BRIDGES} ip6 daddr @blocked6 drop
     iifname ${BRIDGES} tcp dport ${MAIL_PORTS} drop
