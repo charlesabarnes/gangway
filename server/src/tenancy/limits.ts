@@ -67,3 +67,21 @@ export function lifetimeCap(
   const max = ctx.orgLimits?.(orgId)?.maxLifetimeMs;
   return max === undefined ? undefined : start + max;
 }
+
+/** What is left of the org's build minutes this month, in ms; undefined: no cap. */
+export function buildMsLeft(
+  ctx: Pick<LimitsContext, "orgLimits"> & { builds: { usedThisMonth(orgId: string): number } },
+  orgId: string,
+): number | undefined {
+  const minutes = ctx.orgLimits?.(orgId)?.buildMinutes;
+  if (minutes === undefined) {
+    return undefined;
+  }
+  const left = minutes * 60_000 - ctx.builds.usedThisMonth(orgId);
+  if (left <= 0) {
+    throw conflict(
+      `this org has used its ${minutes} build minutes for the month; builds resume on the 1st (UTC)`,
+    );
+  }
+  return left;
+}

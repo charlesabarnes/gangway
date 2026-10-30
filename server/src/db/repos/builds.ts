@@ -32,6 +32,8 @@ const toBuild = (r: Row): Build => ({
   exitCode: r.exit_code,
 });
 
+const monthOf = (ms: number) => new Date(ms).toISOString().slice(0, 7);
+
 export class BuildsRepo {
   readonly #db: Db;
   readonly #now: () => number;
@@ -49,10 +51,31 @@ export class BuildsRepo {
   }
 
   finish(id: string, state: Exclude<BuildState, "running">, exitCode: number | null = null): void {
-    this.#db.run(
-      "UPDATE builds SET state = $state, finished_at = $now, exit_code = $code WHERE id = $id AND state = 'running'",
-      { id, state, code: exitCode, now: this.#now() },
-    );
+    const now = this.#now();
+    this.#db.transaction(() => {
+      const ended = this.#db.run(
+        "UPDATE builds SET state = $state, finished_at = $now, exit_code = $code WHERE id = $id AND state = 'running'",
+        { id, state, code: exitCode, now },
+      ).changes;
+      if (ended > 0) {
+        this.#db.run(
+          `INSERT INTO org_build_usage (org_id, month, build_ms)
+             SELECT p.org_id, $month, MAX(0, $now - b.started_at) FROM builds b
+             JOIN previews p ON p.id = b.preview_id WHERE b.id = $id
+           ON CONFLICT (org_id, month) DO UPDATE SET build_ms = build_ms + excluded.build_ms`,
+          { id, now, month: monthOf(now) },
+        );
+      }
+    });
+  }
+
+  /** The org's build time this calendar month, in ms; running builds not yet counted. */
+  usedThisMonth(orgId: string): number {
+    const row = this.#db.query(
+      "SELECT build_ms FROM org_build_usage WHERE org_id = $o AND month = $m",
+      { o: orgId, m: monthOf(this.#now()) },
+    )[0] as { build_ms: number } | undefined;
+    return row?.build_ms ?? 0;
   }
 
   forPreview(previewId: string): Build[] {

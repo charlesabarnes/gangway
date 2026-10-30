@@ -93,6 +93,7 @@ function orgRouteDeps({ ctx, repos, settings }: ApiRouteDeps): OrgRouteDeps {
     users: repos.users,
     previews: ctx.previews,
     bytesUsed: (orgId) => repos.previews.bytesUsed(orgId),
+    buildMsUsed: (orgId) => repos.builds.usedThisMonth(orgId),
     billingUrl: () => settings.get(SETTINGS.billingUrl),
   };
 }

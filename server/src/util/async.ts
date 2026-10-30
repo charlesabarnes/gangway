@@ -19,7 +19,7 @@ export class SingleFlight<T> {
   }
 }
 
-/** At most `limit()` holders at once, the rest served in order; a limit of 0 is none. */
+/** At most `limit()` holders at once, the rest served fairly by key; a limit of 0 is none. */
 /** The line in front of a Slots was already as long as it may be. */
 export class LineFull extends Error {
   readonly waiting: number;
@@ -34,7 +34,8 @@ export class Slots {
   readonly #limit: () => number;
   readonly #maxWaiting: () => number;
   #busy = 0;
-  #waiting: (() => void)[] = [];
+  readonly #held = new Map<string, number>();
+  #waiting: { key: string; turn: () => void }[] = [];
 
   /** `maxWaiting` caps the line; past it acquire throws LineFull. 0 for either is no limit. */
   constructor(limit: () => number, maxWaiting: () => number = () => 0) {
@@ -51,8 +52,8 @@ export class Slots {
     this.#next();
   }
 
-  /** Resolves to the release once a slot is free; `onWait` runs if it has to wait. */
-  async acquire(signal?: AbortSignal, onWait?: () => void): Promise<() => void> {
+  /** Resolves to the release once a slot is free; a freed slot goes to the key holding fewest. */
+  async acquire(signal?: AbortSignal, onWait?: () => void, key = ""): Promise<() => void> {
     signal?.throwIfAborted();
     // A raised limit goes to those already waiting before any newcomer.
     this.#next();
@@ -65,24 +66,30 @@ export class Slots {
       signal?.throwIfAborted();
       await new Promise<void>((resolve, reject) => {
         const abort = () => {
-          this.#waiting = this.#waiting.filter((w) => w !== turn);
+          this.#waiting = this.#waiting.filter((w) => w.turn !== turn);
           reject(signal?.reason instanceof Error ? signal.reason : new Error("aborted"));
         };
         const turn = () => {
           signal?.removeEventListener("abort", abort);
           resolve();
         };
-        this.#waiting.push(turn);
+        this.#waiting.push({ key, turn });
         signal?.addEventListener("abort", abort, { once: true });
       });
     } else {
-      this.#busy++;
+      this.#take(key);
     }
     let held = true;
     return () => {
       if (held) {
         held = false;
         this.#busy--;
+        const left = (this.#held.get(key) ?? 1) - 1;
+        if (left > 0) {
+          this.#held.set(key, left);
+        } else {
+          this.#held.delete(key);
+        }
         this.#next();
       }
     };
@@ -96,9 +103,17 @@ export class Slots {
   // A slot passes straight to the next in line, so a newcomer never overtakes it.
   #next() {
     while (this.#waiting.length > 0 && !this.#full()) {
-      this.#busy++;
-      this.#waiting.shift()?.();
+      const held = (w: { key: string }) => this.#held.get(w.key) ?? 0;
+      const first = this.#waiting.reduce((a, w) => (held(w) < held(a) ? w : a));
+      this.#waiting = this.#waiting.filter((w) => w !== first);
+      this.#take(first.key);
+      first.turn();
     }
+  }
+
+  #take(key: string) {
+    this.#busy++;
+    this.#held.set(key, (this.#held.get(key) ?? 0) + 1);
   }
 }
 

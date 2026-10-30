@@ -4,6 +4,7 @@ import type { Host, Preview } from "@gangway/shared/domain";
 import { buildArgv, psArgv, runArgv, upArgv, type ComposeSpec } from "../docker/compose.ts";
 import { AppError, errorMessage } from "../errors.ts";
 import { redactString } from "../logger.ts";
+import { buildMsLeft } from "../tenancy/limits.ts";
 import { LineFull } from "../util/async.ts";
 import { ulid } from "../util/ulid.ts";
 import type { BuildingContext, PreviewContext } from "./context.ts";
@@ -56,6 +57,7 @@ export async function buildImages(
   if (toBuild.length === 0) {
     return;
   }
+  buildMsLeft(ctx, r.preview.orgId);
   const release = await buildSlot(ctx, p, r);
   try {
     const refused = await ctx.buildRoom?.(r.host);
@@ -70,9 +72,13 @@ export async function buildImages(
 
 async function buildSlot(ctx: BuildingContext, p: Pipeline, r: RunPlan) {
   try {
-    return await ctx.buildSlots?.acquire(r.signal, () => {
-      p.log(`waiting for a build slot (${ctx.buildSlots?.waiting ?? 0} ahead)`);
-    });
+    return await ctx.buildSlots?.acquire(
+      r.signal,
+      () => {
+        p.log(`waiting for a build slot (${ctx.buildSlots?.waiting ?? 0} ahead)`);
+      },
+      r.preview.orgId,
+    );
   } catch (e) {
     if (e instanceof LineFull) {
       throw new AppError(
@@ -92,7 +98,10 @@ async function recordBuild(
 ): Promise<void> {
   ctx.builds.start({ id, previewId: p.id, services });
   // Builds run outside every container limit, so a build that never ends holds a slot for good.
-  const limitMs = ctx.buildTimeoutMs?.() ?? 0;
+  const timeoutMs = ctx.buildTimeoutMs?.() ?? 0;
+  const minutesMs = buildMsLeft(ctx, r.preview.orgId) ?? 0;
+  const byMinutes = minutesMs > 0 && (timeoutMs === 0 || minutesMs < timeoutMs);
+  const limitMs = byMinutes ? minutesMs : timeoutMs;
   const deadline = limitMs > 0 ? AbortSignal.timeout(limitMs) : null;
   try {
     await p.step("build", buildArgv(p.base, services), "build", {
@@ -107,7 +116,9 @@ async function recordBuild(
     );
     if (deadline?.aborted && !r.signal.aborted) {
       throw new StepFailed(
-        `the build ran longer than ${Math.round(limitMs / 1000)}s and was stopped (previews.limits.buildTimeout)`,
+        byMinutes
+          ? "the build used the rest of the org's build minutes for the month and was stopped"
+          : `the build ran longer than ${Math.round(limitMs / 1000)}s and was stopped (previews.limits.buildTimeout)`,
       );
     }
     throw e;

@@ -12,6 +12,7 @@ export type OrgRouteDeps = {
   users: Pick<UsersRepo, "membersOf" | "memberCount">;
   previews: { list(f: { state: PreviewState[] }): Preview[] };
   bytesUsed: (orgId: string) => number;
+  buildMsUsed: (orgId: string) => number;
   billingUrl: () => string;
 };
 
@@ -38,6 +39,7 @@ export function orgRoutes(api: Hono<AppEnv>, d: OrgRouteDeps): void {
         apps: mine.length - sites,
         storageBytes: d.bytesUsed(orgId),
         members: d.users.memberCount(orgId),
+        buildMinutes: Math.ceil(d.buildMsUsed(orgId) / 60_000),
       },
       billingUrl: d.billingUrl() || null,
     };
