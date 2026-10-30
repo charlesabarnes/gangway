@@ -31,7 +31,10 @@ describe("BuildKit secrets", () => {
     const s = setupPreviewContext();
     const res = await start(s, { NPM_TOKEN: "npm_live_123", OTHER: "x" });
     expect(await res.done).toMatchObject({ state: "awake" });
-    expect(s.fake.buildEnvs).toEqual([{ NPM_TOKEN: "npm_live_123" }]);
+    expect(s.fake.buildEnvs).toEqual([{ GANGWAY_BUILD_SECRET_0: "npm_live_123" }]);
+    expect(s.fake.stacks[0]).toMatchObject({
+      secrets: { npm: { environment: "GANGWAY_BUILD_SECRET_0" } },
+    });
     const log = s.ctx.logs.tail(res.preview.id).join("\n");
     expect(log).toContain("the build gets 1 secret(s) as BuildKit secrets");
     expect(log).not.toContain("npm_live_123");

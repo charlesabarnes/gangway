@@ -264,31 +264,16 @@ const secretNames = (v: unknown): string[] =>
     return typeof name === "string" ? [name] : [];
   });
 
-/** A top-level secret read from `environment:` names a preview secret; only builds get it. */
-const HOST_PREFIX = /^(COMPOSE|DOCKER|BUILDX|BUILDKIT|LD|DYLD|XDG|LC|SSH|GIT)_/i;
-const HOST_NAMES = new Set([
-  "PATH",
-  "HOME",
-  "USER",
-  "LOGNAME",
-  "TMPDIR",
-  "LANG",
-  "SHELL",
-  "BASH_ENV",
-  "ENV",
-  "NODE_OPTIONS",
-]);
-const hostReads = (name: string) =>
-  HOST_PREFIX.test(name) || HOST_NAMES.has(name.toUpperCase()) || /_PROXY$/i.test(name);
-
+/** Only builds read a preview secret from `environment:`, under a name gangway picks for the host. */
 export function buildSecretEnv(
   resolved: Json,
   secrets: Record<string, string>,
-): { env: Record<string, string>; violations: string[] } {
+): { env: Record<string, string>; sources: Record<string, string>; violations: string[] } {
   const services = Object.values(obj(resolved["services"])).map(obj);
   const atRuntime = new Set(services.flatMap((s) => secretNames(s["secrets"])));
   const inBuilds = new Set(services.flatMap((s) => secretNames(obj(s["build"])["secrets"])));
   const env: Record<string, string> = {};
+  const sources: Record<string, string> = {};
   const violations: string[] = [];
   for (const [key, raw] of Object.entries(obj(resolved["secrets"]))) {
     const r = obj(raw);
@@ -296,18 +281,18 @@ export function buildSecretEnv(
     if (!fromEnvironment("secrets", r) || typeof name !== "string") {
       continue;
     }
-    const value = secrets[name];
+    const value = Object.hasOwn(secrets, name) ? secrets[name] : undefined;
     if (atRuntime.has(key)) {
       violations.push(
         `secret "${key}": an environment source is for builds; a service gets the preview's secrets as environment variables`,
       );
-    } else if (hostReads(name)) {
-      violations.push(`secret "${key}": ${name} is a name the build host reads; rename the secret`);
     } else if (value === undefined) {
       violations.push(`secret "${key}": ${name} is not one of the preview's secrets`);
     } else if (inBuilds.has(key)) {
-      env[name] = value;
+      const ours = `GANGWAY_BUILD_SECRET_${Object.keys(env).length}`;
+      env[ours] = value;
+      sources[key] = ours;
     }
   }
-  return { env, violations };
+  return { env, sources, violations };
 }

@@ -66,6 +66,9 @@ export async function readModel(
   if (violations.length > 0) {
     throw unprocessable("the compose file asks for things a preview may not have", { violations });
   }
+  for (const [key, ours] of Object.entries(built.sources)) {
+    obj(obj(obj(resolved)["secrets"])[key])["environment"] = ours;
+  }
   return { model, resolved, buildSecrets: built.env };
 }
 

@@ -340,33 +340,32 @@ describe("policy: BuildKit secrets", () => {
   test("a build gets the preview secret its environment source names, and no other", () => {
     const asked = doc({ build: { context: "/src", secrets: [{ source: "npm" }] } }, env);
     expect(buildSecretEnv(asked, preview)).toEqual({
-      env: { NPM_TOKEN: "npm_abc" },
+      env: { GANGWAY_BUILD_SECRET_0: "npm_abc" },
+      sources: { npm: "GANGWAY_BUILD_SECRET_0" },
       violations: [],
     });
     expect(buildSecretEnv(doc({}, env), preview).env).toEqual({});
   });
 
   test("a variable that is not the preview's own secret is refused", () => {
-    const asked = doc(
-      { build: { context: "/src", secrets: ["host"] } },
-      { host: { environment: "AWS_KEY" } },
-    );
-    expect(buildSecretEnv(asked, preview)).toEqual({
-      env: {},
-      violations: ['secret "host": AWS_KEY is not one of the preview\'s secrets'],
-    });
+    const named = (name: string) =>
+      doc({ build: { context: "/src", secrets: ["host"] } }, { host: { environment: name } });
+    for (const name of ["AWS_KEY", "constructor", "toString"]) {
+      expect(buildSecretEnv(named(name), preview)).toEqual({
+        env: {},
+        sources: {},
+        violations: [`secret "host": ${name} is not one of the preview's secrets`],
+      });
+    }
   });
 
-  test("a secret named like a variable the build host reads is refused", () => {
-    const own = { COMPOSE_ENV_FILES: "/etc/x", LD_PRELOAD: "/x.so", http_proxy: "h" };
+  test("a secret named like a host variable reaches the build under gangway's name", () => {
+    const own = { COMPOSE_ENV_FILES: "/etc/x", LD_PRELOAD: "/x.so" };
     const names = Object.keys(own);
     const secrets = Object.fromEntries(names.map((n) => [n, { environment: n }]));
-    const asked = doc({ build: { context: "/src", secrets: names } }, secrets);
-    const got = buildSecretEnv(asked, own);
-    expect(got.env).toEqual({});
-    expect(got.violations).toEqual(
-      names.map((n) => `secret "${n}": ${n} is a name the build host reads; rename the secret`),
-    );
+    const got = buildSecretEnv(doc({ build: { context: "/src", secrets: names } }, secrets), own);
+    expect(got.env).toEqual({ GANGWAY_BUILD_SECRET_0: "/etc/x", GANGWAY_BUILD_SECRET_1: "/x.so" });
+    expect(got.violations).toEqual([]);
   });
 
   test("an environment source a service mounts at runtime is refused", () => {
