@@ -104,7 +104,15 @@ export class Slots {
   #next() {
     while (this.#waiting.length > 0 && !this.#full()) {
       const held = (w: { key: string }) => this.#held.get(w.key) ?? 0;
-      const first = this.#waiting.reduce((a, w) => (held(w) < held(a) ? w : a));
+      let [first] = this.#waiting;
+      for (const w of this.#waiting) {
+        if (first && held(w) < held(first)) {
+          first = w;
+        }
+      }
+      if (!first) {
+        return;
+      }
       this.#waiting = this.#waiting.filter((w) => w !== first);
       this.#take(first.key);
       first.turn();
