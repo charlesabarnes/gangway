@@ -23,25 +23,38 @@ const BLOCKED_V6 = [
   "ff00::/8", // NOSONAR a special-use range this blocks
 ];
 const MAIL_PORTS = "{ 25, 465, 587, 2525 }";
+// Per container: 10 MB/s once a 50 MB bucket (a second's rate plus the burst) is spent.
+const EGRESS_RATE = "limit rate over 10 mbytes/second burst 40 mbytes";
+const T = `inet ${EGRESS_TABLE}`;
 
-/** Its own table, replaced whole: leaving the bridges for a private address, the host or mail drops. */
+/** Rules and blocklists are replaced each time; the rate sets stay, so a reapply grants no new bucket. */
 export function egressRuleset(): string {
-  return `table inet ${EGRESS_TABLE}
-delete table inet ${EGRESS_TABLE}
-table inet ${EGRESS_TABLE} {
-  set blocked4 { type ipv4_addr; flags interval; elements = { ${BLOCKED_V4.join(", ")} } }
-  set blocked6 { type ipv6_addr; flags interval; elements = { ${BLOCKED_V6.join(", ")} } }
+  return `table ${T} {
+  set blocked4 { type ipv4_addr; flags interval; }
+  set blocked6 { type ipv6_addr; flags interval; }
+  set rate4 { type ipv4_addr; size 65535; flags dynamic,timeout; timeout 1m; }
+  set rate6 { type ipv6_addr; size 65535; flags dynamic,timeout; timeout 1m; }
+  chain forward { type filter hook forward priority -10; policy accept; }
+  chain input { type filter hook input priority -10; policy accept; }
+}
+flush set ${T} blocked4
+flush set ${T} blocked6
+flush chain ${T} forward
+flush chain ${T} input
+add element ${T} blocked4 { ${BLOCKED_V4.join(", ")} }
+add element ${T} blocked6 { ${BLOCKED_V6.join(", ")} }
+table ${T} {
   chain forward {
-    type filter hook forward priority -10; policy accept;
     iifname ${BRIDGES} oifname ${BRIDGES} ct status dnat drop comment "another preview's published port"
     iifname ${BRIDGES} oifname ${BRIDGES} accept
     iifname ${BRIDGES} meta l4proto { udp, tcp } th dport 53 accept comment "a cloud resolver is often private"
     iifname ${BRIDGES} ip daddr @blocked4 drop
     iifname ${BRIDGES} ip6 daddr @blocked6 drop
     iifname ${BRIDGES} tcp dport ${MAIL_PORTS} drop
+    iifname ${BRIDGES} update @rate4 { ip saddr ${EGRESS_RATE} } drop comment "outbound cap"
+    iifname ${BRIDGES} update @rate6 { ip6 saddr ${EGRESS_RATE} } drop
   }
   chain input {
-    type filter hook input priority -10; policy accept;
     iifname ${BRIDGES} ct state established,related accept
     iifname ${BRIDGES} drop
   }
