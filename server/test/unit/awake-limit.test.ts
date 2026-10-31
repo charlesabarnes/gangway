@@ -74,4 +74,16 @@ describe("awake limit", () => {
     await new Waker(s.ctx, quiet).wake(dawn.id);
     expect(s.previews.get(theirs.id)!.state).toBe("awake");
   });
+
+  test("a preview destroyed while room is made leaves no wake behind", async () => {
+    const s = setupPreviewContext();
+    const dawn = await s.deployed("dawn");
+    await sleepPreview(s.ctx, dawn.id, "idle");
+    s.ctx.orgLimits = () => {
+      s.db.run("UPDATE previews SET state = 'destroyed' WHERE id = $id", { id: dawn.id });
+      return undefined;
+    };
+    await expect(new Waker(s.ctx, quiet).wake(dawn.id)).rejects.toThrow();
+    expect(s.ctx.inflight.has(dawn.id)).toBe(false);
+  });
 });

@@ -212,10 +212,10 @@ export class Waker {
     const done = new Promise<Preview>((r) => {
       settle = r;
     });
-    ctx.inflight.set(previewId, { abort, done });
-    ctx.logs.append(previewId, "system", "waking");
-    ctx.states.transition(previewId, "starting");
     try {
+      ctx.inflight.set(previewId, { abort, done });
+      ctx.logs.append(previewId, "system", "waking");
+      ctx.states.transition(previewId, "starting");
       const res = await ctx.compose.capture(startArgv(base), host, {
         cwd: empty,
         signal: abort.signal,
