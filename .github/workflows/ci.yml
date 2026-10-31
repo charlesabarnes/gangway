@@ -54,6 +54,7 @@ jobs:
       - run: bun test server/test/integration
         env:
           GANGWAY_REQUIRE_DOCKER: "1"
+          GANGWAY_IT_DISPOSABLE_HOST: "1"
 
   web:
     runs-on: ubuntu-latest

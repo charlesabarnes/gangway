@@ -1,6 +1,6 @@
 /**
- * What a preview on a restricted host can reach, against real Docker and nftables. Runs only with
- * GANGWAY_REQUIRE_DOCKER=1 on a Linux host where it may change nftables (CI's throwaway runner).
+ * What a preview on a restricted host can reach, against real Docker and nftables. It replaces and
+ * then deletes the host's egress table, so it runs only where GANGWAY_IT_DISPOSABLE_HOST=1 says so.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -14,7 +14,9 @@ import { client } from "../helpers/fake-daemon.ts";
 import { freePort } from "../helpers/free-port.ts";
 import { tarball } from "../helpers/runtimes-fixtures.ts";
 
-const enabled = process.env["GANGWAY_REQUIRE_DOCKER"] === "1";
+const enabled =
+  process.env["GANGWAY_REQUIRE_DOCKER"] === "1" &&
+  process.env["GANGWAY_IT_DISPOSABLE_HOST"] === "1";
 const API = "api.preview.localhost";
 const INSTANCE = `nt${Date.now().toString(36)}`;
 const HELPER = process.env["GANGWAY_IT_HELPER_IMAGE"] ?? "gw-it-helper";
@@ -47,8 +49,8 @@ function hostAddress(): string {
   throw new Error("no address to publish on");
 }
 
-const ip = hostAddress();
-const stateDir = mkdtempSync(join(tmpdir(), "gangway-nt-"));
+let ip = "";
+let stateDir: string | undefined;
 let running: Running | undefined;
 let call: ReturnType<typeof client>;
 let deploys = 0;
@@ -81,6 +83,8 @@ const reaches = async (container: string, url: string) =>
 
 describe.skipIf(!enabled)("a preview on a restricted host", () => {
   beforeAll(async () => {
+    ip = hostAddress();
+    stateDir = mkdtempSync(join(tmpdir(), "gangway-nt-"));
     const config = loadConfig(
       {
         GANGWAY_STATE_DIR: stateDir,
@@ -110,7 +114,9 @@ describe.skipIf(!enabled)("a preview on a restricted host", () => {
 
   afterAll(async () => {
     await running?.stop();
-    rmSync(stateDir, { recursive: true, force: true });
+    if (stateDir) {
+      rmSync(stateDir, { recursive: true, force: true });
+    }
     const left = (await docker("ps", "-aq", "--filter", `label=gangway.instance=${INSTANCE}`))
       .stdout;
     if (left) {
