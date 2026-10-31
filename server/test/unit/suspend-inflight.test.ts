@@ -4,12 +4,14 @@ import { OrgsRepo } from "../../src/db/repos/orgs.ts";
 import { TakedownsRepo } from "../../src/db/repos/takedowns.ts";
 import { Audit } from "../../src/audit/audit.ts";
 import { deploy } from "../../src/previews/deploy.ts";
+import { redeploy } from "../../src/previews/redeploy.ts";
 import { sleepPreview, Waker } from "../../src/previews/sleep.ts";
 import { Blocks } from "../../src/tenancy/blocks.ts";
 import { suspendOrg } from "../../src/tenancy/suspend.ts";
 import { staticTokenVerifier, type Actor } from "../../src/auth/actor.ts";
 import { ACTOR, setupPreviewContext } from "../helpers/preview-context.ts";
 import { silentLogger } from "../helpers/logger.ts";
+import { deployFiles, setupRuntimes } from "../helpers/runtimes-fixtures.ts";
 
 const O2 = staticTokenVerifier("x", "o2")("x") as Actor;
 
@@ -101,6 +103,66 @@ test("work that ends with its preview asleep or failed still has its stack stopp
   for (let i = 0; i < 200 && s.fake.stops.length === stops; i++) {
     await Bun.sleep(5);
   }
-  expect(s.fake.stops.length).toBe(stops + 1);
+  expect(s.fake.stops).toHaveLength(stops + 1);
   expect(s.previews.get(p.id)!.state).toBe("asleep");
+});
+
+test("a rebuild whose workdir cannot be made still settles what it claimed", async () => {
+  const s = setupRuntimes();
+  const p = await (await deployFiles(s, { "index.ts": "v1" }, "bun", "edit")).done;
+  s.ctx.workdirs.create = () => Promise.reject(new Error("disk full"));
+  let claimed: Promise<unknown> | undefined;
+  const set = s.ctx.inflight.set.bind(s.ctx.inflight);
+  s.ctx.inflight.set = (id, entry) => {
+    claimed = entry.done;
+    return set(id, entry);
+  };
+  await expect(
+    redeploy(s.ctx, {
+      actor: ACTOR,
+      previewId: p.id,
+      change: { kind: "edit", files: { "index.ts": "v2" } },
+    }),
+  ).rejects.toThrow("disk full");
+  const settled = await Promise.race([claimed!.then(() => true), Bun.sleep(500).then(() => false)]);
+  expect(settled).toBe(true);
+});
+
+test("after a resume, a wake waits for the stop a suspension left running", async () => {
+  const { s, suspend } = world();
+  const p = await s.deployed("held");
+  await sleepPreview(s.ctx, p.id, "idle");
+  s.db.run("UPDATE previews SET org_id = 'o2' WHERE id = $id", { id: p.id });
+  let finish!: () => void;
+  const done = new Promise<void>((r) => {
+    finish = r;
+  }).then(() => s.previews.get(p.id)!);
+  s.ctx.inflight.set(p.id, { abort: new AbortController(), done });
+  await suspend();
+  let release!: () => void;
+  const stopping = new Promise<void>((r) => {
+    release = r;
+  });
+  const capture = s.ctx.compose.capture.bind(s.ctx.compose);
+  s.ctx.compose = {
+    ...s.ctx.compose,
+    capture: async (argv, host, o) => {
+      if (argv.includes("stop")) {
+        await stopping;
+      }
+      return capture(argv, host, o);
+    },
+  };
+  s.ctx.inflight.delete(p.id);
+  finish();
+  for (let i = 0; i < 200 && !s.ctx.inflight.has(p.id); i++) {
+    await Bun.sleep(5);
+  }
+  s.ctx.blocks!.resume("o2");
+  await expect(new Waker(s.ctx, silentLogger()).wake(p.id)).rejects.toThrow("busy");
+  release();
+  for (let i = 0; i < 200 && s.ctx.inflight.has(p.id); i++) {
+    await Bun.sleep(5);
+  }
+  expect((await new Waker(s.ctx, silentLogger()).wake(p.id)).state).toBe("awake");
 });

@@ -54,7 +54,7 @@ export async function suspendOrg(
   return { org: orgOf(d, id), slept, failed, pending };
 }
 
-/** Work already running may leave containers up, add-ons included: they stop once it ends. */
+/** Work already running may leave containers up, add-ons included: they stop once it ends, held busy. */
 async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: string) {
   await ctx.inflight.get(previewId)?.done.catch(() => undefined);
   const p = withOrg(orgId, () => ctx.previews.get(previewId));
@@ -62,16 +62,34 @@ async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: st
   if (!p || !host || servedByGangway(p) || !ctx.blocks?.suspended(orgId)) {
     return;
   }
-  const stopped =
-    p.state === "awake"
-      ? withOrg(orgId, () => sleepPreview(ctx, previewId, "the org is suspended"))
-      : STOPPABLE.has(p.state) && stopStack(ctx, p, host);
-  await Promise.resolve(stopped).catch((err: unknown) => {
+  const warn = (err: unknown) => {
     ctx.logger.warn("a suspended org's preview did not stop", {
       previewId,
       err: errorMessage(err),
     });
-  });
+  };
+  if (p.state === "awake") {
+    await withOrg(orgId, () => sleepPreview(ctx, previewId, "the org is suspended")).catch(warn);
+    return;
+  }
+  if (!STOPPABLE.has(p.state) || ctx.inflight.has(previewId)) {
+    return;
+  }
+  const stop = stopStack(ctx, p, host);
+  const done = stop.then(
+    () => p,
+    () => p,
+  );
+  ctx.inflight.set(previewId, { abort: new AbortController(), done });
+  try {
+    await stop;
+  } catch (err) {
+    warn(err);
+  } finally {
+    if (ctx.inflight.get(previewId)?.done === done) {
+      ctx.inflight.delete(previewId);
+    }
+  }
 }
 
 const STOPPABLE: ReadonlySet<string> = new Set(["asleep", "failed"]);

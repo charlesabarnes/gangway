@@ -222,6 +222,10 @@ export class Waker {
     const done = new Promise<Preview>((r) => {
       settle = r;
     });
+    if (ctx.inflight.has(previewId)) {
+      await rm(empty, { recursive: true, force: true });
+      throw new AppError("conflict", `preview ${previewId} is busy`);
+    }
     try {
       ctx.inflight.set(previewId, { abort, done });
       await makeAwakeRoom(ctx, preview);
