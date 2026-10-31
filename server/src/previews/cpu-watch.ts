@@ -10,6 +10,7 @@ export type CpuWatchContext = LifecycleContext & Pick<PreviewContext, "audit" | 
 
 /** Busy for every sample this long means mining, not a build or a burst of traffic. */
 export const CPU_ABUSE = { cores: 0.9, samples: 15 };
+const SAMPLE_TIMEOUT_MS = 30_000;
 
 const sampled = (h: Host) => h.runtime === "runsc" && h.state !== "unreachable";
 
@@ -29,7 +30,7 @@ export class CpuWatch {
         return [];
       }
       try {
-        for (const [id, cores] of await this.#cores(host)) {
+        for (const [id, cores] of await this.#cores(host, signal)) {
           busy.set(id, (busy.get(id) ?? 0) + cores);
         }
       } catch (err) {
@@ -56,9 +57,14 @@ export class CpuWatch {
   }
 
   /** Cores in use per preview: `docker stats` gives 100% for each core. */
-  async #cores(host: Host): Promise<Map<string, number>> {
-    const run = (args: string[]) =>
-      this.#ctx.compose.capture([this.#ctx.docker ?? "docker", ...args], host, { cwd: tmpdir() });
+  async #cores(host: Host, signal?: AbortSignal): Promise<Map<string, number>> {
+    const run = (args: string[]) => {
+      const timeout = AbortSignal.timeout(SAMPLE_TIMEOUT_MS);
+      return this.#ctx.compose.capture([this.#ctx.docker ?? "docker", ...args], host, {
+        cwd: tmpdir(),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+    };
     const ps = await run([
       "ps",
       "--filter",

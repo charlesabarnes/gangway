@@ -70,3 +70,17 @@ test("a host without the sandbox runtime is not watched", async () => {
   }
   expect(s.previews.get(miner.id)!.state).toBe("awake");
 });
+
+test("a stalled docker command gives way when the job is stopped", async () => {
+  const { s, watch } = await world("runsc");
+  s.ctx.compose = {
+    ...s.ctx.compose,
+    capture: (_argv, _host, o) =>
+      new Promise((_, reject) => {
+        o.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      }),
+  };
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 20);
+  expect(await watch.sample(stop.signal)).toEqual([]);
+});
