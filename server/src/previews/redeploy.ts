@@ -230,17 +230,23 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   };
   void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r)).then(
     (o) => {
-      ctx.previews.setReservedBytes(id, o.outcome === "succeeded" ? reserve : kept);
-      settle(o);
+      try {
+        ctx.previews.setReservedBytes(id, o.outcome === "succeeded" ? reserve : kept);
+      } finally {
+        settle(o);
+      }
     },
     (e: unknown) => {
-      ctx.previews.setReservedBytes(id, kept);
-      settle({
-        preview: ctx.previews.get(id) ?? preview,
-        buildId,
-        outcome: "failed",
-        error: String(e),
-      });
+      try {
+        ctx.previews.setReservedBytes(id, kept);
+      } finally {
+        settle({
+          preview: ctx.previews.get(id) ?? preview,
+          buildId,
+          outcome: "failed",
+          error: String(e),
+        });
+      }
     },
   );
 
