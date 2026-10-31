@@ -39,6 +39,14 @@ describe("egress rules", () => {
     expect(rules).toContain('iifname { "docker0", "br-*" } drop');
   });
 
+  test("a preview never reaches another bridge through a published port", () => {
+    const rules = egressRuleset();
+    const both = 'iifname { "docker0", "br-*" } oifname { "docker0", "br-*" }';
+    const dnat = rules.indexOf(`${both} ct status dnat drop`);
+    expect(dnat).toBeGreaterThan(0);
+    expect(dnat).toBeLessThan(rules.indexOf(`${both} accept`));
+  });
+
   test("are applied from a short-lived container in the host's network namespace", async () => {
     const { g, calls } = guard();
     await g.apply(host("restricted"));
