@@ -7,7 +7,7 @@ import type { TakedownsRepo } from "../db/repos/takedowns.ts";
 import { AppError, conflict, errorMessage, notFound } from "../errors.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { destroy } from "../previews/destroy.ts";
-import { sleepPreview } from "../previews/sleep.ts";
+import { sleepPreview, stopStack } from "../previews/sleep.ts";
 import { Blocks } from "./blocks.ts";
 import { acrossOrgs, withOrg } from "./scope.ts";
 
@@ -34,7 +34,7 @@ export async function suspendOrg(
   actor: Actor,
   id: string,
   reason: string,
-): Promise<{ org: Org; slept: string[]; failed: string[] }> {
+): Promise<{ org: Org; slept: string[]; failed: string[]; pending: string[] }> {
   const org = orgOf(d, id);
   if (org.home) {
     throw conflict("the home org runs the server itself; it cannot be suspended");
@@ -46,9 +46,57 @@ export async function suspendOrg(
     previews.map((p) => p.id),
   );
   d.audit.record(actor, "org.suspended", org.id, { new: { reason } });
+  const pending = previews.filter((p) => d.ctx.inflight.has(p.id)).map((p) => p.id);
+  for (const pid of pending) {
+    void settleSuspended(d.ctx, org.id, pid);
+  }
   const { slept, failed } = await sleepAll(d.ctx, org.id, previews);
-  return { org: orgOf(d, id), slept, failed };
+  return { org: orgOf(d, id), slept, failed, pending };
 }
+
+/** Work already running may leave containers up, add-ons included: they stop once it ends, held busy. */
+async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: string) {
+  for (let held = ctx.inflight.get(previewId); held;) {
+    await held.done.catch(() => undefined);
+    const next = ctx.inflight.get(previewId);
+    held = next === held ? undefined : next;
+  }
+  const p = withOrg(orgId, () => ctx.previews.get(previewId));
+  const host = p && ctx.hosts.get(p.hostId);
+  if (!p || !host || servedByGangway(p) || !ctx.blocks?.suspended(orgId)) {
+    return;
+  }
+  const warn = (err: unknown) => {
+    ctx.logger.warn("a suspended org's preview did not stop", {
+      previewId,
+      err: errorMessage(err),
+    });
+  };
+  if (!STOPPABLE.has(p.state) || ctx.inflight.has(previewId)) {
+    return;
+  }
+  const stop = stopStack(ctx, p, host);
+  const done = stop.then(
+    () => p,
+    () => p,
+  );
+  ctx.inflight.set(previewId, { abort: new AbortController(), done });
+  try {
+    await stop;
+    if (withOrg(orgId, () => ctx.previews.get(previewId))?.state === "awake") {
+      ctx.logs.append(previewId, "system", "asleep: the org is suspended");
+      withOrg(orgId, () => ctx.states.transition(previewId, "asleep"));
+    }
+  } catch (err) {
+    warn(err);
+  } finally {
+    if (ctx.inflight.get(previewId)?.done === done) {
+      ctx.inflight.delete(previewId);
+    }
+  }
+}
+
+const STOPPABLE: ReadonlySet<string> = new Set(["awake", "asleep", "failed"]);
 
 async function sleepAll(
   ctx: PreviewContext,

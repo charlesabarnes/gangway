@@ -1,3 +1,4 @@
+import { settleWhenDone } from "./rebuild-settle.ts";
 import { must } from "@gangway/shared/must";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
@@ -134,10 +135,14 @@ function claimRebuild(
     throw conflict("a deploy of this preview is still running");
   }
   const abort = new AbortController();
-  let settle!: (o: RedeployOutcome) => void;
+  let resolve!: (o: RedeployOutcome) => void;
   const done = new Promise<RedeployOutcome>((r) => {
-    settle = r;
+    resolve = r;
   });
+  const settle = (o: RedeployOutcome) => {
+    ctx.inflight.delete(id);
+    resolve(o);
+  };
   ctx.inflight.set(id, { abort, done: done.then((o) => o.preview) });
   return { preview, abort, done, settle };
 }
@@ -170,22 +175,21 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const { preview, abort, done, settle } = claimRebuild(ctx, id);
 
   const buildId = ulid(ctx.now());
-  const wd = await ctx.workdirs.create(buildId).catch((e) => {
-    ctx.inflight.delete(id);
+  const wd = await ctx.workdirs.create(buildId).catch((e: unknown) => {
+    settle({ preview, buildId, outcome: "failed", error: errorMessage(e) });
     throw e;
   });
   try {
     moveToChosenDomain(ctx, preview);
   } catch (e) {
-    await wd.cleanup();
-    ctx.inflight.delete(id);
+    await wd.cleanup().catch(() => undefined);
     settle({ preview, buildId, outcome: "failed", error: errorMessage(e) });
     throw conflict(errorMessage(e));
   }
   const b: Rebuild = { input, sources, preview, host, wd, routes: routesOf(ctx, id) };
   let plan: RebuildPlan;
   let previous: string[] | null;
-  let reserve = 0;
+  let reserve: number;
   const kept = ctx.previews.reservedBytes(id);
   try {
     plan = await planRebuild(ctx, b);
@@ -196,10 +200,10 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
       plan.site === null && preview.state !== "failed"
         ? await snapshot(ctx, { host, project: preview.project, cwd: wd.srcDir })
         : null;
+    announce(ctx, b, plan, buildId);
   } catch (e) {
     ctx.previews.setReservedBytes(id, kept);
-    await wd.cleanup();
-    ctx.inflight.delete(id);
+    await wd.cleanup().catch(() => undefined);
     settle({
       preview: ctx.previews.get(id) ?? preview,
       buildId,
@@ -209,7 +213,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     throw e;
   }
 
-  announce(ctx, b, plan, buildId);
   const r: RebuildRun = {
     preview,
     host,
@@ -225,25 +228,14 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     keep: plan.keep,
     previous,
   };
-  void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r))
-    .then(
-      (o) => {
-        ctx.previews.setReservedBytes(id, o.outcome === "succeeded" ? reserve : kept);
-        settle(o);
-      },
-      (e: unknown) => {
-        ctx.previews.setReservedBytes(id, kept);
-        settle({
-          preview: ctx.previews.get(id) ?? preview,
-          buildId,
-          outcome: "failed",
-          error: String(e),
-        });
-      },
-    )
-    .finally(() => {
-      ctx.inflight.delete(id);
-    });
+  settleWhenDone(ctx, plan.site ? runSite(ctx, r, plan.site) : run(ctx, r), {
+    id,
+    preview,
+    buildId,
+    reserve,
+    kept,
+    settle,
+  });
 
   return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
 }

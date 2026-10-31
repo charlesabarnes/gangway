@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { servedByGangway, type Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import { psArgv, startArgv, stopArgv } from "../docker/compose.ts";
-import { AppError, errorMessage } from "../errors.ts";
+import { AppError, errorMessage, forbidden } from "../errors.ts";
 import { type Logger, redactString } from "../logger.ts";
 import { idleMs } from "../util/duration.ts";
 import { SingleFlight } from "../util/async.ts";
@@ -39,6 +39,16 @@ export async function sleepPreview(
     throw new AppError("conflict", `preview ${previewId} is busy`);
   }
 
+  await stopStack(ctx, preview, host);
+  ctx.logs.append(previewId, "system", `asleep: ${why}`);
+  return ctx.states.transition(previewId, "asleep");
+}
+
+export async function stopStack(
+  ctx: LifecycleContext,
+  preview: Preview,
+  host: Host,
+): Promise<void> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-sleep-"));
   try {
     const res = await ctx.compose.capture(
@@ -52,16 +62,17 @@ export async function sleepPreview(
   } finally {
     await rm(empty, { recursive: true, force: true });
   }
-  ctx.logs.append(previewId, "system", `asleep: ${why}`);
-  return ctx.states.transition(previewId, "asleep");
 }
 
 const nameOf = (p: Preview) => p.title ?? p.project;
 
-export type AwakeContext = LifecycleContext & Pick<PreviewContext, "orgLimits">;
+export type AwakeContext = LifecycleContext & Pick<PreviewContext, "orgLimits" | "blocks">;
 
-/** Sleeps the org's least recently seen previews to keep `maxAwake`; never refuses `preview`. */
+/** Sleeps the org's least recently seen previews to keep `maxAwake`; refuses only a suspended org. */
 export async function makeAwakeRoom(ctx: AwakeContext, preview: Preview): Promise<string[]> {
+  if (ctx.blocks?.suspended(preview.orgId)) {
+    throw forbidden("this org is suspended: its previews cannot start");
+  }
   const max = ctx.orgLimits?.(preview.orgId)?.maxAwake;
   if (max === undefined) {
     return [];
@@ -197,7 +208,6 @@ export class Waker {
       throw new AppError("conflict", `host ${host.id} is unreachable`);
     }
 
-    await makeAwakeRoom(ctx, preview);
     const routes = ctx.table.forPreview(previewId).map((e) => ({
       service: e.service,
       hostname: e.hostname,
@@ -212,8 +222,13 @@ export class Waker {
     const done = new Promise<Preview>((r) => {
       settle = r;
     });
+    if (ctx.inflight.has(previewId)) {
+      await rm(empty, { recursive: true, force: true });
+      throw new AppError("conflict", `preview ${previewId} is busy`);
+    }
     try {
       ctx.inflight.set(previewId, { abort, done });
+      await makeAwakeRoom(ctx, preview);
       ctx.logs.append(previewId, "system", "waking");
       ctx.states.transition(previewId, "starting");
       const res = await ctx.compose.capture(startArgv(base), host, {
