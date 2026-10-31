@@ -188,6 +188,24 @@ export class Reconciler {
     return `stopped orphan ${name} on ${host.id} (${reason})`;
   }
 
+  // Its unexposed services carry no gangway.managed, so no later scan would find them.
+  async #stopPreview(host: Host, c: ContainerSummary, reason: string): Promise<string> {
+    const id = c.labels[LABEL.previewId];
+    const instance = c.labels[LABEL.instance];
+    const all = await this.#d.clients.for(host).listContainers({
+      filters: { label: [`${LABEL.previewId}=${id}`, `${LABEL.instance}=${instance}`] },
+    });
+    const rest = all.filter(
+      (o) =>
+        o.id !== c.id && o.labels[LABEL.previewId] === id && o.labels[LABEL.instance] === instance,
+    );
+    const lines = [await this.#stop(host, c, reason)];
+    for (const o of rest) {
+      lines.push(await this.#stop(host, o, reason));
+    }
+    return lines.join("; ");
+  }
+
   async #adopt(
     a: Of<"AdoptRoute">,
     found: Found | undefined,
@@ -206,7 +224,7 @@ export class Reconciler {
     if (!preview) {
       preview = this.#adoptPreview(a, found.summary, host);
       if (!preview) {
-        return this.#stop(host, found.summary, "unadoptable");
+        return this.#stopPreview(host, found.summary, "unadoptable");
       }
     }
 
@@ -269,7 +287,7 @@ export class Reconciler {
     const orgs = this.#d.orgs;
     const label = raw[LABEL.org];
     if (label) {
-      return !orgs || orgs.get(label) ? label : undefined;
+      return !orgs || orgs.get(label)?.state === "active" ? label : undefined;
     }
     return !orgs || orgs.list().length === 1 ? HOME_ORG_ID : undefined;
   }
