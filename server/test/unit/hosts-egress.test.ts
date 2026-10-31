@@ -24,7 +24,8 @@ function guard(exit = 0) {
 describe("egress rules", () => {
   test("drop private, metadata and mail traffic leaving the bridges, and the host itself", () => {
     const rules = egressRuleset();
-    expect(rules).toStartWith("table inet gangway_egress\ndelete table inet gangway_egress\n");
+    expect(rules).toStartWith("table inet gangway_egress {");
+    expect(rules).toContain("flush chain inet gangway_egress forward");
     for (const range of ["10.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "100.64.0.0/10"]) {
       expect(rules).toContain(range);
     }
@@ -53,6 +54,10 @@ describe("egress rules", () => {
     expect(cap).toBeGreaterThan(rules.indexOf("@blocked4 drop"));
     expect(cap).toBeGreaterThan(rules.indexOf("th dport 53 accept"));
     expect(rules).toContain("update @rate6 { ip6 saddr limit rate over 10 mbytes/second");
+    expect(rules).toContain("burst 40 mbytes");
+    // A reapply flushes the rules and blocklists but keeps what each container has used.
+    expect(rules).not.toContain("delete table");
+    expect(rules).not.toContain("flush set inet gangway_egress rate");
   });
 
   test("are applied from a short-lived container in the host's network namespace", async () => {
