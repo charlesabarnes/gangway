@@ -101,6 +101,68 @@ describe("the reconciliation table", () => {
     expect(s.eventTypes()).toContain("preview.adopted");
   });
 
+  test("a lost preview comes back into the org its container's label names", async () => {
+    const s = setupReconciler();
+    const { preview, route } = await s.deployed("hello");
+    s.db.run(
+      "INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('o2', 'two', 'Two', 1, 1)",
+    );
+    s.daemon.containers = [s.containerFor(route, preview.project, { orgId: "o2" })];
+    s.table.removePreview(preview.id);
+    s.previews.delete(preview.id);
+    await s.reconciler.run();
+    expect(s.previews.get(preview.id)?.orgId).toBe("o2");
+  });
+
+  test("a lost preview whose org cannot be told is quarantined, not given away", async () => {
+    const s = setupReconciler();
+    const { preview, route } = await s.deployed("hello");
+    s.db.run(
+      "INSERT INTO orgs (id, slug, name, created_at, updated_at) VALUES ('o2', 'two', 'Two', 1, 1)",
+    );
+    for (const orgId of [null, "gone"]) {
+      s.daemon.containers = [s.containerFor(route, preview.project, { orgId })];
+      s.daemon.stopped = [];
+      s.table.removePreview(preview.id);
+      s.previews.delete(preview.id);
+      const report = await s.reconciler.run();
+      expect(s.previews.get(preview.id)).toBeUndefined();
+      expect(report.changes[0]).toContain("unadoptable");
+    }
+  });
+
+  test("a suspended org's lost preview stays down, every service with it", async () => {
+    const s = setupReconciler();
+    const { preview, route } = await s.deployed("hello");
+    s.db.run(
+      "INSERT INTO orgs (id, slug, name, state, created_at, updated_at) VALUES ('o2', 'two', 'Two', 'suspended', 1, 1)",
+    );
+    const web = s.containerFor(route, preview.project, { orgId: "o2" });
+    const db = {
+      ...web,
+      id: "c-db",
+      names: [`${preview.project}-db-1`],
+      ports: [],
+      labels: { "gangway.instance": "default", "gangway.preview_id": preview.id },
+    };
+    s.daemon.containers = [web, db];
+    s.table.removePreview(preview.id);
+    s.previews.delete(preview.id);
+    await s.reconciler.run();
+    expect(s.previews.get(preview.id)).toBeUndefined();
+    expect(s.daemon.stopped.sort()).toEqual([web.id, "c-db"].sort());
+  });
+
+  test("an instance of one org still adopts a container from before org labels", async () => {
+    const s = setupReconciler();
+    const { preview, route } = await s.deployed("hello");
+    s.daemon.containers = [s.containerFor(route, preview.project, { orgId: null })];
+    s.table.removePreview(preview.id);
+    s.previews.delete(preview.id);
+    await s.reconciler.run();
+    expect(s.previews.get(preview.id)?.orgId).toBe(preview.orgId);
+  });
+
   test("a container that outlived its destroy is an orphan, not a route to restore", async () => {
     const s = setupReconciler();
     const { preview } = await s.deployed("hello");

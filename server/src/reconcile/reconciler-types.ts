@@ -1,4 +1,5 @@
 import type { Host } from "@gangway/shared/domain";
+import type { OrgsRepo } from "../db/repos/orgs.ts";
 import type { RoutesRepo } from "../db/repos/routes.ts";
 import type { DockerClient } from "../docker/client-types.ts";
 import type { Logger } from "../logger.ts";
@@ -14,6 +15,7 @@ export type ClientSource = {
 export type ReconcilerDeps = {
   ctx: PreviewContext;
   routes: RoutesRepo;
+  orgs?: Pick<OrgsRepo, "get" | "list"> | undefined;
   clients: ClientSource;
   logger: Logger;
   orphans?: "stop" | "report";

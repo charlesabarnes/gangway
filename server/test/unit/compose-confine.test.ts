@@ -216,7 +216,14 @@ const stackOf = (
       model: m,
       routes: [],
       createdAt: new Date(0),
-      ctx: { instance: "t", env: "dev", project: "gw-a", hostId: "local", visibility: "public" },
+      ctx: {
+        instance: "t",
+        env: "dev",
+        project: "gw-a",
+        hostId: "local",
+        visibility: "public",
+        orgId: "o1",
+      },
       publishBind: "127.0.0.1",
       origin: { scheme: "https", port: 8443 },
       limits,
@@ -378,6 +385,12 @@ describe("policy: BuildKit secrets", () => {
 describe("buildStack confines every container", () => {
   const stack = (svc: Record<string, unknown>, limits = LIMITS) =>
     stackOf({ web: { image: "n", ...svc } }, limits).services.web;
+
+  test("every container carries its org, and a compose label cannot change it", () => {
+    expect(stack({ labels: { "gangway.org": "someone-else" } }).labels).toMatchObject({
+      "gangway.org": "o1",
+    });
+  });
 
   test("the operator's limits apply, with no swap past the memory limit", () => {
     expect(stack({})).toMatchObject({

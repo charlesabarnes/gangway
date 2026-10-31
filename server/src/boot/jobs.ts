@@ -50,6 +50,7 @@ export function startReconciler(
   const reconciler = new Reconciler({
     ctx,
     routes: repos.routes,
+    orgs: repos.orgs,
     clients,
     logger: logger.child({ mod: "reconcile" }),
     orphans: config.reconcileOrphans,

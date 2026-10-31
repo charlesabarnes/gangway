@@ -4,6 +4,7 @@ import {
   AuditRepo,
   BuildsRepo,
   EventsRepo,
+  OrgsRepo,
   PreviewsRepo,
   RoutesRepo,
 } from "../../src/db/repos/index.ts";
@@ -117,6 +118,7 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
   const reconciler = new Reconciler({
     ctx,
     routes,
+    orgs: new OrgsRepo(db),
     clients,
     logger: new Logger("info", {}, (l) => lines.push(l)),
     env: {},
@@ -127,7 +129,11 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
   const containerFor = (
     route: Route,
     project: string,
-    over: Partial<ContainerSummary> & { instance?: string; hostPort?: number } = {},
+    over: Partial<ContainerSummary> & {
+      instance?: string;
+      hostPort?: number;
+      orgId?: string | null;
+    } = {},
   ): ContainerSummary => ({
     id: `c-${route.hostname}`,
     names: [`${project}-${route.service}-1`],
@@ -141,6 +147,7 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
       project,
       hostId: "local",
       visibility: "public",
+      orgId: over.orgId === null ? undefined : (over.orgId ?? ACTOR.orgId),
     }),
     ports: [
       {
@@ -178,5 +185,6 @@ export function setupReconciler(o: { orphans?: "stop" | "report"; hangUp?: boole
     deployed,
     eventTypes,
     lines,
+    db,
   };
 }
