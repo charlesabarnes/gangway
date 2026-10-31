@@ -101,6 +101,7 @@ test("the scheduler flushes visits to SQLite and sweeps an expired preview", asy
     ["ttl-sweep", true],
     ["lastseen-flush", true],
     ["idle-sleep", true],
+    ["cpu-watch", true],
     ["share-expiry", true],
     ["domain-verify", true],
     ["cert-renew", true],

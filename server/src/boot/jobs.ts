@@ -2,6 +2,7 @@ import type { Sessions } from "../auth/sessions.ts";
 import type { RunningListener } from "../net/listener.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import type { IdempotentDeploys } from "../previews/idempotent.ts";
+import { CpuWatch } from "../previews/cpu-watch.ts";
 import { sweepIdle } from "../previews/sleep.ts";
 import { Reconciler } from "../reconcile/reconciler.ts";
 import type { ClientSource, ReconcileReport } from "../reconcile/reconciler-types.ts";
@@ -106,6 +107,14 @@ function registerPreviewJobs(scheduler: Scheduler, d: JobDeps): void {
     name: "idle-sleep",
     intervalMs: config.idleSweepIntervalMs,
     run: (signal) => sweepIdle(ctx, logger.child({ job: "idle-sleep" }), signal),
+  });
+  const cpu = new CpuWatch(ctx);
+  scheduler.register({
+    name: "cpu-watch",
+    intervalMs: 60_000,
+    run: async (signal) => {
+      await cpu.sample(signal);
+    },
   });
   scheduler.register({
     name: "share-expiry",

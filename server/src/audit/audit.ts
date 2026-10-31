@@ -55,6 +55,7 @@ export type AuditAction =
   | "org.resumed"
   | "preview.takedown"
   | "preview.takedown.lifted"
+  | "preview.cpu_abuse"
   | "project.updated"
   | "project.deleted"
   | "project.env.changed"
