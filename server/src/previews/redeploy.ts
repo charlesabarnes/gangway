@@ -1,3 +1,4 @@
+import { settleWhenDone } from "./rebuild-settle.ts";
 import { must } from "@gangway/shared/must";
 import type { AppPlan } from "@gangway/shared/app-plan";
 import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
@@ -138,7 +139,6 @@ function claimRebuild(
   const done = new Promise<RedeployOutcome>((r) => {
     resolve = r;
   });
-  // Settling releases the claim, so nothing waits on a rebuild that has let go.
   const settle = (o: RedeployOutcome) => {
     ctx.inflight.delete(id);
     resolve(o);
@@ -189,7 +189,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   const b: Rebuild = { input, sources, preview, host, wd, routes: routesOf(ctx, id) };
   let plan: RebuildPlan;
   let previous: string[] | null;
-  let reserve = 0;
+  let reserve: number;
   const kept = ctx.previews.reservedBytes(id);
   try {
     plan = await planRebuild(ctx, b);
@@ -200,6 +200,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
       plan.site === null && preview.state !== "failed"
         ? await snapshot(ctx, { host, project: preview.project, cwd: wd.srcDir })
         : null;
+    announce(ctx, b, plan, buildId);
   } catch (e) {
     ctx.previews.setReservedBytes(id, kept);
     await wd.cleanup();
@@ -212,7 +213,6 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     throw e;
   }
 
-  announce(ctx, b, plan, buildId);
   const r: RebuildRun = {
     preview,
     host,
@@ -228,27 +228,14 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     keep: plan.keep,
     previous,
   };
-  void (plan.site ? runSite(ctx, r, plan.site) : run(ctx, r)).then(
-    (o) => {
-      try {
-        ctx.previews.setReservedBytes(id, o.outcome === "succeeded" ? reserve : kept);
-      } finally {
-        settle(o);
-      }
-    },
-    (e: unknown) => {
-      try {
-        ctx.previews.setReservedBytes(id, kept);
-      } finally {
-        settle({
-          preview: ctx.previews.get(id) ?? preview,
-          buildId,
-          outcome: "failed",
-          error: String(e),
-        });
-      }
-    },
-  );
+  settleWhenDone(ctx, plan.site ? runSite(ctx, r, plan.site) : run(ctx, r), {
+    id,
+    preview,
+    buildId,
+    reserve,
+    kept,
+    settle,
+  });
 
   return { preview: ctx.previews.get(id) ?? preview, buildId, done, plan: plan.app };
 }
