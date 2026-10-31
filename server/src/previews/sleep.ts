@@ -7,7 +7,8 @@ import { AppError, errorMessage } from "../errors.ts";
 import { type Logger, redactString } from "../logger.ts";
 import { idleMs } from "../util/duration.ts";
 import { SingleFlight } from "../util/async.ts";
-import type { LifecycleContext } from "./context.ts";
+import { withOrg } from "../tenancy/scope.ts";
+import type { LifecycleContext, PreviewContext } from "./context.ts";
 import { StepFailed } from "./steps.ts";
 import { waitAnswering, waitHealthy, type WaitTarget } from "./wait.ts";
 
@@ -53,6 +54,52 @@ export async function sleepPreview(
   }
   ctx.logs.append(previewId, "system", `asleep: ${why}`);
   return ctx.states.transition(previewId, "asleep");
+}
+
+const nameOf = (p: Preview) => p.title ?? p.project;
+
+export type AwakeContext = LifecycleContext & Pick<PreviewContext, "orgLimits">;
+
+/** Sleeps the org's least recently seen previews to keep `maxAwake`; never refuses `preview`. */
+export async function makeAwakeRoom(ctx: AwakeContext, preview: Preview): Promise<string[]> {
+  const max = ctx.orgLimits?.(preview.orgId)?.maxAwake;
+  if (max === undefined) {
+    return [];
+  }
+  ctx.previews.touchMany(ctx.table.drainSeen());
+  const others = withOrg(preview.orgId, () =>
+    ctx.previews.list({ state: ["awake", "starting"], kind: "preview" }),
+  ).filter((p) => p.orgId === preview.orgId && p.id !== preview.id && !servedByGangway(p));
+  let over = others.length + 1 - max;
+  const seen = (p: Preview) => (p.lastSeenAt ?? p.createdAt).getTime();
+  const idle = others
+    .filter((p) => p.state === "awake" && !ctx.inflight.has(p.id) && !ctx.teardowns.has(p.id))
+    .sort((a, b) => seen(a) - seen(b));
+  const slept: string[] = [];
+  for (const p of idle) {
+    if (over <= 0) {
+      break;
+    }
+    try {
+      await sleepPreview(
+        ctx,
+        p.id,
+        `the org's plan allows ${max} awake, and ${nameOf(preview)} started`,
+      );
+      slept.push(nameOf(p));
+      over--;
+    } catch (err) {
+      ctx.logger.warn("could not sleep a preview to make room", { previewId: p.id, err });
+    }
+  }
+  if (slept.length > 0) {
+    ctx.logs.append(
+      preview.id,
+      "system",
+      `put ${slept.join(", ")} to sleep: the org's plan allows ${max} awake`,
+    );
+  }
+  return slept;
 }
 
 export async function sweepIdle(
@@ -113,11 +160,11 @@ export async function sweepIdle(
 }
 
 export class Waker {
-  readonly #ctx: LifecycleContext;
+  readonly #ctx: AwakeContext;
   readonly #log: Logger;
   readonly #flights = new SingleFlight<Preview>();
 
-  constructor(ctx: LifecycleContext, log: Logger) {
+  constructor(ctx: AwakeContext, log: Logger) {
     this.#ctx = ctx;
     this.#log = log;
   }
@@ -150,6 +197,7 @@ export class Waker {
       throw new AppError("conflict", `host ${host.id} is unreachable`);
     }
 
+    await makeAwakeRoom(ctx, preview);
     const routes = ctx.table.forPreview(previewId).map((e) => ({
       service: e.service,
       hostname: e.hostname,

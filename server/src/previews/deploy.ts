@@ -36,6 +36,7 @@ import type { Workdir } from "./source/workdir.ts";
 import { readModel, writeStack, type Planned } from "./stack-file.ts";
 import { releaseFor, seedFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
+import { makeAwakeRoom, type AwakeContext } from "./sleep.ts";
 
 export { urlsFor };
 
@@ -387,13 +388,17 @@ async function publishSite(
   }
 }
 
-async function run(ctx: PlanningContext & BuildingContext, r: DeployRun): Promise<Preview> {
+async function run(
+  ctx: PlanningContext & BuildingContext & AwakeContext,
+  r: DeployRun,
+): Promise<Preview> {
   const p = openPipeline(ctx, r);
   let upAttempted = false;
   try {
     await writeStack(ctx, p.stackPath, r);
     await buildImages(ctx, p, r);
 
+    await makeAwakeRoom(ctx, r.preview);
     ctx.states.transition(p.id, "starting");
     upAttempted = true;
     await startStack(p, r.dockerConfig);

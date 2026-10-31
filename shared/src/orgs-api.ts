@@ -89,6 +89,7 @@ export type OrgOverview = {
   usage: {
     sites: number;
     apps: number;
+    awake: number;
     storageBytes: number;
     members: number;
     buildMinutes: number;
