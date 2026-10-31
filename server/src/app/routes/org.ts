@@ -17,6 +17,7 @@ export type OrgRouteDeps = {
 };
 
 const LIVE: PreviewState[] = ["building", "starting", "awake", "asleep"];
+const AWAKE = new Set<PreviewState>(["starting", "awake"]);
 
 /** The credential's own org, never one named in the URL: no id to guess. */
 export function orgRoutes(api: Hono<AppEnv>, d: OrgRouteDeps): void {
@@ -37,6 +38,7 @@ export function orgRoutes(api: Hono<AppEnv>, d: OrgRouteDeps): void {
       usage: {
         sites,
         apps: mine.length - sites,
+        awake: mine.filter((p) => !servedByGangway(p) && AWAKE.has(p.state)).length,
         storageBytes: d.bytesUsed(orgId),
         members: d.users.memberCount(orgId),
         buildMinutes: Math.ceil(d.buildMsUsed(orgId) / 60_000),

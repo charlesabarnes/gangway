@@ -181,7 +181,12 @@ export class OrgPage {
       meter('members', 'Members', o.usage.members, l.maxMembers),
     ];
     if (l.containers !== false) {
-      all.splice(1, 0, meter('apps', 'App previews', o.usage.apps, l.maxActive));
+      all.splice(
+        1,
+        0,
+        meter('apps', 'App previews', o.usage.apps, l.maxActive),
+        meter('awake', 'Awake now', o.usage.awake, l.maxAwake),
+      );
       all.push(meter('builds', 'Build minutes this month', o.usage.buildMinutes, l.buildMinutes));
     }
     return all;

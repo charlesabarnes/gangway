@@ -242,14 +242,14 @@ test("each org sees its own plan, usage and people, and nothing of the other's",
     org: { id: string; home: boolean };
     planLabel: string | null;
     limits: { maxSites?: number } | null;
-    usage: { sites: number; apps: number; storageBytes: number; members: number };
+    usage: { sites: number; apps: number; awake: number; storageBytes: number; members: number };
     billingUrl: string | null;
   };
   const theirs = (await (await other("/v1/org")).json()) as Overview;
   expect(theirs.org).toMatchObject({ id: otherId, home: false });
   expect(theirs.planLabel).toBe("Free");
   expect(theirs.limits?.maxSites).toBe(3);
-  expect(theirs.usage).toMatchObject({ sites: 1, apps: 0, members: 0 });
+  expect(theirs.usage).toMatchObject({ sites: 1, apps: 0, awake: 0, members: 0 });
   expect(theirs.usage.storageBytes).toBeGreaterThan(0);
   expect(theirs.billingUrl).toBeNull();
 

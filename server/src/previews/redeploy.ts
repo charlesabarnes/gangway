@@ -44,6 +44,7 @@ import { dropProjectNetwork, writeStack } from "./stack-file.ts";
 import { releaseFor } from "./steps.ts";
 import { waitAnswering, waitHealthy } from "./wait.ts";
 import { admitChange, checkStorage } from "../tenancy/limits.ts";
+import { makeAwakeRoom } from "./sleep.ts";
 
 export { checkEditPath, type SourceEdits } from "./source-edits.ts";
 export type { RedeployOutcome } from "./rebuild-failure.ts";
@@ -378,6 +379,7 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
     await runJob(p, "release", release);
 
     r.signal.throwIfAborted();
+    await makeAwakeRoom(ctx, r.preview);
     ctx.states.transition(p.id, "starting");
     f.upAttempted = true;
     await startStack(p);

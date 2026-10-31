@@ -6,7 +6,7 @@ const FREE: OrgOverview = {
   org: { id: 'acme', slug: 'acme', name: 'Acme', home: false, state: 'active' },
   planLabel: 'Free',
   limits: { maxSites: 3, storageBytes: 250_000_000, containers: false },
-  usage: { sites: 1, apps: 0, storageBytes: 12_500_000, members: 2, buildMinutes: 0 },
+  usage: { sites: 1, apps: 0, awake: 0, storageBytes: 12_500_000, members: 2, buildMinutes: 0 },
   billingUrl: 'https://cloud.gangway.sh/billing',
 };
 const MEMBERS: OrgMember[] = [
@@ -59,13 +59,14 @@ describe('the org page', () => {
     expect(rows).toEqual(['ada@example.com admin Active', 'bea@example.com viewer Invited']);
   });
 
-  it('counts build minutes against the plan where it runs containers', async () => {
+  it('counts awake previews and build minutes where the plan runs containers', async () => {
     const r = await page({
       ...FREE,
-      limits: { maxActive: 2, buildMinutes: 300 },
-      usage: { ...FREE.usage, buildMinutes: 42 },
+      limits: { maxActive: 2, maxAwake: 1, buildMinutes: 300 },
+      usage: { ...FREE.usage, awake: 1, buildMinutes: 42 },
     });
     expect(r.text('meter-builds-value')).toBe('42 of 300');
+    expect(r.text('meter-awake-value')).toBe('1 of 1');
   });
 
   it('says there are no limits, and offers no link, where nothing is set', async () => {
