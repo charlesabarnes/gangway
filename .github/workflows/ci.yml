@@ -49,9 +49,12 @@ jobs:
       - run: docker version && docker compose version
       # Pulled first so a slow registry is not a deploy timeout.
       - run: docker pull -q busybox:1.36
+      # The network test applies the egress rules with this in place of the published helper.
+      - run: printf 'FROM alpine:3.22\nRUN apk add --no-cache nftables\n' | docker build -q -t gw-it-helper -
       - run: bun test server/test/integration
         env:
           GANGWAY_REQUIRE_DOCKER: "1"
+          GANGWAY_IT_DISPOSABLE_HOST: "1"
 
   web:
     runs-on: ubuntu-latest

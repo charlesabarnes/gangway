@@ -33,6 +33,7 @@ table inet ${EGRESS_TABLE} {
   set blocked6 { type ipv6_addr; flags interval; elements = { ${BLOCKED_V6.join(", ")} } }
   chain forward {
     type filter hook forward priority -10; policy accept;
+    iifname ${BRIDGES} oifname ${BRIDGES} ct status dnat drop comment "another preview's published port"
     iifname ${BRIDGES} oifname ${BRIDGES} accept
     iifname ${BRIDGES} meta l4proto { udp, tcp } th dport 53 accept comment "a cloud resolver is often private"
     iifname ${BRIDGES} ip daddr @blocked4 drop
