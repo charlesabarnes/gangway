@@ -193,3 +193,41 @@ test("work that claims the preview as the pending work ends is waited for too", 
   }
   expect(s.previews.get(p.id)!.state).toBe("asleep");
 });
+
+test("an awake preview is held busy while its deferred stop runs", async () => {
+  const { s, suspend } = world();
+  const p = await s.deployed("still-up");
+  s.db.run("UPDATE previews SET org_id = 'o2' WHERE id = $id", { id: p.id });
+  let finish!: () => void;
+  const done = new Promise<void>((r) => {
+    finish = r;
+  }).then(() => s.previews.get(p.id)!);
+  s.ctx.inflight.set(p.id, { abort: new AbortController(), done });
+  await suspend();
+  let release!: () => void;
+  const stopping = new Promise<void>((r) => {
+    release = r;
+  });
+  const capture = s.ctx.compose.capture.bind(s.ctx.compose);
+  s.ctx.compose = {
+    ...s.ctx.compose,
+    capture: async (argv, host, o) => {
+      if (argv.includes("stop")) {
+        await stopping;
+      }
+      return capture(argv, host, o);
+    },
+  };
+  s.ctx.inflight.delete(p.id);
+  finish();
+  for (let i = 0; i < 200 && !s.ctx.inflight.has(p.id); i++) {
+    await Bun.sleep(5);
+  }
+  expect(s.ctx.inflight.has(p.id)).toBe(true);
+  release();
+  for (let i = 0; i < 200 && s.ctx.inflight.has(p.id); i++) {
+    await Bun.sleep(5);
+  }
+  expect(s.previews.get(p.id)!.state).toBe("asleep");
+  expect(s.ctx.logs.tail(p.id).join("\n")).toContain("asleep: the org is suspended");
+});

@@ -182,7 +182,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
   try {
     moveToChosenDomain(ctx, preview);
   } catch (e) {
-    await wd.cleanup();
+    await wd.cleanup().catch(() => undefined);
     settle({ preview, buildId, outcome: "failed", error: errorMessage(e) });
     throw conflict(errorMessage(e));
   }
@@ -203,7 +203,7 @@ export async function redeploy(ctx: PreviewContext, input: RedeployInput): Promi
     announce(ctx, b, plan, buildId);
   } catch (e) {
     ctx.previews.setReservedBytes(id, kept);
-    await wd.cleanup();
+    await wd.cleanup().catch(() => undefined);
     settle({
       preview: ctx.previews.get(id) ?? preview,
       buildId,

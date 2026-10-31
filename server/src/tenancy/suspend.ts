@@ -72,10 +72,6 @@ async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: st
       err: errorMessage(err),
     });
   };
-  if (p.state === "awake") {
-    await withOrg(orgId, () => sleepPreview(ctx, previewId, "the org is suspended")).catch(warn);
-    return;
-  }
   if (!STOPPABLE.has(p.state) || ctx.inflight.has(previewId)) {
     return;
   }
@@ -87,6 +83,10 @@ async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: st
   ctx.inflight.set(previewId, { abort: new AbortController(), done });
   try {
     await stop;
+    if (withOrg(orgId, () => ctx.previews.get(previewId))?.state === "awake") {
+      ctx.logs.append(previewId, "system", "asleep: the org is suspended");
+      withOrg(orgId, () => ctx.states.transition(previewId, "asleep"));
+    }
   } catch (err) {
     warn(err);
   } finally {
@@ -96,7 +96,7 @@ async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: st
   }
 }
 
-const STOPPABLE: ReadonlySet<string> = new Set(["asleep", "failed"]);
+const STOPPABLE: ReadonlySet<string> = new Set(["awake", "asleep", "failed"]);
 
 async function sleepAll(
   ctx: PreviewContext,
