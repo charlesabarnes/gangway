@@ -23,14 +23,18 @@ const BLOCKED_V6 = [
   "ff00::/8", // NOSONAR a special-use range this blocks
 ];
 const MAIL_PORTS = "{ 25, 465, 587, 2525 }";
+// Per container: a burst for an upload, never a flood.
+const EGRESS_RATE = "limit rate over 10 mbytes/second burst 50 mbytes";
 
-/** Its own table, replaced whole: leaving the bridges for a private address, the host or mail drops. */
+/** Its own table, replaced whole: private addresses, the host and mail drop; the rest is capped. */
 export function egressRuleset(): string {
   return `table inet ${EGRESS_TABLE}
 delete table inet ${EGRESS_TABLE}
 table inet ${EGRESS_TABLE} {
   set blocked4 { type ipv4_addr; flags interval; elements = { ${BLOCKED_V4.join(", ")} } }
   set blocked6 { type ipv6_addr; flags interval; elements = { ${BLOCKED_V6.join(", ")} } }
+  set rate4 { type ipv4_addr; size 65535; flags dynamic,timeout; timeout 1m; }
+  set rate6 { type ipv6_addr; size 65535; flags dynamic,timeout; timeout 1m; }
   chain forward {
     type filter hook forward priority -10; policy accept;
     iifname ${BRIDGES} oifname ${BRIDGES} ct status dnat drop comment "another preview's published port"
@@ -39,6 +43,8 @@ table inet ${EGRESS_TABLE} {
     iifname ${BRIDGES} ip daddr @blocked4 drop
     iifname ${BRIDGES} ip6 daddr @blocked6 drop
     iifname ${BRIDGES} tcp dport ${MAIL_PORTS} drop
+    iifname ${BRIDGES} update @rate4 { ip saddr ${EGRESS_RATE} } drop comment "outbound cap"
+    iifname ${BRIDGES} update @rate6 { ip6 saddr ${EGRESS_RATE} } drop
   }
   chain input {
     type filter hook input priority -10; policy accept;

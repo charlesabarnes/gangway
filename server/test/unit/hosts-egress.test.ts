@@ -47,6 +47,14 @@ describe("egress rules", () => {
     expect(dnat).toBeLessThan(rules.indexOf(`${both} accept`));
   });
 
+  test("cap each container's outbound traffic once DNS and the drops are done", () => {
+    const rules = egressRuleset();
+    const cap = rules.indexOf("update @rate4 { ip saddr limit rate over 10 mbytes/second");
+    expect(cap).toBeGreaterThan(rules.indexOf("@blocked4 drop"));
+    expect(cap).toBeGreaterThan(rules.indexOf("th dport 53 accept"));
+    expect(rules).toContain("update @rate6 { ip6 saddr limit rate over 10 mbytes/second");
+  });
+
   test("are applied from a short-lived container in the host's network namespace", async () => {
     const { g, calls } = guard();
     await g.apply(host("restricted"));
