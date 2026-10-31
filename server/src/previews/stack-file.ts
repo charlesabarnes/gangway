@@ -116,6 +116,7 @@ export async function writeStack(
         project: s.preview.project,
         hostId: s.host.id,
         visibility: s.visibility,
+        orgId: s.preview.orgId,
       },
       publishBind: s.host.publishBind,
       origin: ctx.origin,

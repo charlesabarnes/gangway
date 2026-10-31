@@ -315,6 +315,7 @@ export function buildStack(i: StackInput): string {
     [LABEL.env]: i.ctx.env,
     [LABEL.project]: i.ctx.project,
     [LABEL.previewId]: previewId,
+    ...(i.ctx.orgId ? { [LABEL.org]: i.ctx.orgId } : {}),
   };
   const urls = Object.fromEntries(
     i.routes.map((r) => [envKey(r.service), publicOriginFor(r.hostname, i.origin)]),

@@ -240,15 +240,15 @@ export class Reconciler {
     const { ctx } = this.#d;
     const raw = summary.labels;
     const project = raw[LABEL.project] ?? raw["com.docker.compose.project"];
-    if (!isUlid(a.previewId) || !project || ctx.previews.getByProject(project)) {
+    const orgId = this.#orgOf(raw);
+    if (!isUlid(a.previewId) || !project || !orgId || ctx.previews.getByProject(project)) {
       return undefined;
     }
     const ttlText = ctx.policy.default().ttl;
     const ttl = ttlText === null ? null : parseDuration(ttlText);
-    // A container with no row has lost its org; the operator's home org takes it.
     const preview = ctx.previews.create({
       id: a.previewId,
-      orgId: HOME_ORG_ID,
+      orgId,
       project,
       hostId: host.id,
       state: "awake",
@@ -262,5 +262,15 @@ export class Reconciler {
       preview.id,
     );
     return preview;
+  }
+
+  // With no label, only an instance of one org can say whose a container is; otherwise it is quarantined.
+  #orgOf(raw: Readonly<Record<string, string>>): string | undefined {
+    const orgs = this.#d.orgs;
+    const label = raw[LABEL.org];
+    if (label) {
+      return !orgs || orgs.get(label) ? label : undefined;
+    }
+    return !orgs || orgs.list().length === 1 ? HOME_ORG_ID : undefined;
   }
 }

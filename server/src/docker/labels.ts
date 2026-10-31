@@ -17,6 +17,7 @@ export const LABEL = {
   visibility: "gangway.visibility",
   primary: "gangway.primary",
   createdAt: "gangway.created_at",
+  org: "gangway.org",
 
   containerPort: "gangway.container_port",
   upstreamHost: "gangway.upstream_host",
@@ -40,6 +41,7 @@ export type GangwayLabels = {
   visibility: Visibility;
   primary: boolean;
   createdAt: Date;
+  orgId?: string | undefined;
 };
 
 export type LabelParseFailure =
@@ -72,6 +74,7 @@ export function buildLabels(l: GangwayLabels): Record<string, string> {
     [LABEL.visibility]: l.visibility,
     [LABEL.primary]: l.primary ? "true" : "false",
     [LABEL.createdAt]: l.createdAt.toISOString(),
+    ...(l.orgId ? { [LABEL.org]: l.orgId } : {}),
   };
 }
 
@@ -128,6 +131,7 @@ export function parseLabels(
       visibility,
       primary,
       createdAt,
+      orgId: nonEmpty(bag[LABEL.org] ?? ""),
     },
   };
 }
@@ -201,6 +205,7 @@ export type LabelContext = {
   project: string;
   hostId: string;
   visibility: Visibility;
+  orgId?: string | undefined;
 };
 
 export function labelsFromRoute(route: Route, ctx: LabelContext): GangwayLabels {
@@ -218,6 +223,7 @@ export function labelsFromRoute(route: Route, ctx: LabelContext): GangwayLabels 
     visibility: ctx.visibility,
     primary: route.primary,
     createdAt: route.createdAt,
+    orgId: ctx.orgId,
   };
 }
 
