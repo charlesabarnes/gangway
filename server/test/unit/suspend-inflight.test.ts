@@ -29,6 +29,19 @@ function world() {
 
 test("a deploy already starting when its org is suspended sleeps once it comes up", async () => {
   const { s, suspend } = world();
+  await (
+    await deploy(s.ctx, { ...s.request("other"), actor: O2 })
+  ).done;
+  const capture = s.ctx.compose.capture.bind(s.ctx.compose);
+  s.ctx.compose = {
+    ...s.ctx.compose,
+    capture: async (argv, host, o) => {
+      if (argv.includes("stop")) {
+        await Bun.sleep(100);
+      }
+      return capture(argv, host, o);
+    },
+  };
   let suspended: ReturnType<typeof suspend> | undefined;
   const transition = s.ctx.states.transition.bind(s.ctx.states);
   s.ctx.states.transition = (id, to) => {
@@ -69,4 +82,25 @@ test("a wake that starts as its org is suspended is refused before anything star
   expect(s.fake.starts).toHaveLength(starts);
   expect(s.previews.get(p.id)!.state).toBe("asleep");
   expect(s.ctx.inflight.has(p.id)).toBe(false);
+});
+
+test("work that ends with its preview asleep or failed still has its stack stopped", async () => {
+  const { s, suspend } = world();
+  const p = await s.deployed("refused");
+  await sleepPreview(s.ctx, p.id, "idle");
+  s.db.run("UPDATE previews SET org_id = 'o2' WHERE id = $id", { id: p.id });
+  let finish!: () => void;
+  const done = new Promise<void>((r) => {
+    finish = r;
+  }).then(() => s.previews.get(p.id)!);
+  s.ctx.inflight.set(p.id, { abort: new AbortController(), done });
+  expect((await suspend()).pending).toEqual([p.id]);
+  const stops = s.fake.stops.length;
+  s.ctx.inflight.delete(p.id);
+  finish();
+  for (let i = 0; i < 200 && s.fake.stops.length === stops; i++) {
+    await Bun.sleep(5);
+  }
+  expect(s.fake.stops.length).toBe(stops + 1);
+  expect(s.previews.get(p.id)!.state).toBe("asleep");
 });

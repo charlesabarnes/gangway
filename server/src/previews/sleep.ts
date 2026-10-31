@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { servedByGangway, type Preview } from "@gangway/shared/domain";
+import { servedByGangway, type Host, type Preview } from "@gangway/shared/domain";
 import { psArgv, startArgv, stopArgv } from "../docker/compose.ts";
 import { AppError, errorMessage, forbidden } from "../errors.ts";
 import { type Logger, redactString } from "../logger.ts";
@@ -39,6 +39,16 @@ export async function sleepPreview(
     throw new AppError("conflict", `preview ${previewId} is busy`);
   }
 
+  await stopStack(ctx, preview, host);
+  ctx.logs.append(previewId, "system", `asleep: ${why}`);
+  return ctx.states.transition(previewId, "asleep");
+}
+
+export async function stopStack(
+  ctx: LifecycleContext,
+  preview: Preview,
+  host: Host,
+): Promise<void> {
   const empty = await mkdtemp(join(tmpdir(), "gangway-sleep-"));
   try {
     const res = await ctx.compose.capture(
@@ -52,8 +62,6 @@ export async function sleepPreview(
   } finally {
     await rm(empty, { recursive: true, force: true });
   }
-  ctx.logs.append(previewId, "system", `asleep: ${why}`);
-  return ctx.states.transition(previewId, "asleep");
 }
 
 const nameOf = (p: Preview) => p.title ?? p.project;

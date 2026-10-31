@@ -7,7 +7,7 @@ import type { TakedownsRepo } from "../db/repos/takedowns.ts";
 import { AppError, conflict, errorMessage, notFound } from "../errors.ts";
 import type { PreviewContext } from "../previews/context.ts";
 import { destroy } from "../previews/destroy.ts";
-import { sleepPreview } from "../previews/sleep.ts";
+import { sleepPreview, stopStack } from "../previews/sleep.ts";
 import { Blocks } from "./blocks.ts";
 import { acrossOrgs, withOrg } from "./scope.ts";
 
@@ -46,28 +46,35 @@ export async function suspendOrg(
     previews.map((p) => p.id),
   );
   d.audit.record(actor, "org.suspended", org.id, { new: { reason } });
-  const { slept, failed } = await sleepAll(d.ctx, org.id, previews);
   const pending = previews.filter((p) => d.ctx.inflight.has(p.id)).map((p) => p.id);
   for (const pid of pending) {
-    void sleepWhenSettled(d.ctx, org.id, pid);
+    void settleSuspended(d.ctx, org.id, pid);
   }
+  const { slept, failed } = await sleepAll(d.ctx, org.id, previews);
   return { org: orgOf(d, id), slept, failed, pending };
 }
 
-/** A deploy or wake already running would leave its containers up: they sleep once it ends. */
-async function sleepWhenSettled(ctx: PreviewContext, orgId: string, previewId: string) {
+/** Work already running may leave containers up, add-ons included: they stop once it ends. */
+async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: string) {
   await ctx.inflight.get(previewId)?.done.catch(() => undefined);
   const p = withOrg(orgId, () => ctx.previews.get(previewId));
-  if (p?.state !== "awake" || servedByGangway(p) || !ctx.blocks?.suspended(orgId)) {
+  const host = p && ctx.hosts.get(p.hostId);
+  if (!p || !host || servedByGangway(p) || !ctx.blocks?.suspended(orgId)) {
     return;
   }
-  await withOrg(orgId, () => sleepPreview(ctx, previewId, "the org is suspended")).catch((err) => {
-    ctx.logger.warn("a suspended org's preview did not sleep", {
+  const stopped =
+    p.state === "awake"
+      ? withOrg(orgId, () => sleepPreview(ctx, previewId, "the org is suspended"))
+      : STOPPABLE.has(p.state) && stopStack(ctx, p, host);
+  await Promise.resolve(stopped).catch((err: unknown) => {
+    ctx.logger.warn("a suspended org's preview did not stop", {
       previewId,
       err: errorMessage(err),
     });
   });
 }
+
+const STOPPABLE: ReadonlySet<string> = new Set(["asleep", "failed"]);
 
 async function sleepAll(
   ctx: PreviewContext,
