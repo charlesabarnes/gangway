@@ -166,3 +166,30 @@ test("after a resume, a wake waits for the stop a suspension left running", asyn
   }
   expect((await new Waker(s.ctx, silentLogger()).wake(p.id)).state).toBe("awake");
 });
+
+test("work that claims the preview as the pending work ends is waited for too", async () => {
+  const { s, suspend } = world();
+  const p = await s.deployed("handed-on");
+  s.db.run("UPDATE previews SET org_id = 'o2' WHERE id = $id", { id: p.id });
+  const latch = () => {
+    let open!: () => void;
+    const done = new Promise<void>((r) => {
+      open = r;
+    }).then(() => s.previews.get(p.id)!);
+    return { done, open };
+  };
+  const first = latch();
+  const second = latch();
+  s.ctx.inflight.set(p.id, { abort: new AbortController(), done: first.done });
+  expect((await suspend()).pending).toEqual([p.id]);
+  s.ctx.inflight.set(p.id, { abort: new AbortController(), done: second.done });
+  first.open();
+  await Bun.sleep(20);
+  expect(s.previews.get(p.id)!.state).toBe("awake");
+  s.ctx.inflight.delete(p.id);
+  second.open();
+  for (let i = 0; i < 200 && s.previews.get(p.id)!.state !== "asleep"; i++) {
+    await Bun.sleep(5);
+  }
+  expect(s.previews.get(p.id)!.state).toBe("asleep");
+});

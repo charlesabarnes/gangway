@@ -56,7 +56,11 @@ export async function suspendOrg(
 
 /** Work already running may leave containers up, add-ons included: they stop once it ends, held busy. */
 async function settleSuspended(ctx: PreviewContext, orgId: string, previewId: string) {
-  await ctx.inflight.get(previewId)?.done.catch(() => undefined);
+  for (let held = ctx.inflight.get(previewId); held;) {
+    await held.done.catch(() => undefined);
+    const next = ctx.inflight.get(previewId);
+    held = next === held ? undefined : next;
+  }
   const p = withOrg(orgId, () => ctx.previews.get(previewId));
   const host = p && ctx.hosts.get(p.hostId);
   if (!p || !host || servedByGangway(p) || !ctx.blocks?.suspended(orgId)) {
