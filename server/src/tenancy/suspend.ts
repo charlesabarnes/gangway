@@ -34,7 +34,7 @@ export async function suspendOrg(
   actor: Actor,
   id: string,
   reason: string,
-): Promise<{ org: Org; slept: string[]; failed: string[] }> {
+): Promise<{ org: Org; slept: string[]; failed: string[]; pending: string[] }> {
   const org = orgOf(d, id);
   if (org.home) {
     throw conflict("the home org runs the server itself; it cannot be suspended");
@@ -47,7 +47,26 @@ export async function suspendOrg(
   );
   d.audit.record(actor, "org.suspended", org.id, { new: { reason } });
   const { slept, failed } = await sleepAll(d.ctx, org.id, previews);
-  return { org: orgOf(d, id), slept, failed };
+  const pending = previews.filter((p) => d.ctx.inflight.has(p.id)).map((p) => p.id);
+  for (const pid of pending) {
+    void sleepWhenSettled(d.ctx, org.id, pid);
+  }
+  return { org: orgOf(d, id), slept, failed, pending };
+}
+
+/** A deploy or wake already running would leave its containers up: they sleep once it ends. */
+async function sleepWhenSettled(ctx: PreviewContext, orgId: string, previewId: string) {
+  await ctx.inflight.get(previewId)?.done.catch(() => undefined);
+  const p = withOrg(orgId, () => ctx.previews.get(previewId));
+  if (p?.state !== "awake" || servedByGangway(p) || !ctx.blocks?.suspended(orgId)) {
+    return;
+  }
+  await withOrg(orgId, () => sleepPreview(ctx, previewId, "the org is suspended")).catch((err) => {
+    ctx.logger.warn("a suspended org's preview did not sleep", {
+      previewId,
+      err: errorMessage(err),
+    });
+  });
 }
 
 async function sleepAll(
