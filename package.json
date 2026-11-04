@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.3.1",
-    "@peculiar/x509": "^2.2.0",
+    "@peculiar/x509": "^3.1.0",
     "acme-client": "^5.4.0",
     "dockerode": "^5.0.1",
     "hono": "^4.13.13",
