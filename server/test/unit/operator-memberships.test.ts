@@ -15,7 +15,7 @@ const post = (body: unknown): RequestInit => ({
 });
 
 const lookup = (issuer: string, subject: string) =>
-  `/v1/operator/memberships?issuer=${encodeURIComponent(issuer)}&subject=${subject}`;
+  `/v1/operator/memberships?issuer=${encodeURIComponent(issuer)}&subject=${encodeURIComponent(subject)}`;
 
 test("the operator finds the orgs of the person behind a provider's subject", async () => {
   const dir = tempDir();
@@ -51,6 +51,8 @@ test("the operator finds the orgs of the person behind a provider's subject", as
     memberships: [],
   });
   expect((await home("/v1/operator/memberships?issuer=x")).status).toBe(400);
+  expect((await home("/v1/operator/memberships?subject=x")).status).toBe(400);
+  expect((await home("/v1/operator/memberships?issuer=&subject=x")).status).toBe(400);
 });
 
 test("only the home org's operator may look a person up", async () => {
