@@ -80,8 +80,8 @@ export function operatorRoutes(api: Hono<AppEnv>, d: OperatorDeps): void {
     if (!issuer || !subject) {
       throw badRequest("name the identity provider's issuer and the person's subject there");
     }
-    const user = d.identities.userFor(issuer, subject) ?? null;
-    return c.json({ user, memberships: user === null ? [] : d.users.memberships(user) });
+    const userId = d.identities.userFor(issuer, subject) ?? null;
+    return c.json({ userId, memberships: userId === null ? [] : d.users.memberships(userId) });
   });
 
   api.post("/operator/orgs/:id/suspend", requirePermission("instance.orgs"), async (c) => {

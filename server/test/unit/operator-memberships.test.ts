@@ -38,16 +38,16 @@ test("the operator finds the orgs of the person behind a provider's subject", as
   const found = await home(lookup(ISSUER, "sub-bea"));
   expect(found.status).toBe(200);
   expect(await found.json()).toMatchObject({
-    user: user.id,
+    userId: user.id,
     memberships: [{ org: { slug: "default", home: true }, role: { id: "member", kind: "member" } }],
   });
 
   expect(await (await home(lookup(ISSUER, "sub-nobody"))).json()).toEqual({
-    user: null,
+    userId: null,
     memberships: [],
   });
   expect(await (await home(lookup("https://other.example.com", "sub-bea"))).json()).toEqual({
-    user: null,
+    userId: null,
     memberships: [],
   });
   expect((await home("/v1/operator/memberships?issuer=x")).status).toBe(400);
