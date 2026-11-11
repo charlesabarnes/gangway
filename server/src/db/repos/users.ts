@@ -29,7 +29,7 @@ export type UserCredentials = { hash: string; salt: string };
 
 export type Membership = {
   org: { id: string; slug: string; name: string; home: boolean; state: OrgState };
-  role: { id: string; name: string };
+  role: { id: string; name: string; kind: string | null };
 };
 
 type MemberRow = {
@@ -50,6 +50,7 @@ type MembershipRow = {
   state: OrgState;
   role_id: string;
   role_name: string | null;
+  role_kind: string | null;
 };
 
 export type CreateUser = {
@@ -175,7 +176,8 @@ export class UsersRepo {
   memberships(id: string): Membership[] {
     return (
       this.#db.query(
-        `SELECT o.id, o.slug, o.name, o.home, o.state, m.role_id, r.name AS role_name
+        `SELECT o.id, o.slug, o.name, o.home, o.state, m.role_id, r.name AS role_name,
+                r.kind AS role_kind
            FROM memberships m JOIN orgs o ON o.id = m.org_id
            LEFT JOIN roles r ON r.id = m.role_id
           WHERE m.user_id = $id ORDER BY o.home DESC, m.created_at, m.org_id`,
@@ -183,7 +185,7 @@ export class UsersRepo {
       ) as MembershipRow[]
     ).map((r) => ({
       org: { id: r.id, slug: r.slug, name: r.name, home: r.home === 1, state: r.state },
-      role: { id: r.role_id, name: r.role_name ?? r.role_id },
+      role: { id: r.role_id, name: r.role_name ?? r.role_id, kind: r.role_kind },
     }));
   }
 
