@@ -148,6 +148,7 @@ export const ROUTES: Record<string, Rule> = {
   "POST /v1/operator/orgs": { kind: "operator" },
   "GET /v1/operator/orgs/:id": { kind: "operator" },
   "PUT /v1/operator/orgs/:id/limits": { kind: "operator" },
+  "GET /v1/operator/memberships": { kind: "operator" },
   "POST /v1/operator/orgs/:id/suspend": { kind: "operator" },
   "POST /v1/operator/orgs/:id/resume": { kind: "operator" },
   "POST /v1/operator/previews/:id/takedown": { kind: "operator" },

@@ -119,14 +119,12 @@ export function v1Routes(api: Hono<AppEnv>, d: ApiRouteDeps): void {
   });
   roleRoutes(api, identity.roles);
   operatorRoutes(api, {
+    ...repos,
     db: d.db,
-    orgs: repos.orgs,
-    roles: repos.roles,
-    templates: repos.templates,
     permissions: identity.roles,
+    identities: repos.userIdentities,
     audit,
     ctx,
-    takedowns: repos.takedowns,
   });
   orgRoutes(api, orgRouteDeps(d));
   serverSettingRoutes(api, d);
