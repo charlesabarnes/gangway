@@ -4,8 +4,8 @@
 # a change of owner on existing state directories; revisit it with a socket proxy.
 DS-0002
 
-# CVE-2026-116587, go-jose 4.1.4 inside cloudflared: the latest cloudflared (2026.10.5) still
-# builds with it, so there is no fixed binary to take. It is a denial of service on parsing JWKs,
-# which cloudflared does for Access tokens; gangway only runs it for Share quick tunnels. The entry
-# expires so the scan fails again once a fixed release has had time to land.
-CVE-2026-116587 exp:2026-11-30
+# CVE-2026-78661, golang.org/x/net 0.61.0 inside cloudflared: the flaw is in the module's html
+# package, and cloudflared 2026.10.7 (the latest) does not link that package, so the binary cannot
+# reach it. Trivy matches on the module version alone. The entry expires so the scan checks again
+# once cloudflared has had time to take a fixed x/net.
+CVE-2026-78661 exp:2026-12-31
