@@ -6,6 +6,8 @@ import {
   TakedownSchema,
 } from "@gangway/shared/orgs-api";
 import { actorId } from "../../auth/actor.ts";
+import type { UserIdentitiesRepo } from "../../db/repos/user-identities.ts";
+import type { UsersRepo } from "../../db/repos/users.ts";
 import { badRequest, notFound } from "../../errors.ts";
 import { createOrg, type OrgDeps } from "../../tenancy/orgs.ts";
 import {
@@ -19,7 +21,8 @@ import type { AppEnv } from "../env.ts";
 import { readJson } from "../problem.ts";
 import { requirePermission } from "../middleware/auth.ts";
 
-export type OperatorDeps = OrgDeps & Omit<SuspendDeps, "orgs" | "audit">;
+export type OperatorDeps = OrgDeps &
+  Omit<SuspendDeps, "orgs" | "audit"> & { users: UsersRepo; identities: UserIdentitiesRepo };
 
 const sinceOf = (raw: string | undefined): number | undefined => {
   if (raw === undefined) {
@@ -68,6 +71,17 @@ export function operatorRoutes(api: Hono<AppEnv>, d: OperatorDeps): void {
     const after = d.orgs.limitsOf(org.id) ?? null;
     d.audit.record(actor, "org.limits", org.id, { old: before, new: after });
     return c.json({ org, limits: after });
+  });
+
+  // Who a provider's subject is here and the orgs they are in: how billing finds the org to charge.
+  api.get("/operator/memberships", requirePermission("instance.orgs"), (c) => {
+    const issuer = c.req.query("issuer");
+    const subject = c.req.query("subject");
+    if (!issuer || !subject) {
+      throw badRequest("name the identity provider's issuer and the person's subject there");
+    }
+    const userId = d.identities.userFor(issuer, subject) ?? null;
+    return c.json({ userId, memberships: userId === null ? [] : d.users.memberships(userId) });
   });
 
   api.post("/operator/orgs/:id/suspend", requirePermission("instance.orgs"), async (c) => {
