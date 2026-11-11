@@ -40,13 +40,13 @@ FROM oven/bun:1.4.4-alpine
 RUN apk upgrade --no-cache && apk add --no-cache docker-cli docker-cli-buildx docker-cli-compose git nftables openssh-client tini
 
 ARG TARGETARCH
-ARG CLOUDFLARED_VERSION=2026.10.5
+ARG CLOUDFLARED_VERSION=2026.10.7
 # TARGETARCH is BuildKit's; the classic builder leaves it empty and builds for the machine it is on.
 RUN set -eu; \
     arch=${TARGETARCH:-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')}; \
     case "$arch" in \
-      amd64) sum=e1bc0cf084fd9e590554fe769a86b1db46701c3f847a43d902f7b974a4e16298 ;; \
-      arm64) sum=72e0d05a67e09da87cf495e409a28c3cc5994dd23fc66a982eebea6a55923b7d ;; \
+      amd64) sum=1f99fb518b83dec2ba8d870a7cc991d82a77e6196295a3d2754ba17ab9f91872 ;; \
+      arm64) sum=3df43aedc9ff291d1735b5cb576cb97e0b157488796db2e32b28aecabb445775 ;; \
       *) echo "no cloudflared for $arch" >&2; exit 1 ;; \
     esac; \
     wget -qO /usr/local/bin/cloudflared \
