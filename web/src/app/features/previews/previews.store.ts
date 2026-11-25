@@ -156,6 +156,18 @@ export class PreviewsStore {
     }
   }
 
+  async setIdle(id: string, idle: string): Promise<Preview> {
+    try {
+      const { preview } = await firstValueFrom(
+        this.#http.put<{ preview: Preview }>(`/v1/previews/${id}/idle`, { idle }),
+      );
+      this.#put(preview);
+      return preview;
+    } catch (e) {
+      throw toProblem(e);
+    }
+  }
+
   /** Adds `by` (like "7d") to what it has left; "none" keeps it until it is destroyed. */
   async extend(id: string, by: string): Promise<Preview> {
     try {
@@ -200,6 +212,7 @@ export class PreviewsStore {
     }
     if (e.type === 'preview.redeploy') {
       this.#noteRedeploy(e);
+      if (e.phase === 'succeeded') void this.load(e.previewId);
       return;
     }
     const held = this.#byId().get(e.previewId);

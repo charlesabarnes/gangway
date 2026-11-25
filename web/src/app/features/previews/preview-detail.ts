@@ -30,10 +30,10 @@ import { LogViewer } from './log-viewer';
 import { PreviewSecretsPanel } from './secrets-panel';
 import { WatermarkPanel } from './watermark-panel';
 import { DomainPanel } from './domain-panel';
-import { ExtendTtl } from './extend-ttl';
 import { SharePanel } from './share-panel';
 import { PasswordPanel } from './password-panel';
 import { PreviewsStore } from './previews.store';
+import { PreviewLifetime } from './preview-lifetime';
 import { PreviewTitle } from './preview-title';
 import { SourcePanel } from './source-panel';
 import { displayName, sourceLabel } from './source-label';
@@ -47,10 +47,10 @@ import { Skeleton } from '../../ui/skeleton';
     DbBrowser,
     EmptyState,
     ErrorAlert,
-    ExtendTtl,
     LogViewer,
     PasswordBadge,
     PasswordPanel,
+    PreviewLifetime,
     PreviewSecretsPanel,
     PreviewTitle,
     RelativeTimePipe,
@@ -184,15 +184,7 @@ import { Skeleton } from '../../ui/skeleton';
                     </dd>
                   </div>
                 }
-                <div class="gw-fact">
-                  <dt>Expires</dt>
-                  <dd class="flex flex-wrap items-baseline gap-x-3">
-                    <span [title]="p.ttlExpiresAt ?? ''" data-testid="ttl">{{
-                      p.ttlExpiresAt ? (p.ttlExpiresAt | relativeTime: clock.now()) : 'never'
-                    }}</span>
-                    <app-extend-ttl [preview]="p" />
-                  </dd>
-                </div>
+                <app-preview-lifetime [preview]="p" />
               }
               <div class="gw-fact">
                 <dt>Created</dt>

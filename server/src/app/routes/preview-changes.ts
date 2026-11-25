@@ -3,6 +3,7 @@ import type { Preview } from "@gangway/shared/domain";
 import {
   PreviewExtendSchema,
   PreviewIconChangeSchema,
+  PreviewIdleChangeSchema,
   PreviewPasswordChangeSchema,
   PreviewTitleChangeSchema,
   PreviewWatermarkChangeSchema,
@@ -13,6 +14,7 @@ import { mayRebuild } from "../../auth/actor.ts";
 import type { PreviewContext } from "../../previews/context.ts";
 import { setPreviewDomain } from "../../previews/domain.ts";
 import { extendPreview } from "../../previews/extend.ts";
+import { setPreviewIdle } from "../../previews/idle.ts";
 import { setPreviewPassword } from "../../previews/password.ts";
 import { setPreviewWatermark } from "../../previews/watermark.ts";
 import type { AppEnv } from "../env.ts";
@@ -65,6 +67,15 @@ function titleRoutes(api: Hono<AppEnv>, { ctx, wire, find }: Previews): void {
     const { extend } = PreviewExtendSchema.parse(await readJson(c));
     return c.json({ preview: wire(extendPreview(ctx, c.get("actor"), p.id, extend)) });
   });
+  api.put(
+    "/previews/:id/idle",
+    requirePermission("previews.update_own", "previews.update"),
+    async (c) => {
+      const p = find(c.req.param("id"));
+      const { idle } = PreviewIdleChangeSchema.parse(await readJson(c));
+      return c.json({ preview: wire(setPreviewIdle(ctx, c.get("actor"), p.id, idle)) });
+    },
+  );
   api.put(
     "/previews/:id/icon",
     requirePermission("previews.update_own", "previews.update"),

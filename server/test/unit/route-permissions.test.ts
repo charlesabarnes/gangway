@@ -78,5 +78,6 @@ describe("route permissions", () => {
     expect(byRoute.get("DELETE /previews/:id")).toEqual(["previews.destroy"]);
     expect(byRoute.get("GET /previews/:id/logs")).toEqual(["logs.read"]);
     expect(byRoute.get("PUT /previews/:id/ttl")).toEqual(["previews.extend"]);
+    expect(byRoute.get("PUT /previews/:id/idle")).toEqual(["previews.update_own"]);
   });
 });

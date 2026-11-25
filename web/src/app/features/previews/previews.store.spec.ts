@@ -81,6 +81,21 @@ describe('PreviewsStore', () => {
     expect(t.ids()).toEqual(['01A:awake']);
   });
 
+  it('reads a preview again when its redeploy succeeds, for what the new version set', async () => {
+    const t = setup();
+    const source = await t.start([preview('01A', { idleAfterMs: 1_800_000 })]);
+    const event = { previewId: '01A', buildId: 'b1', by: 'u1' };
+    source.emit('preview.redeploy', { ...event, at: at(1), phase: 'started' }, '8');
+    t.http.expectNone('/v1/previews/01A');
+    source.emit('preview.redeploy', { ...event, at: at(2), phase: 'succeeded' }, '9');
+    t.http
+      .expectOne('/v1/previews/01A')
+      .flush({ preview: preview('01A', { idleAfterMs: 0, updatedAt: at(2) }) });
+    await t.tick();
+    expect(t.store.previews().find((p) => p.id === '01A')?.idleAfterMs).toBe(0);
+    t.http.verify();
+  });
+
   it('fetches a new preview once, however many events name it at once', async () => {
     const t = setup();
     const source = await t.start([]);

@@ -114,6 +114,7 @@ export const ROUTES: Record<string, Rule> = {
   "PUT /v1/previews/:id/watermark": victim({ watermark: "off" }),
   "PUT /v1/previews/:id/domain": victim({ domain: null }),
   "PUT /v1/previews/:id/ttl": victim({ extend: "none" }),
+  "PUT /v1/previews/:id/idle": victim({ idle: "never" }),
   "PUT /v1/previews/:id/icon": victim({ icon: null }),
   "GET /v1/previews/:id/share": victim(),
   "POST /v1/previews/:id/share": victim({}),
