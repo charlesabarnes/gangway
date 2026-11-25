@@ -3,7 +3,7 @@ import type { Actor } from "../auth/actor.ts";
 import { must } from "@gangway/shared/must";
 import { unprocessable } from "../errors.ts";
 import { EXTEND_FOREVER, extendPreview } from "../previews/extend.ts";
-import { IDLE_NEVER, setPreviewIdle } from "../previews/idle.ts";
+import { IDLE_NEVER, idleWindowMs, setPreviewIdle } from "../previews/idle.ts";
 import { describePreview } from "./describe.ts";
 import { resolveFor } from "./resolve.ts";
 import { plain } from "./tool-specs.ts";
@@ -42,6 +42,10 @@ export function extend(d: ToolDeps, actor: Actor, args: ExtendArgs): string {
   const { ctx } = d;
   if (args.by === undefined && args.idle === undefined) {
     throw unprocessable('say how much longer it lives ("by"), when it sleeps ("idle"), or both');
+  }
+  // Checked first: a bad idle must not leave the life already made longer.
+  if (args.idle !== undefined) {
+    idleWindowMs(args.idle);
   }
   const id = resolveFor(ctx, actor, args.preview).id;
   let p = args.by === undefined ? undefined : extendPreview(ctx, actor, id, args.by);

@@ -79,6 +79,12 @@ describe("the extend tool's idle", () => {
     expect(() => s.tools.extend(s.scope(), { preview: "keep", idle: "later" })).toThrow(
       "is not a duration",
     );
+    s.ctx.previews.setTtlExpiresAt(id, new Date(s.ctx.now() + 86_400_000));
+    const before = s.ctx.previews.get(id)!.ttlExpiresAt!.getTime();
+    expect(() => s.tools.extend(s.scope(), { preview: "keep", by: "2h", idle: "later" })).toThrow(
+      "is not a duration",
+    );
+    expect(s.ctx.previews.get(id)!.ttlExpiresAt!.getTime()).toBe(before);
   });
 });
 
