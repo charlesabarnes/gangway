@@ -15,6 +15,7 @@ export type AuditAction =
   | "preview.domain"
   | "preview.share"
   | "preview.extend"
+  | "preview.idle"
   | "preview.unshare"
   | "project.domain"
   | "project.production"

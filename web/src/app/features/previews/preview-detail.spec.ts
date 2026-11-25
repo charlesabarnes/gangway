@@ -29,6 +29,7 @@ const base: Preview = {
   project: 'gw-shop-pr-42',
   source: { kind: 'pr', repo: 'acme/shop', number: 42, sha: 'abc' },
   visibility: 'unlisted',
+  idleAfterMs: 1_800_000,
   urls: [
     { service: 'web', url: 'https://shop-pr-42.preview.example.dev/', primary: true },
     { service: 'api', url: 'https://shop-pr-42-api.preview.example.dev/', primary: false },
@@ -163,6 +164,29 @@ describe('PreviewDetail', () => {
     await answerHistory(r);
     expect(r.text('ttl')).toBe('never');
     expect(r.byTestId('extend')).toBeNull();
+  });
+
+  it('keeps an app awake from the Sleeps fact', async () => {
+    const r = await open({ permissions: ['previews.read', 'previews.update_own'] });
+    await answerHistory(r);
+    expect(r.text('idle')).toBe('after 30 minutes idle');
+    r.byTestId('idle-change')!.click();
+    await r.settle();
+    r.byTestId('idle-never')!.click();
+    await r.settle();
+    const put = r.http.expectOne(`/v1/previews/${ID}/idle`);
+    expect(put.request.body).toEqual({ idle: 'never' });
+    put.flush({ preview: { ...base, idleAfterMs: 0, updatedAt: 'later' } });
+    await r.settle();
+    await answerHistory(r);
+    expect(r.text('idle')).toBe('never');
+  });
+
+  it('shows when it sleeps, with no Change, to someone who cannot update it', async () => {
+    const r = await open();
+    await answerHistory(r);
+    expect(r.text('idle')).toBe('after 30 minutes idle');
+    expect(r.byTestId('idle-change')).toBeNull();
   });
 
   it('offers no extend without the permission', async () => {

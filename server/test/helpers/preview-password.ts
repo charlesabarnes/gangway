@@ -132,6 +132,7 @@ export function previewPasswordApi(actor: Actor = ACTOR) {
     putIcon: (id: string, body: unknown) => put(`/previews/${id}/icon`, body),
     putWatermark: (id: string, body: unknown) => put(`/previews/${id}/watermark`, body),
     putTtl: (id: string, body: unknown) => put(`/previews/${id}/ttl`, body),
+    putIdle: (id: string, body: unknown) => put(`/previews/${id}/idle`, body),
   };
 }
 

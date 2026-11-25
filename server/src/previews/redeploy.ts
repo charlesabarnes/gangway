@@ -37,6 +37,7 @@ import {
 import { planRebuild, type Rebuild, type RebuildPlan } from "./rebuild-plan.ts";
 import type { RedeployInput } from "./redeploy-input.ts";
 import { reservedBytes } from "./compose-model.ts";
+import { followStackIdle } from "./idle.ts";
 import { releaseStack } from "./destroy.ts";
 import { imageIds, removeReplaced } from "./replaced-images.ts";
 import { markServing, plannedBytes, withheldLine } from "./site.ts";
@@ -382,6 +383,7 @@ async function run(ctx: PreviewContext, r: RebuildRun): Promise<RedeployOutcome>
     await r.keep("deployed");
     p.log("rebuilt: awake");
     ctx.states.transition(p.id, "awake");
+    followStackIdle(ctx, p.id, r.model);
     // Untag first: the replaced images are then removed as before, and `:prev` keeps none.
     await dropPrevious(ctx, scopeOf(p, r), f.previous);
     await removeReplaced(ctx, images, before, p.id);

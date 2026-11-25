@@ -190,6 +190,14 @@ export class PreviewsRepo {
     });
   }
 
+  setIdleAfterMs(id: string, ms: number): void {
+    this.#db.run("UPDATE previews SET idle_after_ms = $ms, updated_at = $now WHERE id = $id", {
+      id,
+      ms,
+      now: this.#now(),
+    });
+  }
+
   setWatermark(id: string, watermark: WatermarkChoice): void {
     this.#db.run("UPDATE previews SET watermark = $w, updated_at = $now WHERE id = $id", {
       id,

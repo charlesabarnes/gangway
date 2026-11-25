@@ -27,7 +27,7 @@ describe("the tools", () => {
       secrets: ["previews.secrets", "repos.secrets"],
       domains: ["previews.domain", "repos.domains", "domains.manage"],
       share: ["previews.share"],
-      extend: ["previews.extend"],
+      extend: ["previews.extend", "previews.update", "previews.update_own"],
     });
   });
 

@@ -214,6 +214,8 @@ export const PreviewWatermarkChangeSchema = z.strictObject({
 
 /** How much longer a preview lives, added to what it has left; "none" means it never expires. */
 export const PreviewExtendSchema = z.strictObject({ extend: z.string().min(1).max(16) });
+// How long without a request before it sleeps, like "30m"; "never" keeps it awake.
+export const PreviewIdleChangeSchema = z.strictObject({ idle: z.string().min(1).max(16) });
 
 /** How long a public share link lasts; the server caps it at its own maximum. */
 export const PreviewShareSchema = z.strictObject({ ttl: z.string().max(16).optional() });
