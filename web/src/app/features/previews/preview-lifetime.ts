@@ -5,7 +5,6 @@ import { RelativeTimePipe } from '../../ui/relative-time.pipe';
 import { ExtendTtl } from './extend-ttl';
 import { IdleWindow } from './idle-window';
 
-/** Two facts about how long a preview stays: when it expires and when it sleeps. */
 @Component({
   selector: 'app-preview-lifetime',
   imports: [ExtendTtl, IdleWindow, RelativeTimePipe],

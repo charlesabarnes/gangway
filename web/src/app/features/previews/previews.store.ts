@@ -212,7 +212,6 @@ export class PreviewsStore {
     }
     if (e.type === 'preview.redeploy') {
       this.#noteRedeploy(e);
-      // A new version can change what the preview is set to, such as when it sleeps.
       if (e.phase === 'succeeded') void this.load(e.previewId);
       return;
     }

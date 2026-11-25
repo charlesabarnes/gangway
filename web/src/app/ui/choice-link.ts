@@ -63,7 +63,6 @@ const LINK =
   `,
 })
 export class ChoiceLink {
-  /** Prefixes the test ids and the prompt's id. */
   readonly name = input.required<string>();
   readonly label = input.required<string>();
   readonly prompt = input.required<string>();
@@ -79,7 +78,6 @@ export class ChoiceLink {
   private readonly toggleEl = viewChild<ElementRef<HTMLButtonElement>>('toggle');
 
   constructor() {
-    // Opening moves focus to the first choice; closing hands it back to the link.
     effect(() => {
       if (this.open()) this.choiceEls()[0]?.nativeElement.focus();
     });
